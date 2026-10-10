@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">财务账本</string>
     <string name="auth_brand">Finance Tracker</string>
+    <string name="app_name">财务账本</string>
     <string name="auth_email_placeholder">name@example.com</string>
+    <string name="auth_login_title">登录</string>
+    <string name="auth_create_title">创建账户</string>
+    <string name="auth_confirm_password">确认密码</string>
+    <string name="auth_back_to_login">返回登录</string>
+    <string name="auth_email_valid">✓ 邮箱格式正确</string>
+    <string name="auth_email_invalid">✕ 邮箱格式不正确</string>
+    <string name="auth_password_neutral">至少 12 个字符</string>
+    <string name="auth_password_valid">✓ 至少 12 个字符</string>
+    <string name="auth_password_invalid">✕ 至少 12 个字符</string>
+    <string name="auth_confirm_password_valid">✓ 两次密码一致</string>
+    <string name="auth_confirm_password_invalid">✕ 两次密码不一致</string>
+    <string name="auth_confirm_password_submit_error">请确认两次输入的密码一致。</string>
     <string name="copy_00a0a58be6">近 30 天</string>
     <string name="copy_01152a1690">没有匹配的分类。</string>
     <string name="copy_0153e1a001">暂不处理</string>

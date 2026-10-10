@@ -10,7 +10,7 @@
 - `heroui-reference.lib.pen`、`finance-design-system.lib.pen`：历史占位资产，不作为当前来源。
 - `login.pen`：登录/注册页首个设计样板。
 - `workspace-entry.pen`、`cash-ledger.pen`、`cash-record.pen`、`cash-import.pen`、`invitation.pen`、`cash-categories.pen`、`investment-holdings.pen`、`investment-events.pen`、`workspace-management.pen`：其余页面的 Compact、Regular、Wide 设计稿。
-- `generated/pen-variables.json`：由 `scripts/generate_ui_tokens.py` 生成的变量同步清单，不是 `.pen` 文件。
+- `generated/pen-variables.json`：由 `scripts/generate_ui_tokens.py` 生成的变量同步清单，不是 `.pen` 文件。CLI 导出的预览图片与 PDF 属于临时产物，不提交到仓库；需要审查时写入 `/tmp` 或对应变更的测试结果目录。
 
 HeroUI 官方代码、`@heroui/styles` 和 CSS variables 是视觉与 token 的上游事实源；OpenSpec 定义业务行为与验收，`.pen` 维护页面结构、表单顺序、反馈位置、组件语义、无障碍设计和状态画面，Compose `commonMain` 是运行实现。不再维护重复的页面、模式和组件 YAML。token JSON 位于 `openspec/specs/shared/design-system/tokens/`，仍是项目 token 生成器的唯一输入；`.pen` 变量与生成清单是消费副本。不要直接编辑 `.pen` 的内部 JSON、节点 ID 或引用关系。
 
@@ -47,4 +47,4 @@ Gallery 使用独立入口，避免业务应用的全局样式覆盖官方组件
 
 ## 当前状态
 
-本变更已通过官方 interactive CLI 生成并保存 `heroui-reference.pen`、`heroui.lib.pen`、`finance-ui.lib.pen` 和 F-01 至 F-10 的页面稿。其余九份页面稿各有 320、375、390、414、768、1440 px 主画布和状态画布，截图见 `previews/`。持仓、投资事件表格是 `finance-ui.lib.pen` 中的可复用组件，页面通过库实例引用；重建命令见 `tools/pen/build-finance-tables.mjs` 与 `tools/pen/rebuild-web-pages.mjs`。设计稿确认前不继续扩大页面实现范围。
+本变更已通过官方 interactive CLI 生成并保存 `heroui-reference.pen`、`heroui.lib.pen`、`finance-ui.lib.pen` 和 F-01 至 F-10 的页面稿。持仓、投资事件表格是 `finance-ui.lib.pen` 中的可复用组件，页面通过库实例引用；重建命令见 `tools/pen/build-finance-tables.mjs` 与 `tools/pen/rebuild-web-pages.mjs`。设计稿确认前不继续扩大页面实现范围。

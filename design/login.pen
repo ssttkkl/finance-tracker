@@ -3,645 +3,123 @@
   "children": [
     {
       "type": "frame",
-      "id": "U8eII",
-      "x": 0,
-      "y": 0,
-      "name": "登录到你的账本 / 320",
-      "clip": true,
-      "width": 320,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "text",
-          "id": "LbAKe",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
-          "fontWeight": "600"
-        },
-        {
-          "type": "frame",
-          "id": "s8vpQ",
-          "name": "访问内容",
-          "width": 288,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
-          "children": [
-            {
-              "type": "text",
-              "id": "d2ycle",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 27,
-              "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "LdV8p",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "Y4uDnw",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "AvL8e",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "S0ecpl",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "oMTKP",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "E48pcQ",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "n0Vu6",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
-            },
-            {
-              "type": "text",
-              "id": "EYKEQ",
-              "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "k2M5f2",
-      "x": 390,
-      "y": 0,
-      "name": "登录到你的账本 / 375",
-      "clip": true,
-      "width": 375,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "text",
-          "id": "Ymz2M",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
-          "fontWeight": "600"
-        },
-        {
-          "type": "frame",
-          "id": "lAmGl",
-          "name": "访问内容",
-          "width": 343,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
-          "children": [
-            {
-              "type": "text",
-              "id": "nZS1W",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 27,
-              "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "mUmMQ",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "XarzR",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "yZddK",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "f9M8Id",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "U3QeR",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "ly8dC",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "U74iNP",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
-            },
-            {
-              "type": "text",
-              "id": "OIuUg",
-              "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
       "id": "SV9TY",
       "x": 835,
       "y": 0,
-      "name": "登录到你的账本 / 390",
+      "name": "登录到你的账本 / COMPACT (390) / 默认",
       "clip": true,
       "width": 390,
       "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
+      "fill": "#FFFFFF",
+      "layout": "none",
       "children": [
         {
           "type": "text",
-          "id": "xQmbX",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
-          "fontWeight": "600"
+          "id": "lzKa0",
+          "x": 24,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "登录",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
         },
-        {
-          "type": "frame",
-          "id": "f6mgv",
-          "name": "访问内容",
-          "width": 358,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
-          "children": [
-            {
-              "type": "text",
-              "id": "wik6k",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 27,
-              "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "bLoyg",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "lSWql",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "yCres",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "qcxs1",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "Ml9h5",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "C4miw",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "x9HJnv",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
-            },
-            {
-              "type": "text",
-              "id": "TZ01R",
-              "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "DFWxS",
-      "x": 1295,
-      "y": 0,
-      "name": "登录到你的账本 / 414",
-      "clip": true,
-      "width": 414,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
-      "children": [
         {
           "type": "text",
-          "id": "u7Mey",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
+          "id": "l6rFXW",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
           "fontWeight": "600"
         },
         {
-          "type": "frame",
-          "id": "neyPh",
-          "name": "访问内容",
-          "width": 382,
-          "fill": "#ffffff",
+          "type": "rectangle",
           "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
-          "children": [
-            {
-              "type": "text",
-              "id": "u6gCnM",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 27,
-              "fontWeight": "700"
-            },
-            {
-              "type": "frame",
-              "id": "uxFMc",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "P0eMfQ",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "b7j0kE",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "D95YyO",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "P6L5v",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "k8wWU",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "S7kdxj",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
-            },
-            {
-              "type": "text",
-              "id": "qLHRg",
-              "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            }
-          ]
+          "id": "nJAqu",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "LAjdN",
+          "x": 24,
+          "y": 206,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "g6WXKS",
+          "x": 24,
+          "y": 230,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "KQZqr",
+          "x": 24,
+          "y": 300,
+          "name": "登录按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "edj4G",
+          "x": 181,
+          "y": 313,
+          "name": "登录按钮文字",
+          "fill": "#FFFFFF",
+          "content": "登录",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "A4VIJU",
+          "x": 142.5,
+          "y": 368,
+          "name": "注册入口",
+          "fill": "$accent",
+          "content": "还没有账户？注册",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "Y8T6d",
+          "x": 124,
+          "y": 355.5,
+          "name": "注册入口点击区域",
+          "width": 137,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none"
         }
       ]
     },
@@ -650,157 +128,142 @@
       "id": "X30S0",
       "x": 1779,
       "y": 0,
-      "name": "登录到你的账本 / 768",
+      "name": "登录到你的账本 / REGULAR (768) / 默认",
       "clip": true,
       "width": 768,
       "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
+      "fill": "$background",
+      "layout": "none",
       "children": [
         {
-          "type": "text",
-          "id": "KbSwM",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
-          "fontWeight": "600"
-        },
-        {
           "type": "frame",
-          "id": "c2Zr0",
-          "name": "访问内容",
-          "width": 430,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
+          "id": "Uzs5Q",
+          "x": 164,
+          "y": 255,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 390,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
           "children": [
             {
               "type": "text",
-              "id": "joxUH",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 30,
+              "id": "t8rCOZ",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
               "fontWeight": "700"
             },
             {
-              "type": "frame",
-              "id": "I2ZwS",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "QQC9l",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "CTc5E",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
+              "type": "text",
+              "id": "hygej",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
             },
             {
-              "type": "frame",
-              "id": "ZPFJo",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "J7uVQ",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "m232YY",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "G5Z8jK",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "V1cWg",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
             },
             {
               "type": "text",
-              "id": "QceRN",
+              "id": "U7wp7N",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "Pgeqb",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "K6IxCm",
+              "x": 32,
+              "y": 268,
+              "name": "登录按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "OLpHU",
+              "x": 206,
+              "y": 281,
+              "name": "登录按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "JcyZF",
+              "x": 167.5,
+              "y": 334.5,
               "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
+              "fill": "$accent",
               "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
+              "fontFamily": "Inter",
               "fontSize": 13,
-              "fontWeight": "normal"
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "oDgmY",
+              "x": 187,
+              "y": 322,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
             }
           ]
         }
@@ -811,157 +274,142 @@
       "id": "spUwA",
       "x": 2617,
       "y": 0,
-      "name": "登录到你的账本 / 1440",
+      "name": "登录到你的账本 / WIDE (1440) / 默认",
       "clip": true,
       "width": 1440,
       "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 20,
-      "padding": [
-        20,
-        16
-      ],
-      "justifyContent": "center",
-      "alignItems": "center",
+      "fill": "$background",
+      "layout": "none",
       "children": [
         {
-          "type": "text",
-          "id": "f1LHs4",
-          "name": "品牌名称",
-          "fill": "#0485f7",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker",
-          "textAlign": "center",
-          "fontFamily": "Roboto",
-          "fontSize": 16,
-          "fontWeight": "600"
-        },
-        {
           "type": "frame",
-          "id": "DB9Pt",
-          "name": "访问内容",
-          "width": 430,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 16,
-          "padding": 24,
+          "id": "MROlv",
+          "x": 500,
+          "y": 255,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 390,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
           "children": [
             {
               "type": "text",
-              "id": "dAys0",
-              "name": "登录标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "登录到你的账本",
-              "fontFamily": "Roboto",
-              "fontSize": 30,
+              "id": "mZEIp",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
               "fontWeight": "700"
             },
             {
-              "type": "frame",
-              "id": "Tx3du",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "Pbubp",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "W61mt",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
+              "type": "text",
+              "id": "oiuCe",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
             },
             {
-              "type": "frame",
-              "id": "tiszp",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "p0Uwc",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "JCXDG",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "id": "LBiVw",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "登录",
-              "height": 36,
-              "width": "fill_container",
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "登录"
-                }
-              }
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "nOc3f",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
             },
             {
               "type": "text",
-              "id": "xFw1f",
+              "id": "QMvz2",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "ds7JZ",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "I9n90z",
+              "x": 32,
+              "y": 268,
+              "name": "登录按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "sAbq5",
+              "x": 206,
+              "y": 281,
+              "name": "登录按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "FGQbU",
+              "x": 167.5,
+              "y": 334.5,
               "name": "注册入口",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
+              "fill": "$accent",
               "content": "还没有账户？注册",
-              "textAlign": "center",
-              "fontFamily": "Roboto",
+              "fontFamily": "Inter",
               "fontSize": 13,
-              "fontWeight": "normal"
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "imbb6",
+              "x": 187,
+              "y": 322,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
             }
           ]
         }
@@ -969,404 +417,4680 @@
     },
     {
       "type": "frame",
-      "id": "rw0BG",
-      "x": 0,
-      "y": 1800,
-      "name": "登录到你的账本 / 状态与确认",
+      "id": "bjLzq",
+      "x": 835,
+      "y": 3000,
+      "name": "创建你的账户 / COMPACT (390) / 默认",
       "clip": true,
-      "width": 620,
-      "height": 930,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 12,
-      "padding": 24,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
       "children": [
         {
           "type": "text",
-          "id": "jOp10",
-          "name": "标题",
-          "fill": "#202124",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "Finance Tracker 登录状态",
-          "fontFamily": "Roboto",
-          "fontSize": 20,
+          "id": "MJniA",
+          "x": 76,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "创建账户",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "pmRhv",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "dJdbt",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "ys7KG",
+          "x": 24,
+          "y": 208,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "d2RH3",
+          "x": 24,
+          "y": 232,
+          "name": "密码校验提示",
+          "fill": "#71717A",
+          "content": "至少 12 个字符",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "V1lNCx",
+          "x": 24,
+          "y": 252,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "aUJ3z",
+          "x": 24,
+          "y": 318,
+          "name": "确认密码字段标题",
+          "fill": "$foreground",
+          "content": "确认密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "l1f33",
+          "x": 24,
+          "y": 342,
+          "name": "确认密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "HgoEP",
+          "x": 24,
+          "y": 412,
+          "name": "注册按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "RYlPK",
+          "x": 181,
+          "y": 425,
+          "name": "注册按钮文字",
+          "fill": "#FFFFFF",
+          "content": "注册",
+          "fontFamily": "Inter",
+          "fontSize": 14,
           "fontWeight": "600"
         },
         {
           "type": "frame",
-          "id": "OIRLy",
-          "name": "加载中",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
+          "id": "R220D",
+          "x": 16,
+          "y": 59.5,
+          "name": "返回登录",
+          "metadata": {
+            "type": "button",
+            "action": "back_to_login"
+          },
+          "width": 44,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none",
           "children": [
             {
-              "type": "text",
-              "id": "SvOJc",
-              "name": "加载中标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "加载中",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "NQRcD",
-              "name": "加载中内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "正在登录…",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "sQt1x",
-          "name": "空状态",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "ktv4l",
-              "name": "空状态标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "空状态",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "AgKol",
-              "name": "空状态内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "请输入邮箱和密码",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "lhPz8",
-          "name": "错误状态",
-          "width": "fill_container",
-          "height": 112,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "g4ntmQ",
-              "name": "错误状态标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "错误状态",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "a6hoq",
-              "name": "错误状态内容",
-              "fill": "#c8372b",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "邮箱或密码不正确，请重试",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            },
-            {
-              "id": "sPUFp",
-              "type": "ref",
-              "ref": "D:uEyLt",
-              "name": "重试",
-              "height": 36,
-              "width": 76,
-              "descendants": {
-                "D:Wee4B": {
-                  "content": "重试"
-                }
-              }
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "XqTOL",
-          "name": "成功反馈",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "E0Jxq",
-              "name": "成功反馈标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "成功反馈",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "gySfa",
-              "name": "成功反馈内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "已登录",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "Zuxku",
-          "name": "禁用与焦点",
-          "width": "fill_container",
-          "height": 140,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "xM3hv",
-              "name": "禁用与焦点标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "禁用与焦点",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "KkjDz",
-              "name": "禁用与焦点内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "信息未填完时，登录不可用",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "Vt2Th",
-              "name": "焦点与禁用示例",
-              "width": "fill_container",
-              "gap": 10,
-              "alignItems": "center",
-              "children": [
-                {
-                  "id": "q3bHc",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "焦点字段",
-                  "width": 220,
-                  "height": 40,
-                  "stroke": "#0485f7",
-                  "strokeWidth": 2,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "输入中"
-                    }
-                  }
-                },
-                {
-                  "id": "clVgZ",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "保存",
-                  "height": 36,
-                  "width": 76,
-                  "opacity": 0.45,
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "保存"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "XXSMt",
-          "name": "注册模式",
-          "width": "fill_container",
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 8,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "K4TWp",
-              "name": "模式标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "注册账户",
-              "fontFamily": "Roboto",
-              "fontSize": 16,
-              "fontWeight": "600"
-            },
-            {
-              "type": "frame",
-              "id": "z3iEO",
-              "name": "邮箱",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "mf3YL",
-                  "name": "邮箱标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "邮箱",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "ubm9Q",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "邮箱输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": "name@example.com"
-                    }
-                  }
-                }
-              ]
-            },
-            {
-              "type": "frame",
-              "id": "Qsupx",
-              "name": "密码",
-              "width": "fill_container",
-              "layout": "vertical",
-              "gap": 6,
-              "children": [
-                {
-                  "type": "text",
-                  "id": "q82RZj",
-                  "name": "密码标签",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "密码",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                },
-                {
-                  "id": "fZqi6",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "密码输入",
-                  "width": "fill_container",
-                  "height": 40,
-                  "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
-                    },
-                    "D:YDsht": {
-                      "content": ""
-                    }
-                  }
-                },
-                {
-                  "type": "text",
-                  "id": "O6lgx",
-                  "name": "密码长度提示",
-                  "fill": "#6f7279",
-                  "textGrowth": "fixed-width",
-                  "width": "fill_container",
-                  "content": "至少 12 个字符",
-                  "fontFamily": "Roboto",
-                  "fontSize": 12,
-                  "fontWeight": "normal"
-                }
-              ]
-            },
-            {
-              "id": "HBmTm",
-              "type": "ref",
-              "ref": "D:CjC40",
-              "name": "注册",
-              "height": 36,
-              "width": 100,
-              "descendants": {
-                "D:IWqn3": {
-                  "content": "注册"
-                }
-              }
+              "type": "icon",
+              "id": "k9yyV",
+              "x": 10,
+              "y": 3.75,
+              "name": "返回登录图标",
+              "width": 24,
+              "height": 24,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$foreground"
             }
           ]
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "M1ThxH",
+      "x": 1779,
+      "y": 3000,
+      "name": "创建你的账户 / REGULAR (768) / 默认",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "j58oPc",
+          "x": 164,
+          "y": 221,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 458,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "IuA7k",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "JE59O",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "o1PjD",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "wNLSx",
+              "x": 32,
+              "y": 176,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "ViO9q",
+              "x": 32,
+              "y": 200,
+              "name": "密码校验提示",
+              "fill": "#71717A",
+              "content": "至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "G7uaTJ",
+              "x": 32,
+              "y": 220,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "TkmXr",
+              "x": 32,
+              "y": 286,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "rkO40",
+              "x": 32,
+              "y": 310,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "rsRwZ",
+              "x": 32,
+              "y": 380,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "c37fI",
+              "x": 206,
+              "y": 393,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "XG1MS",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "z8MtY",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "dxhA2",
+      "x": 2617,
+      "y": 3000,
+      "name": "创建你的账户 / WIDE (1440) / 默认",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "s2IPu1",
+          "x": 500,
+          "y": 221,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 458,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "cxhXi",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "HweMc",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "Ief19",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "zITsR",
+              "x": 32,
+              "y": 176,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "cdqyE",
+              "x": 32,
+              "y": 200,
+              "name": "密码校验提示",
+              "fill": "#71717A",
+              "content": "至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "SpRoY",
+              "x": 32,
+              "y": 220,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "ZO4x1",
+              "x": 32,
+              "y": 286,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "QSn4X",
+              "x": 32,
+              "y": 310,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "nUsRm",
+              "x": 32,
+              "y": 380,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "ga84P",
+              "x": 206,
+              "y": 393,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "Dv98a",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "XshUA",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "TItrE",
+      "x": 835,
+      "y": 1000,
+      "name": "登录到你的账本 / COMPACT (390) / 登录中",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "XaY1L",
+          "x": 24,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "登录",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "pdLeI",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "e4boW",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "h6JDg",
+          "x": 38,
+          "y": 156,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@example.com",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "JLNAN",
+          "x": 24,
+          "y": 206,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "gJlKS",
+          "x": 24,
+          "y": 230,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "oXYKI",
+          "x": 38,
+          "y": 244,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "m9UTt",
+          "x": 24,
+          "y": 300,
+          "name": "禁用登录按钮",
+          "fill": "#9CCCFB",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "ellipse",
+          "id": "sL8s0",
+          "x": 156,
+          "y": 316,
+          "name": "登录中加载指示",
+          "innerRadius": 0.55,
+          "fill": "#FFFFFF",
+          "width": 14,
+          "height": 14
+        },
+        {
+          "type": "text",
+          "id": "BOTbh",
+          "x": 178,
+          "y": 313,
+          "name": "登录中按钮文字",
+          "fill": "#FFFFFF",
+          "content": "登录中…",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "q39zG",
+          "x": 142.5,
+          "y": 368,
+          "name": "注册入口",
+          "fill": "$accent",
+          "content": "还没有账户？注册",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "S9hdqB",
+          "x": 124,
+          "y": 355.5,
+          "name": "注册入口点击区域",
+          "width": 137,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "G3UAD",
+      "x": 1779,
+      "y": 1000,
+      "name": "登录到你的账本 / REGULAR (768) / 登录中",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "L4ECHu",
+          "x": 164,
+          "y": 255,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 390,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "Nxsc1",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "qDPME",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "bNdUh",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "rTw4X",
+              "x": 46,
+              "y": 124,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "aatWL",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "N8Twvj",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "zVOlm",
+              "x": 46,
+              "y": 212,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "d8jAp",
+              "x": 32,
+              "y": 268,
+              "name": "禁用登录按钮",
+              "fill": "#9CCCFB",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "ellipse",
+              "id": "mMECf",
+              "x": 181,
+              "y": 284,
+              "name": "登录中加载指示",
+              "innerRadius": 0.55,
+              "fill": "#FFFFFF",
+              "width": 14,
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "Gxpk4",
+              "x": 203,
+              "y": 281,
+              "name": "登录中按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录中…",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "ar5r9",
+              "x": 167.5,
+              "y": 334.5,
+              "name": "注册入口",
+              "fill": "$accent",
+              "content": "还没有账户？注册",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "s862bg",
+              "x": 187,
+              "y": 322,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "CpEvl",
+      "x": 2617,
+      "y": 1000,
+      "name": "登录到你的账本 / WIDE (1440) / 登录中",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "heKNf",
+          "x": 500,
+          "y": 255,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 390,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "OTwe1",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "zcAle",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "bjX9k",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "xJbWx",
+              "x": 46,
+              "y": 124,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "M9u6Hb",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "ZA6W9",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "hW9Fe",
+              "x": 46,
+              "y": 212,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "R4z3b",
+              "x": 32,
+              "y": 268,
+              "name": "禁用登录按钮",
+              "fill": "#9CCCFB",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "ellipse",
+              "id": "a3DCK",
+              "x": 181,
+              "y": 284,
+              "name": "登录中加载指示",
+              "innerRadius": 0.55,
+              "fill": "#FFFFFF",
+              "width": 14,
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "BZbRu",
+              "x": 203,
+              "y": 281,
+              "name": "登录中按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录中…",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "nAUAt",
+              "x": 167.5,
+              "y": 334.5,
+              "name": "注册入口",
+              "fill": "$accent",
+              "content": "还没有账户？注册",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "z1n3sD",
+              "x": 187,
+              "y": 322,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "c4wBU",
+      "x": 835,
+      "y": 2000,
+      "name": "登录到你的账本 / COMPACT (390) / 登录错误",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "lWLSC",
+          "x": 24,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "登录",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "QPUiZ",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "Aopcr",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "o9zH6",
+          "x": 38,
+          "y": 156,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@example.com",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "lfZtG",
+          "x": 24,
+          "y": 206,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "sRw2D",
+          "x": 24,
+          "y": 230,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "xrEON",
+          "x": 38,
+          "y": 244,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "S7x5Z",
+          "x": 24,
+          "y": 288,
+          "name": "表单级错误背景",
+          "fill": "#FEF3F2",
+          "width": 342,
+          "height": 48,
+          "stroke": "#FECACA",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "Orn1P",
+          "x": 36,
+          "y": 304,
+          "name": "表单级错误",
+          "fill": "$danger",
+          "content": "✕ 邮箱或密码不正确。请检查后重试。",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "tViPx",
+          "x": 24,
+          "y": 352,
+          "name": "登录按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "hMI3g",
+          "x": 181,
+          "y": 365,
+          "name": "登录按钮文字",
+          "fill": "#FFFFFF",
+          "content": "登录",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "C8F1M6",
+          "x": 142.5,
+          "y": 420,
+          "name": "注册入口",
+          "fill": "$accent",
+          "content": "还没有账户？注册",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "frame",
+          "id": "k5bcsE",
+          "x": 124,
+          "y": 407.5,
+          "name": "注册入口点击区域",
+          "width": 137,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none"
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "h0wrSu",
+      "x": 1779,
+      "y": 2000,
+      "name": "登录到你的账本 / REGULAR (768) / 登录错误",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "M7xtT9",
+          "x": 164,
+          "y": 229,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 442,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "nSNl7",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "w5j24",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "KcdGM",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "DcvAp",
+              "x": 46,
+              "y": 124,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "wn5SX",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "C2L7e",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "X4hev",
+              "x": 46,
+              "y": 212,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "jE6Dk",
+              "x": 32,
+              "y": 256,
+              "name": "表单级错误背景",
+              "fill": "#FEF3F2",
+              "width": 376,
+              "height": 48,
+              "stroke": "#FECACA",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "Kiyhk",
+              "x": 44,
+              "y": 272,
+              "name": "表单级错误",
+              "fill": "$danger",
+              "content": "✕ 邮箱或密码不正确。请检查后重试。",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "f5oRud",
+              "x": 32,
+              "y": 320,
+              "name": "登录按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "rZlcj",
+              "x": 206,
+              "y": 333,
+              "name": "登录按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "byiXp",
+              "x": 167.5,
+              "y": 386.5,
+              "name": "注册入口",
+              "fill": "$accent",
+              "content": "还没有账户？注册",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "WXDem",
+              "x": 187,
+              "y": 374,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "lEs9S",
+      "x": 2617,
+      "y": 2000,
+      "name": "登录到你的账本 / WIDE (1440) / 登录错误",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "exZvK",
+          "x": 500,
+          "y": 229,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 442,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "OCV35",
+              "x": 32,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "eg226",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "IhwN2",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "PHCsN",
+              "x": 46,
+              "y": 124,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "SGjM9",
+              "x": 32,
+              "y": 174,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "VItZN",
+              "x": 32,
+              "y": 198,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "qsRFt",
+              "x": 46,
+              "y": 212,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "GiqGq",
+              "x": 32,
+              "y": 256,
+              "name": "表单级错误背景",
+              "fill": "#FEF3F2",
+              "width": 376,
+              "height": 48,
+              "stroke": "#FECACA",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "aKK9r",
+              "x": 44,
+              "y": 272,
+              "name": "表单级错误",
+              "fill": "$danger",
+              "content": "✕ 邮箱或密码不正确。请检查后重试。",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "Kyy2I",
+              "x": 32,
+              "y": 320,
+              "name": "登录按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "jGAgW",
+              "x": 206,
+              "y": 333,
+              "name": "登录按钮文字",
+              "fill": "#FFFFFF",
+              "content": "登录",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "J0SPat",
+              "x": 167.5,
+              "y": 386.5,
+              "name": "注册入口",
+              "fill": "$accent",
+              "content": "还没有账户？注册",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "frame",
+              "id": "gSQPO",
+              "x": 187,
+              "y": 374,
+              "name": "注册入口点击区域",
+              "width": 137,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "j1oqoI",
+      "x": 835,
+      "y": 4000,
+      "name": "创建你的账户 / COMPACT (390) / 校验通过",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "J0Lvmt",
+          "x": 76,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "创建账户",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "r6xAXl",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "qqrAS",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱校验提示",
+          "fill": "#188038",
+          "content": "✓ 邮箱格式正确",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "IDIO6",
+          "x": 24,
+          "y": 162,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#000000",
+          "strokeWidth": 2
+        },
+        {
+          "type": "text",
+          "id": "F43s4X",
+          "x": 38,
+          "y": 176,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@example.com",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "W66R6q",
+          "x": 24,
+          "y": 228,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "xi9hm",
+          "x": 24,
+          "y": 252,
+          "name": "密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 至少 12 个字符",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "y5JJcD",
+          "x": 24,
+          "y": 272,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "S637k",
+          "x": 38,
+          "y": 286,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "N1UH88",
+          "x": 24,
+          "y": 338,
+          "name": "确认密码字段标题",
+          "fill": "$foreground",
+          "content": "确认密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "F59lBT",
+          "x": 24,
+          "y": 362,
+          "name": "确认密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 两次密码一致",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "ZuBlD",
+          "x": 24,
+          "y": 382,
+          "name": "确认密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "sBoai",
+          "x": 38,
+          "y": 396,
+          "name": "确认密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "e8tXj",
+          "x": 24,
+          "y": 452,
+          "name": "注册按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "H75Zv",
+          "x": 181,
+          "y": 465,
+          "name": "注册按钮文字",
+          "fill": "#FFFFFF",
+          "content": "注册",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "hc0QK",
+          "x": 16,
+          "y": 59.5,
+          "name": "返回登录",
+          "metadata": {
+            "type": "button",
+            "action": "back_to_login"
+          },
+          "width": 44,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "fvr8Q",
+              "x": 10,
+              "y": 3.75,
+              "name": "返回登录图标",
+              "width": 24,
+              "height": 24,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$foreground"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QWp0p",
+      "x": 1779,
+      "y": 4000,
+      "name": "创建你的账户 / REGULAR (768) / 校验通过",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "Y0881C",
+          "x": 164,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "i4f8z",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "I1zDOf",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "pAj9r",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "TFYP8",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#000000",
+              "strokeWidth": 2
+            },
+            {
+              "type": "text",
+              "id": "d0r7xV",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "afb3a",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "QSubs",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "Z09gtg",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "ow5Ef",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "s0sg3i",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "t9eH1g",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "c1EVZk",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "jsSPt",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "HnHGx",
+              "x": 32,
+              "y": 420,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "SJZhD",
+              "x": 206,
+              "y": 433,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "QsT1s",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "q5hnP",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "zDTNx",
+      "x": 2617,
+      "y": 4000,
+      "name": "创建你的账户 / WIDE (1440) / 校验通过",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ij0iG",
+          "x": 500,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "z8yZz",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "p6LjtL",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "HwFIx",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "bCKKC",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#000000",
+              "strokeWidth": 2
+            },
+            {
+              "type": "text",
+              "id": "a5Zdl",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "gzIs0",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "grdm8",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "FCuT7",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "h35Bc9",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "Oygxk",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "uvApx",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "o7zNM",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "DlG9S",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "YdERN",
+              "x": 32,
+              "y": 420,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "ShxFz",
+              "x": 206,
+              "y": 433,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "Ehxbo",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "a3nFX",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "l7piJ",
+      "x": 835,
+      "y": 5000,
+      "name": "创建你的账户 / COMPACT (390) / 校验失败",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "miybv",
+          "x": 76,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "创建账户",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "TsxXM",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "gfAVN",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱校验提示",
+          "fill": "$danger",
+          "content": "✕ 邮箱格式不正确",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "Tv7MS",
+          "x": 24,
+          "y": 162,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "bli5n",
+          "x": 38,
+          "y": 176,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "D1UCa",
+          "x": 24,
+          "y": 228,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "ftkA5",
+          "x": 24,
+          "y": 252,
+          "name": "密码校验提示",
+          "fill": "$danger",
+          "content": "✕ 至少 12 个字符",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "D9yBfo",
+          "x": 24,
+          "y": 272,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "gqqh9",
+          "x": 38,
+          "y": 286,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "r0tYFQ",
+          "x": 24,
+          "y": 338,
+          "name": "确认密码字段标题",
+          "fill": "$foreground",
+          "content": "确认密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "cIea2",
+          "x": 24,
+          "y": 362,
+          "name": "确认密码校验提示",
+          "fill": "$danger",
+          "content": "✕ 两次密码不一致",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "JKRh7",
+          "x": 24,
+          "y": 382,
+          "name": "确认密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "JSlur",
+          "x": 38,
+          "y": 396,
+          "name": "确认密码输入内容",
+          "fill": "$foreground",
+          "content": "•••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "bkjIK",
+          "x": 24,
+          "y": 452,
+          "name": "注册按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "sRT3I",
+          "x": 181,
+          "y": 465,
+          "name": "注册按钮文字",
+          "fill": "#FFFFFF",
+          "content": "注册",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "F9RW5",
+          "x": 16,
+          "y": 59.5,
+          "name": "返回登录",
+          "metadata": {
+            "type": "button",
+            "action": "back_to_login"
+          },
+          "width": 44,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "SI1TY",
+              "x": 10,
+              "y": 3.75,
+              "name": "返回登录图标",
+              "width": 24,
+              "height": 24,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$foreground"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "DKm5V",
+      "x": 1779,
+      "y": 5000,
+      "name": "创建你的账户 / REGULAR (768) / 校验失败",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "AqERG",
+          "x": 164,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "LEi8b",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "pVfNn",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "O6BUaj",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "$danger",
+              "content": "✕ 邮箱格式不正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "KL8Hd",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "Bwgli",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "vS8yL",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "W4PwZ",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "$danger",
+              "content": "✕ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "bh5qH",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "z4aUkU",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "iyQ1j",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "UuiVo",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "$danger",
+              "content": "✕ 两次密码不一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "pCvWH",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "E8BhK2",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "•••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "aQ7VL",
+              "x": 32,
+              "y": 420,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "mvLvW",
+              "x": 206,
+              "y": 433,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "bET5P",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "vftI6",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "n4FX0m",
+      "x": 2617,
+      "y": 5000,
+      "name": "创建你的账户 / WIDE (1440) / 校验失败",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "jhQbY",
+          "x": 500,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "V1GN4C",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "gNhT4",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "C0eTYV",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "$danger",
+              "content": "✕ 邮箱格式不正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "hn8kt",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "oHEXR",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "F6R70q",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "pUL1p",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "$danger",
+              "content": "✕ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "lLwaL",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "v48rt",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "gRFFO",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "aiftV",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "$danger",
+              "content": "✕ 两次密码不一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "S7DRt9",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "iiG3V",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "•••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "NRVaP",
+              "x": 32,
+              "y": 420,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "nLyH1",
+              "x": 206,
+              "y": 433,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "jqfEP",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "gVwww",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "rkCKT",
+      "x": 835,
+      "y": 6000,
+      "name": "创建你的账户 / COMPACT (390) / 注册中",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "bHYFi",
+          "x": 76,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "创建账户",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "qcfPE",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "qqlG9",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱校验提示",
+          "fill": "#188038",
+          "content": "✓ 邮箱格式正确",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "rT9T6",
+          "x": 24,
+          "y": 162,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "GfX2o",
+          "x": 38,
+          "y": 176,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@example.com",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "uTPkG",
+          "x": 24,
+          "y": 228,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "Ip8kC",
+          "x": 24,
+          "y": 252,
+          "name": "密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 至少 12 个字符",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "ujgcR",
+          "x": 24,
+          "y": 272,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "C89O0",
+          "x": 38,
+          "y": 286,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "w3AOCz",
+          "x": 24,
+          "y": 338,
+          "name": "确认密码字段标题",
+          "fill": "$foreground",
+          "content": "确认密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "S4i3v",
+          "x": 24,
+          "y": 362,
+          "name": "确认密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 两次密码一致",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "FE3e8",
+          "x": 24,
+          "y": 382,
+          "name": "确认密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "n1Hn8y",
+          "x": 38,
+          "y": 396,
+          "name": "确认密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "MtYOT",
+          "x": 24,
+          "y": 452,
+          "name": "禁用注册按钮",
+          "fill": "#9CCCFB",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "ellipse",
+          "id": "r8D3MQ",
+          "x": 156,
+          "y": 468,
+          "name": "注册中加载指示",
+          "innerRadius": 0.55,
+          "fill": "#FFFFFF",
+          "width": 14,
+          "height": 14
+        },
+        {
+          "type": "text",
+          "id": "UKLRt",
+          "x": 178,
+          "y": 465,
+          "name": "注册中按钮文字",
+          "fill": "#FFFFFF",
+          "content": "注册中…",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "RjmX0",
+          "x": 16,
+          "y": 59.5,
+          "name": "返回登录",
+          "metadata": {
+            "type": "button",
+            "action": "back_to_login"
+          },
+          "width": 44,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "VUpzV",
+              "x": 10,
+              "y": 3.75,
+              "name": "返回登录图标",
+              "width": 24,
+              "height": 24,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$foreground"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "diPL3",
+      "x": 1779,
+      "y": 6000,
+      "name": "创建你的账户 / REGULAR (768) / 注册中",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "uvjX9",
+          "x": 164,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "o6rO8",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "Wk8dP",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "U7dMu",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "lkXO5",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "qh2Bu",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "WwqEN",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "VFTlN",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "c6nZP",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "TPR0b",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "YM76g",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "RPycd",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "cS8Fe",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "E0zEF",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "t66FWZ",
+              "x": 32,
+              "y": 420,
+              "name": "禁用注册按钮",
+              "fill": "#9CCCFB",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "ellipse",
+              "id": "bHN0M",
+              "x": 181,
+              "y": 436,
+              "name": "注册中加载指示",
+              "innerRadius": 0.55,
+              "fill": "#FFFFFF",
+              "width": 14,
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "XXZy9",
+              "x": 203,
+              "y": 433,
+              "name": "注册中按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册中…",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "D0ors",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "V695RB",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "XHEQv",
+      "x": 2617,
+      "y": 6000,
+      "name": "创建你的账户 / WIDE (1440) / 注册中",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "D2bkr",
+          "x": 500,
+          "y": 201,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 498,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "zWm6J",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "OWqxf",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "RToYM",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "wtQ4h",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "OX8uZ",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "q1i5ch",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "uu8Nf",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "mPmBQ",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "isipO",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "yyMZI",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "Dvm2W",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "S7uuaO",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "PvWXl",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "c5i64a",
+              "x": 32,
+              "y": 420,
+              "name": "禁用注册按钮",
+              "fill": "#9CCCFB",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "ellipse",
+              "id": "EsDCy",
+              "x": 181,
+              "y": 436,
+              "name": "注册中加载指示",
+              "innerRadius": 0.55,
+              "fill": "#FFFFFF",
+              "width": 14,
+              "height": 14
+            },
+            {
+              "type": "text",
+              "id": "pXpw6",
+              "x": 203,
+              "y": 433,
+              "name": "注册中按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册中…",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "PHA07",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "VvVnU",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "DvN5k",
+      "x": 835,
+      "y": 7000,
+      "name": "创建你的账户 / COMPACT (390) / 注册错误",
+      "clip": true,
+      "width": 390,
+      "height": 900,
+      "fill": "#FFFFFF",
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "ON2f0",
+          "x": 76,
+          "y": 64,
+          "name": "页面标题",
+          "fill": "$foreground",
+          "content": "创建账户",
+          "fontFamily": "Inter",
+          "fontSize": 24,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "b3cCpY",
+          "x": 24,
+          "y": 118,
+          "name": "邮箱字段标题",
+          "fill": "$foreground",
+          "content": "邮箱",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "QlwMD",
+          "x": 24,
+          "y": 142,
+          "name": "邮箱校验提示",
+          "fill": "#188038",
+          "content": "✓ 邮箱格式正确",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "H7FwDp",
+          "x": 24,
+          "y": 162,
+          "name": "邮箱输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "sSSMC",
+          "x": 38,
+          "y": 176,
+          "name": "邮箱输入内容",
+          "fill": "$foreground",
+          "content": "hello@example.com",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "c9WE4",
+          "x": 24,
+          "y": 228,
+          "name": "密码字段标题",
+          "fill": "$foreground",
+          "content": "密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "p7qOQ",
+          "x": 24,
+          "y": 252,
+          "name": "密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 至少 12 个字符",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "GMxWk",
+          "x": 24,
+          "y": 272,
+          "name": "密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "DsGEc",
+          "x": 38,
+          "y": 286,
+          "name": "密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "text",
+          "id": "rHDf6",
+          "x": 24,
+          "y": 338,
+          "name": "确认密码字段标题",
+          "fill": "$foreground",
+          "content": "确认密码",
+          "fontFamily": "Inter",
+          "fontSize": 15,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "n0vtY5",
+          "x": 24,
+          "y": 362,
+          "name": "确认密码校验提示",
+          "fill": "#188038",
+          "content": "✓ 两次密码一致",
+          "fontFamily": "Inter",
+          "fontSize": 12,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "r6jo4S",
+          "x": 24,
+          "y": 382,
+          "name": "确认密码输入",
+          "fill": "$surface",
+          "width": 342,
+          "height": 46,
+          "stroke": "#D9D9DE",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "m93c46",
+          "x": 38,
+          "y": 396,
+          "name": "确认密码输入内容",
+          "fill": "$foreground",
+          "content": "••••••••••••",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 8,
+          "id": "NISzj",
+          "x": 24,
+          "y": 440,
+          "name": "表单级服务器错误背景",
+          "fill": "#FEF3F2",
+          "width": 342,
+          "height": 48,
+          "stroke": "#FECACA",
+          "strokeWidth": 1
+        },
+        {
+          "type": "text",
+          "id": "cCCZx",
+          "x": 36,
+          "y": 448,
+          "name": "表单级服务器错误",
+          "fill": "$danger",
+          "content": "✕ 注册暂时无法完成，请稍后重试。",
+          "fontFamily": "Inter",
+          "fontSize": 13,
+          "fontWeight": "500"
+        },
+        {
+          "type": "rectangle",
+          "cornerRadius": 23,
+          "id": "P0CJo",
+          "x": 24,
+          "y": 504,
+          "name": "注册按钮",
+          "fill": "$accent",
+          "width": 342,
+          "height": 46
+        },
+        {
+          "type": "text",
+          "id": "slUcj",
+          "x": 181,
+          "y": 517,
+          "name": "注册按钮文字",
+          "fill": "#FFFFFF",
+          "content": "注册",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "Q9U0us",
+          "x": 16,
+          "y": 59.5,
+          "name": "返回登录",
+          "metadata": {
+            "type": "button",
+            "action": "back_to_login"
+          },
+          "width": 44,
+          "height": 44,
+          "fill": "#FFFFFF00",
+          "layout": "none",
+          "children": [
+            {
+              "type": "icon",
+              "id": "lyoFC",
+              "x": 10,
+              "y": 3.75,
+              "name": "返回登录图标",
+              "width": 24,
+              "height": 24,
+              "icon": "arrow-left",
+              "library": "lucide",
+              "fill": "$foreground"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "uGbiD",
+      "x": 1779,
+      "y": 7000,
+      "name": "创建你的账户 / REGULAR (768) / 注册错误",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "wUycO",
+          "x": 164,
+          "y": 175,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 550,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "kd1tg",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "GD7l5",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "DukYB",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "OiIHf",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "C73wmn",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "QvVJJ",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "UFk1c",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "EneEA",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "O2pKm",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "q5XaKR",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "z0uMB",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "dckHH",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "dYb2l",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "moZNp",
+              "x": 32,
+              "y": 408,
+              "name": "表单级服务器错误背景",
+              "fill": "#FEF3F2",
+              "width": 376,
+              "height": 48,
+              "stroke": "#FECACA",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "CiJVl",
+              "x": 44,
+              "y": 416,
+              "name": "表单级服务器错误",
+              "fill": "$danger",
+              "content": "✕ 注册暂时无法完成，请稍后重试。",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "C2g2w8",
+              "x": 32,
+              "y": 472,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "DQkz7",
+              "x": 206,
+              "y": 485,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "l4IhqR",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "GSZic",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "N7OSd",
+      "x": 2617,
+      "y": 7000,
+      "name": "创建你的账户 / WIDE (1440) / 注册错误",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "yDjsc",
+          "x": 500,
+          "y": 175,
+          "name": "认证表单卡片",
+          "width": 440,
+          "height": 550,
+          "fill": "$surface",
+          "cornerRadius": 12,
+          "effect": {
+            "type": "shadow",
+            "shadowType": "outer",
+            "color": "#18181B12",
+            "offset": {
+              "x": 0,
+              "y": 8
+            },
+            "blur": 24
+          },
+          "layout": "none",
+          "children": [
+            {
+              "type": "text",
+              "id": "Didk7",
+              "x": 84,
+              "y": 32,
+              "name": "页面标题",
+              "fill": "$foreground",
+              "content": "创建账户",
+              "fontFamily": "Inter",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "type": "text",
+              "id": "J9ryz",
+              "x": 32,
+              "y": 86,
+              "name": "邮箱字段标题",
+              "fill": "$foreground",
+              "content": "邮箱",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "agWNd",
+              "x": 32,
+              "y": 110,
+              "name": "邮箱校验提示",
+              "fill": "#188038",
+              "content": "✓ 邮箱格式正确",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "Q9v4RK",
+              "x": 32,
+              "y": 130,
+              "name": "邮箱输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "kuLKx",
+              "x": 46,
+              "y": 144,
+              "name": "邮箱输入内容",
+              "fill": "$foreground",
+              "content": "hello@example.com",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "FTOi6",
+              "x": 32,
+              "y": 196,
+              "name": "密码字段标题",
+              "fill": "$foreground",
+              "content": "密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "lvcAW",
+              "x": 32,
+              "y": 220,
+              "name": "密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 至少 12 个字符",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "IlAri",
+              "x": 32,
+              "y": 240,
+              "name": "密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "uBTDu",
+              "x": 46,
+              "y": 254,
+              "name": "密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "text",
+              "id": "uBnJJ",
+              "x": 32,
+              "y": 306,
+              "name": "确认密码字段标题",
+              "fill": "$foreground",
+              "content": "确认密码",
+              "fontFamily": "Inter",
+              "fontSize": 15,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "OTR6D",
+              "x": 32,
+              "y": 330,
+              "name": "确认密码校验提示",
+              "fill": "#188038",
+              "content": "✓ 两次密码一致",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "wE6nI",
+              "x": 32,
+              "y": 350,
+              "name": "确认密码输入",
+              "fill": "$surface",
+              "width": 376,
+              "height": 46,
+              "stroke": "#D9D9DE",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "sZ5sq",
+              "x": 46,
+              "y": 364,
+              "name": "确认密码输入内容",
+              "fill": "$foreground",
+              "content": "••••••••••••",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "normal"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 8,
+              "id": "jHVMh",
+              "x": 32,
+              "y": 408,
+              "name": "表单级服务器错误背景",
+              "fill": "#FEF3F2",
+              "width": 376,
+              "height": 48,
+              "stroke": "#FECACA",
+              "strokeWidth": 1
+            },
+            {
+              "type": "text",
+              "id": "C1FFz2",
+              "x": 44,
+              "y": 416,
+              "name": "表单级服务器错误",
+              "fill": "$danger",
+              "content": "✕ 注册暂时无法完成，请稍后重试。",
+              "fontFamily": "Inter",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "rectangle",
+              "cornerRadius": 23,
+              "id": "qYpTB",
+              "x": 32,
+              "y": 472,
+              "name": "注册按钮",
+              "fill": "$accent",
+              "width": 376,
+              "height": 46
+            },
+            {
+              "type": "text",
+              "id": "HTZAw",
+              "x": 206,
+              "y": 485,
+              "name": "注册按钮文字",
+              "fill": "#FFFFFF",
+              "content": "注册",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "WgWYy",
+              "x": 32,
+              "y": 27.5,
+              "name": "返回登录",
+              "metadata": {
+                "type": "button",
+                "action": "back_to_login"
+              },
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF00",
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "EaT6d",
+                  "x": 10,
+                  "y": 3.75,
+                  "name": "返回登录图标",
+                  "width": 24,
+                  "height": 24,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$foreground"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "D4FkQ",
+      "x": 0,
+      "y": 8000,
+      "name": "设计注释 / 深色模式",
+      "width": 680,
+      "height": 140,
+      "fill": "#FFFBEA",
+      "cornerRadius": 8,
+      "stroke": "#E8D79A",
+      "strokeWidth": 1,
+      "layout": "none",
+      "children": [
+        {
+          "type": "text",
+          "id": "j61VDK",
+          "x": 20,
+          "y": 20,
+          "name": "深色模式设计注释",
+          "fill": "#5B4A00",
+          "textGrowth": "fixed-width",
+          "width": 620,
+          "content": "深色模式沿用相同页面布局与状态层级，使用现有 D:mode dark 主题 token；本文件不额外复制深色画板。",
+          "fontFamily": "Inter",
+          "fontSize": 14,
+          "fontWeight": "normal"
+        }
+      ]
     }
   ],
+  "variables": {
+    "background": {
+      "type": "color",
+      "value": "#F7F8FA"
+    },
+    "surface": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "accent": {
+      "type": "color",
+      "value": "#1A73E8"
+    },
+    "foreground": {
+      "type": "color",
+      "value": "#18181B"
+    },
+    "danger": {
+      "type": "color",
+      "value": "#D92D20"
+    }
+  },
   "imports": {
     "D": "finance-ui.lib.pen"
   },

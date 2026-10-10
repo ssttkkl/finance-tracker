@@ -1,8 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Finance Tracker</string>
     <string name="auth_brand">Finance Tracker</string>
+    <string name="app_name">Finance Tracker</string>
     <string name="auth_email_placeholder">name@example.com</string>
+    <string name="auth_login_title">Sign in</string>
+    <string name="auth_create_title">Create account</string>
+    <string name="auth_confirm_password">Confirm password</string>
+    <string name="auth_back_to_login">Back to sign in</string>
+    <string name="auth_email_valid">✓ Email format is valid</string>
+    <string name="auth_email_invalid">✕ Enter a valid email address</string>
+    <string name="auth_password_neutral">At least 12 characters</string>
+    <string name="auth_password_valid">✓ At least 12 characters</string>
+    <string name="auth_password_invalid">✕ At least 12 characters</string>
+    <string name="auth_confirm_password_valid">✓ Passwords match</string>
+    <string name="auth_confirm_password_invalid">✕ Passwords do not match</string>
+    <string name="auth_confirm_password_submit_error">Make sure both passwords match.</string>
     <string name="copy_00a0a58be6">Past 30 days</string>
     <string name="copy_01152a1690">No matching categories.</string>
     <string name="copy_0153e1a001">Skip for now</string>

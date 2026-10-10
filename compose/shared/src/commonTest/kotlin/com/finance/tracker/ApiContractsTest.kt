@@ -101,6 +101,12 @@ class ApiContractsTest {
         assertEquals(AuthFocusControl.SUBMIT, nextAuthFocusControl(AuthFocusControl.TOGGLE_MODE, backwards = true))
         assertEquals(AuthFocusControl.PASSWORD, nextAuthFocusControl(AuthFocusControl.SUBMIT, backwards = true))
         assertEquals(AuthFocusControl.EMAIL, nextAuthFocusControl(AuthFocusControl.PASSWORD, backwards = true))
+        assertEquals(AuthFocusControl.BACK, nextAuthFocusControl(null, backwards = false, registering = true))
+        assertEquals(AuthFocusControl.EMAIL, nextAuthFocusControl(AuthFocusControl.BACK, backwards = false, registering = true))
+        assertEquals(AuthFocusControl.PASSWORD, nextAuthFocusControl(AuthFocusControl.EMAIL, backwards = false, registering = true))
+        assertEquals(AuthFocusControl.CONFIRM_PASSWORD, nextAuthFocusControl(AuthFocusControl.PASSWORD, backwards = false, registering = true))
+        assertEquals(AuthFocusControl.SUBMIT, nextAuthFocusControl(AuthFocusControl.CONFIRM_PASSWORD, backwards = false, registering = true))
+        assertEquals(AuthFocusControl.CONFIRM_PASSWORD, nextAuthFocusControl(AuthFocusControl.SUBMIT, backwards = true, registering = true))
     }
 
     @Test

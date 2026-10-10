@@ -48,11 +48,23 @@ const activeInputMode = async (page: import("@playwright/test").Page) => page.ev
   return null;
 });
 
+const expectTopRelativeTo = async (
+  element: import("@playwright/test").Locator,
+  container: import("@playwright/test").Locator,
+  expectedTop: number,
+) => {
+  const elementBox = await element.boundingBox();
+  const containerBox = await container.boundingBox();
+  expect(elementBox).not.toBeNull();
+  expect(containerBox).not.toBeNull();
+  expect(Math.abs((elementBox?.y ?? 0) - (containerBox?.y ?? 0) - expectedTop)).toBeLessThanOrEqual(2);
+};
+
 test("Compose 登录表单按 Tab 键顺序聚焦", async ({ page }) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.goto("/");
   await expect(page.locator('[id="auth.email"]').last()).toBeVisible();
-  await page.locator('[id="auth.email"]').last().click({ force: true });
+  await page.keyboard.press("Tab");
   await expect.poll(() => activeInputMode(page)).toBe("email");
   await page.keyboard.press("Tab");
   await expect.poll(() => activeInputMode(page)).toBe("password");
@@ -65,27 +77,150 @@ test("Compose 登录输入框向辅助技术公开邮箱和密码标签", async 
   await expect(page.getByRole("textbox", { name: "密码" })).toBeVisible();
 });
 
-test("Compose 登录与注册显示对应的品牌和密码提示", async ({ page }, testInfo) => {
-  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ page }, testInfo) => {
+  const fixtures = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.goto("/");
+  await page.evaluate(() => document.fonts.ready);
 
-  for (const width of [390, 1440]) {
+  for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(page.getByText("Finance Tracker", { exact: true })).toBeVisible();
+    const card = page.locator('[id="auth.card"]').last();
+    await expect(page.locator('[id="auth.title"]').last()).toHaveText("登录");
+    await expect(page.getByText("Finance Tracker", { exact: true })).toHaveCount(0);
     await expect(page.getByText("工作区访问", { exact: true })).toHaveCount(0);
-    await page.locator('[id="auth.password"]').last().click({ force: true });
     await expect(page.getByText("至少 12 个字符", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "邮箱" })).toBeVisible();
+    await expect(page.locator('[id="auth.email"]')).not.toHaveAttribute("placeholder", /.+/);
+
+    if (width === 390) {
+      await expect(card).toHaveCount(0);
+      const titleBox = await page.locator('[id="auth.title"]').last().boundingBox();
+      expect(titleBox).not.toBeNull();
+      expect(titleBox?.y ?? 999).toBeLessThan(120);
+    } else {
+      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
+      await expect.poll(async () => {
+        const box = await card.boundingBox();
+        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
+      }).toBeLessThanOrEqual(2);
+      const cardBox = await card.boundingBox();
+      expect(cardBox).not.toBeNull();
+      expect(Math.abs((cardBox?.x ?? 0) - (width - (cardBox?.width ?? 0)) / 2)).toBeLessThanOrEqual(2);
+      expect(Math.abs((cardBox?.height ?? 0) - 390)).toBeLessThanOrEqual(2);
+    }
     await page.screenshot({ path: testInfo.outputPath(`login-${width}.png`) });
   }
 
   await page.setViewportSize({ width: 390, height: 900 });
   const modeToggle = page.locator('[id="auth.toggle-mode"]').last();
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await expect(modeToggle).toBeInViewport();
   await modeToggle.scrollIntoViewIfNeeded();
   await modeToggle.click({ force: true });
-  await expect(page.getByText("创建你的账户", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.title"]').last()).toHaveText("创建账户");
+  await expect(page.getByRole("button", { name: "返回登录" })).toBeVisible();
   await expect(page.getByRole("button", { name: "注册" })).toBeVisible();
   await expect(page.getByText("至少 12 个字符", { exact: true })).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath("register-390.png") });
+  await expect(page.getByRole("textbox", { name: "确认密码" })).toBeVisible();
+  await expect(page.getByText("邮箱格式正确", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("两次密码一致", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("已有账户？登录", { exact: true })).toHaveCount(0);
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow, `注册默认态在 ${width}px 下不应横向溢出`).toBe(false);
+    if (width === 390) {
+      await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+    } else {
+      const card = page.locator('[id="auth.card"]').last();
+      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
+      await expect.poll(async () => {
+        const box = await card.boundingBox();
+        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
+      }).toBeLessThanOrEqual(2);
+      const cardBox = await card.boundingBox();
+      expect(Math.abs((cardBox?.height ?? 0) - 458)).toBeLessThanOrEqual(2);
+      await expectTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 110);
+      await expectTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 220);
+      await expectTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 310);
+      await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 380);
+      for (const control of [
+        page.locator('[id="auth.email.control"]').last(),
+        page.locator('[id="auth.password.control"]').last(),
+        page.locator('[id="auth.confirm-password.control"]').last(),
+        page.locator('[id="auth.submit"]').last(),
+      ]) {
+        const controlBox = await control.boundingBox();
+        expect(Math.abs((controlBox?.width ?? 0) - 376)).toBeLessThanOrEqual(2);
+        expect(Math.abs((controlBox?.x ?? 0) - ((cardBox?.x ?? 0) + 32))).toBeLessThanOrEqual(2);
+        expect(Math.abs(((controlBox?.x ?? 0) + (controlBox?.width ?? 0)) - ((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 32))).toBeLessThanOrEqual(2);
+      }
+    }
+    await page.screenshot({ path: testInfo.outputPath(`register-default-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await expect(page.locator('[id="auth.email"]').last()).toBeInViewport();
+  const backButton = page.getByRole("button", { name: "返回登录" });
+  await page.locator('[id="auth.email"]').last().click({ force: true });
+  await expect.poll(() => activeInputMode(page)).toBe("email");
+  await page.keyboard.press("Tab");
+  await expect.poll(() => activeInputMode(page)).toBe("password");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("x");
+  await expect(page.getByText("✕ 两次密码不一致", { exact: true })).toBeVisible();
+  await page.keyboard.press("Tab");
+  await expect.poll(() => activeInputMode(page)).toBeNull();
+  await typeIntoComposeInput(page, '[id="auth.email"]', "not-an-email");
+  await expect(page.getByText("✕ 邮箱格式不正确", { exact: true })).toBeVisible();
+  await typeIntoComposeInput(page, '[id="auth.password"]', "short", { replace: true });
+  await expect(page.getByText("✕ 至少 12 个字符", { exact: true })).toBeVisible();
+  await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "different");
+  await expect(page.getByText("✕ 两次密码不一致", { exact: true })).toBeVisible();
+  await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com", { replace: true });
+  await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { replace: true });
+  await page.getByRole("button", { name: "注册" }).click({ force: true });
+  await expect(page.getByText("请确认两次输入的密码一致。", { exact: true })).toBeVisible();
+  expect(fixtures.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/register")).toBe(false);
+
+  for (const width of [320, 375, 390, 414, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(overflow, `注册页面在 ${width}px 下不应横向溢出`).toBe(false);
+    if (width < 600) {
+      await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+    } else {
+      const card = page.locator('[id="auth.card"]').last();
+      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
+      await expect.poll(async () => {
+        const box = await card.boundingBox();
+        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
+      }).toBeLessThanOrEqual(2);
+    }
+    if (width === 390 || width === 768 || width === 1440) {
+      await page.screenshot({ path: testInfo.outputPath(`register-validation-error-${width}.png`) });
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await backButton.click({ force: true });
+  await expect(page.locator('[id="auth.title"]').last()).toHaveText("登录");
+
+  await modeToggle.click({ force: true });
+  await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com", { replace: true });
+  await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { replace: true });
+  await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "Sample-password-123", { replace: true });
+  await page.getByRole("button", { name: "注册" }).click({ force: true });
+  await expect(page.locator('[id="ledger.screen"]')).toBeVisible();
+  const registrationRequest = fixtures.calls.find((call) => call.method === "POST" && call.path === "/api/v1/auth/register");
+  expect(registrationRequest).toBeDefined();
+  expect(JSON.parse(registrationRequest?.body ?? "{}")).not.toHaveProperty("confirm_password");
+  expect(JSON.parse(registrationRequest?.body ?? "{}")).not.toHaveProperty("confirmPassword");
+
 });
 
 test("Compose Web 中文字体从同源资源加载", async ({ page }) => {
@@ -134,18 +269,21 @@ test("Compose 登录显示提交错误并可切换注册", async ({ page }) => {
   expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n")).toContain("AUTHENTICATION\tAUTHENTICATE\tinvalid_credentials\t401\tDomainFailure");
 
   await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
-  await expect(page.getByText("创建你的账户", { exact: true })).toBeVisible();
-  await expect(page.locator('[id="auth.toggle-mode"]')).toContainText("已有账户？登录");
+  await expect(page.locator('[id="auth.title"]').last()).toHaveText("创建账户");
+  await expect(page.getByRole("button", { name: "返回登录" })).toBeVisible();
+  await expect(page.locator('[id="auth.toggle-mode"]')).toHaveCount(0);
 });
 
 test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ page }) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.goto("/");
-  await page.locator('[id="auth.submit"]').last().click({ force: true });
-
-  await expect(page.locator('[id="auth.error"]')).toContainText("请输入邮箱。");
+  const submitButton = page.locator('[id="auth.submit"]').last();
+  await expect(submitButton).toBeVisible();
+  await expect(submitButton).toBeEnabled();
+  await submitButton.click({ force: true });
   await expect.poll(() => page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? ""))
     .toContain("AUTHENTICATION\tVALIDATE_INPUT\tauth_input_invalid_emailrequired\t\tInputValidationFailure");
+  await expect(page.locator('[id="auth.error"]')).toContainText("请输入邮箱。");
   const diagnosticLog = await page.evaluate(() => window.localStorage.getItem("finance-tracker:diagnostics") ?? "");
   expect(diagnosticLog).not.toContain("@");
   expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n"))
