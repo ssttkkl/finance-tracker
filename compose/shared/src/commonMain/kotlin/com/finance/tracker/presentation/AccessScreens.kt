@@ -33,7 +33,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
@@ -49,17 +48,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.isShiftPressed
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
@@ -90,51 +81,9 @@ internal fun AuthScreen(
     var confirmPassword by remember { mutableStateOf("") }
     var showValidationError by remember { mutableStateOf(false) }
     var confirmPasswordError by remember { mutableStateOf(false) }
-    val focusedControl = remember { mutableStateOf<AuthFocusControl?>(null) }
     val emailFocus = remember { FocusRequester() }
     val passwordFocus = remember { FocusRequester() }
     val confirmPasswordFocus = remember { FocusRequester() }
-    val submitFocus = remember { FocusRequester() }
-    val toggleModeFocus = remember { FocusRequester() }
-    val backFocus = remember { FocusRequester() }
-    val focusManager = LocalFocusManager.current
-    val currentRegistering by rememberUpdatedState(registering)
-    val currentFocusedControl = focusedControl
-    val tabFocusModifier = if (isWebPlatform) Modifier else Modifier.onPreviewKeyEvent { event ->
-        if (event.key == Key.Tab && event.type == KeyEventType.KeyDown) {
-            focusManager.moveFocus(if (event.isShiftPressed) FocusDirection.Previous else FocusDirection.Next)
-        } else false
-    }
-    DisposableEffect(Unit) {
-        val removeListener = if (isWebPlatform) {
-            observeBrowserTabNavigation { backwards ->
-                if (currentFocusedControl.value == null) {
-                    val initialControl = nextAuthFocusControl(null, backwards, currentRegistering)
-                    currentFocusedControl.value = initialControl
-                    when (initialControl) {
-                        AuthFocusControl.BACK -> backFocus.requestFocus()
-                        AuthFocusControl.EMAIL -> emailFocus.requestFocus()
-                        AuthFocusControl.PASSWORD -> passwordFocus.requestFocus()
-                        AuthFocusControl.CONFIRM_PASSWORD -> confirmPasswordFocus.requestFocus()
-                        AuthFocusControl.SUBMIT -> submitFocus.requestFocus()
-                        AuthFocusControl.TOGGLE_MODE -> toggleModeFocus.requestFocus()
-                    }
-                } else {
-                    val nextControl = nextAuthFocusControl(currentFocusedControl.value, backwards, currentRegistering)
-                    currentFocusedControl.value = nextControl
-                    when (nextControl) {
-                        AuthFocusControl.BACK -> backFocus.requestFocus()
-                        AuthFocusControl.EMAIL -> emailFocus.requestFocus()
-                        AuthFocusControl.PASSWORD -> passwordFocus.requestFocus()
-                        AuthFocusControl.CONFIRM_PASSWORD -> confirmPasswordFocus.requestFocus()
-                        AuthFocusControl.SUBMIT -> submitFocus.requestFocus()
-                        AuthFocusControl.TOGGLE_MODE -> toggleModeFocus.requestFocus()
-                    }
-                }
-            }
-        } else ({})
-        onDispose(removeListener)
-    }
     val validation = validateCredentials(email, password)
     val emailStatus = when {
         email.isBlank() -> null
@@ -197,14 +146,6 @@ internal fun AuthScreen(
                 emailFocus = emailFocus,
                 passwordFocus = passwordFocus,
                 confirmPasswordFocus = confirmPasswordFocus,
-                submitFocus = submitFocus,
-                toggleModeFocus = toggleModeFocus,
-                backFocus = backFocus,
-                tabFocusModifier = tabFocusModifier,
-                onFocusControlChange = { focusedControl.value = it },
-                onFocusControlLost = { lost ->
-                    if (focusedControl.value == lost) focusedControl.value = null
-                },
                 onEmailChange = { email = it; showValidationError = false; confirmPasswordError = false },
                 onPasswordChange = { password = it; showValidationError = false; confirmPasswordError = false },
                 onConfirmPasswordChange = { confirmPassword = it; showValidationError = false; confirmPasswordError = false },
@@ -247,12 +188,6 @@ private fun AuthFormContent(
     emailFocus: FocusRequester,
     passwordFocus: FocusRequester,
     confirmPasswordFocus: FocusRequester,
-    submitFocus: FocusRequester,
-    toggleModeFocus: FocusRequester,
-    backFocus: FocusRequester,
-    tabFocusModifier: Modifier,
-    onFocusControlChange: (AuthFocusControl) -> Unit,
-    onFocusControlLost: (AuthFocusControl) -> Unit,
     onEmailChange: (String) -> Unit,
     onPasswordChange: (String) -> Unit,
     onConfirmPasswordChange: (String) -> Unit,
@@ -265,15 +200,9 @@ private fun AuthFormContent(
         if (registering) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 AuthBackButton(
-                    focusRequester = backFocus,
                     enabled = !busy,
                     colors = colors,
                     modifier = Modifier.alignBy { density.run { 27.75.dp.roundToPx() } }
-                        .onFocusChanged {
-                            if (it.isFocused) onFocusControlChange(AuthFocusControl.BACK)
-                            else onFocusControlLost(AuthFocusControl.BACK)
-                        }
-                        .then(tabFocusModifier)
                         .testTag(SemanticIds.authBack),
                     onClick = onBack,
                 )
@@ -292,10 +221,7 @@ private fun AuthFormContent(
         }
         Spacer(Modifier.height(10.dp))
         AuthTextField(email, onEmailChange, localizedText("copy_9ed627bcf6"), SemanticIds.authEmail, emailFocus, !busy, colors,
-            modifier = tabFocusModifier,
-            focusControl = AuthFocusControl.EMAIL,
-            onFocusControlChange = onFocusControlChange,
-            onFocusControlLost = onFocusControlLost,
+            modifier = Modifier,
             supportingText = if (registering) emailStatus else null,
             supportingColor = if (emailStatus == localizedText("auth_email_invalid")) Color(0xFFD92D20) else Color(0xFF188038),
             keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email, imeAction = androidx.compose.ui.text.input.ImeAction.Next),
@@ -303,10 +229,7 @@ private fun AuthFormContent(
         )
         Spacer(Modifier.height(if (registering) 20.dp else 18.dp))
         AuthTextField(password, onPasswordChange, localizedText("copy_c839a8ff17"), SemanticIds.authPassword, passwordFocus, !busy, colors,
-            modifier = tabFocusModifier,
-            focusControl = AuthFocusControl.PASSWORD,
-            onFocusControlChange = onFocusControlChange,
-            onFocusControlLost = onFocusControlLost,
+            modifier = Modifier,
             supportingText = if (registering) passwordStatus else null,
             supportingColor = when {
                 password.length >= 12 -> Color(0xFF188038)
@@ -320,10 +243,7 @@ private fun AuthFormContent(
         if (registering) {
             Spacer(Modifier.height(20.dp))
             AuthTextField(confirmPassword, onConfirmPasswordChange, localizedText("auth_confirm_password"), SemanticIds.authConfirmPassword, confirmPasswordFocus, !busy, colors,
-                modifier = tabFocusModifier,
-                focusControl = AuthFocusControl.CONFIRM_PASSWORD,
-                onFocusControlChange = onFocusControlChange,
-                onFocusControlLost = onFocusControlLost,
+                modifier = Modifier,
                 supportingText = confirmPasswordStatus,
                 supportingColor = if (confirmPassword == password) Color(0xFF188038) else Color(0xFFD92D20),
                 keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
@@ -339,20 +259,14 @@ private fun AuthFormContent(
             Spacer(Modifier.height(24.dp))
         }
         AuthPrimaryButton(onSubmit, !busy, colors,
-                modifier = Modifier.focusRequester(submitFocus).onFocusChanged {
-                    if (it.isFocused) onFocusControlChange(AuthFocusControl.SUBMIT)
-                    else onFocusControlLost(AuthFocusControl.SUBMIT)
-                }.then(tabFocusModifier).testTag(SemanticIds.authSubmit),
+                modifier = Modifier.testTag(SemanticIds.authSubmit),
         ) {
             if (busy) CircularProgressIndicator() else Text(if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
         }
         if (!registering) {
             Spacer(Modifier.height(8.dp))
             AuthModeButton(onToggleMode, !busy, colors,
-                modifier = Modifier.focusRequester(toggleModeFocus).onFocusChanged {
-                    if (it.isFocused) onFocusControlChange(AuthFocusControl.TOGGLE_MODE)
-                    else onFocusControlLost(AuthFocusControl.TOGGLE_MODE)
-                }.then(tabFocusModifier).testTag(SemanticIds.authToggleMode),
+                modifier = Modifier.testTag(SemanticIds.authToggleMode),
             ) {
                 Text(localizedText("copy_22a4a2a530"), style = TextStyle(fontSize = 14.sp, color = colors.accent))
             }
@@ -362,14 +276,13 @@ private fun AuthFormContent(
 
 @Composable
 private fun AuthBackButton(
-    focusRequester: FocusRequester,
     enabled: Boolean,
     colors: com.finance.tracker.core.design.FinanceColorRoles,
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
     val accessibleLabel = localizedText("auth_back_to_login")
-    UnstyledButton(onClick = onClick, enabled = enabled, modifier = modifier.size(44.dp).focusRequester(focusRequester).semantics(mergeDescendants = true) {
+    UnstyledButton(onClick = onClick, enabled = enabled, modifier = modifier.size(44.dp).semantics(mergeDescendants = true) {
         contentDescription = accessibleLabel
     }) {
         Box(Modifier.fillMaxSize()) {
@@ -394,9 +307,6 @@ private fun AuthTextField(
     enabled: Boolean,
     colors: com.finance.tracker.core.design.FinanceColorRoles,
     modifier: Modifier = Modifier,
-    focusControl: AuthFocusControl,
-    onFocusControlChange: (AuthFocusControl) -> Unit,
-    onFocusControlLost: (AuthFocusControl) -> Unit,
     supportingText: String? = null,
     supportingColor: Color = colors.foreground.copy(alpha = 0.64f),
     placeholder: String? = null,
@@ -474,8 +384,6 @@ private fun AuthTextField(
                         .focusRequester(focusRequester)
                         .onFocusChanged {
                             focused = it.isFocused
-                            if (it.isFocused) onFocusControlChange(focusControl)
-                            else onFocusControlLost(focusControl)
                         }
                         .testTag(semanticId)
                         .semantics(mergeDescendants = true) { contentDescription = label },

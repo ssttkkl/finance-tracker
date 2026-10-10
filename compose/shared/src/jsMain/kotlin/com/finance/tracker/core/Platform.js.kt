@@ -41,8 +41,6 @@ actual fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit {
     return { removePopStateListener(onPopState) }
 }
 
-actual fun observeBrowserTabNavigation(onTab: (backwards: Boolean) -> Unit): () -> Unit = registerBrowserTabNavigation(onTab)
-
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
@@ -91,19 +89,6 @@ private fun addPopStateListener(onPopState: () -> Unit) {
 private fun removePopStateListener(onPopState: () -> Unit) {
     js("window.removeEventListener('popstate', onPopState)")
 }
-
-private fun registerBrowserTabNavigation(onTab: (Boolean) -> Unit): () -> Unit = js(
-    """(() => {
-        const listener = event => {
-            if (event.key !== 'Tab') return;
-            event.preventDefault();
-            event.stopPropagation();
-            onTab(event.shiftKey);
-        };
-        window.addEventListener('keydown', listener, true);
-        return () => window.removeEventListener('keydown', listener, true);
-    })()""",
-)
 
 private fun readBrowserToken(): String? = js("window.localStorage.getItem('finance-tracker:session-token')")
 

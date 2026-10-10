@@ -26,8 +26,6 @@ expect fun replaceBrowserPath(path: String)
 
 expect fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit
 
-expect fun observeBrowserTabNavigation(onTab: (backwards: Boolean) -> Unit): () -> Unit
-
 @Composable
 expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
 

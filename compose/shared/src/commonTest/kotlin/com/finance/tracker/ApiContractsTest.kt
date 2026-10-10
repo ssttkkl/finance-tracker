@@ -92,24 +92,6 @@ class ApiContractsTest {
     }
 
     @Test
-    fun authTabFocusMovesForwardAndBackwardThroughControls() {
-        assertEquals(AuthFocusControl.EMAIL, nextAuthFocusControl(null, backwards = false))
-        assertEquals(AuthFocusControl.PASSWORD, nextAuthFocusControl(AuthFocusControl.EMAIL, backwards = false))
-        assertEquals(AuthFocusControl.SUBMIT, nextAuthFocusControl(AuthFocusControl.PASSWORD, backwards = false))
-        assertEquals(AuthFocusControl.TOGGLE_MODE, nextAuthFocusControl(AuthFocusControl.SUBMIT, backwards = false))
-        assertEquals(AuthFocusControl.TOGGLE_MODE, nextAuthFocusControl(null, backwards = true))
-        assertEquals(AuthFocusControl.SUBMIT, nextAuthFocusControl(AuthFocusControl.TOGGLE_MODE, backwards = true))
-        assertEquals(AuthFocusControl.PASSWORD, nextAuthFocusControl(AuthFocusControl.SUBMIT, backwards = true))
-        assertEquals(AuthFocusControl.EMAIL, nextAuthFocusControl(AuthFocusControl.PASSWORD, backwards = true))
-        assertEquals(AuthFocusControl.BACK, nextAuthFocusControl(null, backwards = false, registering = true))
-        assertEquals(AuthFocusControl.EMAIL, nextAuthFocusControl(AuthFocusControl.BACK, backwards = false, registering = true))
-        assertEquals(AuthFocusControl.PASSWORD, nextAuthFocusControl(AuthFocusControl.EMAIL, backwards = false, registering = true))
-        assertEquals(AuthFocusControl.CONFIRM_PASSWORD, nextAuthFocusControl(AuthFocusControl.PASSWORD, backwards = false, registering = true))
-        assertEquals(AuthFocusControl.SUBMIT, nextAuthFocusControl(AuthFocusControl.CONFIRM_PASSWORD, backwards = false, registering = true))
-        assertEquals(AuthFocusControl.CONFIRM_PASSWORD, nextAuthFocusControl(AuthFocusControl.SUBMIT, backwards = true, registering = true))
-    }
-
-    @Test
     fun validatesDecimalStringsAndConservesAllocationsExactly() {
         assertTrue(isExactDecimalString("-12345678901234567890.00000001"))
         assertFalse(isExactDecimalString("1e3"))

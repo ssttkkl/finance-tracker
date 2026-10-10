@@ -39,8 +39,6 @@ actual fun replaceBrowserPath(path: String) = Unit
 
 actual fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit = { }
 
-actual fun observeBrowserTabNavigation(onTab: (backwards: Boolean) -> Unit): () -> Unit = { }
-
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) {
     BackHandler(enabled = enabled, onBack = onBack)

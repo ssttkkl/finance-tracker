@@ -42,9 +42,6 @@ actual fun replaceBrowserPath(path: String) {
 actual fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit =
     registerBrowserPopState(onPopState)
 
-actual fun observeBrowserTabNavigation(onTab: (backwards: Boolean) -> Unit): () -> Unit =
-    registerBrowserTabNavigation(onTab)
-
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
@@ -87,19 +84,6 @@ private fun registerBrowserPopState(onPopState: () -> Unit): () -> Unit = js(
         const listener = () => onPopState();
         window.addEventListener('popstate', listener);
         return () => window.removeEventListener('popstate', listener);
-    })()""",
-)
-
-private fun registerBrowserTabNavigation(onTab: (Boolean) -> Unit): () -> Unit = js(
-    """(() => {
-        const listener = event => {
-            if (event.key !== 'Tab') return;
-            event.preventDefault();
-            event.stopPropagation();
-            onTab(event.shiftKey);
-        };
-        window.addEventListener('keydown', listener, true);
-        return () => window.removeEventListener('keydown', listener, true);
     })()""",
 )
 

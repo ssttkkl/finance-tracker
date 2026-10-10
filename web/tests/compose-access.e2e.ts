@@ -38,16 +38,6 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
-const activeInputMode = async (page: import("@playwright/test").Page) => page.evaluate(() => {
-  let active = document.activeElement as HTMLElement | null;
-  while (active) {
-    const inputMode = active.getAttribute("inputmode");
-    if (inputMode) return inputMode;
-    active = active.shadowRoot?.activeElement as HTMLElement | null;
-  }
-  return null;
-});
-
 const expectTopRelativeTo = async (
   element: import("@playwright/test").Locator,
   container: import("@playwright/test").Locator,
@@ -59,16 +49,6 @@ const expectTopRelativeTo = async (
   expect(containerBox).not.toBeNull();
   expect(Math.abs((elementBox?.y ?? 0) - (containerBox?.y ?? 0) - expectedTop)).toBeLessThanOrEqual(2);
 };
-
-test("Compose 登录表单按 Tab 键顺序聚焦", async ({ page }) => {
-  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
-  await page.goto("/");
-  await expect(page.locator('[id="auth.email"]').last()).toBeVisible();
-  await page.keyboard.press("Tab");
-  await expect.poll(() => activeInputMode(page)).toBe("email");
-  await page.keyboard.press("Tab");
-  await expect.poll(() => activeInputMode(page)).toBe("password");
-});
 
 test("Compose 登录输入框向辅助技术公开邮箱和密码标签", async ({ page }) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
@@ -164,15 +144,6 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
   await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
   await expect(page.locator('[id="auth.email"]').last()).toBeInViewport();
   const backButton = page.getByRole("button", { name: "返回登录" });
-  await page.locator('[id="auth.email"]').last().click({ force: true });
-  await expect.poll(() => activeInputMode(page)).toBe("email");
-  await page.keyboard.press("Tab");
-  await expect.poll(() => activeInputMode(page)).toBe("password");
-  await page.keyboard.press("Tab");
-  await page.keyboard.type("x");
-  await expect(page.getByText("✕ 两次密码不一致", { exact: true })).toBeVisible();
-  await page.keyboard.press("Tab");
-  await expect.poll(() => activeInputMode(page)).toBeNull();
   await typeIntoComposeInput(page, '[id="auth.email"]', "not-an-email");
   await expect(page.getByText("✕ 邮箱格式不正确", { exact: true })).toBeVisible();
   await typeIntoComposeInput(page, '[id="auth.password"]', "short", { replace: true });
