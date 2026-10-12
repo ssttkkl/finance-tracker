@@ -29,6 +29,9 @@ expect fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit
 @Composable
 expect fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit)
 
+@Composable
+expect fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit)
+
 expect fun createPlatformTokenStore(): TokenStore
 
 expect fun createPlatformDiagnosticLogStore(): PlatformDiagnosticLogStore

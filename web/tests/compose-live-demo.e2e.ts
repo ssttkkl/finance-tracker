@@ -16,6 +16,7 @@ test("本地 Compose 注册请求经同源代理到达 FastAPI demo", async ({ p
   await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
   await typeIntoComposeInput(page, '[id="auth.email"]', email);
   await typeIntoComposeInput(page, '[id="auth.password"]', password);
+  await typeIntoComposeInput(page, '[id="auth.confirm-password"]', password);
   await page.locator('[id="auth.submit"]').last().click({ force: true });
 
   const response = await registrationResponse;

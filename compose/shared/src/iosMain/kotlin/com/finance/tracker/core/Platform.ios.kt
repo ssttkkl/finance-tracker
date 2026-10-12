@@ -33,6 +33,9 @@ actual fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit = { }
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
+@Composable
+actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) = Unit
+
 actual fun getConfiguredApiOrigin(): String = ""
 
 actual fun readDisplayPreference(key: String): String? = NSUserDefaults.standardUserDefaults.stringForKey(key)

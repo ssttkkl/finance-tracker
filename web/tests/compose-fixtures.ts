@@ -12,6 +12,7 @@ type FixtureOptions = {
   loginSession?: ComposeSession;
   loginError?: boolean;
   inaccessibleWorkspaceIds?: string[];
+  workspaceSelectDelayMs?: number;
   cashPageFailures?: number;
   cashPageEmpty?: boolean;
 };
@@ -270,6 +271,10 @@ export async function installComposeApiFixtures(
     if (pathname === "/api/v1/auth/session" && method === "GET") {
       return state.session ? json(state.session) : json({ error: { code: "authentication_required" } }, 401);
     }
+    if (pathname === "/api/v1/auth/logout" && method === "POST") {
+      state.session = null;
+      return json({ ok: true });
+    }
     if (["/api/v1/auth/login", "/api/v1/auth/register"].includes(pathname) && method === "POST") {
       if (options.loginError) return json({ error: { code: "invalid_credentials" } }, 401);
       const session = options.loginSession ?? activeSession;
@@ -288,6 +293,9 @@ export async function installComposeApiFixtures(
     }
     if (pathname.endsWith("/select") && method === "POST") {
       const workspaceId = pathname.split("/").at(-2) ?? "workspace-1";
+      if (options.workspaceSelectDelayMs) {
+        await new Promise((resolve) => setTimeout(resolve, options.workspaceSelectDelayMs));
+      }
       if (options.inaccessibleWorkspaceIds?.includes(workspaceId)) {
         return json({ error: { code: "workspace_access_denied" } }, 403);
       }

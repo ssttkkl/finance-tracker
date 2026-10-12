@@ -23,7 +23,7 @@ Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API �
 
 ## Compose Multiplatform 主线
 
-F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；本 change 的实施、浏览器 QA 和 Native 设备复核证据记录于归档 `tasks.md`。
+F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；桌面侧栏默认显示图标，鼠标进入侧栏自动展开、离开后收回（固定时除外），头像悬停打开账号面板，工作区切换、管理和退出集中在侧栏底部；实施与跨端 QA 证据记录于 [`app-shell-icon-navigation`](../openspec/changes/archive/2026-10-12-app-shell-icon-navigation/tasks.md)。
 
 | ID | Compose 共享实现 | Web / Android / iOS 工程入口 | 当前状态 |
 |----|------------------|------------------------------|----------|

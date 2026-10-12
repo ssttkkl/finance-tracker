@@ -175,12 +175,15 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
     await expect(page.locator(`[id="${destination.screen}"]`).last()).toBeVisible();
     await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(destination.title);
     await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
-    for (const width of [390, 768, 1440]) {
+    for (const width of [390, 600, 768, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.waitForTimeout(100);
       await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(destination.title);
       await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      if (width === 600 && destination.id === "investment-events") {
+        await page.screenshot({ path: "/tmp/compose-investment-events-600.png" });
+      }
     }
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(100);
@@ -289,7 +292,14 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
     expect(fields[0]!.y).toBeLessThan(fields[1]!.y);
     expect(fields[1]!.y).toBeLessThan(fields[2]!.y);
     expect(fields[2]!.y).toBeLessThan(fields[3]!.y);
-    if (width === 1440) expect(fields[0]!.x).toBeGreaterThan(900);
+    if (width === 1440) {
+      // Compose's accessibility mirror reports dp coordinates here; inspect the real backing-input px anchor.
+      const focusedInputX = await page.locator("canvas").evaluate((canvas) => {
+        const anchor = canvas?.parentElement;
+        return Number.parseFloat(anchor ? getComputedStyle(anchor).getPropertyValue("--compose-internal-web-backing-input-left") : "");
+      });
+      expect(focusedInputX).toBeGreaterThan(900);
+    }
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1" && (width === 390 || width === 1440)) {
       await page.screenshot({ path: `/tmp/finance-compose-cash-record-${width}.png` });
     }

@@ -75,6 +75,8 @@ internal data class DestinationState(
     val sessionRepository: SessionRepository,
     val diagnosticLogger: DiagnosticLogger,
     val session: Session,
+    val accessBusy: Boolean,
+    val accessError: String?,
     val sizeClass: WindowSizeClass,
     val onNavigate: (AppPage) -> Unit,
     val canNavigateBack: Boolean,
@@ -340,6 +342,8 @@ private fun FinanceTrackerAppContent(
                         sessionRepository = graph.sessionRepository,
                         diagnosticLogger = graph.diagnosticLogger,
                         session = currentSession,
+                        accessBusy = accessBusy,
+                        accessError = accessError,
                         sizeClass = windowSizeClass,
                         onNavigate = selectPage,
                         canNavigateBack = getBrowserLocation() == null && routeHistory.isNotEmpty(),
@@ -352,13 +356,13 @@ private fun FinanceTrackerAppContent(
                         onLogout = logout,
                     )
                     when (windowSizeClass) {
-                        WindowSizeClass.COMPACT -> CompactAppShell(route = currentRoute, onNavigate = selectPage) { navigationIcon ->
+                        WindowSizeClass.COMPACT -> CompactAppShell(state) { navigationIcon ->
                             destination(state.copy(navigationIcon = navigationIcon))
                         }
-                        WindowSizeClass.REGULAR -> RegularAppShell(route = currentRoute, onNavigate = selectPage) { navigationIcon ->
-                            destination(state.copy(navigationIcon = navigationIcon))
+                        WindowSizeClass.REGULAR -> RegularAppShell(state) {
+                            destination(state.copy(navigationIcon = {}))
                         }
-                        WindowSizeClass.WIDE -> WideAppShell(route = currentRoute, onNavigate = selectPage) { destination(state) }
+                        WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                     }
                 }
             }

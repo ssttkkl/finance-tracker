@@ -44,6 +44,9 @@ actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) {
     BackHandler(enabled = enabled, onBack = onBack)
 }
 
+@Composable
+actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) = Unit
+
 actual fun createPlatformTokenStore(): TokenStore {
     val context = AndroidTokenStoreContext.applicationContext
         ?: error("token_store_unavailable")

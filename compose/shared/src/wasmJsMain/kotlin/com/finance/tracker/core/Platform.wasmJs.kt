@@ -3,7 +3,9 @@
 package com.finance.tracker.core
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.text.font.FontFamily
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.noto_sans_sc
@@ -45,6 +47,15 @@ actual fun observeBrowserHistory(onPopState: () -> Unit): () -> Unit =
 @Composable
 actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 
+@Composable
+actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) {
+    val currentOnEscape = rememberUpdatedState(onEscape)
+    DisposableEffect(enabled) {
+        val unregister = if (enabled) registerBrowserEscapeListener { currentOnEscape.value() } else ({})
+        onDispose(unregister)
+    }
+}
+
 actual fun createPlatformTokenStore(): TokenStore = object : TokenStore {
     override suspend fun get(): String? = runCatching { readBrowserToken() }.getOrNull()
     override suspend fun set(value: String) { runCatching { writeBrowserToken(value) } }
@@ -84,6 +95,19 @@ private fun registerBrowserPopState(onPopState: () -> Unit): () -> Unit = js(
         const listener = () => onPopState();
         window.addEventListener('popstate', listener);
         return () => window.removeEventListener('popstate', listener);
+    })()""",
+)
+
+private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = js(
+    """(() => {
+        const listener = event => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            onEscape();
+        };
+        window.addEventListener('keydown', listener, true);
+        return () => window.removeEventListener('keydown', listener, true);
     })()""",
 )
 

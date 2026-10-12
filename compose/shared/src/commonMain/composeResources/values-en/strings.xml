@@ -513,4 +513,13 @@
     <string name="cash_impact_merged">Included in this cash flow.</string>
     <string name="workspace_access_denied">You cannot open this workspace. Check your access and try again.</string>
     <string name="finance_table_asset_change">Asset change</string>
+    <string name="account_panel_label">Account and workspaces</string>
+    <string name="account_workspaces_heading">Workspaces</string>
+    <string name="account_workspace_current">Current</string>
+    <string name="account_workspace_switching">Switching workspace</string>
+    <string name="account_workspace_switch_success">Workspace switched</string>
+    <string name="navigation_rail_expand">Expand navigation</string>
+    <string name="navigation_rail_collapse">Collapse navigation</string>
+    <string name="navigation_rail_pin">Keep navigation expanded</string>
+    <string name="navigation_rail_unpin">Unpin navigation</string>
 </resources>
