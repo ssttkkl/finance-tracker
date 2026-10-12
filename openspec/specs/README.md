@@ -13,7 +13,7 @@
 | [工作区](workspace/README.md) | 3 | 工作区进入、切换、成员与邀请管理、删除 |
 | [认证](authentication/README.md) | 2 | 登录、认证会话、访问角色、登录调试地址 |
 | [财富](wealth/README.md) | 1 | 财富变化分解、趋势与归因证据 |
-| [共享规则](shared/README.md) | 4 | 账本记录、时间、数据库与跨端合同 |
+| [共享规则](shared/README.md) | 5 | 账本记录、时间、数据库、跨端合同与设计系统 |
 
 ## 定位与维护约定
 

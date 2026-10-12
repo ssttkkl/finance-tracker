@@ -58,6 +58,7 @@
 ## 7. Release
 
 - [x] Record delivery evidence, current `HEAD`, comparison baseline, unresolved platform verification, and rollback approach below. No commit, push, or deploy was performed.
+- [x] 2026-10-12 follow-up: synced the delta into `shared/cross-platform-presentation` and archived this change at `openspec/changes/archive/2026-10-12-auth-page-spacing-shell/`. `openspec validate --all --strict` passed 28/28, `openspec doctor` reported no issues, and `git diff --check` passed. The archive CLI reported a non-blocking proposal heading warning because the scope section is titled `Scope` rather than `What Changes`.
 
 ## 8. Reflect
 

@@ -85,3 +85,7 @@
 - **构建与测试：** `ANDROID_HOME=/Users/huangwenlong/Library/Android/sdk ./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :shared:compileKotlinIosSimulatorArm64 :webApp:wasmJsBrowserDistribution --offline` 通过；`npm run build` 通过；5 个旧 React 测试文件隔离复跑 89/89 通过。完整 `npm test` 为 150/152，剩余 2 项旧 React 外壳路由测试在全量运行时偶发停留于投资账本加载态，单独重跑均通过，未观察到本次 Compose 页面回归；该残余风险保留待后续拆分旧测试 fixture。
 - **规格与工作树：** `openspec validate --all --strict` 25/25、`openspec doctor`、`git diff --check` 通过；基线与提交前 `HEAD` 均为 `271a66dc5f46b83b53cc251dbd5286744e4d8843`。本变更不触及持久化，PostgreSQL 契约矩阵不适用；`adb devices -l` 无连接 Android 设备，因此未执行真机设备 QA；iOS 模拟器 Kotlin 编译已通过。Pen Desktop/CLI 资产可用，未使用 computer-use。
 - **发布准备：** 先发布 Finance token、Registry 和组件，再发布共享页面；观察 Compose Web、Android、iOS 的页面加载、筛选、表单写入、导入幂等和权限状态。回滚入口为撤销对应页面 Finance 组件接入，保留 API 与数据不变。
+
+## 10. 归档记录
+
+- [x] 按使用者 2026-10-12 的明确请求归档本 change 至 `openspec/changes/archive/2026-10-12-hero-ui-compose-finance-ui/`；Cash Ledger 组件回归测试任务 5.1 仍未完成，原未完成标记予以保留。将未出现在当前主规格中的三条 delta requirement 归类为新增要求，并把跨端语义与响应式要求合并到现有对应主要求，再同步主规格。`openspec validate --all --strict` 28/28 通过，`openspec doctor` 无问题，`git diff --check` 通过。归档 CLI 的非阻断提示为 proposal 含超过 10 条 delta；其 1 项未完成测试任务由本次明确请求授权随档案保留。

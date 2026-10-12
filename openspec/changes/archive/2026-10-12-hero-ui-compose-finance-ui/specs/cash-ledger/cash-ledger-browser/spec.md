@@ -1,6 +1,6 @@
 # cash-ledger/cash-ledger-browser Specification Delta
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Cash Ledger uses Finance UI without changing ledger semantics
 

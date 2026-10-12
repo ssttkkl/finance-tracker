@@ -33,6 +33,7 @@
 
 ## 7. 发布
 - [x] 记录交付证据和补跑条件；配置 Android SDK 后补跑 `npm run compose:build:android`。本任务不部署。
+- [x] 2026-10-12 后续整理：将 delta 同步到 `shared/cross-platform-presentation` 主规格并归档至 `openspec/changes/archive/2026-10-12-login-page-branding/`。`openspec validate --all --strict` 28/28 通过，`openspec doctor` 无问题，`git diff --check` 通过。
 
 ## 8. 反思
 - [x] 保留登录/注册差异及 Pen/Compose 几何回归断言，防止密码提示条件或 44 dp 命中区回退。

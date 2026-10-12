@@ -18,7 +18,7 @@
 
 ### Requirement: Shared presentation semantics are addressable
 
-跨端页面 MUST 为每个核心区域、操作和状态提供稳定的语义标识；Web 使用 `data-testid` 或等价语义属性，Native 使用 `testID` 或等价语义入口。标识 MUST 不依赖中文文案、数组位置或具体渲染控件。
+跨端页面 MUST 为每个核心区域、操作和状态提供稳定的语义标识；Web 使用 `data-testid` 或等价语义属性，Native 使用 `testID` 或等价语义入口。标识 MUST 不依赖中文文案、数组位置或具体渲染控件。Cash Ledger 的 Finance 组件及其 Web/Native 实现 MUST 共享文案、状态、语义 ID、业务结果和确认时机；DOM 与 Compose 控件可以不同。
 
 #### Scenario: A parity journey addresses a primary action
 
@@ -26,9 +26,15 @@
 - **THEN** Web 与 Native MUST 都能通过同一个语义标识找到该操作
 - **AND** 修改按钮文案或把按钮替换为 Native 控件不得改变该标识
 
+#### Scenario: 跨端测试定位收支账本筛选
+
+- **WHEN** 跨端测试打开收支账本筛选
+- **THEN** Web 与 Native MUST 通过同一个语义 ID 找到筛选入口
+- **AND** 选择、清除、加载和错误结果 MUST 保持同一合同
+
 ### Requirement: Responsive classes map logical window sizes across platforms
 
-系统 MUST 按逻辑窗口宽度而不是设备型号划分布局等级：小于 `600` 的宽度为 `compact`，`600` 至小于 `1024` 为 `regular`，`1024` 及以上为 `wide`。Web `compact` MUST 对应 Native phone，Web `regular` MUST 对应 Native tablet portrait 或窄窗口，Web `wide` MUST 对应 Native tablet landscape 或大窗口。
+系统 MUST 按逻辑窗口宽度而不是设备型号划分布局等级：小于 `600` 的宽度为 `compact`，`600` 至小于 `1024` 为 `regular`，`1024` 及以上为 `wide`。Web `compact` MUST 对应 Native phone，Web `regular` MUST 对应 Native tablet portrait 或窄窗口，Web `wide` MUST 对应 Native tablet landscape 或大窗口。收支账本 MUST 在 Web compact/regular/wide 与 Native phone/regular/wide 中保持相同的信息区域顺序、状态语义和操作关系。
 
 #### Scenario: Android runs on multiple device forms
 
@@ -41,6 +47,22 @@
 - **WHEN** iPad 以 portrait、landscape 或分屏窗口显示第一阶段页面
 - **THEN** Native MUST 根据当前窗口宽度使用 `regular` 或 `wide` presentation
 - **AND** `wide` 页面 MUST 保留 Web 的导航层级、信息块顺序、筛选/详情/操作区域关系和相近密度
+
+#### Scenario: 收支账本在不同窗口等级保持区域关系
+
+- **WHEN** 使用者在 compact、regular 或 wide 窗口打开收支账本
+- **THEN** 筛选、记录、详情和操作 MUST 按对应 Web 布局等级保持已登记的顺序与关系
+- **AND** compact MUST 使用无页面级横向滚动的单列或可折叠区域，wide MUST 保留导航、筛选、表格和详情/操作区域关系
+
+### Requirement: Confirmed Finance pages preserve shared workflow and responsive structure
+
+F-01、F-02、F-04 至 F-10 的 Compose Web 和 Native 页面 MUST 保持既有业务操作、状态、用户文案及稳定语义 ID，并采用已确认 Pen 稿登记的区域顺序；compact MUST 为无页面级横向滚动的单列，wide MUST 保持 Web 大屏的筛选、列表、详情与操作关系。
+
+#### Scenario: 使用者在不同窗口尺寸完成页面任务
+
+- **WHEN** 使用者在 compact、regular 或 wide 窗口打开任一已确认页面
+- **THEN** 加载、空、错误和成功状态 MUST 具有相同的业务结果与恢复入口
+- **AND** 主操作、筛选和详情 MUST 保持相同的可达性与确认语义
 
 ### Requirement: First-phase Native screens preserve Web state and action contracts
 
@@ -151,3 +173,152 @@ Web 与 Android/iOS Native MUST 按选择文件、统一扫描、账户映射、
 - **WHEN** 多文件确认返回失败
 - **THEN** 两端 MUST 保留可识别的失败状态并允许按当前会话重试
 - **AND** 不得显示部分成功或局部完成状态
+
+### Requirement: Compose authentication screens use the scoped Material 3 appearance
+
+Compose 登录和注册界面 MUST 在现有 FinanceTheme 下使用 Material 3 描边输入框、主按钮、文字按钮和图标按钮，并保留 FinanceTheme 的颜色与字形。认证输入框和主按钮 MUST 局部使用 Material 3 小形状，桌面认证卡片 MUST 局部使用中等形状；不得改变 FinanceTheme 全局形状方案或认证既有字段、文案、校验、语义和提交流程。
+
+#### Scenario: 登录与注册的空输入字段使用相同样式
+
+- **WHEN** 使用者打开空的登录或注册表单
+- **THEN** 描边输入框 MUST 在输入框内部显示标签
+- **AND** 同一响应式等级下两种模式的首个输入框 MUST 从相同垂直位置开始
+- **AND** 字段、按钮、形状、颜色、字形、字段顺序、标签、语义 ID 和无障碍含义 MUST 符合已确认的 Pen 设计
+
+#### Scenario: 输入框聚焦或已有内容
+
+- **WHEN** 使用者聚焦输入框或输入框已有内容
+- **THEN** 标签 MUST 浮到轮廓上方，轮廓和标签 MUST 反映当前焦点或校验状态
+- **AND** 输入值 MUST 按既有字段类型保持可见或隐藏
+
+#### Scenario: 显示字段帮助或校验反馈
+
+- **WHEN** 字段需要显示帮助、校验成功或校验错误信息
+- **THEN** 反馈 MUST 显示在对应描边输入框下方的说明区域
+- **AND** 反馈 MUST 保留既有文案、实时区域语义、颜色含义及对应字段关系，且后续字段和提交操作在 compact、regular、wide 下不得重叠
+
+#### Scenario: 认证请求忙碌或失败
+
+- **WHEN** 认证请求正在处理或请求失败
+- **THEN** 字段和操作 MUST 保留既有禁用、进度和请求错误行为
+- **AND** 标签、文案、请求数据和认证结果 MUST 保持不变
+
+### Requirement: Compose authentication title and first-field positions are aligned
+
+Compose 登录与注册的首个描边输入框 MUST 在同一响应式等级中从相同垂直位置开始。注册页的返回按钮 MUST 保留至少 `44` dp 的触控区域及现有无障碍名称。
+
+#### Scenario: 在登录和注册模式间切换
+
+- **WHEN** 使用者在相同窗口尺寸等级下切换认证模式
+- **THEN** 两种模式的首个描边输入框 MUST 从相同垂直位置开始
+- **AND** 注册页返回按钮 MUST 保留现有无障碍名称及 `44` dp 触控区域
+
+### Requirement: Compose authentication modes share a responsive shell
+
+Compose 登录与注册 MUST 共用一个适用于 compact、regular 和 wide 的内部响应式表单结构，并保留既有各等级外边距、滚动和居中卡片行为。
+
+#### Scenario: 不同响应式等级打开认证页
+
+- **WHEN** 登录或注册页面在 compact、regular 或 wide 窗口中呈现
+- **THEN** 两种模式 MUST 使用相同的响应式表单结构，并保留各等级既有外边距、滚动和居中卡片行为
+
+### Requirement: 登录与注册认证表单保持跨端一致
+
+Web、Android 与 iOS 的登录和注册表单 MUST 不显示「Finance Tracker」品牌标识、「工作区访问」标签或邮箱占位文字。认证页 MUST 按 Compose `WindowSizeClass` 响应布局：`COMPACT` 使用铺满窗口的白色背景，表单内容顶部对齐且不得显示独立卡片；`REGULAR` 与 `WIDE` 使用灰色页面背景和居中的白色表单卡片。Native 启动器名称和认证后页面品牌不受影响。登录页标题 MUST 为「登录」，注册页标题 MUST 为「创建账户」。注册页标题左侧 MUST 提供仅显示左箭头的返回登录按钮，无障碍名称 MUST 为「返回登录」，触控区域至少为 `44` dp；注册页 MUST 不显示底部「已有账户？登录」入口，登录页继续显示「还没有账户？注册」入口。浅色和深色主题 MUST 使用相同信息层级与布局，深色主题沿用现有颜色角色。
+
+#### Scenario: 在 compact 窗口打开登录页
+
+- **WHEN** 未认证使用者在 `COMPACT` 窗口打开登录页
+- **THEN** 登录表单 MUST 从页面顶部内容区开始排布，白色背景铺满窗口
+- **AND** 页面 MUST 不显示品牌、邮箱占位文字、工作区标签或独立卡片
+
+#### Scenario: 在 regular 或 wide 窗口打开登录页
+
+- **WHEN** 未认证使用者在 `REGULAR` 或 `WIDE` 窗口打开登录页
+- **THEN** 页面 MUST 保持灰色背景，白色登录表单卡片在可用视口中居中
+- **AND** 页面 MUST 不显示品牌、邮箱占位文字或工作区标签
+
+### Requirement: 注册表单展示实时、可区分的凭据校验项
+
+注册表单 MUST 按邮箱、密码、确认密码的顺序呈现字段。字段校验反馈 MUST 位于字段标题下方、输入框上方，并与字段标题使用不同的次级文字样式。即使字段为空，强提示也 MUST 以灰色中性文案显示；弱提示在字段为空时 MUST 隐藏文案、图形符号及占位反馈，输入后才显示校验结果。通过状态 MUST 同时显示绿色对勾与文案；失败状态 MUST 同时显示红色叉号与文案，不得只依赖颜色。输入变化时 MUST 即时重新计算相关校验。
+
+- 邮箱格式和确认密码一致性属于弱提示；密码至少 12 个字符属于强提示。
+- 邮箱 MUST 使用现有共享格式规则校验；为空时隐藏反馈，非空且格式错误时显示失败状态。
+- 密码为空或不足 12 个字符时 MUST 显示灰色中性强提示；满足规则后显示通过状态。
+- 确认密码非空时 MUST 与当前密码完全匹配并即时显示结果；密码或确认密码变化时均 MUST 重新判断。
+- 登录模式 MUST 不显示注册校验项或确认密码字段。
+
+#### Scenario: 注册字段为空
+
+- **WHEN** 注册表单中的邮箱、密码或确认密码为空
+- **THEN** 邮箱格式与确认密码一致性弱提示 MUST 隐藏
+- **AND** 密码字段 MUST 显示灰色「至少 12 个字符」强提示，且任何字段不得呈现红色失败状态
+
+#### Scenario: 输入有效邮箱和符合规则的密码
+
+- **WHEN** 使用者输入符合现有格式规则的邮箱且密码达到至少 12 个字符
+- **THEN** 对应字段 MUST 即时显示绿色对勾及通过状态
+
+#### Scenario: 输入格式错误的邮箱或过短密码
+
+- **WHEN** 使用者输入非空但格式无效的邮箱，或输入少于 12 个字符的密码
+- **THEN** 对应字段 MUST 即时显示红色叉号及失败状态
+
+#### Scenario: 确认密码与密码不一致
+
+- **WHEN** 确认密码非空且与当前密码不一致
+- **THEN** 确认密码字段 MUST 即时显示红色叉号及失败状态
+- **WHEN** 使用者继续输入直至两次密码完全一致
+- **THEN** 确认密码字段 MUST 即时切换为绿色对勾及通过状态
+
+#### Scenario: 密码变化时更新确认密码状态
+
+- **WHEN** 使用者修改密码且已有确认密码
+- **THEN** 确认密码状态 MUST 按新的密码即时重新判断
+
+### Requirement: 注册确认密码和表单级错误保持安全语义
+
+注册提交 MUST 要求邮箱、密码和确认密码均通过现有校验；确认密码 MUST NOT 发送至认证服务。提交校验错误及认证服务错误 MUST 显示在表单级通用错误位置，不得伪装成实时字段规则结果。密码和确认密码 MUST 保持隐藏输入语义。
+
+#### Scenario: 注册确认密码不一致时提交
+
+- **WHEN** 使用者提交两次密码不一致或缺少必需注册字段的表单
+- **THEN** 客户端 MUST 阻止认证请求
+- **AND** 表单 MUST 在通用错误位置提供提交校验反馈
+
+#### Scenario: 注册信息校验通过
+
+- **WHEN** 使用者提交有效邮箱、符合规则的密码和完全一致的确认密码
+- **THEN** 客户端 MUST 仅将邮箱和密码发送至现有注册认证接口
+
+#### Scenario: 登录或注册服务端返回错误
+
+- **WHEN** 现有认证服务返回登录或注册错误
+- **THEN** 错误 MUST 显示在表单级通用错误位置
+- **AND** 字段级实时校验状态 MUST 继续只反映本地字段规则
+
+### Requirement: 认证状态设计稿展示完整页面
+
+Pen 设计稿 MUST 按 `COMPACT`、`REGULAR`、`WIDE` 三类窗口尺寸，为每个认证状态提供包含完整页面结构的独立画板，不得仅用局部状态卡片或控件片段代替完整页面状态。登录 MUST 覆盖默认、登录中和服务端错误；注册 MUST 覆盖默认、字段校验全部通过、字段校验失败、注册中和服务端错误。共 24 张主页面画板 MUST 保持对应布局类别、品牌移除、背景和字段顺序；深色主题沿用相同层级与布局，并使用现有颜色角色，无需重复绘制深色状态画板。
+
+#### Scenario: 评审完整认证状态画板
+
+- **WHEN** 设计评审查看任一认证状态和窗口尺寸类别
+- **THEN** Pen MUST 展示该状态对应的完整登录或注册页面
+- **AND** 注册页面状态 MUST 包含邮箱、密码和确认密码字段，并按强提示/弱提示规则展示空值反馈
+
+#### Scenario: 深色主题打开认证页面
+
+- **WHEN** 使用者在系统深色主题下打开任一认证状态
+- **THEN** 页面 MUST 保持相同的信息层级、状态和窗口尺寸布局
+- **AND** MUST 使用现有深色主题颜色角色，不得强制显示浅色主题色
+
+### Requirement: 注册页以返回按钮承载返回登录导航
+
+注册页 MUST 在标题左侧提供仅显示左箭头并返回登录页的按钮；按钮 MUST 具有「返回登录」无障碍名称，且注册页 MUST 不显示底部「已有账户？登录」入口。
+
+#### Scenario: 从注册页返回登录
+
+- **WHEN** 使用者在任一窗口尺寸的注册页触发标题左侧返回按钮
+- **THEN** 页面 MUST 返回登录表单
+- **AND** 返回按钮 MUST 具有「返回登录」无障碍名称但界面上不得显示文字标签，注册页 MUST 不显示底部登录入口
