@@ -116,20 +116,21 @@ Web MUST 根据本机是否存在登录令牌区分直接登录和会话恢复�
 
 ### Requirement: Native workspace entry follows the Web access presentation
 
-Android、iOS 和 KMP desktop 的工作区入口 MUST 保持 Web 已验证的标题、字段标签、工作区访问与创建结果、错误处理和成功导航语义。页面可以使用 Compose 原生控件；KMP 首次创建状态 MUST 采用与登录/注册页一致的 Material 3 表单层级，并按 `COMPACT`、`REGULAR`、`WIDE` 逻辑窗口适配。已认证使用者没有工作区时，首次创建页 MUST 显示财务账本、当前邮箱、退出登录、一个「创建工作区」标题、工作区名称字段和主创建操作，不得显示工作区选择列表或无效返回操作。KMP 此处的布局差异登记为 Native presentation 差异；Web 与 Expo 维持现有布局，所有平台继续共享文案、校验、错误、禁用和成功导航语义。KMP 页面 MUST 按当前 `FinanceTheme` 适配明暗主题。工作区访问失败 MUST 不得误显示为无工作区，未完成创建 MUST 不得标记为成功。
+Compose Web、Android、iOS 和 KMP desktop 的工作区入口 MUST 保持既有标题、字段标签、工作区访问与创建结果、错误处理和成功导航语义。上述 Compose targets MUST 使用与登录/注册和未登录邀请页一致的响应式入口容器与居中单列表面；`COMPACT` MUST 保持可纵向滚动并显示宽度不超过 `440` dp 的居中表单卡片，`REGULAR` 和 `WIDE` MUST 将表单卡片居中；已有工作区选择和首次创建 MUST 在同一视觉壳中保留各自内容，不得互相替代。入口 MUST 按 `COMPACT`、`REGULAR`、`WIDE` 逻辑窗口适配，沿用 `FinanceTheme` 的明暗主题。旧 React Web 与 Expo 的布局维持不变；所有平台继续共享文案、校验、错误、禁用和成功导航语义。工作区访问失败 MUST 不得误显示为无工作区，未完成创建 MUST 不得标记为成功。
 
-#### Scenario: Restore an existing workspace on Native
+#### Scenario: Restore an existing workspace on Compose
 
-- **WHEN** Native 恢复会话并收到至少一个可访问工作区
-- **THEN** 客户端 MUST 使用活动工作区或按 Web 规则选择第一个工作区后进入收支账本
+- **WHEN** Compose 客户端恢复会话并收到至少一个可访问工作区
+- **THEN** 客户端 MUST 使用活动工作区或按现有规则选择第一个工作区后进入收支账本
 - **AND** 选择失败时 MUST 显示可重试的工作区访问错误
 
-#### Scenario: Create a workspace on a narrow or wide device
+#### Scenario: Create a workspace on a narrow or wide window
 
-- **WHEN** 已认证使用者在 KMP `COMPACT`、`REGULAR` 或 `WIDE` 窗口首次创建工作区
-- **THEN** 页面 MUST 保留财务账本、邮箱与退出登录，并在单列表单卡片中呈现一个「创建工作区」标题、工作区名称字段和主创建操作
-- **AND** 首次创建页面 MUST 隐藏工作区选择列表和返回操作；布局 MUST 适配逻辑窗口宽度，不得出现横向滚动
-- **AND** 名称字段、创建结果、校验/请求错误及成功进入账本的语义 MUST 与 Web 合同一致
+- **WHEN** 使用者在 Compose `COMPACT`、`REGULAR` 或 `WIDE` 窗口首次创建工作区
+- **THEN** 页面 MUST 保留财务账本、邮箱与退出登录，并在与登录页一致的入口布局中呈现单列表单卡片（`COMPACT`、`REGULAR`、`WIDE` 均居中，`COMPACT` 可纵向滚动）
+- **AND** 卡片 MUST 包含一个「新工作区」标题、工作区名称字段和「创建工作区」主操作
+- **AND** 首次创建页面 MUST 隐藏工作区选择列表和无效返回操作，且不得出现横向滚动
+- **AND** 名称字段、创建结果、校验/请求错误及成功进入账本的语义 MUST 保持不变
 
 #### Scenario: Submit an empty workspace name
 
@@ -155,8 +156,9 @@ Android、iOS 和 KMP desktop 的工作区入口 MUST 保持 Web 已验证的标
 - **THEN** 客户端 MUST 使用该会话进入对应工作区的收支账本
 - **AND** 页面 MUST 不停留在创建表单并伪造本地成功结果
 
-#### Scenario: Preserve the existing-workspace creation path
+#### Scenario: Select or create a workspace when memberships already exist
 
-- **WHEN** 已认证使用者已有至少一个可访问工作区并进入工作区选择或创建另一个工作区
-- **THEN** Native MUST 保留现有工作区列表、选择操作和创建另一个工作区的表单入口
-- **AND** 首次创建专用卡片 MUST 不替换已有工作区使用者的现有页面结构
+- **WHEN** 使用者已有至少一个可访问工作区并打开工作区入口
+- **THEN** 页面 MUST 在共享入口容器内保留可访问工作区列表、选择操作和创建另一个工作区的入口
+- **AND** 页面 MUST 保留当前工作区恢复错误及重试操作
+- **AND** 首次创建表单 MUST NOT 替代该使用者的工作区列表和选择流程

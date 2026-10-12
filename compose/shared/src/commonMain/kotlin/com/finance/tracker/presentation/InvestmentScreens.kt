@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -76,12 +77,12 @@ internal fun InvestmentHoldingsScreen(
     val summaryCurrency = displayOptions.currency.ifBlank {
         display.currencies.singleOrNull()?.currency ?: display.accounts.firstOrNull()?.currency.orEmpty()
     }
-    FeaturePage(localizedText("copy_724084b56b"), SemanticIds.investmentHoldingsScreen) {
+    FeaturePage(localizedText("copy_724084b56b"), SemanticIds.investmentHoldingsScreen, showTitle = false) {
         if (accountsError) StateMessage(localizedText("copy_13f8ed4623"), isError = true) {
             FinanceTertiaryButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text(localizedText("copy_724084b56b"), style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.weight(1f))
             FinanceButton(onClick = viewModel::refresh, enabled = !refreshing, modifier = Modifier.testTag("investment-holdings-refresh")) { Text(if (refreshing) localizedText("copy_70c184c284") else localizedText("copy_be4cd1a365")) }
         }
         FinanceSurface {

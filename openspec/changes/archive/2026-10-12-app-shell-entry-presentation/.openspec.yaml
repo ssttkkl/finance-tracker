@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-10-12
+goal: 让三个访问入口复用登录页响应式卡片壳，所有已登录页面由同一 Scaffold 与 TopAppBar 组织

@@ -1,0 +1,423 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Finance Tracker · 页面骨架原型</title>
+  <style>
+    /* Hallmark · pre-emit critique: P4 H5 E4 S4 R5 V4 · theme: Finance cobalt · structure: task-first app shell */
+    :root {
+      color-scheme: light;
+      --color-background: #F5F5F5;
+      --color-surface: #FFFFFF;
+      --color-foreground: #18181B;
+      --color-muted: #71717A;
+      --color-accent: #0485F7;
+      --color-accent-foreground: #FCFCFC;
+      --color-danger: #D92D20;
+      --color-outline: #71717A;
+      --color-disabled: #E4E4E7;
+      --color-outline-soft: rgb(24 24 27 / 4%);
+      --color-shadow: rgb(24 24 27 / 5%);
+      --color-drawer-shadow: rgb(24 24 27 / 18%);
+      --color-scrim: rgb(24 24 27 / 42%);
+      --color-hover-on-dark: rgb(255 255 255 / 12%);
+      --font-display: 'Noto Sans SC', 'PingFang SC', sans-serif;
+      --font-body: 'Noto Sans SC', 'PingFang SC', sans-serif;
+      --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-6: 24px;
+      --space-8: 32px;
+      --radius-small: 8px;
+      --radius-medium: 12px;
+      --radius-large: 16px;
+      --shadow-card: 0 1px 3px var(--color-shadow);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--color-background); color: var(--color-foreground); font: 16px/1.5 var(--font-body); }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .prototype-tools { max-width: 1320px; margin: 0 auto; padding: 20px 24px 12px; }
+    .tools-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+    .tools-heading strong { font-size: 15px; font-weight: 600; }
+    .tools-heading span { color: var(--color-muted); font-size: 12px; }
+    .tool-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+    .tool-button { border: 1px solid var(--color-outline); border-radius: 999px; background: var(--color-surface); color: var(--color-foreground); padding: 7px 12px; font-size: 13px; }
+    .tool-button[aria-pressed="true"] { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-accent-foreground); }
+    .tool-label { min-width: 52px; padding: 7px 0; color: var(--color-muted); font-size: 12px; }
+    .preview { min-height: calc(100vh - 154px); background: var(--color-background); }
+
+    .auth-shell { min-height: 680px; padding: 24px clamp(16px, 4vw, 64px) 48px; }
+    .auth-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: min(100%, 1120px); margin: 0 auto; min-height: 72px; }
+    .brand-block { display: grid; gap: 2px; min-width: 0; }
+    .brand { color: var(--color-accent); font-size: 19px; font-weight: 600; letter-spacing: -.02em; }
+    .email { color: var(--color-muted); font-size: 14px; overflow-wrap: anywhere; }
+    .logout { border: 0; background: transparent; color: var(--color-foreground); padding: 10px 0 10px 12px; white-space: nowrap; }
+    .auth-content { display: grid; place-items: center; min-height: 520px; padding: 24px 0; }
+    .form-card { width: min(100%, 440px); padding: 28px 24px; border: 1px solid var(--color-outline-soft); border-radius: var(--radius-large); background: var(--color-surface); box-shadow: var(--shadow-card); }
+    .form-title { margin: 0 0 26px; font-size: 24px; font-weight: 600; line-height: 1.3; letter-spacing: -.025em; }
+    .field-label { display: block; margin-bottom: 8px; font-size: 14px; font-weight: 500; }
+    .login-password-label { margin-top: var(--space-4); }
+    .field { width: 100%; min-height: 52px; border: 1px solid var(--color-outline); border-radius: var(--radius-small); outline: 0; background: var(--color-surface); color: var(--color-foreground); padding: 12px 14px; }
+    .field::placeholder { color: var(--color-muted); }
+    .field:focus-visible { border: 2px solid var(--color-accent); padding: 11px 13px; }
+    .field[aria-invalid="true"] { border-color: var(--color-danger); }
+    .field:disabled { border-color: var(--color-disabled); background: var(--color-background); }
+    .message { min-height: 20px; margin: 6px 0 0; color: var(--color-danger); font-size: 13px; }
+    .primary { display: inline-flex; justify-content: center; align-items: center; width: 100%; min-height: 48px; margin-top: 20px; border: 0; border-radius: 999px; background: var(--color-accent); color: var(--color-accent-foreground); font-weight: 600; }
+    .primary:focus-visible, .text-button:focus-visible, .nav-button:focus-visible, .tool-button:focus-visible { outline: 3px solid var(--color-accent); outline-offset: 2px; }
+    .primary:disabled { background: var(--color-disabled); color: var(--color-muted); cursor: wait; }
+    .text-button { margin-top: 10px; border: 0; background: transparent; color: var(--color-muted); padding: 8px 0; }
+    .workspace-list { display: grid; gap: 8px; margin: 0 0 18px; }
+    .workspace-choice { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; border: 1px solid var(--color-disabled); border-radius: var(--radius-small); background: var(--color-surface); padding: 12px 14px; text-align: left; }
+    .workspace-choice span:last-child { color: var(--color-muted); font-size: 13px; }
+    .divider { height: 1px; margin: 18px 0; background: var(--color-disabled); }
+    .invite-role { margin: 8px 0 0; color: var(--color-muted); }
+    .invite-actions { display: grid; justify-items: start; gap: 4px; }
+    .success-message { color: var(--color-accent); font-size: 13px; margin: 10px 0 0; }
+
+    .app-shell { display: grid; min-height: 680px; grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .app-main { min-width: 0; }
+    .topbar { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 0 20px; background: var(--color-foreground); color: var(--color-surface); }
+    .icon-button { display: inline-grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; border: 0; border-radius: 999px; background: transparent; color: inherit; font-size: 20px; }
+    .icon-button:hover { background: var(--color-hover-on-dark); }
+    .page-title { flex: 1; min-width: 0; overflow: hidden; margin: 0; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .workspace-menu { max-width: 124px; overflow: hidden; border: 0; background: transparent; color: inherit; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+    .content { width: min(100%, 1440px); margin: 0 auto; padding: 24px; }
+    .filter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 18px; }
+    .filter-chip { min-height: 38px; border: 1px solid var(--color-disabled); border-radius: 999px; background: var(--color-surface); color: var(--color-foreground); padding: 8px 14px; font-size: 13px; }
+    .data-label { margin: 0 0 10px; color: var(--color-muted); font-size: 12px; }
+    .data-panel { overflow: hidden; border-radius: var(--radius-medium); background: var(--color-surface); box-shadow: var(--shadow-card); }
+    .table-head, .ledger-row { display: grid; grid-template-columns: minmax(84px, 1fr) minmax(120px, 2fr) minmax(70px, 1fr); align-items: center; gap: 12px; padding: 14px 16px; }
+    .table-head { color: var(--color-muted); font-size: 12px; font-weight: 500; }
+    .ledger-row { min-height: 68px; border-top: 1px solid var(--color-disabled); }
+    .row-name { min-width: 0; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+    .row-date, .row-amount { color: var(--color-muted); font-size: 13px; }
+    .row-amount { color: var(--color-foreground); font-family: var(--font-mono); text-align: right; }
+    .empty-state { padding: 48px 20px; color: var(--color-muted); text-align: center; }
+    .drawer-scrim { position: fixed; inset: 0; z-index: 5; display: none; background: var(--color-scrim); }
+    .drawer { position: fixed; inset: 0 auto 0 0; z-index: 6; display: none; width: min(300px, calc(100vw - 56px)); padding: 24px 16px; background: var(--color-surface); box-shadow: 0 12px 32px var(--color-drawer-shadow); }
+    .drawer.open, .drawer-scrim.open { display: block; }
+    .drawer-brand { margin: 4px 8px 24px; color: var(--color-accent); font-size: 19px; font-weight: 600; }
+    .nav-list { display: grid; gap: 6px; }
+    .nav-button { min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--color-muted); padding: 10px 12px; text-align: left; }
+    .nav-button[aria-current="page"] { background: var(--color-background); color: var(--color-foreground); font-weight: 600; }
+    .nav-tree { margin: 32px 0 0; border-top: 1px solid var(--color-disabled); padding: 20px 0 0; color: var(--color-muted); font: 12px/1.7 var(--font-mono); white-space: pre-wrap; }
+    [hidden], .hidden { display: none !important; }
+
+    @media (max-width: 599px) {
+      .prototype-tools { padding: 14px 16px 8px; }
+      .tools-heading { align-items: flex-start; flex-direction: column; gap: 2px; }
+      .tool-label { min-width: 100%; padding-bottom: 0; }
+      .preview { min-height: calc(100vh - 190px); }
+      .auth-shell { min-height: calc(100vh - 190px); padding: 14px 16px 32px; }
+      .auth-header { min-height: 72px; }
+      .auth-content { min-height: 0; padding: 40px 0 24px; }
+      .form-card { padding: 24px 20px; }
+      .form-title { font-size: 22px; margin-bottom: 24px; }
+      .content { padding: 20px 16px; }
+      .table-head, .ledger-row { grid-template-columns: minmax(54px, .8fr) minmax(88px, 1.6fr) minmax(56px, .7fr); gap: 8px; padding-right: 12px; padding-left: 12px; }
+      .topbar { padding: 0 12px; gap: 4px; }
+      .workspace-menu { max-width: 88px; font-size: 12px; }
+      .row-name, .row-date, .row-amount { font-size: 12px; }
+    }
+    @media (min-width: 600px) and (max-width: 1023px) {
+      .auth-shell { min-height: calc(100vh - 154px); }
+      .auth-content { min-height: 520px; }
+      .content { padding: 28px 24px; }
+    }
+    @media (min-width: 1024px) {
+      .app-shell { grid-template-columns: 248px minmax(0, 1fr); }
+      .sidebar { position: sticky; top: 0; display: block; height: 100vh; padding: 24px 16px; background: var(--color-surface); }
+      .sidebar .nav-button { width: 100%; }
+      .sidebar .nav-button[aria-current="page"] { background: var(--color-background); }
+      .app-main { min-height: 100vh; }
+      .topbar { background: var(--color-surface); color: var(--color-foreground); border-bottom: 1px solid var(--color-disabled); padding: 0 32px; }
+      .workspace-menu { color: var(--color-foreground); }
+      .topbar [data-menu] { display: none; }
+      .icon-button:hover { background: var(--color-background); }
+      .content { padding: 32px; }
+      .auth-content { min-height: calc(100vh - 220px); }
+    }
+  </style>
+</head>
+<body>
+  <header class="prototype-tools" aria-label="原型控制">
+    <div class="tools-heading"><strong>页面骨架原型</strong><span>仅用于交互和响应式预览；展示数据均为占位内容</span></div>
+    <div class="tool-row" role="group" aria-label="切换页面">
+      <span class="tool-label">页面</span>
+      <button class="tool-button" data-view="login" aria-pressed="false">登录 / 注册</button>
+      <button class="tool-button" data-view="workspace" aria-pressed="true">工作区入口</button>
+      <button class="tool-button" data-view="existing">已有工作区</button>
+      <button class="tool-button" data-view="invite">未登录邀请</button>
+      <button class="tool-button" data-view="app">已登录主界面</button>
+    </div>
+    <div class="tool-row" id="state-tools" role="group" aria-label="切换状态">
+      <span class="tool-label">状态</span>
+      <button class="tool-button" data-state="default" aria-pressed="true">正常</button>
+      <button class="tool-button" data-state="focus" aria-pressed="false">焦点</button>
+      <button class="tool-button" data-state="validation" aria-pressed="false">校验错误</button>
+      <button class="tool-button" data-state="loading" aria-pressed="false">创建中</button>
+      <button class="tool-button" data-state="error" aria-pressed="false">请求失败</button>
+      <button class="tool-button" data-state="invalid" aria-pressed="false" hidden>邀请失效</button>
+      <button class="tool-button" data-state="success" aria-pressed="false">创建成功</button>
+    </div>
+  </header>
+
+  <main class="preview" id="preview"></main>
+  <div class="drawer-scrim" id="drawer-scrim"></div>
+  <aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-label="主导航"><div class="drawer-brand">财务账本</div><nav class="nav-list" id="drawer-nav"></nav></aside>
+
+  <template id="login-template">
+    <section class="auth-shell">
+      <header class="auth-header"><div class="brand-block"><span class="brand">财务账本</span></div></header>
+      <div class="auth-content"><section class="form-card" aria-labelledby="login-title">
+        <h1 class="form-title" id="login-title" data-login-title>登录到你的账本</h1>
+        <form data-login-form novalidate>
+          <label class="field-label" for="login-email">邮箱</label>
+          <input class="field" id="login-email" type="email" autocomplete="email" placeholder="邮箱" aria-describedby="login-message">
+          <label class="field-label login-password-label" for="login-password">密码</label>
+          <input class="field" id="login-password" type="password" autocomplete="current-password" placeholder="密码" aria-describedby="login-message">
+          <p class="message" id="login-message" aria-live="polite"></p>
+          <button class="primary" data-login-submit type="submit">登录</button>
+          <button class="text-button" data-login-switch type="button">还没有账户？注册</button>
+        </form>
+      </section></div>
+    </section>
+  </template>
+
+  <template id="auth-template">
+    <section class="auth-shell">
+      <header class="auth-header">
+        <div class="brand-block"><span class="brand">财务账本</span><span class="email" data-email>user@example.com</span></div>
+        <button class="logout" data-logout>退出登录</button>
+      </header>
+      <div class="auth-content"><section class="form-card" aria-labelledby="form-title">
+        <h1 class="form-title" id="form-title" data-title>新工作区</h1>
+        <div data-workspace-list class="workspace-list hidden"></div>
+        <form data-workspace-form novalidate>
+          <label class="field-label" for="workspace-name">工作区名称</label>
+          <input class="field" id="workspace-name" name="workspace-name" autocomplete="organization" placeholder="工作区名称" aria-describedby="workspace-message">
+          <p class="message" id="workspace-message" aria-live="polite"></p>
+          <button class="primary" data-submit type="submit">创建工作区</button>
+        </form>
+      </section></div>
+    </section>
+  </template>
+
+  <template id="invite-template">
+    <section class="auth-shell">
+      <header class="auth-header"><div class="brand-block"><span class="brand">财务账本</span></div></header>
+      <div class="auth-content"><section class="form-card" aria-labelledby="invite-title">
+        <h1 class="form-title" id="invite-title">加入工作区</h1>
+        <strong data-workspace-name>示例工作区</strong>
+        <p class="invite-role">编辑者</p>
+        <p class="message" data-invite-message aria-live="polite"></p>
+        <div class="invite-actions"><button class="primary" data-invite-action>登录并继续</button><button class="text-button" data-cancel>取消</button></div>
+      </section></div>
+    </section>
+  </template>
+
+  <template id="app-template">
+    <section class="app-shell">
+      <aside class="sidebar"><div class="drawer-brand">财务账本</div><nav class="nav-list" data-nav></nav><pre class="nav-tree">Scaffold
+├─ PermanentNavigationDrawer (WIDE)
+└─ AppContent
+   ├─ TopAppBar
+   │  ├─ RouteTitle
+   │  └─ WorkspaceMenu
+   └─ RouteContent</pre></aside>
+      <div class="app-main">
+        <header class="topbar">
+          <button class="icon-button" data-menu aria-label="打开导航">☰</button>
+          <h1 class="page-title" data-page-title>收支流水</h1>
+          <button class="workspace-menu">个人工作区</button>
+        </header>
+        <section class="content" data-page-content></section>
+      </div>
+    </section>
+  </template>
+
+  <script>
+    const preview = document.querySelector('#preview');
+    const navItems = [
+      ['ledger', '收支流水'], ['import', '现金导入'], ['categories', '分类管理'],
+      ['holdings', '投资持仓'], ['events', '投资事件'], ['workspace', '工作区管理']
+    ];
+    let currentView = 'workspace';
+    let currentState = 'default';
+    let currentPage = 'ledger';
+    let loginMode = 'login';
+
+    function setPressed(group, attr, value) {
+      document.querySelectorAll(`[${attr}]`).forEach(button => button.setAttribute('aria-pressed', String(button.getAttribute(attr) === value)));
+    }
+    function showView(view) {
+      currentView = view;
+      setPressed(document, 'data-view', view);
+      updateStateTools(view);
+      const templateName = view === 'login' ? 'login' : view === 'invite' ? 'invite' : view === 'app' ? 'app' : 'auth';
+      preview.replaceChildren(document.querySelector(`#${templateName}-template`).content.cloneNode(true));
+      if (view === 'login') wireLogin();
+      if (view === 'existing' || view === 'workspace') renderWorkspace();
+      if (view === 'invite') wireInvite();
+      if (view === 'app') renderApp();
+    }
+    function updateStateTools(view) {
+      const tools = document.querySelector('#state-tools');
+      tools.classList.toggle('hidden', view === 'app');
+      const invite = view === 'invite';
+      const labels = invite ? {default: '正常', loading: '接受中', error: '读取失败', invalid: '邀请失效', success: '已接受'} : view === 'login' ? {default: '正常', focus: '焦点', validation: '校验错误', loading: '登录中', error: '请求失败', success: '登录成功'} : {default: '正常', focus: '焦点', validation: '校验错误', loading: '创建中', error: '请求失败', success: '创建成功'};
+      tools.querySelectorAll('[data-state]').forEach(button => {
+        button.hidden = !(button.dataset.state in labels);
+        if (button.dataset.state in labels) button.textContent = labels[button.dataset.state];
+      });
+      const label = tools.querySelector('.tool-label');
+      if (label) label.textContent = invite ? '邀请状态' : '状态';
+    }
+    function wireLogin() {
+      const title = preview.querySelector('[data-login-title]');
+      const form = preview.querySelector('[data-login-form]');
+      const email = preview.querySelector('#login-email');
+      const password = preview.querySelector('#login-password');
+      const message = preview.querySelector('#login-message');
+      const submit = preview.querySelector('[data-login-submit]');
+      const switcher = preview.querySelector('[data-login-switch]');
+      const register = loginMode === 'register';
+      title.textContent = register ? '创建你的账户' : '登录到你的账本';
+      submit.textContent = register ? '创建账户' : '登录';
+      switcher.textContent = register ? '已有账户？登录' : '还没有账户？注册';
+      switcher.addEventListener('click', () => { loginMode = register ? 'login' : 'register'; showView('login'); });
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        if (currentState === 'success') { showView('workspace'); return; }
+        if (!email.value.trim() || !password.value) { message.textContent = '请填写邮箱和密码'; (!email.value.trim() ? email : password).focus(); return; }
+        if (currentState === 'error') { message.textContent = '登录失败，请重试'; return; }
+        if (currentState === 'loading') { submit.disabled = true; email.disabled = true; password.disabled = true; submit.textContent = register ? '正在创建…' : '正在登录…'; return; }
+        showView('workspace');
+      });
+      if (currentState === 'focus') email.focus();
+      if (currentState === 'validation') { email.setAttribute('aria-invalid', 'true'); message.textContent = '请输入有效的邮箱'; email.focus(); }
+      if (currentState === 'error') message.textContent = '登录失败，请重试';
+      if (currentState === 'loading') { submit.disabled = true; email.disabled = true; password.disabled = true; submit.textContent = register ? '正在创建…' : '正在登录…'; }
+      if (currentState === 'success') message.className = 'success-message';
+      if (currentState === 'success') message.textContent = '登录成功';
+    }
+    function renderWorkspace() {
+      const list = preview.querySelector('[data-workspace-list]');
+      const form = preview.querySelector('[data-workspace-form]');
+      const title = preview.querySelector('[data-title]');
+      if (currentView === 'existing') {
+        title.textContent = '选择工作区';
+        list.classList.remove('hidden');
+        list.innerHTML = '<button class="workspace-choice"><span>家庭账本</span><span>进入</span></button><button class="workspace-choice"><span>个人账本</span><span>进入</span></button><div class="divider"></div>';
+      } else {
+        list.classList.add('hidden');
+        title.textContent = '新工作区';
+      }
+      const field = preview.querySelector('#workspace-name');
+      const message = preview.querySelector('#workspace-message');
+      const submit = preview.querySelector('[data-submit]');
+      field.addEventListener('input', () => { message.textContent = ''; field.setAttribute('aria-invalid', 'false'); });
+      field.addEventListener('keydown', event => { if (event.key === 'Enter' && !submit.disabled) { event.preventDefault(); form.requestSubmit(); } });
+      form.addEventListener('submit', event => {
+        event.preventDefault();
+        if (currentState === 'loading') return;
+        if (!field.value.trim()) {
+          field.setAttribute('aria-invalid', 'true');
+          message.textContent = '请输入工作区名称';
+          field.focus();
+          return;
+        }
+        if (currentState === 'error') { message.textContent = '创建失败，请重试'; return; }
+        if (currentState === 'success') { showView('app'); return; }
+        submit.disabled = true;
+        submit.textContent = '正在创建…';
+        field.disabled = true;
+        window.setTimeout(() => showView('app'), 700);
+      });
+      applyState();
+      const logout = preview.querySelector('[data-logout]');
+      logout.addEventListener('click', () => showView('login'));
+      list?.querySelectorAll('.workspace-choice').forEach(choice => choice.addEventListener('click', () => showView('app')));
+    }
+    function applyState() {
+      const field = preview.querySelector('#workspace-name');
+      const message = preview.querySelector('#workspace-message');
+      const submit = preview.querySelector('[data-submit]');
+      if (!field || !message || !submit) return;
+      field.disabled = currentState === 'loading';
+      submit.disabled = currentState === 'loading';
+      submit.textContent = currentState === 'loading' ? '正在创建…' : currentState === 'success' ? '进入账本' : '创建工作区';
+      if (currentState === 'focus') { field.value = '个人账本'; field.focus(); }
+      if (currentState === 'validation') { field.value = ' '; field.setAttribute('aria-invalid', 'true'); message.textContent = '请输入工作区名称'; }
+      if (currentState === 'error') { field.value = '个人账本'; message.textContent = '创建失败，请重试'; }
+      if (currentState === 'success') { field.value = '个人账本'; message.className = 'success-message'; message.textContent = '创建成功'; }
+    }
+    function wireInvite() {
+      const message = preview.querySelector('[data-invite-message]');
+      const action = preview.querySelector('[data-invite-action]');
+      action.addEventListener('click', () => {
+        if (currentState === 'error') { message.textContent = '邀请暂时无法读取，请重试'; return; }
+        if (currentState === 'invalid') { message.textContent = '邀请已失效'; return; }
+        if (currentState === 'loading') { action.disabled = true; action.textContent = '正在接受…'; return; }
+        if (currentState === 'success') { showView('app'); return; }
+        showView('login');
+      });
+      preview.querySelector('[data-cancel]').addEventListener('click', () => showView('login'));
+      if (currentState === 'error') { message.textContent = '邀请暂时无法读取，请重试'; action.textContent = '重试'; }
+      if (currentState === 'invalid') { message.textContent = '邀请已失效'; action.hidden = true; }
+      if (currentState === 'loading') { action.disabled = true; action.textContent = '正在接受…'; }
+      if (currentState === 'success') { message.textContent = '邀请已接受'; action.textContent = '进入账本'; }
+    }
+    function renderApp() {
+      currentPage = 'ledger';
+      preview.querySelectorAll('[data-nav]').forEach(nav => nav.innerHTML = navItems.map(([key,label]) => `<button class="nav-button" data-route="${key}" aria-current="${key === currentPage ? 'page' : 'false'}">${label}</button>`).join(''));
+      preview.querySelectorAll('[data-route]').forEach(button => button.addEventListener('click', () => { currentPage = button.dataset.route; updateRoute(); closeDrawer(); }));
+      preview.querySelector('[data-menu]').addEventListener('click', openDrawer);
+      document.querySelector('#drawer-nav').innerHTML = navItems.map(([key,label]) => `<button class="nav-button" data-route="${key}" aria-current="${key === currentPage ? 'page' : 'false'}">${label}</button>`).join('');
+      document.querySelectorAll('#drawer [data-route]').forEach(button => button.addEventListener('click', () => { currentPage = button.dataset.route; updateRoute(); closeDrawer(); }));
+      document.querySelector('#drawer-scrim').addEventListener('click', closeDrawer);
+      updateRoute();
+    }
+    function updateRoute() {
+      const label = navItems.find(([key]) => key === currentPage)[1];
+      preview.querySelector('[data-page-title]').textContent = label;
+      preview.querySelectorAll('[data-route]').forEach(button => button.setAttribute('aria-current', button.dataset.route === currentPage ? 'page' : 'false'));
+      const content = preview.querySelector('[data-page-content]');
+      if (currentPage === 'ledger') {
+        content.innerHTML = `<div class="filter-row"><button class="filter-chip">全部</button><button class="filter-chip">近 30 天</button><button class="filter-chip">账户</button></div><p class="data-label">原型占位数据</p><section class="data-panel" aria-label="流水列表"><div class="table-head"><span>日期</span><span>事项</span><span style="text-align:right">金额</span></div>${['工资入账','日常消费','账户转入'].map(name => `<div class="ledger-row"><span class="row-date">—</span><span class="row-name">${name}</span><span class="row-amount">—</span></div>`).join('')}</section>`;
+      } else if (currentPage === 'import') {
+        content.innerHTML = '<div class="filter-row"><button class="filter-chip">选择文件</button></div><section class="data-panel empty-state">未选择文件</section>';
+      } else if (currentPage === 'categories') {
+        content.innerHTML = '<section class="data-panel">' + ['餐饮','交通','住房'].map(name => `<div class="ledger-row"><span class="row-name">${name}</span></div>`).join('') + '</section>';
+      } else if (currentPage === 'holdings') {
+        content.innerHTML = '<div class="filter-row"><button class="filter-chip">账户</button><button class="filter-chip">估值范围</button></div><section class="data-panel empty-state">暂无持仓</section>';
+      } else if (currentPage === 'events') {
+        content.innerHTML = '<div class="filter-row"><button class="filter-chip">事件类型</button><button class="filter-chip">近 30 天</button></div><section class="data-panel empty-state">暂无投资事件</section>';
+      } else {
+        content.innerHTML = '<section class="data-panel">' + ['所有者','编辑者','查看者'].map(role => `<div class="ledger-row"><span class="row-name">${role}</span><span class="row-date">成员占位</span></div>`).join('') + '</section>';
+      }
+    }
+    let drawerOpener = null;
+    function openDrawer() { drawerOpener = preview.querySelector('[data-menu]'); document.querySelector('#drawer').classList.add('open'); document.querySelector('#drawer-scrim').classList.add('open'); document.querySelector('#drawer [data-route]')?.focus(); }
+    function closeDrawer() { document.querySelector('#drawer').classList.remove('open'); document.querySelector('#drawer-scrim').classList.remove('open'); drawerOpener?.focus(); }
+    document.addEventListener('keydown', event => {
+      const drawer = document.querySelector('#drawer');
+      if (event.key === 'Escape' && drawer.classList.contains('open')) { closeDrawer(); return; }
+      if (event.key !== 'Tab' || !drawer.classList.contains('open')) return;
+      const items = [...drawer.querySelectorAll('button:not(:disabled)')];
+      const first = items[0], last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    document.querySelectorAll('[data-view]').forEach(button => button.addEventListener('click', () => showView(button.dataset.view)));
+    document.querySelectorAll('[data-state]').forEach(button => button.addEventListener('click', () => { currentState = button.dataset.state; setPressed(document, 'data-state', currentState); showView(currentView); }));
+    showView('workspace');
+  </script>
+</body>
+</html>

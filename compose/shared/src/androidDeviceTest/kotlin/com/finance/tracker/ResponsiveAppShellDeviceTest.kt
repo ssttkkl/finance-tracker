@@ -14,6 +14,9 @@ import androidx.compose.ui.test.junit4.StateRestorationTester
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -25,6 +28,31 @@ import org.junit.runner.RunWith
 class ResponsiveAppShellDeviceTest {
     @get:Rule
     val composeRule = createComposeRule()
+
+    @Test
+    fun routeTitleCanBeRenderedInTheTopBar() {
+        composeRule.setContent {
+            MaterialTheme {
+                DestinationTopBarTitle(AppPage.CASH_LEDGER)
+            }
+        }
+
+        composeRule.onNodeWithTag(SemanticIds.destinationTopBarTitle).assertIsDisplayed()
+    }
+
+    @Test
+    fun featurePageCanHideRouteTitleWithoutHidingContent() {
+        composeRule.setContent {
+            MaterialTheme {
+                FeaturePage("Route title", "feature-page-test", showTitle = false) {
+                    Text("Main content")
+                }
+            }
+        }
+
+        composeRule.onNodeWithText("Main content").assertIsDisplayed()
+        composeRule.onAllNodesWithTag(SemanticIds.destinationBodyTitle).assertCountEquals(0)
+    }
 
     @Test
     fun regularNavigationKeepsPageContentVisible() {

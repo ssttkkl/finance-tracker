@@ -5,9 +5,7 @@ import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
@@ -15,17 +13,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -111,7 +105,7 @@ internal fun AuthScreen(
             medium = RoundedCornerShape(12.dp),
         ),
     ) {
-        AuthResponsiveShell { modifier, compact ->
+        AuthResponsiveShell { modifier, compact, _, _ ->
             val onSubmit = {
                 when {
                     validation != CredentialValidation.Valid -> {
@@ -130,31 +124,36 @@ internal fun AuthScreen(
                     }
                 }
             }
-            AuthFormContent(
-                registering = registering,
-                email = email,
-                password = password,
-                confirmPassword = confirmPassword,
-                emailStatus = emailStatus,
-                emailIsError = emailIsError,
-                passwordStatus = passwordStatus,
-                passwordIsError = passwordIsError,
-                confirmPasswordStatus = confirmPasswordStatus,
-                confirmPasswordIsError = confirmPasswordIsError,
-                visibleError = visibleError,
-                busy = busy,
+            AuthEntryCard(
                 compact = compact,
-                modifier = modifier,
-                emailFocus = emailFocus,
-                passwordFocus = passwordFocus,
-                confirmPasswordFocus = confirmPasswordFocus,
-                onEmailChange = { email = it; showValidationError = false; confirmPasswordError = false },
-                onPasswordChange = { password = it; showValidationError = false; confirmPasswordError = false },
-                onConfirmPasswordChange = { confirmPassword = it; showValidationError = false; confirmPasswordError = false },
-                onBack = { registering = false; showValidationError = false; confirmPasswordError = false },
-                onToggleMode = { registering = true; showValidationError = false; confirmPasswordError = false },
-                onSubmit = onSubmit,
-            )
+                modifier = modifier.widthIn(max = 440.dp),
+            ) {
+                AuthFormContent(
+                    registering = registering,
+                    email = email,
+                    password = password,
+                    confirmPassword = confirmPassword,
+                    emailStatus = emailStatus,
+                    emailIsError = emailIsError,
+                    passwordStatus = passwordStatus,
+                    passwordIsError = passwordIsError,
+                    confirmPasswordStatus = confirmPasswordStatus,
+                    confirmPasswordIsError = confirmPasswordIsError,
+                    visibleError = visibleError,
+                    busy = busy,
+                    compact = compact,
+                    modifier = Modifier,
+                    emailFocus = emailFocus,
+                    passwordFocus = passwordFocus,
+                    confirmPasswordFocus = confirmPasswordFocus,
+                    onEmailChange = { email = it; showValidationError = false; confirmPasswordError = false },
+                    onPasswordChange = { password = it; showValidationError = false; confirmPasswordError = false },
+                    onConfirmPasswordChange = { confirmPassword = it; showValidationError = false; confirmPasswordError = false },
+                    onBack = { registering = false; showValidationError = false; confirmPasswordError = false },
+                    onToggleMode = { registering = true; showValidationError = false; confirmPasswordError = false },
+                    onSubmit = onSubmit,
+                )
+            }
         }
     }
 }
@@ -186,7 +185,7 @@ private fun AuthFormContent(
     onSubmit: () -> Unit,
 ) {
     Column(modifier) {
-        AuthHeader(registering = registering, compact = compact, enabled = !busy, onBack = onBack)
+        AuthHeader(registering = registering, enabled = !busy, onBack = onBack)
         Spacer(Modifier.height(if (compact) 14.dp else 2.dp))
         AuthTextField(email, onEmailChange, localizedText("copy_9ed627bcf6"), SemanticIds.authEmail, emailFocus, !busy,
             modifier = Modifier,
@@ -258,7 +257,7 @@ private fun AuthFormContent(
 }
 
 @Composable
-private fun AuthHeader(registering: Boolean, compact: Boolean, enabled: Boolean, onBack: () -> Unit) {
+private fun AuthHeader(registering: Boolean, enabled: Boolean, onBack: () -> Unit) {
     Box(Modifier.fillMaxWidth().height(44.dp)) {
         if (registering) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -267,7 +266,6 @@ private fun AuthHeader(registering: Boolean, compact: Boolean, enabled: Boolean,
                     enabled = enabled,
                     modifier = Modifier
                         .size(44.dp)
-                        .offset(x = if (compact) (-8).dp else 0.dp)
                         .testTag(SemanticIds.authBack)
                         .then(if (enabled) Modifier else Modifier.semantics { disabled() }),
                 ) {
@@ -420,150 +418,19 @@ internal fun WorkspaceAccessScreen(
     var workspaceName by remember { mutableStateOf("") }
     var nameError by remember { mutableStateOf(false) }
     val normalizedName = normalizeWorkspaceName(workspaceName)
-
-    if (session.workspaces.isEmpty()) {
-        FirstUseWorkspaceAccessScreen(
-            session = session,
-            busy = busy,
-            requestError = requestError,
-            workspaceName = workspaceName,
-            workspaceNameLabel = workspaceNameLabel,
-            nameError = nameError,
-            onWorkspaceNameChange = { workspaceName = it; nameError = false },
-            onCreate = {
-                if (normalizedName == null) {
-                    nameError = true
-                    onInvalidWorkspaceName()
-                } else {
-                    onCreate(normalizedName)
-                }
-            },
-            onLogout = onLogout,
-            onRetry = onRetry,
-        )
-        return
+    val submitCreate = {
+        if (normalizedName == null) {
+            nameError = true
+            onInvalidWorkspaceName()
+        } else onCreate(normalizedName)
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .testTag(SemanticIds.workspaceScreen)
-            .verticalScroll(rememberScrollState())
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top,
-    ) {
-        Column(
-            modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(localizedText("app_name"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-                    Text(session.user.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                FinanceTertiaryButton(onClick = onLogout, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceLogout)) {
-                    Text(localizedText("copy_094774b4a7"))
-                }
-            }
-            Text(localizedText("copy_b6eef2b9e2"), style = MaterialTheme.typography.headlineSmall)
-            if (requestError != null) {
-                Text(
-                    requestError,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-                FinanceTertiaryButton(onClick = onRetry, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceRetry)) {
-                    Text(localizedText("copy_e2d53a6d3a"))
-                }
-            }
-            if (session.workspaces.isNotEmpty()) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceList),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    session.workspaces.forEach { workspace ->
-                        FinanceSecondaryButton(
-                            onClick = { onSelect(workspace.id) },
-                            enabled = !busy,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(workspace.name, style = MaterialTheme.typography.titleSmall)
-                                Text(workspaceRoleLabel(workspace.role), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    }
-                }
-            }
-            FinanceSurface(modifier = Modifier.fillMaxWidth()) {
-                    Text(localizedText("copy_55e800686b"), style = MaterialTheme.typography.titleMedium)
-                    LabeledInput(
-                        value = workspaceName,
-                        onValueChange = { workspaceName = it; nameError = false },
-                        label = workspaceNameLabel,
-                        semanticId = SemanticIds.workspaceCreateName,
-                        enabled = !busy,
-                        singleLine = true,
-                        isError = nameError,
-                    )
-                    if (nameError) {
-                        Text(localizedText("copy_b0b3a62d15"), color = MaterialTheme.colorScheme.error)
-                    }
-                    FinanceButton(
-                        onClick = {
-                            if (normalizedName == null) {
-                                nameError = true
-                                onInvalidWorkspaceName()
-                            } else onCreate(normalizedName)
-                        },
-                        enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceCreate),
-                    ) {
-                        Text(if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"))
-                    }
-            }
-        }
-    }
-}
-
-@Composable
-private fun FirstUseWorkspaceAccessScreen(
-    session: Session,
-    busy: Boolean,
-    requestError: String?,
-    workspaceName: String,
-    workspaceNameLabel: String,
-    nameError: Boolean,
-    onWorkspaceNameChange: (String) -> Unit,
-    onCreate: () -> Unit,
-    onLogout: () -> Unit,
-    onRetry: () -> Unit,
-) {
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .testTag(SemanticIds.workspaceScreen),
-    ) {
-        val sizeClass = WindowSizeClass.fromWidthDp(maxWidth.value.toInt())
-        val headerMaxWidth = if (sizeClass == WindowSizeClass.WIDE) 1120.dp else 720.dp
-        val viewportHeight = maxHeight
-
-        if (sizeClass == WindowSizeClass.COMPACT) {
+    AuthResponsiveShell { modifier, compact, wide, viewportHeight ->
+        val workspacesExist = session.workspaces.isNotEmpty()
+        if (compact) {
             Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+                modifier = modifier.testTag(SemanticIds.workspaceScreen),
+                horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 WorkspaceAccountHeader(
                     session = session,
@@ -572,54 +439,165 @@ private fun FirstUseWorkspaceAccessScreen(
                     onLogout = onLogout,
                 )
                 Spacer(Modifier.height(48.dp))
-                FirstUseWorkspaceCard(
-                    workspaceName = workspaceName,
-                    workspaceNameLabel = workspaceNameLabel,
-                    busy = busy,
-                    requestError = requestError,
-                    nameError = nameError,
-                    onWorkspaceNameChange = onWorkspaceNameChange,
-                    onCreate = onCreate,
-                    onRetry = onRetry,
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(20.dp),
-                )
-            }
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                Box(Modifier.fillMaxWidth().heightIn(min = viewportHeight)) {
-                    WorkspaceAccountHeader(
+                if (workspacesExist) {
+                    WorkspaceMembershipCard(
                         session = session,
                         busy = busy,
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 28.dp, start = 24.dp, end = 24.dp)
-                            .widthIn(max = headerMaxWidth)
-                            .fillMaxWidth()
-                            .height(72.dp),
-                        onLogout = onLogout,
+                        requestError = requestError,
+                        workspaceName = workspaceName,
+                        workspaceNameLabel = workspaceNameLabel,
+                        nameError = nameError,
+                        onSelect = onSelect,
+                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onCreate = submitCreate,
+                        onRetry = onRetry,
+                        compact = true,
+                        modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                     )
+                } else {
                     FirstUseWorkspaceCard(
                         workspaceName = workspaceName,
                         workspaceNameLabel = workspaceNameLabel,
                         busy = busy,
                         requestError = requestError,
                         nameError = nameError,
-                        onWorkspaceNameChange = onWorkspaceNameChange,
-                        onCreate = onCreate,
+                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onCreate = submitCreate,
                         onRetry = onRetry,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .offset(y = if (sizeClass == WindowSizeClass.WIDE) 10.dp else (-8).dp)
-                            .widthIn(max = 440.dp)
-                            .fillMaxWidth(),
-                        contentPadding = PaddingValues(32.dp),
+                        compact = true,
+                        modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth(),
                     )
                 }
+            }
+        } else {
+            Box(
+                modifier = modifier
+                    .heightIn(min = (viewportHeight - 32.dp).coerceAtLeast(0.dp))
+                    .testTag(SemanticIds.workspaceScreen),
+            ) {
+                WorkspaceAccountHeader(
+                    session = session,
+                    busy = busy,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp)
+                        .widthIn(max = if (wide) 1120.dp else 720.dp)
+                        .fillMaxWidth()
+                        .height(72.dp),
+                    onLogout = onLogout,
+                )
+                if (workspacesExist) {
+                    WorkspaceMembershipCard(
+                        session = session,
+                        busy = busy,
+                        requestError = requestError,
+                        workspaceName = workspaceName,
+                        workspaceNameLabel = workspaceNameLabel,
+                        nameError = nameError,
+                        onSelect = onSelect,
+                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onCreate = submitCreate,
+                        onRetry = onRetry,
+                        compact = false,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth(),
+                    )
+                } else {
+                    FirstUseWorkspaceCard(
+                        workspaceName = workspaceName,
+                        workspaceNameLabel = workspaceNameLabel,
+                        busy = busy,
+                        requestError = requestError,
+                        nameError = nameError,
+                        onWorkspaceNameChange = { workspaceName = it; nameError = false },
+                        onCreate = submitCreate,
+                        onRetry = onRetry,
+                        compact = false,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceMembershipCard(
+    session: Session,
+    busy: Boolean,
+    requestError: String?,
+    workspaceName: String,
+    workspaceNameLabel: String,
+    nameError: Boolean,
+    onSelect: (String) -> Unit,
+    onWorkspaceNameChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    onRetry: () -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    AuthEntryCard(compact = compact, modifier = modifier) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(localizedText("copy_b6eef2b9e2"), style = MaterialTheme.typography.headlineSmall)
+            if (requestError != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        requestError,
+                        modifier = Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite },
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                    FinanceTertiaryButton(onClick = onRetry, enabled = !busy, modifier = Modifier.testTag(SemanticIds.workspaceRetry)) {
+                        Text(localizedText("copy_e2d53a6d3a"))
+                    }
+                }
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceList),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                session.workspaces.forEach { workspace ->
+                    FinanceSecondaryButton(
+                        onClick = { onSelect(workspace.id) },
+                        enabled = !busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(workspace.name, style = MaterialTheme.typography.titleSmall)
+                            Text(workspaceRoleLabel(workspace.role), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            }
+            Text(localizedText("copy_55e800686b"), style = MaterialTheme.typography.titleMedium)
+            LabeledInput(
+                value = workspaceName,
+                onValueChange = onWorkspaceNameChange,
+                label = workspaceNameLabel,
+                semanticId = SemanticIds.workspaceCreateName,
+                enabled = !busy,
+                singleLine = true,
+                isError = nameError,
+            )
+            if (nameError) Text(localizedText("copy_b0b3a62d15"), color = MaterialTheme.colorScheme.error)
+            FinanceButton(
+                onClick = onCreate,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceCreate),
+            ) {
+                Text(if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"))
             }
         }
     }
@@ -694,20 +672,13 @@ private fun FirstUseWorkspaceCard(
     onWorkspaceNameChange: (String) -> Unit,
     onCreate: () -> Unit,
     onRetry: () -> Unit,
+    compact: Boolean,
     modifier: Modifier = Modifier,
-    contentPadding: PaddingValues,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
-    Surface(
-        modifier = modifier.testTag(SemanticIds.workspaceCreateCard),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, colors.fieldBorder.copy(alpha = 0.12f)),
-        tonalElevation = 0.dp,
-    ) {
-        Column(Modifier.padding(contentPadding)) {
+    Box(modifier.testTag(SemanticIds.workspaceCreateCard)) {
+        AuthEntryCard(compact = compact, modifier = Modifier.fillMaxWidth()) {
             Text(
-                localizedText("copy_d92d1b8da8"),
+                localizedText("copy_55e800686b"),
                 modifier = Modifier.testTag(SemanticIds.workspaceCreateTitle),
                 color = MaterialTheme.colorScheme.onSurface,
                 style = MaterialTheme.typography.headlineSmall.copy(
@@ -733,8 +704,8 @@ private fun FirstUseWorkspaceCard(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     cursorColor = MaterialTheme.colorScheme.primary,
-                    errorBorderColor = colors.danger,
-                    errorCursorColor = colors.danger,
+                    errorBorderColor = MaterialTheme.colorScheme.error,
+                    errorCursorColor = MaterialTheme.colorScheme.error,
                 ),
             )
             if (nameError) {

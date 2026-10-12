@@ -7,6 +7,8 @@ object SemanticIds {
     const val navigationImport = "navigation.import"
     const val authScreen = "auth.screen"
     const val authCard = "auth.card"
+    const val destinationTopBarTitle = "destination.top-bar-title"
+    const val destinationBodyTitle = "destination.body-title"
     const val authTitle = "auth.title"
     const val authEmail = "auth.email"
     const val authEmailControl = "auth.email.control"

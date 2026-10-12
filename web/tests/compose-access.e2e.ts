@@ -63,6 +63,23 @@ const expectTopRelativeTo = async (
   expect(Math.abs((elementBox?.y ?? 0) - (containerBox?.y ?? 0) - expectedTop)).toBeLessThanOrEqual(2);
 };
 
+const expectCenteredAuthCard = async (page: import("@playwright/test").Page, width: number) => {
+  const cards = page.locator('[id="auth.card"]');
+  await expect(cards).toHaveCount(1);
+  const card = cards.last();
+  const expectedWidth = Math.min(width - 32, 440);
+  await expect.poll(async () => (await card.boundingBox())?.width ?? 0).toBeCloseTo(expectedWidth, 0);
+  await expect.poll(async () => {
+    const box = await card.boundingBox();
+    return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
+  }).toBeLessThanOrEqual(2);
+  const box = await card.boundingBox();
+  const viewport = await page.evaluate(() => ({ width: innerWidth, clientWidth: document.documentElement.clientWidth }));
+  expect(box).not.toBeNull();
+  expect(Math.abs((box?.width ?? 0) - expectedWidth), `card=${JSON.stringify(box)} viewport=${JSON.stringify(viewport)} expectedWidth=${expectedWidth}`).toBeLessThanOrEqual(2);
+  expect(Math.abs((box?.x ?? 0) - (width - (box?.width ?? 0)) / 2), `card=${JSON.stringify(box)} viewport=${JSON.stringify(viewport)}`).toBeLessThanOrEqual(2);
+};
+
 test("Compose 登录输入框向辅助技术公开邮箱和密码标签", async ({ page }) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.goto("/");
@@ -87,31 +104,19 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
     const loginEmailBox = await page.locator('[id="auth.email.control"]').last().boundingBox();
     expect(loginEmailBox).not.toBeNull();
 
+    await expectCenteredAuthCard(page, width);
     if (width === 390) {
-      await expect(card).toHaveCount(0);
-      expect(Math.abs((loginEmailBox?.y ?? 0) + 8 - 118)).toBeLessThanOrEqual(2);
       const titleBox = await page.locator('[id="auth.title"]').last().boundingBox();
       expect(titleBox).not.toBeNull();
       expect(titleBox?.y ?? 999).toBeLessThan(120);
-    } else {
-      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
-      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
-      await expect.poll(async () => {
-        const box = await card.boundingBox();
-        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
-      }).toBeLessThanOrEqual(2);
-      const cardBox = await card.boundingBox();
-      expect(cardBox).not.toBeNull();
-      expect(Math.abs((cardBox?.x ?? 0) - (width - (cardBox?.width ?? 0)) / 2)).toBeLessThanOrEqual(2);
-      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
-      expect(Math.abs((cardBox?.height ?? 0) - 378)).toBeLessThanOrEqual(2);
     }
+    await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
     await page.screenshot({ path: testInfo.outputPath(`login-default-${width}.png`) });
   }
 
   await page.setViewportSize({ width: 390, height: 900 });
   const modeToggle = page.locator('[id="auth.toggle-mode"]').last();
-  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
   await expect(modeToggle).toBeInViewport();
   await modeToggle.scrollIntoViewIfNeeded();
   await modeToggle.click({ force: true });
@@ -129,20 +134,10 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
     expect(overflow, `注册默认态在 ${width}px 下不应横向溢出`).toBe(false);
     const emailBox = await page.locator('[id="auth.email.control"]').last().boundingBox();
     expect(emailBox).not.toBeNull();
-    if (width === 390) {
-      await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
-      expect(Math.abs((emailBox?.y ?? 0) + 8 - 118)).toBeLessThanOrEqual(2);
-    } else {
-      const card = page.locator('[id="auth.card"]').last();
-      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
-      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
-      await expect.poll(async () => {
-        const box = await card.boundingBox();
-        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
-      }).toBeLessThanOrEqual(2);
+    const card = page.locator('[id="auth.card"]').last();
+    await expectCenteredAuthCard(page, width);
+    if (width !== 390) {
       const cardBox = await card.boundingBox();
-      expect(Math.abs((cardBox?.height ?? 0) - 414)).toBeLessThanOrEqual(2);
-      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
       await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 166);
       await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 262);
       await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 342);
@@ -163,18 +158,22 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
         expect(Math.abs((controlBox?.x ?? 0) - ((cardBox?.x ?? 0) + 32))).toBeLessThanOrEqual(2);
         expect(Math.abs(((controlBox?.x ?? 0) + (controlBox?.width ?? 0)) - ((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 32))).toBeLessThanOrEqual(2);
       }
+    } else {
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
     }
     if (width === 390) {
       const backBox = await page.locator('[id="auth.back"]').last().boundingBox();
+      const cardBox = await card.boundingBox();
       expect(backBox).not.toBeNull();
-      expect(Math.abs((backBox?.x ?? 0) - 16)).toBeLessThanOrEqual(2);
+      expect(Math.abs((backBox?.x ?? 0) - ((cardBox?.x ?? 0) + 20))).toBeLessThanOrEqual(2);
       expect(Math.abs((backBox?.width ?? 0) - 44)).toBeLessThanOrEqual(2);
       expect(Math.abs((backBox?.height ?? 0) - 44)).toBeLessThanOrEqual(2);
     }
     await page.screenshot({ path: testInfo.outputPath(`register-default-${width}.png`) });
   }
   await page.setViewportSize({ width: 390, height: 900 });
-  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await expectCenteredAuthCard(page, 390);
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
   await expect(page.locator('[id="auth.email"]').last()).toBeInViewport();
   const backButton = page.getByRole("button", { name: "返回登录" });
   await typeIntoComposeInput(page, '[id="auth.email"]', "not-an-email");
@@ -194,24 +193,16 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
     await page.setViewportSize({ width, height: 900 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow, `注册页面在 ${width}px 下不应横向溢出`).toBe(false);
-    if (width < 600) {
-      await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
-    } else {
-      const card = page.locator('[id="auth.card"]').last();
-      await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
-      await expect.poll(async () => (await card.boundingBox())?.width).toBeCloseTo(440, 0);
-      await expect.poll(async () => {
-        const box = await card.boundingBox();
-        return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
-      }).toBeLessThanOrEqual(2);
-    }
+    await expectCenteredAuthCard(page, width);
     if (width === 390 || width === 768 || width === 1440) {
       await page.screenshot({ path: testInfo.outputPath(`register-validation-${width}.png`) });
     }
   }
 
   await page.setViewportSize({ width: 390, height: 900 });
-  await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+  await expectCenteredAuthCard(page, 390);
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+  await backButton.scrollIntoViewIfNeeded();
   await backButton.click({ force: true });
   await expect(page.locator('[id="auth.title"]').last()).toHaveText("登录");
 });

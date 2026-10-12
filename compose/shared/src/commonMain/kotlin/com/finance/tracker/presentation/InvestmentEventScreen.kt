@@ -57,7 +57,7 @@ internal fun InvestmentEventsScreen(
     val accountsError = state.accountsErrorCode != null
     val error = state.errorCode?.let { investmentErrorText(it) }
     val nextCursor = state.nextCursor
-    FeaturePage(localizedText("copy_3228ddffe0"), SemanticIds.investmentEventsScreen) {
+    FeaturePage(localizedText("copy_3228ddffe0"), SemanticIds.investmentEventsScreen, showTitle = false) {
         if (sizeClass == WindowSizeClass.COMPACT) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DatePickerInput(filters.dateFrom.orEmpty(), { viewModel.updateFilters(filters.copy(dateFrom = it.ifBlank { null })) }, localizedText("copy_1f29196891"))

@@ -86,7 +86,7 @@ internal fun CashImportScreen(
         onResult = { files -> viewModel.receiveFiles(files?.map(::PlatformImportFileSource)) },
     )
 
-    FeaturePage(localizedText("copy_26dc37229c"), SemanticIds.importScreen) {
+    FeaturePage(localizedText("copy_26dc37229c"), SemanticIds.importScreen, showTitle = false) {
         if (!canWrite) {
             StateMessage(localizedText("copy_459f937086"))
             FinanceTertiaryButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }

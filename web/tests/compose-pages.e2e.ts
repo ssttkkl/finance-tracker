@@ -15,6 +15,7 @@ const responsiveWidths = [320, 375, 390, 414, 768, 1440];
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
 
 async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yRatio = 0.5): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
   const bounds = await locator.boundingBox();
   if (!bounds) throw new Error("Missing Compose target bounds");
   await page.mouse.click(bounds.x + bounds.width * xRatio, bounds.y + bounds.height * yRatio);
@@ -93,10 +94,29 @@ test("F-01 登录成功后打开当前工作区", async ({ page }) => {
   await expect(page).toHaveURL(/\/w\/workspace-1\/$/);
 });
 
-test("F-02 可创建工作区并进入账本", async ({ page }) => {
+test("F-02 可创建工作区并进入账本", async ({ page }, testInfo) => {
   await installComposeApiFixtures(page, { initialSession: noWorkspaceSession });
   await page.goto("/");
   await expect(page.locator('[id="workspace.screen"]').last()).toContainText("创建工作区");
+  await expect(page.locator('[id="auth.screen"]').last()).toBeVisible();
+  await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+  await expect(page.getByText("新工作区", { exact: true })).toBeVisible();
+
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    const card = page.locator('[id="auth.card"]').last();
+    const expectedWidth = Math.min(width - 32, 440);
+    await expect.poll(async () => (await card.boundingBox())?.width ?? 0).toBeCloseTo(expectedWidth, 0);
+    await expect.poll(async () => {
+      const bounds = await card.boundingBox();
+      return bounds ? Math.abs(bounds.x - (width - bounds.width) / 2) : Number.POSITIVE_INFINITY;
+    }).toBeLessThanOrEqual(2);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`workspace-access-${width}.png`) });
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(100);
+  await expect.poll(async () => (await page.locator('[id="auth.card"]').last().boundingBox())?.width ?? 0).toBeCloseTo(358, 0);
 
   await typeIntoComposeInput(page, '[id="workspace.create-name"]', "旅行账本");
   await page.locator('[id="workspace.create"]').last().click({ force: true });
@@ -105,7 +125,7 @@ test("F-02 可创建工作区并进入账本", async ({ page }) => {
   await expect(page).toHaveURL(/\/w\/workspace-created\/$/);
 });
 
-test("响应式导航在 regular 与 wide 宽度保留可见内容区", async ({ page }) => {
+test("响应式导航在 regular 与 wide 宽度保留可见内容区", async ({ page }, testInfo) => {
   await installComposeApiFixtures(page);
   await page.goto(`${workspaceRoot}/`);
 
@@ -113,46 +133,72 @@ test("响应式导航在 regular 与 wide 宽度保留可见内容区", async ({
     await page.setViewportSize({ width, height: 900 });
     const ledger = page.locator('[id="ledger.screen"]').last();
     await expect(ledger).toBeVisible();
+    await expect(page.locator('[id="ledger.summary"]').last()).toBeVisible();
+    await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText("收支账本");
+    await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
     const bounds = await ledger.boundingBox();
     expect(bounds?.width ?? 0).toBeGreaterThan(320);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 768 || width === 1440) {
+      await page.screenshot({ path: testInfo.outputPath(`app-${width}.png`) });
+    }
   }
 });
 
-test("工作区主导航保留路径上下文并支持浏览器前进后退", async ({ page }) => {
+test("工作区主导航保留路径上下文并支持浏览器前进后退", async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   await installComposeApiFixtures(page);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.summary"]').last()).toBeVisible();
+  await expect(page.locator('[id="ledger.record-projection-1"]').last()).toBeVisible();
+  await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText("收支账本");
+  await page.evaluate(async () => { await document.fonts.ready; });
+  await page.screenshot({ path: testInfo.outputPath("app-390.png") });
 
   const destinations = [
-    { id: "cash-import", screen: "import.screen", path: "cash-import" },
-    { id: "cash-categories", screen: "cash-categories.screen", path: "cash-categories" },
-    { id: "investment-holdings", screen: "investment-holdings.screen", path: "investment-holdings" },
-    { id: "investment-events", screen: "investment-events.screen", path: "investment-events" },
-    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management" },
+    { id: "cash-import", screen: "import.screen", path: "cash-import", title: "账单导入" },
+    { id: "cash-categories", screen: "cash-categories.screen", path: "cash-categories", title: "收支分类" },
+    { id: "investment-holdings", screen: "investment-holdings.screen", path: "investment-holdings", title: "当前持仓" },
+    { id: "investment-events", screen: "investment-events.screen", path: "investment-events", title: "投资事件" },
+    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management", title: "工作区管理" },
   ];
-  const visited = [{ url: `${workspaceRoot}/`, screen: "ledger.screen" }];
+  const visited = [{ url: `${workspaceRoot}/`, screen: "ledger.screen", title: "收支账本" }];
 
   for (const destination of destinations) {
     const openNavigation = page.locator('[id="navigation-open"]').last();
     await clickComposeUntil(page, openNavigation, async () => page.locator(`[id="navigation-item-${destination.id}"]`).isVisible());
     await page.locator(`[id="navigation-item-${destination.id}"]`).last().dispatchEvent("click");
     const url = `${workspaceRoot}/${destination.path}`;
-    visited.push({ url, screen: destination.screen });
+    visited.push({ url, screen: destination.screen, title: destination.title });
     await expect(page).toHaveURL(url);
     await expect(page.locator(`[id="${destination.screen}"]`).last()).toBeVisible();
+    await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(destination.title);
+    await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
+    for (const width of [390, 768, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.waitForTimeout(100);
+      await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(destination.title);
+      await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(100);
   }
 
   for (const route of visited.slice(0, -1).reverse()) {
     await page.goBack();
     await expect(page).toHaveURL(route.url);
     await expect(page.locator(`[id="${route.screen}"]`).last()).toBeVisible();
+    await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(route.title);
+    await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
   }
   for (const route of visited.slice(1)) {
     await page.goForward();
     await expect(page).toHaveURL(route.url);
     await expect(page.locator(`[id="${route.screen}"]`).last()).toBeVisible();
+    await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(route.title);
+    await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
   }
 });
 
@@ -505,10 +551,39 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await expect(page.locator('[id="choice-option-automatic"]')).toBeVisible();
   await page.screenshot({ path: path.join(screenshotDirectory, `web-choice-card-1440${themeSuffix}.png`) });
 });
+test("未登录邀请与认证页共用入口卡片并继续登录", async ({ page }) => {
+  const api = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${workspaceRoot}/workspace-management?invite=invite-e2e-token`);
+  await expect(page.getByText("加入「共享账本」", { exact: true })).toBeVisible();
+
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(100);
+    const card = page.locator('[id="auth.card"]').last();
+    await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
+    await expect.poll(async () => (await card.boundingBox())?.width ?? 0).toBeCloseTo(Math.min(width - 32, 440), 0);
+    await expect.poll(async () => {
+      const bounds = await card.boundingBox();
+      return bounds ? Math.abs(bounds.x - (width - bounds.width) / 2) : Number.POSITIVE_INFINITY;
+    }).toBeLessThanOrEqual(2);
+    const bounds = await card.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(Math.abs((bounds?.x ?? 0) - (width - (bounds?.width ?? 0)) / 2)).toBeLessThanOrEqual(2);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+
+  await page.getByRole("button", { name: "登录后接受邀请", exact: true }).click({ force: true });
+  await expect(page.locator('[id="auth.title"]').last()).toHaveText("登录");
+  expect(api.calls.some((call) => call.method === "GET" && call.path.endsWith("/invite-e2e-token"))).toBe(true);
+});
+
 test("F-06 可预览并接受邀请，随后返回原工作区页面", async ({ page }) => {
   const api = await installComposeApiFixtures(page);
   await page.goto(`${workspaceRoot}/workspace-management?invite=invite-e2e-token`);
   await expect(page.getByText("加入「共享账本」", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText("接受邀请");
+  await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
   await page.getByRole("button", { name: "接受邀请", exact: true }).click({ force: true });
 
   await expect(page.locator('[id="workspace-management.screen"]')).toBeVisible();

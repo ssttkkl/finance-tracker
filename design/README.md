@@ -9,6 +9,7 @@
 - `finance-ui.lib.pen`：基于 HeroUI 组件和语义变量派生的 Finance 业务组件库。
 - `heroui-reference.lib.pen`、`finance-design-system.lib.pen`：历史占位资产，不作为当前来源。
 - `login.pen`：登录/注册页首个设计样板。
+- `app-shell-entry.pen`：Compose 登录式工作区/邀请入口及已登录 Scaffold 标题层级设计稿；实现映射见 `openspec/changes/archive/2026-10-12-app-shell-entry-presentation/design.md`。
 - `workspace-entry.pen`、`cash-ledger.pen`、`cash-record.pen`、`cash-import.pen`、`invitation.pen`、`cash-categories.pen`、`investment-holdings.pen`、`investment-events.pen`、`workspace-management.pen`：其余页面的 Compact、Regular、Wide 设计稿。
 - `generated/pen-variables.json`：由 `scripts/generate_ui_tokens.py` 生成的变量同步清单，不是 `.pen` 文件。CLI 导出的预览图片与 PDF 属于临时产物，不提交到仓库；需要审查时写入 `/tmp` 或对应变更的测试结果目录。
 
@@ -47,4 +48,4 @@ Gallery 使用独立入口，避免业务应用的全局样式覆盖官方组件
 
 ## 当前状态
 
-本变更已通过官方 interactive CLI 生成并保存 `heroui-reference.pen`、`heroui.lib.pen`、`finance-ui.lib.pen` 和 F-01 至 F-10 的页面稿。持仓、投资事件表格是 `finance-ui.lib.pen` 中的可复用组件，页面通过库实例引用；重建命令见 `tools/pen/build-finance-tables.mjs` 与 `tools/pen/rebuild-web-pages.mjs`。设计稿确认前不继续扩大页面实现范围。
+本变更已通过官方 interactive CLI 生成并保存 `heroui-reference.pen`、`heroui.lib.pen`、`finance-ui.lib.pen` 和 F-01 至 F-10 的页面稿。持仓、投资事件表格是 `finance-ui.lib.pen` 中的可复用组件，页面通过库实例引用；重建命令见 `tools/pen/build-finance-tables.mjs` 与 `tools/pen/rebuild-web-pages.mjs`。`app-shell-entry.pen` 与独立 HTML 原型已通过用户确认，Compose 实现与最终审查证据记录在 `openspec/changes/archive/2026-10-12-app-shell-entry-presentation/tasks.md`。

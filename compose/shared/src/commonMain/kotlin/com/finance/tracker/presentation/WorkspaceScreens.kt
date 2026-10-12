@@ -45,7 +45,6 @@ internal fun InvitationScreen(
         factory = viewModelFactory { initializer { InvitationViewModel(repository, diagnostics) } },
     )
     val invitationState by invitationViewModel.state.collectAsStateWithLifecycle()
-    val preview = invitationState.preview
     val error = invitationState.errorCode?.let { localizedText(invitationErrorResourceKey(it)) }
     LaunchedEffect(invitationViewModel, token) { invitationViewModel.load(token) }
     LaunchedEffect(invitationState.acceptedSession) {
@@ -55,35 +54,82 @@ internal fun InvitationScreen(
         }
     }
 
-    FeaturePage(localizedText("copy_d7f050d6f3"), SemanticIds.invitationScreen, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-        SectionCard(Modifier.fillMaxWidth().widthIn(max = 560.dp)) {
-            when {
-                invitationState.loading -> Text(localizedText("copy_d347833ffd"))
-                preview == null -> {
-                    Text(localizedText("copy_73e6ee9610"), style = MaterialTheme.typography.titleLarge)
-                    InlineError(error)
-                    if (!invitationState.terminalPreviewError) FinanceTertiaryButton(onClick = { invitationViewModel.retry(token) }) { Text(localizedText("copy_e2d53a6d3a")) }
-                    FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
-                }
-                preview.valid == false -> {
-                    Text(localizedText("copy_ec0fa251c2"), style = MaterialTheme.typography.titleLarge)
-                    Text(localizedText("copy_40d123e2b5"))
-                    FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
-                }
-                else -> {
-                    Text(localizedText("copy_4d2ee8a422", preview.workspace.name), style = MaterialTheme.typography.titleLarge)
-                    Text(if (preview.role == WorkspaceRole.EDITOR) localizedText("copy_e85cf84fa9") else localizedText("copy_19beadefbf"))
-                    if (session == null) {
-                        FinanceButton(onClick = onRequireSignIn) { Text(localizedText("copy_36e59d0e40")) }
-                    } else {
-                        FinanceButton(onClick = { invitationViewModel.accept(token) }, enabled = !invitationState.accepting, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
-                            Text(if (invitationState.accepting) localizedText("copy_df0b8d97c3") else localizedText("copy_f3703115d3"))
-                        }
-                    }
-                    FinanceTertiaryButton(onClick = onCancel, enabled = !invitationState.accepting) { Text(localizedText("copy_3171424931")) }
-                    InlineError(error)
-                }
+    if (session == null) {
+        AuthResponsiveShell { modifier, compact, _, _ ->
+            AuthEntryCard(compact = compact, modifier = modifier.widthIn(max = 440.dp)) {
+                InvitationContent(
+                    state = invitationState,
+                    error = error,
+                    isAuthenticated = false,
+                    onRetry = { invitationViewModel.retry(token) },
+                    onRequireSignIn = onRequireSignIn,
+                    onAccept = { invitationViewModel.accept(token) },
+                    onCancel = onCancel,
+                )
             }
+        }
+    } else {
+        FeaturePage(
+            localizedText("copy_d7f050d6f3"),
+            SemanticIds.invitationScreen,
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            showTitle = false,
+        ) {
+            SectionCard(Modifier.fillMaxWidth().widthIn(max = 560.dp)) {
+                InvitationContent(
+                    state = invitationState,
+                    error = error,
+                    isAuthenticated = true,
+                    onRetry = { invitationViewModel.retry(token) },
+                    onRequireSignIn = onRequireSignIn,
+                    onAccept = { invitationViewModel.accept(token) },
+                    onCancel = onCancel,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InvitationContent(
+    state: InvitationUiState,
+    error: String?,
+    isAuthenticated: Boolean,
+    onRetry: () -> Unit,
+    onRequireSignIn: () -> Unit,
+    onAccept: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val preview = state.preview
+    when {
+        state.loading -> Text(localizedText("copy_d347833ffd"))
+        preview == null -> {
+            Text(localizedText("copy_73e6ee9610"), style = MaterialTheme.typography.titleLarge)
+            InlineError(error)
+            if (!state.terminalPreviewError) FinanceTertiaryButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
+            FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
+        }
+        preview.valid == false -> {
+            Text(localizedText("copy_ec0fa251c2"), style = MaterialTheme.typography.titleLarge)
+            Text(localizedText("copy_40d123e2b5"))
+            FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
+        }
+        else -> {
+            Text(localizedText("copy_4d2ee8a422", preview.workspace.name), style = MaterialTheme.typography.titleLarge)
+            Text(if (preview.role == WorkspaceRole.EDITOR) localizedText("copy_e85cf84fa9") else localizedText("copy_19beadefbf"))
+            if (state.accepting) {
+                FinanceButton(onClick = {}, enabled = false, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                    Text(localizedText("copy_df0b8d97c3"))
+                }
+            } else if (isAuthenticated) {
+                FinanceButton(onClick = onAccept, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                    Text(localizedText("copy_f3703115d3"))
+                }
+            } else {
+                FinanceButton(onClick = onRequireSignIn) { Text(localizedText("copy_36e59d0e40")) }
+            }
+            FinanceTertiaryButton(onClick = onCancel, enabled = !state.accepting) { Text(localizedText("copy_3171424931")) }
+            InlineError(error)
         }
     }
 }
@@ -126,7 +172,7 @@ internal fun WorkspaceManagementScreen(
     val deleteName = state.deleteName
     val deleteError = state.deleteErrorCode?.let { workspaceErrorText(it) }
     val deleting = state.deleting
-    FeaturePage(localizedText("copy_e0617c59d4"), SemanticIds.workspaceManagementScreen) {
+    FeaturePage(localizedText("copy_e0617c59d4"), SemanticIds.workspaceManagementScreen, showTitle = false) {
         if (loading && details == null) StateMessage(localizedText("copy_bac3e13248"))
         if (error != null && details == null) StateMessage(error.orEmpty(), isError = true) { FinanceTertiaryButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) } }
         details?.let { current ->

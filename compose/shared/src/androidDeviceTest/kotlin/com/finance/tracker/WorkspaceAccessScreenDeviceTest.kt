@@ -39,11 +39,13 @@ class WorkspaceAccessScreenDeviceTest {
     fun firstUseHasOneCreateHeadingAndAuthStyleAccountHeader() {
         showScreen(session = emptySession())
 
+        composeRule.onNodeWithTag(SemanticIds.authScreen).assertIsDisplayed()
+        composeRule.onNodeWithTag(SemanticIds.authCard).assertIsDisplayed()
         composeRule.onNodeWithText(expectedText("财务账本", "Finance Tracker")).assertIsDisplayed()
         composeRule.onNodeWithText("ss@example.com").assertIsDisplayed()
         composeRule.onNodeWithText(expectedText("退出登录", "Sign out")).assertIsDisplayed()
         composeRule.onAllNodes(hasTestTag(SemanticIds.workspaceCreateTitle)).assertCountEquals(1)
-        composeRule.onAllNodesWithText(expectedText("新工作区", "New workspace")).assertCountEquals(0)
+        composeRule.onAllNodesWithText(expectedText("新工作区", "New workspace")).assertCountEquals(1)
         composeRule.onNodeWithTag(SemanticIds.workspaceCreateName).assertIsDisplayed()
         composeRule.onNodeWithTag(SemanticIds.workspaceCreate).assertIsDisplayed()
         assertFirstUseCardGeometry()
@@ -109,16 +111,36 @@ class WorkspaceAccessScreenDeviceTest {
             ),
         )
 
+        composeRule.onNodeWithTag(SemanticIds.authScreen).assertIsDisplayed()
+        composeRule.onNodeWithTag(SemanticIds.authCard).assertIsDisplayed()
         composeRule.onNodeWithText("Family ledger").assertIsDisplayed()
         composeRule.onNodeWithTag(SemanticIds.workspaceList).assertIsDisplayed()
         composeRule.onNodeWithText(expectedText("新工作区", "New workspace")).assertIsDisplayed()
         composeRule.onNodeWithTag(SemanticIds.workspaceCreate).assertIsDisplayed()
     }
 
+    @Test
+    fun loginUsesTheSameEntryShellAndCard() {
+        composeRule.setContent {
+            FinanceTheme {
+                com.finance.tracker.presentation.AuthScreen(
+                    busy = false,
+                    requestError = null,
+                    onAuthenticate = { _, _, _ -> },
+                    onCredentialValidationFailure = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(SemanticIds.authScreen).assertIsDisplayed()
+        composeRule.onNodeWithTag(SemanticIds.authCard).assertIsDisplayed()
+    }
+
     private fun assertFirstUseCardGeometry() {
         val density = InstrumentationRegistry.getInstrumentation().targetContext.resources.displayMetrics.density
-        val root = composeRule.onNodeWithTag(SemanticIds.workspaceScreen).fetchSemanticsNode().boundsInRoot
+        val root = composeRule.onNodeWithTag(SemanticIds.authScreen).fetchSemanticsNode().boundsInRoot
         val card = composeRule.onNodeWithTag(SemanticIds.workspaceCreateCard).fetchSemanticsNode().boundsInRoot
+        val logout = composeRule.onNodeWithTag(SemanticIds.workspaceLogout).fetchSemanticsNode().boundsInRoot
         val widthDp = (root.width / density).roundToInt()
         val cardWidthDp = card.width / density
         val cardLeftDp = card.left / density
@@ -126,15 +148,8 @@ class WorkspaceAccessScreenDeviceTest {
         val expectedCardLeftDp = if (widthDp < 600) 16f else (widthDp - 440f) / 2f
         assertTrue(abs(cardWidthDp - expectedCardWidthDp) <= 1f, "Card width was $cardWidthDp dp at $widthDp dp")
         assertTrue(abs(cardLeftDp - expectedCardLeftDp) <= 1f, "Card left was $cardLeftDp dp at $widthDp dp")
-        val expectedTopDp = when (widthDp) {
-            390 -> 136f
-            768 -> 392f
-            1440 -> 348f
-            else -> null
-        }
-        expectedTopDp?.let {
-            assertTrue(abs(card.top / density - it) <= 2f, "Card top was ${card.top / density} dp at $widthDp dp")
-        }
+        assertTrue(card.top > logout.bottom, "Form card must sit below the account header")
+        assertTrue(card.bottom <= root.bottom, "Form card must stay within the scrollable shell")
     }
 
     private fun expectedText(chinese: String, english: String): String {

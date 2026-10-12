@@ -1,10 +1,10 @@
 {
-  "date": "2026-08-14",
-  "framework": "React 19 + Vite production app; standalone HTML OpenSpec prototype",
+  "date": "2026-10-12",
+  "framework": "Compose Multiplatform shared commonMain, targeting Compose Web, Android, and iOS; standalone HTML OpenSpec prototype",
   "fonts": ["Noto Sans SC", "IBM Plex Mono"],
-  "palette": "Cobalt OKLCH tokens inherited from the production Web UI",
-  "motion": "motion-cut; no motion library detected for the prototype",
+  "palette": "Finance design tokens with cobalt accent and light/dark semantic surface roles",
+  "motion": "motion-cut for the prototype; no new motion behavior is required",
   "spacing": "4-point semantic scale",
-  "preserve": ["application side navigation", "cool paper", "cobalt signal color", "compact hairline layout"],
-  "introduce": ["Workbench / Account Mapping Grid", "four-step account mapping flow", "full interaction states", "Hallmark slop-test gates"]
+  "preserve": ["existing login page hierarchy", "FinanceTheme typography and palette", "responsive page width", "existing navigation destinations and actions"],
+  "introduce": ["shared login/workspace/invitation entry shell", "one TopAppBar title for authenticated pages", "entry and shell state coverage"]
 }

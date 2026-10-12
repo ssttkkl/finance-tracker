@@ -66,6 +66,7 @@ internal fun CashLedgerScreen(
         localizedText("copy_c1f4f28c6c"),
         SemanticIds.ledgerScreen,
         headerActionsInline = sizeClass != WindowSizeClass.COMPACT,
+        showTitle = false,
         headerActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FinanceButton(onClick = { viewModel.startNewRecord(localDateTimeForInput()) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerAdd)) { Text(localizedText("copy_1f62e3f53f")) }

@@ -47,7 +47,7 @@ internal fun CashCategoryScreen(
     val deleteError = state.deleteErrorCode?.let { categoryErrorText(it) }
     val busy = state.busy || state.loadingDeleteImpact
 
-    FeaturePage(localizedText("copy_a42e73f0a7"), SemanticIds.cashCategoriesScreen) {
+    FeaturePage(localizedText("copy_a42e73f0a7"), SemanticIds.cashCategoriesScreen, showTitle = false) {
         InlineError(pageError)
         if (state.loading && state.directory == null) StateMessage(localizedText("copy_07c21b1c4e"))
         if (pageError != null && state.directory == null) {

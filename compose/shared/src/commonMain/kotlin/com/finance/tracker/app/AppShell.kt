@@ -50,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -200,6 +201,17 @@ private fun NavigationDestinations(selectedPage: AppPage, onNavigate: (AppPage) 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+internal fun DestinationTopBarTitle(page: AppPage) {
+    Text(
+        localizedText(titleKeyFor(page)),
+        modifier = Modifier.testTag(SemanticIds.destinationTopBarTitle),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 internal fun DestinationScaffold(
     state: DestinationState,
     modifier: Modifier = Modifier,
@@ -210,7 +222,7 @@ internal fun DestinationScaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { if (state.sizeClass != WindowSizeClass.WIDE) Text(localizedText(titleKeyFor(state.route.page))) },
+                title = { DestinationTopBarTitle(state.route.page) },
                 navigationIcon = state.navigationIcon,
                 colors = if (state.sizeClass == WindowSizeClass.WIDE) TopAppBarDefaults.topAppBarColors()
                     else TopAppBarDefaults.topAppBarColors(
@@ -287,7 +299,7 @@ internal fun DestinationScaffold(
                     },
                     diagnostics = state.diagnosticLogger,
                 )
-                AppPage.NOT_FOUND -> FeaturePage(localizedText("copy_55c9e10608"), "page.not-found", Modifier.fillMaxSize().padding(24.dp)) {
+                AppPage.NOT_FOUND -> FeaturePage(localizedText("copy_55c9e10608"), "page.not-found", Modifier.fillMaxSize().padding(24.dp), showTitle = false) {
                     StateMessage(localizedText("copy_c2bed2ec5b"))
                 }
             }

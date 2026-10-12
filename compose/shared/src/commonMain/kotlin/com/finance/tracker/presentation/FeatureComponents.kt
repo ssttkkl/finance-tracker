@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -59,6 +60,7 @@ internal fun FeaturePage(
     modifier: Modifier = Modifier,
     headerActions: (@Composable () -> Unit)? = null,
     headerActionsInline: Boolean = false,
+    showTitle: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -72,11 +74,12 @@ internal fun FeaturePage(
     ) {
         if (headerActions != null && headerActionsInline) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+                if (showTitle) Text(title, modifier = Modifier.testTag(SemanticIds.destinationBodyTitle), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+                else Spacer(Modifier.weight(1f))
                 headerActions()
             }
         } else {
-            Text(title, modifier = Modifier.testTag("app-page-title"), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
+            if (showTitle) Text(title, modifier = Modifier.testTag(SemanticIds.destinationBodyTitle), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onBackground)
             headerActions?.invoke()
         }
         content()
