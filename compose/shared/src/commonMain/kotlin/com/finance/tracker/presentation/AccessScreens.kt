@@ -5,27 +5,36 @@ import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,8 +61,11 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.finance.tracker.core.WindowSizeClass
+import com.finance.tracker.core.design.FinanceTokens
 
 @Composable
 internal fun AuthScreen(
@@ -409,6 +421,29 @@ internal fun WorkspaceAccessScreen(
     var nameError by remember { mutableStateOf(false) }
     val normalizedName = normalizeWorkspaceName(workspaceName)
 
+    if (session.workspaces.isEmpty()) {
+        FirstUseWorkspaceAccessScreen(
+            session = session,
+            busy = busy,
+            requestError = requestError,
+            workspaceName = workspaceName,
+            workspaceNameLabel = workspaceNameLabel,
+            nameError = nameError,
+            onWorkspaceNameChange = { workspaceName = it; nameError = false },
+            onCreate = {
+                if (normalizedName == null) {
+                    nameError = true
+                    onInvalidWorkspaceName()
+                } else {
+                    onCreate(normalizedName)
+                }
+            },
+            onLogout = onLogout,
+            onRetry = onRetry,
+        )
+        return
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -435,10 +470,7 @@ internal fun WorkspaceAccessScreen(
                     Text(localizedText("copy_094774b4a7"))
                 }
             }
-            Text(
-                if (session.workspaces.isEmpty()) localizedText("copy_d92d1b8da8") else localizedText("copy_b6eef2b9e2"),
-                style = MaterialTheme.typography.headlineSmall,
-            )
+            Text(localizedText("copy_b6eef2b9e2"), style = MaterialTheme.typography.headlineSmall)
             if (requestError != null) {
                 Text(
                     requestError,
@@ -498,6 +530,269 @@ internal fun WorkspaceAccessScreen(
                     ) {
                         Text(if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"))
                     }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FirstUseWorkspaceAccessScreen(
+    session: Session,
+    busy: Boolean,
+    requestError: String?,
+    workspaceName: String,
+    workspaceNameLabel: String,
+    nameError: Boolean,
+    onWorkspaceNameChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    onLogout: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .testTag(SemanticIds.workspaceScreen),
+    ) {
+        val sizeClass = WindowSizeClass.fromWidthDp(maxWidth.value.toInt())
+        val headerMaxWidth = if (sizeClass == WindowSizeClass.WIDE) 1120.dp else 720.dp
+        val viewportHeight = maxHeight
+
+        if (sizeClass == WindowSizeClass.COMPACT) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 16.dp),
+            ) {
+                WorkspaceAccountHeader(
+                    session = session,
+                    busy = busy,
+                    modifier = Modifier.fillMaxWidth().height(72.dp),
+                    onLogout = onLogout,
+                )
+                Spacer(Modifier.height(48.dp))
+                FirstUseWorkspaceCard(
+                    workspaceName = workspaceName,
+                    workspaceNameLabel = workspaceNameLabel,
+                    busy = busy,
+                    requestError = requestError,
+                    nameError = nameError,
+                    onWorkspaceNameChange = onWorkspaceNameChange,
+                    onCreate = onCreate,
+                    onRetry = onRetry,
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(20.dp),
+                )
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Box(Modifier.fillMaxWidth().heightIn(min = viewportHeight)) {
+                    WorkspaceAccountHeader(
+                        session = session,
+                        busy = busy,
+                        modifier = Modifier
+                            .align(Alignment.TopCenter)
+                            .padding(top = 28.dp, start = 24.dp, end = 24.dp)
+                            .widthIn(max = headerMaxWidth)
+                            .fillMaxWidth()
+                            .height(72.dp),
+                        onLogout = onLogout,
+                    )
+                    FirstUseWorkspaceCard(
+                        workspaceName = workspaceName,
+                        workspaceNameLabel = workspaceNameLabel,
+                        busy = busy,
+                        requestError = requestError,
+                        nameError = nameError,
+                        onWorkspaceNameChange = onWorkspaceNameChange,
+                        onCreate = onCreate,
+                        onRetry = onRetry,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(y = if (sizeClass == WindowSizeClass.WIDE) 10.dp else (-8).dp)
+                            .widthIn(max = 440.dp)
+                            .fillMaxWidth(),
+                        contentPadding = PaddingValues(32.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WorkspaceAccountHeader(
+    session: Session,
+    busy: Boolean,
+    modifier: Modifier = Modifier,
+    onLogout: () -> Unit,
+) {
+    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    Column(modifier) {
+        Row(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    localizedText("app_name"),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontSize = 18.sp,
+                        lineHeight = 23.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
+                Text(
+                    session.user.email,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(
+                onClick = onLogout,
+                enabled = !busy,
+                modifier = Modifier.width(90.dp).height(44.dp).testTag(SemanticIds.workspaceLogout),
+            ) {
+                Text(
+                    localizedText("copy_094774b4a7"),
+                    color = colors.foreground,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                    ),
+                )
+            }
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.fieldBorder.copy(alpha = 0.55f)),
+        )
+    }
+}
+
+@Composable
+private fun FirstUseWorkspaceCard(
+    workspaceName: String,
+    workspaceNameLabel: String,
+    busy: Boolean,
+    requestError: String?,
+    nameError: Boolean,
+    onWorkspaceNameChange: (String) -> Unit,
+    onCreate: () -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
+) {
+    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    Surface(
+        modifier = modifier.testTag(SemanticIds.workspaceCreateCard),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, colors.fieldBorder.copy(alpha = 0.12f)),
+        tonalElevation = 0.dp,
+    ) {
+        Column(Modifier.padding(contentPadding)) {
+            Text(
+                localizedText("copy_d92d1b8da8"),
+                modifier = Modifier.testTag(SemanticIds.workspaceCreateTitle),
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall.copy(
+                    fontSize = 24.sp,
+                    lineHeight = 29.sp,
+                    fontWeight = FontWeight.Bold,
+                ),
+            )
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = workspaceName,
+                onValueChange = onWorkspaceNameChange,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag(SemanticIds.workspaceCreateName)
+                    .semantics { contentDescription = workspaceNameLabel },
+                enabled = !busy,
+                singleLine = true,
+                placeholder = { Text(workspaceNameLabel) },
+                isError = nameError,
+                shape = RoundedCornerShape(8.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    errorBorderColor = colors.danger,
+                    errorCursorColor = colors.danger,
+                ),
+            )
+            if (nameError) {
+                Text(
+                    localizedText("copy_b0b3a62d15"),
+                    modifier = Modifier
+                        .padding(top = 8.dp)
+                        .semantics { liveRegion = LiveRegionMode.Polite },
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (requestError != null) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        requestError,
+                        modifier = Modifier
+                            .weight(1f)
+                            .semantics { liveRegion = LiveRegionMode.Polite },
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    TextButton(
+                        onClick = onRetry,
+                        enabled = !busy,
+                        modifier = Modifier.testTag(SemanticIds.workspaceRetry),
+                    ) {
+                        Text(localizedText("copy_e2d53a6d3a"))
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = onCreate,
+                enabled = !busy,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .testTag(SemanticIds.workspaceCreate),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Text(
+                    if (busy) localizedText("copy_f5fd2680d8") else localizedText("copy_d92d1b8da8"),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    ),
+                )
             }
         }
     }

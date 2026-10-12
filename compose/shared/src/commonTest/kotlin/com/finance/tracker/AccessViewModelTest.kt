@@ -96,6 +96,24 @@ class AccessViewModelTest {
     }
 
     @Test
+    fun entersLedgerEligibleAuthenticatedStateOnlyAfterCreateReturnsWorkspaceSession() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val repository = FakeSessionRepository()
+            val viewModel = AccessViewModel(repository)
+
+            viewModel.showWorkspaceSelection(Session(user = User("user@example.com")))
+            viewModel.createWorkspace("Family")
+            advanceUntilIdle()
+
+            assertEquals(AccessStatus.AUTHENTICATED, viewModel.state.value.status)
+            assertEquals("workspace-1", viewModel.state.value.session?.activeWorkspaceId)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
     fun doesNotSurfaceNonRecoverableDomainCodesAsUserErrors() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {

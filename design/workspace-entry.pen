@@ -1,1052 +1,1161 @@
 {
-  "version": "2.19",
+  "version": "2.21",
   "children": [
     {
       "type": "frame",
-      "id": "RLDPz",
-      "x": 0,
-      "y": 0,
-      "name": "创建工作区 / 320",
-      "clip": true,
-      "width": 320,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        28,
-        16
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "tPZzD",
-          "name": "访问内容",
-          "width": 288,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
-          "children": [
-            {
-              "type": "text",
-              "id": "xTTyq",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "jdDsY",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 28,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "u0jUcS",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "Y8qM1",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "F62m5",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "uzozk",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "yQuUj",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "HJ4MG",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "uPCwd",
-      "x": 390,
-      "y": 0,
-      "name": "创建工作区 / 375",
-      "clip": true,
-      "width": 375,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        28,
-        16
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "wtETl",
-          "name": "访问内容",
-          "width": 343,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
-          "children": [
-            {
-              "type": "text",
-              "id": "x7NeKf",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "Dta9l",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 28,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "fed6a",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "XaGWg",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "FoQ9T",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "q82s5o",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "AbdTx",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "VKtw0",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "aASEn",
+      "id": "KV5AK",
       "x": 835,
       "y": 0,
-      "name": "创建工作区 / 390",
+      "name": "创建工作区 / COMPACT (390) / 默认",
+      "theme": {
+        "D:mode": "light"
+      },
       "clip": true,
       "width": 390,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        28,
-        16
-      ],
-      "alignItems": "center",
+      "height": 844,
+      "fill": "$D:finance.background",
+      "layout": "none",
       "children": [
         {
           "type": "frame",
-          "id": "X20dDz",
-          "name": "访问内容",
+          "id": "eIYRc",
+          "x": 16,
+          "y": 16,
+          "name": "账户顶栏",
           "width": 358,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
+          "height": 72,
+          "stroke": "#C4C9D0",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
           "children": [
             {
-              "type": "text",
-              "id": "qZiu0",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "bROPp",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 28,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "DRzLK",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
+              "type": "frame",
+              "id": "t7vwxB",
+              "name": "品牌与账户",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MR7o5",
+                  "name": "品牌名称",
+                  "fill": "$D:finance.accent",
+                  "content": "财务账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "E8lCVy",
+                  "name": "账户邮箱",
+                  "fill": "#626B75",
+                  "content": "member@example.com",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
             },
             {
               "type": "frame",
-              "id": "Y0ZbcA",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
+              "id": "c8FjK",
+              "name": "退出登录操作",
+              "width": 90,
+              "height": 44,
+              "justifyContent": "center",
+              "alignItems": "center",
               "children": [
                 {
-                  "type": "frame",
-                  "id": "P8YstF",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "l7Y7G",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "TIyDd",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "g6Pay",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
+                  "type": "text",
+                  "id": "Vudfb",
+                  "name": "退出登录标签",
+                  "fill": "$D:finance.foreground",
+                  "content": "退出登录",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "500"
                 }
               ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "gYKe4",
-      "x": 1295,
-      "y": 0,
-      "name": "创建工作区 / 414",
-      "clip": true,
-      "width": 414,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        28,
-        16
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "juZjb",
-          "name": "访问内容",
-          "width": 382,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
-          "children": [
-            {
-              "type": "text",
-              "id": "P1899C",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "PTT33",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 28,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "C5mFH",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "LP0eq",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "r1dky",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "nNz1e",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "T0t16W",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "PtrGT",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "ZmjvG",
-      "x": 1779,
-      "y": 0,
-      "name": "创建工作区 / 768",
-      "clip": true,
-      "width": 768,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        90,
-        32
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "c7ikQ",
-          "name": "访问内容",
-          "width": 704,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
-          "children": [
-            {
-              "type": "text",
-              "id": "mt71H",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "d6pHvQ",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 32,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "NeBKV",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "vi7Nv",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "a03W0f",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "miu65",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "YXBP0",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "aAI7K",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "bxAIN",
-      "x": 2617,
-      "y": 0,
-      "name": "创建工作区 / 1440",
-      "clip": true,
-      "width": 1440,
-      "height": 900,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "padding": [
-        90,
-        32
-      ],
-      "alignItems": "center",
-      "children": [
-        {
-          "type": "frame",
-          "id": "DutgC",
-          "name": "访问内容",
-          "width": 720,
-          "fill": "#f5f5f5",
-          "layout": "vertical",
-          "gap": 16,
-          "children": [
-            {
-              "type": "text",
-              "id": "Z5LRt",
-              "name": "入口标记",
-              "fill": "#0485f7",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "新工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "600"
-            },
-            {
-              "type": "text",
-              "id": "r61r9O",
-              "name": "创建标题",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 32,
-              "fontWeight": "700"
-            },
-            {
-              "type": "text",
-              "id": "ZTPN6",
-              "name": "创建说明",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "创建后你将成为首位管理员，可以再邀请其他成员。",
-              "fontFamily": "Roboto",
-              "fontSize": 14,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "frame",
-              "id": "a1o6V",
-              "name": "创建表单",
-              "width": "fill_container",
-              "fill": "#ffffff",
-              "cornerRadius": 8,
-              "layout": "vertical",
-              "gap": 14,
-              "padding": 20,
-              "children": [
-                {
-                  "type": "frame",
-                  "id": "igwZU",
-                  "name": "工作区名称",
-                  "width": "fill_container",
-                  "layout": "vertical",
-                  "gap": 6,
-                  "children": [
-                    {
-                      "type": "text",
-                      "id": "O0EPN",
-                      "name": "工作区名称标签",
-                      "fill": "#6f7279",
-                      "textGrowth": "fixed-width",
-                      "width": "fill_container",
-                      "content": "工作区名称",
-                      "fontFamily": "Roboto",
-                      "fontSize": 12,
-                      "fontWeight": "normal"
-                    },
-                    {
-                      "id": "cIvz8",
-                      "type": "ref",
-                      "ref": "D:Q2EsN",
-                      "name": "工作区名称输入",
-                      "width": "fill_container",
-                      "height": 40,
-                      "descendants": {
-                        "D:lkemR": {
-                          "enabled": false
-                        },
-                        "D:YDsht": {
-                          "content": "输入工作区名称"
-                        }
-                      }
-                    }
-                  ]
-                },
-                {
-                  "id": "sITWB",
-                  "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "创建工作区",
-                  "height": 36,
-                  "width": "fill_container",
-                  "descendants": {
-                    "D:IWqn3": {
-                      "content": "创建工作区"
-                    }
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "type": "frame",
-      "id": "B2U4ak",
-      "x": 0,
-      "y": 1800,
-      "name": "创建工作区 / 状态与确认",
-      "clip": true,
-      "width": 620,
-      "height": 800,
-      "fill": "#f5f5f5",
-      "layout": "vertical",
-      "gap": 12,
-      "padding": 24,
-      "children": [
-        {
-          "type": "text",
-          "id": "YMJNH",
-          "name": "标题",
-          "fill": "#202124",
-          "textGrowth": "fixed-width",
-          "width": "fill_container",
-          "content": "创建工作区状态",
-          "fontFamily": "Roboto",
-          "fontSize": 20,
-          "fontWeight": "600"
-        },
-        {
-          "type": "frame",
-          "id": "JFC9E",
-          "name": "加载中",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "BIAPl",
-              "name": "加载中标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "加载中",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "TY9eR",
-              "name": "加载中内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "正在创建工作区…",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
             }
           ]
         },
         {
           "type": "frame",
-          "id": "jYKUt",
-          "name": "空状态",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
+          "id": "G6wFD",
+          "x": 16,
+          "y": 136,
+          "name": "创建表单卡片",
+          "width": 358,
+          "fill": "$D:finance.surface",
+          "cornerRadius": "$D:finance.radius",
           "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
+          "gap": 16,
+          "padding": 20,
           "children": [
             {
               "type": "text",
-              "id": "EwLls",
-              "name": "空状态标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "空状态",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
+              "id": "hN6hL",
+              "name": "唯一主标题",
+              "fill": "$D:finance.foreground",
+              "content": "创建工作区",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 24,
+              "fontWeight": "700"
             },
             {
-              "type": "text",
-              "id": "Z2WbD",
-              "name": "空状态内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "尚未创建工作区",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            }
-          ]
-        },
-        {
-          "type": "frame",
-          "id": "hmMfu",
-          "name": "错误状态",
-          "width": "fill_container",
-          "height": 112,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
-          "children": [
-            {
-              "type": "text",
-              "id": "hiAgn",
-              "name": "错误状态标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "错误状态",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
-            },
-            {
-              "type": "text",
-              "id": "M7ve2",
-              "name": "错误状态内容",
-              "fill": "#c8372b",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "无法创建工作区，请重试",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
-            },
-            {
-              "id": "kUbCe",
+              "id": "r46RB",
               "type": "ref",
-              "ref": "D:uEyLt",
-              "name": "重试",
-              "height": 36,
-              "width": 76,
+              "ref": "D:FWJjz",
+              "name": "工作区名称字段 / Material 3",
+              "width": 318,
+              "height": 56,
               "descendants": {
-                "D:Wee4B": {
-                  "content": "重试"
+                "D:AnYoF": {
+                  "width": 318,
+                  "height": 56,
+                  "stroke": "$D:finance.authM3.outline",
+                  "strokeWidth": 1,
+                  "cornerRadius": 8
+                },
+                "D:Sr8Cx": {
+                  "content": "工作区名称",
+                  "enabled": true,
+                  "fill": "$D:finance.foreground",
+                  "fontSize": 16
+                },
+                "D:XSeIi": {
+                  "enabled": false,
+                  "width": 70
+                },
+                "D:C0GmHd": {
+                  "content": "工作区名称",
+                  "enabled": false,
+                  "fill": "$D:finance.accent",
+                  "fontSize": 12
+                },
+                "D:wEowj": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.foreground"
+                },
+                "D:OP9HK": {
+                  "enabled": false,
+                  "fill": "$D:finance.accent"
+                },
+                "D:nBJ3j": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.authM3.outline",
+                  "width": 294,
+                  "textGrowth": "fixed-width",
+                  "fontSize": 12
+                }
+              }
+            },
+            {
+              "id": "u03Kkv",
+              "type": "ref",
+              "ref": "D:O8M8q",
+              "name": "创建工作区按钮 / Material 3",
+              "width": 318,
+              "height": 44,
+              "fill": "$D:finance.accent",
+              "cornerRadius": 8,
+              "descendants": {
+                "D:kn6Gu": {
+                  "content": "创建工作区",
+                  "width": 318,
+                  "height": 40,
+                  "enabled": true,
+                  "fontSize": 18,
+                  "fontWeight": "700"
                 }
               }
             }
           ]
-        },
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "HetEf",
+      "x": 1779,
+      "y": 0,
+      "name": "创建工作区 / REGULAR (768) / 默认",
+      "theme": {
+        "D:mode": "light"
+      },
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "$D:finance.background",
+      "layout": "none",
+      "children": [
         {
           "type": "frame",
-          "id": "GYrs7",
-          "name": "成功反馈",
-          "width": "fill_container",
-          "height": 80,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
-          "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
+          "id": "uWZWG",
+          "x": 24,
+          "y": 28,
+          "name": "账户顶栏",
+          "width": 720,
+          "height": 72,
+          "stroke": "#C4C9D0",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
           "children": [
             {
-              "type": "text",
-              "id": "UqcRl",
-              "name": "成功反馈标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "成功反馈",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
+              "type": "frame",
+              "id": "uTCD0",
+              "name": "品牌与账户",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "A7ZS8Q",
+                  "name": "品牌名称",
+                  "fill": "$D:finance.accent",
+                  "content": "财务账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "oFUpZ",
+                  "name": "账户邮箱",
+                  "fill": "#626B75",
+                  "content": "member@example.com",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
             },
             {
-              "type": "text",
-              "id": "T8pDn5",
-              "name": "成功反馈内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "工作区已创建",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
+              "type": "frame",
+              "id": "iKGbY",
+              "name": "退出登录操作",
+              "width": 90,
+              "height": 44,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P9Giqi",
+                  "name": "退出登录标签",
+                  "fill": "$D:finance.foreground",
+                  "content": "退出登录",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
             }
           ]
         },
         {
           "type": "frame",
-          "id": "bFmfF",
-          "name": "禁用与焦点",
-          "width": "fill_container",
-          "height": 140,
-          "fill": "#ffffff",
-          "cornerRadius": 8,
+          "id": "nUyNp",
+          "x": 164,
+          "y": 392,
+          "name": "创建表单卡片",
+          "width": 440,
+          "fill": "$D:finance.surface",
+          "cornerRadius": "$D:finance.radius",
           "layout": "vertical",
-          "gap": 6,
-          "padding": 14,
+          "gap": 16,
+          "padding": 32,
           "children": [
             {
               "type": "text",
-              "id": "dlubt",
-              "name": "禁用与焦点标题",
-              "fill": "#6f7279",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "禁用与焦点",
-              "fontFamily": "Roboto",
-              "fontSize": 13,
-              "fontWeight": "normal"
+              "id": "P6XHor",
+              "name": "唯一主标题",
+              "fill": "$D:finance.foreground",
+              "content": "创建工作区",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 24,
+              "fontWeight": "700"
             },
             {
-              "type": "text",
-              "id": "YeOo0",
-              "name": "禁用与焦点内容",
-              "fill": "#202124",
-              "textGrowth": "fixed-width",
-              "width": "fill_container",
-              "content": "名称为空时，创建不可用",
-              "fontFamily": "Roboto",
-              "fontSize": 15,
-              "fontWeight": "normal"
+              "id": "UqY0e",
+              "type": "ref",
+              "ref": "D:FWJjz",
+              "name": "工作区名称字段 / Material 3",
+              "width": 376,
+              "height": 56,
+              "descendants": {
+                "D:AnYoF": {
+                  "width": 376,
+                  "height": 56,
+                  "stroke": "$D:finance.authM3.outline",
+                  "strokeWidth": 1,
+                  "cornerRadius": 8
+                },
+                "D:Sr8Cx": {
+                  "content": "工作区名称",
+                  "enabled": true,
+                  "fill": "$D:finance.foreground",
+                  "fontSize": 16
+                },
+                "D:XSeIi": {
+                  "enabled": false,
+                  "width": 70
+                },
+                "D:C0GmHd": {
+                  "content": "工作区名称",
+                  "enabled": false,
+                  "fill": "$D:finance.accent",
+                  "fontSize": 12
+                },
+                "D:wEowj": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.foreground"
+                },
+                "D:OP9HK": {
+                  "enabled": false,
+                  "fill": "$D:finance.accent"
+                },
+                "D:nBJ3j": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.authM3.outline",
+                  "width": 352,
+                  "textGrowth": "fixed-width",
+                  "fontSize": 12
+                }
+              }
+            },
+            {
+              "id": "fl8jk",
+              "type": "ref",
+              "ref": "D:O8M8q",
+              "name": "创建工作区按钮 / Material 3",
+              "width": 376,
+              "height": 44,
+              "fill": "$D:finance.accent",
+              "cornerRadius": 8,
+              "descendants": {
+                "D:kn6Gu": {
+                  "content": "创建工作区",
+                  "width": 376,
+                  "height": 40,
+                  "enabled": true,
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "N1D59",
+      "x": 2617,
+      "y": 0,
+      "name": "创建工作区 / WIDE (1440) / 默认",
+      "theme": {
+        "D:mode": "light"
+      },
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$D:finance.background",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "ArHkS",
+          "x": 160,
+          "y": 28,
+          "name": "账户顶栏",
+          "width": 1120,
+          "height": 72,
+          "stroke": "#C4C9D0",
+          "strokeWidth": {
+            "bottom": 1
+          },
+          "padding": [
+            8,
+            0
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Dnlr3",
+              "name": "品牌与账户",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "w5rEB",
+                  "name": "品牌名称",
+                  "fill": "$D:finance.accent",
+                  "content": "财务账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "ufWNK",
+                  "name": "账户邮箱",
+                  "fill": "#626B75",
+                  "content": "member@example.com",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
             },
             {
               "type": "frame",
-              "id": "X8ADNN",
-              "name": "焦点与禁用示例",
-              "width": "fill_container",
-              "gap": 10,
+              "id": "XVAKc",
+              "name": "退出登录操作",
+              "width": 90,
+              "height": 44,
+              "justifyContent": "center",
               "alignItems": "center",
               "children": [
                 {
-                  "id": "N674K",
-                  "type": "ref",
-                  "ref": "D:Q2EsN",
-                  "name": "焦点字段",
-                  "width": 220,
+                  "type": "text",
+                  "id": "U1MEgZ",
+                  "name": "退出登录标签",
+                  "fill": "$D:finance.foreground",
+                  "content": "退出登录",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 14,
+                  "fontWeight": "500"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Kbx0T",
+          "x": 500,
+          "y": 348,
+          "name": "创建表单卡片",
+          "width": 440,
+          "fill": "$D:finance.surface",
+          "cornerRadius": "$D:finance.radius",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 32,
+          "children": [
+            {
+              "type": "text",
+              "id": "Kfrfl",
+              "name": "唯一主标题",
+              "fill": "$D:finance.foreground",
+              "content": "创建工作区",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 24,
+              "fontWeight": "700"
+            },
+            {
+              "id": "kC7B8",
+              "type": "ref",
+              "ref": "D:FWJjz",
+              "name": "工作区名称字段 / Material 3",
+              "width": 376,
+              "height": 56,
+              "descendants": {
+                "D:AnYoF": {
+                  "width": 376,
+                  "height": 56,
+                  "stroke": "$D:finance.authM3.outline",
+                  "strokeWidth": 1,
+                  "cornerRadius": 8
+                },
+                "D:Sr8Cx": {
+                  "content": "工作区名称",
+                  "enabled": true,
+                  "fill": "$D:finance.foreground",
+                  "fontSize": 16
+                },
+                "D:XSeIi": {
+                  "enabled": false,
+                  "width": 70
+                },
+                "D:C0GmHd": {
+                  "content": "工作区名称",
+                  "enabled": false,
+                  "fill": "$D:finance.accent",
+                  "fontSize": 12
+                },
+                "D:wEowj": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.foreground"
+                },
+                "D:OP9HK": {
+                  "enabled": false,
+                  "fill": "$D:finance.accent"
+                },
+                "D:nBJ3j": {
+                  "content": "",
+                  "enabled": false,
+                  "fill": "$D:finance.authM3.outline",
+                  "width": 352,
+                  "textGrowth": "fixed-width",
+                  "fontSize": 12
+                }
+              }
+            },
+            {
+              "id": "ynQNU",
+              "type": "ref",
+              "ref": "D:O8M8q",
+              "name": "创建工作区按钮 / Material 3",
+              "width": 376,
+              "height": 44,
+              "fill": "$D:finance.accent",
+              "cornerRadius": 8,
+              "descendants": {
+                "D:kn6Gu": {
+                  "content": "创建工作区",
+                  "width": 376,
                   "height": 40,
-                  "stroke": "#0485f7",
-                  "strokeWidth": 2,
+                  "enabled": true,
+                  "fontSize": 18,
+                  "fontWeight": "700"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "Uqok8",
+      "x": 0,
+      "y": 1800,
+      "name": "创建工作区 / 状态与反馈示意",
+      "theme": {
+        "D:mode": "light"
+      },
+      "clip": true,
+      "width": 1000,
+      "height": 960,
+      "fill": "$D:finance.background",
+      "layout": "vertical",
+      "gap": 14,
+      "padding": 20,
+      "children": [
+        {
+          "type": "text",
+          "id": "NUOxi",
+          "name": "状态板标题",
+          "fill": "$D:finance.foreground",
+          "content": "表单状态示意",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 22,
+          "fontWeight": "700"
+        },
+        {
+          "type": "text",
+          "id": "SiqeC",
+          "name": "状态板说明",
+          "fill": "#626B75",
+          "content": "创建成功后直接进入收支账本，不增加成功停留页。",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "bSKOK",
+          "name": "状态组一",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "snBgO",
+              "name": "默认 / 空名称",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Y3bdV",
+                  "name": "状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "默认 / 空名称",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "Wms4q",
+                  "type": "ref",
+                  "ref": "D:FWJjz",
+                  "name": "工作区名称输入 / Material 3",
+                  "width": 428,
+                  "height": 56,
                   "descendants": {
-                    "D:lkemR": {
-                      "enabled": false
+                    "D:AnYoF": {
+                      "width": 428,
+                      "height": 56,
+                      "fill": "$D:finance.surface",
+                      "stroke": "$D:finance.authM3.outline",
+                      "strokeWidth": 1,
+                      "cornerRadius": 8
                     },
-                    "D:YDsht": {
-                      "content": "输入中"
+                    "D:Sr8Cx": {
+                      "content": "工作区名称",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground",
+                      "fontSize": 16
+                    },
+                    "D:XSeIi": {
+                      "enabled": false,
+                      "width": 70
+                    },
+                    "D:C0GmHd": {
+                      "content": "工作区名称",
+                      "enabled": false,
+                      "fill": "$D:finance.accent",
+                      "fontSize": 12
+                    },
+                    "D:wEowj": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.foreground"
+                    },
+                    "D:OP9HK": {
+                      "enabled": false,
+                      "fill": "$D:finance.accent"
+                    },
+                    "D:nBJ3j": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "width": 404,
+                      "textGrowth": "fixed-width",
+                      "fontSize": 12
                     }
                   }
                 },
                 {
-                  "id": "IW1jy",
+                  "id": "ivH7O",
                   "type": "ref",
-                  "ref": "D:CjC40",
-                  "name": "保存",
-                  "height": 36,
-                  "width": 76,
-                  "opacity": 0.45,
+                  "ref": "D:O8M8q",
+                  "name": "创建工作区按钮 / Material 3",
+                  "width": 428,
+                  "height": 44,
+                  "fill": "$D:finance.accent",
+                  "cornerRadius": 8,
+                  "opacity": 1,
                   "descendants": {
-                    "D:IWqn3": {
-                      "content": "保存"
+                    "D:kn6Gu": {
+                      "content": "创建工作区",
+                      "width": 428,
+                      "height": 40,
+                      "enabled": true,
+                      "fill": "#FCFCFC",
+                      "fontSize": 18,
+                      "fontWeight": "700"
                     }
                   }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "m1leB",
+              "name": "输入聚焦",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "LxuuX",
+                  "name": "状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "输入聚焦",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "efcgB",
+                  "type": "ref",
+                  "ref": "D:FWJjz",
+                  "name": "工作区名称输入 / Material 3",
+                  "width": 428,
+                  "height": 56,
+                  "descendants": {
+                    "D:AnYoF": {
+                      "width": 428,
+                      "height": 56,
+                      "fill": "$D:finance.surface",
+                      "stroke": "$D:finance.accent",
+                      "strokeWidth": 2,
+                      "cornerRadius": 8
+                    },
+                    "D:Sr8Cx": {
+                      "content": "工作区名称",
+                      "enabled": false,
+                      "fill": "$D:finance.accent",
+                      "fontSize": 16
+                    },
+                    "D:XSeIi": {
+                      "enabled": true,
+                      "width": 86
+                    },
+                    "D:C0GmHd": {
+                      "content": "工作区名称",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground",
+                      "fontSize": 12
+                    },
+                    "D:wEowj": {
+                      "content": "家庭账本",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground"
+                    },
+                    "D:OP9HK": {
+                      "enabled": true,
+                      "fill": "$D:finance.accent"
+                    },
+                    "D:nBJ3j": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "width": 404,
+                      "textGrowth": "fixed-width",
+                      "fontSize": 12
+                    }
+                  }
+                },
+                {
+                  "id": "h4yfb1",
+                  "type": "ref",
+                  "ref": "D:O8M8q",
+                  "name": "创建工作区按钮 / Material 3",
+                  "width": 428,
+                  "height": 44,
+                  "fill": "$D:finance.accent",
+                  "cornerRadius": 8,
+                  "opacity": 1,
+                  "descendants": {
+                    "D:kn6Gu": {
+                      "content": "创建工作区",
+                      "width": 428,
+                      "height": 40,
+                      "enabled": true,
+                      "fill": "#FCFCFC",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "kpzCU",
+          "name": "状态组二",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "gFxqO",
+              "name": "名称校验错误",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "uACpW",
+                  "name": "状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "名称校验错误",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "XyjIl",
+                  "type": "ref",
+                  "ref": "D:FWJjz",
+                  "name": "工作区名称输入 / Material 3",
+                  "width": 428,
+                  "height": 56,
+                  "descendants": {
+                    "D:AnYoF": {
+                      "width": 428,
+                      "height": 56,
+                      "fill": "$D:finance.surface",
+                      "stroke": "$D:finance.danger",
+                      "strokeWidth": 2,
+                      "cornerRadius": 8
+                    },
+                    "D:Sr8Cx": {
+                      "content": "工作区名称",
+                      "enabled": false,
+                      "fill": "$D:finance.danger",
+                      "fontSize": 16
+                    },
+                    "D:XSeIi": {
+                      "enabled": true,
+                      "width": 86
+                    },
+                    "D:C0GmHd": {
+                      "content": "工作区名称",
+                      "enabled": true,
+                      "fill": "$D:finance.danger",
+                      "fontSize": 12
+                    },
+                    "D:wEowj": {
+                      "content": "家庭账本",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground"
+                    },
+                    "D:OP9HK": {
+                      "enabled": false,
+                      "fill": "$D:finance.accent"
+                    },
+                    "D:nBJ3j": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "width": 404,
+                      "textGrowth": "fixed-width",
+                      "fontSize": 12
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "gI6sG",
+                  "name": "状态反馈",
+                  "fill": "$D:finance.danger",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "请输入不超过 255 个字符的名称。",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "q7pgS",
+                  "type": "ref",
+                  "ref": "D:O8M8q",
+                  "name": "创建工作区按钮 / Material 3",
+                  "width": 428,
+                  "height": 44,
+                  "fill": "$D:finance.accent",
+                  "cornerRadius": 8,
+                  "opacity": 1,
+                  "descendants": {
+                    "D:kn6Gu": {
+                      "content": "创建工作区",
+                      "width": 428,
+                      "height": 40,
+                      "enabled": true,
+                      "fill": "#FCFCFC",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lDLuF",
+              "name": "请求失败",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "P98B74",
+                  "name": "状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "请求失败",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "u91t2",
+                  "type": "ref",
+                  "ref": "D:FWJjz",
+                  "name": "工作区名称输入 / Material 3",
+                  "width": 428,
+                  "height": 56,
+                  "descendants": {
+                    "D:AnYoF": {
+                      "width": 428,
+                      "height": 56,
+                      "fill": "$D:finance.surface",
+                      "stroke": "$D:finance.authM3.outline",
+                      "strokeWidth": 1,
+                      "cornerRadius": 8
+                    },
+                    "D:Sr8Cx": {
+                      "content": "工作区名称",
+                      "enabled": false,
+                      "fill": "$D:finance.foreground",
+                      "fontSize": 16
+                    },
+                    "D:XSeIi": {
+                      "enabled": true,
+                      "width": 86
+                    },
+                    "D:C0GmHd": {
+                      "content": "工作区名称",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground",
+                      "fontSize": 12
+                    },
+                    "D:wEowj": {
+                      "content": "家庭账本",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground"
+                    },
+                    "D:OP9HK": {
+                      "enabled": false,
+                      "fill": "$D:finance.accent"
+                    },
+                    "D:nBJ3j": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "width": 404,
+                      "textGrowth": "fixed-width",
+                      "fontSize": 12
+                    }
+                  }
+                },
+                {
+                  "type": "text",
+                  "id": "DJHVQ",
+                  "name": "状态反馈",
+                  "fill": "$D:finance.danger",
+                  "textGrowth": "fixed-width",
+                  "width": "fill_container",
+                  "content": "无法创建工作区，请重试。",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "id": "wB7xY",
+                  "type": "ref",
+                  "ref": "D:O8M8q",
+                  "name": "创建工作区按钮 / Material 3",
+                  "width": 428,
+                  "height": 44,
+                  "fill": "$D:finance.accent",
+                  "cornerRadius": 8,
+                  "opacity": 1,
+                  "descendants": {
+                    "D:kn6Gu": {
+                      "content": "创建工作区",
+                      "width": 428,
+                      "height": 40,
+                      "enabled": true,
+                      "fill": "#FCFCFC",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ZzxAx",
+          "name": "状态组三",
+          "width": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "nmuAU",
+              "name": "创建中",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "YrDg1",
+                  "name": "状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "创建中",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "id": "puIy2",
+                  "type": "ref",
+                  "ref": "D:FWJjz",
+                  "name": "工作区名称输入 / Material 3",
+                  "width": 428,
+                  "height": 56,
+                  "descendants": {
+                    "D:AnYoF": {
+                      "width": 428,
+                      "height": 56,
+                      "fill": "$D:finance.authM3.disabled",
+                      "stroke": "$D:finance.authM3.outline",
+                      "strokeWidth": 1,
+                      "cornerRadius": 8
+                    },
+                    "D:Sr8Cx": {
+                      "content": "工作区名称",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "fontSize": 16
+                    },
+                    "D:XSeIi": {
+                      "enabled": true,
+                      "width": 86
+                    },
+                    "D:C0GmHd": {
+                      "content": "工作区名称",
+                      "enabled": true,
+                      "fill": "$D:finance.accent",
+                      "fontSize": 12
+                    },
+                    "D:wEowj": {
+                      "content": "家庭账本",
+                      "enabled": true,
+                      "fill": "$D:finance.foreground"
+                    },
+                    "D:OP9HK": {
+                      "enabled": false,
+                      "fill": "$D:finance.accent"
+                    },
+                    "D:nBJ3j": {
+                      "content": "",
+                      "enabled": false,
+                      "fill": "$D:finance.authM3.outline",
+                      "width": 404,
+                      "textGrowth": "fixed-width",
+                      "fontSize": 12
+                    }
+                  }
+                },
+                {
+                  "id": "MOHLf",
+                  "type": "ref",
+                  "ref": "D:O8M8q",
+                  "name": "创建工作区按钮 / Material 3",
+                  "width": 428,
+                  "height": 44,
+                  "fill": "$D:finance.authM3.disabled",
+                  "cornerRadius": 8,
+                  "opacity": 1,
+                  "descendants": {
+                    "D:kn6Gu": {
+                      "content": "正在创建…",
+                      "width": 428,
+                      "height": 40,
+                      "enabled": true,
+                      "fill": "#757575",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Y1cJ5",
+              "name": "成功去向",
+              "width": 468,
+              "fill": "$D:finance.surface",
+              "cornerRadius": 12,
+              "layout": "vertical",
+              "gap": 14,
+              "padding": 20,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jSFPz",
+                  "name": "成功状态标题",
+                  "fill": "$D:finance.foreground",
+                  "content": "服务端确认成功后",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 15,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "e5wTGw",
+                  "name": "成功导航目标",
+                  "fill": "$D:finance.accent",
+                  "content": "→  收支账本",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 24,
+                  "fontWeight": "700"
+                },
+                {
+                  "type": "text",
+                  "id": "f8549h",
+                  "name": "成功状态说明",
+                  "fill": "#626B75",
+                  "content": "使用返回的活动工作区会话进入账本。",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
                 }
               ]
             }

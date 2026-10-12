@@ -27,6 +27,8 @@ object SemanticIds {
     const val workspaceScreen = "workspace.screen"
     const val workspaceList = "workspace.list"
     const val workspaceCreateName = "workspace.create-name"
+    const val workspaceCreateTitle = "workspace.create-title"
+    const val workspaceCreateCard = "workspace.create-card"
     const val workspaceCreate = "workspace.create"
     const val workspaceSwitcher = "workspace.switcher"
     const val workspaceLogout = "workspace.logout"

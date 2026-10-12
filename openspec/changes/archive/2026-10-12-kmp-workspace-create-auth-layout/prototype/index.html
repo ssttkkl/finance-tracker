@@ -1,0 +1,349 @@
+<!doctype html>
+<!-- Hallmark · pre-emit critique: P4 H5 E4 S4 R5 V4 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>创建工作区 · 原型</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --background: #F5F5F5;
+      --surface: #FFFFFF;
+      --foreground: #18181B;
+      --muted: #626B75;
+      --accent: #0485F7;
+      --accent-foreground: #FFFFFF;
+      --danger: #B42318;
+      --disabled: #E4E4E7;
+      --outline: #8D9099;
+      --rule: #C4C9D0;
+      --radius: 12px;
+      --control-radius: 8px;
+      --font-body: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { min-height: 100%; overflow-x: clip; }
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: var(--font-body);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .account-bar {
+      width: min(1120px, calc(100% - 32px));
+      height: 72px;
+      margin: 16px auto 0;
+      padding: 8px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--rule);
+    }
+    .identity { min-width: 0; display: grid; gap: 4px; }
+    .brand {
+      color: var(--accent);
+      font-size: 18px;
+      line-height: 24px;
+      font-weight: 700;
+    }
+    .email {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 18px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .logout {
+      width: 90px;
+      min-width: 90px;
+      height: 44px;
+      margin-left: 12px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--foreground);
+      font: 500 14px/20px var(--font-body);
+      cursor: pointer;
+    }
+    .logout:focus-visible, .state-toggle:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .preview-main {
+      width: min(100% - 32px, 720px);
+      margin: 48px auto 0;
+    }
+    .form-card {
+      width: 100%;
+      padding: 20px;
+      display: grid;
+      gap: 16px;
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    h1 {
+      margin: 0;
+      color: var(--foreground);
+      font-size: 24px;
+      line-height: 32px;
+      font-weight: 700;
+    }
+    .field-wrap { position: relative; }
+    .field {
+      display: block;
+      width: 100%;
+      height: 56px;
+      padding: 0 16px;
+      border: 1px solid var(--outline);
+      border-radius: var(--control-radius);
+      background: var(--surface);
+      color: var(--foreground);
+      font: 400 16px/24px var(--font-body);
+      outline: none;
+      transition: border-color 120ms ease, box-shadow 120ms ease;
+    }
+    .field::placeholder { color: #71717A; opacity: 1; }
+    .field:focus::placeholder, .field-wrap.has-value .field::placeholder { color: transparent; }
+    .field:focus, .field-wrap.is-focused .field {
+      border: 2px solid var(--accent);
+      padding-inline: 15px;
+    }
+    .field[aria-invalid="true"] { border: 2px solid var(--danger); padding-inline: 15px; }
+    .field-label {
+      position: absolute;
+      left: 12px;
+      top: -7px;
+      padding: 0 4px;
+      background: var(--surface);
+      color: var(--foreground);
+      font-size: 12px;
+      line-height: 16px;
+      font-weight: 400;
+    }
+    .field-wrap:not(.is-focused):not(.has-value) .field-label { display: none; }
+    .field-wrap.is-focused .field-label { color: var(--foreground); }
+    .field-wrap.has-error .field-label { color: var(--danger); }
+    .feedback {
+      display: none;
+      margin: -8px 0 0;
+      color: var(--danger);
+      font-size: 12px;
+      line-height: 18px;
+    }
+    .feedback.is-visible { display: block; }
+    .create {
+      width: 100%;
+      min-height: 44px;
+      padding: 8px 14px;
+      border: 0;
+      border-radius: var(--control-radius);
+      background: var(--accent);
+      color: var(--accent-foreground);
+      font: 700 18px/26px var(--font-body);
+      cursor: pointer;
+    }
+    .create:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+    .create:disabled {
+      background: var(--disabled);
+      color: #71717A;
+      cursor: wait;
+    }
+
+    .prototype-notes {
+      display: none;
+      width: min(100% - 32px, 1000px);
+      margin: max(88px, calc(100svh - 150px)) auto 32px;
+    }
+    .state-demo .prototype-notes { display: block; margin-top: 88px; }
+    .prototype-notes details { border-top: 1px solid var(--rule); padding-top: 16px; }
+    .prototype-notes summary {
+      width: fit-content;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 22px;
+      cursor: pointer;
+    }
+    .state-grid {
+      margin-top: 18px;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .state-card {
+      min-width: 0;
+      padding: 16px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+    .state-title { margin: 0; font-size: 14px; line-height: 20px; font-weight: 700; }
+    .state-sample .field-label { display: block; }
+    .state-sample .field { height: 56px; }
+    .state-sample .create { font-size: 18px; }
+    .state-toggle {
+      min-height: 40px;
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--foreground);
+      padding: 7px 10px;
+      font: 500 13px/20px var(--font-body);
+      cursor: pointer;
+    }
+    .state-controls { display: flex; flex-wrap: wrap; gap: 8px; }
+    .success-route { color: var(--accent); font-size: 24px; line-height: 32px; font-weight: 700; }
+    .state-caption { margin: 0; color: var(--muted); font-size: 12px; line-height: 18px; }
+
+    @media (min-width: 600px) {
+      .account-bar { width: min(720px, calc(100% - 48px)); margin-top: 28px; }
+      .preview-main {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        min-height: 100svh;
+        margin: 0;
+        padding: 24px;
+        display: grid;
+        place-items: center;
+        pointer-events: none;
+      }
+      .form-card {
+        width: min(100%, 440px);
+        padding: 32px;
+        pointer-events: auto;
+      }
+      .state-demo .prototype-notes { margin-top: max(100svh, 900px); }
+    }
+    @media (min-width: 1024px) {
+      .account-bar { width: min(1120px, calc(100% - 48px)); }
+    }
+    @media (max-width: 599px) {
+      .state-grid { grid-template-columns: minmax(0, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <header class="account-bar" aria-label="账户">
+    <div class="identity">
+      <span class="brand">财务账本</span>
+      <span class="email">member@example.com</span>
+    </div>
+    <button class="logout" type="button">退出登录</button>
+  </header>
+
+  <main class="preview-main">
+    <form class="form-card" id="workspace-form" novalidate>
+      <h1>创建工作区</h1>
+      <div class="field-wrap" id="field-wrap">
+        <label class="field-label" for="workspace-name">工作区名称</label>
+        <input class="field" id="workspace-name" name="workspace-name" type="text" placeholder="工作区名称" autocomplete="off" aria-describedby="workspace-feedback">
+      </div>
+      <p class="feedback" id="workspace-feedback" aria-live="polite"></p>
+      <button class="create" id="create-button" type="submit">创建工作区</button>
+    </form>
+  </main>
+
+  <aside class="prototype-notes" aria-label="原型状态预览">
+    <details>
+      <summary>原型状态预览</summary>
+      <div class="state-grid">
+        <section class="state-card">
+          <h2 class="state-title">默认 / 空名称</h2>
+          <div class="state-controls"><button class="state-toggle" data-state="default">预览默认状态</button></div>
+        </section>
+        <section class="state-card">
+          <h2 class="state-title">输入聚焦</h2>
+          <div class="state-controls"><button class="state-toggle" data-state="focus">预览焦点</button></div>
+        </section>
+        <section class="state-card">
+          <h2 class="state-title">名称校验错误</h2>
+          <div class="state-controls"><button class="state-toggle" data-state="invalid">预览校验错误</button></div>
+        </section>
+        <section class="state-card">
+          <h2 class="state-title">请求失败</h2>
+          <div class="state-controls"><button class="state-toggle" data-state="request-error">预览请求失败</button></div>
+        </section>
+        <section class="state-card">
+          <h2 class="state-title">创建中 / 禁用</h2>
+          <div class="state-controls"><button class="state-toggle" data-state="busy">预览创建中</button></div>
+        </section>
+        <section class="state-card">
+          <h2 class="state-title">服务端确认成功后</h2>
+          <div class="success-route">→ 收支账本</div>
+          <p class="state-caption">收到创建结果后直接进入账本，不增加成功停留页。</p>
+        </section>
+      </div>
+    </details>
+  </aside>
+
+  <script>
+    if (new URLSearchParams(location.search).has("states")) {
+      document.body.classList.add("state-demo");
+    }
+    const form = document.querySelector("#workspace-form");
+    const wrap = document.querySelector("#field-wrap");
+    const input = document.querySelector("#workspace-name");
+    const feedback = document.querySelector("#workspace-feedback");
+    const button = document.querySelector("#create-button");
+    let busyTimer;
+
+    function setState(state) {
+      clearTimeout(busyTimer);
+      input.disabled = state === "busy";
+      button.disabled = state === "busy";
+      wrap.classList.toggle("is-focused", state === "focus");
+      wrap.classList.toggle("has-value", input.value.length > 0 || ["invalid", "request-error", "busy"].includes(state));
+      wrap.classList.toggle("has-error", state === "invalid");
+      input.setAttribute("aria-invalid", state === "invalid" ? "true" : "false");
+      feedback.classList.toggle("is-visible", ["invalid", "request-error"].includes(state));
+      feedback.textContent = state === "invalid"
+        ? "请输入不超过 255 个字符的名称。"
+        : state === "request-error" ? "无法创建工作区，请重试。" : "";
+      button.textContent = state === "busy" ? "正在创建…" : "创建工作区";
+      if (state === "invalid") input.value = "";
+      if (state === "request-error" || state === "busy") input.value = "家庭账本";
+      if (state === "focus") input.focus();
+      if (state === "default") {
+        input.value = "";
+        input.blur();
+      }
+      wrap.classList.toggle("has-value", input.value.length > 0 || state === "focus");
+    }
+
+    input.addEventListener("input", () => {
+      wrap.classList.toggle("has-value", input.value.length > 0);
+      wrap.classList.remove("has-error");
+      input.setAttribute("aria-invalid", "false");
+      feedback.classList.remove("is-visible");
+      feedback.textContent = "";
+    });
+    input.addEventListener("focus", () => wrap.classList.add("is-focused"));
+    input.addEventListener("blur", () => wrap.classList.remove("is-focused"));
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      if (!input.value.trim() || input.value.trim().length > 255) {
+        setState("invalid");
+        input.focus();
+        return;
+      }
+      setState("busy");
+      busyTimer = setTimeout(() => setState("request-error"), 900);
+    });
+    document.querySelectorAll("[data-state]").forEach((control) => {
+      control.addEventListener("click", () => setState(control.dataset.state));
+    });
+    document.querySelector(".logout").addEventListener("click", () => {});
+  </script>
+</body>
+</html>
