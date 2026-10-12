@@ -69,7 +69,7 @@
 ## 7. 发布准备
 
 - [x] 发布边界：本地分支 `refactor/kmp`，基线 `05712d7332770e8f19004833635447bb779b73c7`；不涉及 schema/API 迁移。可通过回滚本 change 的提交恢复旧 presentation。
-- [x] 用户未为当前 change 授权提交或推送；只归档仓库内 OpenSpec 记录，不提交、推送、部署或写入第三方系统。
+- [x] 用户已授权归档、提交并推送至 `refactor/kmp`；实现提交 `4752a0a` 已推送到 `origin/refactor/kmp`。不涉及 PR、部署或第三方写入。
 
 ## 8. 反思
 
@@ -81,4 +81,4 @@
 
 - 分支：`refactor/kmp`；变更前基线：`05712d7332770e8f19004833635447bb779b73c7`。
 - 实施与适用验证完成，delta 已同步，change 已归档至 `openspec/changes/archive/2026-10-12-app-shell-entry-presentation/`；归档后全量校验通过。
-- 工作树包含本 change 的代码、测试、文档、设计稿和截图；没有提交或推送。
+- 实现和完整 OpenSpec 记录已归档、提交并推送至 `origin/refactor/kmp`；归档任务记录包含推送结果。
