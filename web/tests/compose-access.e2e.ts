@@ -38,6 +38,19 @@ test.afterEach(async ({ page }, testInfo) => {
   }
 });
 
+const expectAuthOutlineTopRelativeTo = async (
+  element: import("@playwright/test").Locator,
+  container: import("@playwright/test").Locator,
+  expectedTop: number,
+) => {
+  const elementBox = await element.boundingBox();
+  const containerBox = await container.boundingBox();
+  expect(elementBox).not.toBeNull();
+  expect(containerBox).not.toBeNull();
+  // M3's labeled field adds 8 dp above the visible 56 dp outline.
+  expect(Math.abs((elementBox?.y ?? 0) + 8 - (containerBox?.y ?? 0) - expectedTop)).toBeLessThanOrEqual(2);
+};
+
 const expectTopRelativeTo = async (
   element: import("@playwright/test").Locator,
   container: import("@playwright/test").Locator,
@@ -71,9 +84,12 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
     await expect(page.getByText("至少 12 个字符", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("textbox", { name: "邮箱" })).toBeVisible();
     await expect(page.locator('[id="auth.email"]')).not.toHaveAttribute("placeholder", /.+/);
+    const loginEmailBox = await page.locator('[id="auth.email.control"]').last().boundingBox();
+    expect(loginEmailBox).not.toBeNull();
 
     if (width === 390) {
       await expect(card).toHaveCount(0);
+      expect(Math.abs((loginEmailBox?.y ?? 0) + 8 - 118)).toBeLessThanOrEqual(2);
       const titleBox = await page.locator('[id="auth.title"]').last().boundingBox();
       expect(titleBox).not.toBeNull();
       expect(titleBox?.y ?? 999).toBeLessThan(120);
@@ -87,9 +103,10 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
       const cardBox = await card.boundingBox();
       expect(cardBox).not.toBeNull();
       expect(Math.abs((cardBox?.x ?? 0) - (width - (cardBox?.width ?? 0)) / 2)).toBeLessThanOrEqual(2);
-      expect(Math.abs((cardBox?.height ?? 0) - 390)).toBeLessThanOrEqual(2);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
+      expect(Math.abs((cardBox?.height ?? 0) - 378)).toBeLessThanOrEqual(2);
     }
-    await page.screenshot({ path: testInfo.outputPath(`login-${width}.png`) });
+    await page.screenshot({ path: testInfo.outputPath(`login-default-${width}.png`) });
   }
 
   await page.setViewportSize({ width: 390, height: 900 });
@@ -101,17 +118,20 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
   await expect(page.locator('[id="auth.title"]').last()).toHaveText("创建账户");
   await expect(page.getByRole("button", { name: "返回登录" })).toBeVisible();
   await expect(page.getByRole("button", { name: "注册" })).toBeVisible();
-  await expect(page.getByText("至少 12 个字符", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.password.validation"]').last()).toHaveAttribute("aria-label", "至少 12 个字符");
   await expect(page.getByRole("textbox", { name: "确认密码" })).toBeVisible();
-  await expect(page.getByText("邮箱格式正确", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("两次密码一致", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("已有账户？登录", { exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="auth.email.validation"]')).toHaveCount(0);
+  await expect(page.locator('[id="auth.confirm-password.validation"]')).toHaveCount(0);
+  await expect(page.locator('[id="auth.toggle-mode"]')).toHaveCount(0);
   for (const width of [390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(overflow, `注册默认态在 ${width}px 下不应横向溢出`).toBe(false);
+    const emailBox = await page.locator('[id="auth.email.control"]').last().boundingBox();
+    expect(emailBox).not.toBeNull();
     if (width === 390) {
       await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
+      expect(Math.abs((emailBox?.y ?? 0) + 8 - 118)).toBeLessThanOrEqual(2);
     } else {
       const card = page.locator('[id="auth.card"]').last();
       await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
@@ -121,11 +141,17 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
         return box ? Math.abs(box.x - (width - box.width) / 2) : Number.POSITIVE_INFINITY;
       }).toBeLessThanOrEqual(2);
       const cardBox = await card.boundingBox();
-      expect(Math.abs((cardBox?.height ?? 0) - 458)).toBeLessThanOrEqual(2);
-      await expectTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 110);
-      await expectTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 220);
-      await expectTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 310);
-      await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 380);
+      expect(Math.abs((cardBox?.height ?? 0) - 414)).toBeLessThanOrEqual(2);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 166);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 262);
+      await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 342);
+      const backBox = await page.locator('[id="auth.back"]').last().boundingBox();
+      expect(backBox).not.toBeNull();
+      expect(Math.abs((backBox?.width ?? 0) - 44)).toBeLessThanOrEqual(2);
+      expect(Math.abs((backBox?.height ?? 0) - 44)).toBeLessThanOrEqual(2);
+      expect(Math.abs((backBox?.x ?? 0) - ((cardBox?.x ?? 0) + 32))).toBeLessThanOrEqual(2);
+      await expect(page.locator('[id="auth.password.validation"]').last()).toHaveAttribute("aria-label", "至少 12 个字符");
       for (const control of [
         page.locator('[id="auth.email.control"]').last(),
         page.locator('[id="auth.password.control"]').last(),
@@ -138,6 +164,13 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
         expect(Math.abs(((controlBox?.x ?? 0) + (controlBox?.width ?? 0)) - ((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 32))).toBeLessThanOrEqual(2);
       }
     }
+    if (width === 390) {
+      const backBox = await page.locator('[id="auth.back"]').last().boundingBox();
+      expect(backBox).not.toBeNull();
+      expect(Math.abs((backBox?.x ?? 0) - 16)).toBeLessThanOrEqual(2);
+      expect(Math.abs((backBox?.width ?? 0) - 44)).toBeLessThanOrEqual(2);
+      expect(Math.abs((backBox?.height ?? 0) - 44)).toBeLessThanOrEqual(2);
+    }
     await page.screenshot({ path: testInfo.outputPath(`register-default-${width}.png`) });
   }
   await page.setViewportSize({ width: 390, height: 900 });
@@ -145,15 +178,16 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
   await expect(page.locator('[id="auth.email"]').last()).toBeInViewport();
   const backButton = page.getByRole("button", { name: "返回登录" });
   await typeIntoComposeInput(page, '[id="auth.email"]', "not-an-email");
-  await expect(page.getByText("✕ 邮箱格式不正确", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.email.validation"]').last()).toHaveAttribute("aria-label", "✕ 邮箱格式不正确");
   await typeIntoComposeInput(page, '[id="auth.password"]', "short", { replace: true });
-  await expect(page.getByText("✕ 至少 12 个字符", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.password.validation"]').last()).toHaveAttribute("aria-label", "✕ 至少 12 个字符");
   await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "different");
-  await expect(page.getByText("✕ 两次密码不一致", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.confirm-password.validation"]').last()).toHaveAttribute("aria-label", "✕ 两次密码不一致");
   await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com", { replace: true });
   await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { replace: true });
   await page.getByRole("button", { name: "注册" }).click({ force: true });
-  await expect(page.getByText("请确认两次输入的密码一致。", { exact: true })).toBeVisible();
+  await expect(page.locator('[id="auth.error"]')).toContainText("请确认两次输入的密码一致。");
+  await page.screenshot({ path: testInfo.outputPath("register-submit-error-390.png") });
   expect(fixtures.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/register")).toBe(false);
 
   for (const width of [320, 375, 390, 414, 768, 1440]) {
@@ -172,7 +206,7 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
       }).toBeLessThanOrEqual(2);
     }
     if (width === 390 || width === 768 || width === 1440) {
-      await page.screenshot({ path: testInfo.outputPath(`register-validation-error-${width}.png`) });
+      await page.screenshot({ path: testInfo.outputPath(`register-validation-${width}.png`) });
     }
   }
 
@@ -180,18 +214,23 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
   await expect(page.locator('[id="auth.card"]')).toHaveCount(0);
   await backButton.click({ force: true });
   await expect(page.locator('[id="auth.title"]').last()).toHaveText("登录");
+});
 
-  await modeToggle.click({ force: true });
+test("Compose 注册成功并且请求不包含确认密码", async ({ page }) => {
+  const fixtures = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/");
+  await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
   await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com", { replace: true });
   await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123", { replace: true });
   await typeIntoComposeInput(page, '[id="auth.confirm-password"]', "Sample-password-123", { replace: true });
+  await expect(page.locator('[id="auth.confirm-password.validation"]').last()).toHaveAttribute("aria-label", "✓ 两次密码一致");
   await page.getByRole("button", { name: "注册" }).click({ force: true });
   await expect(page.locator('[id="ledger.screen"]')).toBeVisible();
   const registrationRequest = fixtures.calls.find((call) => call.method === "POST" && call.path === "/api/v1/auth/register");
   expect(registrationRequest).toBeDefined();
   expect(JSON.parse(registrationRequest?.body ?? "{}")).not.toHaveProperty("confirm_password");
   expect(JSON.parse(registrationRequest?.body ?? "{}")).not.toHaveProperty("confirmPassword");
-
 });
 
 test("Compose Web 中文字体从同源资源加载", async ({ page }) => {
@@ -222,8 +261,9 @@ test("Compose Web 中文字体从同源资源加载", async ({ page }) => {
   expect(externalFallbackRequests).toEqual([]);
 });
 
-test("Compose 登录显示提交错误并可切换注册", async ({ page }) => {
+test("Compose 登录显示提交错误并可切换注册", async ({ page }, testInfo) => {
   await installComposeApiFixtures(page, { seedToken: false, initialSession: null, loginError: true });
+  await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/");
   await expect(page.locator('[id="auth.email"]')).toHaveCount(1);
 
@@ -238,11 +278,75 @@ test("Compose 登录显示提交错误并可切换注册", async ({ page }) => {
   expect(diagnosticLog).not.toContain("Sample-password-123");
   expect(diagnosticLog).not.toContain("access-token");
   expect(browserDiagnostics.get(page)?.diagnosticLogs.join("\n")).toContain("AUTHENTICATION\tAUTHENTICATE\tinvalid_credentials\t401\tDomainFailure");
-
+  await page.screenshot({ path: testInfo.outputPath("login-request-error-390.png") });
   await page.locator('[id="auth.toggle-mode"]').last().click({ force: true });
   await expect(page.locator('[id="auth.title"]').last()).toHaveText("创建账户");
   await expect(page.getByRole("button", { name: "返回登录" })).toBeVisible();
   await expect(page.locator('[id="auth.toggle-mode"]')).toHaveCount(0);
+});
+
+test("Compose 登录请求错误适配三类宽度", async ({ page }, testInfo) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null, loginError: true });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/");
+  await typeIntoComposeInput(page, '[id="auth.email"]', "owner@example.com");
+  await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123");
+  await page.locator('[id="auth.submit"]').last().click({ force: true });
+  await expect(page.locator('[id="auth.error"]')).toContainText("邮箱或密码不正确。请检查后重试。", { timeout: 10_000 });
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: testInfo.outputPath(`login-request-error-${width}.png`) });
+  }
+});
+
+test("Compose 登录忙碌态禁止重复提交并锁定输入", async ({ page }, testInfo) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.route("**/api/v1/auth/login", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: { code: "invalid_credentials" } }) });
+  });
+  await page.goto("/");
+  await typeIntoComposeInput(page, '[id="auth.email"]', "owner@example.com");
+  await typeIntoComposeInput(page, '[id="auth.password"]', "Sample-password-123");
+  let loginRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/v1/auth/login") loginRequests += 1;
+  });
+  const response = page.waitForResponse((value) => new URL(value.url()).pathname === "/api/v1/auth/login");
+  await page.locator('[id="auth.submit"]').last().click({ force: true });
+
+  await page.waitForTimeout(100);
+  await page.screenshot({ path: testInfo.outputPath("login-busy-390.png") });
+  const submitBox = await page.locator('[id="auth.submit"]').last().boundingBox();
+  expect(submitBox).not.toBeNull();
+  await page.mouse.click((submitBox?.x ?? 0) + (submitBox?.width ?? 0) / 2, (submitBox?.y ?? 0) + (submitBox?.height ?? 0) / 2);
+  await typeIntoComposeInput(page, '[id="auth.email"]', "x", { replace: true });
+  expect(await page.locator('[id="auth.email"]').last().innerText()).toBe("owner@example.com");
+  expect(loginRequests).toBe(1);
+  await response;
+  await expect(page.locator('[id="auth.error"]')).toContainText("邮箱或密码不正确。请检查后重试。");
+});
+
+test("Compose 登录键盘操作从邮箱进入密码", async ({ page }, testInfo) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/");
+  await typeIntoComposeInput(page, '[id="auth.email"]', "qa@example.com");
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(250);
+  await expect(page.locator('[id="auth.error"]')).toHaveCount(0);
+  await expect(page.locator('[id="auth.password"]')).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("login-keyboard-next-password-390.png") });
+});
+
+test("Compose 登录字段获得焦点后显示浮动标签", async ({ page }, testInfo) => {
+  await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
+  await page.goto("/");
+  for (const width of [390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await typeIntoComposeInput(page, '[id="auth.email"]', "");
+    await page.screenshot({ path: testInfo.outputPath(`login-email-focused-${width}.png`) });
+  }
 });
 
 test("Compose 认证必填校验写入不含输入值的诊断日志", async ({ page }) => {

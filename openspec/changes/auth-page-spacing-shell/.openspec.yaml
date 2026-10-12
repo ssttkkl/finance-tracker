@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-11
+goal: Restyle Compose login and registration with Material 3 under FinanceTheme,
+  align their title-to-form spacing, and extract one internal responsive commonMain shell.

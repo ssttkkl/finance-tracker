@@ -1,10 +1,5 @@
 package com.finance.tracker.presentation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.BoxWithConstraints
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 
@@ -13,60 +8,52 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.text.input.OutputTransformation
-import androidx.compose.foundation.text.input.TextFieldLineLimits
-import androidx.compose.foundation.text.input.TextFieldState
-import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.snapshotFlow
-import com.composeunstyled.TextInput
-import com.composeunstyled.UnstyledButton
-import com.composeunstyled.UnstyledTextField
-import com.finance.tracker.core.design.FinanceTokens
+import androidx.compose.ui.unit.sp
 
 @Composable
 internal fun AuthScreen(
@@ -100,48 +87,51 @@ internal fun AuthScreen(
         confirmPassword == password -> localizedText("auth_confirm_password_valid")
         else -> localizedText("auth_confirm_password_invalid")
     }
+    val emailIsError = emailStatus == localizedText("auth_email_invalid")
+    val passwordIsError = password.isNotEmpty() && password.length < 12
+    val confirmPasswordIsError = confirmPasswordError || (confirmPassword.isNotEmpty() && confirmPassword != password)
     val visibleError = (if (showValidationError) credentialErrorText(validation) else null)
         ?: if (confirmPasswordError) localizedText("auth_confirm_password_submit_error") else requestError
-    val colors = FinanceTokens.forTheme(isSystemInDarkTheme())
 
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().testTag(SemanticIds.authScreen),
+    MaterialTheme(
+        shapes = MaterialTheme.shapes.copy(
+            small = RoundedCornerShape(8.dp),
+            medium = RoundedCornerShape(12.dp),
+        ),
     ) {
-        val sizeClass = WindowSizeClass.fromWidthDp(maxWidth.value.toInt())
-        Box(
-            Modifier.fillMaxSize().background(if (sizeClass == WindowSizeClass.COMPACT) colors.surface else colors.background),
-            contentAlignment = if (sizeClass == WindowSizeClass.COMPACT) Alignment.TopCenter else Alignment.Center,
-        ) {
-        val onSubmit = {
-            when {
-                validation != CredentialValidation.Valid -> {
-                    showValidationError = true
-                    confirmPasswordError = false
-                    onCredentialValidationFailure(validation)
-                }
-                registering && confirmPassword != password -> {
-                    showValidationError = false
-                    confirmPasswordError = true
-                }
-                else -> {
-                    showValidationError = false
-                    confirmPasswordError = false
-                    onAuthenticate(email.trim(), password, registering)
+        AuthResponsiveShell { modifier, compact ->
+            val onSubmit = {
+                when {
+                    validation != CredentialValidation.Valid -> {
+                        showValidationError = true
+                        confirmPasswordError = false
+                        onCredentialValidationFailure(validation)
+                    }
+                    registering && confirmPassword != password -> {
+                        showValidationError = false
+                        confirmPasswordError = true
+                    }
+                    else -> {
+                        showValidationError = false
+                        confirmPasswordError = false
+                        onAuthenticate(email.trim(), password, registering)
+                    }
                 }
             }
-        }
-        val form: @Composable (Modifier) -> Unit = { modifier ->
             AuthFormContent(
                 registering = registering,
                 email = email,
                 password = password,
                 confirmPassword = confirmPassword,
                 emailStatus = emailStatus,
+                emailIsError = emailIsError,
                 passwordStatus = passwordStatus,
+                passwordIsError = passwordIsError,
                 confirmPasswordStatus = confirmPasswordStatus,
+                confirmPasswordIsError = confirmPasswordIsError,
                 visibleError = visibleError,
                 busy = busy,
-                colors = colors,
+                compact = compact,
                 modifier = modifier,
                 emailFocus = emailFocus,
                 passwordFocus = passwordFocus,
@@ -154,21 +144,6 @@ internal fun AuthScreen(
                 onSubmit = onSubmit,
             )
         }
-        if (sizeClass == WindowSizeClass.COMPACT) {
-            form(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 24.dp, top = 52.dp, end = 24.dp, bottom = 24.dp))
-        } else {
-            Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                Surface(
-                    modifier = Modifier.widthIn(max = 440.dp).fillMaxWidth().testTag(SemanticIds.authCard),
-                    shape = RoundedCornerShape(12.dp),
-                    color = colors.surface,
-                    tonalElevation = 0.dp,
-                ) {
-                    form(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(32.dp))
-                }
-            }
-        }
-        }
     }
 }
 
@@ -179,11 +154,14 @@ private fun AuthFormContent(
     password: String,
     confirmPassword: String,
     emailStatus: String?,
+    emailIsError: Boolean,
     passwordStatus: String,
+    passwordIsError: Boolean,
     confirmPasswordStatus: String?,
+    confirmPasswordIsError: Boolean,
     visibleError: String?,
     busy: Boolean,
-    colors: com.finance.tracker.core.design.FinanceColorRoles,
+    compact: Boolean,
     modifier: Modifier,
     emailFocus: FocusRequester,
     passwordFocus: FocusRequester,
@@ -195,104 +173,113 @@ private fun AuthFormContent(
     onToggleMode: () -> Unit,
     onSubmit: () -> Unit,
 ) {
-    val density = LocalDensity.current
     Column(modifier) {
-        if (registering) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                AuthBackButton(
-                    enabled = !busy,
-                    colors = colors,
-                    modifier = Modifier.alignBy { density.run { 27.75.dp.roundToPx() } }
-                        .testTag(SemanticIds.authBack),
-                    onClick = onBack,
-                )
-                Text(
-                    localizedText("auth_create_title"),
-                    modifier = Modifier.alignByBaseline().testTag(SemanticIds.authTitle),
-                    style = TextStyle(fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, color = colors.foreground),
-                )
-            }
-        } else {
-            Text(
-                localizedText("auth_login_title"),
-                modifier = Modifier.testTag(SemanticIds.authTitle),
-                style = TextStyle(fontSize = 24.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, color = colors.foreground),
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        AuthTextField(email, onEmailChange, localizedText("copy_9ed627bcf6"), SemanticIds.authEmail, emailFocus, !busy, colors,
+        AuthHeader(registering = registering, compact = compact, enabled = !busy, onBack = onBack)
+        Spacer(Modifier.height(if (compact) 14.dp else 2.dp))
+        AuthTextField(email, onEmailChange, localizedText("copy_9ed627bcf6"), SemanticIds.authEmail, emailFocus, !busy,
             modifier = Modifier,
             supportingText = if (registering) emailStatus else null,
-            supportingColor = if (emailStatus == localizedText("auth_email_invalid")) Color(0xFFD92D20) else Color(0xFF188038),
-            keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Email, imeAction = androidx.compose.ui.text.input.ImeAction.Next),
+            isError = registering && emailIsError,
+            isSuccess = registering && emailStatus != null && !emailIsError,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
             onKeyboardAction = { passwordFocus.requestFocus() },
         )
-        Spacer(Modifier.height(if (registering) 20.dp else 18.dp))
-        AuthTextField(password, onPasswordChange, localizedText("copy_c839a8ff17"), SemanticIds.authPassword, passwordFocus, !busy, colors,
+        Spacer(Modifier.height(if (registering && emailStatus != null) 11.dp else 15.dp))
+        AuthTextField(password, onPasswordChange, localizedText("copy_c839a8ff17"), SemanticIds.authPassword, passwordFocus, !busy,
             modifier = Modifier,
             supportingText = if (registering) passwordStatus else null,
-            supportingColor = when {
-                password.length >= 12 -> Color(0xFF188038)
-                password.isNotEmpty() -> Color(0xFFD92D20)
-                else -> colors.foreground.copy(alpha = 0.64f)
-            },
-            keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, imeAction = if (registering) androidx.compose.ui.text.input.ImeAction.Next else androidx.compose.ui.text.input.ImeAction.Done),
-            outputTransformation = OutputTransformation { replace(0, length, "•".repeat(length)) },
+            isError = registering && passwordIsError,
+            isSuccess = registering && password.length >= 12,
+            masked = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (registering) ImeAction.Next else ImeAction.Done),
             onKeyboardAction = { if (registering) confirmPasswordFocus.requestFocus() else onSubmit() },
         )
         if (registering) {
-            Spacer(Modifier.height(20.dp))
-            AuthTextField(confirmPassword, onConfirmPasswordChange, localizedText("auth_confirm_password"), SemanticIds.authConfirmPassword, confirmPasswordFocus, !busy, colors,
+            Spacer(Modifier.height(11.dp))
+            AuthTextField(confirmPassword, onConfirmPasswordChange, localizedText("auth_confirm_password"), SemanticIds.authConfirmPassword, confirmPasswordFocus, !busy,
                 modifier = Modifier,
                 supportingText = confirmPasswordStatus,
-                supportingColor = if (confirmPassword == password) Color(0xFF188038) else Color(0xFFD92D20),
-                keyboardOptions = KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Password, imeAction = androidx.compose.ui.text.input.ImeAction.Done),
-                outputTransformation = OutputTransformation { replace(0, length, "•".repeat(length)) },
+                isError = confirmPasswordIsError,
+                isSuccess = confirmPasswordStatus != null && !confirmPasswordIsError,
+                masked = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Done),
                 onKeyboardAction = onSubmit,
             )
         }
         if (visibleError != null) {
             Spacer(Modifier.height(16.dp))
-            Text(visibleError, color = colors.danger, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag(SemanticIds.authError), style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium))
+            Text(
+                visibleError,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag(SemanticIds.authError),
+                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+            )
             Spacer(Modifier.height(16.dp))
         } else {
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(if (registering && confirmPasswordStatus != null) 11.dp else 23.dp))
         }
-        AuthPrimaryButton(onSubmit, !busy, colors,
-                modifier = Modifier.testTag(SemanticIds.authSubmit),
+        Button(
+            onClick = onSubmit,
+            enabled = !busy,
+            modifier = Modifier.fillMaxWidth().height(40.dp).testTag(SemanticIds.authSubmit)
+                .then(if (busy) Modifier.semantics { disabled() } else Modifier),
+            shape = MaterialTheme.shapes.small,
         ) {
-            if (busy) CircularProgressIndicator() else Text(if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
+            if (busy) {
+                CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+            } else {
+                Text(if (registering) localizedText("copy_da0e5f8dc9") else localizedText("copy_21f1e88275"))
+            }
         }
         if (!registering) {
-            Spacer(Modifier.height(8.dp))
-            AuthModeButton(onToggleMode, !busy, colors,
-                modifier = Modifier.testTag(SemanticIds.authToggleMode),
+            Spacer(Modifier.height(16.dp))
+            TextButton(
+                onClick = onToggleMode,
+                enabled = !busy,
+                modifier = Modifier.fillMaxWidth().height(44.dp).testTag(SemanticIds.authToggleMode)
+                    .then(if (busy) Modifier.semantics { disabled() } else Modifier),
             ) {
-                Text(localizedText("copy_22a4a2a530"), style = TextStyle(fontSize = 14.sp, color = colors.accent))
+                Text(localizedText("copy_22a4a2a530"))
             }
         }
     }
 }
 
 @Composable
-private fun AuthBackButton(
-    enabled: Boolean,
-    colors: com.finance.tracker.core.design.FinanceColorRoles,
-    modifier: Modifier,
-    onClick: () -> Unit,
-) {
-    val accessibleLabel = localizedText("auth_back_to_login")
-    UnstyledButton(onClick = onClick, enabled = enabled, modifier = modifier.size(44.dp).semantics(mergeDescendants = true) {
-        contentDescription = accessibleLabel
-    }) {
-        Box(Modifier.fillMaxSize()) {
-            Canvas(Modifier.offset(x = 10.dp, y = 3.75.dp).size(24.dp)) {
-                val strokeWidth = 2.5.dp.toPx()
-                val arrowColor = colors.foreground
-                drawLine(arrowColor, Offset(19.dp.toPx(), 12.dp.toPx()), Offset(5.dp.toPx(), 12.dp.toPx()), strokeWidth, StrokeCap.Round)
-                drawLine(arrowColor, Offset(5.dp.toPx(), 12.dp.toPx()), Offset(12.dp.toPx(), 5.dp.toPx()), strokeWidth, StrokeCap.Round)
-                drawLine(arrowColor, Offset(5.dp.toPx(), 12.dp.toPx()), Offset(12.dp.toPx(), 19.dp.toPx()), strokeWidth, StrokeCap.Round)
+private fun AuthHeader(registering: Boolean, compact: Boolean, enabled: Boolean, onBack: () -> Unit) {
+    Box(Modifier.fillMaxWidth().height(44.dp)) {
+        if (registering) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                IconButton(
+                    onClick = onBack,
+                    enabled = enabled,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .offset(x = if (compact) (-8).dp else 0.dp)
+                        .testTag(SemanticIds.authBack)
+                        .then(if (enabled) Modifier else Modifier.semantics { disabled() }),
+                ) {
+                    Icon(
+                        imageVector = AuthBackIcon,
+                        contentDescription = localizedText("auth_back_to_login"),
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                Text(
+                    localizedText("auth_create_title"),
+                    modifier = Modifier.testTag(SemanticIds.authTitle),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, lineHeight = 29.sp),
+                )
             }
+        } else {
+            Text(
+                localizedText("auth_login_title"),
+                modifier = Modifier.align(Alignment.CenterStart).testTag(SemanticIds.authTitle),
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, lineHeight = 29.sp),
+            )
         }
     }
 }
@@ -305,145 +292,106 @@ private fun AuthTextField(
     semanticId: String,
     focusRequester: FocusRequester,
     enabled: Boolean,
-    colors: com.finance.tracker.core.design.FinanceColorRoles,
     modifier: Modifier = Modifier,
     supportingText: String? = null,
-    supportingColor: Color = colors.foreground.copy(alpha = 0.64f),
-    placeholder: String? = null,
+    isError: Boolean = false,
+    isSuccess: Boolean = false,
+    masked: Boolean = false,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
-    outputTransformation: OutputTransformation? = null,
     onKeyboardAction: () -> Unit = {},
 ) {
-    val state = rememberTextFieldState(value)
-    var focused by remember { mutableStateOf(false) }
-    val latestOnValueChange by rememberUpdatedState(onValueChange)
-    val latestValue by rememberUpdatedState(value)
-    LaunchedEffect(value, focused) {
-        if (!focused && state.text.toString() != value) state.edit { replace(0, length, value) }
+    val feedbackModifier = if (supportingText != null) {
+        Modifier
+            .semantics {
+                contentDescription = supportingText
+                liveRegion = LiveRegionMode.Polite
+            }
+            .testTag(validationTagFor(semanticId))
+    } else {
+        Modifier
     }
-    LaunchedEffect(state) {
-        snapshotFlow { state.text.toString() }.collect { currentValue ->
-            if (currentValue != latestValue) latestOnValueChange(currentValue)
-        }
-    }
-    val shape = RoundedCornerShape(8.dp)
-    Column(modifier.fillMaxWidth()) {
-        Text(label, color = colors.foreground, style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold))
-        if (supportingText != null) {
-            Spacer(Modifier.height(2.dp))
-            Text(
-                supportingText,
-                color = supportingColor,
-                style = TextStyle(fontSize = 12.sp, fontWeight = if (supportingText.startsWith("✓") || supportingText.startsWith("✕")) FontWeight.Medium else FontWeight.Normal),
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }.testTag(when (semanticId) {
-                    SemanticIds.authEmail -> SemanticIds.authEmailValidation
-                    SemanticIds.authPassword -> SemanticIds.authPasswordValidation
-                    else -> SemanticIds.authConfirmPasswordValidation
-                }),
-            )
-            Spacer(Modifier.height(3.dp))
-        } else {
-            Spacer(Modifier.height(2.dp))
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(46.dp)
-                .testTag(when (semanticId) {
-                    SemanticIds.authEmail -> SemanticIds.authEmailControl
-                    SemanticIds.authPassword -> SemanticIds.authPasswordControl
-                    else -> SemanticIds.authConfirmPasswordControl
-                }),
-            contentAlignment = Alignment.Center,
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(46.dp)
-                    .testTag(when (semanticId) {
-                        SemanticIds.authEmail -> SemanticIds.authEmailVisual
-                        SemanticIds.authPassword -> SemanticIds.authPasswordVisual
-                        else -> SemanticIds.authConfirmPasswordVisual
-                    })
-                    .background(colors.surface, shape)
-                    .border(1.dp, if (focused) colors.focus else colors.fieldBorder, shape),
-                contentAlignment = Alignment.CenterStart,
-            ) {
-                UnstyledTextField(
-                    state = state,
-                    enabled = enabled,
-                    accessibilityLabel = label,
-                    lineLimits = TextFieldLineLimits.SingleLine,
-                    outputTransformation = outputTransformation,
-                    keyboardOptions = keyboardOptions,
-                    onKeyboardAction = { onKeyboardAction() },
-                    textStyle = TextStyle(color = colors.foreground, fontSize = 14.sp),
+    Column(modifier.fillMaxWidth().then(feedbackModifier)) {
+        Box(Modifier.fillMaxWidth().testTag(controlTagFor(semanticId))) {
+            Box(Modifier.fillMaxWidth().testTag(visualTagFor(semanticId))) {
+                OutlinedTextField(
+                    value = value,
+                    onValueChange = onValueChange,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 12.dp)
                         .focusRequester(focusRequester)
-                        .onFocusChanged {
-                            focused = it.isFocused
-                        }
                         .testTag(semanticId)
-                        .semantics(mergeDescendants = true) { contentDescription = label },
-                ) {
-                    TextInput(placeholder = {
-                        if (!placeholder.isNullOrEmpty()) Text(placeholder, color = colors.foreground.copy(alpha = 0.55f), fontSize = 14.sp)
-                    })
-                }
+                        .semantics {
+                            contentDescription = label
+                            if (!enabled) disabled()
+                        },
+                    enabled = enabled,
+                    singleLine = true,
+                    label = { Text(label) },
+                    supportingText = supportingText?.let { text ->
+                        {
+                            Text(
+                                text,
+                                color = when {
+                                    isError -> MaterialTheme.colorScheme.error
+                                    isSuccess -> MaterialTheme.colorScheme.primary
+                                    else -> MaterialTheme.colorScheme.outline
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    },
+                    isError = isError,
+                    visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None,
+                    keyboardOptions = keyboardOptions,
+                    keyboardActions = KeyboardActions(
+                        onNext = { onKeyboardAction() },
+                        onDone = { onKeyboardAction() },
+                    ),
+                    shape = MaterialTheme.shapes.small,
+                )
             }
         }
     }
 }
 
-@Composable
-private fun AuthPrimaryButton(
-    onClick: () -> Unit,
-    enabled: Boolean,
-    colors: com.finance.tracker.core.design.FinanceColorRoles,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    var focused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(24.dp)
-    UnstyledButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier
-            .fillMaxWidth()
-            .heightIn(min = 44.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .then(if (enabled) Modifier else Modifier.semantics { disabled() }),
-    ) {
-        Box(Modifier.fillMaxWidth().height(46.dp).background(if (enabled) colors.accent else colors.disabled, shape).then(if (focused) Modifier.border(1.dp, colors.focus, shape) else Modifier), contentAlignment = Alignment.Center) {
-            CompositionLocalProvider(LocalContentColor provides colors.accentForeground) {
-                content()
-            }
-        }
-    }
+private fun controlTagFor(semanticId: String): String = when (semanticId) {
+    SemanticIds.authEmail -> SemanticIds.authEmailControl
+    SemanticIds.authPassword -> SemanticIds.authPasswordControl
+    else -> SemanticIds.authConfirmPasswordControl
 }
 
-@Composable
-private fun AuthModeButton(
-    onClick: () -> Unit,
-    enabled: Boolean,
-    colors: com.finance.tracker.core.design.FinanceColorRoles,
-    modifier: Modifier = Modifier,
-    content: @Composable () -> Unit,
-) {
-    UnstyledButton(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.fillMaxWidth().heightIn(min = 44.dp).then(if (enabled) Modifier else Modifier.semantics { disabled() }),
-    ) {
-        Box(Modifier.fillMaxWidth().heightIn(min = 18.dp), contentAlignment = Alignment.Center) {
-            CompositionLocalProvider(LocalContentColor provides colors.accent) {
-                content()
-            }
-        }
-    }
+private fun visualTagFor(semanticId: String): String = when (semanticId) {
+    SemanticIds.authEmail -> SemanticIds.authEmailVisual
+    SemanticIds.authPassword -> SemanticIds.authPasswordVisual
+    else -> SemanticIds.authConfirmPasswordVisual
 }
+
+private fun validationTagFor(semanticId: String): String = when (semanticId) {
+    SemanticIds.authEmail -> SemanticIds.authEmailValidation
+    SemanticIds.authPassword -> SemanticIds.authPasswordValidation
+    else -> SemanticIds.authConfirmPasswordValidation
+}
+
+private val AuthBackIcon: ImageVector = ImageVector.Builder(
+    name = "ArrowBack",
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    path(fill = SolidColor(Color.Black)) {
+        moveTo(20f, 11f)
+        horizontalLineTo(7.83f)
+        lineToRelative(5.59f, -5.59f)
+        lineTo(12f, 4f)
+        lineToRelative(-8f, 8f)
+        lineToRelative(8f, 8f)
+        lineToRelative(1.41f, -1.41f)
+        lineTo(7.83f, 13f)
+        horizontalLineTo(20f)
+        close()
+    }
+}.build()
 
 @Composable
 internal fun WorkspaceAccessScreen(
