@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Finance Tracker 已登录主界面导航与账号面板交互原型">
+  <title>Finance Tracker · 主界面导航原型</title>
+  <style>
+    /* Hallmark · genre: modern-minimal · macrostructure: Persistent Utility Rail · icon-first navigation, bottom identity, one page-title scaffold */
+    /* Hallmark · theme: Finance Tracker light tokens · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+    /* Hallmark · contrast: pass (40–41) · honest: pass (46) · chrome: pass (47) · tokens: pass (48) · responsive: pass (49) · icons: pass (30) */
+    :root {
+      color-scheme: light;
+      --color-bg: #F5F5F5;
+      --color-surface: #FFFFFF;
+      --color-text: #18181B;
+      --color-on-primary: #FFFFFF;
+      --color-muted: #71717A;
+      --color-border: #E4E4E7;
+      --color-primary: #0A63B8;
+      --color-accent: #0485F7;
+      --color-hover-surface: #F5F5F5;
+      --color-danger: #B42318;
+      --color-error-surface: #FBEAE8;
+      --color-overlay: rgb(24 24 27 / 36%);
+      --shadow-menu: 0 8px 24px rgb(24 24 27 / 12%);
+      --shadow-sheet: 0 -8px 24px rgb(24 24 27 / 12%);
+      --shadow-toast: 0 4px 16px rgb(24 24 27 / 10%);
+      --font-body: "Noto Sans SC", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --rail-width: 64px;
+      --topbar-height: 64px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; overflow-x: clip; }
+    body { background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; }
+    button { color: inherit; font: inherit; }
+    button:focus-visible, a:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+    button:active, a:active { background: var(--color-hover-surface); }
+    button:disabled, a[aria-disabled="true"] { color: var(--color-muted); opacity: .56; cursor: not-allowed; }
+    .icon { width: 20px; height: 20px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .app-shell { min-height: 100svh; --rail-width: 64px; }
+    .app-shell.is-expanded, .app-shell.is-hover-expanded, .app-shell.is-focus-expanded { --rail-width: 240px; }
+    .side-rail {
+      position: fixed; z-index: 20; inset: 0 auto 0 0; width: var(--rail-width);
+      display: flex; flex-direction: column; gap: 12px; padding: 16px 8px 12px;
+      background: var(--color-surface); border-right: 1px solid var(--color-border);
+    }
+    .rail-head { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 60px; padding-bottom: 12px; border-bottom: 1px solid var(--color-border); }
+    .avatar { display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; color: var(--color-on-primary); background: var(--color-primary); font-weight: 600; }
+    .icon-button, .nav-link, .account-trigger { display: flex; align-items: center; justify-content: center; border: 0; background: transparent; text-decoration: none; cursor: pointer; }
+    .icon-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; border-radius: 6px; color: var(--color-muted); }
+    .icon-button:hover, .account-trigger:hover, .nav-link:hover { background: var(--color-hover-surface); }
+    .rail-toggle { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+    .rail-toggle[aria-pressed="true"] { color: var(--color-primary); background: var(--color-hover-surface); }
+    .app-shell.is-expanded .rail-head, .app-shell.is-hover-expanded .rail-head, .app-shell.is-focus-expanded .rail-head { align-items: flex-start; }
+    .app-shell.is-expanded .rail-toggle .icon, .app-shell.is-hover-expanded .rail-toggle .icon, .app-shell.is-focus-expanded .rail-toggle .icon { transform: scaleX(-1); }
+    .nav-list { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .nav-link {
+      position: relative; justify-content: center; gap: 12px; width: 100%; min-width: 44px; min-height: 44px;
+      padding: 0 12px; border-radius: 6px; color: var(--color-muted); white-space: nowrap;
+    }
+    .nav-link[aria-current="page"] { color: var(--color-text); background: var(--color-hover-surface); font-weight: 600; }
+    .nav-link[aria-current="page"]::before { position: absolute; inset: 8px auto 8px 0; width: 3px; border-radius: 2px; background: var(--color-accent); content: ""; }
+    .nav-link[data-tooltip]::after {
+      position: absolute; z-index: 30; top: 50%; left: calc(100% + 8px); padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px;
+      color: var(--color-text); background: var(--color-surface); box-shadow: var(--shadow-menu); content: attr(data-tooltip); font-size: 13px; font-weight: 400;
+      opacity: 0; pointer-events: none; transform: translateY(-50%); visibility: hidden; transition: opacity .01ms linear 800ms, visibility 0s linear 800ms;
+    }
+    .nav-link[data-tooltip]:hover::after { opacity: 1; visibility: visible; }
+    .nav-link[data-tooltip]:focus-visible::after { opacity: 1; visibility: visible; transition-delay: 0s; }
+    .nav-label { display: none; overflow: hidden; text-overflow: ellipsis; }
+    .rail-spacer { flex: 1 1 auto; min-height: 12px; }
+    .account-trigger { width: 100%; min-height: 48px; gap: 12px; padding: 4px; border-radius: 6px; text-align: left; }
+    .avatar { width: 36px; height: 36px; font-size: 15px; }
+    .account-copy { display: none; flex: 1 1 auto; min-width: 0; }
+    .account-email { display: block; overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+    .account-hint { display: block; margin-top: 4px; color: var(--color-muted); font-size: 11px; white-space: nowrap; }
+    .account-chevron { display: none; color: var(--color-muted); }
+    .main { min-width: 0; min-height: 100svh; margin-left: var(--rail-width); }
+    .topbar { position: sticky; z-index: 10; top: 0; display: flex; align-items: center; gap: 12px; height: var(--topbar-height); padding: 0 24px; background: var(--color-surface); border-bottom: 1px solid var(--color-border); }
+    .topbar h1 { min-width: 0; margin: 0; overflow: hidden; font-size: 18px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .mobile-menu-button { display: none; }
+    .content { display: flex; flex-direction: column; gap: 16px; min-width: 0; padding: 16px 24px 24px; }
+    .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+    .action-button { min-height: 44px; padding: 0 16px; border: 1px solid var(--color-border); border-radius: 24px; background: var(--color-surface); cursor: pointer; white-space: nowrap; }
+    .action-button.primary { border-color: var(--color-primary); color: var(--color-on-primary); background: var(--color-primary); font-weight: 600; }
+    .filter-panel, .empty-state { border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface); }
+    .filter-panel { display: flex; flex-direction: column; gap: 12px; padding: 16px; }
+    .section-label { margin: 0; font-size: 14px; font-weight: 500; }
+    .filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .filter-field { display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; min-height: 52px; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); }
+    .filter-label { color: var(--color-muted); font-size: 11px; }
+    .filter-value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .filter-actions { display: flex; flex-wrap: wrap; gap: 16px; }
+    .text-action { min-height: 36px; padding: 0; border: 0; color: var(--color-primary); background: none; cursor: pointer; white-space: nowrap; }
+    .empty-state { display: grid; place-content: center; justify-items: center; gap: 12px; min-height: 260px; padding: 24px; color: var(--color-muted); text-align: center; }
+    .empty-state p { margin: 0; }
+    .account-menu {
+      position: fixed; z-index: 50; bottom: 72px; left: calc(var(--rail-width) + 8px); display: none;
+      width: min(320px, calc(100vw - var(--rail-width) - 24px)); max-height: calc(100svh - 96px); overflow-y: auto;
+      padding: 16px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface);
+      box-shadow: var(--shadow-menu);
+    }
+    .account-menu.is-open { display: flex; flex-direction: column; gap: 12px; }
+    .identity-row { display: flex; align-items: center; gap: 12px; min-height: 40px; }
+    .identity-email { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+    .menu-divider { height: 1px; background: var(--color-border); }
+    .workspace-heading { margin: 0; color: var(--color-muted); font-size: 12px; font-weight: 600; }
+    .workspace-list { display: flex; flex-direction: column; gap: 4px; }
+    .workspace-option, .menu-action { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 8px 12px; border: 0; border-radius: 6px; background: transparent; text-align: left; cursor: pointer; white-space: nowrap; }
+    .workspace-option:hover, .menu-action:hover { background: var(--color-hover-surface); }
+    .workspace-option[aria-checked="true"] { background: var(--color-hover-surface); }
+    .workspace-option:disabled { color: var(--color-muted); opacity: .56; cursor: wait; }
+    .workspace-copy { display: flex; flex: 1 1 auto; flex-direction: column; gap: 4px; min-width: 0; }
+    .workspace-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .workspace-role { color: var(--color-muted); font-size: 12px; }
+    .current-check { color: var(--color-accent); }
+    .current-check[hidden] { display: none; }
+    .menu-action .icon { color: var(--color-muted); }
+    .menu-error { display: none; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 6px; color: var(--color-danger); background: var(--color-error-surface); font-size: 12px; }
+    .menu-error.is-visible { display: flex; }
+    .error-retry { flex: 0 0 auto; min-height: 36px; padding: 0 8px; border: 0; border-radius: 6px; color: var(--color-primary); background: transparent; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .menu-loading { display: none; align-items: center; gap: 8px; color: var(--color-muted); font-size: 12px; }
+    .menu-loading.is-visible { display: flex; }
+    .spinner { width: 14px; height: 14px; border: 2px solid var(--color-border); border-top-color: var(--color-accent); border-radius: 50%; animation: spin 700ms linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .drawer-backdrop, .sheet-backdrop { position: fixed; z-index: 60; inset: 0; display: none; background: var(--color-overlay); }
+    .mobile-drawer { position: fixed; z-index: 61; inset: 0 auto 0 0; display: none; flex-direction: column; gap: 16px; width: min(304px, calc(100vw - 48px)); padding: 16px 12px 12px; border-right: 1px solid var(--color-border); background: var(--color-surface); }
+    .drawer-brand { display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 0 4px 12px; border-bottom: 1px solid var(--color-border); }
+    .drawer-brand strong { font-size: 15px; }
+    .mobile-drawer .nav-list { gap: 4px; }
+    .mobile-drawer .nav-link { justify-content: flex-start; padding: 0 12px; }
+    .mobile-drawer .nav-label { display: block; }
+    .mobile-drawer .rail-spacer { flex: 1 1 auto; }
+    .mobile-drawer .account-trigger { min-height: 56px; padding: 8px; background: var(--color-hover-surface); }
+    .mobile-drawer .account-copy { display: block; }
+    .mobile-drawer .account-chevron { display: block; }
+    .account-sheet {
+      position: fixed; z-index: 71; inset: auto 0 0; display: none; flex-direction: column; gap: 12px;
+      max-height: min(620px, calc(100svh - 24px)); overflow-y: auto; padding: 12px 20px max(20px, env(safe-area-inset-bottom));
+      border: 1px solid var(--color-border); border-bottom: 0; border-radius: 16px 16px 0 0; background: var(--color-surface);
+      box-shadow: var(--shadow-sheet);
+    }
+    .sheet-handle { align-self: center; width: 36px; height: 4px; border-radius: 4px; background: var(--color-border); }
+    .toast { position: fixed; z-index: 90; right: 16px; bottom: 16px; display: none; max-width: min(360px, calc(100vw - 32px)); padding: 12px 16px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); box-shadow: var(--shadow-toast); }
+    .toast.is-visible { display: block; }
+    .prototype-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 64px; padding: 12px 16px; border-top: 1px solid var(--color-border); background: var(--color-surface); }
+    .prototype-controls strong { margin-right: 4px; color: var(--color-muted); font-size: 12px; font-weight: 500; }
+    .prototype-control { min-height: 40px; padding: 0 12px; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface); cursor: pointer; }
+    .prototype-control:hover { background: var(--color-hover-surface); }
+    .prototype-note { padding: 0 16px 16px; color: var(--color-muted); font-size: 11px; }
+    .app-shell.is-expanded .side-rail, .app-shell.is-hover-expanded .side-rail, .app-shell.is-focus-expanded .side-rail { align-items: stretch; padding-right: 12px; padding-left: 12px; }
+    .app-shell.is-expanded .rail-head, .app-shell.is-hover-expanded .rail-head, .app-shell.is-focus-expanded .rail-head { flex-direction: row; justify-content: space-between; min-height: 60px; }
+    .app-shell.is-expanded .nav-label, .app-shell.is-hover-expanded .nav-label, .app-shell.is-focus-expanded .nav-label,
+    .app-shell.is-expanded .account-copy, .app-shell.is-hover-expanded .account-copy, .app-shell.is-focus-expanded .account-copy,
+    .app-shell.is-expanded .account-chevron, .app-shell.is-hover-expanded .account-chevron, .app-shell.is-focus-expanded .account-chevron { display: block; }
+    .app-shell.is-expanded .nav-link, .app-shell.is-hover-expanded .nav-link, .app-shell.is-focus-expanded .nav-link { justify-content: flex-start; }
+    .app-shell.is-expanded .nav-link::after, .app-shell.is-hover-expanded .nav-link::after, .app-shell.is-focus-expanded .nav-link::after, .mobile-drawer .nav-link::after { display: none; }
+    .app-shell.is-expanded .account-trigger, .app-shell.is-hover-expanded .account-trigger, .app-shell.is-focus-expanded .account-trigger { justify-content: flex-start; padding: 8px; background: var(--color-hover-surface); }
+    @media (max-width: 599px) {
+      .side-rail, .account-menu { display: none !important; }
+      .main { margin-left: 0; }
+      .topbar { padding: 0 12px; }
+      .mobile-menu-button { display: flex; }
+      .content { gap: 12px; padding: 12px 12px 20px; }
+      .filter-panel { padding: 12px; }
+      .filter-grid { grid-template-columns: minmax(0, 1fr); }
+      .empty-state { min-height: 220px; }
+      .drawer-backdrop.is-open, .mobile-drawer.is-open { display: flex; }
+      .sheet-backdrop.is-open, .account-sheet.is-open { display: flex; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; transition-delay: 0s !important; }
+    }
+  </style>
+</head>
+<body>
+  <svg aria-hidden="true" width="0" height="0" style="position:absolute;overflow:hidden">
+    <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M4 6.5h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12"/><path d="M3 8h15a2 2 0 0 1 2 2v2h-5a2 2 0 0 0 0 4h5"/><path d="M16 14h.01"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></symbol>
+    <symbol id="i-tags" viewBox="0 0 24 24"><path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3.4 13.4a2 2 0 0 1 0-2.8L10.6 3.4a2 2 0 0 1 1.4-.6H19a2 2 0 0 1 2 2v7a2 2 0 0 1-.4 1.6Z"/><circle cx="16.5" cy="7.5" r="1"/></symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24"><path d="M12 3v9h9"/><path d="M20.5 15A9 9 0 1 1 9 3.2"/></symbol>
+    <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M12 14v3l2 1"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6h9m4 0h3M4 18h3m4 0h9"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="18" r="2"/></symbol>
+    <symbol id="i-panel" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m5-11 3 3-3 3"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-up" viewBox="0 0 24 24"><path d="m7 14 5-5 5 5M12 9v12"/><path d="M5 3h14"/></symbol>
+    <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m7 10 5 5 5-5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="i-logout" viewBox="0 0 24 24"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h6a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-6"/></symbol>
+    <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 3v18l3-2 3 2 2-2 3 2 2-2 3 2V3l-3 2-3-2-2 2-3-2-3 2-3-2Z"/><path d="M9 9h6m-6 4h6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18"/></symbol>
+  </svg>
+
+  <div class="app-shell" id="appShell">
+    <aside class="side-rail" aria-label="主导航">
+      <div class="rail-head">
+        <button class="icon-button rail-toggle" id="railToggle" type="button" aria-label="展开导航" aria-expanded="false" aria-controls="desktopNav" title="展开导航">
+          <svg class="icon" aria-hidden="true"><use href="#i-panel"></use></svg>
+        </button>
+      </div>
+      <nav class="nav-list" id="desktopNav" aria-label="页面">
+        <a class="nav-link" href="#cash-ledger" data-page="cash-ledger" data-tooltip="收支账本" aria-label="收支账本" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#i-wallet"></use></svg><span class="nav-label">收支账本</span></a>
+        <a class="nav-link" href="#cash-import" data-page="cash-import" data-tooltip="账单导入" aria-label="账单导入"><svg class="icon" aria-hidden="true"><use href="#i-upload"></use></svg><span class="nav-label">账单导入</span></a>
+        <a class="nav-link" href="#cash-categories" data-page="cash-categories" data-tooltip="收支分类" aria-label="收支分类"><svg class="icon" aria-hidden="true"><use href="#i-tags"></use></svg><span class="nav-label">收支分类</span></a>
+        <a class="nav-link" href="#investment-holdings" data-page="investment-holdings" data-tooltip="当前持仓" aria-label="当前持仓"><svg class="icon" aria-hidden="true"><use href="#i-chart"></use></svg><span class="nav-label">当前持仓</span></a>
+        <a class="nav-link" href="#investment-events" data-page="investment-events" data-tooltip="投资事件" aria-label="投资事件"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg><span class="nav-label">投资事件</span></a>
+        <a class="nav-link" href="#workspace-management" data-page="workspace-management" data-tooltip="工作区管理" aria-label="工作区管理"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span class="nav-label">工作区管理</span></a>
+      </nav>
+      <div class="rail-spacer"></div>
+      <button class="account-trigger" id="desktopAccountTrigger" type="button" aria-label="账号与工作区" aria-expanded="false" aria-controls="desktopAccountMenu">
+        <span class="avatar" aria-hidden="true">S</span><span class="account-copy"><span class="account-email">ssttkkl@qq.com</span><span class="account-hint">账号与工作区</span></span><svg class="icon account-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
+      </button>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button mobile-menu-button" id="mobileMenuTrigger" type="button" aria-label="打开导航" aria-expanded="false" aria-controls="mobileDrawer"><svg class="icon" aria-hidden="true"><use href="#i-menu"></use></svg></button>
+        <h1 id="pageTitle">收支账本</h1>
+      </header>
+      <div class="content">
+        <div class="actions"><button class="action-button" type="button" data-toast="账单导入">导入账单</button><button class="action-button primary" type="button" data-toast="记一笔">记一笔</button></div>
+        <section class="filter-panel" aria-label="收支筛选">
+          <h2 class="section-label">筛选</h2>
+          <div class="filter-grid">
+            <div class="filter-field"><span class="filter-label">开始日期</span><span class="filter-value">选择</span></div>
+            <div class="filter-field"><span class="filter-label">结束日期</span><span class="filter-value">选择</span></div>
+            <div class="filter-field"><span class="filter-label">账户</span><span class="filter-value">全部账户</span></div>
+            <div class="filter-field"><span class="filter-label">分类</span><span class="filter-value">全部分类</span></div>
+          </div>
+          <div class="filter-actions"><button class="text-action" type="button" data-toast="更多筛选">更多筛选</button><button class="text-action" type="button" data-toast="筛选已清除">清除</button></div>
+        </section>
+        <section class="empty-state" aria-label="收支记录">
+          <svg class="icon" aria-hidden="true" style="width:24px;height:24px"><use href="#i-receipt"></use></svg>
+          <p>没有匹配的收支记录。</p>
+        </section>
+      </div>
+    </main>
+
+    <section class="account-menu" id="desktopAccountMenu" role="dialog" aria-label="账号与工作区" aria-modal="false" hidden>
+      <div class="identity-row"><span class="avatar" aria-hidden="true">S</span><span class="identity-email">ssttkkl@qq.com</span></div>
+      <div class="menu-divider"></div>
+      <h2 class="workspace-heading">工作区</h2>
+      <div class="workspace-list" role="group" aria-label="可访问的工作区">
+        <button class="workspace-option" type="button" role="menuitemradio" aria-checked="true" data-workspace="个人工作区"><svg class="icon" aria-hidden="true"><use href="#i-wallet"></use></svg><span class="workspace-copy"><span class="workspace-name">个人工作区</span><span class="workspace-role">管理员 · 当前</span></span><svg class="icon current-check" aria-hidden="true"><use href="#i-check"></use></svg></button>
+        <button class="workspace-option" type="button" role="menuitemradio" aria-checked="false" data-workspace="家庭工作区"><svg class="icon" aria-hidden="true"><use href="#i-wallet"></use></svg><span class="workspace-copy"><span class="workspace-name">家庭工作区</span><span class="workspace-role">可编辑</span></span><svg class="icon current-check" aria-hidden="true" hidden><use href="#i-check"></use></svg></button>
+      </div>
+      <div class="menu-loading" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>正在切换工作区…</span></div>
+      <div class="menu-error" role="alert"><span>无法切换工作区。</span><button class="error-retry" type="button">重试</button></div>
+      <div class="menu-divider"></div>
+      <button class="menu-action" type="button" data-page="workspace-management"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>工作区管理</span></button>
+      <button class="menu-action" type="button" data-action="logout"><svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg><span>退出登录</span></button>
+    </section>
+
+    <button class="drawer-backdrop" id="drawerBackdrop" type="button" aria-label="关闭导航"></button>
+    <aside class="mobile-drawer" id="mobileDrawer" aria-label="主导航" aria-modal="true" tabindex="-1">
+      <div class="drawer-brand"><strong>财务账本</strong><button class="icon-button" id="drawerClose" type="button" aria-label="关闭导航"><svg class="icon" aria-hidden="true"><use href="#i-close"></use></svg></button></div>
+      <nav class="nav-list" id="mobileNav" aria-label="页面"></nav>
+      <div class="rail-spacer"></div>
+      <button class="account-trigger" id="mobileAccountTrigger" type="button" aria-label="账号与工作区" aria-expanded="false" aria-controls="accountSheet">
+        <span class="avatar" aria-hidden="true">S</span><span class="account-copy"><span class="account-email">ssttkkl@qq.com</span><span class="account-hint">账号与工作区</span></span><svg class="icon account-chevron" aria-hidden="true"><use href="#i-chevron"></use></svg>
+      </button>
+    </aside>
+
+    <button class="sheet-backdrop" id="sheetBackdrop" type="button" aria-label="关闭账号面板"></button>
+    <section class="account-sheet" id="accountSheet" role="dialog" aria-label="账号与工作区" aria-modal="true" tabindex="-1">
+      <div class="sheet-handle" aria-hidden="true"></div>
+      <div class="identity-row"><span class="avatar" aria-hidden="true">S</span><span class="identity-email">ssttkkl@qq.com</span></div>
+      <div class="menu-divider"></div>
+      <h2 class="workspace-heading">工作区</h2>
+      <div class="workspace-list" role="group" aria-label="可访问的工作区">
+        <button class="workspace-option" type="button" role="menuitemradio" aria-checked="true" data-workspace="个人工作区"><svg class="icon" aria-hidden="true"><use href="#i-wallet"></use></svg><span class="workspace-copy"><span class="workspace-name">个人工作区</span><span class="workspace-role">管理员 · 当前</span></span><svg class="icon current-check" aria-hidden="true"><use href="#i-check"></use></svg></button>
+        <button class="workspace-option" type="button" role="menuitemradio" aria-checked="false" data-workspace="家庭工作区"><svg class="icon" aria-hidden="true"><use href="#i-wallet"></use></svg><span class="workspace-copy"><span class="workspace-name">家庭工作区</span><span class="workspace-role">可编辑</span></span><svg class="icon current-check" aria-hidden="true" hidden><use href="#i-check"></use></svg></button>
+      </div>
+      <div class="menu-loading" aria-live="polite"><span class="spinner" aria-hidden="true"></span><span>正在切换工作区…</span></div>
+      <div class="menu-error" role="alert"><span>无法切换工作区。</span><button class="error-retry" type="button">重试</button></div>
+      <div class="menu-divider"></div>
+      <button class="menu-action" type="button" data-page="workspace-management"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg><span>工作区管理</span></button>
+      <button class="menu-action" type="button" data-action="logout"><svg class="icon" aria-hidden="true"><use href="#i-logout"></use></svg><span>退出登录</span></button>
+    </section>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <div class="prototype-controls" aria-label="原型状态预览">
+    <strong>原型状态</strong>
+    <button class="prototype-control" type="button" data-preview-state="normal">正常</button>
+    <button class="prototype-control" type="button" data-preview-state="loading">切换中</button>
+    <button class="prototype-control" type="button" data-preview-state="error">切换失败</button>
+    <button class="prototype-control" type="button" data-preview-state="success">切换成功</button>
+  </div>
+  <script>
+    const appShell = document.querySelector("#appShell");
+    const sideRail = document.querySelector(".side-rail");
+    const railToggle = document.querySelector("#railToggle");
+    const pageTitle = document.querySelector("#pageTitle");
+    const desktopNav = document.querySelector("#desktopNav");
+    const mobileNav = document.querySelector("#mobileNav");
+    const desktopMenu = document.querySelector("#desktopAccountMenu");
+    const accountSheet = document.querySelector("#accountSheet");
+    const mobileDrawer = document.querySelector("#mobileDrawer");
+    const drawerBackdrop = document.querySelector("#drawerBackdrop");
+    const sheetBackdrop = document.querySelector("#sheetBackdrop");
+    const desktopAccountTrigger = document.querySelector("#desktopAccountTrigger");
+    const mobileAccountTrigger = document.querySelector("#mobileAccountTrigger");
+    const hoverPointer = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const titleByPage = {
+      "cash-ledger": "收支账本", "cash-import": "账单导入", "cash-categories": "收支分类",
+      "investment-holdings": "当前持仓", "investment-events": "投资事件", "workspace-management": "工作区管理"
+    };
+    mobileNav.innerHTML = desktopNav.innerHTML;
+    let returnFocus = null;
+    let toastTimer = 0;
+    let hoverExitTimer = 0;
+    let desktopMenuSource = null;
+    let suppressHoverMenuUntilLeave = false;
+    let keyboardMode = false;
+
+    function updateRailState() {
+      const activeElement = document.activeElement;
+      const focusWithin = keyboardMode && ((sideRail.contains(activeElement) && activeElement !== railToggle) || desktopMenu.contains(activeElement));
+      const pointerWithinRail = hoverPointer.matches && sideRail.matches(":hover");
+      const pointerWithinHoverMenu = hoverPointer.matches && desktopMenuSource === "hover" && desktopMenu.matches(":hover");
+      appShell.classList.toggle("is-hover-expanded", pointerWithinRail || pointerWithinHoverMenu);
+      appShell.classList.toggle("is-focus-expanded", focusWithin);
+      const expanded = appShell.classList.contains("is-expanded") || appShell.classList.contains("is-hover-expanded") || appShell.classList.contains("is-focus-expanded");
+      railToggle.setAttribute("aria-expanded", String(expanded));
+      const pinned = appShell.classList.contains("is-expanded");
+      const hoverExpanded = appShell.classList.contains("is-hover-expanded");
+      const label = hoverPointer.matches && !pinned && hoverExpanded ? "固定展开导航" : pinned ? (hoverPointer.matches ? "取消固定导航" : "收起导航") : expanded ? "收起导航" : "展开导航";
+      railToggle.setAttribute("aria-label", label);
+      railToggle.title = label;
+      if (hoverPointer.matches) railToggle.setAttribute("aria-pressed", String(pinned));
+      else railToggle.removeAttribute("aria-pressed");
+    }
+
+    function scheduleHoverExit() {
+      clearTimeout(hoverExitTimer);
+      hoverExitTimer = setTimeout(() => {
+        const overTrigger = desktopAccountTrigger.matches(":hover");
+        const overMenu = desktopMenu.matches(":hover");
+        const overRail = sideRail.matches(":hover");
+        if (desktopMenuSource === "hover" && !overTrigger && !overMenu && !overRail) closeDesktopMenu(false);
+        updateRailState();
+      }, 120);
+    }
+
+    function showToast(message) {
+      const toast = document.querySelector("#toast");
+      toast.textContent = message;
+      toast.classList.add("is-visible");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove("is-visible"), 2200);
+    }
+    function setPage(page) {
+      pageTitle.textContent = titleByPage[page] || titleByPage["cash-ledger"];
+      document.querySelectorAll("[data-page].nav-link").forEach(item => {
+        if (item.dataset.page === page) item.setAttribute("aria-current", "page");
+        else item.removeAttribute("aria-current");
+      });
+      closeAll(true);
+    }
+    function closeAll(restore = true) {
+      desktopMenu.classList.remove("is-open");
+      desktopMenu.hidden = true;
+      desktopAccountTrigger.setAttribute("aria-expanded", "false");
+      desktopMenuSource = null;
+      mobileDrawer.classList.remove("is-open");
+      drawerBackdrop.classList.remove("is-open");
+      document.querySelector("#mobileMenuTrigger").setAttribute("aria-expanded", "false");
+      mobileAccountTrigger.setAttribute("aria-expanded", "false");
+      accountSheet.classList.remove("is-open");
+      sheetBackdrop.classList.remove("is-open");
+      if (restore && returnFocus?.isConnected) returnFocus.focus();
+      updateRailState();
+    }
+    function closeDesktopMenu(restore = true) {
+      desktopMenu.classList.remove("is-open");
+      desktopMenu.hidden = true;
+      desktopAccountTrigger.setAttribute("aria-expanded", "false");
+      desktopMenuSource = null;
+      if (restore && returnFocus?.isConnected) returnFocus.focus();
+      updateRailState();
+    }
+    function openDesktopMenu(source = "click") {
+      closeAll(false);
+      desktopMenu.hidden = false;
+      desktopMenu.classList.add("is-open");
+      desktopAccountTrigger.setAttribute("aria-expanded", "true");
+      desktopMenuSource = source;
+      returnFocus = desktopAccountTrigger;
+      if (source !== "hover") desktopMenu.querySelector(".workspace-option:not(:disabled)")?.focus();
+      updateRailState();
+    }
+    function openDrawer() {
+      closeAll(false);
+      returnFocus = document.querySelector("#mobileMenuTrigger");
+      mobileDrawer.classList.add("is-open");
+      drawerBackdrop.classList.add("is-open");
+      returnFocus.setAttribute("aria-expanded", "true");
+      mobileDrawer.querySelector(".nav-link")?.focus();
+    }
+    function openSheet() {
+      closeAll(false);
+      returnFocus = document.querySelector("#mobileMenuTrigger");
+      accountSheet.classList.add("is-open");
+      sheetBackdrop.classList.add("is-open");
+      mobileAccountTrigger.setAttribute("aria-expanded", "true");
+      accountSheet.querySelector(".workspace-option:not(:disabled)")?.focus();
+    }
+    function setWorkspace(name, status = "normal") {
+      document.querySelectorAll(".workspace-option").forEach(option => {
+        const selected = option.dataset.workspace === name;
+        option.setAttribute("aria-checked", String(selected));
+        option.disabled = status === "loading";
+        option.querySelector(".current-check").hidden = !selected;
+        const role = option.querySelector(".workspace-role");
+        role.textContent = selected ? (name === "个人工作区" ? "管理员 · 当前" : "可编辑 · 当前") : (name === "个人工作区" ? "管理员" : "可编辑");
+      });
+    }
+    function setStatus(status) {
+      const panels = [desktopMenu, accountSheet];
+      if (status !== "normal") {
+        if (window.matchMedia("(max-width: 599px)").matches) openSheet();
+        else openDesktopMenu();
+      }
+      panels.forEach(panel => {
+        const loading = panel.querySelector(".menu-loading");
+        const error = panel.querySelector(".menu-error");
+        loading.classList.toggle("is-visible", status === "loading");
+        error.classList.toggle("is-visible", status === "error");
+        panel.querySelectorAll(".workspace-option").forEach(option => option.disabled = status === "loading");
+      });
+      if (status === "success") {
+        setWorkspace("家庭工作区");
+        const activePanel = window.matchMedia("(max-width: 599px)").matches ? accountSheet : desktopMenu;
+        activePanel.querySelector('.workspace-option[aria-checked="true"]')?.focus();
+        showToast("已切换到家庭工作区");
+      }
+      if (status === "normal") {
+        setWorkspace("个人工作区");
+        closeAll(false);
+      }
+    }
+
+    railToggle.addEventListener("click", event => {
+      const expanded = appShell.classList.toggle("is-expanded");
+      updateRailState();
+    });
+    desktopNav.addEventListener("click", event => {
+      const link = event.target.closest(".nav-link");
+      if (link) { event.preventDefault(); setPage(link.dataset.page); }
+    });
+    mobileNav.addEventListener("click", event => {
+      const link = event.target.closest(".nav-link");
+      if (link) { event.preventDefault(); setPage(link.dataset.page); }
+    });
+    desktopAccountTrigger.addEventListener("click", () => {
+      if (desktopMenu.classList.contains("is-open")) {
+        if (desktopMenuSource === "hover") { desktopMenuSource = "click"; return; }
+        closeDesktopMenu();
+      } else openDesktopMenu("click");
+    });
+    sideRail.addEventListener("pointerenter", event => {
+      if (!hoverPointer.matches || event.pointerType === "touch") return;
+      clearTimeout(hoverExitTimer);
+      keyboardMode = false;
+      document.body.classList.remove("is-keyboard-mode");
+      updateRailState();
+    });
+    sideRail.addEventListener("pointerleave", scheduleHoverExit);
+    desktopAccountTrigger.addEventListener("pointerenter", event => {
+      if (!hoverPointer.matches || event.pointerType === "touch" || suppressHoverMenuUntilLeave) return;
+      clearTimeout(hoverExitTimer);
+      keyboardMode = false;
+      document.body.classList.remove("is-keyboard-mode");
+      if (!desktopMenu.classList.contains("is-open")) openDesktopMenu("hover");
+    });
+    desktopAccountTrigger.addEventListener("pointerleave", () => {
+      suppressHoverMenuUntilLeave = false;
+      scheduleHoverExit();
+    });
+    desktopMenu.addEventListener("pointerenter", () => { clearTimeout(hoverExitTimer); updateRailState(); });
+    desktopMenu.addEventListener("pointerleave", scheduleHoverExit);
+    document.querySelector("#mobileMenuTrigger").addEventListener("click", openDrawer);
+    document.querySelector("#drawerClose").addEventListener("click", () => closeAll());
+    drawerBackdrop.addEventListener("click", () => closeAll());
+    mobileAccountTrigger.addEventListener("click", openSheet);
+    sheetBackdrop.addEventListener("click", () => closeAll());
+    document.addEventListener("pointerdown", () => {
+      keyboardMode = false;
+      document.body.classList.remove("is-keyboard-mode");
+      updateRailState();
+    });
+    document.addEventListener("focusin", event => {
+      if (sideRail.contains(event.target) || desktopMenu.contains(event.target)) updateRailState();
+    });
+    document.addEventListener("focusout", () => setTimeout(updateRailState, 0));
+    document.addEventListener("keydown", event => {
+      if (event.key === "Tab" || event.key.startsWith("Arrow")) {
+        keyboardMode = true;
+        document.body.classList.add("is-keyboard-mode");
+        updateRailState();
+      }
+      if (event.key === "Escape") {
+        if (desktopMenuSource === "hover") suppressHoverMenuUntilLeave = true;
+        closeAll();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const modal = accountSheet.classList.contains("is-open") ? accountSheet : mobileDrawer.classList.contains("is-open") ? mobileDrawer : null;
+      if (!modal) return;
+      const focusable = [...modal.querySelectorAll('a[href], button:not(:disabled), [tabindex]:not([tabindex="-1"])')].filter(item => item.getClientRects().length > 0);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    });
+    document.addEventListener("click", event => {
+      if (desktopMenu.classList.contains("is-open") && !desktopMenu.contains(event.target) && !desktopAccountTrigger.contains(event.target)) closeDesktopMenu(false);
+    });
+    document.addEventListener("click", event => {
+      const workspace = event.target.closest(".workspace-option");
+      if (workspace && !workspace.disabled) {
+        const name = workspace.dataset.workspace;
+        document.querySelectorAll(".menu-loading").forEach(item => item.classList.add("is-visible"));
+        document.querySelectorAll(".workspace-option").forEach(item => item.disabled = true);
+        setTimeout(() => {
+          setWorkspace(name);
+          document.querySelectorAll(".menu-loading").forEach(item => item.classList.remove("is-visible"));
+          closeAll(true);
+          showToast("已切换到" + name);
+        }, 550);
+      }
+      const pageAction = event.target.closest("[data-page]:not(.nav-link)");
+      if (pageAction) setPage(pageAction.dataset.page);
+      const action = event.target.closest("[data-action='logout']");
+      if (action) { closeAll(false); showToast("已退出登录（原型演示）"); }
+      const toastAction = event.target.closest("[data-toast]");
+      if (toastAction) showToast(toastAction.dataset.toast + "（原型演示）");
+    });
+    document.querySelectorAll("[data-preview-state]").forEach(button => button.addEventListener("click", () => setStatus(button.dataset.previewState)));
+    document.querySelectorAll(".error-retry").forEach(button => button.addEventListener("click", () => {
+      setStatus("loading");
+      setTimeout(() => {
+        setWorkspace("家庭工作区");
+        document.querySelectorAll(".menu-loading, .menu-error").forEach(item => item.classList.remove("is-visible"));
+        closeAll(true);
+        showToast("已切换到家庭工作区");
+      }, 550);
+    }));
+    const previewState = new URLSearchParams(location.search).get("state");
+    if (previewState === "expanded") {
+      appShell.classList.add("is-expanded");
+      updateRailState();
+    } else if (previewState === "account") openDesktopMenu("click");
+    else if (previewState === "drawer") openDrawer();
+    else if (previewState === "sheet") openSheet();
+    else if (["loading", "error", "success"].includes(previewState)) setStatus(previewState);
+  </script>
+</body>
+</html>

@@ -1,0 +1,3514 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "qFbi0",
+      "x": 0,
+      "y": 0,
+      "name": "Component — Account and workspace panel",
+      "reusable": true,
+      "width": 320,
+      "fill": "$shell-surface",
+      "cornerRadius": 8,
+      "stroke": "$shell-border",
+      "strokeWidth": 1,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#18181B1F",
+        "offset": {
+          "x": 0,
+          "y": 8
+        },
+        "blur": 24
+      },
+      "layout": "vertical",
+      "gap": 12,
+      "padding": 16,
+      "children": [
+        {
+          "type": "frame",
+          "id": "Tu5Cv",
+          "name": "Signed-in identity",
+          "width": "fill_container",
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "vaw7n",
+              "name": "Email initial avatar",
+              "width": 36,
+              "height": 36,
+              "fill": "$shell-primary",
+              "cornerRadius": 18,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "j3qqi",
+                  "name": "Avatar initial",
+                  "fill": "#FFFFFF",
+                  "content": "S",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yA8pR",
+              "name": "Identity text",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "IHdXU",
+                  "name": "Display identity",
+                  "fill": "$shell-text",
+                  "content": "ssttkkl@qq.com",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 14,
+                  "fontWeight": "600"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "hnwbZ",
+          "name": "Identity separator",
+          "fill": "$shell-border",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "text",
+          "id": "Zby1t",
+          "name": "Workspace section label",
+          "fill": "$shell-muted",
+          "content": "工作区",
+          "fontFamily": "$shell-font",
+          "fontSize": 12,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "p4KHr",
+          "name": "Workspace choices",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 4,
+          "children": [
+            {
+              "type": "frame",
+              "id": "IPUDL",
+              "name": "Current workspace selection",
+              "width": "fill_container",
+              "height": 48,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "stroke": "$shell-accent",
+              "strokeWidth": 2,
+              "gap": 12,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "kLQc4",
+                  "name": "Current workspace icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "wallet",
+                  "library": "lucide",
+                  "fill": "$shell-accent"
+                },
+                {
+                  "type": "frame",
+                  "id": "iAuw2",
+                  "name": "Current workspace and role",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oalUh",
+                      "name": "Current workspace name",
+                      "fill": "$shell-text",
+                      "content": "个人工作区",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WWV9b",
+                      "name": "Current workspace role",
+                      "fill": "$shell-muted",
+                      "content": "管理员 · 当前",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "qDK8p",
+                  "name": "Current workspace check",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "check",
+                  "library": "lucide",
+                  "fill": "$shell-accent"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zTi45",
+              "name": "Other sample workspace",
+              "width": "fill_container",
+              "height": 48,
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                8,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "a5OEq9",
+                  "name": "Other workspace icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "wallet",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "frame",
+                  "id": "gWylJ",
+                  "name": "Other workspace and role",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "RNjdX",
+                      "name": "Other workspace name",
+                      "fill": "$shell-text",
+                      "content": "家庭工作区",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "w6hOYX",
+                      "name": "Other workspace role",
+                      "fill": "$shell-muted",
+                      "content": "可编辑",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "Q6ZdD",
+          "name": "Actions separator",
+          "fill": "$shell-border",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "qJBrG",
+          "name": "Workspace management action",
+          "width": "fill_container",
+          "height": 48,
+          "cornerRadius": 6,
+          "gap": 12,
+          "padding": [
+            8,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "vhRcd",
+              "name": "Workspace management icon",
+              "width": 18,
+              "height": 18,
+              "icon": "settings-2",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            },
+            {
+              "type": "text",
+              "id": "Uuwmz",
+              "name": "Workspace management label",
+              "fill": "$shell-text",
+              "content": "工作区管理",
+              "fontFamily": "$shell-font",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "AEyBX",
+          "name": "Sign out action",
+          "width": "fill_container",
+          "height": 48,
+          "cornerRadius": 6,
+          "gap": 12,
+          "padding": [
+            8,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "vzOKh",
+              "name": "Sign out icon",
+              "width": 18,
+              "height": 18,
+              "icon": "log-out",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            },
+            {
+              "type": "text",
+              "id": "hR4Ns",
+              "name": "Sign out label",
+              "fill": "$shell-text",
+              "content": "退出登录",
+              "fontFamily": "$shell-font",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "exkWh",
+      "x": 0,
+      "y": 0,
+      "name": "WIDE — 1440 px — hover avatar: expanded rail and account panel",
+      "context": "Hovering anywhere on the rail expands it. Hovering the avatar opens this account panel. The panel remains open while the pointer is over it; leaving the rail and panel collapses the rail and closes the panel. A click on the rail control pins the expanded state. On touch devices the control remains the manual expand/collapse action.",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "$shell-bg",
+      "children": [
+        {
+          "type": "frame",
+          "id": "uSVpK",
+          "name": "WIDE hover-expanded navigation rail",
+          "width": 240,
+          "height": 900,
+          "fill": "$shell-surface",
+          "stroke": "$shell-border",
+          "strokeWidth": 1,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            16,
+            12
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "GOhjV",
+              "name": "Navigation toggle",
+              "width": "fill_container",
+              "height": 60,
+              "layout": "vertical",
+              "gap": 8,
+              "justifyContent": "space_between",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "yMRCC",
+                  "name": "Collapse side navigation",
+                  "width": 44,
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "HaL9s",
+                      "name": "Navigation toggle icon",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "panel-left-close",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "rRxjo",
+                  "name": "Navigation separator",
+                  "fill": "$shell-border",
+                  "width": "fill_container",
+                  "height": 1
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "FnZEH",
+              "name": "Expanded destination list",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "WWZIw",
+                  "name": "收支账本 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#F5F5F5",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 2,
+                      "id": "f9dFxP",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 7,
+                      "name": "收支账本 active marker",
+                      "fill": "$shell-accent",
+                      "width": 3,
+                      "height": 30
+                    },
+                    {
+                      "type": "icon",
+                      "id": "HVs6V",
+                      "name": "收支账本 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "wallet",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wijep",
+                      "name": "收支账本 label",
+                      "fill": "$shell-text",
+                      "content": "收支账本",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Au6uU",
+                  "name": "账单导入 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "QVaAv",
+                      "name": "账单导入 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "upload",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HNPrX",
+                      "name": "账单导入 label",
+                      "fill": "$shell-muted",
+                      "content": "账单导入",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "cDXML",
+                  "name": "收支分类 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "sv2cM",
+                      "name": "收支分类 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "tags",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "R9WAT",
+                      "name": "收支分类 label",
+                      "fill": "$shell-muted",
+                      "content": "收支分类",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ZpZxv",
+                  "name": "当前持仓 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "aUfUy",
+                      "name": "当前持仓 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "chart-pie",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "a5rZD",
+                      "name": "当前持仓 label",
+                      "fill": "$shell-muted",
+                      "content": "当前持仓",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fUWqA",
+                  "name": "投资事件 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "X7MGj",
+                      "name": "投资事件 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "calendar-clock",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y2uRC",
+                      "name": "投资事件 label",
+                      "fill": "$shell-muted",
+                      "content": "投资事件",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z6zNJ",
+                  "name": "工作区管理 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "FdHxq",
+                      "name": "工作区管理 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "settings-2",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "I9nKJX",
+                      "name": "工作区管理 label",
+                      "fill": "$shell-muted",
+                      "content": "工作区管理",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xKsmd",
+              "name": "Navigation spacer",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "frame",
+              "id": "PzdCn",
+              "name": "Bottom-left account avatar",
+              "width": "fill_container",
+              "height": 48,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                6,
+                8
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "dj6KJ",
+                  "name": "Email initial avatar",
+                  "width": 36,
+                  "height": 36,
+                  "fill": "$shell-primary",
+                  "cornerRadius": 18,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "n0OE1k",
+                      "name": "Avatar initial",
+                      "fill": "#FFFFFF",
+                      "content": "S",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 15,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "OKek7",
+                  "name": "Account identity",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "AMAtH",
+                      "name": "Account email",
+                      "fill": "$shell-text",
+                      "content": "ssttkkl@qq.com",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fdx8g",
+                      "name": "Account action hint",
+                      "fill": "$shell-muted",
+                      "content": "账号与工作区",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "ok7u1",
+                  "name": "Account menu indicator",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-up",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "hkZUl",
+          "name": "Destination Scaffold",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$shell-bg",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "m4tCg4",
+              "name": "Material 3 top app bar",
+              "width": "fill_container",
+              "height": 64,
+              "fill": "$shell-surface",
+              "stroke": "#E4E4E7",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "gap": 12,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "m7FHhm",
+                  "name": "Current page title",
+                  "fill": "$shell-text",
+                  "content": "收支账本",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "to8mO",
+              "name": "Existing destination content",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$shell-bg",
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "QSGDi",
+                  "name": "Primary ledger actions",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 8,
+                  "justifyContent": "end",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "NH7om",
+                      "name": "Import bills action",
+                      "height": 40,
+                      "fill": "$shell-surface",
+                      "cornerRadius": 20,
+                      "stroke": "$shell-border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "t2YLVx",
+                          "name": "Import bills label",
+                          "fill": "$shell-text",
+                          "content": "导入账单",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "RuTFO",
+                      "name": "Add cash record action",
+                      "height": 40,
+                      "fill": "$shell-primary",
+                      "cornerRadius": 20,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Fq147",
+                          "name": "Add cash record label",
+                          "fill": "#FFFFFF",
+                          "content": "记一笔",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Iev2j",
+                  "name": "WIDE filter bar",
+                  "width": "fill_container",
+                  "fill": "$shell-surface",
+                  "cornerRadius": 8,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "dFZZM",
+                      "name": "WIDE filter title",
+                      "fill": "$shell-text",
+                      "content": "筛选",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "HfjcP",
+                      "name": "WIDE filter row",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "n10De",
+                          "name": "WIDE 开始日期 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "i3QqE",
+                              "name": "WIDE 开始日期 label",
+                              "fill": "$shell-muted",
+                              "content": "开始日期",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "SUdFn",
+                              "name": "WIDE 开始日期 value",
+                              "fill": "$shell-text",
+                              "content": "选择",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "RpXRx",
+                          "name": "WIDE 结束日期 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "sCzsl",
+                              "name": "WIDE 结束日期 label",
+                              "fill": "$shell-muted",
+                              "content": "结束日期",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "HqdFS",
+                              "name": "WIDE 结束日期 value",
+                              "fill": "$shell-text",
+                              "content": "选择",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Wd1XF",
+                      "name": "WIDE filter row",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "W2WAmR",
+                          "name": "WIDE 账户 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "BPAnr",
+                              "name": "WIDE 账户 label",
+                              "fill": "$shell-muted",
+                              "content": "账户",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "Rhq4I",
+                              "name": "WIDE 账户 value",
+                              "fill": "$shell-text",
+                              "content": "全部账户",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "pU33u",
+                          "name": "WIDE 分类 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "od11M",
+                              "name": "WIDE 分类 label",
+                              "fill": "$shell-muted",
+                              "content": "分类",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "xbtiy",
+                              "name": "WIDE 分类 value",
+                              "fill": "$shell-text",
+                              "content": "全部分类",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "i7t02D",
+                      "name": "WIDE filter actions",
+                      "width": "fill_container",
+                      "height": 32,
+                      "gap": 18,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lU29T",
+                          "name": "WIDE more filters",
+                          "fill": "$shell-primary",
+                          "content": "更多筛选",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "O7yAN",
+                          "name": "WIDE clear filters",
+                          "fill": "$shell-primary",
+                          "content": "清除",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "YPWLq",
+                  "name": "Ledger empty state",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$shell-surface",
+                  "cornerRadius": 8,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 24,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "Frb8G",
+                      "name": "Empty ledger icon",
+                      "width": 24,
+                      "height": 24,
+                      "icon": "receipt-text",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "E9hh3",
+                      "name": "Empty ledger message",
+                      "fill": "$shell-muted",
+                      "content": "没有匹配的收支记录。",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "bKMmj",
+          "type": "ref",
+          "ref": "qFbi0",
+          "name": "WIDE account panel open above bottom-left avatar",
+          "layoutPosition": "absolute",
+          "x": 248,
+          "y": 490,
+          "width": 320
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ZTXPa",
+      "x": 1520,
+      "y": 0,
+      "name": "REGULAR — 768 px — 示例数据：collapsed icon rail",
+      "clip": true,
+      "width": 768,
+      "height": 900,
+      "fill": "$shell-bg",
+      "children": [
+        {
+          "type": "frame",
+          "id": "sBFRl",
+          "name": "REGULAR collapsed icon navigation",
+          "width": 64,
+          "height": "fill_container",
+          "fill": "$shell-surface",
+          "stroke": "$shell-border",
+          "strokeWidth": 1,
+          "layout": "vertical",
+          "gap": 12,
+          "padding": [
+            16,
+            8
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "UanAC",
+              "name": "Navigation toggle",
+              "width": "fill_container",
+              "height": 60,
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "tGDcf",
+                  "name": "Collapse side navigation",
+                  "width": 44,
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "dhqHb",
+                      "name": "Navigation toggle icon",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "panel-left-open",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    }
+                  ]
+                },
+                {
+                  "type": "rectangle",
+                  "id": "iioEw",
+                  "name": "Navigation separator",
+                  "fill": "$shell-border",
+                  "width": "fill_container",
+                  "height": 1
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TUFCy",
+              "name": "Expanded destination list",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "ZHpUz",
+                  "name": "收支账本 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#F5F5F5",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 2,
+                      "id": "ydGMd",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 7,
+                      "name": "收支账本 active marker",
+                      "fill": "$shell-accent",
+                      "width": 3,
+                      "height": 30
+                    },
+                    {
+                      "type": "icon",
+                      "id": "O9Cza6",
+                      "name": "收支账本 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "wallet",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    },
+                    {
+                      "type": "text",
+                      "id": "y00g4",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "收支账本 label",
+                      "enabled": false,
+                      "fill": "$shell-text",
+                      "content": "收支账本",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "xmrQx",
+                  "name": "账单导入 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "vXjzD",
+                      "name": "账单导入 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "upload",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "QjIOs",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "账单导入 label",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "账单导入",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "M5ua0f",
+                  "name": "收支分类 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "I9xhK",
+                      "name": "收支分类 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "tags",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "kuuJ1",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "收支分类 label",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "收支分类",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Yi40R",
+                  "name": "当前持仓 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "cSvFd",
+                      "name": "当前持仓 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "chart-pie",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "p6tHax",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "当前持仓 label",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "当前持仓",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eMJDt",
+                  "name": "投资事件 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "dnfe8",
+                      "name": "投资事件 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "calendar-clock",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "RDeBd",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "投资事件 label",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "投资事件",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IvBMi",
+                  "name": "工作区管理 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "yC2Gv",
+                      "name": "工作区管理 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "settings-2",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "HiKVE",
+                      "x": 42,
+                      "y": 12.5,
+                      "name": "工作区管理 label",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "工作区管理",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "zLOfB",
+              "name": "Navigation spacer",
+              "width": "fill_container",
+              "height": "fill_container"
+            },
+            {
+              "type": "frame",
+              "id": "I98DQ",
+              "name": "Bottom-left account avatar",
+              "width": "fill_container",
+              "height": 48,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "gap": 10,
+              "padding": 4,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "qWQhZ",
+                  "name": "Email initial avatar",
+                  "width": 36,
+                  "height": 36,
+                  "fill": "$shell-primary",
+                  "cornerRadius": 18,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "oCclD",
+                      "name": "Avatar initial",
+                      "fill": "#FFFFFF",
+                      "content": "S",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 15,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "I8pZza",
+                  "name": "Account identity",
+                  "width": "fill_container",
+                  "height": "fit_content(35)",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "I5geE5",
+                      "x": 0,
+                      "y": 0,
+                      "name": "Account email",
+                      "enabled": false,
+                      "fill": "$shell-text",
+                      "content": "ssttkkl@qq.com",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wAtGa",
+                      "x": 0,
+                      "y": 19,
+                      "name": "Account action hint",
+                      "enabled": false,
+                      "fill": "$shell-muted",
+                      "content": "账号与工作区",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "vhxNg",
+                  "x": 192,
+                  "y": 16,
+                  "name": "Account menu indicator",
+                  "enabled": false,
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-up",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Ti2sF",
+          "name": "Destination Scaffold",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$shell-bg",
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "IgLXw",
+              "name": "Material 3 top app bar",
+              "width": "fill_container",
+              "height": 64,
+              "fill": "$shell-surface",
+              "stroke": "#E4E4E7",
+              "strokeWidth": {
+                "bottom": 1
+              },
+              "gap": 12,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "dprkj",
+                  "name": "Current page title",
+                  "fill": "$shell-text",
+                  "content": "收支账本",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "bTYzD",
+              "name": "Existing destination content",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$shell-bg",
+              "layout": "vertical",
+              "gap": 20,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "S4hs5",
+                  "name": "Primary ledger actions",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 8,
+                  "justifyContent": "end",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "rpNVd",
+                      "name": "Import bills action",
+                      "height": 40,
+                      "fill": "$shell-surface",
+                      "cornerRadius": 20,
+                      "stroke": "$shell-border",
+                      "strokeWidth": 1,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "rWLws",
+                          "name": "Import bills label",
+                          "fill": "$shell-text",
+                          "content": "导入账单",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Wsua9",
+                      "name": "Add cash record action",
+                      "height": 40,
+                      "fill": "$shell-primary",
+                      "cornerRadius": 20,
+                      "padding": [
+                        0,
+                        16
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "eVpIa",
+                          "name": "Add cash record label",
+                          "fill": "#FFFFFF",
+                          "content": "记一笔",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hjYSc",
+                  "name": "REGULAR filter bar",
+                  "width": "fill_container",
+                  "fill": "$shell-surface",
+                  "cornerRadius": 8,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 16,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vbeLC",
+                      "name": "REGULAR filter title",
+                      "fill": "$shell-text",
+                      "content": "筛选",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "H03Ep",
+                      "name": "REGULAR filter row",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "nudWF",
+                          "name": "REGULAR 开始日期 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ZsBlu",
+                              "name": "REGULAR 开始日期 label",
+                              "fill": "$shell-muted",
+                              "content": "开始日期",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "RGK7c",
+                              "name": "REGULAR 开始日期 value",
+                              "fill": "$shell-text",
+                              "content": "选择",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "sfTyw",
+                          "name": "REGULAR 结束日期 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "e8AqRn",
+                              "name": "REGULAR 结束日期 label",
+                              "fill": "$shell-muted",
+                              "content": "结束日期",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "OHzXM",
+                              "name": "REGULAR 结束日期 value",
+                              "fill": "$shell-text",
+                              "content": "选择",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "lEYUQ",
+                      "name": "REGULAR filter row",
+                      "width": "fill_container",
+                      "gap": 8,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "J7UmRG",
+                          "name": "REGULAR 账户 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "xwqzD",
+                              "name": "REGULAR 账户 label",
+                              "fill": "$shell-muted",
+                              "content": "账户",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "BrjA4",
+                              "name": "REGULAR 账户 value",
+                              "fill": "$shell-text",
+                              "content": "全部账户",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "E1BcAs",
+                          "name": "REGULAR 分类 field",
+                          "width": "fill_container",
+                          "height": 52,
+                          "fill": "$shell-surface",
+                          "cornerRadius": 6,
+                          "stroke": "$shell-border",
+                          "strokeWidth": 1,
+                          "layout": "vertical",
+                          "gap": 3,
+                          "padding": [
+                            6,
+                            12
+                          ],
+                          "justifyContent": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "u2GhVF",
+                              "name": "REGULAR 分类 label",
+                              "fill": "$shell-muted",
+                              "content": "分类",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 11,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "K0SRp",
+                              "name": "REGULAR 分类 value",
+                              "fill": "$shell-text",
+                              "content": "全部分类",
+                              "fontFamily": "$shell-font",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TiKFn",
+                      "name": "REGULAR filter actions",
+                      "width": "fill_container",
+                      "height": 32,
+                      "gap": 18,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "xXWPs",
+                          "name": "REGULAR more filters",
+                          "fill": "$shell-primary",
+                          "content": "更多筛选",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "DmDAI",
+                          "name": "REGULAR clear filters",
+                          "fill": "$shell-primary",
+                          "content": "清除",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "VBe4T",
+                  "name": "Ledger empty state",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$shell-surface",
+                  "cornerRadius": 8,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 8,
+                  "padding": 24,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "l93nGX",
+                      "name": "Empty ledger icon",
+                      "width": 24,
+                      "height": 24,
+                      "icon": "receipt-text",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SDBCX",
+                      "name": "Empty ledger message",
+                      "fill": "$shell-muted",
+                      "content": "没有匹配的收支记录。",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "kma6S",
+      "x": 2368,
+      "y": 0,
+      "name": "COMPACT — 390 px — 示例数据：drawer and bottom avatar",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "$shell-bg",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "RN75v",
+          "x": 0,
+          "y": 0,
+          "name": "Compact page shell behind drawer",
+          "width": 390,
+          "height": 844,
+          "fill": "$shell-bg",
+          "layout": "none",
+          "children": [
+            {
+              "type": "frame",
+              "id": "n6MqGO",
+              "x": 0,
+              "y": 0,
+              "name": "Compact Material 3 top app bar",
+              "width": 390,
+              "height": 64,
+              "fill": "$shell-surface",
+              "gap": 12,
+              "padding": [
+                0,
+                16
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "X2GmX",
+                  "name": "Open navigation drawer",
+                  "width": 40,
+                  "height": 40,
+                  "cornerRadius": 6,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "r1GC0V",
+                      "name": "Open navigation icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "menu",
+                      "library": "lucide",
+                      "fill": "$shell-text"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "oeP41",
+                  "name": "Current page title",
+                  "fill": "$shell-text",
+                  "content": "收支账本",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "JB2zv",
+              "x": 0,
+              "y": 64,
+              "name": "Compact destination content",
+              "width": 390,
+              "height": 780,
+              "fill": "$shell-bg",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "YS5ii",
+                  "name": "Compact ledger empty state",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "fill": "$shell-surface",
+                  "cornerRadius": 8,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vXnjk",
+                      "name": "Compact empty message",
+                      "fill": "$shell-muted",
+                      "content": "没有匹配的收支记录。",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "s1o1zI",
+          "layoutPosition": "absolute",
+          "x": 0,
+          "y": 0,
+          "name": "Modal drawer backdrop",
+          "fill": "#18181B44",
+          "width": 390,
+          "height": 844
+        },
+        {
+          "type": "frame",
+          "id": "CwaRP",
+          "layoutPosition": "absolute",
+          "x": 0,
+          "y": 0,
+          "name": "COMPACT modal navigation drawer",
+          "width": 304,
+          "height": 844,
+          "fill": "$shell-surface",
+          "stroke": "$shell-border",
+          "strokeWidth": {
+            "right": 1
+          },
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            16,
+            12
+          ],
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Favxq",
+              "name": "Compact drawer heading",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "e7JAnD",
+                  "name": "Finance Tracker name",
+                  "fill": "$shell-text",
+                  "content": "财务账本",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "X06Wxw",
+              "name": "Expanded destination list",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "fnXBh",
+                  "name": "收支账本 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#F5F5F5",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "cornerRadius": 2,
+                      "id": "ds2PA",
+                      "layoutPosition": "absolute",
+                      "x": 0,
+                      "y": 7,
+                      "name": "收支账本 active marker",
+                      "fill": "$shell-accent",
+                      "width": 3,
+                      "height": 30
+                    },
+                    {
+                      "type": "icon",
+                      "id": "bOjZe",
+                      "name": "收支账本 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "wallet",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    },
+                    {
+                      "type": "text",
+                      "id": "SJsAl",
+                      "name": "收支账本 label",
+                      "fill": "$shell-text",
+                      "content": "收支账本",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NTCpm",
+                  "name": "账单导入 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "tgDT7",
+                      "name": "账单导入 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "upload",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "I2VOFc",
+                      "name": "账单导入 label",
+                      "fill": "$shell-muted",
+                      "content": "账单导入",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "PoTqV",
+                  "name": "收支分类 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "J6IZTI",
+                      "name": "收支分类 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "tags",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "wnoXp",
+                      "name": "收支分类 label",
+                      "fill": "$shell-muted",
+                      "content": "收支分类",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rcV1z",
+                  "name": "当前持仓 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "AjBub",
+                      "name": "当前持仓 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "chart-pie",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TXpV8",
+                      "name": "当前持仓 label",
+                      "fill": "$shell-muted",
+                      "content": "当前持仓",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "Cx19p",
+                  "name": "投资事件 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "NCxzG",
+                      "name": "投资事件 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "calendar-clock",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Lsvno",
+                      "name": "投资事件 label",
+                      "fill": "$shell-muted",
+                      "content": "投资事件",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "S9eRPH",
+                  "name": "工作区管理 destination",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    10
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "CdOBy",
+                      "name": "工作区管理 icon",
+                      "width": 20,
+                      "height": 20,
+                      "icon": "settings-2",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ibuOS",
+                      "name": "工作区管理 label",
+                      "fill": "$shell-muted",
+                      "content": "工作区管理",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XHsDL",
+              "name": "Bottom-left account avatar",
+              "width": "fill_container",
+              "height": 48,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "gap": 10,
+              "padding": [
+                6,
+                8
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "zqkL2",
+                  "name": "Email initial avatar",
+                  "width": 36,
+                  "height": 36,
+                  "fill": "$shell-primary",
+                  "cornerRadius": 18,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "tJbNB",
+                      "name": "Avatar initial",
+                      "fill": "#FFFFFF",
+                      "content": "S",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 15,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "h9MxG",
+                  "name": "Account identity",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 2,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FWk1B",
+                      "name": "Account email",
+                      "fill": "$shell-text",
+                      "content": "ssttkkl@qq.com",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    },
+                    {
+                      "type": "text",
+                      "id": "e4DPT3",
+                      "name": "Account action hint",
+                      "fill": "$shell-muted",
+                      "content": "账号与工作区",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 11,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "icon",
+                  "id": "sJWaf",
+                  "name": "Account menu indicator",
+                  "width": 16,
+                  "height": 16,
+                  "icon": "chevron-up",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "ug51c",
+      "x": 2838,
+      "y": 0,
+      "name": "账号菜单交互状态",
+      "width": 960,
+      "height": 440,
+      "fill": "$shell-bg",
+      "layout": "vertical",
+      "gap": 16,
+      "padding": 24,
+      "children": [
+        {
+          "type": "text",
+          "id": "PxnSR",
+          "name": "Account state heading",
+          "fill": "$shell-text",
+          "content": "工作区切换状态（互斥示例）",
+          "fontFamily": "$shell-font",
+          "fontSize": 16,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "hwO96",
+          "name": "Account state examples",
+          "width": "fill_container",
+          "height": "fill_container",
+          "gap": 16,
+          "children": [
+            {
+              "type": "frame",
+              "id": "maIGA",
+              "name": "Loading and disabled workspaces",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$shell-surface",
+              "cornerRadius": 8,
+              "stroke": "$shell-border",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "xdKpk",
+                  "name": "Loading state label",
+                  "fill": "$shell-text",
+                  "content": "切换中",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "GOxZB",
+                  "name": "Disabled current workspace",
+                  "width": "fill_container",
+                  "height": 48,
+                  "fill": "$shell-bg",
+                  "cornerRadius": 6,
+                  "gap": 12,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "YweG2",
+                      "name": "Disabled workspace icon",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "wallet",
+                      "library": "lucide",
+                      "fill": "$shell-muted"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "RNPp7",
+                      "name": "Disabled workspace role",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "I9O51g",
+                          "name": "Disabled workspace name",
+                          "fill": "$shell-muted",
+                          "content": "个人工作区",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "hdbss",
+                          "name": "Disabled workspace permission",
+                          "fill": "$shell-muted",
+                          "content": "管理员 · 当前",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "KfiTv",
+                  "name": "Loading feedback",
+                  "width": "fill_container",
+                  "height": 40,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "AIXic",
+                      "name": "Workspace switch spinner",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "loader-circle",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    },
+                    {
+                      "type": "text",
+                      "id": "sDb6i",
+                      "name": "Loading feedback label",
+                      "fill": "$shell-muted",
+                      "content": "正在切换工作区…",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "nFzLo",
+              "name": "Workspace switch error",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$shell-surface",
+              "cornerRadius": 8,
+              "stroke": "$shell-border",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "oPriG",
+                  "name": "Error state label",
+                  "fill": "$shell-text",
+                  "content": "切换失败",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "xVg1m",
+                  "name": "Workspace error message",
+                  "width": "fill_container",
+                  "height": 56,
+                  "fill": "$shell-error-surface",
+                  "cornerRadius": 6,
+                  "gap": 8,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "M8DGYV",
+                      "name": "Error alert icon",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "circle-alert",
+                      "library": "lucide",
+                      "fill": "$shell-danger"
+                    },
+                    {
+                      "type": "text",
+                      "id": "b25oLY",
+                      "name": "Workspace error message label",
+                      "fill": "$shell-danger",
+                      "content": "无法切换工作区。",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "GCkvY",
+                  "name": "Retry workspace selection",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "$shell-surface",
+                  "cornerRadius": 6,
+                  "stroke": "$shell-border",
+                  "strokeWidth": 1,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lhMFW",
+                      "name": "Retry workspace selection label",
+                      "fill": "$shell-primary",
+                      "content": "重试",
+                      "fontFamily": "$shell-font",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "z2xpU",
+              "name": "Workspace switch success",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "$shell-surface",
+              "cornerRadius": 8,
+              "stroke": "$shell-border",
+              "strokeWidth": 1,
+              "layout": "vertical",
+              "gap": 12,
+              "padding": 16,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "UFxRr",
+                  "name": "Success state label",
+                  "fill": "$shell-text",
+                  "content": "已切换",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "frame",
+                  "id": "t2HGJ",
+                  "name": "Current workspace after switch",
+                  "width": "fill_container",
+                  "height": 48,
+                  "fill": "$shell-bg",
+                  "cornerRadius": 6,
+                  "stroke": "$shell-accent",
+                  "strokeWidth": 2,
+                  "gap": 12,
+                  "padding": [
+                    8,
+                    12
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon",
+                      "id": "Y2QUq",
+                      "name": "Selected workspace icon after switch",
+                      "width": 18,
+                      "height": 18,
+                      "icon": "wallet",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ChFW2",
+                      "name": "Selected workspace after switch details",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "YoBxh",
+                          "name": "New current workspace name",
+                          "fill": "$shell-text",
+                          "content": "家庭工作区",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "QbktG",
+                          "name": "New current workspace permission",
+                          "fill": "$shell-muted",
+                          "content": "可编辑 · 当前",
+                          "fontFamily": "$shell-font",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "icon",
+                      "id": "RXHIV",
+                      "name": "Current workspace confirmation",
+                      "width": 16,
+                      "height": 16,
+                      "icon": "check",
+                      "library": "lucide",
+                      "fill": "$shell-accent"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "S12JH4",
+      "x": 3878,
+      "y": 0,
+      "name": "REGULAR expanded navigation rail — 240 dp",
+      "width": 240,
+      "height": 900,
+      "fill": "$shell-surface",
+      "stroke": "$shell-border",
+      "strokeWidth": 1,
+      "layout": "vertical",
+      "gap": 12,
+      "padding": [
+        16,
+        12
+      ],
+      "children": [
+        {
+          "type": "frame",
+          "id": "V4RB4W",
+          "name": "Navigation toggle",
+          "width": "fill_container",
+          "height": 60,
+          "layout": "vertical",
+          "gap": 8,
+          "justifyContent": "space_between",
+          "children": [
+            {
+              "type": "frame",
+              "id": "GsJnm",
+              "name": "Collapse side navigation",
+              "width": 44,
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "e7Yq6H",
+                  "name": "Navigation toggle icon",
+                  "width": 18,
+                  "height": 18,
+                  "icon": "panel-left-close",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "nkYIP",
+              "name": "Navigation separator",
+              "fill": "$shell-border",
+              "width": "fill_container",
+              "height": 1
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "E376Nm",
+          "name": "Expanded destination list",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 4,
+          "children": [
+            {
+              "type": "frame",
+              "id": "V58TBO",
+              "name": "收支账本 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#F5F5F5",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "rectangle",
+                  "cornerRadius": 2,
+                  "id": "p0bDX0",
+                  "layoutPosition": "absolute",
+                  "x": 0,
+                  "y": 7,
+                  "name": "收支账本 active marker",
+                  "fill": "$shell-accent",
+                  "width": 3,
+                  "height": 30
+                },
+                {
+                  "type": "icon",
+                  "id": "SGEVq",
+                  "name": "收支账本 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "wallet",
+                  "library": "lucide",
+                  "fill": "$shell-accent"
+                },
+                {
+                  "type": "text",
+                  "id": "OeMGE",
+                  "name": "收支账本 label",
+                  "fill": "$shell-text",
+                  "content": "收支账本",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "sObq4",
+              "name": "账单导入 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Iv0b1",
+                  "name": "账单导入 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "upload",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "sBYWC",
+                  "name": "账单导入 label",
+                  "fill": "$shell-muted",
+                  "content": "账单导入",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "KYiKp",
+              "name": "收支分类 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "WHnOy",
+                  "name": "收支分类 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "tags",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "Ol4nR",
+                  "name": "收支分类 label",
+                  "fill": "$shell-muted",
+                  "content": "收支分类",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kSZj4",
+              "name": "当前持仓 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "neLZu",
+                  "name": "当前持仓 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "chart-pie",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "JABGx",
+                  "name": "当前持仓 label",
+                  "fill": "$shell-muted",
+                  "content": "当前持仓",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "f8Dkk8",
+              "name": "投资事件 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "Mku1o",
+                  "name": "投资事件 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "calendar-clock",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "ic49S",
+                  "name": "投资事件 label",
+                  "fill": "$shell-muted",
+                  "content": "投资事件",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "SwmKT",
+              "name": "工作区管理 destination",
+              "width": "fill_container",
+              "height": 44,
+              "fill": "#FFFFFF",
+              "cornerRadius": 6,
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "W2xYE",
+                  "name": "工作区管理 icon",
+                  "width": 20,
+                  "height": 20,
+                  "icon": "settings-2",
+                  "library": "lucide",
+                  "fill": "$shell-muted"
+                },
+                {
+                  "type": "text",
+                  "id": "UBMjI",
+                  "name": "工作区管理 label",
+                  "fill": "$shell-muted",
+                  "content": "工作区管理",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "p050ek",
+          "name": "Navigation spacer",
+          "width": "fill_container",
+          "height": "fill_container"
+        },
+        {
+          "type": "frame",
+          "id": "lBwzr",
+          "name": "Bottom-left account avatar",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "#F5F5F5",
+          "cornerRadius": 6,
+          "gap": 12,
+          "padding": [
+            6,
+            8
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "czi7L",
+              "name": "Email initial avatar",
+              "width": 36,
+              "height": 36,
+              "fill": "$shell-primary",
+              "cornerRadius": 18,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "flgEY",
+                  "name": "Avatar initial",
+                  "fill": "#FFFFFF",
+                  "content": "S",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "gGvzA",
+              "name": "Account identity",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 2,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "bflVJ",
+                  "name": "Account email",
+                  "fill": "$shell-text",
+                  "content": "ssttkkl@qq.com",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 12,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "E8V9jZ",
+                  "name": "Account action hint",
+                  "fill": "$shell-muted",
+                  "content": "账号与工作区",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "icon",
+              "id": "rxmy2",
+              "name": "Account menu indicator",
+              "width": 16,
+              "height": 16,
+              "icon": "chevron-up",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "MgNLU",
+      "x": 4198,
+      "y": 0,
+      "name": "COMPACT account bottom sheet — 390 px",
+      "reusable": true,
+      "width": 390,
+      "height": 370,
+      "fill": "$shell-surface",
+      "cornerRadius": 16,
+      "stroke": "$shell-border",
+      "strokeWidth": 1,
+      "effect": {
+        "type": "shadow",
+        "shadowType": "outer",
+        "color": "#18181B1F",
+        "offset": {
+          "x": 0,
+          "y": -8
+        },
+        "blur": 24
+      },
+      "layout": "vertical",
+      "gap": 12,
+      "padding": [
+        12,
+        20,
+        20,
+        20
+      ],
+      "children": [
+        {
+          "type": "rectangle",
+          "cornerRadius": 2,
+          "id": "gUhTL",
+          "name": "Bottom sheet handle",
+          "fill": "$shell-border",
+          "width": 36,
+          "height": 4
+        },
+        {
+          "type": "frame",
+          "id": "yEL3q",
+          "name": "Bottom sheet identity",
+          "width": "fill_container",
+          "height": 40,
+          "gap": 12,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "tbUXq",
+              "name": "Bottom sheet avatar",
+              "width": 36,
+              "height": 36,
+              "fill": "$shell-primary",
+              "cornerRadius": 18,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "vF0e2",
+                  "name": "Bottom sheet avatar initial",
+                  "fill": "#FFFFFF",
+                  "content": "S",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 15,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "z5HQD",
+              "name": "Bottom sheet email",
+              "fill": "$shell-text",
+              "content": "ssttkkl@qq.com",
+              "fontFamily": "$shell-font",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "droSU",
+          "name": "Bottom sheet identity separator",
+          "fill": "$shell-border",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "text",
+          "id": "D5VYk",
+          "name": "Bottom sheet workspace heading",
+          "fill": "$shell-muted",
+          "content": "工作区",
+          "fontFamily": "$shell-font",
+          "fontSize": 12,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "JG3Pn",
+          "name": "Bottom sheet current workspace",
+          "width": "fill_container",
+          "height": 48,
+          "fill": "$shell-bg",
+          "cornerRadius": 6,
+          "stroke": "$shell-accent",
+          "strokeWidth": 2,
+          "gap": 12,
+          "padding": [
+            8,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "Cd1qV",
+              "name": "Bottom sheet current workspace icon",
+              "width": 18,
+              "height": 18,
+              "icon": "wallet",
+              "library": "lucide",
+              "fill": "$shell-accent"
+            },
+            {
+              "type": "frame",
+              "id": "hZNWD",
+              "name": "Bottom sheet current workspace details",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "nRc6n",
+                  "name": "Bottom sheet current workspace name",
+                  "fill": "$shell-text",
+                  "content": "个人工作区",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "nFprM",
+                  "name": "Bottom sheet current role",
+                  "fill": "$shell-muted",
+                  "content": "管理员 · 当前",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "icon",
+              "id": "DrxcS",
+              "name": "Bottom sheet current check",
+              "width": 16,
+              "height": 16,
+              "icon": "check",
+              "library": "lucide",
+              "fill": "$shell-accent"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "L6VAj",
+          "name": "Bottom sheet other workspace",
+          "width": "fill_container",
+          "height": 48,
+          "cornerRadius": 6,
+          "gap": 12,
+          "padding": [
+            8,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "pvYyD",
+              "name": "Bottom sheet other workspace icon",
+              "width": 18,
+              "height": 18,
+              "icon": "wallet",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            },
+            {
+              "type": "frame",
+              "id": "o7s0I5",
+              "name": "Bottom sheet other workspace details",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "HaGzj",
+                  "name": "Bottom sheet other workspace name",
+                  "fill": "$shell-text",
+                  "content": "家庭工作区",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "fqw5d",
+                  "name": "Bottom sheet other role",
+                  "fill": "$shell-muted",
+                  "content": "可编辑",
+                  "fontFamily": "$shell-font",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "VnMs9",
+          "name": "Bottom sheet action separator",
+          "fill": "$shell-border",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "Zl2jn",
+          "name": "Bottom sheet workspace management",
+          "width": "fill_container",
+          "height": 44,
+          "gap": 12,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "mwh74",
+              "name": "Bottom sheet workspace management icon",
+              "width": 18,
+              "height": 18,
+              "icon": "settings-2",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            },
+            {
+              "type": "text",
+              "id": "QTvLb",
+              "name": "Bottom sheet workspace management label",
+              "fill": "$shell-text",
+              "content": "工作区管理",
+              "fontFamily": "$shell-font",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Hr80k",
+          "name": "Bottom sheet sign out",
+          "width": "fill_container",
+          "height": 44,
+          "gap": 12,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon",
+              "id": "KXYbY",
+              "name": "Bottom sheet sign out icon",
+              "width": 18,
+              "height": 18,
+              "icon": "log-out",
+              "library": "lucide",
+              "fill": "$shell-muted"
+            },
+            {
+              "type": "text",
+              "id": "LxesW",
+              "name": "Bottom sheet sign out label",
+              "fill": "$shell-text",
+              "content": "退出登录",
+              "fontFamily": "$shell-font",
+              "fontSize": 13,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "shell-bg": {
+      "type": "color",
+      "value": "#F5F5F5"
+    },
+    "shell-surface": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "shell-text": {
+      "type": "color",
+      "value": "#18181B"
+    },
+    "shell-muted": {
+      "type": "color",
+      "value": "#71717A"
+    },
+    "shell-border": {
+      "type": "color",
+      "value": "#E4E4E7"
+    },
+    "shell-accent": {
+      "type": "color",
+      "value": "#0485F7"
+    },
+    "shell-primary": {
+      "type": "color",
+      "value": "#0A63B8"
+    },
+    "shell-font": {
+      "type": "string",
+      "value": "Noto Sans SC"
+    },
+    "shell-danger": {
+      "type": "color",
+      "value": "#B42318"
+    },
+    "shell-error-surface": {
+      "type": "color",
+      "value": "#FBEAE8"
+    }
+  },
+  "imports": {
+    "7": "finance-ui.lib.pen"
+  },
+  "fileToken": "19d0a3a0-e793-446f-8fae-b88f5d8147bd"
+}
