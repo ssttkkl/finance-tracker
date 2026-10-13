@@ -6,6 +6,7 @@ import com.finance.tracker.domain.*
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,6 +65,10 @@ internal fun FeaturePage(
     headerActionsInline: Boolean = false,
     showTitle: Boolean = true,
     scrollable: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(
+        horizontal = GeneratedTokens.Core.Space.Token4,
+        vertical = GeneratedTokens.Core.Space.Token3,
+    ),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -71,7 +76,7 @@ internal fun FeaturePage(
             .fillMaxWidth()
             .widthIn(max = 1480.dp)
             .let { if (scrollable) it.verticalScroll(rememberScrollState()) else it }
-            .padding(horizontal = GeneratedTokens.Core.Space.Token4, vertical = GeneratedTokens.Core.Space.Token3)
+            .padding(contentPadding)
             .testTag(semanticId),
         verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token4),
     ) {
@@ -293,6 +298,7 @@ internal fun ChoicePicker(
     enabled: Boolean = true,
     semanticId: String? = null,
     autoScrollMenuIntoView: Boolean = false,
+    fieldStyle: Boolean = false,
 ) {
     var expanded by remember(label) { mutableStateOf(false) }
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -305,11 +311,24 @@ internal fun ChoicePicker(
             onClick = { expanded = !expanded },
             enabled = enabled,
             variant = FinanceButtonVariant.Secondary,
+            shape = if (fieldStyle) RoundedCornerShape(10.dp) else RoundedCornerShape(22.dp),
             modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId)).fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(selectedLabel, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            if (fieldStyle) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (label.isNotBlank()) {
+                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(selectedLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                        Text("⌄", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleMedium)
+                    }
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(selectedLabel, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+                }
             }
         }
     }

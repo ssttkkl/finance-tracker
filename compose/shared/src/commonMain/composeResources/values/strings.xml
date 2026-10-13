@@ -520,4 +520,25 @@
     <string name="account_workspace_switch_success">工作区已切换</string>
     <string name="navigation_rail_expand">展开导航</string>
     <string name="navigation_rail_collapse">收起导航</string>
+    <string name="cash_import_title">导入账单</string>
+    <string name="cash_import_step_file">文件</string>
+    <string name="cash_import_step_account">账户</string>
+    <string name="cash_import_step_review">核对</string>
+    <string name="cash_import_step_relation">配对</string>
+    <string name="cash_import_select_file_heading">选择账单文件</string>
+    <string name="cash_import_add_file_heading">添加账单文件</string>
+    <string name="cash_import_file_formats">CSV · XLS · XLSX · PDF</string>
+    <string name="cash_import_file_size_limit">单个文件不超过 100 MB</string>
+    <string name="cash_import_choose_file">选择文件</string>
+    <string name="cash_import_replace_file">更换文件</string>
+    <string name="cash_import_discard_note">离开后将丢弃未完成导入</string>
+    <string name="cash_import_next">下一步</string>
+    <string name="cash_import_mapping_heading">选择目标账户</string>
+    <string name="cash_import_relation_heading">关系配对</string>
+    <string name="cash_import_status_linked">已关联</string>
+    <string name="cash_import_status_pending">待确认</string>
+    <string name="cash_import_filter_all">全部 %1$s</string>
+    <string name="cash_import_filter_pending">待确认 %1$s</string>
+    <string name="cash_import_filter_linked">已匹配 %1$s</string>
+    <string name="cash_import_more_actions">更多配对操作</string>
 </resources>

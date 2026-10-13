@@ -2,10 +2,11 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.WindowSizeClass
 import com.finance.tracker.core.PlatformBackHandler
-import com.finance.tracker.core.design.FinanceTokens
+import com.finance.tracker.core.LocalFinanceColorRoles
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,6 +35,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -58,7 +60,7 @@ internal fun SecondaryPageContainer(
     footer: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val layout = secondaryPageLayoutFor(sizeClass)
 
     if (layout == SecondaryPageLayout.FULL_SCREEN) {
@@ -66,10 +68,10 @@ internal fun SecondaryPageContainer(
         Column(
             modifier = modifier.fillMaxSize().background(colors.background).testTag("secondary-page-fullscreen"),
         ) {
-            SecondaryPageHeader(title, compact = true, onClose = onClose)
+        SecondaryPageHeader(title, compact = true, onClose = onClose)
             HorizontalDivider(color = colors.fieldBorder)
             SecondaryPageBody(Modifier.weight(1f), colors.surface, content)
-            SecondaryPageFooter(colors.surface, footer)
+            SecondaryPageFooter(colors.surface, sizeClass, footer)
         }
     } else {
         Dialog(
@@ -98,7 +100,7 @@ internal fun SecondaryPageContainer(
                         SecondaryPageHeader(title, compact = false, onClose = onClose)
                         HorizontalDivider(color = colors.fieldBorder)
                         SecondaryPageBody(Modifier.weight(1f), colors.surface, content)
-                        SecondaryPageFooter(colors.surface, footer)
+                        SecondaryPageFooter(colors.surface, sizeClass, footer)
                     }
                 }
             }
@@ -109,27 +111,42 @@ internal fun SecondaryPageContainer(
 @Composable
 private fun SecondaryPageHeader(title: String, compact: Boolean, onClose: () -> Unit) {
     val closeLabel = localizedText(if (compact) "copy_855fa817d2" else "copy_6c14bd7f6f")
+    val controlBackground = MaterialTheme.colorScheme.surfaceVariant
     Row(
-        modifier = Modifier.fillMaxWidth().height(if (compact) 72.dp else 80.dp).padding(horizontal = 16.dp),
+        modifier = Modifier.fillMaxWidth().height(if (compact) 72.dp else 84.dp).padding(horizontal = if (compact) 16.dp else 32.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier.size(44.dp)
-                .semantics { contentDescription = closeLabel }
-                .testTag(if (compact) "secondary-page-back" else "secondary-page-close"),
-        ) {
-            Text(if (compact) "←" else "×", style = MaterialTheme.typography.headlineSmall, fontSize = 28.sp)
+        if (compact) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(44.dp).background(controlBackground, CircleShape)
+                    .semantics { contentDescription = closeLabel }
+                    .testTag("secondary-page-back"),
+            ) {
+                Text("←", style = MaterialTheme.typography.headlineSmall, fontSize = 24.sp)
+            }
         }
         Text(
             title,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).testTag("secondary-page-title"),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleLarge,
+            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+            fontSize = if (compact) 22.sp else 28.sp,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
         )
+        if (!compact) {
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.size(44.dp).background(controlBackground, CircleShape)
+                    .semantics { contentDescription = closeLabel }
+                    .testTag("secondary-page-close"),
+            ) {
+                Text("×", style = MaterialTheme.typography.headlineSmall, fontSize = 26.sp)
+            }
+        }
     }
 }
 
@@ -141,18 +158,22 @@ private fun SecondaryPageBody(
 ) {
     Column(
         modifier = modifier.fillMaxWidth().background(surface)
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 16.dp),
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         content = content,
     )
 }
 
 @Composable
-private fun SecondaryPageFooter(surface: Color, footer: @Composable () -> Unit) {
+private fun SecondaryPageFooter(surface: Color, sizeClass: WindowSizeClass, footer: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth().background(surface)) {
         HorizontalDivider()
-        Box(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
+        Box(
+            Modifier.fillMaxWidth().padding(
+                horizontal = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 32.dp,
+                vertical = if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 16.dp,
+            ),
+        ) {
             footer()
         }
     }

@@ -1,0 +1,410 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>账单导入 · 二级页面容器原型</title>
+  <style>
+    /* Hallmark · macrostructure: Narrative Workflow (four-stage import wizard) · design-system: Finance UI tokens · pre-emit critique: P5 H5 E4 S5 R5 V4 · self-check: ordered stages, responsive modality, named spacing, visible keyboard states · audit tool unavailable; manual audit findings are recorded in tasks.md. */
+    :root {
+      --page: #f5f5f5;
+      --surface: #ffffff;
+      --ink: #18181b;
+      --muted: #71717a;
+      --muted-strong: #a1a1aa;
+      --line: #e4e4e7;
+      --accent: #0485f7;
+      --accent-soft: #eaf4ff;
+      --danger: #b42318;
+      --danger-soft: #fbeae8;
+      --success: #087443;
+      --success-soft: #e8f5ee;
+      --warning: #b45309;
+      --warning-soft: #fff7ed;
+      --ink-secondary: #52525b;
+      --surface-control: #f4f4f5;
+      --surface-hover: #eaeaf0;
+      --line-subtle: #f0f0f2;
+      --brand-primary: #0A63B8;
+      --file-surface: #f8fafc;
+      --drop-surface: #fafcff;
+      --drop-border: #c5dcf7;
+      --error-border: #ffc7c7;
+      --status-blue: #1471bd;
+      --spinner-border: #b9d8f8;
+      --avatar-surface: #e5effb;
+      --avatar-ink: #2563a7;
+      --overlay: rgb(24 24 27 / 38%);
+      --space-3xs: 4px;
+      --space-2xs: 8px;
+      --space-xs: 12px;
+      --space-sm: 16px;
+      --space-md: 20px;
+      --space-lg: 24px;
+      --space-xl: 28px;
+      --space-2xl: 32px;
+      --space-3xl: 36px;
+      --space-4xl: 40px;
+      --space-5xl: 48px;
+      --space-shell-top: 80px;
+      --space-shell-bottom: 84px;
+      --radius: 12px;
+      font-family: "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      color: var(--ink);
+      background: var(--page);
+    }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { overflow-x: clip; }
+    body { margin: 0; min-width: 320px; min-height: 100vh; background: var(--page); }
+    button, input, select { font: inherit; outline: 2px solid transparent; outline-offset: 1px; }
+    button { color: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline-color: var(--accent); box-shadow: none; }
+    button:active { filter: brightness(.96); }
+    button:disabled { cursor: not-allowed; }
+    select:active { border-color: var(--accent); }
+    select:disabled { background: var(--surface-control); color: var(--ink-secondary); cursor: not-allowed; }
+    .app { min-height: 100vh; }
+    .rail {
+      position: fixed; inset: 0 auto 0 0; z-index: 2; width: 72px; display: flex; flex-direction: column;
+      align-items: center; gap: var(--space-2xs); padding: var(--space-sm) var(--space-2xs); background: var(--surface); border-right: 1px solid var(--line);
+    }
+    .rail button { display: grid; place-items: center; border: 0; width: 48px; height: 48px; border-radius: 12px; background: transparent; color: var(--ink-secondary); line-height: 1; cursor: pointer; }
+    .rail button svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+    .rail button.current { color: var(--accent); background: var(--accent-soft); }
+    .rail .avatar { margin-top: auto; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--avatar-surface); color: var(--avatar-ink); font-weight: 600; font-size: 16px; }
+    .topbar { height: 64px; margin-left: 72px; display: flex; align-items: center; padding: 0 var(--space-xl); background: var(--surface); border-bottom: 1px solid var(--line); font-size: 20px; font-weight: 600; }
+    .ledger { margin-left: 72px; padding: var(--space-2xl) var(--space-3xl); }
+    .ledger-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); margin-bottom: var(--space-lg); }
+    .ledger-head h2 { margin: 0; font-size: 28px; font-weight: 600; }
+    .ledger-actions { display: flex; gap: var(--space-xs); }
+    .button { min-height: 44px; padding: 0 var(--space-lg); border: 1px solid var(--line); border-radius: 999px; background: var(--surface); cursor: pointer; font-weight: 600; }
+    .button.primary { color: var(--surface); background: var(--brand-primary); border-color: var(--brand-primary); }
+    .button:disabled { color: var(--ink-secondary); background: var(--line); border-color: var(--line); cursor: not-allowed; }
+    .ledger-table { height: 510px; padding: var(--space-md) var(--space-lg); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+    .ledger-table .row { display: grid; grid-template-columns: 140px 1fr 140px; padding: var(--space-md) 0; border-bottom: 1px solid var(--line-subtle); color: var(--ink-secondary); }
+    .ledger-table .row:first-child { color: var(--muted); font-size: 14px; }
+
+    /* Shared secondary-page container: modal at regular/wide; full window at compact. */
+    .surface-layer { position: fixed; inset: 0; z-index: 5; display: grid; place-items: center; padding: var(--space-lg); background: var(--overlay); }
+    .secondary-container { width: min(90vw, 100%); height: min(90vh, 100%); min-height: 0; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 24px; background: var(--surface); }
+    .secondary-header { flex: 0 0 84px; display: flex; align-items: center; gap: var(--space-sm); padding: 0 var(--space-2xl); border-bottom: 1px solid var(--line); }
+    .secondary-title { flex: 1; min-width: 0; margin: 0; font-size: 28px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+    .surface-control { flex: 0 0 44px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--surface-control); cursor: pointer; }
+    .surface-control svg { width: 22px; height: 22px; }
+    .surface-control:hover { background: var(--surface-hover); }
+    .surface-body { min-height: 0; flex: 1; display: flex; flex-direction: column; }
+    .stepper { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2xs); padding: var(--space-lg) var(--space-3xl) var(--space-sm); }
+    .step { display: grid; justify-items: center; align-content: start; gap: var(--space-2xs); padding: 0; border: 0; background: transparent; color: var(--muted); cursor: default; }
+    .step.available { cursor: pointer; }
+    .step-dot { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: var(--surface-control); color: var(--ink-secondary); font-size: 16px; font-weight: 600; }
+    .step-label { font-size: 15px; white-space: nowrap; }
+    .step.current { color: var(--brand-primary); font-weight: 600; }
+    .step.current .step-dot, .step.done .step-dot { color: var(--surface); background: var(--brand-primary); }
+    .stage-content { min-height: 0; flex: 1; overflow: auto; padding: var(--space-xs) var(--space-2xl) var(--space-md); }
+    .stage-content[data-stage="0"], .stage-content[data-stage="1"], .stage-content[data-stage="2"], .stage-content[data-stage="4"] { align-self: center; width: min(100%, 720px); }
+    .stage-title { min-width: 0; margin: 0 0 var(--space-sm); font-size: 22px; line-height: 1.4; font-weight: 600; overflow-wrap: anywhere; }
+    .subtle { margin: calc(-1 * var(--space-2xs)) 0 var(--space-sm); color: var(--muted); font-size: 14px; }
+    .dropzone { min-height: 220px; padding: var(--space-lg); display: grid; justify-items: center; align-content: center; gap: var(--space-sm); border: 1.5px solid var(--drop-border); border-radius: 24px; background: var(--drop-surface); text-align: center; }
+    .upload-icon { width: 60px; height: 60px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-soft); color: var(--accent); }
+    .upload-icon svg { width: 32px; height: 32px; }
+    .dropzone strong { font-size: 20px; }
+    .dropzone .formats { color: var(--muted); }
+    .outline-action { min-width: 176px; color: var(--brand-primary); border: 2px solid var(--brand-primary); background: var(--surface); }
+    .file-card { display: flex; align-items: center; gap: var(--space-sm); min-height: 76px; margin: var(--space-sm) 0; padding: var(--space-xs) var(--space-sm); border: 1px solid var(--line); border-radius: 14px; background: var(--file-surface); }
+    .file-icon { color: var(--accent); }
+    .file-icon svg { width: 24px; height: 24px; }
+    .file-info { flex: 1; min-width: 0; }
+    .file-info strong { display: block; overflow-wrap: anywhere; }
+    .file-info small { display: block; margin-top: var(--space-3xs); color: var(--muted); }
+    .mapping-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, .82fr); align-items: center; gap: var(--space-sm); min-height: 84px; margin-top: var(--space-xs); padding: var(--space-sm); border: 1px solid var(--line); border-radius: 14px; }
+    .mapping-row label { min-width: 0; overflow-wrap: anywhere; font-weight: 500; }
+    select { width: 100%; min-height: 44px; padding: 0 var(--space-xs); border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); }
+    select.invalid { border-color: var(--danger); }
+    .field-error { grid-column: 2; min-height: 1lh; margin: calc(-1 * var(--space-2xs)) 0 0; color: var(--danger); font-size: 13px; }
+    .field-error:empty { visibility: hidden; }
+    .alert { display: none; margin: 0 var(--space-2xl) var(--space-xs); padding: var(--space-xs) var(--space-sm); border: 1px solid var(--error-border); border-radius: 12px; color: var(--danger); background: var(--danger-soft); }
+    .alert.show { display: block; }
+    .review-list, .relation-list { display: grid; gap: var(--space-xs); }
+    .review-row, .relation-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-xs); padding: var(--space-sm); border: 1px solid var(--line); border-radius: 14px; }
+    .review-row small, .relation-row small { display: block; margin-top: var(--space-3xs); color: var(--muted); }
+    .status { border-radius: 999px; padding: var(--space-2xs) var(--space-sm); color: var(--status-blue); background: var(--accent-soft); font-size: 13px; white-space: nowrap; }
+    .status.pending { color: var(--warning); background: var(--warning-soft); }
+    .filter-row { display: flex; flex-wrap: wrap; gap: var(--space-2xs); margin: var(--space-sm) 0; }
+    .filter { min-height: 44px; padding: 0 var(--space-sm); border: 0; border-radius: 999px; background: var(--surface-control); color: var(--ink-secondary); cursor: pointer; }
+    .filter.active { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+    .relation-row { grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr) auto; min-height: 76px; }
+    .arrow { color: var(--muted); text-align: center; font-size: 20px; }
+    .relation-picker { width: 100%; min-width: 0; max-width: 100%; }
+    .empty-state { margin: 0; padding: var(--space-lg) var(--space-sm); border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); text-align: center; }
+    .surface-footer { flex: 0 0 auto; display: flex; justify-content: space-between; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-2xl) var(--space-lg); }
+    .footer-note { color: var(--muted); font-size: 14px; }
+    .footer-actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-xs); }
+    .success-state { display: grid; justify-items: center; gap: var(--space-xs); padding: var(--space-5xl) var(--space-xs); text-align: center; }
+    .success-mark { width: 56px; height: 56px; display: grid; place-items: center; border-radius: 50%; color: var(--success); background: var(--success-soft); font-size: 30px; }
+    .busy { display: inline-flex; align-items: center; gap: var(--space-2xs); }
+    .spinner { width: 16px; height: 16px; border: 2px solid var(--spinner-border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+    @media (max-width: 599px) {
+      body { background: var(--surface); }
+      .ledger-shell { display: block; }
+      .app.secondary-open .ledger-shell { display: none; }
+      .rail { inset: auto 0 0; width: 100%; height: 64px; flex-direction: row; justify-content: space-around; gap: 0; padding: var(--space-2xs); border-top: 1px solid var(--line); border-right: 0; }
+      .rail button { width: 44px; height: 44px; }
+      .rail .avatar { display: none; }
+      .topbar { position: fixed; inset: 0 0 auto; z-index: 3; height: 56px; margin-left: 0; padding: 0 var(--space-sm); font-size: 18px; }
+      .ledger { margin-left: 0; padding: var(--space-shell-top) var(--space-sm) var(--space-shell-bottom); }
+      .ledger-head { align-items: flex-start; }
+      .ledger-head h2 { font-size: 22px; }
+      .ledger-actions { gap: var(--space-2xs); }
+      .ledger-actions .button { min-height: 44px; padding: 0 var(--space-xs); font-size: 14px; }
+      .ledger-table { padding: var(--space-xs); }
+      .ledger-table .row { grid-template-columns: 64px minmax(0,1fr) auto; gap: var(--space-2xs); font-size: 13px; }
+      .surface-layer { position: static; display: block; min-height: 100vh; padding: 0; background: var(--surface); }
+      .secondary-container { width: 100%; min-height: 100vh; height: 100dvh; border: 0; border-radius: 0; }
+      .secondary-header { flex-basis: 72px; gap: var(--space-sm); padding: 0 var(--space-sm); }
+      .secondary-title { font-size: 22px; }
+      .stepper { padding: var(--space-lg) var(--space-xs) var(--space-sm); }
+      .step-dot { width: 32px; height: 32px; }
+      .step-label { font-size: 14px; }
+      .stage-content { padding: var(--space-xs) var(--space-sm) var(--space-md); }
+      .stage-title { font-size: 21px; }
+      .dropzone { min-height: 220px; padding: var(--space-lg) var(--space-sm); }
+      .mapping-row { grid-template-columns: 1fr; gap: var(--space-xs); padding: var(--space-sm); }
+      .field-error { grid-column: 1; margin: calc(-1 * var(--space-3xs)) 0 0; }
+      .relation-row { grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); padding: var(--space-xs); }
+      .relation-row .status, .relation-picker { grid-column: 1 / -1; justify-self: start; }
+      .relation-picker { width: min(100%, 320px); }
+      .surface-footer { display: block; padding: var(--space-xs) var(--space-sm) max(var(--space-sm), env(safe-area-inset-bottom)); border-top: 1px solid var(--line); }
+      .footer-note { margin-bottom: var(--space-xs); }
+      .footer-actions { justify-content: space-between; }
+      .footer-actions .button { min-width: 108px; }
+      .alert { margin: 0 var(--space-sm) var(--space-xs); }
+    }
+    @media (min-width: 600px) and (max-width: 1023px) {
+      .surface-layer { padding: var(--space-sm); }
+      .secondary-container { width: min(90vw, 100%); height: min(90vh, 100%); border-radius: 22px; }
+      .secondary-header { flex-basis: 78px; padding: 0 var(--space-lg); }
+      .stage-content { padding-right: var(--space-lg); padding-left: var(--space-lg); }
+      .surface-footer { padding-right: var(--space-lg); padding-left: var(--space-lg); }
+    }
+    @media (max-height: 720px) and (min-width: 600px) {
+      .surface-layer { padding-top: var(--space-xs); padding-bottom: var(--space-xs); }
+      .stepper { padding-top: var(--space-sm); padding-bottom: var(--space-xs); }
+      .stage-content { padding-top: var(--space-3xs); }
+      .surface-footer { padding-top: var(--space-xs); padding-bottom: var(--space-sm); }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div class="app secondary-open">
+    <div class="ledger-shell" aria-hidden="true">
+      <nav class="rail" aria-label="主导航">
+        <button class="current" title="收支账本" aria-label="收支账本"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-7 9 7v10h-6v-6H9v6H3z"/></svg></button>
+        <button title="收支分类" aria-label="收支分类"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 12 9-9h8v8l-9 10z"/><circle cx="16" cy="8" r="1.2"/></svg></button>
+        <button title="当前持仓" aria-label="当前持仓"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v14H4zM8 7V4h8v3M4 11h16"/><path d="M10 11v3h4v-3"/></svg></button>
+        <button title="投资事件" aria-label="投资事件"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h15l-3-3M20 17H5l3 3"/></svg></button>
+        <button title="工作区管理" aria-label="工作区管理"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.5.9l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.5-.9l-1.7.7-1.4-2.4 1.4-1.1a7 7 0 0 1 0-1.8l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.5-.9l.3-1.8h2.8l.3 1.8a8 8 0 0 1 1.5.9l1.7-.7 1.4 2.4-1.4 1.1a7 7 0 0 1 0 1.8z" transform="translate(-1 -1)"/></svg></button>
+        <span class="avatar" aria-label="账户">S</span>
+      </nav>
+      <header class="topbar">收支账本</header>
+      <main class="ledger">
+        <div class="ledger-head">
+          <h2>2026 年 9 月</h2>
+          <div class="ledger-actions"><button class="button" id="open-import">导入账单</button><button class="button primary">记一笔</button></div>
+        </div>
+        <section class="ledger-table" aria-label="账单列表示意">
+          <div class="row"><span>日期</span><span>摘要</span><span>金额</span></div>
+          <div class="row"><span>09-30</span><span>便利店消费</span><span>− ¥ 36.00</span></div>
+          <div class="row"><span>09-29</span><span>工资</span><span>+ ¥ 18,000.00</span></div>
+          <div class="row"><span>09-28</span><span>餐饮</span><span>− ¥ 68.00</span></div>
+          <div class="row"><span>09-27</span><span>话费充值</span><span>− ¥ 50.00</span></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="surface-layer" id="surface-layer">
+      <!-- One reusable page container; page-specific content is slotted inside .surface-body. -->
+      <section class="secondary-container" id="secondary-container" role="dialog" aria-modal="true" aria-labelledby="surface-title" data-secondary-page="cash-import">
+        <header class="secondary-header">
+          <button class="surface-control" id="back-control" type="button" aria-label="返回收支账本" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <h1 class="secondary-title" id="surface-title">导入账单</h1>
+          <button class="surface-control" id="close-control" type="button" aria-label="关闭导入账单">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 6-12 12M6 6l12 12"/></svg>
+          </button>
+        </header>
+        <div class="surface-body">
+          <nav class="stepper" aria-label="导入步骤" id="stepper"></nav>
+          <div class="alert" id="alert" role="alert"></div>
+          <div class="stage-content" id="stage-content" tabindex="-1"></div>
+          <footer class="surface-footer" id="surface-footer"></footer>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <input id="file-input" type="file" accept=".csv,.xlsx,.pdf" aria-label="选择账单文件" hidden>
+  <script>
+    (() => {
+      const steps = ["文件", "账户", "核对", "配对"];
+      const queryStep = new URLSearchParams(location.search).get("step");
+      const queryDemo = new URLSearchParams(location.search).get("demo");
+      const stepByQuery = { file: 0, accounts: 1, review: 2, relations: 3 };
+      const initialStage = stepByQuery[queryStep] ?? 0;
+      const state = { stage: initialStage, file: initialStage > 0 ? { name: "账单_2026-09.xlsx", type: "XLSX" } : null, busy: false, error: queryDemo === "mapping-error" ? "请选择账户" : "", account1: "cmb", account2: "", relationFilter: "all", selectedRelation: "" };
+      const layer = document.getElementById("surface-layer");
+      const shell = document.querySelector(".ledger-shell");
+      const container = document.getElementById("secondary-container");
+      const stepper = document.getElementById("stepper");
+      const content = document.getElementById("stage-content");
+      const footer = document.getElementById("surface-footer");
+      const alertBox = document.getElementById("alert");
+      const picker = document.getElementById("file-input");
+      const compact = () => matchMedia("(max-width: 599px)").matches;
+      const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
+      const setError = (message) => { state.error = message; render(); };
+      const accountSelect = (id, value, label, invalid = false) => `<select id="${id}" aria-label="${label}" aria-describedby="${id}-error" aria-invalid="${invalid}" data-account="${label}" class="${invalid ? "invalid" : ""}"><option value="">选择目标账户</option><option value="cmb" ${value === "cmb" ? "selected" : ""}>招商银行储蓄卡（2820）</option><option value="cash" ${value === "cash" ? "selected" : ""}>现金</option><option value="alipay" ${value === "alipay" ? "selected" : ""}>支付宝</option></select>`;
+      function renderStepper() {
+        stepper.innerHTML = steps.map((label, index) => {
+          const done = index < state.stage;
+          const active = index === state.stage && state.stage < 4;
+          const allowed = index < state.stage && !state.busy;
+          return `<button class="step ${done ? "done" : ""} ${active ? "current" : ""} ${allowed ? "available" : ""}" type="button" data-step="${index}" ${allowed ? "" : "disabled"} aria-current="${active ? "step" : "false"}"><span class="step-dot">${done ? "✓" : index + 1}</span><span class="step-label">${label}</span></button>`;
+        }).join("");
+        stepper.hidden = state.stage === 4;
+        stepper.querySelectorAll("[data-step]").forEach((button) => button.addEventListener("click", () => { state.stage = Number(button.dataset.step); state.error = ""; render(); }));
+      }
+      function renderContent() {
+        content.dataset.stage = String(state.stage);
+        if (state.stage === 0) {
+          content.innerHTML = `<h2 class="stage-title">选择账单文件</h2><div class="dropzone"><span class="upload-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M5 14v5h14v-5"/></svg></span><strong>${state.file ? esc(state.file.name) : "添加账单文件"}</strong><span class="formats">CSV&nbsp; · &nbsp;XLSX&nbsp; · &nbsp;PDF</span><button class="button outline-action" id="choose-file">${state.file ? "更换文件" : "选择文件"}</button></div>${state.file ? `<div class="file-card"><span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><div class="file-info"><strong>${esc(state.file.name)}</strong><small>已选择文件</small></div><span>${esc(state.file.type)}</span></div>` : ""}`;
+          document.getElementById("choose-file").addEventListener("click", () => picker.click());
+        } else if (state.stage === 1) {
+          content.innerHTML = `<div class="file-card"><span class="file-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M6 3h8l4 4v14H6z"/><path d="M14 3v5h5M9 12h6M9 16h6"/></svg></span><div class="file-info"><strong>${esc(state.file?.name || "账单_2026-09.xlsx")}</strong><small>已识别 2 个来源账户&nbsp; · &nbsp;3 条记录</small></div><strong>XLSX</strong></div><h2 class="stage-title">选择目标账户</h2><div class="mapping-row"><label for="account-one">招商银行储蓄卡（尾号 2820）</label>${accountSelect("account-one", state.account1, "招商银行储蓄卡（尾号 2820）")}</div><div class="mapping-row"><label for="account-two">支付宝余额</label>${accountSelect("account-two", state.account2, "支付宝余额", Boolean(state.error))}<p class="field-error" id="account-two-error" aria-live="polite">${state.error ? "请选择账户" : ""}</p></div>`;
+          content.querySelectorAll("select").forEach((select, index) => select.addEventListener("change", () => { if (index === 0) state.account1 = select.value; else state.account2 = select.value; state.error = ""; render(); }));
+        } else if (state.stage === 2) {
+          content.innerHTML = `<h2 class="stage-title">核对流水</h2><div class="filter-row"><button class="filter active">全部 3</button><button class="filter">收入 1</button><button class="filter">支出 2</button></div><div class="review-list"><div class="review-row"><div><strong>美团外卖</strong><small>09 月 30 日 · 20:16 · 招商银行储蓄卡</small></div><strong>− ¥ 68.00</strong></div><div class="review-row"><div><strong>工资</strong><small>09 月 29 日 · 12:04 · 招商银行储蓄卡</small></div><strong>+ ¥ 18,000.00</strong></div><div class="review-row"><div><strong>超市购物</strong><small>09 月 28 日 · 18:32 · 支付宝余额</small></div><strong>− ¥ 126.50</strong></div></div>`;
+        } else if (state.stage === 3) {
+          const candidateOptions = `<option value="" ${state.selectedRelation ? "" : "selected"}>选择流水</option><option value="grocery" ${state.selectedRelation === "grocery" ? "selected" : ""}>超市购物 · ¥ 126.50</option><option value="lunch" ${state.selectedRelation === "lunch" ? "selected" : ""}>午餐消费 · ¥ 42.00</option>`;
+          const rows = [
+            ["09 月 30 日 · 20:16", "美团外卖 · ¥ 68.00", `<strong>美团外卖</strong><small>09 月 30 日 · ¥ 68.00</small>`, "已关联", "linked"],
+            ["09 月 29 日 · 12:04", "午餐消费 · ¥ 42.00", `<strong>午餐消费</strong><small>09 月 29 日 · ¥ 42.00</small>`, "已关联", "linked"],
+            ["09 月 28 日 · 18:32", "超市购物 · ¥ 126.50", `<label class="sr-only" for="relation-choice">选择关联流水</label><select class="relation-picker" id="relation-choice" aria-label="选择关联流水">${candidateOptions}</select>`, state.selectedRelation ? "已关联" : "待确认", state.selectedRelation ? "linked" : "pending"],
+          ];
+          const pendingCount = state.selectedRelation ? 0 : 1;
+          const linkedCount = 3 - pendingCount;
+          const visibleRows = rows.filter((row) => state.relationFilter === "all" || state.relationFilter === row[4]);
+          content.innerHTML = `<h2 class="stage-title">关系配对</h2><div class="filter-row"><button class="filter ${state.relationFilter === "all" ? "active" : ""}" data-filter="all">全部 3</button><button class="filter ${state.relationFilter === "pending" ? "active" : ""}" data-filter="pending">待确认 ${pendingCount}</button><button class="filter ${state.relationFilter === "linked" ? "active" : ""}" data-filter="linked">已匹配 ${linkedCount}</button></div>${visibleRows.length ? `<div class="relation-list">${visibleRows.map((row) => `<div class="relation-row"><div><small>${row[0]}</small><strong>${row[1]}</strong></div><span class="arrow" aria-hidden="true">→</span><div>${row[2]}</div><span class="status ${row[4] === "pending" ? "pending" : ""}">${row[3]}</span></div>`).join("")}</div>` : `<p class="empty-state" role="status">没有待确认的流水</p>`}`;
+          content.querySelector("#relation-choice")?.addEventListener("change", (event) => { state.selectedRelation = event.target.value; render(); });
+          content.querySelectorAll("[data-filter]").forEach((button) => button.addEventListener("click", () => { state.relationFilter = button.dataset.filter; render(); }));
+        } else {
+          content.innerHTML = `<div class="success-state"><span class="success-mark" aria-hidden="true">✓</span><h2 class="stage-title">导入完成</h2><p>已添加 3 条记录</p></div>`;
+        }
+      }
+      function renderFooter() {
+        if (state.stage === 4) {
+          footer.innerHTML = `<span></span><div class="footer-actions"><button class="button primary" id="done">返回账本</button></div>`;
+          document.getElementById("done").addEventListener("click", leave);
+          return;
+        }
+        const note = state.stage === 0 ? "离开后将丢弃未完成导入" : "";
+        const previous = state.stage > 0 ? `<button class="button" id="previous">上一步</button>` : "<span></span>";
+        const label = state.stage === 3 ? "确认导入" : state.stage === 0 && !state.file ? "下一步" : state.stage === 0 ? "下一步" : "下一步";
+        const enabled = !state.busy && (state.stage !== 0 || Boolean(state.file)) && (state.stage !== 1 || Boolean(state.account1 && state.account2));
+        footer.innerHTML = `<span class="footer-note">${note}</span><div class="footer-actions">${previous}<button class="button primary" id="next" ${enabled ? "" : "disabled"}>${state.busy ? `<span class="busy"><span class="spinner" aria-hidden="true"></span>正在读取账单</span>` : label}</button></div>`;
+        const previousButton = document.getElementById("previous");
+        if (previousButton) previousButton.addEventListener("click", () => { state.stage--; state.error = ""; render(); });
+        document.getElementById("next").addEventListener("click", advance);
+      }
+      function render() {
+        const isCompact = compact();
+        document.getElementById("back-control").hidden = !isCompact;
+        document.getElementById("close-control").hidden = isCompact;
+        container.setAttribute("role", isCompact ? "main" : "dialog");
+        container.setAttribute("aria-modal", String(!isCompact));
+        const backgroundInactive = !layer.hidden && !isCompact;
+        shell.inert = backgroundInactive;
+        shell.toggleAttribute("inert", backgroundInactive);
+        shell.setAttribute("aria-hidden", String(!layer.hidden || isCompact));
+        alertBox.classList.toggle("show", Boolean(state.error && state.stage !== 1));
+        alertBox.textContent = state.error && state.stage !== 1 ? state.error : "";
+        renderStepper(); renderContent(); renderFooter();
+        if (state.error && state.stage === 1) requestAnimationFrame(() => document.getElementById("account-two")?.focus());
+      }
+      function advance() {
+        if (state.stage === 0) {
+          if (!state.file) return;
+          state.busy = true; state.error = ""; render();
+          window.setTimeout(() => { state.busy = false; state.stage = 1; render(); }, 500);
+        } else if (state.stage === 1) {
+          if (!state.account1 || !state.account2) { setError("请选择账户"); return; }
+          state.stage = 2; state.error = ""; render();
+        } else if (state.stage === 2) {
+          state.stage = 3; state.error = ""; render();
+        } else if (state.stage === 3) {
+          state.busy = true; render();
+          window.setTimeout(() => { state.busy = false; state.stage = 4; render(); }, 550);
+        }
+      }
+      function leave() {
+        state.stage = 0; state.file = null; state.busy = false; state.error = ""; state.account1 = ""; state.account2 = ""; state.relationFilter = "all"; state.selectedRelation = "";
+        picker.value = "";
+        layer.hidden = true;
+        document.querySelector(".app").classList.remove("secondary-open");
+        shell.inert = false;
+        shell.removeAttribute("inert");
+        shell.setAttribute("aria-hidden", "false");
+        document.getElementById("open-import").focus();
+      }
+      function open() {
+        layer.hidden = false;
+        document.querySelector(".app").classList.add("secondary-open");
+        picker.value = "";
+        state.stage = 0; state.file = null; state.busy = false; state.error = ""; state.account1 = ""; state.account2 = ""; state.selectedRelation = ""; state.relationFilter = "all";
+        render();
+        if (compact()) document.getElementById("back-control").focus();
+        else document.getElementById("close-control").focus();
+      }
+      document.getElementById("open-import").addEventListener("click", open);
+      document.getElementById("back-control").addEventListener("click", leave);
+      document.getElementById("close-control").addEventListener("click", leave);
+      picker.addEventListener("change", () => {
+        const file = picker.files?.[0];
+        if (!file) return;
+        const ext = file.name.split(".").pop().toLowerCase();
+        if (!["csv", "xlsx", "pdf"].includes(ext)) { state.error = "无法读取文件，请更换后重试"; state.file = null; }
+        else { state.file = { name: file.name, type: ext.toUpperCase() }; state.error = ""; }
+        render();
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !layer.hidden && !compact()) { event.preventDefault(); leave(); }
+        if (event.key === "Tab" && !layer.hidden && !compact()) {
+          const focusable = [...container.querySelectorAll("button:not([disabled]):not([hidden]), select:not([disabled]), input:not([disabled])")].filter((node) => node.offsetParent !== null);
+          if (!focusable.length) return;
+          const first = focusable[0], last = focusable[focusable.length - 1];
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+      });
+      window.addEventListener("resize", render);
+      render();
+      if (initialStage > 0 && initialStage < 4) {
+        state.account1 = "cmb"; state.account2 = queryDemo === "mapping-error" ? "" : "alipay";
+        render();
+      }
+      requestAnimationFrame(() => {
+        const initialFocus = queryDemo === "mapping-error"
+          ? content.querySelector("#account-two")
+          : (compact() ? document.getElementById("back-control") : document.getElementById("close-control"));
+        initialFocus?.focus();
+      });
+    })();
+  </script>
+</body>
+</html>

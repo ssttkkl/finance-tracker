@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
+import { mkdir } from "node:fs/promises";
 import {
   activeSession,
   cashAccount,
@@ -208,6 +209,8 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
   test.setTimeout(150_000);
   await installComposeApiFixtures(page);
   await page.goto(`${workspaceRoot}/`);
+  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/cash-import-compose-visual-alignment/prototype/screenshots");
+  await mkdir(screenshotDir, { recursive: true });
 
   for (const width of [320, 375, 390, 414, 768, 1440]) {
     const height = width === 390 ? 844 : width === 768 ? 1024 : 900;
@@ -222,23 +225,25 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
       const fullscreen = page.locator('[id="secondary-page-fullscreen"]').last();
       await expect(fullscreen).toBeVisible();
       await expect(page.locator('[id="secondary-page-modal"]')).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const bounds = await fullscreen.boundingBox();
       expect(bounds?.x ?? 1).toBeCloseTo(0, 0);
       expect(bounds?.y ?? 1).toBeCloseTo(0, 0);
       expect(bounds?.width ?? 0).toBeCloseTo(width, 0);
       expect(bounds?.height ?? 0).toBeCloseTo(height, 0);
       if (width === 390) {
-        await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-390.png") });
+        await page.screenshot({ path: path.join(screenshotDir, "compose-secondary-page-390.png") });
       }
       await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
     } else {
       const modal = page.locator('[id="secondary-page-modal"]').last();
       await expect(modal).toBeVisible();
       await expect(page.locator('[id="secondary-page-fullscreen"]')).toHaveCount(0);
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const bounds = await modal.boundingBox();
       expect(bounds?.width ?? 0).toBeCloseTo(width * 0.9, 0);
       expect(bounds?.height ?? 0).toBeCloseTo(height * 0.9, 0);
-      await page.screenshot({ path: path.resolve(process.cwd(), `../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-${width}.png`) });
+      if (width === 1440) await page.screenshot({ path: path.join(screenshotDir, "compose-secondary-page-1440.png") });
       if (width === 768) {
         await clickComposeTarget(page, page.locator('[id="secondary-page-close"]').last());
       } else {
@@ -248,7 +253,6 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
 
     await expect(page).toHaveURL(`${workspaceRoot}/`);
     await page.waitForTimeout(350);
-    await page.screenshot({ path: path.resolve(process.cwd(), `../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-return-${width}.png`) });
     if (width !== 1440) {
       // Compose Web keeps a stale semantics mirror after a page-level dialog closes;
       // reload between viewport cases so each next entry starts from a fresh tree.
@@ -266,7 +270,7 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
     mimeType: "text/csv",
     buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
   }]);
-  await expect(page.getByText("discard-me.csv", { exact: true })).toBeVisible();
+  await expect(page.getByText("discard-me.csv", { exact: true }).first()).toBeVisible();
   await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
   await expect(page).toHaveURL(`${workspaceRoot}/`);
   await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
@@ -416,9 +420,9 @@ test("F-05 导入可完成选择、扫描、预览、确认和结果摘要", asy
     mimeType: "text/csv",
     buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
   }]);
-  await expect(page.getByText("statement.csv", { exact: true })).toBeVisible();
+  await expect(page.getByText("statement.csv", { exact: true }).first()).toBeVisible();
   await page.locator('[id="import.next"]').dispatchEvent("click");
-  await expect(page.getByText("账户映射", { exact: true })).toBeVisible();
+  await expect(page.getByText("选择目标账户", { exact: true })).toBeVisible();
   await page.locator('[id="import.next"]').dispatchEvent("click");
 
   await expect(page.getByText("咖啡店", { exact: true })).toBeVisible();
@@ -552,15 +556,15 @@ async function openBatchRelationFilter(page: Page) {
     { name: "bank.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
     { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-17.25\n") },
   ]);
-  await expect(page.getByText("bank.csv", { exact: true })).toBeVisible();
-  await expect(page.getByText("wallet.csv", { exact: true })).toBeVisible();
+  await expect(page.getByText("bank.csv", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("wallet.csv", { exact: true }).first()).toBeVisible();
   await page.locator('[id="import.next"]').last().click({ force: true });
   await expect(page.getByText("跨渠道账单 · 2 个来源账户", { exact: true })).toBeVisible();
   await page.locator('[id="import.next"]').last().click({ force: true });
   await expect(page.getByText("银行咖啡店", { exact: true })).toBeVisible();
   await expect(page.getByText("钱包咖啡店", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
-  await expect(page.getByText("确认配对", { exact: true })).toBeVisible();
+  await expect(page.getByText("关系配对", { exact: true })).toBeVisible();
   await expect(page.getByText(/共\s*\d+\s*条流水/)).toHaveCount(0);
   await expect(page.getByText(/将相同流水关联/)).toHaveCount(0);
   await expect(page.getByText(/自动匹配\s*\d+\s*条/)).toHaveCount(0);
@@ -569,45 +573,95 @@ async function openBatchRelationFilter(page: Page) {
   await expect(page.getByText(/选择一条已有账单/)).toHaveCount(0);
   await expect(page.getByRole("button", { name: /选择流水/ })).toHaveCount(1);
 
-  const relationFilter = page.getByRole("button", { name: "查看 全部 2", exact: true });
+  const relationFilter = page.getByRole("button", { name: "全部 2", exact: true });
   await expect(relationFilter).toBeVisible();
+  await expect(page.getByRole("button", { name: "已匹配 1", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "待确认 1", exact: true })).toBeVisible();
   await clickComposeTarget(page, relationFilter, 0.1, 0.25);
-  await expect(page.locator('[id="choice-option-automatic"]')).toBeVisible();
   return commitAttempts;
 }
+
+test("F-05 cash-import matches the approved secondary-page hierarchy", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${workspaceRoot}/cash-import`);
+
+  const modal = page.locator('[id="secondary-page-modal"]').last();
+  const title = page.locator('[id="secondary-page-title"]').last();
+  const close = page.locator('[id="secondary-page-close"]').last();
+  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/cash-import-compose-visual-alignment/prototype/screenshots");
+  await mkdir(screenshotDir, { recursive: true });
+  await expect(modal).toBeVisible();
+  await expect(title).toHaveText("导入账单");
+  await expect(page.locator('[id="import.stepper"]').last()).toBeVisible();
+  await expect(page.getByRole("button", { name: /文件/ }).last()).toBeVisible();
+  await expect(page.locator('[id="import.dropzone"]').last()).toBeVisible();
+  await expect(page.getByText("添加账单文件", { exact: true })).toBeVisible();
+  await expect(page.getByText("CSV · XLS · XLSX · PDF", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "选择文件", exact: true }).last()).toBeVisible();
+  await expect(page.locator('[id="import.previous"]')).toHaveCount(0);
+  await expect(page.getByText("离开后将丢弃未完成导入", { exact: true })).toBeVisible();
+  const [titleBounds, closeBounds, formBounds] = await Promise.all([
+    title.boundingBox(),
+    close.boundingBox(),
+    page.locator('[id="import.stage-content"]').last().boundingBox(),
+  ]);
+  expect(titleBounds).not.toBeNull();
+  expect(closeBounds).not.toBeNull();
+  expect(formBounds).not.toBeNull();
+  expect((titleBounds?.x ?? Number.POSITIVE_INFINITY) + (titleBounds?.width ?? 0)).toBeLessThan(closeBounds?.x ?? 0);
+  expect(formBounds?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(720);
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-1440.png") });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.reload();
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(500);
+  await expect(page.locator('[id="secondary-page-back"]').last()).toBeVisible();
+  await expect(title).toHaveText("导入账单");
+  await expect(page.locator('[id="secondary-page-fullscreen"]').last()).toBeVisible();
+  const compactFormBounds = await page.locator('[id="import.stage-content"]').last().boundingBox();
+  expect(compactFormBounds).not.toBeNull();
+  expect(compactFormBounds?.x).toBeCloseTo(16, 0);
+  expect(compactFormBounds?.width ?? 0).toBeGreaterThanOrEqual(350);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-390.png") });
+});
 
 test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键", async ({ page }) => {
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 2000 });
   const commitAttempts = await openBatchRelationFilter(page);
-  await expect(page.getByText(/银行咖啡店 · 28\.50 CNY ·/).last()).toBeVisible();
-  await page.getByRole("button", { name: "关闭", exact: true }).last().dispatchEvent("click");
-  await expect(page.locator('[id="choice-option-automatic"]')).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "查看 全部 2", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "查看 全部 2", exact: true }).dispatchEvent("click");
-  const automaticOption = page.locator('[id="choice-option-automatic"]');
-  await expect(automaticOption).toBeVisible();
-  await clickComposeTarget(page, automaticOption);
-  await expect(page.getByText("自动配对 · 自动匹配记录", { exact: true })).toBeVisible();
-  await expect(page.getByText("待处理 · 待确认的跨渠道候选", { exact: true })).toHaveCount(0);
-  const pendingFilter = page.getByRole("button", { name: "查看 自动 1", exact: true });
+  await expect(page.getByRole("button", { name: "全部 2", exact: true })).toBeVisible();
+  const automaticFilter = page.getByRole("button", { name: "已匹配 1", exact: true });
+  await clickComposeTarget(page, automaticFilter, 0.5, 0.5);
+  await expect(page.getByText("已关联", { exact: true }).last()).toBeVisible();
+  await expect(page.getByText("待确认", { exact: true })).toHaveCount(0);
+  const pendingFilter = page.getByRole("button", { name: "待确认 1", exact: true });
   await clickComposeTarget(page, pendingFilter, 0.1, 0.25);
-  const pendingOption = page.locator('[id="choice-option-pending"]');
-  await expect(pendingOption).toBeVisible();
-  await clickComposeTarget(page, pendingOption);
-  await expect(page.getByText("待处理 · 待确认的跨渠道候选", { exact: true })).toBeVisible();
+  await expect(page.getByText("待确认", { exact: true })).toBeVisible();
+  const relationActions = page.locator('[id="import.relation-actions.pending-relation"]').last();
+  await clickComposeTarget(page, relationActions);
+  await expect(page.getByRole("button", { name: "配对类型" }).last()).toBeVisible();
+  await clickComposeTarget(page, page.getByRole("button", { name: "拒绝配对", exact: true }).last());
+  await clickComposeTarget(page, page.getByRole("button", { name: "全部 2", exact: true }));
+  await expect(page.getByText("已拒绝", { exact: true }).last()).toBeVisible();
+  await clickComposeTarget(page, page.locator('[id="import.relation-actions.pending-relation"]').last());
+  await clickComposeTarget(page, page.getByRole("button", { name: "撤销拒绝", exact: true }).last());
+  await expect(page.getByText("待确认", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.getByRole("button", { name: /对侧流水/ }).last(), 0.1, 0.25);
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
   const walletCandidateOption = page.locator('[id="choice-option-wallet-row"]');
   await expect(walletCandidateOption).toBeVisible();
   await clickComposeTarget(page, walletCandidateOption, 0.4, 0.5);
-  const emptyPendingFilter = page.getByRole("button", { name: "查看 待处理 0", exact: true });
+  const emptyPendingFilter = page.getByRole("button", { name: "待确认 0", exact: true });
   await expect(emptyPendingFilter).toBeVisible();
   await clickComposeTarget(page, emptyPendingFilter, 0.1, 0.25);
-  const allRelationsOption = page.locator('[id="choice-option-all"]');
-  await expect(allRelationsOption).toBeVisible();
-  await clickComposeTarget(page, allRelationsOption);
-  await expect(page.getByText("已确认 · 待确认的跨渠道候选", { exact: true })).toBeVisible();
+  await clickComposeTarget(page, page.getByRole("button", { name: "全部 2", exact: true }), 0.5, 0.5);
+  await expect(page.getByText("已关联", { exact: true }).last()).toBeVisible();
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
 
   await clickComposeTarget(page, page.locator('[id="import.confirm"]').last());
@@ -630,16 +684,17 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await page.setViewportSize({ width: 390, height: 844 });
   await openBatchRelationFilter(page);
 
-  const relationFilter = page.getByRole("button", { name: "查看 全部 2", exact: true });
+  const relationFilter = page.getByRole("button", { name: "全部 2", exact: true });
   await clickComposeTarget(page, relationFilter, 0.1, 0.25);
-  await expect(page.locator('[id="choice-option-automatic"]')).toHaveCount(0);
-  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relations-390.png") });
+  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/cash-import-compose-visual-alignment/prototype/screenshots");
+  await mkdir(screenshotDir, { recursive: true });
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-relations-390.png") });
 
   const recordPicker = page.getByRole("button", { name: /对侧流水/ }).last();
   await clickComposeTarget(page, recordPicker, 0.1, 0.25);
   await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
   await page.waitForTimeout(350);
-  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relation-picker-390.png") });
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-relation-picker-390.png") });
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
@@ -648,17 +703,17 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     { name: "bank.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
     { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-17.25\n") },
   ]);
-  await clickComposeTarget(page, page.locator('[id="import.next"]').last());
+  await page.locator('[id="import.next"]').last().dispatchEvent("click");
   await expect(page.getByText("跨渠道账单 · 2 个来源账户", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.locator('[id="import.next"]').last());
   await expect(page.getByText("银行咖啡店", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
-  await expect(page.getByText("确认配对", { exact: true })).toBeVisible();
+  await expect(page.getByText("关系配对", { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await clickComposeTarget(page, page.getByRole("button", { name: /对侧流水/ }).last(), 0.1, 0.25);
   await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
   await page.waitForTimeout(1_200);
-  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relation-picker-1440.png") });
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-relation-picker-1440.png") });
 });
 test("未登录邀请与认证页共用入口卡片并继续登录", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });

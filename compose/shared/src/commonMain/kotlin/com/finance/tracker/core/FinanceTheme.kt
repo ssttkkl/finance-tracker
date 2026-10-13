@@ -11,10 +11,12 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -26,6 +28,8 @@ import androidx.compose.ui.unit.dp
 
 import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.core.design.FinanceTokens
+
+val LocalFinanceColorRoles = staticCompositionLocalOf { FinanceTokens.lightColors }
 
 private val cobaltLight = lightColorScheme(
     primary = FinanceTokens.lightColors.accent,
@@ -108,27 +112,44 @@ fun FinanceTheme(content: @Composable () -> Unit) {
         }
     }
 
-    val colorScheme = if (isSystemInDarkTheme()) cobaltDark else cobaltLight
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = financeTypography(fontFamily),
-        shapes = Shapes(
-            extraSmall = RoundedCornerShape(GeneratedTokens.Core.Radius.Token1),
-            small = RoundedCornerShape(GeneratedTokens.Core.Radius.Token1),
-            medium = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
-            large = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
-            extraLarge = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
-        ),
-    ) {
-        if (fontReady) {
-            content()
-        } else {
-            Box(
-                modifier = Modifier.fillMaxSize().background(colorScheme.background),
-                contentAlignment = Alignment.Center,
-            ) {
-                CircularProgressIndicator()
+    val darkTheme = isSystemInDarkTheme()
+    val colorScheme = if (darkTheme) cobaltDark else cobaltLight
+    CompositionLocalProvider(LocalFinanceColorRoles provides FinanceTokens.forTheme(darkTheme)) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = financeTypography(fontFamily),
+            shapes = Shapes(
+                extraSmall = RoundedCornerShape(GeneratedTokens.Core.Radius.Token1),
+                small = RoundedCornerShape(GeneratedTokens.Core.Radius.Token1),
+                medium = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
+                large = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
+                extraLarge = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
+            ),
+        ) {
+            if (fontReady) {
+                content()
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxSize().background(colorScheme.background),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    CircularProgressIndicator()
+                }
             }
         }
+    }
+}
+
+@Composable
+fun FinanceLightSurfaceTheme(content: @Composable () -> Unit) {
+    val typography = MaterialTheme.typography
+    val shapes = MaterialTheme.shapes
+    CompositionLocalProvider(LocalFinanceColorRoles provides FinanceTokens.lightColors) {
+        MaterialTheme(
+            colorScheme = cobaltLight,
+            typography = typography,
+            shapes = shapes,
+            content = content,
+        )
     }
 }

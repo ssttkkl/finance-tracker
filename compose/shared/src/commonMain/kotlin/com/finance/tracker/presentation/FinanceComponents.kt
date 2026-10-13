@@ -2,7 +2,6 @@ package com.finance.tracker.presentation
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,6 +30,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
@@ -43,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import com.composeunstyled.UnstyledButton
 import com.composeunstyled.UnstyledTextField
 import com.composeunstyled.TextInput
+import com.finance.tracker.core.LocalFinanceColorRoles
 import com.finance.tracker.core.design.FinanceTokens
 
 enum class FinanceButtonVariant { Primary, Secondary, Tertiary, Danger }
@@ -86,7 +87,7 @@ internal fun FinanceSurface(
     modifier: Modifier = Modifier,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val shape = RoundedCornerShape(8.dp)
     Column(
         modifier = modifier.fillMaxWidth()
@@ -107,10 +108,12 @@ internal fun FinanceButton(
     enabled: Boolean = true,
     loading: Boolean = false,
     focusRequester: FocusRequester? = null,
+    shape: Shape = RoundedCornerShape(22.dp),
+    borderColor: Color? = null,
     content: @Composable () -> Unit,
 ) {
-    val dark = isSystemInDarkTheme()
-    val colors = FinanceTokens.forTheme(dark)
+    val colors = LocalFinanceColorRoles.current
+    val dark = colors.background == FinanceTokens.darkColors.background
     var focused by remember { mutableStateOf(false) }
     val background = when (variant) {
         FinanceButtonVariant.Primary -> colors.accent
@@ -124,9 +127,9 @@ internal fun FinanceButton(
         variant == FinanceButtonVariant.Primary || variant == FinanceButtonVariant.Danger -> colors.accentForeground
         else -> colors.foreground
     }
-    val shape = RoundedCornerShape(22.dp)
     val border = when {
         focused -> colors.focus
+        borderColor != null -> borderColor
         variant == FinanceButtonVariant.Tertiary -> Color.Transparent
         variant == FinanceButtonVariant.Primary -> colors.accent
         variant == FinanceButtonVariant.Danger -> colors.danger
@@ -197,7 +200,7 @@ internal fun FinanceTextField(
         if (!focused && state.text.toString() != value) state.edit { replace(0, length, value) }
     }
     snapshotTextChanges(state, onValueChange)
-    val colors = FinanceTokens.forTheme(isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val shape = RoundedCornerShape(10.dp)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, color = colors.foreground)
@@ -230,7 +233,7 @@ private fun snapshotTextChanges(state: TextFieldState, onValueChange: (String) -
 
 @Composable
 internal fun FinanceAmount(value: String, modifier: Modifier = Modifier, negative: Boolean = value.startsWith("-")) {
-    val colors = FinanceTokens.forTheme(isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     Text(value, modifier = modifier, color = if (negative) colors.danger else colors.accent)
 }
 

@@ -520,4 +520,25 @@
     <string name="account_workspace_switch_success">Workspace switched</string>
     <string name="navigation_rail_expand">Expand navigation</string>
     <string name="navigation_rail_collapse">Collapse navigation</string>
+    <string name="cash_import_title">Import statements</string>
+    <string name="cash_import_step_file">File</string>
+    <string name="cash_import_step_account">Account</string>
+    <string name="cash_import_step_review">Review</string>
+    <string name="cash_import_step_relation">Match</string>
+    <string name="cash_import_select_file_heading">Choose statement files</string>
+    <string name="cash_import_add_file_heading">Add statement files</string>
+    <string name="cash_import_file_formats">CSV · XLS · XLSX · PDF</string>
+    <string name="cash_import_file_size_limit">Up to 100 MB per file</string>
+    <string name="cash_import_choose_file">Choose file</string>
+    <string name="cash_import_replace_file">Replace file</string>
+    <string name="cash_import_discard_note">Leaving discards this import</string>
+    <string name="cash_import_next">Next</string>
+    <string name="cash_import_mapping_heading">Choose target accounts</string>
+    <string name="cash_import_relation_heading">Match transactions</string>
+    <string name="cash_import_status_linked">Linked</string>
+    <string name="cash_import_status_pending">Pending</string>
+    <string name="cash_import_filter_all">All %1$s</string>
+    <string name="cash_import_filter_pending">Pending %1$s</string>
+    <string name="cash_import_filter_linked">Matched %1$s</string>
+    <string name="cash_import_more_actions">More match actions</string>
 </resources>
