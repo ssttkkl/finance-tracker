@@ -177,7 +177,16 @@ class WorkspaceServices:
         from ft.adapters.relational.uow import RelationalUnitOfWork
         command = CashLedgerCommandService(self._sessions, workspace_id, relation_service=RelationService(RelationalUnitOfWork(self._sessions, workspace_id)))
         from ft.application.cash_import_session import CashImportSessionService
-        if name in {"scan_import", "scan_import_session", "preview_import_session", "commit_import_session"}:
+        if name in {
+            "scan_import",
+            "scan_import_session",
+            "scan_import_batch",
+            "scan_import_batch_session",
+            "preview_import_session",
+            "commit_import_session",
+            "preview_import_batch_session",
+            "commit_import_batch_session",
+        }:
             if self._import_staging_store is None:
                 raise ValueError("import_session_storage_config_missing")
             session_service = CashImportSessionService(

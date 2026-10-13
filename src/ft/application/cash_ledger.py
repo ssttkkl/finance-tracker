@@ -2178,14 +2178,24 @@ class CashLedgerCommandService:
                 mapped["component_allocation"] = draft
                 mapped["components"] = draft["components"]
             single_allocations = allocation_for(row, record_id)
-            if len(row_targets) == 1 and single_allocations is not None:
-                from ft.application.statement_account_mapping import build_component_allocation_draft
-                draft = build_component_allocation_draft(row, allocations=single_allocations)
-                component = draft["components"][0]
-                component["account_id"] = row_targets[0][2].get("account_id")
-                component["account_name"] = target["name"]
-                mapped["component_allocation"] = draft
-                mapped["components"] = draft["components"]
+            if len(row_targets) == 1:
+                allocation = row.get("component_allocation")
+                if single_allocations is not None:
+                    from ft.application.statement_account_mapping import build_component_allocation_draft
+                    draft = build_component_allocation_draft(row, allocations=single_allocations)
+                elif isinstance(allocation, dict) and isinstance(allocation.get("components"), list):
+                    draft = {
+                        **allocation,
+                        "components": [dict(component) for component in allocation["components"]],
+                    }
+                else:
+                    draft = None
+                if draft is not None:
+                    for component in draft["components"]:
+                        component["account_id"] = row_targets[0][2].get("account_id")
+                        component["account_name"] = target["name"]
+                    mapped["component_allocation"] = draft
+                    mapped["components"] = draft["components"]
             mapped["currency"] = str(mapped.get("currency") or "CNY").upper()
             if "source_payload" not in mapped and isinstance(mapped.get("_source_payload"), dict):
                 mapped["source_payload"] = mapped["_source_payload"]

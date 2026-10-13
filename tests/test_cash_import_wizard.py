@@ -1591,6 +1591,75 @@ def test_cash_import_batch_accepts_mixed_channels_and_uses_channel_scoped_ids(tm
         assert session.query(CashTransactionModel).count() == 2
 
 
+def test_cash_import_batch_applies_confirmed_mapping_to_atomic_component(tmp_path):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import (
+        AccountModel,
+        CashTransactionComponentModel,
+        CashTransactionModel,
+    )
+    from ft.application.statement_account_mapping import build_component_allocation_draft
+
+    source_payload = {"收/付款方式": "建设银行储蓄卡(2820)", "金额": "12.50"}
+    row = _row(
+        record_id="mapped-atomic-component",
+        account_name="",
+        payment_method="建设银行储蓄卡(2820)",
+        source_payload=source_payload,
+    )
+    row["component_allocation"] = build_component_allocation_draft(row)
+    sessions, service = _service(tmp_path, {"alipay": [row]})
+    with service._uow as uow:
+        uow.accounts.add_raw({"name": "建行储蓄卡(2820)", "type": "cash", "currency": "CNY"})
+        uow.commit()
+    with sessions() as session:
+        target_id = session.scalar(select(AccountModel.id).where(
+            AccountModel.workspace_id == "wizard-workspace",
+            AccountModel.name == "建行储蓄卡(2820)",
+        ))
+
+    files = [{"filename": "alipay.csv", "content": b"alipay", "source": "alipay"}]
+    scan = service.scan_import_batch(files)
+    group = scan["groups"][0]
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": target_id,
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = service.preview_import_batch(files, mapping=mapping)
+
+    component = preview["items"][0]["components"][0]
+    assert component.get("account_name") == "建行储蓄卡(2820)"
+    assert component["account_key"] == "建设银行储蓄卡(2820)"
+    assert component["source_label"] == "建设银行储蓄卡(2820)"
+    assert component["amount"] == "-12.50"
+
+    result = service.commit_import_batch(
+        files,
+        mapping=mapping,
+        preview_digest=preview["batch_digest"],
+        preview_channel="alipay",
+        relation_decisions=[],
+        idempotency_key="mapped-atomic-component",
+    )
+
+    assert result["new_rows"] == 1
+    with sessions() as session:
+        transaction = session.scalar(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == "wizard-workspace",
+            CashTransactionModel.record_id == "mapped-atomic-component",
+        ))
+        persisted_component = session.scalar(select(CashTransactionComponentModel).where(
+            CashTransactionComponentModel.workspace_id == "wizard-workspace",
+            CashTransactionComponentModel.cash_transaction_id == transaction.id,
+        ))
+        assert transaction.account_id == target_id
+        assert transaction.source_payload == source_payload
+        assert persisted_component.account_id == target_id
+        assert str(persisted_component.amount) == "-12.50"
+        assert persisted_component.source_key == "建设银行储蓄卡(2820)"
+
+
 def test_cash_import_batch_matches_relations_across_all_files(tmp_path):
     from ft.application.relations import RelationService
 
