@@ -1498,6 +1498,118 @@
           "fontWeight": "500"
         }
       ]
+    },
+    {
+      "type": "frame",
+      "id": "kIuwj",
+      "x": 3528,
+      "y": 0,
+      "name": "Finance/SecondaryPageContainer",
+      "reusable": true,
+      "clip": true,
+      "width": 680,
+      "height": 720,
+      "fill": "$finance.surface",
+      "cornerRadius": 18,
+      "stroke": "#E4E4E7",
+      "strokeWidth": 1,
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "vwsV7",
+          "name": "Header",
+          "width": "fill_container",
+          "height": 64,
+          "padding": [
+            0,
+            24
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "INDJu",
+              "x": 0,
+              "y": 0,
+              "name": "Back button",
+              "enabled": false,
+              "width": 44,
+              "height": 44,
+              "cornerRadius": 20,
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ggVZv",
+                  "name": "Back icon",
+                  "fill": "$finance.foreground",
+                  "content": "←",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 24,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "U2t03",
+              "name": "Page title",
+              "fill": "$finance.foreground",
+              "content": "二级页面标题",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 20,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "wu0zD",
+              "name": "Close button",
+              "width": 44,
+              "height": 44,
+              "fill": "$finance.background",
+              "cornerRadius": 18,
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "p3L7N4",
+                  "name": "Close icon",
+                  "fill": "$finance.foreground",
+                  "content": "×",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 24,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "p88n3y",
+          "name": "Header divider",
+          "fill": "#E4E4E7",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "X77ia",
+          "name": "Content slot",
+          "width": "fill_container",
+          "height": "fill_container",
+          "fill": "$finance.surface",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": 24
+        }
+      ]
     }
   ],
   "themes": {

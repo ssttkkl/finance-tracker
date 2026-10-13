@@ -134,7 +134,7 @@ internal fun CompactAppShell(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         NavigationDestinations(
-                            selectedPage = state.route.page,
+                            selectedPage = primaryPageFor(state.route.page),
                             expanded = true,
                             onNavigate = { page ->
                                 state.onNavigate(page)
@@ -340,7 +340,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     NavigationDestinations(
-                        selectedPage = state.route.page,
+                        selectedPage = primaryPageFor(state.route.page),
                         expanded = expanded,
                         showFocusRing = keyboardNavigationActive,
                         onNavigate = state.onNavigate,
@@ -1007,7 +1007,7 @@ internal fun DestinationScaffold(
         containerColor = shellColors.background,
         topBar = {
             TopAppBar(
-                title = { DestinationTopBarTitle(state.route.page) },
+                title = { DestinationTopBarTitle(primaryPageFor(state.route.page)) },
                 navigationIcon = state.navigationIcon,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = shellColors.surface,
@@ -1028,17 +1028,16 @@ internal fun DestinationScaffold(
                 .fillMaxSize()
                 .padding(contentPadding)
             ) {
-            when (state.route.page) {
-                AppPage.CASH_LEDGER -> CashLedgerScreen(state.financeRepository, state.session, state.sizeClass, state.onNavigate, state.diagnosticLogger)
-                AppPage.CASH_IMPORT -> CashImportScreen(
-                    repository = state.financeRepository,
-                    workspaceId = state.session.activeWorkspaceId.orEmpty(),
-                    sizeClass = state.sizeClass,
-                    canWrite = canWrite,
-                    onBack = { state.onNavigateBackOr(AppPage.CASH_LEDGER) },
-                    onDone = {},
-                    diagnostics = state.diagnosticLogger,
+            when (primaryPageFor(state.route.page)) {
+                AppPage.CASH_LEDGER -> CashLedgerScreen(
+                    state.financeRepository,
+                    state.session,
+                    state.sizeClass,
+                    state.onNavigate,
+                    state.diagnosticLogger,
+                    state.importButtonFocusRequester,
                 )
+                AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> CashCategoryScreen(
                     repository = state.financeRepository,
                     workspaceId = state.session.activeWorkspaceId.orEmpty(),

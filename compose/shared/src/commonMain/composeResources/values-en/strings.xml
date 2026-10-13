@@ -17,7 +17,7 @@
     <string name="auth_confirm_password_submit_error">Make sure both passwords match.</string>
     <string name="copy_00a0a58be6">Past 30 days</string>
     <string name="copy_01152a1690">No matching categories.</string>
-    <string name="copy_0153e1a001">Skip for now</string>
+    <string name="copy_0153e1a001">Select a transaction</string>
     <string name="copy_01c5cd44b0">Check the workspace name.</string>
     <string name="copy_021b37112e">This also removes the workspace's ledger data, members, and invitations.</string>
     <string name="copy_02ec7f0183">Choose an account for each source account.</string>

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.TextFieldState
@@ -26,6 +27,8 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -103,6 +106,7 @@ internal fun FinanceButton(
     size: FinanceButtonSize = FinanceButtonSize.Medium,
     enabled: Boolean = true,
     loading: Boolean = false,
+    focusRequester: FocusRequester? = null,
     content: @Composable () -> Unit,
 ) {
     val dark = isSystemInDarkTheme()
@@ -137,8 +141,10 @@ internal fun FinanceButton(
         onClick = onClick,
         enabled = enabled && !loading,
         modifier = modifier
+            .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .then(if (enabled && !loading) Modifier else Modifier.semantics { disabled() })
             .onFocusChanged { focused = it.isFocused }
+            .then(if (focusRequester != null) Modifier.focusable() else Modifier)
             .heightIn(min = 44.dp)
             .border(1.dp, border, shape)
             .background(if (enabled && !loading) background else if (variant == FinanceButtonVariant.Tertiary) Color.Transparent else colors.disabled, shape)
@@ -158,9 +164,10 @@ internal fun FinanceSecondaryButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    focusRequester: FocusRequester? = null,
     content: @Composable () -> Unit,
 ) {
-    FinanceButton(onClick = onClick, modifier = modifier, enabled = enabled, variant = FinanceButtonVariant.Secondary, content = content)
+    FinanceButton(onClick = onClick, modifier = modifier, enabled = enabled, focusRequester = focusRequester, variant = FinanceButtonVariant.Secondary, content = content)
 }
 
 @Composable

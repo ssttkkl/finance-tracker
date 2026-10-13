@@ -17,7 +17,7 @@
     <string name="auth_confirm_password_submit_error">请确认两次输入的密码一致。</string>
     <string name="copy_00a0a58be6">近 30 天</string>
     <string name="copy_01152a1690">没有匹配的分类。</string>
-    <string name="copy_0153e1a001">暂不处理</string>
+    <string name="copy_0153e1a001">选择流水</string>
     <string name="copy_01c5cd44b0">请检查工作区名称。</string>
     <string name="copy_021b37112e">删除后将同时移除该工作区的账本数据、成员和邀请。</string>
     <string name="copy_02ec7f0183">请为每个来源账户选择系统账户。</string>

@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -45,6 +46,7 @@ internal fun CashLedgerScreen(
     sizeClass: WindowSizeClass,
     onNavigate: (AppPage) -> Unit,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
+    importButtonFocusRequester: FocusRequester? = null,
 ) {
     val viewModel: CashLedgerViewModel = viewModel(
         key = "cash-ledger:${session.activeWorkspaceId.orEmpty()}",
@@ -70,7 +72,12 @@ internal fun CashLedgerScreen(
         headerActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FinanceButton(onClick = { viewModel.startNewRecord(localDateTimeForInput()) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerAdd)) { Text(localizedText("copy_1f62e3f53f")) }
-                FinanceSecondaryButton(onClick = { onNavigate(AppPage.CASH_IMPORT) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerImport)) { Text(localizedText("copy_aee4e0d769")) }
+                FinanceSecondaryButton(
+                    onClick = { onNavigate(AppPage.CASH_IMPORT) },
+                    enabled = canWrite,
+                    focusRequester = importButtonFocusRequester,
+                    modifier = Modifier.testTag(SemanticIds.ledgerImport),
+                ) { Text(localizedText("copy_aee4e0d769")) }
             }
         },
     ) {

@@ -157,7 +157,6 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
   await page.screenshot({ path: testInfo.outputPath("app-390.png") });
 
   const destinations = [
-    { id: "cash-import", screen: "import.screen", path: "cash-import", title: "账单导入" },
     { id: "cash-categories", screen: "cash-categories.screen", path: "cash-categories", title: "收支分类" },
     { id: "investment-holdings", screen: "investment-holdings.screen", path: "investment-holdings", title: "当前持仓" },
     { id: "investment-events", screen: "investment-events.screen", path: "investment-events", title: "投资事件" },
@@ -203,6 +202,76 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
     await expect(page.locator('[id="destination.top-bar-title"]').last()).toHaveText(route.title);
     await expect(page.locator('[id="destination.body-title"]')).toHaveCount(0);
   }
+});
+
+test("F-05 账单导入从账本以响应式二级页面打开并可关闭", async ({ page }, testInfo) => {
+  test.setTimeout(150_000);
+  await installComposeApiFixtures(page);
+  await page.goto(`${workspaceRoot}/`);
+
+  for (const width of [320, 375, 390, 414, 768, 1440]) {
+    const height = width === 390 ? 844 : width === 768 ? 1024 : 900;
+    await page.setViewportSize({ width, height });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const importButton = page.locator('[id="ledger.import"]').last();
+    const importUrl = `${workspaceRoot}/cash-import`;
+    await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
+    await expect(page).toHaveURL(importUrl);
+
+    if (width < 600) {
+      const fullscreen = page.locator('[id="secondary-page-fullscreen"]').last();
+      await expect(fullscreen).toBeVisible();
+      await expect(page.locator('[id="secondary-page-modal"]')).toHaveCount(0);
+      const bounds = await fullscreen.boundingBox();
+      expect(bounds?.x ?? 1).toBeCloseTo(0, 0);
+      expect(bounds?.y ?? 1).toBeCloseTo(0, 0);
+      expect(bounds?.width ?? 0).toBeCloseTo(width, 0);
+      expect(bounds?.height ?? 0).toBeCloseTo(height, 0);
+      if (width === 390) {
+        await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-390.png") });
+      }
+      await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
+    } else {
+      const modal = page.locator('[id="secondary-page-modal"]').last();
+      await expect(modal).toBeVisible();
+      await expect(page.locator('[id="secondary-page-fullscreen"]')).toHaveCount(0);
+      const bounds = await modal.boundingBox();
+      expect(bounds?.width ?? 0).toBeCloseTo(width * 0.9, 0);
+      expect(bounds?.height ?? 0).toBeCloseTo(height * 0.9, 0);
+      await page.screenshot({ path: path.resolve(process.cwd(), `../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-${width}.png`) });
+      if (width === 768) {
+        await clickComposeTarget(page, page.locator('[id="secondary-page-close"]').last());
+      } else {
+        await page.keyboard.press("Escape");
+      }
+    }
+
+    await expect(page).toHaveURL(`${workspaceRoot}/`);
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.resolve(process.cwd(), `../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-return-${width}.png`) });
+    if (width !== 1440) {
+      // Compose Web keeps a stale semantics mirror after a page-level dialog closes;
+      // reload between viewport cases so each next entry starts from a fresh tree.
+      await page.reload();
+      await expect(page.locator('[id="ledger.import"]').last()).toBeVisible();
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${workspaceRoot}/`);
+  const importButton = page.locator('[id="ledger.import"]').last();
+  await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
+  await chooseComposeFiles(page, [{
+    name: "discard-me.csv",
+    mimeType: "text/csv",
+    buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
+  }]);
+  await expect(page.getByText("discard-me.csv", { exact: true })).toBeVisible();
+  await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
+  await expect(page).toHaveURL(`${workspaceRoot}/`);
+  await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
+  await expect(page.getByText("discard-me.csv", { exact: true })).toHaveCount(0);
+  await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
 });
 
 test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) => {
@@ -492,6 +561,13 @@ async function openBatchRelationFilter(page: Page) {
   await expect(page.getByText("钱包咖啡店", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
   await expect(page.getByText("确认配对", { exact: true })).toBeVisible();
+  await expect(page.getByText(/共\s*\d+\s*条流水/)).toHaveCount(0);
+  await expect(page.getByText(/将相同流水关联/)).toHaveCount(0);
+  await expect(page.getByText(/自动匹配\s*\d+\s*条/)).toHaveCount(0);
+  await expect(page.getByText(/待确认\s*\d+\s*条/)).toHaveCount(0);
+  await expect(page.getByText(/尚未选择关联流水/)).toHaveCount(0);
+  await expect(page.getByText(/选择一条已有账单/)).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /选择流水/ })).toHaveCount(1);
 
   const relationFilter = page.getByRole("button", { name: "查看 全部 2", exact: true });
   await expect(relationFilter).toBeVisible();
@@ -504,7 +580,7 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
   test.setTimeout(90_000);
   await page.setViewportSize({ width: 390, height: 2000 });
   const commitAttempts = await openBatchRelationFilter(page);
-  await expect(page.getByText(/银行咖啡店[\s\S]*与[\s\S]*钱包咖啡店/).last()).toBeVisible();
+  await expect(page.getByText(/银行咖啡店 · 28\.50 CNY ·/).last()).toBeVisible();
   await page.getByRole("button", { name: "关闭", exact: true }).last().dispatchEvent("click");
   await expect(page.locator('[id="choice-option-automatic"]')).toHaveCount(0);
   await expect(page.getByRole("button", { name: "查看 全部 2", exact: true })).toBeVisible();
@@ -524,7 +600,7 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
   const walletCandidateOption = page.locator('[id="choice-option-wallet-row"]');
   await expect(walletCandidateOption).toBeVisible();
-  await walletCandidateOption.click({ force: true });
+  await clickComposeTarget(page, walletCandidateOption, 0.4, 0.5);
   const emptyPendingFilter = page.getByRole("button", { name: "查看 待处理 0", exact: true });
   await expect(emptyPendingFilter).toBeVisible();
   await clickComposeTarget(page, emptyPendingFilter, 0.1, 0.25);
@@ -551,15 +627,38 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
 
 test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) => {
   test.setTimeout(90_000);
-  await page.setViewportSize({ width: 390, height: 1800 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await openBatchRelationFilter(page);
-  const screenshotDirectory = path.resolve(process.cwd(), "../openspec/changes/hero-ui-compose-finance-ui/screenshots");
-  const themeSuffix = process.env.FT_COMPOSE_COLOR_SCHEME === "dark" ? "-dark" : "";
-  await page.screenshot({ path: path.join(screenshotDirectory, `web-choice-card-390${themeSuffix}.png`) });
-  await page.setViewportSize({ width: 1440, height: 1000 });
+
+  const relationFilter = page.getByRole("button", { name: "查看 全部 2", exact: true });
+  await clickComposeTarget(page, relationFilter, 0.1, 0.25);
+  await expect(page.locator('[id="choice-option-automatic"]')).toHaveCount(0);
+  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relations-390.png") });
+
+  const recordPicker = page.getByRole("button", { name: /对侧流水/ }).last();
+  await clickComposeTarget(page, recordPicker, 0.1, 0.25);
+  await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relation-picker-390.png") });
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.reload();
+  await expect(page.locator('[id="import.choose-file"]').last()).toBeVisible();
+  await chooseComposeFiles(page, [
+    { name: "bank.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
+    { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-17.25\n") },
+  ]);
+  await clickComposeTarget(page, page.locator('[id="import.next"]').last());
+  await expect(page.getByText("跨渠道账单 · 2 个来源账户", { exact: true })).toBeVisible();
+  await clickComposeTarget(page, page.locator('[id="import.next"]').last());
+  await expect(page.getByText("银行咖啡店", { exact: true })).toBeVisible();
+  await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
+  await expect(page.getByText("确认配对", { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await expect(page.locator('[id="choice-option-automatic"]')).toBeVisible();
-  await page.screenshot({ path: path.join(screenshotDirectory, `web-choice-card-1440${themeSuffix}.png`) });
+  await clickComposeTarget(page, page.getByRole("button", { name: /对侧流水/ }).last(), 0.1, 0.25);
+  await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
+  await page.waitForTimeout(1_200);
+  await page.screenshot({ path: path.resolve(process.cwd(), "../openspec/changes/cash-import-secondary-surface/prototype/screenshots/browser-production-relation-picker-1440.png") });
 });
 test("未登录邀请与认证页共用入口卡片并继续登录", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });

@@ -49,8 +49,10 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -78,10 +80,12 @@ internal data class DestinationState(
     val accessBusy: Boolean,
     val accessError: String?,
     val sizeClass: WindowSizeClass,
+    val importButtonFocusRequester: FocusRequester,
     val onNavigate: (AppPage) -> Unit,
     val canNavigateBack: Boolean,
     val onNavigateBack: () -> Unit,
     val onNavigateBackOr: (AppPage) -> Unit,
+    val onCloseSecondaryPage: () -> Unit,
     val onSessionUpdated: (Session) -> Unit,
     val onWorkspaceDeleted: (Session) -> Unit,
     val onInvitationAccepted: (Session) -> Unit,
@@ -153,6 +157,16 @@ private fun FinanceTrackerAppContent(
     var navigationState by rememberAppNavigationState(resolvedInitialRoute)
     val currentRoute = navigationState.currentRoute
     val routeHistory = navigationState.backStack
+    val importButtonFocusRequester = remember { FocusRequester() }
+    var previousPage by remember { mutableStateOf(currentRoute.page) }
+    LaunchedEffect(currentRoute.page) {
+        val shouldRestoreImportFocus = previousPage == AppPage.CASH_IMPORT && currentRoute.page == AppPage.CASH_LEDGER
+        previousPage = currentRoute.page
+        if (shouldRestoreImportFocus) {
+            withFrameNanos { }
+            importButtonFocusRequester.requestFocus()
+        }
+    }
 
     DisposableEffect(Unit) {
         val removeListener = observeBrowserHistory {
@@ -221,6 +235,25 @@ private fun FinanceTrackerAppContent(
             appPathForRoute(nextRoute)?.let(::pushBrowserPath)
             navigationState = navigationState.copy(currentRoute = nextRoute)
             onNavigate(nextRoute)
+        }
+    }
+
+    val closeSecondaryPage: () -> Unit = {
+        val ledgerRoute = currentRoute.copy(
+            page = AppPage.CASH_LEDGER,
+            workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
+            invitationToken = null,
+            unmatchedPath = null,
+        )
+        if (getBrowserLocation() != null) {
+            navigationState = navigationState.copy(currentRoute = ledgerRoute)
+            appPathForRoute(ledgerRoute)?.let(::replaceBrowserPath)
+            onNavigate(ledgerRoute)
+        } else if (routeHistory.isNotEmpty()) {
+            navigateBack()
+        } else {
+            navigationState = navigationState.copy(currentRoute = ledgerRoute)
+            onNavigate(ledgerRoute)
         }
     }
 
@@ -345,24 +378,39 @@ private fun FinanceTrackerAppContent(
                         accessBusy = accessBusy,
                         accessError = accessError,
                         sizeClass = windowSizeClass,
+                        importButtonFocusRequester = importButtonFocusRequester,
                         onNavigate = selectPage,
                         canNavigateBack = getBrowserLocation() == null && routeHistory.isNotEmpty(),
                         onNavigateBack = navigateBack,
                         onNavigateBackOr = navigateBackOr,
+                        onCloseSecondaryPage = closeSecondaryPage,
                         onSessionUpdated = updateSession,
                         onWorkspaceDeleted = workspaceDeleted,
                         onInvitationAccepted = acceptInvitationSession,
                         onWorkspaceSelected = selectWorkspace,
                         onLogout = logout,
                     )
-                    when (windowSizeClass) {
-                        WindowSizeClass.COMPACT -> CompactAppShell(state) { navigationIcon ->
-                            destination(state.copy(navigationIcon = navigationIcon))
+                    Box(Modifier.fillMaxSize()) {
+                        when (windowSizeClass) {
+                            WindowSizeClass.COMPACT -> CompactAppShell(state) { navigationIcon ->
+                                destination(state.copy(navigationIcon = navigationIcon))
+                            }
+                            WindowSizeClass.REGULAR -> RegularAppShell(state) {
+                                destination(state.copy(navigationIcon = {}))
+                            }
+                            WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                         }
-                        WindowSizeClass.REGULAR -> RegularAppShell(state) {
-                            destination(state.copy(navigationIcon = {}))
+                        if (state.route.page == AppPage.CASH_IMPORT) {
+                            CashImportScreen(
+                                repository = graph.financeRepository,
+                                workspaceId = currentSession.activeWorkspaceId.orEmpty(),
+                                sizeClass = windowSizeClass,
+                                canWrite = currentSession.workspaces.firstOrNull { it.id == currentSession.activeWorkspaceId }?.role?.canWrite == true,
+                                onBack = state.onCloseSecondaryPage,
+                                onDone = {},
+                                diagnostics = graph.diagnosticLogger,
+                            )
                         }
-                        WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                     }
                 }
             }

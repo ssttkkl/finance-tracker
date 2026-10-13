@@ -44,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
@@ -61,13 +63,14 @@ internal fun FeaturePage(
     headerActions: (@Composable () -> Unit)? = null,
     headerActionsInline: Boolean = false,
     showTitle: Boolean = true,
+    scrollable: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
             .widthIn(max = 1480.dp)
-            .verticalScroll(rememberScrollState())
+            .let { if (scrollable) it.verticalScroll(rememberScrollState()) else it }
             .padding(horizontal = GeneratedTokens.Core.Space.Token4, vertical = GeneratedTokens.Core.Space.Token3)
             .testTag(semanticId),
         verticalArrangement = Arrangement.spacedBy(GeneratedTokens.Core.Space.Token4),
@@ -289,8 +292,13 @@ internal fun ChoicePicker(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     semanticId: String? = null,
+    autoScrollMenuIntoView: Boolean = false,
 ) {
     var expanded by remember(label) { mutableStateOf(false) }
+    val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
+    LaunchedEffect(expanded, autoScrollMenuIntoView) {
+        if (expanded && autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
+    }
     val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value.ifEmpty { localizedText("copy_778fc8f994") }
     val trigger: @Composable () -> Unit = {
         FinanceButton(
@@ -318,6 +326,7 @@ internal fun ChoicePicker(
                     Column(
                         modifier = Modifier
                             .heightIn(max = 420.dp)
+                        .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier)
                             .verticalScroll(rememberScrollState())
                             .selectableGroup()
                             .padding(8.dp),
@@ -355,12 +364,20 @@ internal fun ChoicePicker(
             trigger()
             androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                 options.forEach { (optionValue, optionLabel) ->
+                    val isSelected = optionValue == value
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text(optionLabel) },
                         onClick = {
                             expanded = false
                             onSelected(optionValue)
                         },
+                        modifier = Modifier
+                            .testTag("choice-option-$optionValue")
+                            .semantics(mergeDescendants = true) {
+                                contentDescription = optionLabel
+                                role = Role.RadioButton
+                                selected = isSelected
+                            },
                     )
                 }
             }

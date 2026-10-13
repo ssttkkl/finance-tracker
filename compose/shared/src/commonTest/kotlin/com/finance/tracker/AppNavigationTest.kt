@@ -17,7 +17,6 @@ class AppNavigationTest {
         assertEquals(
             listOf(
                 AppPage.CASH_LEDGER,
-                AppPage.CASH_IMPORT,
                 AppPage.CASH_CATEGORIES,
                 AppPage.INVESTMENT_HOLDINGS,
                 AppPage.INVESTMENT_EVENTS,
@@ -25,6 +24,20 @@ class AppNavigationTest {
             ),
             appDestinations.map(AppDestination::page),
         )
+    }
+
+    @Test
+    fun cashImportIsASecondaryPagePresentedOverTheLedger() {
+        assertEquals(AppPage.CASH_LEDGER, primaryPageFor(AppPage.CASH_IMPORT))
+        assertEquals("navigation_cash_ledger", titleKeyFor(AppPage.CASH_IMPORT))
+        assertFalse(appDestinations.any { it.page == AppPage.CASH_IMPORT })
+    }
+
+    @Test
+    fun secondaryPageLayoutUsesFullscreenOnlyForCompactWindows() {
+        assertEquals(SecondaryPageLayout.FULL_SCREEN, secondaryPageLayoutFor(WindowSizeClass.COMPACT))
+        assertEquals(SecondaryPageLayout.MODAL, secondaryPageLayoutFor(WindowSizeClass.REGULAR))
+        assertEquals(SecondaryPageLayout.MODAL, secondaryPageLayoutFor(WindowSizeClass.WIDE))
     }
 
     @Test

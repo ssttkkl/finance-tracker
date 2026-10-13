@@ -1,0 +1,3833 @@
+{
+  "version": "2.21",
+  "children": [
+    {
+      "type": "frame",
+      "id": "RwvTd",
+      "x": 0,
+      "y": 0,
+      "name": "COMPACT · 390 px",
+      "clip": true,
+      "width": 390,
+      "height": 844,
+      "fill": "#F5F5F5",
+      "layout": "none",
+      "children": [
+        {
+          "id": "zomaP",
+          "type": "ref",
+          "ref": "D:kIuwj",
+          "name": "Secondary page container / COMPACT",
+          "x": 0,
+          "y": 0,
+          "width": 390,
+          "height": 844,
+          "cornerRadius": 0,
+          "descendants": {
+            "D:vwsV7": {
+              "padding": [
+                0,
+                16
+              ],
+              "justifyContent": "start",
+              "gap": 12
+            },
+            "D:INDJu": {
+              "enabled": true,
+              "width": 44,
+              "height": 44,
+              "fill": "#F5F5F5"
+            },
+            "D:U2t03": {
+              "content": "导入账单",
+              "fontSize": 18
+            },
+            "D:wu0zD": {
+              "enabled": false,
+              "width": 0,
+              "height": 0
+            },
+            "D:X77ia": {
+              "type": "frame",
+              "id": "h2cDW",
+              "name": "Import content / compact",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#FFFFFF",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": [
+                20,
+                16
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "kum8w",
+                  "name": "四步进度",
+                  "width": "fill_container",
+                  "height": 58,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "puyGx",
+                      "name": "步骤 文件",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "uY2bx",
+                          "name": "步骤编号背景 0",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "IIthV",
+                              "name": "步骤编号 0",
+                              "fill": "#FFFFFF",
+                              "content": "1",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "cyrRF",
+                          "name": "步骤名称 0",
+                          "fill": "$core.color.brand.primary",
+                          "content": "文件",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Fun0N",
+                      "name": "步骤 账户",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "qPkMu",
+                          "name": "步骤编号背景 1",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#F4F4F5",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ZqFNr",
+                              "name": "步骤编号 1",
+                              "fill": "#71717A",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "J1Vwdf",
+                          "name": "步骤名称 1",
+                          "fill": "#71717A",
+                          "content": "账户",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TPSsH",
+                      "name": "步骤 核对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HTnvN",
+                          "name": "步骤编号背景 2",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#F4F4F5",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "v5ZFz",
+                              "name": "步骤编号 2",
+                              "fill": "#71717A",
+                              "content": "3",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "Qigcl",
+                          "name": "步骤名称 2",
+                          "fill": "#71717A",
+                          "content": "核对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "D4bieW",
+                      "name": "步骤 配对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "XrQJd",
+                          "name": "步骤编号背景 3",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#F4F4F5",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "yW5Lf",
+                              "name": "步骤编号 3",
+                              "fill": "#71717A",
+                              "content": "4",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "oYuSS",
+                          "name": "步骤名称 3",
+                          "fill": "#71717A",
+                          "content": "配对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FPAL7",
+                  "name": "选择文件标题区",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EWaKg",
+                      "name": "文件步骤标题",
+                      "fill": "#18181B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "选择账单文件",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f0BWga",
+                  "name": "文件选择区域",
+                  "width": "fill_container",
+                  "height": 230,
+                  "fill": "#FAFCFF",
+                  "cornerRadius": 16,
+                  "stroke": "#C7DDF4",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 20,
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "KFF4b",
+                      "name": "文件选择图标背景",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#EAF4FF",
+                      "cornerRadius": 24,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "XeNgH",
+                          "name": "文件选择图标",
+                          "fill": "#0485F7",
+                          "content": "⇧",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 24,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "c7B8lG",
+                      "name": "添加账单标题",
+                      "fill": "#27272A",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "添加账单文件",
+                      "textAlign": "center",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "xMaG9",
+                      "name": "支持格式",
+                      "fill": "#71717A",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "CSV · XLSX · PDF",
+                      "textAlign": "center",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "lEKHW",
+                      "name": "选择文件按钮焦点态",
+                      "width": 144,
+                      "height": 40,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 20,
+                      "stroke": "$core.color.brand.primary",
+                      "strokeWidth": 2,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "rrNua",
+                          "name": "选择文件按钮文字",
+                          "fill": "$core.color.brand.primary",
+                          "content": "选择文件",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "QecEj",
+                  "name": "文件步骤留白",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical"
+                },
+                {
+                  "type": "frame",
+                  "id": "NGnuF",
+                  "name": "文件步骤底部操作",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 10,
+                  "children": [
+                    {
+                      "type": "rectangle",
+                      "id": "P08MoB",
+                      "name": "Compact footer divider",
+                      "fill": "#E4E4E7",
+                      "width": "fill_container",
+                      "height": 1
+                    },
+                    {
+                      "type": "text",
+                      "id": "sfs9o",
+                      "name": "离开提示",
+                      "fill": "#71717A",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "离开后将丢弃未完成导入",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EexKh",
+                      "name": "文件步骤主操作行",
+                      "width": "fill_container",
+                      "height": 44,
+                      "justifyContent": "end",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "YVKBs",
+                          "name": "文件下一步",
+                          "width": 112,
+                          "height": 44,
+                          "fill": "#E4E4E7",
+                          "cornerRadius": 22,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "e43B1",
+                              "name": "文件下一步 label",
+                              "fill": "#A1A1AA",
+                              "content": "下一步",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "N9VR9",
+      "x": 500,
+      "y": 0,
+      "name": "REGULAR · 768 px",
+      "clip": true,
+      "width": 768,
+      "height": 1024,
+      "fill": "#F5F5F5",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "RhwuX",
+          "x": 0,
+          "y": 0,
+          "name": "Collapsed sidebar",
+          "width": 72,
+          "height": 1024,
+          "fill": "#FFFFFF",
+          "layout": "vertical",
+          "gap": 18,
+          "padding": [
+            18,
+            0
+          ],
+          "alignItems": "center"
+        },
+        {
+          "type": "rectangle",
+          "id": "gkTlZ",
+          "x": 71,
+          "y": 0,
+          "name": "Sidebar divider",
+          "fill": "#E4E4E7",
+          "width": 1,
+          "height": 1024
+        },
+        {
+          "type": "frame",
+          "id": "sKTz9",
+          "x": 18,
+          "y": 24,
+          "name": "Navigation icon 0",
+          "width": 36,
+          "height": 36,
+          "fill": "#EAF4FF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Aaed2",
+              "name": "Navigation glyph 0",
+              "fill": "#000000",
+              "content": "⌂",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "fo9Hz",
+          "x": 18,
+          "y": 80,
+          "name": "Navigation icon 1",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "ZSk9Y",
+              "name": "Navigation glyph 1",
+              "fill": "#71717A",
+              "content": "◆",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "f5IWC",
+          "x": 18,
+          "y": 136,
+          "name": "Navigation icon 2",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "f2AZmW",
+              "name": "Navigation glyph 2",
+              "fill": "#71717A",
+              "content": "▣",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "FpSvz",
+          "x": 18,
+          "y": 192,
+          "name": "Navigation icon 3",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "tbCOJ",
+              "name": "Navigation glyph 3",
+              "fill": "#71717A",
+              "content": "↔",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "g3jjEP",
+          "x": 18,
+          "y": 248,
+          "name": "Navigation icon 4",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "NQv1N",
+              "name": "Navigation glyph 4",
+              "fill": "#71717A",
+              "content": "⚙",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "m5qUNM",
+          "x": 18,
+          "y": 966,
+          "name": "Profile avatar",
+          "width": 36,
+          "height": 36,
+          "fill": "#DCEBFA",
+          "cornerRadius": 18,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "HVfoN",
+              "name": "Avatar initial",
+              "fill": "#2865A3",
+              "content": "S",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "aNEbh",
+          "x": 72,
+          "y": 0,
+          "name": "App bar",
+          "width": 696,
+          "height": 64,
+          "fill": "#FFFFFF",
+          "padding": [
+            0,
+            28
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center"
+        },
+        {
+          "type": "text",
+          "id": "FCKEY",
+          "x": 104,
+          "y": 20,
+          "name": "Background page title",
+          "fill": "#3F3F46",
+          "textGrowth": "fixed-width",
+          "width": 200,
+          "content": "收支账本",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "f87o2",
+          "x": 112,
+          "y": 92,
+          "name": "Ledger heading",
+          "width": 608,
+          "height": 44,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "vvkj1",
+              "name": "Ledger month",
+              "fill": "#52525B",
+              "textGrowth": "fixed-width",
+              "width": 250,
+              "content": "2026 年 9 月",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 22,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "F6NNlk",
+              "name": "Ledger actions",
+              "width": 180,
+              "height": 36,
+              "gap": 10,
+              "justifyContent": "end",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "s4P0Qi",
+                  "name": "Ledger action 0",
+                  "width": 80,
+                  "height": 34,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 17,
+                  "stroke": "#D4D4D8",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "mseIU",
+                      "name": "Ledger action label 0",
+                      "fill": "#52525B",
+                      "content": "导入账单",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "fV1SE",
+                  "name": "Ledger action 1",
+                  "width": 80,
+                  "height": 34,
+                  "fill": "$core.color.brand.primary",
+                  "cornerRadius": 17,
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "P1y68U",
+                      "name": "Ledger action label 1",
+                      "fill": "#FFFFFF",
+                      "content": "记一笔",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "oAi3y",
+          "x": 112,
+          "y": 160,
+          "name": "Ledger table preview",
+          "width": 608,
+          "height": 834,
+          "fill": "#FFFFFF",
+          "cornerRadius": 12,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "N4UTm",
+              "name": "Ledger table columns",
+              "width": "fill_container",
+              "height": 48,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Z4biy",
+                  "name": "Column 0",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "日期",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "Id3gW",
+                  "name": "Column 1",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "摘要",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "q3mL3",
+                  "name": "Column 2",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "xmdhr",
+                  "name": "Column 3",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "金额",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "O2bAM",
+              "name": "Ledger row 0",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wjhav",
+                  "name": "Ledger cell 0 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "09-30",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "v6fUq",
+                  "name": "Ledger cell 0 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "便利店购物",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "lLT6G",
+                  "name": "Ledger cell 0 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "g0DRy",
+                  "name": "Ledger cell 0 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "- ¥ 26.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "xRxca",
+              "name": "Ledger row 1",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "CzRyh",
+                  "name": "Ledger cell 1 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "09-29",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "HB1P9",
+                  "name": "Ledger cell 1 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "工资",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "d1lU9L",
+                  "name": "Ledger cell 1 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "工资卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "j0zWi",
+                  "name": "Ledger cell 1 3",
+                  "fill": "#16835D",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "+ ¥ 12,480.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "OPL5q",
+              "name": "Ledger row 2",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "u6jKS",
+                  "name": "Ledger cell 2 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "09-28",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "f1guUZ",
+                  "name": "Ledger cell 2 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "餐饮",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ct6sS",
+                  "name": "Ledger cell 2 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "支付宝",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "V7fc7i",
+                  "name": "Ledger cell 2 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "- ¥ 86.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "NQ7Zp",
+              "name": "Ledger row 3",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "e4yaN",
+                  "name": "Ledger cell 3 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "09-27",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "TF67U",
+                  "name": "Ledger cell 3 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "话费充值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "JCjP1",
+                  "name": "Ledger cell 3 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "微信支付",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "vaSGM",
+                  "name": "Ledger cell 3 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "- ¥ 50.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "LKL1l",
+              "name": "Ledger row 4",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "KDie0",
+                  "name": "Ledger cell 4 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "09-26",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "sCwxN",
+                  "name": "Ledger cell 4 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 180,
+                  "content": "交通出行",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "Drpfy",
+                  "name": "Ledger cell 4 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "GXm64",
+                  "name": "Ledger cell 4 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 100,
+                  "content": "- ¥ 18.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "rreQz",
+          "x": 0,
+          "y": 0,
+          "name": "Modal backdrop dim",
+          "opacity": 0.38,
+          "fill": "#18181B",
+          "width": 768,
+          "height": 1024
+        },
+        {
+          "id": "E9Siq6",
+          "type": "ref",
+          "ref": "D:kIuwj",
+          "name": "Secondary page container / REGULAR",
+          "x": 38,
+          "y": 51,
+          "width": 691,
+          "height": 922,
+          "descendants": {
+            "D:U2t03": {
+              "content": "导入账单"
+            },
+            "D:wu0zD": {
+              "width": 44,
+              "height": 44
+            },
+            "D:X77ia": {
+              "type": "frame",
+              "id": "nKcXv",
+              "name": "Import content / regular",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#FFFFFF",
+              "layout": "vertical",
+              "gap": 16,
+              "padding": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "t3J2ZO",
+                  "name": "四步进度",
+                  "width": "fill_container",
+                  "height": 58,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Ff9RO",
+                      "name": "步骤 文件",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "z9X3fL",
+                          "name": "步骤编号背景 0",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "DFKLg",
+                              "name": "步骤编号 0",
+                              "fill": "#FFFFFF",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "jxGjY",
+                          "name": "步骤名称 0",
+                          "fill": "#71717A",
+                          "content": "文件",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "CGEai",
+                      "name": "步骤 账户",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Y4XtB",
+                          "name": "步骤编号背景 1",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "jUfmy",
+                              "name": "步骤编号 1",
+                              "fill": "#FFFFFF",
+                              "content": "2",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "Bu0NL",
+                          "name": "步骤名称 1",
+                          "fill": "$core.color.brand.primary",
+                          "content": "账户",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Ir4QB",
+                      "name": "步骤 核对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "VGj5D",
+                          "name": "步骤编号背景 2",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#F4F4F5",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "TB8ow",
+                              "name": "步骤编号 2",
+                              "fill": "#71717A",
+                              "content": "3",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "nOql7",
+                          "name": "步骤名称 2",
+                          "fill": "#71717A",
+                          "content": "核对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XZIwz",
+                      "name": "步骤 配对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "dzdwy",
+                          "name": "步骤编号背景 3",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "#F4F4F5",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "gOrzj",
+                              "name": "步骤编号 3",
+                              "fill": "#71717A",
+                              "content": "4",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "f9Sqbj",
+                          "name": "步骤名称 3",
+                          "fill": "#71717A",
+                          "content": "配对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "IoHIo",
+                  "name": "已选择文件摘要",
+                  "width": "fill_container",
+                  "height": 58,
+                  "fill": "#F8FAFC",
+                  "cornerRadius": 10,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "E1zw9",
+                      "name": "文件图标",
+                      "fill": "#0485F7",
+                      "content": "▤",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "On8Fa",
+                      "name": "文件名称与数量",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 3,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "h0YT8",
+                          "name": "文件名",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "账单_2026-09.xlsx",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "sf34P",
+                          "name": "识别数量",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "已识别 2 个来源账户 · 3 条记录",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "yqA3a",
+                      "name": "文件类型标签",
+                      "fill": "#52525B",
+                      "content": "XLSX",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "EKKMQ",
+                  "name": "账户映射标题区",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CBa6o",
+                      "name": "映射标题",
+                      "fill": "#18181B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "选择目标账户",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "p7T07p",
+                  "name": "来源映射 1",
+                  "width": "fill_container",
+                  "height": 82,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 14,
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "yoTrC",
+                      "name": "来源映射 1 来源信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "ChSKg",
+                          "name": "来源映射 1 来源账户",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "招商银行储蓄卡（尾号 2820）",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "sf12n",
+                      "name": "来源映射 1 目标选择",
+                      "width": 245,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "ivStE",
+                          "name": "来源映射 1 目标账户选择框",
+                          "width": "fill_container",
+                          "height": 38,
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 8,
+                          "stroke": "#0485F7",
+                          "strokeWidth": 2,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "ChkVz",
+                              "name": "来源映射 1 目标账户文案",
+                              "fill": "#27272A",
+                              "content": "招商银行储蓄卡（2820）",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "GwE9i",
+                              "name": "来源映射 1 下拉箭头",
+                              "fill": "#71717A",
+                              "content": "⌄",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 16,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ClLoF",
+                  "name": "来源映射 2",
+                  "width": "fill_container",
+                  "height": 82,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 14,
+                  "padding": [
+                    10,
+                    14
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "mTBTB",
+                      "name": "来源映射 2 来源信息",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "lPYrI",
+                          "name": "来源映射 2 来源账户",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "支付宝余额",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "GA4iq",
+                      "name": "来源映射 2 目标选择",
+                      "width": 245,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Rm1xQ",
+                          "name": "来源映射 2 目标账户选择框",
+                          "width": "fill_container",
+                          "height": 38,
+                          "fill": "#FFFFFF",
+                          "cornerRadius": 8,
+                          "stroke": "#D92D20",
+                          "strokeWidth": 1,
+                          "padding": [
+                            0,
+                            12
+                          ],
+                          "justifyContent": "space_between",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "cCUtY",
+                              "name": "来源映射 2 目标账户文案",
+                              "fill": "#A1A1AA",
+                              "content": "选择目标账户",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 13,
+                              "fontWeight": "normal"
+                            },
+                            {
+                              "type": "text",
+                              "id": "DmEgY",
+                              "name": "来源映射 2 下拉箭头",
+                              "fill": "#71717A",
+                              "content": "⌄",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 16,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "djL9v",
+                          "name": "来源映射 2 校验错误",
+                          "fill": "#D92D20",
+                          "content": "请选择账户",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "QFh26",
+                  "name": "映射留白",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical"
+                },
+                {
+                  "type": "frame",
+                  "id": "UYImc",
+                  "name": "映射页操作",
+                  "width": "fill_container",
+                  "height": 48,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tuTjM",
+                      "name": "返回上一步",
+                      "width": 104,
+                      "height": 44,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 22,
+                      "stroke": "#D4D4D8",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "L5E3D",
+                          "name": "返回上一步 label",
+                          "fill": "#3F3F46",
+                          "content": "上一步",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gwzFO",
+                      "name": "继续操作与提示",
+                      "gap": 12,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "HVjwb",
+                          "name": "映射下一步",
+                          "width": 112,
+                          "height": 44,
+                          "fill": "#E4E4E7",
+                          "cornerRadius": 22,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "rxres",
+                              "name": "映射下一步 label",
+                              "fill": "#A1A1AA",
+                              "content": "下一步",
+                              "fontFamily": "Noto Sans SC",
+                              "fontSize": 14,
+                              "fontWeight": "500"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "YGZoE",
+      "x": 1400,
+      "y": 0,
+      "name": "WIDE · 1440 px",
+      "clip": true,
+      "width": 1440,
+      "height": 900,
+      "fill": "#F5F5F5",
+      "layout": "none",
+      "children": [
+        {
+          "type": "frame",
+          "id": "e66bch",
+          "x": 0,
+          "y": 0,
+          "name": "Collapsed sidebar",
+          "width": 72,
+          "height": 900,
+          "fill": "#FFFFFF",
+          "layout": "vertical",
+          "gap": 18,
+          "padding": [
+            18,
+            0
+          ],
+          "alignItems": "center"
+        },
+        {
+          "type": "rectangle",
+          "id": "pFgmU",
+          "x": 71,
+          "y": 0,
+          "name": "Sidebar divider",
+          "fill": "#E4E4E7",
+          "width": 1,
+          "height": 900
+        },
+        {
+          "type": "frame",
+          "id": "HBfZR",
+          "x": 18,
+          "y": 24,
+          "name": "Navigation icon 0",
+          "width": 36,
+          "height": 36,
+          "fill": "#EAF4FF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "LSeri",
+              "name": "Navigation glyph 0",
+              "fill": "#000000",
+              "content": "⌂",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "ZCcPS",
+          "x": 18,
+          "y": 80,
+          "name": "Navigation icon 1",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "U394Rp",
+              "name": "Navigation glyph 1",
+              "fill": "#71717A",
+              "content": "◆",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "eGDYB",
+          "x": 18,
+          "y": 136,
+          "name": "Navigation icon 2",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "k3Kcc5",
+              "name": "Navigation glyph 2",
+              "fill": "#71717A",
+              "content": "▣",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "p2vUL",
+          "x": 18,
+          "y": 192,
+          "name": "Navigation icon 3",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "b099BN",
+              "name": "Navigation glyph 3",
+              "fill": "#71717A",
+              "content": "↔",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "HVK6T",
+          "x": 18,
+          "y": 248,
+          "name": "Navigation icon 4",
+          "width": 36,
+          "height": 36,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "znMMh",
+              "name": "Navigation glyph 4",
+              "fill": "#71717A",
+              "content": "⚙",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 18,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "OBHpa",
+          "x": 18,
+          "y": 842,
+          "name": "Profile avatar",
+          "width": 36,
+          "height": 36,
+          "fill": "#DCEBFA",
+          "cornerRadius": 18,
+          "layout": "vertical",
+          "justifyContent": "center",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "TY1ce",
+              "name": "Avatar initial",
+              "fill": "#2865A3",
+              "content": "S",
+              "fontFamily": "Inter",
+              "fontSize": 14,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "r9jZjE",
+          "x": 72,
+          "y": 0,
+          "name": "App bar",
+          "width": 1368,
+          "height": 64,
+          "fill": "#FFFFFF",
+          "padding": [
+            0,
+            28
+          ],
+          "justifyContent": "space_between",
+          "alignItems": "center"
+        },
+        {
+          "type": "text",
+          "id": "d8Sxz",
+          "x": 104,
+          "y": 20,
+          "name": "Background page title",
+          "fill": "#3F3F46",
+          "textGrowth": "fixed-width",
+          "width": 200,
+          "content": "收支账本",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 20,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "QpVnt",
+          "x": 112,
+          "y": 92,
+          "name": "Ledger heading",
+          "width": 1280,
+          "height": 44,
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "dSrxg",
+              "name": "Ledger month",
+              "fill": "#52525B",
+              "textGrowth": "fixed-width",
+              "width": 250,
+              "content": "2026 年 9 月",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 22,
+              "fontWeight": "600"
+            },
+            {
+              "type": "frame",
+              "id": "bIxYC",
+              "name": "Ledger actions",
+              "width": 180,
+              "height": 36,
+              "gap": 10,
+              "justifyContent": "end",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "txAvm",
+                  "name": "Ledger action 0",
+                  "width": 80,
+                  "height": 34,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 17,
+                  "stroke": "#D4D4D8",
+                  "strokeWidth": 1,
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "TCeJT",
+                      "name": "Ledger action label 0",
+                      "fill": "#52525B",
+                      "content": "导入账单",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ERp4x",
+                  "name": "Ledger action 1",
+                  "width": 80,
+                  "height": 34,
+                  "fill": "$core.color.brand.primary",
+                  "cornerRadius": 17,
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "yuMgz",
+                      "name": "Ledger action label 1",
+                      "fill": "#FFFFFF",
+                      "content": "记一笔",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "deIU5",
+          "x": 112,
+          "y": 160,
+          "name": "Ledger table preview",
+          "width": 1280,
+          "height": 710,
+          "fill": "#FFFFFF",
+          "cornerRadius": 12,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "layout": "vertical",
+          "children": [
+            {
+              "type": "frame",
+              "id": "y772k",
+              "name": "Ledger table columns",
+              "width": "fill_container",
+              "height": 48,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "bFOmv",
+                  "name": "Column 0",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "日期",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "sR1ox",
+                  "name": "Column 1",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "摘要",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "aCcTR",
+                  "name": "Column 2",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "账户",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "jSv7o",
+                  "name": "Column 3",
+                  "fill": "#71717A",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "金额",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "PZJhk",
+              "name": "Ledger row 0",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "yqFUQ",
+                  "name": "Ledger cell 0 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "09-30",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "SHWTa",
+                  "name": "Ledger cell 0 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "便利店购物",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "zzdcM",
+                  "name": "Ledger cell 0 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "XHu1u",
+                  "name": "Ledger cell 0 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "- ¥ 26.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rfnU8",
+              "name": "Ledger row 1",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "Sv5tJ",
+                  "name": "Ledger cell 1 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "09-29",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ARIeD",
+                  "name": "Ledger cell 1 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "工资",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "oR5Wi",
+                  "name": "Ledger cell 1 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "工资卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "oDfhi",
+                  "name": "Ledger cell 1 3",
+                  "fill": "#16835D",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "+ ¥ 12,480.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "hrfLf",
+              "name": "Ledger row 2",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "ZVm8d",
+                  "name": "Ledger cell 2 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "09-28",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "kfDhx",
+                  "name": "Ledger cell 2 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "餐饮",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "HSd0l",
+                  "name": "Ledger cell 2 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "支付宝",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "udKMJ",
+                  "name": "Ledger cell 2 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "- ¥ 86.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "XuRpU",
+              "name": "Ledger row 3",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "mUID5",
+                  "name": "Ledger cell 3 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "09-27",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "YoHIG",
+                  "name": "Ledger cell 3 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "话费充值",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "myt78",
+                  "name": "Ledger cell 3 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "微信支付",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "owbWH",
+                  "name": "Ledger cell 3 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "- ¥ 50.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "WC3hN",
+              "name": "Ledger row 4",
+              "width": "fill_container",
+              "height": 60,
+              "gap": 20,
+              "padding": [
+                0,
+                20
+              ],
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "MPsaH",
+                  "name": "Ledger cell 4 0",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "09-26",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "hGWBR",
+                  "name": "Ledger cell 4 1",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 440,
+                  "content": "交通出行",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "KyBEY",
+                  "name": "Ledger cell 4 2",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "bCyKr",
+                  "name": "Ledger cell 4 3",
+                  "fill": "#52525B",
+                  "textGrowth": "fixed-width",
+                  "width": 170,
+                  "content": "- ¥ 18.00",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "scUGi",
+          "x": 0,
+          "y": 0,
+          "name": "Modal backdrop dim",
+          "opacity": 0.38,
+          "fill": "#18181B",
+          "width": 1440,
+          "height": 900
+        },
+        {
+          "id": "J1g60f",
+          "type": "ref",
+          "ref": "D:kIuwj",
+          "name": "Secondary page container / WIDE",
+          "x": 72,
+          "y": 45,
+          "width": 1296,
+          "height": 810,
+          "descendants": {
+            "D:U2t03": {
+              "content": "导入账单"
+            },
+            "D:wu0zD": {
+              "width": 44,
+              "height": 44
+            },
+            "D:X77ia": {
+              "type": "frame",
+              "id": "No4za",
+              "name": "Import content / wide",
+              "width": "fill_container",
+              "height": "fill_container",
+              "fill": "#FFFFFF",
+              "layout": "vertical",
+              "gap": 18,
+              "padding": 28,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "O97T3",
+                  "name": "四步进度",
+                  "width": "fill_container",
+                  "height": 58,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "juGSN",
+                      "name": "步骤 文件",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "r6YkY6",
+                          "name": "步骤编号背景 0",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "lIyL9",
+                              "name": "步骤编号 0",
+                              "fill": "#FFFFFF",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "aleyp",
+                          "name": "步骤名称 0",
+                          "fill": "#71717A",
+                          "content": "文件",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "bCe79",
+                      "name": "步骤 账户",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "FHFOF",
+                          "name": "步骤编号背景 1",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "z5llff",
+                              "name": "步骤编号 1",
+                              "fill": "#FFFFFF",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "vlnGI",
+                          "name": "步骤名称 1",
+                          "fill": "#71717A",
+                          "content": "账户",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "d1k1a",
+                      "name": "步骤 核对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "L61T1",
+                          "name": "步骤编号背景 2",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "m9Eu9N",
+                              "name": "步骤编号 2",
+                              "fill": "#FFFFFF",
+                              "content": "✓",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "aPRza",
+                          "name": "步骤名称 2",
+                          "fill": "#71717A",
+                          "content": "核对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "gFCuG",
+                      "name": "步骤 配对",
+                      "width": "fill_container",
+                      "height": 58,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Z7eTM",
+                          "name": "步骤编号背景 3",
+                          "width": 24,
+                          "height": 24,
+                          "fill": "$core.color.brand.primary",
+                          "cornerRadius": 12,
+                          "layout": "vertical",
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "oY2IN",
+                              "name": "步骤编号 3",
+                              "fill": "#FFFFFF",
+                              "content": "4",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "text",
+                          "id": "HLoRx",
+                          "name": "步骤名称 3",
+                          "fill": "$core.color.brand.primary",
+                          "content": "配对",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "DOPWD",
+                  "name": "关系配对标题区",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "gap": 4,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "FmHm9",
+                      "name": "关系配对标题",
+                      "fill": "#18181B",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "关系配对",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 20,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "D3g1s8",
+                      "x": 0,
+                      "y": 33,
+                      "name": "关系配对摘要",
+                      "enabled": false,
+                      "fill": "#71717A",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container(1240)",
+                      "content": "将相同流水关联，避免重复记录",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "KLAeY",
+                  "x": 28,
+                  "y": 172,
+                  "name": "配对统计",
+                  "enabled": false,
+                  "width": "fill_container(1240)",
+                  "height": 40,
+                  "gap": 10,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "uZcRZ",
+                      "name": "配对统计 0",
+                      "width": 150,
+                      "height": 32,
+                      "fill": "#EAF4FF",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "HLXUN",
+                          "name": "配对统计文案 0",
+                          "fill": "#1769AA",
+                          "content": "自动匹配 2 条",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "IBl2p",
+                      "name": "配对统计 1",
+                      "width": 150,
+                      "height": 32,
+                      "fill": "#FFF7ED",
+                      "cornerRadius": 16,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "neLNu",
+                          "name": "配对统计文案 1",
+                          "fill": "#A04D12",
+                          "content": "待确认 1 条",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "k6xiuq",
+                  "name": "配对筛选",
+                  "width": "fill_container",
+                  "height": 44,
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "qayjZ",
+                      "name": "配对筛选项 0",
+                      "width": 106,
+                      "height": 44,
+                      "fill": "#EAF4FF",
+                      "cornerRadius": 17,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "MHRtw",
+                          "name": "配对筛选文字 0",
+                          "fill": "#18181B",
+                          "content": "全部 3",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QIOM4",
+                      "name": "配对筛选项 1",
+                      "width": 116,
+                      "height": 44,
+                      "fill": "#F4F4F5",
+                      "cornerRadius": 17,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Yk4r1",
+                          "name": "配对筛选文字 1",
+                          "fill": "#52525B",
+                          "content": "待确认 1",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "q8DloR",
+                      "name": "配对筛选项 2",
+                      "width": 116,
+                      "height": 44,
+                      "fill": "#F4F4F5",
+                      "cornerRadius": 17,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "k8kWb",
+                          "name": "配对筛选文字 2",
+                          "fill": "#52525B",
+                          "content": "已匹配 2",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "eLYIK",
+                  "name": "关系项 1",
+                  "width": "fill_container",
+                  "height": 88,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dSLqf",
+                      "name": "关系项 1 导入流水",
+                      "width": 180,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "IaG1J",
+                          "name": "关系项 1 时间",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "09 月 30 日 · 20:16",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "c7HY37",
+                          "name": "关系项 1 摘要",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "美团外卖 · ¥ 68.00",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "w9cWZX",
+                      "name": "关系项 1 关联符号",
+                      "fill": "#A1A1AA",
+                      "content": "→",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "wAa4I",
+                      "name": "关系项 1 已有流水",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "O4crTv",
+                          "name": "关系项 1 匹配标题",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "美团外卖",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "l4p9M",
+                          "name": "关系项 1 匹配详情",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "09 月 30 日 · ¥ 68.00",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ugvM0",
+                      "name": "关系项 1 匹配状态",
+                      "width": 94,
+                      "height": 32,
+                      "fill": "#EAF4FF",
+                      "cornerRadius": 16,
+                      "stroke": "#C7DDF4",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "vaTTy",
+                          "name": "关系项 1 匹配操作",
+                          "fill": "#1769AA",
+                          "content": "已关联",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "rMixf",
+                  "name": "关系项 2",
+                  "width": "fill_container",
+                  "height": 88,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "MYHo0",
+                      "name": "关系项 2 导入流水",
+                      "width": 180,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "M4Kz8",
+                          "name": "关系项 2 时间",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "09 月 29 日 · 12:04",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "LyeoA",
+                          "name": "关系项 2 摘要",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "午餐消费 · ¥ 42.00",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "ozTqA",
+                      "name": "关系项 2 关联符号",
+                      "fill": "#A1A1AA",
+                      "content": "→",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "F7hzu",
+                      "name": "关系项 2 已有流水",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "hoyqa",
+                          "name": "关系项 2 匹配标题",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "午餐消费",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        },
+                        {
+                          "type": "text",
+                          "id": "rXQqF",
+                          "name": "关系项 2 匹配详情",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "09 月 29 日 · ¥ 42.00",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "THR08",
+                      "name": "关系项 2 匹配状态",
+                      "width": 94,
+                      "height": 32,
+                      "fill": "#EAF4FF",
+                      "cornerRadius": 16,
+                      "stroke": "#C7DDF4",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kEYUE",
+                          "name": "关系项 2 匹配操作",
+                          "fill": "#1769AA",
+                          "content": "已关联",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "aTro1",
+                  "name": "关系项 3",
+                  "width": "fill_container",
+                  "height": 88,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "stroke": "#E4E4E7",
+                  "strokeWidth": 1,
+                  "gap": 12,
+                  "padding": [
+                    12,
+                    14
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "cdla6",
+                      "name": "关系项 3 导入流水",
+                      "width": 180,
+                      "layout": "vertical",
+                      "gap": 5,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "hBZw6",
+                          "name": "关系项 3 时间",
+                          "fill": "#71717A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "09 月 28 日 · 18:32",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ixKk2",
+                          "name": "关系项 3 摘要",
+                          "fill": "#27272A",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "商超购物 · ¥ 126.50",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "wOcR0",
+                      "name": "关系项 3 关联符号",
+                      "fill": "#A1A1AA",
+                      "content": "→",
+                      "fontFamily": "Noto Sans SC",
+                      "fontSize": 18,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QLXN4",
+                      "name": "待确认流水下拉框",
+                      "width": "fill_container",
+                      "height": 44,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 12,
+                      "stroke": "#D4D4D8",
+                      "strokeWidth": 1,
+                      "padding": [
+                        0,
+                        12
+                      ],
+                      "justifyContent": "space_between",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "kmHzg",
+                          "name": "下拉框占位文字",
+                          "fill": "#52525B",
+                          "content": "选择流水",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        },
+                        {
+                          "type": "icon",
+                          "id": "Iqli1",
+                          "name": "下拉箭头",
+                          "width": 18,
+                          "height": 18,
+                          "icon": "chevron-down",
+                          "library": "lucide",
+                          "fill": "#71717A"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "LJpJC",
+                      "x": 1132,
+                      "y": 22,
+                      "name": "关系项 3 匹配状态",
+                      "enabled": false,
+                      "width": 94,
+                      "height": 44,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 16,
+                      "stroke": "#D4D4D8",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "CKL5P",
+                          "name": "关系项 3 匹配操作",
+                          "fill": "#52525B",
+                          "content": "选择流水",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 11,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bYG96",
+                  "name": "配对列表留白",
+                  "width": "fill_container",
+                  "height": "fill_container",
+                  "layout": "vertical"
+                },
+                {
+                  "type": "frame",
+                  "id": "d3jDQc",
+                  "name": "关系配对底部操作",
+                  "width": "fill_container",
+                  "height": 48,
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "tcEAU",
+                      "name": "配对上一步",
+                      "width": 104,
+                      "height": 44,
+                      "fill": "#FFFFFF",
+                      "cornerRadius": 22,
+                      "stroke": "#D4D4D8",
+                      "strokeWidth": 1,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "JXSQz",
+                          "name": "配对上一步 label",
+                          "fill": "#3F3F46",
+                          "content": "上一步",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "jCJb2",
+                      "name": "确认导入",
+                      "width": 132,
+                      "height": 44,
+                      "fill": "$core.color.brand.primary",
+                      "cornerRadius": 22,
+                      "layout": "vertical",
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "otAzJ",
+                          "name": "确认导入 label",
+                          "fill": "#FFFFFF",
+                          "content": "确认导入",
+                          "fontFamily": "Noto Sans SC",
+                          "fontSize": 14,
+                          "fontWeight": "500"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "T3hnGi",
+      "x": 0,
+      "y": 1104,
+      "name": "Cash import feedback state reference",
+      "reusable": true,
+      "width": 680,
+      "height": 240,
+      "fill": "#FFFFFF",
+      "cornerRadius": 12,
+      "stroke": "#E4E4E7",
+      "strokeWidth": 1,
+      "layout": "vertical",
+      "gap": 10,
+      "padding": 18,
+      "children": [
+        {
+          "type": "text",
+          "id": "uzs2A",
+          "name": "Feedback reference title",
+          "fill": "#52525B",
+          "content": "导入反馈状态参考",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 14,
+          "fontWeight": "600"
+        },
+        {
+          "type": "frame",
+          "id": "QlKf9",
+          "name": "反馈状态 0",
+          "width": "fill_container",
+          "height": 42,
+          "fill": "#F8FAFC",
+          "cornerRadius": 8,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "gap": 12,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "J6ZEQ5",
+              "name": "反馈图标 0",
+              "fill": "#0485F7",
+              "content": "◌",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "J86iB",
+              "name": "反馈标题 0",
+              "fill": "#27272A",
+              "content": "正在读取账单",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "G0U5V",
+              "name": "反馈说明 0",
+              "fill": "$core.color.brand.primary",
+              "content": "请稍候",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "OTJCj",
+          "name": "反馈状态 1",
+          "width": "fill_container",
+          "height": 42,
+          "fill": "#FBEAE8",
+          "cornerRadius": 8,
+          "stroke": "#FFC7C7",
+          "strokeWidth": 1,
+          "gap": 12,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "Ipz5h",
+              "name": "反馈图标 1",
+              "fill": "#B42318",
+              "content": "!",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "J4TXVd",
+              "name": "反馈标题 1",
+              "fill": "#27272A",
+              "content": "无法读取文件",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "cbbaw",
+              "name": "反馈说明 1",
+              "fill": "#B42318",
+              "content": "更换文件后重试",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "a8h5IV",
+          "name": "反馈状态 2",
+          "width": "fill_container",
+          "height": 42,
+          "fill": "#E8F5EE",
+          "cornerRadius": 8,
+          "stroke": "#BBF7D0",
+          "strokeWidth": 1,
+          "gap": 12,
+          "padding": [
+            0,
+            12
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "text",
+              "id": "d6ZK9Q",
+              "name": "反馈图标 2",
+              "fill": "#087443",
+              "content": "✓",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 16,
+              "fontWeight": "600"
+            },
+            {
+              "type": "text",
+              "id": "s7SSbg",
+              "name": "反馈标题 2",
+              "fill": "#27272A",
+              "content": "导入完成",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "500"
+            },
+            {
+              "type": "text",
+              "id": "UdaKH",
+              "name": "反馈说明 2",
+              "fill": "#087443",
+              "content": "已添加 3 条记录",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "QVfp4",
+      "x": 720,
+      "y": 1104,
+      "name": "Review step content reference",
+      "width": 680,
+      "height": 376,
+      "fill": "#FFFFFF",
+      "cornerRadius": 12,
+      "stroke": "#E4E4E7",
+      "strokeWidth": 1,
+      "layout": "vertical",
+      "gap": 12,
+      "padding": 20,
+      "children": [
+        {
+          "type": "text",
+          "id": "Igqr6",
+          "name": "Review step title",
+          "fill": "#18181B",
+          "content": "核对流水",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 18,
+          "fontWeight": "600"
+        },
+        {
+          "type": "text",
+          "id": "GTcxE",
+          "x": 20,
+          "y": 58,
+          "name": "Review step summary",
+          "enabled": false,
+          "fill": "#71717A",
+          "content": "共 3 条流水",
+          "fontFamily": "Noto Sans SC",
+          "fontSize": 12,
+          "fontWeight": "normal"
+        },
+        {
+          "type": "frame",
+          "id": "VXaDL",
+          "name": "Review step filters",
+          "width": "fill_container",
+          "height": 44,
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "x16qe2",
+              "name": "Review all filter",
+              "width": 90,
+              "height": 44,
+              "fill": "#EAF4FF",
+              "cornerRadius": 16,
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "DMhAd",
+                  "name": "Review all filter label",
+                  "fill": "#18181B",
+                  "content": "全部 3",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "600"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "c1g3Ei",
+              "name": "Review income filter",
+              "width": 86,
+              "height": 44,
+              "fill": "#F4F4F5",
+              "cornerRadius": 16,
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "RODcv",
+                  "name": "Review income filter label",
+                  "fill": "#52525B",
+                  "content": "收入 1",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "BDpz1",
+              "name": "Review expense filter",
+              "width": 86,
+              "height": 44,
+              "fill": "#F4F4F5",
+              "cornerRadius": 16,
+              "layout": "vertical",
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "aYID7",
+                  "name": "Review expense filter label",
+                  "fill": "#52525B",
+                  "content": "支出 2",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "bOEFy",
+          "name": "Review transaction row 1",
+          "width": "fill_container",
+          "height": 64,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "gap": 16,
+          "padding": [
+            10,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "BALz6",
+              "name": "Review row 1 description",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "J80qH7",
+                  "fill": "#27272A",
+                  "content": "美团外卖",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "W9QHqz",
+                  "fill": "#71717A",
+                  "content": "09 月 30 日 · 20:16 · 招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "cobAr",
+              "name": "Review row 1 amount",
+              "fill": "#18181B",
+              "content": "− ¥ 68.00",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "D9wxL9",
+          "name": "Review transaction row 2",
+          "width": "fill_container",
+          "height": 64,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "gap": 16,
+          "padding": [
+            10,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Z7iB1P",
+              "name": "Review row 2 description",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "wRdhH",
+                  "fill": "#27272A",
+                  "content": "工资",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "x2LpmF",
+                  "fill": "#71717A",
+                  "content": "09 月 29 日 · 12:04 · 招商银行储蓄卡",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "Q2t7ts",
+              "name": "Review row 2 amount",
+              "fill": "#087443",
+              "content": "+ ¥ 18,000.00",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "600"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "m4MRY",
+          "name": "Review transaction row 3",
+          "width": "fill_container",
+          "height": 64,
+          "fill": "#FFFFFF",
+          "cornerRadius": 10,
+          "stroke": "#E4E4E7",
+          "strokeWidth": 1,
+          "gap": 16,
+          "padding": [
+            10,
+            16
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Yms6M",
+              "name": "Review row 3 description",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 4,
+              "children": [
+                {
+                  "type": "text",
+                  "id": "lX9IJ",
+                  "fill": "#27272A",
+                  "content": "超市购物",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 13,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "FIPyZ",
+                  "fill": "#71717A",
+                  "content": "09 月 28 日 · 18:32 · 支付宝余额",
+                  "fontFamily": "Noto Sans SC",
+                  "fontSize": 11,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "OMLjs",
+              "name": "Review row 3 amount",
+              "fill": "#18181B",
+              "content": "− ¥ 126.50",
+              "fontFamily": "Noto Sans SC",
+              "fontSize": 13,
+              "fontWeight": "600"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "core.color.brand.primary": {
+      "type": "color",
+      "value": "#0A63B8"
+    }
+  },
+  "imports": {
+    "D": "finance-ui.lib.pen"
+  },
+  "fileToken": "9a564b8f-cfcf-4c76-b205-fc8fc128c2d0"
+}
