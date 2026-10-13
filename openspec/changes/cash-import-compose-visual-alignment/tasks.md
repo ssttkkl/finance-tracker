@@ -50,7 +50,7 @@
 
 ## 7. 发布准备
 
-- [ ] 7.1 Rollback scope is limited to the import presentation/theme, reusable theme-role lookup, tests, feature map, and this OpenSpec change; no data rollback is needed. Validation starts from `dec27a8` on `refactor/kmp`. Commit and push to the same branch are authorized by the user's earlier request and will be recorded after the final status/diff check. Native authenticated UI QA was not run because there is no seeded test session/backend for the simulator and no Android device is attached.
+- [x] 7.1 Rollback scope is limited to the import presentation/theme, reusable theme-role lookup, tests, feature map, and this OpenSpec change; no data rollback is needed. Validation started from `dec27a8` on `refactor/kmp`; implementation commit `4ed5492` is pushed to `origin/refactor/kmp`. Native authenticated UI QA was not run because there is no seeded test session/backend for the simulator and no Android device is attached.
 
 ## 8. 反思
 
@@ -62,4 +62,4 @@
 - Prototype check: Chromium, standalone `prototype/index.html`, viewports 320/375/414/768/390/1440; `scrollWidth === innerWidth` at all six widths. Reference captures are listed in 6.4.
 - Compose browser: Playwright Chromium, `http://127.0.0.1:5186/w/workspace-1/cash-import`, `colorScheme=dark`; F-05 tests passed. Manual app tab `http://127.0.0.1:5186/w/aba98eed-8f7b-4a53-b58b-469190501fae/cash-import` was reloaded and visually checked at 1280×720 after the final build.
 - Browser console/network: the shared diagnostics fixture asserted no unexpected console errors, failed requests, or static-resource HTTP errors across the passing F-05 cases.
-- Validation baseline: `refactor/kmp` at `dec27a8`; implementation commit hash is recorded in the post-commit update to this section. `git diff --check` and targeted strict OpenSpec validation passed after these artifacts were updated. Full OpenSpec validation has the unrelated `hero-ui-compose-finance-ui` failure recorded above.
+- Validation baseline: `refactor/kmp` at `dec27a8`; implementation commit `4ed5492` is pushed to `origin/refactor/kmp`. `git diff --check` and targeted strict OpenSpec validation passed after these artifacts were updated. Full OpenSpec validation has the unrelated `hero-ui-compose-finance-ui` failure recorded above.
