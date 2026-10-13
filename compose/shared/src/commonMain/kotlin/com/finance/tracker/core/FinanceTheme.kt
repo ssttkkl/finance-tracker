@@ -98,7 +98,10 @@ private fun financeTypography(family: FontFamily) = Typography().let { base ->
 }
 
 @Composable
-fun FinanceTheme(content: @Composable () -> Unit) {
+fun FinanceTheme(
+    darkThemeOverride: Boolean? = null,
+    content: @Composable () -> Unit,
+) {
     val fontFamily = platformFinanceFontFamily()
     var fontReady by remember(fontFamily) { mutableStateOf(!platformFinanceFontRequiresPreload) }
     val fontFamilyResolver = LocalFontFamilyResolver.current
@@ -112,7 +115,7 @@ fun FinanceTheme(content: @Composable () -> Unit) {
         }
     }
 
-    val darkTheme = isSystemInDarkTheme()
+    val darkTheme = darkThemeOverride ?: isSystemInDarkTheme()
     val colorScheme = if (darkTheme) cobaltDark else cobaltLight
     CompositionLocalProvider(LocalFinanceColorRoles provides FinanceTokens.forTheme(darkTheme)) {
         MaterialTheme(

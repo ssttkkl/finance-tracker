@@ -527,8 +527,7 @@
     <string name="cash_import_step_relation">配对</string>
     <string name="cash_import_select_file_heading">选择账单文件</string>
     <string name="cash_import_add_file_heading">添加账单文件</string>
-    <string name="cash_import_file_formats">CSV · XLS · XLSX · PDF</string>
-    <string name="cash_import_file_size_limit">单个文件不超过 100 MB</string>
+    <string name="cash_import_file_formats">CSV · XLSX · PDF</string>
     <string name="cash_import_choose_file">选择文件</string>
     <string name="cash_import_replace_file">更换文件</string>
     <string name="cash_import_discard_note">离开后将丢弃未完成导入</string>

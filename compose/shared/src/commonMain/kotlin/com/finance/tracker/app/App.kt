@@ -319,7 +319,9 @@ private fun FinanceTrackerAppContent(
         invitationSignInRequested = false
     }
 
-    FinanceTheme {
+    FinanceTheme(
+        darkThemeOverride = if (currentRoute.page == AppPage.CASH_IMPORT) false else null,
+    ) {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()

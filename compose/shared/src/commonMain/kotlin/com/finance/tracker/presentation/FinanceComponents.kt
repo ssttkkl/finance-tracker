@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.Text
 import androidx.compose.material3.LocalContentColor
@@ -110,6 +111,7 @@ internal fun FinanceButton(
     focusRequester: FocusRequester? = null,
     shape: Shape = RoundedCornerShape(22.dp),
     borderColor: Color? = null,
+    borderWidth: Dp = 1.dp,
     content: @Composable () -> Unit,
 ) {
     val colors = LocalFinanceColorRoles.current
@@ -149,7 +151,7 @@ internal fun FinanceButton(
             .onFocusChanged { focused = it.isFocused }
             .then(if (focusRequester != null) Modifier.focusable() else Modifier)
             .heightIn(min = 44.dp)
-            .border(1.dp, border, shape)
+            .border(borderWidth, border, shape)
             .background(if (enabled && !loading) background else if (variant == FinanceButtonVariant.Tertiary) Color.Transparent else colors.disabled, shape)
             .padding(horizontal = horizontal, vertical = 10.dp),
     ) {

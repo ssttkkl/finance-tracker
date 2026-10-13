@@ -527,8 +527,7 @@
     <string name="cash_import_step_relation">Match</string>
     <string name="cash_import_select_file_heading">Choose statement files</string>
     <string name="cash_import_add_file_heading">Add statement files</string>
-    <string name="cash_import_file_formats">CSV · XLS · XLSX · PDF</string>
-    <string name="cash_import_file_size_limit">Up to 100 MB per file</string>
+    <string name="cash_import_file_formats">CSV · XLSX · PDF</string>
     <string name="cash_import_choose_file">Choose file</string>
     <string name="cash_import_replace_file">Replace file</string>
     <string name="cash_import_discard_note">Leaving discards this import</string>

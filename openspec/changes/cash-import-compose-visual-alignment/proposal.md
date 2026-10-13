@@ -5,7 +5,9 @@ The running Compose import screen does not match the design the user already app
 ## What Changes
 
 - Align the shared Compose import screen and reusable secondary-page header with the approved Pen design and HTML prototype.
-- Match the prototype's light Finance palette on the import surface, including when the system appearance is dark.
+- Match the Compact/Regular/Wide header heights, modal shape/elevation, footer divider/padding, and compact note/action order to the prototype; retain the prototype's initial close/back focus treatment.
+- Match the prototype's visible `CSV · XLSX · PDF` copy while preserving existing XLS import support.
+- Match the prototype's light Finance palette and 38% scrim across the complete cash-import route, including the application shell beneath the secondary-page surface, even when the system appearance is dark. Restore the system theme after leaving the route.
 - Keep the four import stages, temporary-session cleanup, status semantics, relation kind/candidate decisions, reject/restore actions, and confirmation boundary unchanged.
 - Add browser assertions for prototype-critical layout, desktop/compact sizing, and preserved relation actions.
 
@@ -19,7 +21,7 @@ Non-goals: changing the import workflow, copy intent beyond using the already-ap
 - Preview and relation filters read as compact selectable chips; preview records and relation decisions use bordered rows/cards with the order and density shown in the approved prototype.
 - A pending relation exposes one candidate selector and retains the relation-kind and reject/restore actions without changing their semantics.
 - The modal remains 90% of the regular/wide viewport, compact remains full screen, and the page has no horizontal overflow at required widths.
-- Import surface colors match the approved light prototype in both light and dark system appearance.
+- The entire cash-import route, including navigation, top bar, 38% backdrop scrim, and import surface, matches the approved light prototype in both light and dark system appearance; leaving the route restores the system appearance. The secondary-page overlay blocks outside interaction, keeps modal keyboard focus, and closes with Escape/back.
 - Browser visual and functional QA demonstrates the existing four-stage import contract still works.
 
 ## Impact

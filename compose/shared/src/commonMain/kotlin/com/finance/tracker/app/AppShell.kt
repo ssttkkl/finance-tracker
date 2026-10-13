@@ -95,7 +95,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.PopupProperties
 import com.composeunstyled.UnstyledButton
-import com.finance.tracker.core.design.FinanceTokens
 import com.finance.tracker.core.design.GeneratedTokens
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
@@ -116,7 +115,7 @@ internal fun CompactAppShell(
     val openNavigationLabel = localizedText("copy_99aaea15ca")
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     var accountSheetOpen by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ModalNavigationDrawer(
@@ -240,7 +239,7 @@ private fun NavigationHeader() {
 
 @Composable
 private fun PersistentNavigationShell(state: DestinationState, content: @Composable () -> Unit) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val railHoverSource = remember { MutableInteractionSource() }
     val accountMenuKeyboardHandler = remember { AccountMenuKeyboardHandler() }
     val railHovered by railHoverSource.collectIsHoveredAsState()
@@ -264,7 +263,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
         }
     }
     val railWidth by animateDpAsState(
-        targetValue = if (expanded) 240.dp else 64.dp,
+        targetValue = if (expanded) 240.dp else 72.dp,
         animationSpec = tween(durationMillis = 160),
         label = "navigation-rail-width",
     )
@@ -395,7 +394,7 @@ private fun NavigationDestinationItem(
     semanticId: String,
     onClick: () -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val interactionSource = remember { MutableInteractionSource() }
     val hovered by interactionSource.collectIsHoveredAsState()
     var focused by remember { mutableStateOf(false) }
@@ -461,7 +460,7 @@ private fun DesktopAccountMenu(
     onHoverMenuOpenChanged: (Boolean) -> Unit,
     keyboardHandler: AccountMenuKeyboardHandler,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val menuColorScheme = MaterialTheme.colorScheme.copy(
         surfaceContainer = colors.surface,
         surfaceContainerLow = colors.surface,
@@ -591,7 +590,7 @@ private fun AccountTrigger(
     interactionSource: MutableInteractionSource? = null,
     onClick: () -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val description = localizedText("account_panel_label")
     val shape = RoundedCornerShape(8.dp)
     val interactions = interactionSource ?: remember { MutableInteractionSource() }
@@ -674,7 +673,7 @@ private fun AccountPanelContent(
     onSignOut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val retryLabel = localizedText("copy_e2d53a6d3a")
     var pendingWorkspaceId by remember(session.user.email) { mutableStateOf<String?>(null) }
     var workspaceSwitchSucceeded by remember(session.user.email) { mutableStateOf(false) }
@@ -777,7 +776,7 @@ private fun AccountWorkspaceOption(
     loading: Boolean,
     onClick: () -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val shape = RoundedCornerShape(8.dp)
     val roleLabel = workspaceRoleLabel(workspace.role)
     val currentLabel = localizedText("account_workspace_current")
@@ -842,7 +841,7 @@ private fun AccountAction(
     semanticId: String,
     onClick: () -> Unit,
 ) {
-    val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val colors = LocalFinanceColorRoles.current
     val shape = RoundedCornerShape(8.dp)
     val interactions = remember { MutableInteractionSource() }
     val hovered by interactions.collectIsHoveredAsState()
@@ -1001,7 +1000,7 @@ internal fun DestinationScaffold(
     modifier: Modifier = Modifier,
 ) {
     val canWrite = state.session.workspaces.firstOrNull { it.id == state.session.activeWorkspaceId }?.role?.canWrite == true
-    val shellColors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
+    val shellColors = LocalFinanceColorRoles.current
     Scaffold(
         modifier = modifier,
         containerColor = shellColors.background,

@@ -129,22 +129,39 @@ internal fun CashImportScreen(
                 if (!canWrite) {
                     FinanceTertiaryButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
                 } else when (stage) {
-                    ImportStage.SELECT -> Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            localizedText("cash_import_discard_note"),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        FinanceButton(
-                            onClick = { viewModel.scanSelectedFiles() },
-                            enabled = selectedFiles.isNotEmpty() && !busy && scan?.files?.none { it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank()) } != false,
-                            modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext),
-                            borderColor = if (selectedFiles.isNotEmpty() && !busy) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                        ) { Text(if (busy) localizedText("copy_4a5e035eb9") else localizedText("cash_import_next")) }
+                    ImportStage.SELECT -> {
+                        val canScan = selectedFiles.isNotEmpty() && !busy && scan?.files?.none {
+                            it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank())
+                        } != false
+                        if (sizeClass == WindowSizeClass.COMPACT) {
+                            Column(
+                                Modifier.fillMaxWidth(),
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                CashImportDiscardNote(Modifier.fillMaxWidth())
+                                ImportScanAction(
+                                    enabled = canScan,
+                                    busy = busy,
+                                    modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext),
+                                    onClick = { viewModel.scanSelectedFiles() },
+                                )
+                            }
+                        } else {
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CashImportDiscardNote()
+                                ImportScanAction(
+                                    enabled = canScan,
+                                    busy = busy,
+                                    modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext),
+                                    onClick = { viewModel.scanSelectedFiles() },
+                                )
+                            }
+                        }
                     }
                     ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
@@ -170,6 +187,15 @@ internal fun CashImportScreen(
                 }
             },
         ) {
+            if (canWrite && stage != ImportStage.SUCCESS) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .padding(horizontal = if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 36.dp)
+                        .padding(top = 24.dp, bottom = 4.dp),
+                ) {
+                    ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
+                }
+            }
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 FeaturePage(
                     localizedText("cash_import_title"),
@@ -178,16 +204,23 @@ internal fun CashImportScreen(
                     showTitle = false,
                     scrollable = false,
                     contentPadding = PaddingValues(
-                        horizontal = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 32.dp,
-                        vertical = 12.dp,
+                        start = when (sizeClass) {
+                            WindowSizeClass.COMPACT -> 16.dp
+                            WindowSizeClass.REGULAR -> 24.dp
+                            WindowSizeClass.WIDE -> 32.dp
+                        },
+                        end = when (sizeClass) {
+                            WindowSizeClass.COMPACT -> 16.dp
+                            WindowSizeClass.REGULAR -> 24.dp
+                            WindowSizeClass.WIDE -> 32.dp
+                        },
+                        top = if (sizeClass == WindowSizeClass.COMPACT) 8.dp else 12.dp,
+                        bottom = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 12.dp,
                     ),
                 ) {
                     if (!canWrite) {
                         StateMessage(localizedText("copy_459f937086"))
                     } else {
-                        if (stage != ImportStage.SUCCESS) {
-                            ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
-                        }
                         InlineError(error)
                         when (stage) {
                             ImportStage.SELECT -> {
@@ -463,10 +496,10 @@ private fun ImportUploadSurface(
         modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp)
             .background(colors.accent.copy(alpha = 0.015f), shape)
             .border(1.5.dp, colors.accent.copy(alpha = 0.14f), shape)
-            .padding(horizontal = 20.dp, vertical = 24.dp)
-            .testTag("import.dropzone"),
+            .testTag("import.dropzone")
+            .padding(horizontal = 20.dp, vertical = 28.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Box(
             Modifier.size(60.dp).background(colors.accent.copy(alpha = 0.07f), CircleShape),
@@ -485,19 +518,16 @@ private fun ImportUploadSurface(
         Text(
             localizedText("cash_import_file_formats"),
             style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            localizedText("cash_import_file_size_limit"),
-            style = MaterialTheme.typography.bodySmall,
+            fontSize = 15.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FinanceButton(
             onClick = onChoose,
             modifier = Modifier.widthIn(min = 176.dp).testTag(SemanticIds.importChooseFile),
             variant = FinanceButtonVariant.Secondary,
-            shape = RoundedCornerShape(10.dp),
+            shape = CircleShape,
             borderColor = colors.accent,
+            borderWidth = 2.dp,
             enabled = !busy,
         ) {
             Text(
@@ -505,6 +535,33 @@ private fun ImportUploadSurface(
                 color = colors.accent,
             )
         }
+    }
+}
+
+@Composable
+private fun CashImportDiscardNote(modifier: Modifier = Modifier) {
+    Text(
+        localizedText("cash_import_discard_note"),
+        modifier = modifier,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+}
+
+@Composable
+private fun ImportScanAction(
+    enabled: Boolean,
+    busy: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    FinanceButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        borderColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+    ) {
+        Text(if (busy) localizedText("copy_4a5e035eb9") else localizedText("cash_import_next"))
     }
 }
 

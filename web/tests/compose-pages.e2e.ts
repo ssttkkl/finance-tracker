@@ -584,51 +584,108 @@ async function openBatchRelationFilter(page: Page) {
 test("F-05 cash-import matches the approved secondary-page hierarchy", async ({ page }) => {
   await installComposeApiFixtures(page);
   await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.screen"]').last()).toBeVisible();
+  const railToggleBounds = await page.locator('[id="navigation.rail.toggle"]').last().boundingBox();
+  expect(railToggleBounds?.width ?? 0).toBeGreaterThanOrEqual(52);
   await page.goto(`${workspaceRoot}/cash-import`);
 
   const modal = page.locator('[id="secondary-page-modal"]').last();
   const title = page.locator('[id="secondary-page-title"]').last();
   const close = page.locator('[id="secondary-page-close"]').last();
+  const header = page.locator('[id="secondary-page-header"]').last();
+  const footer = page.locator('[id="secondary-page-footer"]').last();
   const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/cash-import-compose-visual-alignment/prototype/screenshots");
   await mkdir(screenshotDir, { recursive: true });
   await expect(modal).toBeVisible();
+  await expect(page.locator('[id="secondary-page-footer-divider"]')).toHaveCount(0);
   await expect(title).toHaveText("导入账单");
   await expect(page.locator('[id="import.stepper"]').last()).toBeVisible();
   await expect(page.getByRole("button", { name: /文件/ }).last()).toBeVisible();
   await expect(page.locator('[id="import.dropzone"]').last()).toBeVisible();
   await expect(page.getByText("添加账单文件", { exact: true })).toBeVisible();
-  await expect(page.getByText("CSV · XLS · XLSX · PDF", { exact: true })).toBeVisible();
+  await expect(page.getByText("CSV · XLSX · PDF", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "选择文件", exact: true }).last()).toBeVisible();
+  await expect(page.getByText("单个文件不超过 100 MB", { exact: true })).toHaveCount(0);
   await expect(page.locator('[id="import.previous"]')).toHaveCount(0);
   await expect(page.getByText("离开后将丢弃未完成导入", { exact: true })).toBeVisible();
-  const [titleBounds, closeBounds, formBounds] = await Promise.all([
+  const [titleBounds, closeBounds, formBounds, stepperBounds] = await Promise.all([
     title.boundingBox(),
     close.boundingBox(),
     page.locator('[id="import.stage-content"]').last().boundingBox(),
+    page.locator('[id="import.stepper"]').last().boundingBox(),
   ]);
   expect(titleBounds).not.toBeNull();
   expect(closeBounds).not.toBeNull();
   expect(formBounds).not.toBeNull();
+  expect(stepperBounds).not.toBeNull();
   expect((titleBounds?.x ?? Number.POSITIVE_INFINITY) + (titleBounds?.width ?? 0)).toBeLessThan(closeBounds?.x ?? 0);
+  const modalBounds = await modal.boundingBox();
+  expect(modalBounds).not.toBeNull();
+  expect(Math.abs((titleBounds?.x ?? 0) - (modalBounds?.x ?? 0) - 32)).toBeLessThanOrEqual(2);
   expect(formBounds?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(720);
+  expect(stepperBounds?.width ?? 0).toBeGreaterThan((formBounds?.width ?? Number.POSITIVE_INFINITY) * 1.5);
+  const footerBounds = await footer.boundingBox();
+  expect(footerBounds).not.toBeNull();
+  expect(Math.abs((modalBounds?.y ?? 0) + (modalBounds?.height ?? 0) - (footerBounds?.y ?? 0) - (footerBounds?.height ?? 0) - 24)).toBeLessThanOrEqual(2);
+  const dropzoneBounds = await page.locator('[id="import.dropzone"]').last().boundingBox();
+  expect(dropzoneBounds?.height ?? 0).toBeGreaterThanOrEqual(249);
+  expect(dropzoneBounds?.height ?? 0).toBeLessThanOrEqual(253);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-1440.png") });
+
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await expect(modal).toBeVisible();
+  await expect.poll(async () => (await modal.boundingBox())?.width ?? 0).toBeCloseTo(691, 0);
+  const [regularModalBounds, regularTitleBounds, regularStageTitleBounds] = await Promise.all([
+    modal.boundingBox(),
+    title.boundingBox(),
+    page.getByText("选择账单文件", { exact: true }).boundingBox(),
+  ]);
+  const regularHeaderBounds = await header.boundingBox();
+  expect(regularModalBounds).not.toBeNull();
+  expect(regularTitleBounds).not.toBeNull();
+  expect(regularStageTitleBounds).not.toBeNull();
+  expect(regularHeaderBounds?.height).toBeCloseTo(78, 0);
+  await expect(page.locator('[id="secondary-page-footer-divider"]')).toHaveCount(0);
+  expect(Math.abs((regularTitleBounds?.x ?? 0) - (regularModalBounds?.x ?? 0) - 25)).toBeLessThanOrEqual(2);
+  expect(Math.abs((regularStageTitleBounds?.x ?? 0) - (regularModalBounds?.x ?? 0) - 25)).toBeLessThanOrEqual(2);
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-768.png") });
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.reload();
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(500);
-  await expect(page.locator('[id="secondary-page-back"]').last()).toBeVisible();
+  const back = page.locator('[id="secondary-page-back"]').last();
+  const compactFooter = page.locator('[id="secondary-page-footer"]').last();
+  const compactNote = page.getByText("离开后将丢弃未完成导入", { exact: true }).last();
+  await expect(back).toBeVisible();
   await expect(title).toHaveText("导入账单");
   await expect(page.locator('[id="secondary-page-fullscreen"]').last()).toBeVisible();
+  await expect(page.locator('[id="secondary-page-footer-divider"]')).toHaveCount(1);
   const compactFormBounds = await page.locator('[id="import.stage-content"]').last().boundingBox();
   expect(compactFormBounds).not.toBeNull();
   expect(compactFormBounds?.x).toBeCloseTo(16, 0);
   expect(compactFormBounds?.width ?? 0).toBeGreaterThanOrEqual(350);
+  const [compactFooterBounds, compactNoteBounds, compactNextBounds] = await Promise.all([
+    compactFooter.boundingBox(),
+    compactNote.boundingBox(),
+    page.locator('[id="import.next"]').last().boundingBox(),
+  ]);
+  expect(compactFooterBounds).not.toBeNull();
+  expect(compactNoteBounds).not.toBeNull();
+  expect(compactNextBounds).not.toBeNull();
+  expect(Math.abs(844 - ((compactFooterBounds?.y ?? 0) + (compactFooterBounds?.height ?? 0)) - 16)).toBeLessThanOrEqual(2);
+  expect((compactNextBounds?.y ?? 0)).toBeGreaterThan((compactNoteBounds?.y ?? 0) + (compactNoteBounds?.height ?? 0));
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-390.png") });
+  for (const width of [320, 375, 414]) {
+    await page.setViewportSize({ width, height: 844 });
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
 });
 
 test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键", async ({ page }) => {
