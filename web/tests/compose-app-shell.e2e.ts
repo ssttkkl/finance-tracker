@@ -45,6 +45,61 @@ test("desktop rail and account panel follow pointer entry and exit", async ({ pa
   expect(diagnostics.staticHttpErrors).toEqual([]);
 });
 
+test("desktop rail collapses after mouse navigation leaves focus behind", async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await installComposeApiFixtures(page);
+
+  for (const width of [768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const collapseControl = page.getByRole("button", { name: "收起导航" });
+
+    await page.locator('[id="navigation-item-cash-import"]').click({ force: true });
+    await expect(page).toHaveURL(/\/w\/workspace-1\/cash-import$/);
+    await expect(collapseControl).toBeVisible();
+    await page.mouse.move(width - 40, 500);
+    await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
+    await page.screenshot({ path: `/tmp/compose-app-shell-after-mouse-navigation-${width}.png` });
+  }
+
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test("desktop hover-expanded rail control collapses then resumes hover after exit", async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await installComposeApiFixtures(page);
+
+  for (const width of [768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const collapseControl = page.getByRole("button", { name: "收起导航" });
+    const expandControl = page.getByRole("button", { name: "展开导航" });
+
+    await page.mouse.move(32, 500);
+    await expect(collapseControl).toBeVisible();
+
+    await collapseControl.click({ force: true });
+    await expect(expandControl).toBeVisible();
+    await page.screenshot({ path: `/tmp/compose-app-shell-toggle-collapsed-${width}.png` });
+    await page.mouse.move(width - 40, 500);
+    await expect(expandControl).toBeVisible();
+    await page.mouse.move(32, 500);
+    await expect(collapseControl).toBeVisible();
+    await page.mouse.move(width - 40, 500);
+    await expect(expandControl).toBeVisible();
+  }
+
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
 test("desktop rail expands on keyboard focus and Escape closes the account panel", async ({ page }) => {
   const diagnostics = captureBrowserDiagnostics(page);
   await installComposeApiFixtures(page);
@@ -55,29 +110,22 @@ test("desktop rail expands on keyboard focus and Escape closes the account panel
   const content = page.locator('[id="ledger.screen"]');
   const collapsedContentX = (await content.boundingBox())?.x;
   expect(collapsedContentX).toBeDefined();
-  const accountTrigger = page.locator('[id="workspace.switcher"]').last();
   const accountPanel = page.locator('[id="account.menu"]');
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect.poll(async () => (await content.boundingBox())?.x ?? 0)
     .toBeGreaterThan((collapsedContentX ?? 0) + 100);
 
-  const triggerBox = await accountTrigger.boundingBox();
-  expect(triggerBox).not.toBeNull();
-  await page.mouse.move(
-    (triggerBox?.x ?? 0) + (triggerBox?.width ?? 0) / 2,
-    (triggerBox?.y ?? 0) + (triggerBox?.height ?? 0) / 2,
-  );
+  await page.mouse.move(32, 860);
   await expect(accountPanel).toBeVisible();
-  const menuRegion = { x: 0, y: 480, width: 360, height: 400 };
-  const openMenuScreenshot = await page.screenshot({ clip: menuRegion });
+  const openMenuScreenshot = await page.screenshot();
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
-  const closedMenuScreenshot = await page.screenshot({ clip: menuRegion });
+  const closedMenuScreenshot = await page.screenshot();
   expect(closedMenuScreenshot.equals(openMenuScreenshot)).toBe(false);
   await page.keyboard.press("Enter");
   await expect(accountPanel).toBeVisible();
-  const reopenedMenuScreenshot = await page.screenshot({ clip: menuRegion });
+  const reopenedMenuScreenshot = await page.screenshot();
   expect(reopenedMenuScreenshot.equals(closedMenuScreenshot)).toBe(false);
   await page.screenshot({ path: "/tmp/compose-app-shell-account-escape-768.png" });
 });

@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-13
+goal: Ensure mouse clicks do not pin the rail open and the rail toggle can
+  collapse while hover-expanded

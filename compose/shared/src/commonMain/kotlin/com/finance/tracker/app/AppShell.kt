@@ -240,11 +240,23 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
     val accountMenuKeyboardHandler = remember { AccountMenuKeyboardHandler() }
     val railHovered by railHoverSource.collectIsHoveredAsState()
     var railHasFocus by remember { mutableStateOf(false) }
+    var keyboardNavigationActive by remember { mutableStateOf(false) }
     var accountPanelHovered by remember { mutableStateOf(false) }
     var accountPanelHasFocus by remember { mutableStateOf(false) }
     var railToggleFocused by remember { mutableStateOf(false) }
     var pinnedExpanded by remember { mutableStateOf(false) }
-    val expanded = pinnedExpanded || railHovered || railHasFocus || accountPanelHovered || accountPanelHasFocus
+    var collapseUntilTransientExit by remember { mutableStateOf(false) }
+    val railHasKeyboardFocus = railHasFocus && keyboardNavigationActive
+    val transientExpansionRequested = railHovered || railHasKeyboardFocus || accountPanelHovered || accountPanelHasFocus
+    val expanded = pinnedExpanded || (transientExpansionRequested && !collapseUntilTransientExit)
+    LaunchedEffect(railHovered) {
+        if (railHovered) keyboardNavigationActive = false
+    }
+    LaunchedEffect(railHovered, railHasKeyboardFocus, accountPanelHovered, accountPanelHasFocus, collapseUntilTransientExit) {
+        if (collapseUntilTransientExit && !railHovered && !railHasKeyboardFocus && !accountPanelHovered && !accountPanelHasFocus) {
+            collapseUntilTransientExit = false
+        }
+    }
     val railWidth by animateDpAsState(
         targetValue = if (expanded) 240.dp else 64.dp,
         animationSpec = tween(durationMillis = 160),
@@ -255,8 +267,9 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
         Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                    accountMenuKeyboardHandler.onEscape()
+                if (event.type == KeyEventType.KeyDown) {
+                    if (event.key == Key.Tab) keyboardNavigationActive = true
+                    if (event.key == Key.Escape) accountMenuKeyboardHandler.onEscape() else false
                 } else {
                     false
                 }
@@ -268,19 +281,25 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                 .fillMaxHeight()
                 .background(colors.surface)
                 .hoverable(railHoverSource)
-                .onFocusChanged { railHasFocus = it.hasFocus }
+                .onFocusChanged {
+                    railHasFocus = it.hasFocus
+                    keyboardNavigationActive = it.hasFocus && !railHovered
+                }
                 .border(1.dp, colors.fieldBorder.copy(alpha = 0.25f))
                 .padding(horizontal = if (expanded) 12.dp else 8.dp, vertical = 16.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                val toggleLabel = when {
-                    pinnedExpanded && railHovered -> localizedText("navigation_rail_unpin")
-                    pinnedExpanded -> localizedText("navigation_rail_collapse")
-                    expanded -> localizedText("navigation_rail_pin")
-                    else -> localizedText("navigation_rail_expand")
-                }
+                val toggleLabel = localizedText(if (expanded) "navigation_rail_collapse" else "navigation_rail_expand")
                 UnstyledButton(
-                    onClick = { pinnedExpanded = !pinnedExpanded },
+                    onClick = {
+                        if (expanded) {
+                            pinnedExpanded = false
+                            collapseUntilTransientExit = transientExpansionRequested
+                        } else {
+                            pinnedExpanded = true
+                            collapseUntilTransientExit = false
+                        }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
@@ -321,7 +340,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                 onManageWorkspaces = { state.onNavigate(AppPage.WORKSPACE_MANAGEMENT) },
                 onSignOut = state.onLogout,
                 onPanelHoveredChanged = { accountPanelHovered = it },
-                onPanelFocusChanged = { accountPanelHasFocus = it },
+                onPanelFocusChanged = { accountPanelHasFocus = it && keyboardNavigationActive },
                 keyboardHandler = accountMenuKeyboardHandler,
             )
         }

@@ -520,6 +520,4 @@
     <string name="account_workspace_switch_success">Workspace switched</string>
     <string name="navigation_rail_expand">Expand navigation</string>
     <string name="navigation_rail_collapse">Collapse navigation</string>
-    <string name="navigation_rail_pin">Keep navigation expanded</string>
-    <string name="navigation_rail_unpin">Unpin navigation</string>
 </resources>
