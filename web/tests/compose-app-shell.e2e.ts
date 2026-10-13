@@ -45,6 +45,43 @@ test("desktop rail and account panel follow pointer entry and exit", async ({ pa
   expect(diagnostics.staticHttpErrors).toEqual([]);
 });
 
+test("desktop account panel remains open while the pointer rests on the avatar", async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await installComposeApiFixtures(page);
+
+  const width = 1045;
+  await page.setViewportSize({ width, height: 1000 });
+  await page.goto("/");
+
+  const accountPanel = page.locator('[id="account.menu"]');
+  const expandControl = page.getByRole("button", { name: "展开导航" });
+  await page.mouse.move(width - 40, 500);
+  await expect(expandControl).toBeVisible();
+  await page.mouse.move(32, 500);
+  await expect(page.getByRole("button", { name: "收起导航" })).toBeVisible();
+  await page.waitForTimeout(220);
+
+  const panelRegion = { x: 10, y: 600, width: 320, height: 350 };
+  const expandedRailScreenshot = await page.screenshot({ clip: panelRegion });
+  await page.mouse.move(32, 960);
+  await expect(accountPanel).toBeVisible();
+  await page.waitForTimeout(220);
+  const openedPanelScreenshot = await page.screenshot({ clip: panelRegion });
+  expect(openedPanelScreenshot.equals(expandedRailScreenshot)).toBe(false);
+  await page.screenshot({ path: "/tmp/compose-app-shell-account-hover-stable-1045.png" });
+
+  for (let sample = 0; sample < 20; sample += 1) {
+    await page.waitForTimeout(75);
+    const screenshot = await page.screenshot({ clip: panelRegion });
+    expect(screenshot.equals(openedPanelScreenshot)).toBe(true);
+  }
+
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
 test("desktop rail collapses after mouse navigation leaves focus behind", async ({ page }) => {
   const diagnostics = captureBrowserDiagnostics(page);
   await installComposeApiFixtures(page);
@@ -121,12 +158,19 @@ test("desktop rail expands on keyboard focus and Escape closes the account panel
   const openMenuScreenshot = await page.screenshot();
   await page.keyboard.press("Escape");
   await page.waitForTimeout(200);
+  const closedAfterHoverEscape = await page.screenshot();
+  expect(closedAfterHoverEscape.equals(openMenuScreenshot)).toBe(false);
+  await page.mouse.move(700, 500);
+  await page.waitForTimeout(200);
   const closedMenuScreenshot = await page.screenshot();
-  expect(closedMenuScreenshot.equals(openMenuScreenshot)).toBe(false);
-  await page.keyboard.press("Enter");
-  await expect(accountPanel).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect.poll(async () => !(await page.screenshot()).equals(closedMenuScreenshot)).toBe(true);
   const reopenedMenuScreenshot = await page.screenshot();
   expect(reopenedMenuScreenshot.equals(closedMenuScreenshot)).toBe(false);
+  await page.keyboard.press("Escape");
+  await expect.poll(async () => (await page.screenshot()).equals(closedMenuScreenshot)).toBe(true);
+  await page.keyboard.press("Enter");
+  await expect.poll(async () => !(await page.screenshot()).equals(closedMenuScreenshot)).toBe(true);
   await page.screenshot({ path: "/tmp/compose-app-shell-account-escape-768.png" });
 });
 
@@ -172,6 +216,7 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   await page.goto("/");
   await page.locator('[id="workspace.switcher"]').click({ force: true });
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
+  await page.waitForTimeout(250);
 
   const targetWorkspace = page.getByRole("button", { name: /共享账本/ });
   await targetWorkspace.click({ force: true });

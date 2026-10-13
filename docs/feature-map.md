@@ -1,6 +1,6 @@
 # Compose / Legacy 功能地图
 
-> 盘点日期：2026-10-12。本文记录 Compose Multiplatform 主线的页面级功能、实现证据和跨端覆盖关系；React Web、Expo 和 TypeScript shared packages 仅作为迁移参考。本文不是产品行为规格，代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
+> 盘点日期：2026-10-13。本文记录 Compose Multiplatform 主线的页面级功能、实现证据和跨端覆盖关系；React Web、Expo 和 TypeScript shared packages 仅作为迁移参考。本文不是产品行为规格，代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
 
 Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API 流程。旧端实现证据保留在文档末尾，便于迁移时核对行为，不代表默认启动、构建、测试或发布入口。
 
@@ -23,7 +23,7 @@ Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API �
 
 ## Compose Multiplatform 主线
 
-F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；桌面侧栏默认显示图标，鼠标进入侧栏自动展开、离开后收回，鼠标点击导航产生的焦点不会阻止收回，展开时点击收起控制可立即收回；键盘焦点仍可展开侧栏，头像悬停打开账号面板，工作区切换、管理和退出集中在侧栏底部；交互修复与跨端 QA 证据记录于 [`navigation-rail-collapse`](../openspec/changes/archive/2026-10-13-navigation-rail-collapse/tasks.md)。
+F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；桌面侧栏默认显示图标，鼠标进入侧栏自动展开、离开后收回，鼠标点击导航产生的焦点不会阻止收回，展开时点击收起控制可立即收回；键盘焦点仍可展开侧栏，头像悬停打开账号面板且在停留期间保持稳定，Enter/Space 可从键盘焦点打开面板，Escape 可关闭并将焦点返回头像；工作区切换、管理和退出集中在侧栏底部；侧栏交互与跨端 QA 证据记录于 [`navigation-rail-collapse`](../openspec/changes/archive/2026-10-13-navigation-rail-collapse/tasks.md) 和 [`account-menu-hover-stability`](../openspec/changes/archive/2026-10-13-account-menu-hover-stability/tasks.md)。
 
 | ID | Compose 共享实现 | Web / Android / iOS 工程入口 | 当前状态 |
 |----|------------------|------------------------------|----------|

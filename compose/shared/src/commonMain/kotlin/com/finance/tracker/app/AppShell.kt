@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +90,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.PopupProperties
 import com.composeunstyled.UnstyledButton
 import com.finance.tracker.core.design.FinanceTokens
 import com.finance.tracker.core.design.GeneratedTokens
@@ -243,11 +245,12 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
     var keyboardNavigationActive by remember { mutableStateOf(false) }
     var accountPanelHovered by remember { mutableStateOf(false) }
     var accountPanelHasFocus by remember { mutableStateOf(false) }
+    var accountMenuHoverOpen by remember { mutableStateOf(false) }
     var railToggleFocused by remember { mutableStateOf(false) }
     var pinnedExpanded by remember { mutableStateOf(false) }
     var collapseUntilTransientExit by remember { mutableStateOf(false) }
     val railHasKeyboardFocus = railHasFocus && keyboardNavigationActive
-    val transientExpansionRequested = railHovered || railHasKeyboardFocus || accountPanelHovered || accountPanelHasFocus
+    val transientExpansionRequested = railHovered || railHasKeyboardFocus || accountPanelHovered || accountPanelHasFocus || accountMenuHoverOpen
     val expanded = pinnedExpanded || (transientExpansionRequested && !collapseUntilTransientExit)
     LaunchedEffect(railHovered) {
         if (railHovered) keyboardNavigationActive = false
@@ -341,6 +344,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                 onSignOut = state.onLogout,
                 onPanelHoveredChanged = { accountPanelHovered = it },
                 onPanelFocusChanged = { accountPanelHasFocus = it && keyboardNavigationActive },
+                onHoverMenuOpenChanged = { accountMenuHoverOpen = it },
                 keyboardHandler = accountMenuKeyboardHandler,
             )
         }
@@ -434,6 +438,7 @@ private fun DesktopAccountMenu(
     onSignOut: () -> Unit,
     onPanelHoveredChanged: (Boolean) -> Unit,
     onPanelFocusChanged: (Boolean) -> Unit,
+    onHoverMenuOpenChanged: (Boolean) -> Unit,
     keyboardHandler: AccountMenuKeyboardHandler,
 ) {
     val colors = FinanceTokens.forTheme(androidx.compose.foundation.isSystemInDarkTheme())
@@ -487,6 +492,7 @@ private fun DesktopAccountMenu(
         }
     }
     LaunchedEffect(panelHovered) { onPanelHoveredChanged(panelHovered) }
+    LaunchedEffect(hoverOpen) { onHoverMenuOpenChanged(hoverOpen) }
 
     MaterialTheme(colorScheme = menuColorScheme) {
         Box {
@@ -509,6 +515,7 @@ private fun DesktopAccountMenu(
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = dismissMenu,
+                properties = PopupProperties(focusable = clickOpen),
                 modifier = Modifier
                     .width(320.dp)
                     .heightIn(max = 680.dp)
@@ -578,8 +585,15 @@ private fun AccountTrigger(
             .background(colors.field, shape)
             .onFocusChanged { focused = it.isFocused }
             .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.Spacebar)) {
+                    onClick()
+                    true
+                } else {
+                    false
+                }
+            }
             .border(if (focused) 2.dp else 0.dp, if (focused) colors.focus else Color.Transparent, shape)
-            .hoverable(interactions)
             .semantics { contentDescription = description }
             .testTag(SemanticIds.workspaceSwitcher),
     ) {
@@ -588,7 +602,15 @@ private fun AccountTrigger(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
         ) {
-            AccountAvatar(session.user.email, Modifier.size(36.dp))
+            Box(
+                Modifier
+                    .width(40.dp)
+                    .height(36.dp)
+                    .then(if (expanded) Modifier.offset(x = (-8).dp) else Modifier),
+            ) {
+                val avatarHoverModifier = if (interactionSource != null) Modifier.hoverable(interactions) else Modifier
+                AccountAvatar(session.user.email, Modifier.size(36.dp).align(Alignment.Center).then(avatarHoverModifier))
+            }
             if (expanded) {
                 Column(Modifier.weight(1f).padding(start = 8.dp)) {
                     Text(
