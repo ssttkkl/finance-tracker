@@ -15,8 +15,10 @@
     "color.semantic.fieldBorder": { "type": "color", "value": "#3F3F46" },
     "color.semantic.focus": { "type": "color", "value": "#0485F7" },
     "color.semantic.danger": { "type": "color", "value": "#F04438" },
+    "color.semantic.warning": { "type": "color", "value": "#FDBA74" },
     "color.semantic.disabled": { "type": "color", "value": "#27272A" },
     "color.state.errorSurface": { "type": "color", "value": "#93000A" },
-    "color.state.successSurface": { "type": "color", "value": "#1C4A35" }
+    "color.state.successSurface": { "type": "color", "value": "#1C4A35" },
+    "color.state.warningSurface": { "type": "color", "value": "#3B2A15" }
   }
 }

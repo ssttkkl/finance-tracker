@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-14
+goal: Make the candidate selector match the approved native-select prototype
+  while keeping selection interactive on Compose Web.

@@ -4,6 +4,7 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
@@ -40,10 +41,20 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -54,6 +65,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.launch
 import com.finance.tracker.core.design.GeneratedTokens
 
 @Composable
@@ -300,19 +312,66 @@ internal fun ChoicePicker(
     autoScrollMenuIntoView: Boolean = false,
     fieldStyle: Boolean = false,
     simpleMenuOnWeb: Boolean = false,
+    anchoredMenuOnWeb: Boolean = false,
 ) {
     var expanded by remember(label) { mutableStateOf(false) }
+    val menuHost = LocalSecondaryPageOverlayMenuHost.current
+    val menuKey = semanticId ?: label
+    val useAnchoredMenu = isWebPlatform && anchoredMenuOnWeb && menuHost != null
+    var anchorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var openingAnchoredMenu by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val triggerFocusRequester = remember { FocusRequester() }
+    val optionFocusRequesters = remember(options.size) { List(options.size) { FocusRequester() } }
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(expanded, autoScrollMenuIntoView) {
         if (expanded && autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
     }
     val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value.ifEmpty { localizedText("copy_778fc8f994") }
+    val openAnchoredMenu = {
+        if (menuHost != null && !openingAnchoredMenu) {
+            openingAnchoredMenu = true
+            coroutineScope.launch {
+                try {
+                    if (autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
+                    // Bring-into-view can move the scrollable body after the pointer click.
+                    // Wait for Compose to publish the new anchor coordinates before positioning the overlay.
+                    withFrameNanos { }
+                    anchorCoordinates?.takeIf { it.isAttached }?.let { anchor ->
+                        menuHost.show(
+                            SecondaryPageOverlayMenu(
+                                key = menuKey,
+                                anchor = anchor,
+                                options = options,
+                                selectedValue = value,
+                                onSelected = onSelected,
+                                triggerFocusRequester = triggerFocusRequester,
+                                optionFocusRequesters = optionFocusRequesters,
+                                focusedOptionIndex = options.indexOfFirst { it.first == value }.takeIf { it >= 0 } ?: 0,
+                            ),
+                        )
+                    }
+                } finally {
+                    openingAnchoredMenu = false
+                }
+            }
+        }
+    }
     val trigger: @Composable () -> Unit = {
         FinanceButton(
-            onClick = { expanded = !expanded },
+            onClick = {
+                if (useAnchoredMenu) {
+                    if (menuHost.isShowing(menuKey)) {
+                        menuHost.dismiss()
+                    } else openAnchoredMenu()
+                } else {
+                    expanded = !expanded
+                }
+            },
             enabled = enabled,
             variant = FinanceButtonVariant.Secondary,
             shape = if (fieldStyle) RoundedCornerShape(10.dp) else RoundedCornerShape(22.dp),
+            focusRequester = if (useAnchoredMenu) triggerFocusRequester else null,
             modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId))
                 .fillMaxWidth()
                 .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier),
@@ -337,8 +396,46 @@ internal fun ChoicePicker(
     }
     if (isWebPlatform) {
         Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            trigger()
-            if (expanded) {
+            if (useAnchoredMenu) {
+                Box(
+                    Modifier.fillMaxWidth()
+                        .onPreviewKeyEvent { event ->
+                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            when {
+                                menuHost.isShowing(menuKey) && event.key == Key.Escape -> {
+                                    menuHost.dismiss()
+                                    true
+                                }
+                                menuHost.isShowing(menuKey) && event.key == Key.DirectionDown -> {
+                                    menuHost.moveFocus(menuKey, 1)
+                                    true
+                                }
+                                menuHost.isShowing(menuKey) && event.key == Key.DirectionUp -> {
+                                    menuHost.moveFocus(menuKey, -1)
+                                    true
+                                }
+                                menuHost.isShowing(menuKey) && (event.key == Key.Enter || event.key == Key.Spacebar) -> {
+                                    menuHost.selectFocused(menuKey)
+                                    true
+                                }
+                                !menuHost.isShowing(menuKey) && (event.key == Key.Enter || event.key == Key.Spacebar) -> {
+                                    openAnchoredMenu()
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                        .onGloballyPositioned {
+                            anchorCoordinates = it
+                            menuHost.updateAnchor(menuKey, it)
+                        },
+                ) {
+                    trigger()
+                }
+            } else {
+                trigger()
+            }
+            if (expanded && !useAnchoredMenu) {
                 val menuShape = RoundedCornerShape(6.dp)
                 Card(
                     modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, menuShape),

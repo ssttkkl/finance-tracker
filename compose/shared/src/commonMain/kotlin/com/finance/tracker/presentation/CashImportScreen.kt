@@ -112,6 +112,11 @@ internal fun CashImportScreen(
     val busy = state.busy
     val error = state.errorCode?.let { importErrorText(it) }
     val footerActionWidth = if (sizeClass == WindowSizeClass.COMPACT) 108.dp else 96.dp
+    val footerButtonArrangement = if (sizeClass == WindowSizeClass.COMPACT) {
+        Arrangement.SpaceBetween
+    } else {
+        Arrangement.spacedBy(8.dp, Alignment.End)
+    }
 
     val filePicker = rememberFilePickerLauncher(
         type = FileKitType.File(extensions = listOf("csv", "xls", "xlsx", "pdf")),
@@ -163,12 +168,12 @@ internal fun CashImportScreen(
                             }
                         }
                     }
-                    ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                    ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
                         FinanceButton(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
                     }
-                    ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                    ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
                         FinanceButton(onClick = {
                             if (preview?.let { hasIncompleteAllocations(it, allocationDrafts) } == true) {
                                 viewModel.setErrorCode("import_component_allocation_incomplete")
@@ -179,8 +184,8 @@ internal fun CashImportScreen(
                             }
                         }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext)) { Text(localizedText("copy_1fc1afc5c5")) }
                     }
-                    ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FinanceTertiaryButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                    ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
                         FinanceButton(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
                     }
                     ImportStage.SUCCESS -> FinanceButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(localizedText("copy_855fa817d2")) }
@@ -674,12 +679,12 @@ private fun ImportStatusPill(
     val isRejected = status == "rejected" || status == "unresolved" || status == "requires_allocation"
     val background = when {
         isRejected -> MaterialTheme.colorScheme.errorContainer
-        status == "pending" -> colors.disabled.copy(alpha = 0.58f)
+        status == "pending" -> colors.warningSurface
         else -> colors.accent.copy(alpha = 0.1f)
     }
     val foreground = when {
         isRejected -> MaterialTheme.colorScheme.error
-        status == "pending" -> MaterialTheme.colorScheme.onSurfaceVariant
+        status == "pending" -> colors.warning
         else -> colors.accent
     }
     val actionsDescription = localizedText("cash_import_more_actions")
@@ -790,7 +795,7 @@ private fun ImportRelationCard(
 @Composable
 private fun ImportRelationRecordView(record: ImportRelationRecord, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(formatLocalDateTime(record.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(formatImportRelationDateTime(record.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             "${record.counterparty.ifBlank { localizedText("copy_204c9c54c2") }} · ${record.amount} ${record.currency}",
             style = MaterialTheme.typography.bodyLarge,
@@ -827,6 +832,7 @@ private fun ImportRelationTarget(
             autoScrollMenuIntoView = true,
             fieldStyle = true,
             simpleMenuOnWeb = true,
+            anchoredMenuOnWeb = true,
         )
     }
 }
@@ -842,7 +848,7 @@ private fun ImportRelationTargetRecordView(record: ImportRelationRecord, modifie
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            "${formatLocalDateTime(record.occurredAt)} · ${record.amount} ${record.currency}",
+            "${formatImportRelationDateTime(record.occurredAt)} · ${record.amount} ${record.currency}",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 2,
@@ -915,6 +921,13 @@ private fun ImportStepper(
 @Composable
 private fun importRelationRecordLabel(record: ImportRelationRecord): String =
     "${record.counterparty.ifBlank { localizedText("copy_204c9c54c2") }} · ${record.amount} ${record.currency}"
+
+private fun formatImportRelationDateTime(instant: String): String {
+    val localDateTime = formatLocalDateTime(instant)
+    val parts = Regex("^\\d{4}-(\\d{2})-(\\d{2}) (\\d{2}:\\d{2})$").matchEntire(localDateTime)?.groupValues
+        ?: return localDateTime
+    return "${parts[1]} 月 ${parts[2]} 日 · ${parts[3]}"
+}
 
 @Composable
 private fun importRecordTypeLabel(value: String): String = when (value) {

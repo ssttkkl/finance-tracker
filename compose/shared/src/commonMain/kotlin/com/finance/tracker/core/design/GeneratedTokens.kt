@@ -14,6 +14,7 @@ object GeneratedTokens {
             val SemanticDanger = Color(0xFFB42318)
             val SemanticExpense = Color(0xFFB3442C)
             val SemanticIncome = Color(0xFF087443)
+            val SemanticWarning = Color(0xFFB45309)
         }
         object Control {
             val MinTouchTarget = 44.dp
@@ -55,8 +56,10 @@ object GeneratedTokens {
             val SemanticForeground = Color(0xFFFCFCFC)
             val SemanticOverlay = Color(0xFF18181B)
             val SemanticSurface = Color(0xFF18181B)
+            val SemanticWarning = Color(0xFFFDBA74)
             val StateErrorSurface = Color(0xFF93000A)
             val StateSuccessSurface = Color(0xFF1C4A35)
+            val StateWarningSurface = Color(0xFF3B2A15)
             val SurfaceBackground = Color(0xFF060607)
             val SurfaceMuted = Color(0xFF27272A)
             val SurfaceRaised = Color(0xFF18181B)
@@ -77,6 +80,7 @@ object GeneratedTokens {
             val SemanticSurface = Color(0xFFFFFFFF)
             val StateErrorSurface = Color(0xFFFBEAE8)
             val StateSuccessSurface = Color(0xFFE8F5EE)
+            val StateWarningSurface = Color(0xFFFFF7ED)
             val SurfaceBackground = Color(0xFFF5F5F5)
             val SurfaceMuted = Color(0xFFE4E4E7)
             val SurfaceRaised = Color(0xFFFFFFFF)
