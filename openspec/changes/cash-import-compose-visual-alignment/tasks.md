@@ -43,7 +43,7 @@
 
 ## 7. 发布准备
 
-- [x] 7.1 Rollback scope is limited to the import presentation/theme, reusable theme-role lookup, tests, feature map, and this OpenSpec change; no data rollback is needed. Base/current `HEAD` is `4fedbf9` (`refactor/kmp`). Web/Wasm, Android shared-source, and iOS simulator shared-source builds passed. Native authenticated UI QA was not run because there is no seeded test session/backend for the simulator and no Android device is attached.
+- [x] 7.1 Rollback scope is limited to the import presentation/theme, reusable theme-role lookup, tests, feature map, and this OpenSpec change; no data rollback is needed. Validation started from `4fedbf9` on `refactor/kmp`; implementation was committed and pushed as `69ba5e4`. Web/Wasm, Android shared-source, and iOS simulator shared-source builds passed. Native authenticated UI QA was not run because there is no seeded test session/backend for the simulator and no Android device is attached.
 
 ## 8. 反思
 
@@ -55,4 +55,4 @@
 - Prototype check: Chromium, standalone `prototype/index.html`, viewports 320/375/414/768/390/1440; `scrollWidth === innerWidth` at all six widths. Reference captures are listed in 6.4.
 - Compose browser: Playwright Chromium, `http://127.0.0.1:5188/w/workspace-1/cash-import`, `colorScheme=dark`; 5 F-05 tests passed. Manual app tab `http://127.0.0.1:5186/w/aba98eed-8f7b-4a53-b58b-469190501fae/cash-import` was reloaded and visually checked at 1280×720 after the final build.
 - Browser console/network: the shared diagnostics fixture asserted no unexpected console errors, failed requests, or static-resource HTTP errors across the passing F-05 cases.
-- Current code baseline for this change: `refactor/kmp` at `4fedbf9`; `git diff --check` and targeted strict OpenSpec validation passed after these artifacts were updated. Full OpenSpec validation has the unrelated `hero-ui-compose-finance-ui` failure recorded above.
+- Validation baseline: `refactor/kmp` at `4fedbf9`; implementation commit: `69ba5e4`. `git diff --check` and targeted strict OpenSpec validation passed after these artifacts were updated. Full OpenSpec validation has the unrelated `hero-ui-compose-finance-ui` failure recorded above.
