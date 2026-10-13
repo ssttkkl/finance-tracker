@@ -76,6 +76,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -284,6 +287,15 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                 .fillMaxHeight()
                 .background(colors.surface)
                 .hoverable(railHoverSource)
+                .pointerInput(Unit) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            if (awaitPointerEvent(PointerEventPass.Initial).type == PointerEventType.Press) {
+                                keyboardNavigationActive = false
+                            }
+                        }
+                    }
+                }
                 .onFocusChanged {
                     railHasFocus = it.hasFocus
                     keyboardNavigationActive = it.hasFocus && !railHovered
@@ -330,6 +342,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                     NavigationDestinations(
                         selectedPage = state.route.page,
                         expanded = expanded,
+                        showFocusRing = keyboardNavigationActive,
                         onNavigate = state.onNavigate,
                     )
                 }
@@ -353,13 +366,19 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
 }
 
 @Composable
-private fun NavigationDestinations(selectedPage: AppPage, expanded: Boolean, onNavigate: (AppPage) -> Unit) {
+private fun NavigationDestinations(
+    selectedPage: AppPage,
+    expanded: Boolean,
+    showFocusRing: Boolean = true,
+    onNavigate: (AppPage) -> Unit,
+) {
     appDestinations.forEach { destination ->
         NavigationDestinationItem(
             page = destination.page,
             label = localizedText(destination.titleKey),
             selected = selectedPage == destination.page,
             expanded = expanded,
+            showFocusRing = showFocusRing,
             semanticId = destination.semanticId,
             onClick = { onNavigate(destination.page) },
         )
@@ -372,6 +391,7 @@ private fun NavigationDestinationItem(
     label: String,
     selected: Boolean,
     expanded: Boolean,
+    showFocusRing: Boolean,
     semanticId: String,
     onClick: () -> Unit,
 ) {
@@ -399,7 +419,7 @@ private fun NavigationDestinationItem(
                 .fillMaxSize()
                 .clip(shape)
                 .background(if (selected || hovered) colors.field else Color.Transparent, shape)
-                .border(if (focused) 2.dp else 0.dp, if (focused) colors.focus else Color.Transparent, shape)
+                .border(if (focused && showFocusRing) 2.dp else 0.dp, if (focused && showFocusRing) colors.focus else Color.Transparent, shape)
                 .padding(horizontal = if (expanded) 8.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,

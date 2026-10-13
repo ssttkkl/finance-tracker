@@ -4,6 +4,8 @@
 
 Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API 流程。旧端实现证据保留在文档末尾，便于迁移时核对行为，不代表默认启动、构建、测试或发布入口。
 
+桌面侧栏目的地的焦点边框遵循输入方式：键盘 Tab 导航时显示，鼠标或触屏点击后隐藏，同时保留选中标记；浏览器验证记录见 [`navigation-focus-ring-modality`](../openspec/changes/archive/2026-10-13-navigation-focus-ring-modality/tasks.md)。
+
 ## 统计结论
 
 2026-10-01 设计与实现进度：F-01 至 F-10 均有以当前 React Web 布局为基准的 HeroUI 风格 Pen 稿；F-03 沿用 `design/cash-ledger.pen`，其余九份位于 `design/` 同名文件。用户已确认九份设计稿，Compose 共享页面已迁移至 `design/finance-ui.lib.pen` 对应的 Finance 控件和响应式布局。设计与截图证据见 `openspec/changes/hero-ui-compose-finance-ui/design.md` 和 `design/previews/`；本轮浏览器与 Native 复验结果以该变更的 `tasks.md` 为准。

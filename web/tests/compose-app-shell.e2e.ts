@@ -1,5 +1,33 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
+
+async function countNavigationFocusRingPixels(page: Page, screenshot: Buffer): Promise<number> {
+  return page.evaluate(async (pngBase64) => {
+    const binary = atob(pngBase64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas 2D is unavailable for screenshot inspection");
+    context.drawImage(bitmap, 0, 0);
+
+    const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    let count = 0;
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const nearItemEdge = x >= width - 3 || y <= 2 || y >= height - 3;
+        if (!nearItemEdge || x < 6 || x >= width - 4) continue;
+        const offset = (y * width + x) * 4;
+        const [red, green, blue] = data.subarray(offset, offset + 3);
+        if (red < 48 && green > 72 && green < 190 && blue > 175) count += 1;
+      }
+    }
+    bitmap.close();
+    return count;
+  }, screenshot.toString("base64"));
+}
 
 test("desktop rail and account panel follow pointer entry and exit", async ({ page }) => {
   const diagnostics = captureBrowserDiagnostics(page);
@@ -172,6 +200,44 @@ test("desktop rail expands on keyboard focus and Escape closes the account panel
   await page.keyboard.press("Enter");
   await expect.poll(async () => !(await page.screenshot()).equals(closedMenuScreenshot)).toBe(true);
   await page.screenshot({ path: "/tmp/compose-app-shell-account-escape-768.png" });
+});
+
+test("desktop navigation focus ring follows keyboard focus, not pointer clicks", async ({ page }) => {
+  const diagnostics = captureBrowserDiagnostics(page);
+  await installComposeApiFixtures(page);
+
+  for (const width of [768, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+
+    const selectedItem = page.locator('[id="navigation-item-cash-ledger"]');
+    await page.mouse.move(width - 32, 500);
+    let keyboardFocusPixels = 0;
+    for (let tabCount = 0; tabCount < 24; tabCount += 1) {
+      await page.keyboard.press("Tab");
+      keyboardFocusPixels = await countNavigationFocusRingPixels(page, await selectedItem.screenshot());
+      if (keyboardFocusPixels > 20) break;
+    }
+    expect(keyboardFocusPixels).toBeGreaterThan(20);
+    await page.screenshot({ path: `/tmp/compose-navigation-keyboard-focus-${width}.png` });
+
+    await selectedItem.click({ force: true });
+    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    await page.mouse.move(32, 500);
+    await expect(page.getByRole("button", { name: "收起导航" })).toBeVisible();
+    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    await page.screenshot({ path: `/tmp/compose-navigation-pointer-focus-expanded-${width}.png` });
+
+    await page.mouse.move(width - 32, 500);
+    await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
+    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    await page.screenshot({ path: `/tmp/compose-navigation-pointer-focus-collapsed-${width}.png` });
+  }
+
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
 });
 
 test("compact shell keeps drawer and account sheet click-driven", async ({ page }) => {
