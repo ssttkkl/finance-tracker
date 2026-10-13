@@ -709,11 +709,11 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
   await clickComposeTarget(page, page.locator('[id="import.relation-actions.pending-relation"]').last());
   await clickComposeTarget(page, page.getByRole("button", { name: "撤销拒绝", exact: true }).last());
   await expect(page.getByText("待确认", { exact: true })).toBeVisible();
-  await clickComposeTarget(page, page.getByRole("button", { name: /对侧流水/ }).last(), 0.1, 0.25);
+  await clickComposeTarget(page, page.getByRole("button", { name: /^选择流水/ }).last(), 0.1, 0.25);
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
   const walletCandidateOption = page.locator('[id="choice-option-wallet-row"]');
   await expect(walletCandidateOption).toBeVisible();
-  await clickComposeTarget(page, walletCandidateOption, 0.4, 0.5);
+  await walletCandidateOption.click({ force: true });
   const emptyPendingFilter = page.getByRole("button", { name: "待确认 0", exact: true });
   await expect(emptyPendingFilter).toBeVisible();
   await clickComposeTarget(page, emptyPendingFilter, 0.1, 0.25);
@@ -745,13 +745,23 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await clickComposeTarget(page, relationFilter, 0.1, 0.25);
   const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/cash-import-compose-visual-alignment/prototype/screenshots");
   await mkdir(screenshotDir, { recursive: true });
+  const pendingRelation = page.locator('[id="import.relation-row.pending-relation"]').last();
+  await expect(pendingRelation.getByText("日常账户", { exact: true })).toHaveCount(0);
+  await expect(pendingRelation.getByText("⋯", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^选择流水/ }).last()).toBeVisible();
+  await expect(page.getByText("对侧流水", { exact: true })).toHaveCount(0);
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-relations-390.png") });
 
-  const recordPicker = page.getByRole("button", { name: /对侧流水/ }).last();
+  const recordPicker = page.getByRole("button", { name: /^选择流水/ }).last();
+  const compactCardBounds = await pendingRelation.boundingBox();
   await clickComposeTarget(page, recordPicker, 0.1, 0.25);
-  await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
-  await page.waitForTimeout(350);
+  await expect(page.locator('[id="choice-option-wallet-row"]')).toHaveText("钱包咖啡店 · 28.50 CNY");
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-relation-picker-390.png") });
+  await clickComposeTarget(page, page.locator('[id="choice-option-wallet-row"]'));
+  await expect(page.getByRole("button", { name: /钱包咖啡店 · 28\.50 CNY/ })).toBeVisible();
+  const compactCardBoundsAfterSelection = await pendingRelation.boundingBox();
+  expect(compactCardBounds).not.toBeNull();
+  expect(compactCardBoundsAfterSelection).not.toBeNull();
 
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.reload();
@@ -767,10 +777,13 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
   await expect(page.getByText("关系配对", { exact: true })).toBeVisible();
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await clickComposeTarget(page, page.getByRole("button", { name: /对侧流水/ }).last(), 0.1, 0.25);
-  await expect(page.locator('[id="choice-option-wallet-row"]')).toBeVisible();
-  await page.waitForTimeout(1_200);
+  await expect(page.getByRole("button", { name: /^选择流水/ }).last()).toBeVisible();
+  await page.screenshot({ path: path.join(screenshotDir, "compose-import-relations-1440.png") });
+  await clickComposeTarget(page, page.getByRole("button", { name: /^选择流水/ }).last(), 0.1, 0.25);
+  await expect(page.locator('[id="choice-option-wallet-row"]')).toHaveText("钱包咖啡店 · 28.50 CNY");
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-relation-picker-1440.png") });
+  await clickComposeTarget(page, page.locator('[id="choice-option-wallet-row"]'));
+  await expect(page.getByRole("button", { name: /钱包咖啡店 · 28\.50 CNY/ }).last()).toBeVisible();
 });
 test("未登录邀请与认证页共用入口卡片并继续登录", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });

@@ -582,6 +582,8 @@ private fun ImportUploadIcon(color: Color) {
 @Composable
 private fun ImportOutlinedCard(
     modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
+    contentSpacing: androidx.compose.ui.unit.Dp = 10.dp,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = LocalFinanceColorRoles.current
@@ -590,8 +592,8 @@ private fun ImportOutlinedCard(
         modifier = modifier.fillMaxWidth()
             .border(1.dp, colors.fieldBorder, shape)
             .background(colors.surface, shape)
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(contentSpacing),
         content = content,
     )
 }
@@ -661,7 +663,13 @@ private fun ImportEmptyState(message: String) {
 }
 
 @Composable
-private fun ImportStatusPill(label: String, status: String) {
+private fun ImportStatusPill(
+    label: String,
+    status: String,
+    actionTestTag: String? = null,
+    actionExpanded: Boolean = false,
+    onActionClick: (() -> Unit)? = null,
+) {
     val colors = LocalFinanceColorRoles.current
     val isRejected = status == "rejected" || status == "unresolved" || status == "requires_allocation"
     val background = when {
@@ -674,8 +682,30 @@ private fun ImportStatusPill(label: String, status: String) {
         status == "pending" -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> colors.accent
     }
-    Box(Modifier.background(background, CircleShape).padding(horizontal = 12.dp, vertical = 7.dp)) {
-        Text(label, color = foreground, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+    val actionsDescription = localizedText("cash_import_more_actions")
+    val chip: @Composable () -> Unit = {
+        Box(Modifier.background(background, CircleShape).padding(horizontal = 12.dp, vertical = 7.dp)) {
+            Text(label, color = foreground, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+        }
+    }
+    if (onActionClick == null) {
+        chip()
+    } else {
+        var focused by remember(actionTestTag) { mutableStateOf(false) }
+        UnstyledButton(
+            onClick = onActionClick,
+            modifier = Modifier.heightIn(min = 44.dp)
+                .onFocusChanged { focused = it.isFocused }
+                .border(1.dp, if (focused) colors.focus else Color.Transparent, CircleShape)
+                .semantics {
+                    role = Role.Button
+                    contentDescription = actionsDescription
+                    selected = actionExpanded
+                }
+                .testTag(actionTestTag ?: "import.relation-actions"),
+        ) {
+            Box(contentAlignment = Alignment.Center) { chip() }
+        }
     }
 }
 
@@ -702,7 +732,11 @@ private fun ImportRelationCard(
         "automatic", "accepted" -> localizedText("cash_import_status_linked")
         else -> localizedText("cash_import_status_pending")
     }
-    ImportOutlinedCard(Modifier.testTag("import.relation-row.${relation.id}")) {
+    ImportOutlinedCard(
+        modifier = Modifier.testTag("import.relation-row.${relation.id}"),
+        contentPadding = PaddingValues(if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 16.dp),
+        contentSpacing = 8.dp,
+    ) {
         if (sizeClass == WindowSizeClass.COMPACT) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -711,8 +745,13 @@ private fun ImportRelationCard(
                     ImportRelationTarget(relation, draft, currentSecondary, rejected, Modifier.weight(1f), onCandidateSelected)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    ImportStatusPill(statusLabel, status)
-                    ImportRelationActionsButton(relation.id, expanded = actionsExpanded) { actionsExpanded = !actionsExpanded }
+                    ImportStatusPill(
+                        statusLabel,
+                        status,
+                        actionTestTag = "import.relation-actions.${relation.id}",
+                        actionExpanded = actionsExpanded,
+                        onActionClick = { actionsExpanded = !actionsExpanded },
+                    )
                 }
             }
         } else {
@@ -720,8 +759,13 @@ private fun ImportRelationCard(
                 ImportRelationRecordView(relation.primary, Modifier.weight(1f))
                 Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleLarge)
                 ImportRelationTarget(relation, draft, currentSecondary, rejected, Modifier.weight(1.1f), onCandidateSelected)
-                ImportStatusPill(statusLabel, status)
-                ImportRelationActionsButton(relation.id, expanded = actionsExpanded) { actionsExpanded = !actionsExpanded }
+                ImportStatusPill(
+                    statusLabel,
+                    status,
+                    actionTestTag = "import.relation-actions.${relation.id}",
+                    actionExpanded = actionsExpanded,
+                    onActionClick = { actionsExpanded = !actionsExpanded },
+                )
             }
         }
         if (actionsExpanded) {
@@ -744,29 +788,6 @@ private fun ImportRelationCard(
 }
 
 @Composable
-private fun ImportRelationActionsButton(relationId: String, expanded: Boolean, onClick: () -> Unit) {
-    val actionsLabel = localizedText("cash_import_more_actions")
-    val colors = LocalFinanceColorRoles.current
-    var focused by remember { mutableStateOf(false) }
-    UnstyledButton(
-        onClick = onClick,
-        modifier = Modifier.size(44.dp)
-            .onFocusChanged { focused = it.isFocused }
-            .border(1.dp, if (focused) colors.focus else Color.Transparent, CircleShape)
-            .background(if (focused) colors.accent.copy(alpha = 0.08f) else Color.Transparent, CircleShape)
-            .semantics {
-                role = Role.Button
-                contentDescription = actionsLabel
-                selected = expanded
-            }
-            .focusable()
-            .testTag("import.relation-actions.$relationId"),
-    ) {
-        Text("⋯", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 24.sp)
-    }
-}
-
-@Composable
 private fun ImportRelationRecordView(record: ImportRelationRecord, modifier: Modifier = Modifier) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(formatLocalDateTime(record.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -777,7 +798,6 @@ private fun ImportRelationRecordView(record: ImportRelationRecord, modifier: Mod
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(record.accountName, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -791,14 +811,14 @@ private fun ImportRelationTarget(
     onCandidateSelected: (String) -> Unit,
 ) {
     if (relation.automatic) {
-        if (currentSecondary != null) ImportRelationRecordView(currentSecondary, modifier)
+        if (currentSecondary != null) ImportRelationTargetRecordView(currentSecondary, modifier)
         else Text(localizedText("copy_778fc8f994"), modifier, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else if (rejected) {
-        if (currentSecondary != null) ImportRelationRecordView(currentSecondary, modifier)
+        if (currentSecondary != null) ImportRelationTargetRecordView(currentSecondary, modifier)
         else Text(localizedText("copy_4c7c52c706"), modifier, color = MaterialTheme.colorScheme.onSurfaceVariant)
     } else {
         ChoicePicker(
-            localizedText("copy_9b6d26d5f6"),
+            "",
             draft.secondary?.let(::importItemKey) ?: "",
             listOf("" to localizedText("copy_0153e1a001")) + relation.candidates.map { importItemKey(it) to importRelationRecordLabel(it) },
             onCandidateSelected,
@@ -806,6 +826,27 @@ private fun ImportRelationTarget(
             semanticId = "${SemanticIds.importRelations}.${relation.id}",
             autoScrollMenuIntoView = true,
             fieldStyle = true,
+            simpleMenuOnWeb = true,
+        )
+    }
+}
+
+@Composable
+private fun ImportRelationTargetRecordView(record: ImportRelationRecord, modifier: Modifier = Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            record.counterparty.ifBlank { localizedText("copy_204c9c54c2") },
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            "${formatLocalDateTime(record.occurredAt)} · ${record.amount} ${record.currency}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
@@ -873,7 +914,7 @@ private fun ImportStepper(
 
 @Composable
 private fun importRelationRecordLabel(record: ImportRelationRecord): String =
-    "${record.counterparty.ifBlank { localizedText("copy_204c9c54c2") }} · ${record.amount} ${record.currency} · ${formatLocalDateTime(record.occurredAt)}"
+    "${record.counterparty.ifBlank { localizedText("copy_204c9c54c2") }} · ${record.amount} ${record.currency}"
 
 @Composable
 private fun importRecordTypeLabel(value: String): String = when (value) {

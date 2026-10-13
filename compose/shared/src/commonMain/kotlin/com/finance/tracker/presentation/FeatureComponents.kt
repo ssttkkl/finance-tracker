@@ -299,6 +299,7 @@ internal fun ChoicePicker(
     semanticId: String? = null,
     autoScrollMenuIntoView: Boolean = false,
     fieldStyle: Boolean = false,
+    simpleMenuOnWeb: Boolean = false,
 ) {
     var expanded by remember(label) { mutableStateOf(false) }
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -312,7 +313,9 @@ internal fun ChoicePicker(
             enabled = enabled,
             variant = FinanceButtonVariant.Secondary,
             shape = if (fieldStyle) RoundedCornerShape(10.dp) else RoundedCornerShape(22.dp),
-            modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId)).fillMaxWidth(),
+            modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId))
+                .fillMaxWidth()
+                .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier),
         ) {
             if (fieldStyle) {
                 Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -345,7 +348,6 @@ internal fun ChoicePicker(
                     Column(
                         modifier = Modifier
                             .heightIn(max = 420.dp)
-                        .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier)
                             .verticalScroll(rememberScrollState())
                             .selectableGroup()
                             .padding(8.dp),
@@ -356,24 +358,44 @@ internal fun ChoicePicker(
                                 expanded = false
                                 onSelected(optionValue)
                             }
-                            TextButton(
-                                onClick = selectOption,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("choice-option-$optionValue")
-                                    .semantics(mergeDescendants = true) {
-                                        contentDescription = optionLabel
-                                        role = Role.RadioButton
-                                        selected = isSelected
-                                    },
-                            ) {
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(selected = isSelected, onClick = selectOption)
-                                    Text(optionLabel, modifier = Modifier.padding(vertical = 4.dp))
+                            if (simpleMenuOnWeb) {
+                                TextButton(
+                                    onClick = selectOption,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("choice-option-$optionValue")
+                                        .semantics(mergeDescendants = true) {
+                                            contentDescription = optionLabel
+                                            role = Role.Button
+                                            selected = isSelected
+                                        },
+                                ) {
+                                    Text(
+                                        optionLabel,
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                    )
+                                }
+                            } else {
+                                TextButton(
+                                    onClick = selectOption,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("choice-option-$optionValue")
+                                        .semantics(mergeDescendants = true) {
+                                            contentDescription = optionLabel
+                                            role = Role.RadioButton
+                                            selected = isSelected
+                                        },
+                                ) {
+                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                        RadioButton(selected = isSelected, onClick = selectOption)
+                                        Text(optionLabel, modifier = Modifier.padding(vertical = 4.dp))
+                                    }
                                 }
                             }
                         }
-                        TextButton(onClick = { expanded = false }) { Text(localizedText("copy_6c14bd7f6f")) }
                     }
                 }
             }
