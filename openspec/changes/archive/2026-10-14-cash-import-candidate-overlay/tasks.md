@@ -7,7 +7,7 @@
 ## 2. 计划与原型
 
 - [x] 2.1 Record scope, alternatives, prototype differences, risk, rollback, and shared Native/Web behavior in the proposal and design.
-- [x] 2.2 Copy the previously approved standalone HTML prototype, retaining its native select overlay. The control already opens outside document layout and captures the intended no-reflow behavior; no visual restyling is needed for this interaction correction.
+- [x] 2.2 Copy the previously approved standalone HTML prototype, retaining its native select overlay. The control already opens outside document layout and captures the intended no-reflow behavior. The later implementation review also caught and corrected footer spacing and previous-button styling against that same prototype; see 4.6.
 - [x] 2.3 Verify prototype behavior and no overflow at 320/375/414/768 px; capture same-stage 390/768/1440 px screenshots.
 - [x] 2.4 Pen MCP access is unavailable because no editor document is open (`get_app_state` and `read_skill` return that limitation). This is an interaction implementation matching the already approved prototype, not a new visual direction; preserve and document the existing Pen mapping.
 
@@ -42,12 +42,12 @@
 - [x] 6.3 In Chromium at `http://127.0.0.1:5192/w/workspace-1/cash-import`, verified Compose at 390×844, 768×1024, and 1440×900. The standalone prototype had no horizontal overflow at 320/375/414/768 px; both prototype and Compose screenshots are in `prototype/screenshots/`. Covered import success, validation/error, empty/filter states, keyboard operation, and browser diagnostics with no console/network/static HTTP/Wasm MIME failures.
 - [x] 6.4 `ANDROID_HOME=/Users/huangwenlong/Library/Android/sdk ./gradlew :shared:wasmJsBrowserTest :webApp:wasmJsBrowserDistribution :shared:compileAndroidMain :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` — passed. `npm run test` — 15 files / 152 tests passed. `npm run build` — passed. `openspec validate cash-import-candidate-overlay --strict`, `openspec doctor`, and `git diff --check` — passed.
 - [x] 6.5 Storage and API matrices are not applicable: no data, endpoint, persistence, financial calculation, or import business contract changes.
-- [x] 6.6 `FT_COMPOSE_PREVIEW_PORT=5192 npm run test:e2e:compose -- --grep 'F-05|批准的独立原型'` — 6 passed in Chromium against the production Wasm preview, including Compact 390×844 and Regular/Wide 768×1024 and 1440×900. Verified Compact actions at opposite edges and outlined previous button, Regular/Wide right-aligned outlined/primary buttons, relation selection and no-reflow overlay, Escape/outside dismissal, keyboard selection, validation/empty/success flows, and browser console/network/static HTTP/Wasm MIME diagnostics. Updated Compose and prototype screenshots are stored in `prototype/screenshots/`.
+- [x] 6.6 At final code HEAD `9c535bc3806f164952f402c57a58d4f489ffe6d1` on 2026-10-14 (Asia/Shanghai), reran `FT_COMPOSE_PREVIEW_PORT=5192 npm run test:e2e:compose -- --grep 'F-05|批准的独立原型'` — 6 passed in Chromium against the production Wasm preview. Covered Compact 390×844, Regular 768×1024, and Wide 1440×900; Compact actions at opposite edges and outlined previous button; Regular/Wide right-aligned footer buttons; relation selection and no-reflow overlay; Escape/outside dismissal; keyboard selection; validation, empty, and success flows; no console, network, static HTTP, or Wasm MIME errors. Updated Compose and prototype screenshots are stored in `prototype/screenshots/`.
 
 ## 7. 发布准备
 
-- [x] 7.1 Verification ran at HEAD `57092527b96b85ed7ade3aa31174418c1917ccf7`, compared with `origin/refactor/kmp` at the same commit. No financial, API, or persistence risk was introduced; rollback is limited to the candidate overlay, date formatter, footer/status presentation, and warning tokens.
-- [x] 7.2 Archive the completed OpenSpec change, commit only the scoped implementation/spec/token/feature-map/browser artifacts, and push to the already-authorized `origin/refactor/kmp` branch.
+- [x] 7.1 Initial checks ran at base HEAD `57092527b96b85ed7ade3aa31174418c1917ccf7`. Final code verification ran at `9c535bc3806f164952f402c57a58d4f489ffe6d1` against that base; the post-commit Gradle matrix passed (`:shared:wasmJsBrowserTest`, `:webApp:wasmJsBrowserDistribution`, Android Main, and iOS Simulator Arm64), `openspec validate --specs --strict` passed all 25 specs, `openspec doctor` and `git diff --check` passed. No financial, API, or persistence risk was introduced; rollback is limited to the candidate overlay, date formatter, footer/status presentation, and warning tokens.
+- [x] 7.2 Archived and pushed the scoped implementation/spec/token/feature-map/browser artifacts to the already-authorized `origin/refactor/kmp` branch as commit `9c535bc` (`Align Compose cash import with prototype`). `git ls-remote origin refs/heads/refactor/kmp` confirmed remote HEAD `9c535bc3806f164952f402c57a58d4f489ffe6d1`; tracked worktree is clean.
 
 ## 8. 反思
 
