@@ -1,5 +1,11 @@
 This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
+## Render Compose Web 部署
+
+在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。
+
+仓库根目录的 `render.yaml` 仍用于 `web/` 下的服务配置，不用于此 Compose Web Static Site。
+
 ## 本地 Compose demo
 
 在仓库根目录运行：
