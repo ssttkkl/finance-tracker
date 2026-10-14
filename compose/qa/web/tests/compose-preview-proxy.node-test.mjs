@@ -7,8 +7,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import test from "node:test";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
-const previewScript = path.join(repoRoot, "web/tests/compose-preview-server.mjs");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
+const previewScript = path.join(repoRoot, "compose/qa/web/tests/compose-preview-server.mjs");
 
 async function reservePort() {
   const server = createServer();

@@ -28,6 +28,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 
 @Composable
 internal fun InvestmentEventsScreen(
@@ -78,7 +81,13 @@ internal fun InvestmentEventsScreen(
                 DatePickerInput(filters.dateTo.orEmpty(), { viewModel.updateFilters(filters.copy(dateTo = it.ifBlank { null })) }, localizedText("copy_f4b9b2b5de"), Modifier.weight(1f))
                 ChoicePicker(localizedText("copy_c66422962f"), filters.accountId.orEmpty(), accountOptions, { viewModel.updateFilters(filters.copy(accountId = it.ifBlank { null })) }, Modifier.weight(1f))
                 ChoicePicker(localizedText("copy_5b2d75aa54"), filters.recordType.orEmpty(), eventTypeOptions, { viewModel.updateFilters(filters.copy(recordType = it.ifBlank { null })) }, Modifier.weight(1f))
-                LabeledInput(filters.ticker.orEmpty(), { viewModel.updateFilters(filters.copy(ticker = it.ifBlank { null })) }, localizedText("copy_47a935d1ef"), modifier = Modifier.weight(1f))
+                OutlinedTextField(
+                    value = filters.ticker.orEmpty(),
+                    onValueChange = { viewModel.updateFilters(filters.copy(ticker = it.ifBlank { null })) },
+                    modifier = Modifier.weight(1f).accessibleTextFieldLabel(localizedText("copy_47a935d1ef")),
+                    label = { Text(localizedText("copy_47a935d1ef")) },
+                    singleLine = true,
+                )
             }
         } else if (sizeClass == WindowSizeClass.COMPACT) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -89,12 +98,18 @@ internal fun InvestmentEventsScreen(
             ChoicePicker(localizedText("copy_c66422962f"), filters.accountId.orEmpty(), accountOptions, { viewModel.updateFilters(filters.copy(accountId = it.ifBlank { null })) }, Modifier.weight(1f))
             ChoicePicker(localizedText("copy_5b2d75aa54"), filters.recordType.orEmpty(), eventTypeOptions, { viewModel.updateFilters(filters.copy(recordType = it.ifBlank { null })) }, Modifier.weight(1f))
         }
-        if (sizeClass != WindowSizeClass.WIDE) LabeledInput(filters.ticker.orEmpty(), { viewModel.updateFilters(filters.copy(ticker = it.ifBlank { null })) }, localizedText("copy_47a935d1ef"))
+        if (sizeClass != WindowSizeClass.WIDE) OutlinedTextField(
+    value = filters.ticker.orEmpty(),
+    onValueChange = { viewModel.updateFilters(filters.copy(ticker = it.ifBlank { null })) },
+    modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_47a935d1ef")),
+    label = { Text(localizedText("copy_47a935d1ef")) },
+    singleLine = true,
+)
         if (accountsError) StateMessage(localizedText("copy_13f8ed4623"), isError = true) {
-            FinanceTertiaryButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) }
+            TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) }
         }
         if (loading && events.isEmpty()) StateMessage(localizedText("copy_dd1212991d"))
-        if (error != null) StateMessage(error.orEmpty(), isError = true) { FinanceTertiaryButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) } }
+        if (error != null) StateMessage(error.orEmpty(), isError = true) { TextButton(onClick = { viewModel.reload() }) { Text(localizedText("copy_e2d53a6d3a")) } }
         if (!loading && error == null && events.isEmpty()) StateMessage(localizedText("copy_f60d48a9b9"))
         if (sizeClass == WindowSizeClass.WIDE && events.isNotEmpty()) {
             Row(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant)) {
@@ -120,7 +135,7 @@ internal fun InvestmentEventsScreen(
                     FinanceTableCell(investmentAssetLines(event).joinToString("\n") { (_, value) -> value }, 1.8f)
                     FinanceTableCell(event.commission.amount?.let { "${formatInvestmentAmount(it)} ${event.commission.asset ?: event.currency}" } ?: "—", 0.8f)
                     FinanceTableCell(event.note.ifBlank { "—" }, 1.2f)
-                    FinanceTertiaryButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.weight(0.7f).testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
+                    TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.weight(0.7f).testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
                 }
                 HorizontalDivider()
             } else SectionCard(modifier = Modifier.testTag("investment-event-${event.eventId}")) {
@@ -146,13 +161,13 @@ internal fun InvestmentEventsScreen(
                     Text(localizedText("copy_267bdc72ce", formatInvestmentAmount(event.commission.amount), event.commission.asset ?: event.currency))
                 }
                 if (event.note.isNotBlank() || event.sourceType != null) Text(event.note.ifBlank { localizedText("copy_6d33d6cd64") })
-                FinanceTertiaryButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
+                TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
             }
         }
         if (appendError != null) StateMessage(appendError.orEmpty(), isError = true) {
-            FinanceTertiaryButton(onClick = { viewModel.loadMore(retry = true) }, enabled = !loadingMore) { Text(localizedText("copy_b647ee0bdc")) }
+            TextButton(onClick = { viewModel.loadMore(retry = true) }, enabled = !loadingMore) { Text(localizedText("copy_b647ee0bdc")) }
         }
-        if (nextCursor != null && appendError == null) FinanceButton(onClick = { viewModel.loadMore() }, enabled = !loadingMore, modifier = Modifier.testTag(SemanticIds.investmentEventsLoadMore)) {
+        if (nextCursor != null && appendError == null) Button(onClick = { viewModel.loadMore() }, enabled = !loadingMore, modifier = Modifier.testTag(SemanticIds.investmentEventsLoadMore)) {
             Text(if (loadingMore) localizedText("copy_fcabadb2a7") else localizedText("copy_3a0fab4978"))
         }
     }
@@ -177,9 +192,9 @@ internal fun InvestmentEventsScreen(
                             PositionFact(localizedText(fact.labelResourceKey), fact.valueResourceKey?.let { localizedText(it) } ?: fact.value)
                         }
                     }
-                    if (evidenceError != null) FinanceTertiaryButton(onClick = viewModel::retryEvidence) { Text(localizedText("copy_e2d53a6d3a")) }
+                    if (evidenceError != null) TextButton(onClick = viewModel::retryEvidence) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
-                FinanceTertiaryButton(onClick = viewModel::closeEvidence, modifier = Modifier.testTag(SemanticIds.investmentEventDetailClose)) { Text(localizedText("copy_6c14bd7f6f")) }
+                TextButton(onClick = viewModel::closeEvidence, modifier = Modifier.testTag(SemanticIds.investmentEventDetailClose)) { Text(localizedText("copy_6c14bd7f6f")) }
             }
         }
     }

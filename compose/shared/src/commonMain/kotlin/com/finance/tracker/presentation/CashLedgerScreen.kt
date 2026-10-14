@@ -30,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -38,6 +39,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 
 @Composable
 internal fun CashLedgerScreen(
@@ -71,12 +74,13 @@ internal fun CashLedgerScreen(
         showTitle = false,
         headerActions = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FinanceButton(onClick = { viewModel.startNewRecord(localDateTimeForInput()) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerAdd)) { Text(localizedText("copy_1f62e3f53f")) }
-                FinanceSecondaryButton(
+                Button(onClick = { viewModel.startNewRecord(localDateTimeForInput()) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerAdd)) { Text(localizedText("copy_1f62e3f53f")) }
+                OutlinedButton(
                     onClick = { onNavigate(AppPage.CASH_IMPORT) },
                     enabled = canWrite,
-                    focusRequester = importButtonFocusRequester,
-                    modifier = Modifier.testTag(SemanticIds.ledgerImport),
+                    modifier = Modifier
+                        .then(importButtonFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                        .testTag(SemanticIds.ledgerImport),
                 ) { Text(localizedText("copy_aee4e0d769")) }
             }
         },
@@ -274,22 +278,28 @@ private fun CashFilterPanel(
     val compact = sizeClass == WindowSizeClass.COMPACT
     var advancedVisible by remember { mutableStateOf(false) }
     val accountFilter: @Composable (Modifier) -> Unit = { modifier ->
-        FinanceSelect(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier)
+        ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier)
     }
     val categoryFilter: @Composable (Modifier) -> Unit = { modifier ->
-        FinanceSelect(localizedText("copy_435c5259e4"), value.categoryId.orEmpty(), listOf("" to localizedText("copy_a8e369c4b6"), "__uncategorized__" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }, {
+        ChoicePicker(localizedText("copy_435c5259e4"), value.categoryId.orEmpty(), listOf("" to localizedText("copy_a8e369c4b6"), "__uncategorized__" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }, {
             onChange(value.copy(categoryId = if (it.isEmpty() || it == "__uncategorized__") null else it, uncategorized = if (it == "__uncategorized__") "true" else null))
         }, modifier)
     }
     val counterpartyFilter: @Composable (Modifier) -> Unit = { modifier ->
-        LabeledInput(value.counterparty.orEmpty(), { onChange(value.copy(counterparty = it.ifBlank { null })) }, localizedText("copy_4b5a03c119"), modifier = modifier)
+        OutlinedTextField(
+            value = value.counterparty.orEmpty(),
+            onValueChange = { onChange(value.copy(counterparty = it.ifBlank { null })) },
+            modifier = modifier.accessibleTextFieldLabel(localizedText("copy_4b5a03c119")),
+            label = { Text(localizedText("copy_4b5a03c119")) },
+            singleLine = true,
+        )
     }
     val currenciesWithCurrent = (listOfNotNull(value.currency) + currencies).distinct()
     val currencyFilter: @Composable (Modifier) -> Unit = { modifier ->
-        FinanceSelect(localizedText("copy_a81ab5e100"), value.currency.orEmpty(), listOf("" to localizedText("copy_7f566e2869")) + currenciesWithCurrent.map { it to it }, { onChange(value.copy(currency = it.ifEmpty { null })) }, modifier)
+        ChoicePicker(localizedText("copy_a81ab5e100"), value.currency.orEmpty(), listOf("" to localizedText("copy_7f566e2869")) + currenciesWithCurrent.map { it to it }, { onChange(value.copy(currency = it.ifEmpty { null })) }, modifier)
     }
     val economicTypeFilter: @Composable (Modifier) -> Unit = { modifier ->
-        FinanceSelect(
+        ChoicePicker(
             localizedText("copy_c939d425cd"),
             value.economicType.orEmpty(),
             listOf("" to localizedText("copy_4cfe6e1c20")) + typeOptions.map { it.economicType to economicTypeLabel(it.economicType) },
@@ -299,11 +309,29 @@ private fun CashFilterPanel(
     }
     val amountMinFilter: @Composable (Modifier) -> Unit = { modifier ->
         val invalid = value.amountMin != null && !isExactDecimalString(value.amountMin)
-        LabeledInput(value.amountMin.orEmpty(), { onChange(value.copy(amountMin = it.ifBlank { null })) }, localizedText("copy_d1e673ac4e"), modifier = modifier, isError = invalid, onBlur = { if (invalid) onInvalidAmount() })
+        OutlinedTextField(
+            value = value.amountMin.orEmpty(),
+            onValueChange = { onChange(value.copy(amountMin = it.ifBlank { null })) },
+            modifier = modifier
+                .onFocusLost(onFocusLost = { if (invalid) onInvalidAmount() })
+                .accessibleTextFieldLabel(localizedText("copy_d1e673ac4e")),
+            label = { Text(localizedText("copy_d1e673ac4e")) },
+            isError = invalid,
+            singleLine = true,
+        )
     }
     val amountMaxFilter: @Composable (Modifier) -> Unit = { modifier ->
         val invalid = value.amountMax != null && !isExactDecimalString(value.amountMax)
-        LabeledInput(value.amountMax.orEmpty(), { onChange(value.copy(amountMax = it.ifBlank { null })) }, localizedText("copy_e84edb075b"), modifier = modifier, isError = invalid, onBlur = { if (invalid) onInvalidAmount() })
+        OutlinedTextField(
+            value = value.amountMax.orEmpty(),
+            onValueChange = { onChange(value.copy(amountMax = it.ifBlank { null })) },
+            modifier = modifier
+                .onFocusLost(onFocusLost = { if (invalid) onInvalidAmount() })
+                .accessibleTextFieldLabel(localizedText("copy_e84edb075b")),
+            label = { Text(localizedText("copy_e84edb075b")) },
+            isError = invalid,
+            singleLine = true,
+        )
     }
     FinanceFilterBar(title = localizedText("copy_dcce9a144a"), modifier = Modifier.testTag(SemanticIds.ledgerFilters)) {
         if (compact) {
@@ -349,9 +377,9 @@ private fun CashFilterPanel(
             }
             if (!value.economicType.isNullOrEmpty()) {
                 val subtypes = typeOptions.firstOrNull { it.economicType == value.economicType }?.transferSubtypes.orEmpty()
-                if (subtypes.isNotEmpty()) FinanceSelect(localizedText("copy_82fa0e654c"), value.transferSubtype.orEmpty(), listOf("" to localizedText("copy_778fc8f994")) + subtypes.map { it to transferSubtypeLabel(it) }, { onChange(value.copy(transferSubtype = it.ifEmpty { null })) })
+                if (subtypes.isNotEmpty()) ChoicePicker(localizedText("copy_82fa0e654c"), value.transferSubtype.orEmpty(), listOf("" to localizedText("copy_778fc8f994")) + subtypes.map { it to transferSubtypeLabel(it) }, { onChange(value.copy(transferSubtype = it.ifEmpty { null })) })
             }
-            FinanceSelect(localizedText("copy_cc498b84ff"), value.composition.orEmpty(), listOf("" to localizedText("copy_778fc8f994"), "single" to localizedText("copy_4a70b7e986"), "payment_mirror" to localizedText("copy_2b6feb78fe"), "refund_offset" to localizedText("copy_b441aa2b9b"), "combined" to localizedText("copy_e5847fcd94")), { onChange(value.copy(composition = it.ifEmpty { null })) })
+            ChoicePicker(localizedText("copy_cc498b84ff"), value.composition.orEmpty(), listOf("" to localizedText("copy_778fc8f994"), "single" to localizedText("copy_4a70b7e986"), "payment_mirror" to localizedText("copy_2b6feb78fe"), "refund_offset" to localizedText("copy_b441aa2b9b"), "combined" to localizedText("copy_e5847fcd94")), { onChange(value.copy(composition = it.ifEmpty { null })) })
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

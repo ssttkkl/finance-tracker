@@ -1,44 +1,30 @@
-version: 2
+version: 3
 source: openspec/specs/shared/design-system/tokens/*.tokens.json
-implementation: compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt
-historicalReferences:
-  penComponents: design/finance-ui.lib.pen
-  penUpstreamReference: design/heroui.lib.pen
-upstream:
-  implementation: HeroUI v3 official code and @heroui/styles
-  tokens: HeroUI CSS variables, copied into project token JSON before generation
-  componentReview: Compare Compose implementations with the recorded Finance component contracts
-  figmaKit: optional visual-check source; never the Finance UI or token source
+theme: compose/shared/src/commonMain/kotlin/com/finance/tracker/core/FinanceTheme.kt
+implementation: compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation
 pageSource: Compose screens and AppShell define page structure, region order, and responsive behavior
-components:
-  Finance/Button:
-    compose: FinanceButton
-    heroUi: HeroUI/Button/Primary, HeroUI/Button/Secondary
-    variants: [primary, secondary, tertiary, danger]
-    sizes: [sm, md, lg]
-    states: [default, hover, pressed, focus, disabled, loading]
-    slots: [leadingIcon, content, trailingIcon]
-  Finance/TextField:
-    compose: FinanceTextField
-    heroUi: HeroUI/Input
-    variants: [default, error]
-    states: [default, focus, disabled, readOnly]
-    slots: [label, leadingIcon, trailingIcon, supportingText]
+controls:
+  Material3/Button:
+    compose: [Button, OutlinedButton, TextButton, FilledTonalButton]
+    theme: FinanceTheme
+    states: [default, focused, disabled, loading]
+    callsiteResponsibilities: [businessAction, label, semanticId, accessibility]
+  Material3/TextField:
+    compose: [OutlinedTextField, TextField]
+    theme: FinanceTheme
+    states: [default, focused, disabled, error]
+    callsiteResponsibilities: [label, inputType, validation, semanticId, accessibility]
+sharedFinanceHelpers:
   Finance/Select:
-    compose: FinanceSelect
-    heroUi: HeroUI/Select
-    variants: [default, error]
+    compose: ChoicePicker
     states: [default, expanded, disabled]
-  Finance/DataTable:
-    compose: FinanceDataTable
-    heroUi: HeroUI/Table
-    screens: [InvestmentHoldingsScreen, InvestmentEventsScreen]
-    states: [loading, ready, empty, error]
   Finance/FilterBar:
     compose: FinanceFilterBar
-    heroUi: HeroUI/Select
     states: [default, dirty, disabled]
+  Finance/DataTable:
+    compose: FinanceDataTable
+    screens: [InvestmentHoldingsScreen, InvestmentEventsScreen]
+    states: [loading, ready, empty, error]
   Finance/Amount:
     compose: FinanceAmount
-    heroUi: semantic amount treatment using HeroUI foreground/accent tokens
     variants: [income, expense, neutral]

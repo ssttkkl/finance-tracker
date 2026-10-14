@@ -1,8 +1,19 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
 
-async function countNavigationFocusRingPixels(page: Page, screenshot: Buffer): Promise<number> {
-  return page.evaluate(async (pngBase64) => {
+async function clickComposeTarget(page: Page, locator: Locator): Promise<void> {
+  await locator.scrollIntoViewIfNeeded();
+  const bounds = await locator.boundingBox();
+  if (!bounds) throw new Error("Missing Compose target bounds");
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.waitForTimeout(60);
+}
+
+async function countNavigationFocusRingPixels(page: Page, target: Locator): Promise<number> {
+  const bounds = await target.boundingBox();
+  if (!bounds) return 0;
+  const screenshot = await page.screenshot();
+  return page.evaluate(async ({ pngBase64, bounds }) => {
     const binary = atob(pngBase64);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
@@ -14,19 +25,24 @@ async function countNavigationFocusRingPixels(page: Page, screenshot: Buffer): P
     context.drawImage(bitmap, 0, 0);
 
     const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    const { x, y, width: targetWidth, height: targetHeight } = bounds;
+    const left = Math.max(0, Math.floor(x - 6));
+    const right = Math.min(width, Math.ceil(x + targetWidth + 6));
+    const top = Math.max(0, Math.floor(y - 6));
+    const bottom = Math.min(height, Math.ceil(y + targetHeight + 6));
     let count = 0;
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const nearItemEdge = x >= width - 3 || y <= 2 || y >= height - 3;
-        if (!nearItemEdge || x < 6 || x >= width - 4) continue;
-        const offset = (y * width + x) * 4;
+    for (let py = top; py < bottom; py += 1) {
+      for (let px = left; px < right; px += 1) {
+        const outsideTargetBounds = px < x || px >= x + targetWidth || py < y || py >= y + targetHeight;
+        if (!outsideTargetBounds) continue;
+        const offset = (py * width + px) * 4;
         const [red, green, blue] = data.subarray(offset, offset + 3);
         if (red < 48 && green > 72 && green < 190 && blue > 175) count += 1;
       }
     }
     bitmap.close();
     return count;
-  }, screenshot.toString("base64"));
+  }, { pngBase64: screenshot.toString("base64"), bounds });
 }
 
 test("desktop rail and account panel follow pointer entry and exit", async ({ page }) => {
@@ -120,8 +136,8 @@ test("desktop rail collapses after mouse navigation leaves focus behind", async 
 
     const collapseControl = page.getByRole("button", { name: "收起导航" });
 
-    await page.locator('[id="navigation-item-cash-import"]').click({ force: true });
-    await expect(page).toHaveURL(/\/w\/workspace-1\/cash-import$/);
+    await page.locator('[id="navigation-item-cash-categories"]').click({ force: true });
+    await expect(page).toHaveURL(/\/w\/workspace-1\/cash-categories$/);
     await expect(collapseControl).toBeVisible();
     await page.mouse.move(width - 40, 500);
     await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
@@ -215,22 +231,34 @@ test("desktop navigation focus ring follows keyboard focus, not pointer clicks",
     let keyboardFocusPixels = 0;
     for (let tabCount = 0; tabCount < 24; tabCount += 1) {
       await page.keyboard.press("Tab");
-      keyboardFocusPixels = await countNavigationFocusRingPixels(page, await selectedItem.screenshot());
+      keyboardFocusPixels = await countNavigationFocusRingPixels(page, selectedItem);
       if (keyboardFocusPixels > 20) break;
     }
     expect(keyboardFocusPixels).toBeGreaterThan(20);
     await page.screenshot({ path: `/tmp/compose-navigation-keyboard-focus-${width}.png` });
 
-    await selectedItem.click({ force: true });
-    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    const categoriesItem = page.locator('[id="navigation-item-cash-categories"]');
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => countNavigationFocusRingPixels(page, categoriesItem)).toBeGreaterThan(20);
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(/\/cash-categories$/);
+
+    const holdingsItem = page.locator('[id="navigation-item-investment-holdings"]');
+    await page.keyboard.press("Tab");
+    await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBeGreaterThan(20);
+    await page.keyboard.press("Space");
+    await expect(page).toHaveURL(/\/investment-holdings$/);
+
+    await holdingsItem.click({ force: true });
+    await expect.poll(async () => countNavigationFocusRingPixels(page, holdingsItem)).toBe(0);
     await page.mouse.move(32, 500);
     await expect(page.getByRole("button", { name: "收起导航" })).toBeVisible();
-    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    await expect.poll(async () => countNavigationFocusRingPixels(page, selectedItem)).toBe(0);
     await page.screenshot({ path: `/tmp/compose-navigation-pointer-focus-expanded-${width}.png` });
 
     await page.mouse.move(width - 32, 500);
     await expect(page.getByRole("button", { name: "展开导航" })).toBeVisible();
-    await expect.poll(async () => countNavigationFocusRingPixels(page, await selectedItem.screenshot())).toBe(0);
+    await expect.poll(async () => countNavigationFocusRingPixels(page, selectedItem)).toBe(0);
     await page.screenshot({ path: `/tmp/compose-navigation-pointer-focus-collapsed-${width}.png` });
   }
 
@@ -343,12 +371,11 @@ test("account panel switches workspace, opens management, and signs out", async 
 
   await page.mouse.move(38, 860);
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
-  await page.locator('[id="workspace.logout"]').click({ force: true });
-  await page.waitForTimeout(600);
+  await clickComposeTarget(page, page.getByRole("button", { name: "退出登录", exact: true }));
+  await expect.poll(() => api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/logout")).toBe(true);
   const signedOutScreenshot = await page.screenshot();
   expect(signedOutScreenshot.equals(managementScreenshot)).toBe(false);
   await page.screenshot({ path: "/tmp/compose-app-shell-signed-out-768.png" });
-  expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/logout")).toBe(true);
 
   await diagnostics.settle();
   expect(diagnostics.consoleErrors).toEqual([]);

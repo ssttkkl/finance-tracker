@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,6 +31,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.launch
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 
 @Composable
 internal fun InvitationScreen(
@@ -106,29 +110,29 @@ private fun InvitationContent(
         preview == null -> {
             Text(localizedText("copy_73e6ee9610"), style = MaterialTheme.typography.titleLarge)
             InlineError(error)
-            if (!state.terminalPreviewError) FinanceTertiaryButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
-            FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
+            if (!state.terminalPreviewError) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
+            TextButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
         }
         preview.valid == false -> {
             Text(localizedText("copy_ec0fa251c2"), style = MaterialTheme.typography.titleLarge)
             Text(localizedText("copy_40d123e2b5"))
-            FinanceTertiaryButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
+            TextButton(onClick = onCancel) { Text(localizedText("copy_11d0241540")) }
         }
         else -> {
             Text(localizedText("copy_4d2ee8a422", preview.workspace.name), style = MaterialTheme.typography.titleLarge)
             Text(if (preview.role == WorkspaceRole.EDITOR) localizedText("copy_e85cf84fa9") else localizedText("copy_19beadefbf"))
             if (state.accepting) {
-                FinanceButton(onClick = {}, enabled = false, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                Button(onClick = {}, enabled = false, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
                     Text(localizedText("copy_df0b8d97c3"))
                 }
             } else if (isAuthenticated) {
-                FinanceButton(onClick = onAccept, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
+                Button(onClick = onAccept, modifier = Modifier.testTag(SemanticIds.invitationAccept)) {
                     Text(localizedText("copy_f3703115d3"))
                 }
             } else {
-                FinanceButton(onClick = onRequireSignIn) { Text(localizedText("copy_36e59d0e40")) }
+                Button(onClick = onRequireSignIn) { Text(localizedText("copy_36e59d0e40")) }
             }
-            FinanceTertiaryButton(onClick = onCancel, enabled = !state.accepting) { Text(localizedText("copy_3171424931")) }
+            TextButton(onClick = onCancel, enabled = !state.accepting) { Text(localizedText("copy_3171424931")) }
             InlineError(error)
         }
     }
@@ -174,7 +178,7 @@ internal fun WorkspaceManagementScreen(
     val deleting = state.deleting
     FeaturePage(localizedText("copy_e0617c59d4"), SemanticIds.workspaceManagementScreen, showTitle = false) {
         if (loading && details == null) StateMessage(localizedText("copy_bac3e13248"))
-        if (error != null && details == null) StateMessage(error.orEmpty(), isError = true) { FinanceTertiaryButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) } }
+        if (error != null && details == null) StateMessage(error.orEmpty(), isError = true) { TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) } }
         details?.let { current ->
             SectionCard {
                 Text(localizedText("copy_b9add18dda"), style = MaterialTheme.typography.titleLarge)
@@ -186,20 +190,36 @@ internal fun WorkspaceManagementScreen(
                 }
                 if (sizeClass == WindowSizeClass.COMPACT) {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LabeledInput(name, viewModel::updateName, localizedText("copy_3a0522a8a9"), semanticId = SemanticIds.workspaceManagementName, enabled = isAdmin)
-                        FinanceButton(
+                        OutlinedTextField(
+                            value = name,
+                            onValueChange = viewModel::updateName,
+                            modifier = Modifier.testTag(SemanticIds.workspaceManagementName)
+                                .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
+                            label = { Text(localizedText("copy_3a0522a8a9")) },
+                            enabled = isAdmin,
+                            singleLine = true,
+                        )
+                        Button(
                             onClick = saveWorkspaceName,
                             enabled = isAdmin && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
                         ) { Text(localizedText("copy_fadf24dbc5")) }
                         Text(localizedText("copy_b387059362"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(current.workspace.id, style = MaterialTheme.typography.bodyMedium)
-                        FinanceTertiaryButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
+                        TextButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
                     }
                 } else {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            LabeledInput(name, viewModel::updateName, localizedText("copy_3a0522a8a9"), modifier = Modifier.weight(1f), semanticId = SemanticIds.workspaceManagementName, enabled = isAdmin)
-                            FinanceButton(
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = viewModel::updateName,
+                                modifier = Modifier.weight(1f).testTag(SemanticIds.workspaceManagementName)
+                                    .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
+                                label = { Text(localizedText("copy_3a0522a8a9")) },
+                                enabled = isAdmin,
+                                singleLine = true,
+                            )
+                            Button(
                                 onClick = saveWorkspaceName,
                                 enabled = isAdmin && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
                             ) { Text(localizedText("copy_fadf24dbc5")) }
@@ -208,7 +228,7 @@ internal fun WorkspaceManagementScreen(
                             Text(localizedText("copy_b387059362"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text(current.workspace.id, style = MaterialTheme.typography.bodyMedium)
-                                FinanceTertiaryButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
+                                TextButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
                             }
                         }
                     }
@@ -231,7 +251,7 @@ internal fun WorkspaceManagementScreen(
                                 enabled = busyMember != member.userId,
                                 onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), isAdmin) },
                             )
-                            FinanceTertiaryButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
+                            TextButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
                         } else {
                             Text(workspaceRoleLabel(member.role), modifier = Modifier.padding(top = 14.dp))
                         }
@@ -266,10 +286,18 @@ internal fun WorkspaceManagementScreen(
                     onSelected = { viewModel.setInvitationRole(WorkspaceRole.valueOf(it.uppercase())) },
                     enabled = isAdmin,
                 )
-                FinanceButton(onClick = createInvite, enabled = isAdmin, modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
+                Button(onClick = createInvite, enabled = isAdmin, modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
                 if (invitationLink.isNotEmpty()) {
-                    LabeledInput(invitationLink, {}, localizedText("copy_8a8f47d4d5"), semanticId = SemanticIds.workspaceManagementInviteLink, enabled = false)
-                    FinanceTertiaryButton(onClick = {
+                    OutlinedTextField(
+                        value = invitationLink,
+                        onValueChange = {},
+                        modifier = Modifier.testTag(SemanticIds.workspaceManagementInviteLink)
+                            .accessibleTextFieldLabel(localizedText("copy_8a8f47d4d5")),
+                        label = { Text(localizedText("copy_8a8f47d4d5")) },
+                        enabled = false,
+                        singleLine = true,
+                    )
+                    TextButton(onClick = {
                         scope.launch {
                             viewModel.setFeedback(if (copyTextToClipboard(invitationLink)) "workspace_copied" else "copy_failed")
                         }
@@ -279,7 +307,13 @@ internal fun WorkspaceManagementScreen(
             if (isAdmin) {
                 SectionCard {
                     Text(localizedText("copy_91b31b846d"), style = MaterialTheme.typography.titleLarge)
-                    FinanceButton(onClick = viewModel::openDeleteDialog, variant = FinanceButtonVariant.Danger) { Text(localizedText("copy_91b31b846d")) }
+                    Button(
+                        onClick = viewModel::openDeleteDialog,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError,
+                        ),
+                    ) { Text(localizedText("copy_91b31b846d")) }
                 }
             }
         }
@@ -294,17 +328,23 @@ internal fun WorkspaceManagementScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(localizedText("copy_021b37112e"))
-                    LabeledInput(deleteName, viewModel::updateDeleteName, localizedText("copy_3a0522a8a9"))
+                    OutlinedTextField(
+                        value = deleteName,
+                        onValueChange = viewModel::updateDeleteName,
+                        modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
+                        label = { Text(localizedText("copy_3a0522a8a9")) },
+                        singleLine = true,
+                    )
                     InlineError(deleteError)
                 }
             },
             confirmButton = {
-                FinanceTertiaryButton(
+                TextButton(
                     onClick = { viewModel.deleteWorkspace(isAdmin) },
                     enabled = !deleting && deleteName == details?.workspace?.name,
                 ) { Text(if (deleting) localizedText("copy_91647936fd") else localizedText("copy_91b31b846d")) }
             },
-            dismissButton = { FinanceTertiaryButton(onClick = viewModel::dismissDeleteDialog, enabled = !deleting) { Text(localizedText("copy_4d0b4688c7")) } },
+            dismissButton = { TextButton(onClick = viewModel::dismissDeleteDialog, enabled = !deleting) { Text(localizedText("copy_4d0b4688c7")) } },
         )
     }
 }

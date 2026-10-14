@@ -277,7 +277,7 @@
       "x": 520,
       "y": 0,
       "name": "Finance/DataTable",
-      "context": "HeroUI.Table - div",
+      "context": "FinanceDataTable - Compose",
       "reusable": true,
       "width": 720,
       "height": 130,

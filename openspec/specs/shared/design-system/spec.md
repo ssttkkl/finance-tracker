@@ -2,62 +2,60 @@
 
 ## Purpose
 
-为 Finance Tracker 建立由 Git token、HeroUI 官方代码/CSS、Pen 参考、组件合同和 Compose 实现共同组成的可审计设计系统；HeroUI 提供视觉与 token 语义参考，Finance UI 拥有产品组件，Compose Unstyled 只承担交互原语。
+为 Compose Finance Tracker 提供以 Material 3、`FinanceTheme` 和 Git token 为基础的可审计设计系统。Compose 页面直接使用 Material 3 交互控件；FinanceTheme 保留项目颜色、字体与语义 token。
 
 ## Requirements
 
-### Requirement: Finance UI owns product components
+### Requirement: Compose pages call Material 3 controls directly
 
-产品页面 MUST 通过 `Finance/*` 组件或已登记的金融组件使用按钮、字段、选择器、表格和金额展示；页面不得直接暴露 `HeroUI/*` 组件名称，也不得为已有 Finance 组件创建页面私有副本。
+Compose 页面 MUST 在调用位置直接使用 Material 3 按钮和文本输入控件，不得使用 Finance 按钮/输入框包装层或 Compose Unstyled 交互控件。按钮 MUST 使用适当的 Material 3 filled、outlined、tonal 或 text 控件；文本输入 MUST 使用 Material 3 `TextField` 或 `OutlinedTextField`。调用点 MUST 显式表达业务回调、状态、字段语义和校验行为。控件尺寸 MUST 沿用 Material 3 默认行为并按内容自适应；调用点 MUST NOT 仅为统一尺寸而固定控件宽高或最小宽高。父布局可按需要约束控件填充空间，响应式容器可使用最大宽度。
 
 #### Scenario: Cash Ledger renders a primary action
 
 - **WHEN** 收支账本需要新增记录操作
-- **THEN** 页面 MUST 使用 Registry 中登记的 `Finance/Button` 到 `FinanceButton` 映射
-- **AND** 视觉状态 MUST 来自 Finance token，交互行为 MUST 来自 Compose Unstyled button 原语
+- **THEN** 页面 MUST 直接调用 Material 3 按钮
+- **AND** 按钮 MUST 保留业务回调、启用状态、标签、无障碍信息与稳定语义 ID
 
-### Requirement: Semantic tokens have one source and compatibility mapping
+#### Scenario: Control dimensions follow Material 3 defaults and content
 
-设计系统 MUST 以 Git 中的结构化 token 文件为唯一输入，提供 `background`、`foreground`、`surface`、`overlay`、`accent`、`danger`、`warning`、`field` 和 `focus` 等语义角色，并保留现有 token 到语义角色的兼容映射；Pen 变量和生成的 Kotlin 文件 MUST 是消费副本。状态色 MUST 为错误、成功和警告状态提供可区分的背景与前景角色。
+- **WHEN** Material 3 控件在不同文案长度和窗口宽度下布局
+- **THEN** 控件 MUST 使用 Material 3 默认尺寸与内容自适应行为
+- **AND** 调用点 MUST NOT 用固定宽高或最小宽高压缩标签或覆盖组件默认尺寸
+- **AND** 父布局 MUST 只施加完成当前布局所需的填充或响应式最大边界
 
-#### Scenario: 浅色和深色主题使用相同语义角色
+#### Scenario: Text input retains field behavior
 
-- **WHEN** Finance UI 在浅色或深色主题下渲染同一组件
-- **THEN** 组件 MUST 读取相同的语义角色名称
-- **AND** 每种主题 MUST 为颜色、对比度、禁用和焦点状态提供确定值
+- **WHEN** 使用者在认证、账本、导入或管理页面输入内容
+- **THEN** 调用点 MUST 直接使用 Material 3 文本输入控件并保留标签、输入类型、校验、错误和禁用行为
+- **AND** 输入 MUST 保留原有单行/多行约束、状态更新、语义 ID、失焦处理与可访问名称
+- **AND** 普通字段 MUST 明确设置为单行；备注与描述等原多行字段 MUST 保持多行
 
-#### Scenario: 待确认关系使用警告状态色
+### Requirement: FinanceTheme preserves project colors and typography
 
-- **WHEN** Compose 账单导入页显示待确认的关系
-- **THEN** 状态标签 MUST 使用语义警告前景色和警告背景色
-- **AND** 两种颜色 MUST 从浅色或深色 token 文件生成
+`FinanceTheme` MUST 将现有 Finance 颜色、字体和 Material 3 color scheme/typography 提供给 Compose 控件。调用点可读取 Git token 表达 Material 3 默认方案未涵盖的业务状态；不得另造独立的全局色彩或字体系统。
 
-### Requirement: HeroUI code is the upstream reference
+#### Scenario: Light and dark themes use shared semantic roles
 
-设计系统 MUST 以 HeroUI 官方代码、`@heroui/styles` 和 CSS variables 作为上游视觉与 token 语义参考；临时 Gallery 的真实 DOM MUST 经 Pen Browser Import 形成可编辑的 `heroui-reference.pen`，再组件化为 `heroui.lib.pen`，供 `finance-ui.lib.pen` 构建产品组件。Pen variables MUST 映射版本固定的浅色、深色 CSS variables。Figma Kit MUST 只用于视觉核对，不得替代真实 DOM 或作为 token 来源。
+- **WHEN** Finance UI 在浅色或深色主题下渲染同一控件
+- **THEN** 控件 MUST 从当前 `FinanceTheme` 解析颜色与字体
+- **AND** 错误、成功、警告、禁用和焦点状态 MUST 使用确定的语义角色
 
-#### Scenario: Pen Browser Import 不可用
+### Requirement: Git token files are the only token input
 
-- **WHEN** Pen Browser Import 无法取得真实组件的可编辑图层
-- **THEN** 设计资产与依赖其确认的 UI 实施 MUST 标记为未完成
-- **AND** tasks MUST 记录阻断原因与补跑条件，不得将 Figma 导入或手工占位稿计为等价结果
+设计 token MUST 以 Git 中的结构化 token 文件为唯一输入，提供 `background`、`foreground`、`surface`、`overlay`、`accent`、`danger`、`warning`、`field` 和 `focus` 等语义角色。生成的 Compose Kotlin token MUST 是运行时消费副本；页面结构、样式和 Material 3 控件选择 MUST 以 Compose 实现为事实源。
 
-### Requirement: Component contracts and Registry are addressable
+#### Scenario: Token changes are consumed by Compose
 
-每个首批 Finance 组件 MUST 记录名称、变体、尺寸、状态、插槽、语义 ID 和 Compose 符号；Registry MUST 能从 `Finance/Button`、`Finance/TextField`、`Finance/Select`、`Finance/DataTable` 和 `Finance/Amount` 查询到唯一映射。
+- **WHEN** token 文件修改浅色或深色主题中的语义颜色
+- **THEN** token 生成结果 MUST 更新 Compose Kotlin 消费副本
+- **AND** Compose 控件 MUST 使用同一语义角色，不得依赖并行设计资源作为运行时来源
 
-#### Scenario: Agent resolves a design component
+### Requirement: Shared Finance display helpers remain addressable
 
-- **WHEN** Screen Contract 引用 `Finance/AccountSelector`
-- **THEN** Registry MUST 返回对应 Compose 组件和所需状态/插槽合同
-- **AND** 生成或实现页面不得猜测为任意通用输入框
+设计注册表 MUST 记录仍由 Compose 多页面共享的 FinanceTheme、选择器、过滤区、数据表和金额展示辅助函数，并能解析其代码位置与状态合同。注册表 MUST NOT 要求按钮或文本输入使用 Finance 包装组件。
 
-### Requirement: Unstyled primitives own interaction semantics
+#### Scenario: Resolve a shared Finance display helper
 
-存在对应 Compose Unstyled 原语的 Finance Primitive MUST 使用 `2.10.0` 原语承载焦点、键盘、选择、禁用和无障碍语义；Finance 层只负责 token、布局、文案和产品 API。复杂数据表格、金额展示和金融选择器可以组合 Foundation 与已登记原语。
-
-#### Scenario: 禁用字段保留交互语义
-
-- **WHEN** Finance TextField 被业务状态禁用
-- **THEN** Compose Unstyled 的禁用语义 MUST 传递到控件
-- **AND** Finance 样式 MUST 同时展示禁用视觉状态，不得只降低透明度而保留可操作性
+- **WHEN** 页面需要使用共享数据表或金额展示
+- **THEN** 注册表 MUST 返回其 Compose 实现与适用状态
+- **AND** 页面 MUST 继续直接使用 Material 3 控件完成按钮和输入任务

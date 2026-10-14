@@ -10,6 +10,7 @@ import com.finance.tracker.resources.ic_description
 import com.finance.tracker.resources.ic_file_upload
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,7 +26,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +35,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.CompositionLocalProvider
@@ -73,7 +79,6 @@ import io.github.vinceglb.filekit.size
 import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
-import com.composeunstyled.UnstyledButton
 import org.jetbrains.compose.resources.painterResource
 
 private class PlatformImportFileSource(private val file: PlatformFile) : FileSource {
@@ -116,7 +121,6 @@ internal fun CashImportScreen(
     val passwords = state.passwords
     val busy = state.busy
     val error = state.errorCode?.let { importErrorText(it) }
-    val footerActionWidth = if (sizeClass == WindowSizeClass.COMPACT) 108.dp else 96.dp
     val footerButtonArrangement = if (sizeClass == WindowSizeClass.COMPACT) {
         Arrangement.SpaceBetween
     } else {
@@ -139,7 +143,7 @@ internal fun CashImportScreen(
             onClose = onBack,
             footer = {
                 if (!canWrite) {
-                    FinanceTertiaryButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
+                    TextButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
                 } else when (stage) {
                     ImportStage.SELECT -> {
                         val canScan = selectedFiles.isNotEmpty() && !busy && scan?.files?.none {
@@ -155,7 +159,7 @@ internal fun CashImportScreen(
                                 ImportScanAction(
                                     enabled = canScan,
                                     busy = busy,
-                                    modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext),
+                                    modifier = Modifier.testTag(SemanticIds.importNext),
                                     onClick = { viewModel.scanSelectedFiles() },
                                 )
                             }
@@ -169,19 +173,19 @@ internal fun CashImportScreen(
                                 ImportScanAction(
                                     enabled = canScan,
                                     busy = busy,
-                                    modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext),
+                                    modifier = Modifier.testTag(SemanticIds.importNext),
                                     onClick = { viewModel.scanSelectedFiles() },
                                 )
                             }
                         }
                     }
                     ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        FinanceButton(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        Button(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
                     }
                     ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        FinanceButton(onClick = {
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        Button(onClick = {
                             if (preview?.let { hasIncompleteAllocations(it, allocationDrafts) } == true) {
                                 viewModel.setErrorCode("import_component_allocation_incomplete")
                             } else if (preview?.items?.any { it.components.orEmpty().size > 1 } == true) {
@@ -189,13 +193,13 @@ internal fun CashImportScreen(
                             } else {
                                 viewModel.stage(ImportStage.RELATIONS)
                             }
-                        }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importNext)) { Text(localizedText("copy_1fc1afc5c5")) }
+                        }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(localizedText("copy_1fc1afc5c5")) }
                     }
                     ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        FinanceSecondaryButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        FinanceButton(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.width(footerActionWidth).testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
+                        Button(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
                     }
-                    ImportStage.SUCCESS -> FinanceButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(localizedText("copy_855fa817d2")) }
+                    ImportStage.SUCCESS -> Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(localizedText("copy_855fa817d2")) }
                 }
             },
         ) {
@@ -266,7 +270,7 @@ internal fun CashImportScreen(
                                                         Text(importFileStatus(status), style = MaterialTheme.typography.bodySmall)
                                                     }
                                                 }
-                                                FinanceTertiaryButton(
+                                                TextButton(
                                                     onClick = { viewModel.removeFile(picked.identity.digest) },
                                                     enabled = !busy,
                                                     modifier = Modifier.testTag("${SemanticIds.importRemoveFile}.${picked.identity.digest}"),
@@ -299,7 +303,7 @@ internal fun CashImportScreen(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     ImportOutlinedCard {
-                                        Text(localizedText("copy_56bc6903d6", current.channelLabel, current.groups.size), style = MaterialTheme.typography.titleSmall)
+                                        Text(localizedText("copy_56bc6903d6", importChannelLabel(current.channel, current.channelLabel), current.groups.size), style = MaterialTheme.typography.titleSmall)
                                         Text(current.files.joinToString(" · ") { it.filename.orEmpty() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                         if (current.unresolvedCount > 0) Text(localizedText("copy_40b67ad6b4", current.unresolvedCount), color = MaterialTheme.colorScheme.error)
                                     }
@@ -337,7 +341,13 @@ internal fun CashImportScreen(
                                                 }
                                             }
                                             draft?.newAccount?.let { account ->
-                                                LabeledInput(account.name, { value -> viewModel.updateNewAccount(group.groupId) { it.copy(name = value.take(255)) } }, localizedText("copy_238452a115"))
+                                                OutlinedTextField(
+                                                    value = account.name,
+                                                    onValueChange = { value -> viewModel.updateNewAccount(group.groupId) { it.copy(name = value.take(255)) } },
+                                                    modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_238452a115")),
+                                                    label = { Text(localizedText("copy_238452a115")) },
+                                                    singleLine = true,
+                                                )
                                                 ChoicePicker(localizedText("copy_082c31df2b"), account.type, listOf("cash" to localizedText("copy_ca5bd21330"), "loan" to localizedText("copy_099f8b5c68"), "lend" to localizedText("copy_4a2637c23f")), { value -> viewModel.updateNewAccount(group.groupId) { it.copy(type = value) } })
                                                 Text(localizedText("copy_b241eb825a", account.currencies.joinToString(" / ")))
                                             }
@@ -411,11 +421,13 @@ internal fun CashImportScreen(
                                                     val key = importItemKey(item)
                                                     val currentAmounts = allocationDrafts[key].orEmpty()
                                                     item.components.orEmpty().forEachIndexed { index, component ->
-                                                        LabeledInput(
-                                                            currentAmounts.getOrElse(index) { component.amount?.removePrefix("+")?.removePrefix("-").orEmpty() },
-                                                            { value -> viewModel.updateAllocation(key, index, value) },
-                                                            component.sourceLabel,
-                                                            semanticId = "${SemanticIds.importAllocation}.$key.$index",
+                                                        OutlinedTextField(
+                                                            value = currentAmounts.getOrElse(index) { component.amount?.removePrefix("+")?.removePrefix("-").orEmpty() },
+                                                            onValueChange = { value -> viewModel.updateAllocation(key, index, value) },
+                                                            modifier = Modifier.testTag("${SemanticIds.importAllocation}.$key.$index")
+                                                                .accessibleTextFieldLabel(component.sourceLabel),
+                                                            label = { Text(component.sourceLabel) },
+                                                            singleLine = true,
                                                         )
                                                     }
                                                     val balance = allocationBalance(item.amount, currentAmounts)
@@ -520,7 +532,7 @@ private fun ImportUploadSurface(
     val colors = LocalFinanceColorRoles.current
     val shape = RoundedCornerShape(24.dp)
     Column(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 220.dp)
+        modifier = Modifier.fillMaxWidth()
             .background(colors.accent.copy(alpha = 0.015f), shape)
             .border(1.5.dp, colors.accent.copy(alpha = 0.14f), shape)
             .testTag("import.dropzone")
@@ -551,13 +563,12 @@ private fun ImportUploadSurface(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        FinanceButton(
+        OutlinedButton(
             onClick = onChoose,
-            modifier = Modifier.widthIn(min = 176.dp).testTag(SemanticIds.importChooseFile),
-            variant = FinanceButtonVariant.Secondary,
+            modifier = Modifier.testTag(SemanticIds.importChooseFile),
             shape = CircleShape,
-            borderColor = colors.accent,
-            borderWidth = 2.dp,
+            border = BorderStroke(2.dp, colors.accent),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accent),
             enabled = !busy && (!demoStatement || selectedFiles.isEmpty()),
         ) {
             Text(
@@ -590,11 +601,11 @@ private fun ImportScanAction(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
-    FinanceButton(
+    Button(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
-        borderColor = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+        border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
     ) {
         Text(if (busy) localizedText("copy_4a5e035eb9") else localizedText("cash_import_next"))
     }
@@ -657,25 +668,19 @@ private fun ImportFilterBar(
     ) {
         options.forEach { (value, label) ->
             val active = value == selected
-            UnstyledButton(
+            FilterChip(
+                selected = active,
                 onClick = { onSelect(value) },
-                modifier = Modifier.heightIn(min = 44.dp)
-                    .background(if (active) colors.accent.copy(alpha = 0.12f) else colors.disabled.copy(alpha = 0.55f), CircleShape)
-                    .padding(horizontal = 16.dp, vertical = 10.dp)
-                    .semantics {
-                        role = Role.Button
-                        this.selected = active
-                    }
-                    .testTag("$semanticPrefix.$value"),
-            ) {
-                Text(
-                    label,
-                    color = if (active) colors.foreground else MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                    maxLines = 1,
-                )
-            }
+                modifier = Modifier.testTag("$semanticPrefix.$value"),
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = colors.accent.copy(alpha = 0.12f),
+                    selectedLabelColor = colors.foreground,
+                    labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                ),
+                label = {
+                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1)
+                },
+            )
         }
     }
 }
@@ -684,7 +689,7 @@ private fun ImportFilterBar(
 private fun ImportEmptyState(message: String) {
     val colors = LocalFinanceColorRoles.current
     Box(
-        Modifier.fillMaxWidth().heightIn(min = 72.dp)
+        Modifier.fillMaxWidth()
             .border(1.dp, colors.fieldBorder, RoundedCornerShape(12.dp))
             .padding(horizontal = 16.dp, vertical = 20.dp),
         contentAlignment = Alignment.Center,
@@ -723,9 +728,10 @@ private fun ImportStatusPill(
         chip()
     } else {
         var focused by remember(actionTestTag) { mutableStateOf(false) }
-        UnstyledButton(
+        TextButton(
             onClick = onActionClick,
-            modifier = Modifier.heightIn(min = 44.dp)
+            contentPadding = PaddingValues(0.dp),
+            modifier = Modifier
                 .onFocusChanged { focused = it.isFocused }
                 .border(1.dp, if (focused) colors.focus else Color.Transparent, CircleShape)
                 .semantics {
@@ -820,7 +826,7 @@ private fun ImportRelationCard(
                         fieldStyle = true,
                     )
                 }
-                FinanceTertiaryButton(onClick = onToggleRejected) {
+                TextButton(onClick = onToggleRejected) {
                     Text(if (rejected) localizedText("copy_3290b42bd1") else localizedText("copy_86ab462000"))
                 }
             }
@@ -916,9 +922,10 @@ private fun ImportStepper(
             val done = index < currentIndex
             val enabled = !busy && index <= currentIndex &&
                 (step == ImportStage.SELECT || hasScan && index == 1 || hasPreview && index >= 2)
-            UnstyledButton(
+            TextButton(
                 onClick = { onSelect(step) },
                 enabled = enabled,
+                contentPadding = PaddingValues(0.dp),
                 modifier = Modifier.weight(1f).testTag("${SemanticIds.importStepper}.$index")
                     .semantics(mergeDescendants = true) {
                         role = Role.Button
@@ -967,11 +974,11 @@ private fun ImportStepper(
 private fun importRelationRecordLabel(record: ImportRelationRecord): String =
     "${record.counterparty.ifBlank { localizedText("copy_204c9c54c2") }} · ${record.amount} ${record.currency}"
 
+@Composable
 private fun formatImportRelationDateTime(instant: String): String {
-    val localDateTime = formatLocalDateTime(instant)
-    val parts = Regex("^\\d{4}-(\\d{2})-(\\d{2}) (\\d{2}:\\d{2})$").matchEntire(localDateTime)?.groupValues
-        ?: return localDateTime
-    return "${parts[1]} 月 ${parts[2]} 日 · ${parts[3]}"
+    val parts = localDateTimeDisplayParts(instant) ?: return localizedText("display_not_provided")
+    val month = parts.date.month.toString().padStart(2, '0')
+    return localizedText("display_date_time_short", parts.date.year, month, parts.date.day, parts.time)
 }
 
 @Composable
@@ -999,9 +1006,15 @@ private fun importRecordTypeLabel(value: String): String = when (value) {
 
 @Composable
 private fun importFileStatus(file: ImportFileScan): String = when (file.status) {
-    "ready" -> localizedText("copy_5707975153", file.channelLabel.orEmpty())
+    "ready" -> localizedText("copy_5707975153", importChannelLabel(file.channel, file.channelLabel.orEmpty()))
     "password_required" -> localizedText("copy_4908aa3009")
     else -> localizedText("copy_53514e0040")
+}
+
+@Composable
+private fun importChannelLabel(channel: String?, fallback: String): String = when (channel) {
+    "bank" -> localizedText("cash_import_channel_bank")
+    else -> fallback
 }
 
 private fun formatFileSize(size: Long): String = when {

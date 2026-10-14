@@ -69,7 +69,7 @@ jobs:
         run: python3 compose/tests/test_build_wasm_web.py
 
       - name: Check live and offline Compose preview servers
-        run: node --test web/tests/compose-preview-proxy.node-test.mjs
+        run: node --test compose/qa/web/tests/compose-preview-proxy.node-test.mjs
 
   backend-sqlite:
     name: Backend (SQLite)

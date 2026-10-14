@@ -473,7 +473,9 @@
     <string name="display_time_not_provided">未提供时间</string>
     <string name="display_date_full">%1$d年%2$d月%3$d日</string>
     <string name="display_date_time_full">%1$d年%2$d月%3$d日 %4$s</string>
+    <string name="display_date_time_short">%2$s 月 %3$d 日 · %4$s</string>
     <string name="display_month">%1$d年%2$d月</string>
+    <string name="cash_import_channel_bank">银行账单</string>
     <string name="investment_fact_cash_account">现金账户</string>
     <string name="investment_fact_cash_amount">现金金额</string>
     <string name="investment_fact_cash_time">现金时间</string>

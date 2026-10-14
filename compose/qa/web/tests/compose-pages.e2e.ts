@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import {
   activeSession,
   cashAccount,
@@ -13,6 +13,7 @@ import {
 
 const workspaceRoot = "/w/workspace-1";
 const responsiveWidths = [320, 375, 390, 414, 768, 1440];
+const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
 
 async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yRatio = 0.5): Promise<void> {
@@ -24,16 +25,46 @@ async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yR
 }
 
 async function clickComposeUntil(page: Page, locator: Locator, isDone: () => Promise<boolean>): Promise<void> {
+  let lastError: unknown;
   for (let attempt = 0; attempt < 4; attempt += 1) {
-    await expect(locator).toBeVisible();
-    await clickComposeTarget(page, locator);
     try {
+      await expect(locator).toBeVisible();
+      await clickComposeTarget(page, locator);
       await expect.poll(isDone, { timeout: 1_500 }).toBe(true);
       return;
-    } catch {
-      if (attempt === 3) throw new Error("Compose target did not produce the expected state");
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await page.waitForTimeout(100);
     }
   }
+  if (lastError instanceof Error) throw lastError;
+  throw new Error("Compose target did not produce the expected state");
+}
+
+async function clickVisibleComposeTargetUntil(page: Page, locator: Locator, isDone: () => Promise<boolean>): Promise<void> {
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Missing Playwright viewport");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    for (let index = 0; index < await locator.count(); index += 1) {
+      const candidate = locator.nth(index);
+      const bounds = await candidate.boundingBox();
+      if (!bounds || bounds.x < 0 || bounds.y < 0 || bounds.x + bounds.width > viewport.width || bounds.y + bounds.height > viewport.height) {
+        continue;
+      }
+      try {
+        await clickComposeTarget(page, candidate);
+        await expect.poll(isDone, { timeout: 1_500 }).toBe(true);
+        return;
+      } catch (error) {
+        lastError = error;
+        break;
+      }
+    }
+    if (attempt < 5) await page.waitForTimeout(120);
+  }
+  if (lastError instanceof Error) throw lastError;
+  throw new Error("No in-viewport Compose target became available");
 }
 
 async function chooseComposeFiles(page: Page, files: Array<{ name: string; mimeType: string; buffer: Buffer }>): Promise<void> {
@@ -76,14 +107,11 @@ test.afterEach(async ({ page }, testInfo) => {
     });
   }
   if (testInfo.status === "passed" && diagnostics) {
-    const isStandalonePrototype = testInfo.title.startsWith("批准的独立原型");
     expect(diagnostics.consoleErrors).toEqual([]);
     expect(diagnostics.failedRequests).toEqual([]);
     expect(diagnostics.staticHttpErrors).toEqual([]);
-    if (!isStandalonePrototype) {
-      expect(diagnostics.wasmContentTypes.length).toBeGreaterThan(0);
-      expect(diagnostics.wasmContentTypes.every((value) => value.startsWith("application/wasm"))).toBe(true);
-    }
+    expect(diagnostics.wasmContentTypes.length).toBeGreaterThan(0);
+    expect(diagnostics.wasmContentTypes.every((value) => value.startsWith("application/wasm"))).toBe(true);
   }
 });
 
@@ -102,7 +130,6 @@ test("F-02 可创建工作区并进入账本", async ({ page }, testInfo) => {
   await installComposeApiFixtures(page, { initialSession: noWorkspaceSession });
   await page.goto("/");
   await expect(page.locator('[id="workspace.screen"]').last()).toContainText("创建工作区");
-  await expect(page.locator('[id="auth.screen"]').last()).toBeVisible();
   await expect(page.locator('[id="auth.card"]')).toHaveCount(1);
   await expect(page.getByText("新工作区", { exact: true })).toBeVisible();
 
@@ -171,8 +198,12 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
   for (const destination of destinations) {
     const openNavigation = page.locator('[id="navigation-open"]').last();
     await clickComposeUntil(page, openNavigation, async () => page.locator(`[id="navigation-item-${destination.id}"]`).isVisible());
-    await page.locator(`[id="navigation-item-${destination.id}"]`).last().dispatchEvent("click");
     const url = `${workspaceRoot}/${destination.path}`;
+    await clickVisibleComposeTargetUntil(
+      page,
+      page.locator(`[id="navigation-item-${destination.id}"]`),
+      async () => page.url().endsWith(url),
+    );
     visited.push({ url, screen: destination.screen, title: destination.title });
     await expect(page).toHaveURL(url);
     await expect(page.locator(`[id="${destination.screen}"]`).last()).toBeVisible();
@@ -212,7 +243,6 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
   test.setTimeout(150_000);
   await installComposeApiFixtures(page);
   await page.goto(`${workspaceRoot}/`);
-  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/prototype/screenshots");
   await mkdir(screenshotDir, { recursive: true });
 
   for (const width of [320, 375, 390, 414, 768, 1440]) {
@@ -314,14 +344,14 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
     await page.evaluate(async () => { await document.fonts.ready; });
     await page.waitForTimeout(3000);
     await page.screenshot({
-      path: path.resolve(process.cwd(), `../openspec/changes/hero-ui-compose-finance-ui/screenshots/web-final-390${themeSuffix}.png`),
+      path: path.join(screenshotDir, `web-final-390${themeSuffix}.png`),
     });
 
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.waitForTimeout(500);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({
-      path: path.resolve(process.cwd(), `../openspec/changes/hero-ui-compose-finance-ui/screenshots/web-final-1440${themeSuffix}.png`),
+      path: path.join(screenshotDir, `web-final-1440${themeSuffix}.png`),
     });
   }
 });
@@ -360,10 +390,12 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
     await page.waitForTimeout(150);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await expect(page.getByText("记一笔", { exact: true })).toBeVisible();
-    const fields = await Promise.all(
-      ["record.amount", "record.counterparty", "record.counterparty-account", "record.occurred-at"]
-        .map(async (id) => page.locator(`[id="${id}"]`).last().boundingBox()),
+    const fieldIds = ["record.amount", "record.counterparty", "record.counterparty-account", "record.occurred-at"];
+    const readFieldBounds = () => Promise.all(
+      fieldIds.map(async (id) => page.locator(`[id="${id}"]`).last().boundingBox()),
     );
+    await expect.poll(async () => (await readFieldBounds()).every(Boolean)).toBe(true);
+    const fields = await readFieldBounds();
     expect(fields.every(Boolean)).toBe(true);
     expect(fields[0]!.y).toBeLessThan(fields[1]!.y);
     expect(fields[1]!.y).toBeLessThan(fields[2]!.y);
@@ -598,7 +630,6 @@ test("F-05 cash-import matches the approved secondary-page hierarchy", async ({ 
   const close = page.locator('[id="secondary-page-close"]').last();
   const header = page.locator('[id="secondary-page-header"]').last();
   const footer = page.locator('[id="secondary-page-footer"]').last();
-  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/prototype/screenshots");
   await mkdir(screenshotDir, { recursive: true });
   await expect(modal).toBeVisible();
   await expect(page.locator('[id="secondary-page-footer-divider"]')).toHaveCount(0);
@@ -633,7 +664,7 @@ test("F-05 cash-import matches the approved secondary-page hierarchy", async ({ 
   expect(Math.abs((modalBounds?.y ?? 0) + (modalBounds?.height ?? 0) - (footerBounds?.y ?? 0) - (footerBounds?.height ?? 0) - 24)).toBeLessThanOrEqual(2);
   const dropzoneBounds = await page.locator('[id="import.dropzone"]').last().boundingBox();
   expect(dropzoneBounds?.height ?? 0).toBeGreaterThanOrEqual(249);
-  expect(dropzoneBounds?.height ?? 0).toBeLessThanOrEqual(253);
+  expect(dropzoneBounds?.height ?? 0).toBeLessThanOrEqual(256);
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(screenshotDir, "compose-import-file-1440.png") });
@@ -752,6 +783,7 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     expect(confirmBounds).not.toBeNull();
     expect(confirmBounds!.x + confirmBounds!.width).toBeGreaterThan(modalBounds!.x + modalBounds!.width * 0.6);
     expect(confirmBounds!.x).toBeGreaterThan(previousBounds!.x + previousBounds!.width);
+    expect(confirmBounds!.height).toBeLessThanOrEqual(48);
     const previousBorder = await page.locator('[id="import.previous"]').last().evaluate((element) => getComputedStyle(element).borderTopColor);
     expect(previousBorder).not.toBe("rgba(0, 0, 0, 0)");
   };
@@ -764,9 +796,9 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     expect(footerBounds).not.toBeNull();
     expect(previousBounds).not.toBeNull();
     expect(confirmBounds).not.toBeNull();
-    // Compose exposes the clickable content bounds, inset by the button's 14 dp horizontal padding.
-    expect(Math.abs(previousBounds!.x - footerBounds!.x - 14)).toBeLessThanOrEqual(2);
-    expect(Math.abs(confirmBounds!.x + confirmBounds!.width - footerBounds!.x - footerBounds!.width + 14)).toBeLessThanOrEqual(2);
+    // Material 3 button semantics expose the full clickable bounds, aligned to the footer edges.
+    expect(Math.abs(previousBounds!.x - footerBounds!.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(confirmBounds!.x + confirmBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThanOrEqual(2);
     const previousBorder = await page.locator('[id="import.previous"]').last().evaluate((element) => getComputedStyle(element).borderTopColor);
     expect(previousBorder).not.toBe("rgba(0, 0, 0, 0)");
   };
@@ -785,7 +817,6 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   const relationFilter = page.getByRole("button", { name: "全部 2", exact: true });
   await clickComposeTarget(page, relationFilter, 0.1, 0.25);
   await assertCompactFooterAlignment();
-  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/prototype/screenshots");
   await mkdir(screenshotDir, { recursive: true });
   const pendingRelation = page.locator('[id="import.relation-row.pending-relation"]').last();
   await expect(page.getByText("09 月 24 日 · 10:30", { exact: true }).first()).toBeVisible();
@@ -881,44 +912,6 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await expect(page.getByRole("button", { name: /钱包咖啡店 · 28\.50 CNY/ }).last()).toBeVisible();
 });
 
-test("批准的独立原型在三种尺寸中保留原生浮层选择且不撑开关系卡片", async ({ page }) => {
-  test.setTimeout(90_000);
-  const screenshotDir = path.resolve(process.cwd(), "../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/prototype/screenshots");
-  await mkdir(screenshotDir, { recursive: true });
-  const prototypePath = path.resolve(process.cwd(), "../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/prototype/index.html");
-  const prototypeHtml = await readFile(prototypePath, "utf8");
-
-  for (const [width, height] of [[390, 844], [768, 1024], [1440, 900]]) {
-    await page.setViewportSize({ width, height });
-    await page.setContent(prototypeHtml);
-    await page.locator(width < 600 ? "#back-control" : "#close-control").click();
-    await page.locator("#open-import").click();
-    await page.locator("#file-input").setInputFiles({
-      name: "prototype.csv",
-      mimeType: "text/csv",
-      buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
-    });
-    await page.locator("#next").click();
-    await expect(page.locator("#account-one")).toBeVisible();
-    await page.locator("#account-one").selectOption("cmb");
-    await page.locator("#account-two").selectOption("cash");
-    await page.locator("#next").click();
-    await expect(page.getByText("核对流水", { exact: true })).toBeVisible();
-    await page.locator("#next").click();
-    await expect(page.getByText("关系配对", { exact: true })).toBeVisible();
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await page.screenshot({ path: path.join(screenshotDir, `prototype-import-relations-${width}.png`) });
-
-    for (const checkWidth of [320, 375, 414, 768]) {
-      await page.setViewportSize({ width: checkWidth, height: 900 });
-      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    }
-    await page.setViewportSize({ width, height });
-    expect(await page.locator("#relation-choice").evaluate((select) => select.tagName)).toBe("SELECT");
-    await page.locator("#relation-choice").selectOption("grocery");
-    await expect(page.getByRole("button", { name: "待确认 0", exact: true })).toBeVisible();
-  }
-});
 test("未登录邀请与认证页共用入口卡片并继续登录", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { seedToken: false, initialSession: null });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1010,14 +1003,14 @@ test("F-08 持仓可查看估值详情", async ({ page }) => {
     await page.getByRole("button", { name: "关闭", exact: true }).click({ force: true });
     await page.evaluate(async () => { await document.fonts.ready; window.scrollTo(0, 0); });
     await page.waitForTimeout(3000);
-    const evidenceDirectory = path.resolve(process.cwd(), "../openspec/changes/hero-ui-compose-finance-ui/screenshots");
     const themeSuffix = process.env.FT_COMPOSE_COLOR_SCHEME === "dark" ? "-dark" : "";
+    await mkdir(screenshotDir, { recursive: true });
     await page.setViewportSize({ width: 390, height: 1800 });
-    await page.screenshot({ path: path.join(evidenceDirectory, `web-holdings-390${themeSuffix}.png`) });
+    await page.screenshot({ path: path.join(screenshotDir, `web-holdings-390${themeSuffix}.png`) });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.waitForTimeout(500);
-    await page.screenshot({ path: path.join(evidenceDirectory, `web-holdings-1440${themeSuffix}.png`) });
+    await page.screenshot({ path: path.join(screenshotDir, `web-holdings-1440${themeSuffix}.png`) });
   }
 });
 

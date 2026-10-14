@@ -11,6 +11,7 @@
 | [运行时数据库](runtime-database/spec.md) | `shared/runtime-database` |
 | [跨端展示合同](cross-platform-presentation/spec.md) | `shared/cross-platform-presentation` |
 | [设计系统](design-system/spec.md) | `shared/design-system` |
+| [Compose 演示模式](compose-demo-mode/spec.md) | `shared/compose-demo-mode` |
 
 ## 相关能力
 

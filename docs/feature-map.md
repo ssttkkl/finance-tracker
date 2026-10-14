@@ -1,14 +1,14 @@
 # Compose / Legacy 功能地图
 
-> 盘点日期：2026-10-13。本文记录 Compose Multiplatform 主线的页面级功能、实现证据和跨端覆盖关系；React Web、Expo 和 TypeScript shared packages 仅作为迁移参考。本文不是产品行为规格，代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
+> 盘点日期：2026-10-14。本文记录 Compose Multiplatform 主线的页面级功能、实现证据和跨端覆盖关系；`web/src` 中的旧 React UI 仅作为迁移参考。本文不是产品行为规格，代码改动仍以 `openspec/specs/` 和对应变更记录为行为事实源。
 
-Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API 流程。旧端实现证据保留在文档末尾，便于迁移时核对行为，不代表默认启动、构建、测试或发布入口。
+Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API 流程。Compose Web 工程位于 `compose/webApp`，启动器、预览服务和 Playwright QA 位于 `compose/qa/web/`。旧 React UI 位于 `web/src`，保持原样并只供迁移参考；其实现证据保留在文档末尾，不代表当前 UI 规范、启动、构建、测试或发布入口。
 
 桌面侧栏目的地的焦点边框遵循输入方式：键盘 Tab 导航时显示，鼠标或触屏点击后隐藏，同时保留选中标记；浏览器验证记录见 [`navigation-focus-ring-modality`](../openspec/changes/archive/2026-10-13-navigation-focus-ring-modality/tasks.md)。
 
 ## 统计结论
 
-2026-10-01 设计与实现进度：F-01 至 F-10 均有以当前 React Web 布局为基准的 HeroUI 风格 Pen 稿；F-03 沿用 `design/cash-ledger.pen`，其余九份位于 `design/` 同名文件。用户已确认九份设计稿，Compose 共享页面已迁移至 `design/finance-ui.lib.pen` 对应的 Finance 控件和响应式布局。设计与截图证据见 `openspec/changes/hero-ui-compose-finance-ui/design.md` 和 `design/previews/`；本轮浏览器与 Native 复验结果以该变更的 `tasks.md` 为准。
+历史 UI 设计稿只用于审计迁移过程。当前设计合同由 Material 3、`FinanceTheme`、Git token 和 Compose 实现定义；当前代码与演示模式中的截图、交互证据记录在活跃 OpenSpec 变更中。共享 Compose 控件沿用 Material 3 默认尺寸并按内容增长；调用点不写死控件宽高，响应式最大边界与必要页面结构尺寸除外，审查记录见活跃 OpenSpec 变更。
 
 按用户可访问的页面级功能统计：
 
@@ -16,7 +16,7 @@ Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API �
 |------|------:|
 | Compose 页面级功能 | 10 |
 | Compose 共享实现覆盖 | 10 |
-| Compose 活跃目标 | Web / Android / iOS |
+| Compose 活跃目标 | Compose Web / Android / iOS |
 | Legacy React Web 页面级功能（参考） | 10 |
 | Legacy Expo 页面级功能（参考） | 5 |
 | 去重后的页面级功能总数 | 10 |
@@ -25,13 +25,13 @@ Compose Web、Android、iOS 共用 `compose/shared` 的页面、状态和 API �
 
 ## Compose Multiplatform 主线
 
-F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Web、Android、iOS target 使用同一套页面实现。旧 React Web、Expo 客户端和 TypeScript shared packages 保留作为迁移参考，不作为回退实现或默认 CI 目标。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；桌面侧栏默认显示图标，鼠标进入侧栏自动展开、离开后收回，鼠标点击导航产生的焦点不会阻止收回，展开时点击收起控制可立即收回；键盘焦点仍可展开侧栏，头像悬停打开账号面板且在停留期间保持稳定，Enter/Space 可从键盘焦点打开面板，Escape 可关闭并将焦点返回头像；工作区切换、管理和退出集中在侧栏底部；侧栏交互与跨端 QA 证据记录于 [`navigation-rail-collapse`](../openspec/changes/archive/2026-10-13-navigation-rail-collapse/tasks.md) 和 [`account-menu-hover-stability`](../openspec/changes/archive/2026-10-13-account-menu-hover-stability/tasks.md)。
+F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/src/commonMain`；Compose Web、Android、iOS target 使用同一套页面实现。旧 React UI 位于 `web/src`，保持原样并仅作为迁移参考；本功能地图末尾保留其历史实现证据。各 target 的已验收范围和待补 QA 记录在下表。跨页面入口壳与已登录标题层级已由 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) 对齐：F-01/F-02/F-06 共用登录式响应布局和居中卡片，F-03 至 F-10 由共享 `DestinationScaffold` 在顶栏显示唯一页面标题；桌面侧栏默认显示图标，鼠标进入侧栏自动展开、离开后收回，鼠标点击导航产生的焦点不会阻止收回，展开时点击收起控制可立即收回；键盘焦点仍可展开侧栏，头像悬停打开账号面板且在停留期间保持稳定，Enter/Space 可从键盘焦点打开面板，Escape 可关闭并将焦点返回头像；工作区切换、管理和退出集中在侧栏底部；侧栏交互与跨端 QA 证据记录于 [`navigation-rail-collapse`](../openspec/changes/archive/2026-10-13-navigation-rail-collapse/tasks.md) 和 [`account-menu-hover-stability`](../openspec/changes/archive/2026-10-13-account-menu-hover-stability/tasks.md)。
 
 | ID | Compose 共享实现 | Web / Android / iOS 工程入口 | 当前状态 |
 |----|------------------|------------------------------|----------|
 | F-01 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | [`webApp`](../compose/webApp/build.gradle.kts)、[`androidApp`](../compose/androidApp/src/main/kotlin/com/finance/tracker/MainActivity.kt)、[`iosApp`](../compose/iosApp/iosApp/ContentView.swift) | 登录 / 注册使用 FinanceTheme 下的标准 Material 3 浮动标签、辅助文本和控件形状，并与工作区/未登录邀请共用响应式外壳和居中卡片；间距与控件迁移见 [`auth-page-spacing-shell`](../openspec/changes/auth-page-spacing-shell/)；本轮 Compose Web Chrome、Android device QA 记录见 `app-shell-entry-presentation/tasks.md` |
 | F-02 | [`App.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/App.kt)、[`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt) | 同上 | 工作区选择、创建和恢复已实现；首次创建与已有工作区选择共用登录式容器、账户头部和居中卡片，保留列表选择、名称校验、请求错误、重试和创建成功导航；布局与 QA 证据见 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) |
-| F-03 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[`FinanceComponents.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt) | 同上 | 收支筛选、分页、摘要和状态已实现；Finance Button/TextField/DataTable/Amount 已接入，Registry 见 [`docs/design-system/registry.yaml`](design-system/registry.yaml)；Web Chrome 六档宽度与正常/空/错误态已复验，Android 本轮最终复验待完成 |
+| F-03 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[`FinanceComponents.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt) | 同上 | 收支筛选、分页、摘要和状态已实现；按钮与文本输入直接使用 Material 3，FinanceDataTable/Amount 等共享展示辅助函数保留，Registry 见 [`docs/design-system/registry.yaml`](design-system/registry.yaml)；Web Chrome 六档宽度与正常/空/错误态已复验，Android 本轮最终复验待完成 |
 | F-04 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt) | 同上 | 流水新建、编辑、详情、证据和关系操作已实现；Web E2E、Android 新建/编辑流程通过；iPhone 17 已验详情、编辑和取消返回，完整 CRUD 仍需补验 |
 | F-05 | [`CashImportScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportScreen.kt)、[`SecondaryPageContainer.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/SecondaryPageContainer.kt)、[`FinanceTheme.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/FinanceTheme.kt)、[`ImportWorkflow.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportWorkflow.kt) | 同上 | 文件选择、扫描、映射、预览、关系审查和确认已实现；从收支账本打开，不占一级导航；Compact 全屏返回，Regular/Wide 使用 90% 模态和关闭/Escape；待配对流水使用单一下拉框，Web 候选项以锚定浮层展示，Native 保留原生下拉菜单；批量扫描、密码重试和关闭清理共用导入会话；无 API 后端演示提供内置合成账单并复用同一流程。相关设计验收历史见 [`cash-import-candidate-overlay`](../openspec/changes/archive/2026-10-14-cash-import-candidate-overlay/tasks.md)，演示证据以当前 change 的 `tasks.md` 为准。 |
 | F-06 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt)、[`AppRouting.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt) | 同上 | 邀请预览、接受、取消及内部 URI 路由已实现；未登录邀请沿用认证入口卡片，已登录邀请保留 Scaffold 标题与接受流程；本轮 Web/Native QA 见 `app-shell-entry-presentation/tasks.md`；HTTPS Universal Links 仍需域名和签名配置 |
@@ -40,7 +40,7 @@ F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/sr
 | F-09 | [`InvestmentScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)、[`InvestmentDisplayLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentDisplayLogic.kt) | 同上 | 事件筛选、分页和证据详情已实现；Web E2E 与 Android 详情/分页 QA 通过；iPad 11 已验详情与加载更多 |
 | F-10 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt) | 同上 | 名称、成员、角色、邀请和删除流程已实现；Web E2E 与 Android 管理流程 QA 通过；iOS 已验改名、成员角色和邀请，iPhone/iPad 11 regular/iPad 13 wide 复核了邮箱布局，删除流程仍需补验 |
 
-浏览器用例位于 [`compose-access.e2e.ts`](../web/tests/compose-access.e2e.ts)、[`compose-pages.e2e.ts`](../web/tests/compose-pages.e2e.ts)、[`compose-live-demo.e2e.ts`](../web/tests/compose-live-demo.e2e.ts) 和 [`compose-locale.e2e.ts`](../web/tests/compose-locale.e2e.ts)，当前共 29 项；Playwright 路由提供 API fixture。本轮生产 Wasm 完整回归先通过 26/28，F-04 编辑输入和 F-05 导入点击修复后已定向通过，完整复跑结果记录在本变更 `tasks.md`。此前 Chrome 153、Edge 154、Playwright WebKit 26.5 的结果属于早期检查点；用户指定本次 Web 验收使用 Chrome，不使用 Safari。Android 原生 F-01 至 F-10 早期 QA 已通过，本轮 shared 变更后最终复验待完成；iOS 已完成 iPhone 17、iPad 11、iPad 13 的早期功能抽查及 compact/regular/wide 关键页面审查。iOS F-05 已用虚构 CSV 验证文件可见和选中，但点击「打开」后的系统截图仍停留在文件选择器，未确认文件交回应用；端到端导入仍待补验。iOS 其余页面操作和完整三端×窗口尺寸 parity matrix 仍待补验。Wasm shared browser test 和 Android host test 在本轮通过；Web Vitest、Native device 最终结果记录在 `tasks.md`。F-03/F-04/F-07 在 320、375、390、414、768、1440 px 下检查无水平溢出；浅色 390×844 和 1440×1000 截图经目视复核，深色复核结果见 `tasks.md`。Web 字体使用同源 Noto Sans SC 资源，Chrome 截图未发现缺字，未请求 `fonts.gstatic.com`。Playwright fixture 检查 UI/API 请求，本地 registration E2E 另通过 FastAPI demo 实测；两者都不替代 FastAPI 后端契约测试。
+浏览器用例位于 [`compose-access.e2e.ts`](../compose/qa/web/tests/compose-access.e2e.ts)、[`compose-pages.e2e.ts`](../compose/qa/web/tests/compose-pages.e2e.ts)、[`compose-live-demo.e2e.ts`](../compose/qa/web/tests/compose-live-demo.e2e.ts) 和 [`compose-locale.e2e.ts`](../compose/qa/web/tests/compose-locale.e2e.ts)，当前共 29 项；Playwright 路由提供 API fixture。本轮生产 Wasm 完整回归先通过 26/28，F-04 编辑输入和 F-05 导入点击修复后已定向通过，完整复跑结果记录在本变更 `tasks.md`。此前 Chrome 153、Edge 154、Playwright WebKit 26.5 的结果属于早期检查点；用户指定本次 Web 验收使用 Chrome，不使用 Safari。Android 原生 F-01 至 F-10 早期 QA 已通过，本轮 shared 变更后最终复验待完成；iOS 已完成 iPhone 17、iPad 11、iPad 13 的早期功能抽查及 compact/regular/wide 关键页面审查。iOS F-05 已用虚构 CSV 验证文件可见和选中，但点击「打开」后的系统截图仍停留在文件选择器，未确认文件交回应用；端到端导入仍待补验。iOS 其余页面操作和完整三端×窗口尺寸 parity matrix 仍待补验。Wasm shared browser test 和 Android host test 在本轮通过；Web Vitest、Native device 最终结果记录在 `tasks.md`。F-03/F-04/F-07 在 320、375、390、414、768、1440 px 下检查无水平溢出；浅色 390×844 和 1440×1000 截图经目视复核，深色复核结果见 `tasks.md`。Web 字体使用同源 Noto Sans SC 资源，Chrome 截图未发现缺字，未请求 `fonts.gstatic.com`。Playwright fixture 检查 UI/API 请求，本地 registration E2E 另通过 FastAPI demo 实测；两者都不替代 FastAPI 后端契约测试。
 
 原 `ALIGN-N-001` 至 `ALIGN-N-005` 是 Expo 时代的迁移历史记录，说明旧 Native 客户端曾缺少的功能。Compose 主线已补齐这些页面；这些条目保留用于审计旧端行为，不是当前 Compose 工作队列，也不要求恢复 Expo 页面。
 
@@ -56,7 +56,7 @@ F-01 至 F-10 的共享页面、状态和 API 流程已放入 `compose/shared/sr
 
 以下清单保留 React Web / Expo 页面入口和历史覆盖状态，帮助 Compose 实现核对已有用户行为。它不改变 Compose 主线的实现状态，也不把 legacy 代码加入根工作流。
 
-| ID | 页面级功能 | Web 实现 | Native 实现 | 覆盖状态 |
+| ID | 页面级功能 | 旧 React Web 实现 | Native 实现 | 覆盖状态 |
 |----|------------|----------|-------------|----------|
 | F-01 | 认证：登录 / 注册 | `Auth`，根入口的登录/注册模式；[`web/src/AccessApp.tsx`](../web/src/AccessApp.tsx) | `/(auth)/login`，登录/注册模式；[`mobile/src/app/(auth)/login.tsx`](<../mobile/src/app/(auth)/login.tsx>) | 双端已实现；Compose 共享认证视图按确认稿提供实时校验、注册确认密码及返回登录，详见 [`login-page-branding`](../openspec/changes/login-page-branding/) |
 | F-02 | 工作区入口：选择 / 创建 / 进入失败恢复 | `Create`、工作区切换器和 `WorkspaceSelectionError`；[`web/src/AccessApp.tsx`](../web/src/AccessApp.tsx) | `/(app)/workspace`，选择、自动进入和创建；[`mobile/src/app/(app)/workspace.tsx`](<../mobile/src/app/(app)/workspace.tsx>) | 双端已实现 |

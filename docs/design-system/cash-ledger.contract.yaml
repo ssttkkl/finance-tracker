@@ -2,14 +2,14 @@ screen: CashLedger
 semanticId: cash-ledger-screen
 components:
   - id: cash-ledger-add
-    component: Finance/Button
-    compose: FinanceButton
+    component: Material3/Button
+    compose: Button
   - id: cash-ledger-filters
     component: Finance/FilterBar
     compose: FinanceFilterBar
   - id: cash-ledger-account-filter
     component: Finance/Select
-    compose: FinanceSelect
+    compose: ChoicePicker
   - id: cash-ledger-table
     component: Finance/DataTable
     compose: FinanceDataTable

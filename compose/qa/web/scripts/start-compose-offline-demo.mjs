@@ -3,10 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(scriptDirectory, "../..");
+const repositoryRoot = path.resolve(scriptDirectory, "../../../..");
 const composeRoot = path.join(repositoryRoot, "compose");
 const gradleWrapper = path.join(composeRoot, "gradlew");
-const previewServer = path.join(repositoryRoot, "web/tests/compose-preview-server.mjs");
+const previewServer = path.join(repositoryRoot, "compose/qa/web/tests/compose-preview-server.mjs");
 let activeChild = null;
 let shuttingDown = false;
 
@@ -40,20 +40,19 @@ function run(command, args, cwd, description, env = process.env) {
 }
 
 const gradleArguments = [];
-if (process.env.FT_GRADLE_INIT_SCRIPT) {
-  gradleArguments.push("-I", process.env.FT_GRADLE_INIT_SCRIPT);
-}
+if (process.env.FT_GRADLE_INIT_SCRIPT) gradleArguments.push("-I", process.env.FT_GRADLE_INIT_SCRIPT);
 gradleArguments.push(":webApp:wasmJsBrowserDistribution", "--no-configuration-cache");
 
 try {
-  const buildEnvironment = { ...process.env, FT_COMPOSE_DEMO_MODE: "false" };
-  const build = await run(gradleWrapper, gradleArguments, composeRoot, "Unable to start the Compose Web build", buildEnvironment);
+  const buildEnvironment = { ...process.env, FT_COMPOSE_DEMO_MODE: "true", FT_API_ORIGIN: "" };
+  const build = await run(gradleWrapper, gradleArguments, composeRoot, "Unable to build the offline Compose Web demo", buildEnvironment);
   if (build.code !== 0) {
     process.exitCode = build.code ?? (build.signal === "SIGINT" ? 130 : 1);
     process.exit();
   }
 
-  const server = await run(process.execPath, [previewServer], repositoryRoot, "Unable to start the Compose Web preview");
+  const serverEnvironment = { ...process.env, FT_COMPOSE_OFFLINE_DEMO: "1", FT_API_ORIGIN: "", FT_API_PROXY_ORIGIN: "" };
+  const server = await run(process.execPath, [previewServer], repositoryRoot, "Unable to start the offline Compose Web demo", serverEnvironment);
   process.exitCode = server.code ?? (shuttingDown && server.signal === "SIGTERM" ? 0 : 1);
 } catch (error) {
   console.error(error.message);

@@ -1,8 +1,12 @@
 import { defineConfig } from "@playwright/test";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const composePort = Number(process.env.FT_COMPOSE_PREVIEW_PORT ?? "5186");
 const composeUrl = `http://127.0.0.1:${composePort}`;
 const chromePath = process.env.PLAYWRIGHT_CHROME_PATH;
+const qaDirectory = path.dirname(fileURLToPath(import.meta.url));
+const startScript = path.join(qaDirectory, "scripts/start-compose-demo.mjs");
 
 export default defineConfig({
   testDir: "./tests",
@@ -19,7 +23,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "cd ../compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache && cd ../web && node tests/compose-preview-server.mjs",
+    command: `"${process.execPath}" "${startScript}"`,
     url: `${composeUrl}/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

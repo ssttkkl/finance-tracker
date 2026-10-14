@@ -27,7 +27,7 @@ def compose_ui_codepoints() -> set[int]:
     roots = [
         ROOT / "compose/shared/src/commonMain",
         ROOT / "compose/shared/src/commonTest",
-        ROOT / "web/tests/compose-fixtures.ts",
+        ROOT / "compose/qa/web/tests/compose-fixtures.ts",
     ]
     points: set[int] = set()
     for root in roots:

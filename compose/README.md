@@ -13,16 +13,16 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 在仓库根目录运行：
 
 ```sh
-node web/scripts/start-compose-demo.mjs
+node compose/qa/web/scripts/start-compose-demo.mjs
 ```
 
 命令会构建 Wasm production distribution，并启动本地 SPA 预览，默认地址为 <http://127.0.0.1:5186/>；按 `Ctrl+C` 停止。预览服务器把同源 `/api/*` 请求转发到现有 FastAPI，默认目标为 `http://127.0.0.1:8000`，因此需要 API 流程时请另行启动仓库现有后端。可用 `FT_API_PROXY_ORIGIN=http://127.0.0.1:<端口>` 指向本机其他 API 端口，或用 `FT_COMPOSE_PREVIEW_PORT=<端口>` 更改 demo 端口。构建依赖需要镜像时，可通过 `FT_GRADLE_INIT_SCRIPT=/本机路径/gradle-mirror.init.gradle` 提供仓库外 Gradle init script。
 
-需要无需 API 服务器的 Compose 演示时，在仓库根目录运行 `node web/scripts/start-compose-offline-demo.mjs`。它通过构建环境变量 `FT_COMPOSE_DEMO_MODE=true` 和空的 `FT_API_ORIGIN` 生成共享模块的 `ComposeBuildConfig`，并启动不提供 API 代理的静态服务，默认地址为 <http://127.0.0.1:5186/>；正式 API 预览仍使用上面的 `node web/scripts/start-compose-demo.mjs` 命令。演示初始进入固定合成用户和工作区，收支、分类、投资、邀请和工作区数据均由进程内仓库提供，改动在进程结束后重置；导入流程提供内置合成账单。演示模式不会读取真实登录凭据或请求 API 服务器；字体等静态资源仍可从配置的 CDN 加载。
+需要无需 API 服务器的 Compose 演示时，在仓库根目录运行 `node compose/qa/web/scripts/start-compose-offline-demo.mjs`。它通过构建环境变量 `FT_COMPOSE_DEMO_MODE=true` 和空的 `FT_API_ORIGIN` 生成共享模块的 `ComposeBuildConfig`，并启动不提供 API 代理的静态服务，默认地址为 <http://127.0.0.1:5186/>；正式 API 预览仍使用上面的 `node compose/qa/web/scripts/start-compose-demo.mjs` 命令。演示初始进入固定合成用户和工作区，收支、分类、投资、邀请和工作区数据均由进程内仓库提供，改动在进程结束后重置；导入流程提供内置合成账单。演示模式不会读取真实登录凭据或请求 API 服务器；字体等静态资源仍可从配置的 CDN 加载。Compose Web Playwright 与预览服务位于 `compose/qa/web/`，可在该目录运行 `npm ci`、`npm run test:node` 和 `npm run test:e2e`。首次运行浏览器用例前，执行 `npx playwright install chromium`；已有 Chrome 时也可设置 `PLAYWRIGHT_CHROME_PATH` 指向浏览器可执行文件。完整端到端套件中的实时注册用例需要本地 FastAPI 通过 `FT_API_PROXY_ORIGIN` 可访问。
 
 Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_MODE` 与 `FT_API_ORIGIN`。演示模式默认关闭；API 地址默认为空。Android 可在仓库根目录运行 `cd compose && FT_COMPOSE_DEMO_MODE=true ./gradlew :androidApp:installDebug` 安装演示包。iOS Debug 构建也使用同一环境变量，Swift 入口仅在 `#if DEBUG` 下读取演示模式开关。可通过 `cd compose && FT_COMPOSE_DEMO_MODE=true xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build` 构建 iOS 演示包。Android、iOS Release 和仓库生产 Web 构建都会强制使用正式数据图。构建需连接 API 的原生包时，通过构建环境变量设置地址，例如 `FT_API_ORIGIN=http://localhost:8000 ./gradlew :androidApp:installDebug` 或 `FT_API_ORIGIN=http://localhost:8000 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build`。Compose Web 本地预览在变量为空时使用预览站点 origin，再由本地代理转发 `/api/*` 请求。
 
-UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。仓库根目录的 `design/*.pen` 是历史参考，不属于当前开发或验收流程。
+UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。旧 React UI 位于 `web/src`，仅作迁移参考；Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.

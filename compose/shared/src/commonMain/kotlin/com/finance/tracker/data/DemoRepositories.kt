@@ -4,7 +4,7 @@ import com.finance.tracker.domain.*
 
 private const val DEMO_WORKSPACE_ID = "demo-workspace"
 private const val DEMO_USER_EMAIL = "demo@example.test"
-private const val DEMO_STATEMENT_NAME = "演示银行账单.csv"
+private const val DEMO_STATEMENT_NAME = "演示银行账单.csv" // i18n-allow: demo-fixture
 private const val DEMO_STATEMENT_DIGEST = "demo-statement-v1"
 
 /** An in-memory statement fixture. Its bytes are synthetic and never come from the platform file system. */
@@ -12,9 +12,9 @@ class DemoStatementFileSource : FileSource {
     override val name: String = DEMO_STATEMENT_NAME
     override val mediaType: String = "text/csv"
     private val bytes = (
-        "日期,账户,对方,金额,币种,备注\n" +
-            "2026-10-09,日常账户,山海咖啡,-28.00,CNY,午后咖啡\n" +
-            "2026-10-10,日常账户,示例公司,12000.00,CNY,月度收入\n"
+        "日期,账户,对方,金额,币种,备注\n" + // i18n-allow: demo-fixture
+            "2026-10-09,日常账户,山海咖啡,-28.00,CNY,午后咖啡\n" + // i18n-allow: demo-fixture
+            "2026-10-10,日常账户,示例公司,12000.00,CNY,月度收入\n" // i18n-allow: demo-fixture
         ).encodeToByteArray()
     override val size: Long = bytes.size.toLong()
     override suspend fun read(): ByteArray = bytes.copyOf()
@@ -24,7 +24,7 @@ class DemoStatementFileSource : FileSource {
 class DemoSessionRepository : SessionRepository {
     private var nextWorkspaceNumber = 2
     private var isSignedIn = true
-    private var workspaces = mutableListOf(Workspace(DEMO_WORKSPACE_ID, "我的工作区", WorkspaceRole.ADMIN))
+    private var workspaces = mutableListOf(Workspace(DEMO_WORKSPACE_ID, "我的工作区", WorkspaceRole.ADMIN)) // i18n-allow: demo-fixture
     private var activeWorkspaceId: String? = DEMO_WORKSPACE_ID
     private var workspaceMembers = mutableListOf(
         WorkspaceMember("demo-user", DEMO_USER_EMAIL, WorkspaceRole.ADMIN, isSelf = true),
@@ -70,14 +70,14 @@ class DemoSessionRepository : SessionRepository {
     }
 
     override suspend fun invitationPreview(token: String): InvitationPreview = InvitationPreview(
-        workspace = InvitationWorkspace("协作空间"),
+        workspace = InvitationWorkspace("协作空间"), // i18n-allow: demo-fixture
         role = WorkspaceRole.EDITOR,
         valid = token.isNotBlank(),
     )
 
     override suspend fun acceptInvitation(token: String): Session {
         if (token.isBlank()) throw demoFailure("invitation_invalid", 404)
-        val workspace = Workspace("demo-workspace-${nextWorkspaceNumber++}", "协作空间", WorkspaceRole.EDITOR)
+        val workspace = Workspace("demo-workspace-${nextWorkspaceNumber++}", "协作空间", WorkspaceRole.EDITOR) // i18n-allow: demo-fixture
         workspaces += workspace
         activeWorkspaceId = workspace.id
         workspaceMembers = mutableListOf(WorkspaceMember("demo-user", DEMO_USER_EMAIL, WorkspaceRole.EDITOR, isSelf = true))
@@ -127,19 +127,19 @@ class DemoSessionRepository : SessionRepository {
 
 /** All records are owned by this instance and disappear when the app process creates a new graph. */
 class DemoFinanceRepository : FinanceRepository {
-    private val cashAccount = Account(1, "日常账户", "cash", currencies = listOf("CNY"))
-    private val cardAccount = Account(2, "银行卡", "cash", currencies = listOf("CNY"))
-    private val investmentAccount = Account(3, "证券账户", "investment", currencies = listOf("USD"))
+    private val cashAccount = Account(1, "日常账户", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
+    private val cardAccount = Account(2, "银行卡", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
+    private val investmentAccount = Account(3, "证券账户", "investment", currencies = listOf("USD")) // i18n-allow: demo-fixture
     private val accounts = mutableListOf(cashAccount, cardAccount, investmentAccount)
     private val categories = mutableListOf(
-        CashCategory("food", name = "餐饮", description = "", depth = 1, sortOrder = 0, revision = 1),
-        CashCategory("transport", name = "交通", description = "", depth = 1, sortOrder = 1, revision = 1),
-        CashCategory("income", name = "收入", description = "", depth = 1, sortOrder = 2, revision = 1),
+        CashCategory("food", name = "餐饮", description = "", depth = 1, sortOrder = 0, revision = 1), // i18n-allow: demo-fixture
+        CashCategory("transport", name = "交通", description = "", depth = 1, sortOrder = 1, revision = 1), // i18n-allow: demo-fixture
+        CashCategory("income", name = "收入", description = "", depth = 1, sortOrder = 2, revision = 1), // i18n-allow: demo-fixture
     )
     private val records = mutableListOf(
-        demoRecord("demo-record-3", "2026-10-10T09:00:00Z", "12000.00", "示例公司", "月度收入", "income", "income"),
-        demoRecord("demo-record-2", "2026-10-09T12:30:00Z", "-28.00", "山海咖啡", "午后咖啡", "consumption", "food"),
-        demoRecord("demo-record-1", "2026-10-08T18:15:00Z", "-16.00", "城市交通", "地铁出行", "consumption", "transport"),
+        demoRecord("demo-record-3", "2026-10-10T09:00:00Z", "12000.00", "示例公司", "月度收入", "income", "income"), // i18n-allow: demo-fixture
+        demoRecord("demo-record-2", "2026-10-09T12:30:00Z", "-28.00", "山海咖啡", "午后咖啡", "consumption", "food"), // i18n-allow: demo-fixture
+        demoRecord("demo-record-1", "2026-10-08T18:15:00Z", "-16.00", "城市交通", "地铁出行", "consumption", "transport"), // i18n-allow: demo-fixture
     )
     private val relations = mutableListOf<CashRelation>()
     private val committedImportTokens = mutableSetOf<String>()
@@ -366,7 +366,7 @@ class DemoFinanceRepository : FinanceRepository {
     override suspend fun detectCashImport(file: FileSource, currency: String?, password: String?): ImportDetection {
         ensureDemoStatement(file)
         file.read()
-        return ImportDetection("bank", "银行账单", ImportFileDescriptor(file.name, DEMO_STATEMENT_DIGEST), DEMO_STATEMENT_DIGEST, DEMO_IMPORT_ROWS.size)
+        return ImportDetection("bank", "bank", ImportFileDescriptor(file.name, DEMO_STATEMENT_DIGEST), DEMO_STATEMENT_DIGEST, DEMO_IMPORT_ROWS.size)
     }
 
     override suspend fun scanCashImport(files: List<FileSource>, currency: String?, passwords: Map<String, String>, importToken: String?): ImportScan {
@@ -374,13 +374,13 @@ class DemoFinanceRepository : FinanceRepository {
         files.forEach { ensureDemoStatement(it); it.read() }
         val token = importToken ?: "demo-import-$DEMO_STATEMENT_DIGEST"
         val fileScans = files.mapIndexed { index, file ->
-            ImportFileScan(index, file.name, file.name, DEMO_STATEMENT_DIGEST, file.size ?: 0L, "bank", "银行账单", DEMO_IMPORT_ROWS.size, "ready")
+            ImportFileScan(index, file.name, file.name, DEMO_STATEMENT_DIGEST, file.size ?: 0L, "bank", "bank", DEMO_IMPORT_ROWS.size, "ready")
         }
         return ImportScan(
             importToken = token,
             contract = "cash-import-v1",
             channel = "bank",
-            channelLabel = "银行账单",
+            channelLabel = "bank",
             ready = true,
             batchDigest = DEMO_STATEMENT_DIGEST,
             channels = listOf("bank"),
@@ -393,9 +393,9 @@ class DemoFinanceRepository : FinanceRepository {
                     groupId = "demo-bank-account",
                     sourceType = "bank_statement",
                     channel = "bank",
-                    channelLabel = "银行账单",
+                    channelLabel = "bank",
                     displayName = cashAccount.name,
-                    maskedEvidence = "尾号 1234",
+                    maskedEvidence = "尾号 1234", // i18n-allow: demo-fixture
                     currencies = listOf("CNY"),
                     rowCount = DEMO_IMPORT_ROWS.size,
                     suggestion = ImportMappingSuggestion(accountId = cashAccount.id, account = cashAccount, mappingRevision = 1),
@@ -418,23 +418,23 @@ class DemoFinanceRepository : FinanceRepository {
                 groupId = decision.groupId,
                 sourceType = "bank_statement",
                 channel = "bank",
-                channelLabel = "银行账单",
+                channelLabel = "bank",
                 accountId = decision.accountId,
                 newAccount = decision.newAccount,
             )
         }.ifEmpty {
-            listOf(ImportMappingResult("demo-bank-account", "bank_statement", "bank", "银行账单", cashAccount.id))
+            listOf(ImportMappingResult("demo-bank-account", "bank_statement", "bank", "bank", cashAccount.id))
         }
         val file = ImportFileDescriptor(DEMO_STATEMENT_NAME, DEMO_STATEMENT_DIGEST)
         return ImportPreview(
             importToken = token,
             channel = "bank",
-            channelLabel = "银行账单",
+            channelLabel = "bank",
             file = file,
             batchDigest = DEMO_STATEMENT_DIGEST,
             channels = listOf("bank"),
             relationDigest = "demo-relations-$DEMO_STATEMENT_DIGEST",
-            columns = listOf("日期", "账户", "对方", "金额", "币种", "备注"),
+            columns = listOf("日期", "账户", "对方", "金额", "币种", "备注"), // i18n-allow: demo-fixture
             items = DEMO_IMPORT_ROWS.map { row ->
                 ImportPreviewItem(
                     recordId = row.recordId,
@@ -474,7 +474,7 @@ class DemoFinanceRepository : FinanceRepository {
         val token = requireDemoImportToken(importToken)
         if (previewDigest != null && previewDigest != DEMO_STATEMENT_DIGEST) throw demoFailure("import_preview_changed", 409)
         if (!committedImportTokens.add(idempotencyKey ?: token)) {
-            return ImportCommitResult("导入完成", 0, 0, skippedRows = DEMO_IMPORT_ROWS.size, channel = "bank", digest = DEMO_STATEMENT_DIGEST)
+            return ImportCommitResult("", 0, 0, skippedRows = DEMO_IMPORT_ROWS.size, channel = "bank", digest = DEMO_STATEMENT_DIGEST)
         }
         val decision = mapping.orEmpty().firstOrNull { it.groupId == "demo-bank-account" }
         decision?.newAccount?.let { draft ->
@@ -503,7 +503,7 @@ class DemoFinanceRepository : FinanceRepository {
         importCommittedRows += DEMO_IMPORT_ROWS.size
         projectionVersion++
         return ImportCommitResult(
-            message = "导入完成",
+            message = "",
             newRows = DEMO_IMPORT_ROWS.size,
             updatedRows = 0,
             channel = "bank",
@@ -684,12 +684,12 @@ class DemoFinanceRepository : FinanceRepository {
         return ImportRelation(
             id = "demo-payment-review",
             kind = "payment_mirror",
-            label = "同笔支付",
+            label = "",
             subtype = "",
             status = "pending",
             automatic = false,
             ruleId = "demo-rule",
-            reason = "账单中的两条相关记录，可在演示中查看关联确认流程。",
+            reason = "",
             primary = relationRecord(first, true),
             secondary = relationRecord(second, true),
             candidates = listOf(relationRecord(second, true)),
@@ -734,7 +734,7 @@ class DemoFinanceRepository : FinanceRepository {
             account = investmentAccount,
             recordType = "buy",
             currency = "USD",
-            note = "定期买入",
+                note = "定期买入", // i18n-allow: demo-fixture
             toAsset = InvestmentAsset("AAPL", "2"),
             commission = InvestmentCommission("1.00", "USD"),
             recordId = "demo-investment-record-2",
@@ -745,7 +745,7 @@ class DemoFinanceRepository : FinanceRepository {
             account = investmentAccount,
             recordType = "buy",
             currency = "USD",
-            note = "首次买入",
+                note = "首次买入", // i18n-allow: demo-fixture
             toAsset = InvestmentAsset("AAPL", "1"),
             commission = InvestmentCommission("1.00", "USD"),
             recordId = "demo-investment-record-1",
@@ -766,8 +766,8 @@ private data class DemoImportRow(
 )
 
 private val DEMO_IMPORT_ROWS = listOf(
-    DemoImportRow("demo-import-row-1", "payment-1", "2026-10-09T04:30:00Z", "-28.00", "日常账户", "山海咖啡", "consumption", "food", "午后咖啡"),
-    DemoImportRow("demo-import-row-2", "payment-1", "2026-10-10T01:00:00Z", "12000.00", "日常账户", "示例公司", "income", "income", "月度收入"),
+    DemoImportRow("demo-import-row-1", "payment-1", "2026-10-09T04:30:00Z", "-28.00", "日常账户", "山海咖啡", "consumption", "food", "午后咖啡"), // i18n-allow: demo-fixture
+    DemoImportRow("demo-import-row-2", "payment-1", "2026-10-10T01:00:00Z", "12000.00", "日常账户", "示例公司", "income", "income", "月度收入"), // i18n-allow: demo-fixture
 )
 
 private fun demoRecord(id: String, occurredAt: String, amount: String, counterparty: String, note: String, recordType: String, categoryId: String) = CashRecord(
@@ -779,7 +779,7 @@ private fun demoRecord(id: String, occurredAt: String, amount: String, counterpa
     note = note,
     categoryId = categoryId,
     recordType = recordType,
-    accountName = "日常账户",
+    accountName = "日常账户", // i18n-allow: demo-fixture
     accountId = 1,
     accountType = "cash",
     sourceType = "manual",
@@ -787,11 +787,11 @@ private fun demoRecord(id: String, occurredAt: String, amount: String, counterpa
 
 private fun demoLedgerOptions() = LedgerOptions(
     recordTypes = listOf(
-        RecordTypeOption("consumption", "消费", listOf(SimpleOption("not_applicable", "普通消费"))),
-        RecordTypeOption("income", "收入", listOf(SimpleOption("not_applicable", "普通收入"))),
-        RecordTypeOption("transfer", "转账", listOf(SimpleOption("internal", "内部转账"))),
+        RecordTypeOption("consumption", "消费", listOf(SimpleOption("not_applicable", "普通消费"))), // i18n-allow: demo-fixture
+        RecordTypeOption("income", "收入", listOf(SimpleOption("not_applicable", "普通收入"))), // i18n-allow: demo-fixture
+        RecordTypeOption("transfer", "转账", listOf(SimpleOption("internal", "内部转账"))), // i18n-allow: demo-fixture
     ),
-    relationTypes = listOf(SimpleOption("payment_mirror", "同笔支付"), SimpleOption("refund", "退款")),
+    relationTypes = listOf(SimpleOption("payment_mirror", "同笔支付"), SimpleOption("refund", "退款")), // i18n-allow: demo-fixture
 )
 
 private const val DEMO_PAGE_SIZE = 20

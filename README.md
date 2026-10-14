@@ -57,11 +57,11 @@ python3 scripts/generate_ui_tokens.py
 (cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache)
 (cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
 (cd compose && ./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache)
-node web/scripts/start-compose-demo.mjs
-node web/scripts/start-compose-offline-demo.mjs
+node compose/qa/web/scripts/start-compose-demo.mjs
+node compose/qa/web/scripts/start-compose-offline-demo.mjs
 ```
 
-Compose Web 后端连接预览使用 `node web/scripts/start-compose-demo.mjs`；无 API 后端演示使用 `node web/scripts/start-compose-offline-demo.mjs`。Android/iOS 演示方式见 [`compose/README.md`](compose/README.md)，历史 UI 设计资料见 [`design/README.md`](design/README.md)。
+Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-demo.mjs`；无 API 后端演示使用 `node compose/qa/web/scripts/start-compose-offline-demo.mjs`。Compose Web QA 工具位于 `compose/qa/web/`。Android/iOS 演示方式见 [`compose/README.md`](compose/README.md)，历史 UI 设计资料见 [`design/README.md`](design/README.md)。
 
 本地 Compose 调试通过 `FT_API_PROXY_ORIGIN` 配置 API 代理；生产目标只接受 HTTPS。具体 target 和运行参数见 [`compose/README.md`](compose/README.md)。
 

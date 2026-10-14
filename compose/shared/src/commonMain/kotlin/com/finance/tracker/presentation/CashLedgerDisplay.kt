@@ -107,6 +107,7 @@ internal fun cashRecordTypeLabel(value: String, options: LedgerOptions): String 
 
 internal fun cashRelationTypeResourceKey(value: String): String? = when (value) {
     "payment_mirror" -> "cash_relation_payment_mirror"
+    "refund" -> "cash_record_refund"
     "refund_offset" -> "cash_relation_refund_offset"
     "transfer_pair" -> "cash_relation_transfer_pair"
     "cash_investment_funding" -> "cash_relation_cash_investment_funding"

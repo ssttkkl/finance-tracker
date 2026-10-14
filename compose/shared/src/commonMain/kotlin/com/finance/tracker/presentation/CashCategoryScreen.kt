@@ -23,6 +23,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
+import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
 
 @Composable
 internal fun CashCategoryScreen(
@@ -52,7 +55,7 @@ internal fun CashCategoryScreen(
         if (state.loading && state.directory == null) StateMessage(localizedText("copy_07c21b1c4e"))
         if (pageError != null && state.directory == null) {
             StateMessage(pageError, isError = true) {
-                FinanceTertiaryButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
+                TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
             }
         }
         if (state.directory != null || state.draft != null) {
@@ -162,7 +165,14 @@ private fun CategoryDirectory(
 ) {
     SectionCard(modifier) {
         Text(localizedText("copy_128c99ed00"), style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-        LabeledInput(search, onSearch, localizedText("copy_c3113f2316"), semanticId = SemanticIds.cashCategorySearch)
+        OutlinedTextField(
+            value = search,
+            onValueChange = onSearch,
+            modifier = Modifier.testTag(SemanticIds.cashCategorySearch)
+                .accessibleTextFieldLabel(localizedText("copy_c3113f2316")),
+            label = { Text(localizedText("copy_c3113f2316")) },
+            singleLine = true,
+        )
         if (items.isEmpty()) Text(if (search.isBlank()) localizedText("copy_85d37bf07a") else localizedText("copy_01152a1690"))
         items.forEach { item ->
             HorizontalDivider()
@@ -173,28 +183,28 @@ private fun CategoryDirectory(
                 if (sizeClass != WindowSizeClass.WIDE) {
                     Column {
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            FinanceTertiaryButton(onClick = { onEdit(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_a7f814c0a4")) }
-                            FinanceTertiaryButton(onClick = { onCreateChild(item.id) }, enabled = canWrite && !busy && item.depth < 5) { Text(localizedText("copy_3a5fb928ac")) }
+                            TextButton(onClick = { onEdit(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_a7f814c0a4")) }
+                            TextButton(onClick = { onCreateChild(item.id) }, enabled = canWrite && !busy && item.depth < 5) { Text(localizedText("copy_3a5fb928ac")) }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            FinanceTertiaryButton(onClick = { onMove(item, "before") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "before")) { Text(localizedText("copy_8a0c839791")) }
-                            FinanceTertiaryButton(onClick = { onMove(item, "after") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "after")) { Text(localizedText("copy_05c46fa3b7")) }
-                            FinanceTertiaryButton(onClick = { onDelete(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_3755f56f2f")) }
+                            TextButton(onClick = { onMove(item, "before") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "before")) { Text(localizedText("copy_8a0c839791")) }
+                            TextButton(onClick = { onMove(item, "after") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "after")) { Text(localizedText("copy_05c46fa3b7")) }
+                            TextButton(onClick = { onDelete(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_3755f56f2f")) }
                         }
                     }
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        FinanceTertiaryButton(onClick = { onEdit(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_a7f814c0a4")) }
-                        FinanceTertiaryButton(onClick = { onCreateChild(item.id) }, enabled = canWrite && !busy && item.depth < 5) { Text(localizedText("copy_3a5fb928ac")) }
-                        FinanceTertiaryButton(onClick = { onMove(item, "before") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "before")) { Text(localizedText("copy_8a0c839791")) }
-                        FinanceTertiaryButton(onClick = { onMove(item, "after") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "after")) { Text(localizedText("copy_05c46fa3b7")) }
-                        FinanceTertiaryButton(onClick = { onDelete(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_3755f56f2f")) }
+                        TextButton(onClick = { onEdit(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_a7f814c0a4")) }
+                        TextButton(onClick = { onCreateChild(item.id) }, enabled = canWrite && !busy && item.depth < 5) { Text(localizedText("copy_3a5fb928ac")) }
+                        TextButton(onClick = { onMove(item, "before") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "before")) { Text(localizedText("copy_8a0c839791")) }
+                        TextButton(onClick = { onMove(item, "after") }, enabled = canWrite && !busy && categoryCanMove(allItems, item.id, "after")) { Text(localizedText("copy_05c46fa3b7")) }
+                        TextButton(onClick = { onDelete(item) }, enabled = canWrite && !busy) { Text(localizedText("copy_3755f56f2f")) }
                     }
                 }
             }
         }
         HorizontalDivider()
-        FinanceTertiaryButton(onClick = onCreateRoot, enabled = canWrite && !busy, modifier = Modifier.testTag("cash-category-create")) { Text(localizedText("copy_1ea769ea2c")) }
+        TextButton(onClick = onCreateRoot, enabled = canWrite && !busy, modifier = Modifier.testTag("cash-category-create")) { Text(localizedText("copy_1ea769ea2c")) }
     }
 }
 
@@ -211,18 +221,31 @@ private fun CategoryEditor(
 ) {
     SectionCard(modifier) {
         Text(if (draft.id == null) if (draft.parentId == null) localizedText("copy_982fa4706a") else localizedText("copy_e829c71fc6") else localizedText("copy_9ad1ea5822"), style = androidx.compose.material3.MaterialTheme.typography.titleLarge)
-        LabeledInput(draft.name, { onChange(draft.copy(name = it.take(40))) }, localizedText("copy_3fc303551e"), semanticId = SemanticIds.cashCategoryName)
+        OutlinedTextField(
+            value = draft.name,
+            onValueChange = { onChange(draft.copy(name = it.take(40))) },
+            modifier = Modifier.testTag(SemanticIds.cashCategoryName)
+                .accessibleTextFieldLabel(localizedText("copy_3fc303551e")),
+            label = { Text(localizedText("copy_3fc303551e")) },
+            singleLine = true,
+        )
         ChoicePicker(
             label = localizedText("copy_0cacc9c3b0"),
             value = draft.parentId.orEmpty(),
             options = listOf("" to localizedText("copy_6e83bd81ca")) + parents.map { it.id to (it.path.map { pathItem -> pathItem.name } + it.name).joinToString(" / ") },
             onSelected = { onChange(draft.copy(parentId = it.ifEmpty { null })) },
         )
-        LabeledInput(draft.description, { onChange(draft.copy(description = it.take(500))) }, localizedText("copy_7d11fd745d"), singleLine = false)
+        OutlinedTextField(
+            value = draft.description,
+            onValueChange = { onChange(draft.copy(description = it.take(500))) },
+            modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_7d11fd745d")),
+            label = { Text(localizedText("copy_7d11fd745d")) },
+            singleLine = false,
+        )
         InlineError(error)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FinanceTertiaryButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
-            FinanceButton(onClick = onSave, enabled = !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
+            TextButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+            Button(onClick = onSave, enabled = !busy, modifier = Modifier.testTag(SemanticIds.cashCategorySave)) {
                 Text(if (busy) localizedText("copy_6644f06197") else if (draft.id == null) localizedText("copy_cbd700515a") else localizedText("copy_fadf24dbc5"))
             }
         }

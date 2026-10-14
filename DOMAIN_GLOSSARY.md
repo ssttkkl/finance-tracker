@@ -245,6 +245,12 @@
 
 | 规范术语 | 定义 | 应避免的别名 |
 |----------|------|--------------|
+| **Material 3 控件** (new) | Compose 页面直接使用的 Material 3 按钮、输入框及其他交互控件；颜色与字形由 `FinanceTheme` 提供，业务状态和语义由调用位置明确传入。 | Finance 按钮包装层、Compose Unstyled 控件 |
+| **Compose Web** (new) | 位于 `compose/webApp`、由共享 Compose 页面构成的活跃 Web target；其启动器、预览服务和浏览器 QA 工具位于 `compose/qa/web/`。 | 旧 React Web、`web/` 当前前端 |
+| **旧 React UI** (new) | 位于 `web/src` 的既有 React 页面，仅作为迁移参考，不是当前设计规范或 Compose Web 的实现入口。 | 当前 Web target、默认页面实现 |
+
+| 规范术语 | 定义 | 应避免的别名 |
+|----------|------|--------------|
 | **二级页面容器** (new) | 承载一级目的地内页面级任务的共用界面；在 `COMPACT` 窗口全屏显示，在 `REGULAR` 和 `WIDE` 窗口以模态浮层显示。 | 每个二级页面单独实现的浮层或全屏切换 |
 
 ## 收支分类

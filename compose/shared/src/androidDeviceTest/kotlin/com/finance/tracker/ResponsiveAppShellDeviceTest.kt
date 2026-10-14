@@ -160,10 +160,10 @@ class ResponsiveAppShellDeviceTest {
     }
 
     @Test
-    fun financeButtonPassesDisabledStateToUnstyledPrimitive() {
+    fun materialButtonExposesDisabledState() {
         composeRule.setContent {
             MaterialTheme {
-                FinanceButton(onClick = {}, enabled = false) { Text("保存") }
+                Button(onClick = {}, enabled = false) { Text("保存") }
             }
         }
 

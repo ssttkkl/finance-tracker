@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const port = Number(process.env.FT_COMPOSE_PREVIEW_PORT ?? "5186");
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../..");
 const composeRoot = path.join(repoRoot, "compose");
 const bundleRoot = path.join(composeRoot, "webApp/build/dist/wasmJs/productionExecutable");
 const composeResourceRoot = path.join(composeRoot, "webApp/build/processedResources/wasmJs/main");

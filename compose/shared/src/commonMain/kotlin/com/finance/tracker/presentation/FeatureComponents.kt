@@ -33,6 +33,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.Text
@@ -51,6 +52,7 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -72,6 +74,9 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import com.finance.tracker.core.design.GeneratedTokens
 import org.jetbrains.compose.resources.painterResource
+
+internal fun Modifier.accessibleTextFieldLabel(label: String): Modifier =
+    semantics { contentDescription = label }
 
 @Composable
 internal fun FeaturePage(
@@ -120,36 +125,16 @@ internal fun SectionCard(
 }
 
 @Composable
-internal fun LabeledInput(
-    value: String,
-    onValueChange: (String) -> Unit,
-    label: String,
-    modifier: Modifier = Modifier,
-    semanticId: String? = null,
-    singleLine: Boolean = true,
-    enabled: Boolean = true,
-    isError: Boolean = false,
-    onBlur: (() -> Unit)? = null,
-) {
-    var wasFocused by remember(semanticId) { mutableStateOf(false) }
-    val tagged = modifier.onFocusChanged {
-        if (it.isFocused) {
+internal fun Modifier.onFocusLost(onFocusLost: () -> Unit): Modifier {
+    var wasFocused by remember { mutableStateOf(false) }
+    return onFocusChanged { state ->
+        if (state.isFocused) {
             wasFocused = true
         } else if (wasFocused) {
             wasFocused = false
-            onBlur?.invoke()
+            onFocusLost()
         }
     }
-    FinanceTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = label,
-        modifier = tagged,
-        semanticId = semanticId,
-        singleLine = singleLine,
-        enabled = enabled,
-        isError = isError,
-    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -185,6 +170,7 @@ internal fun DatePickerInput(
         label = { Text(label) },
         readOnly = true,
         enabled = enabled,
+        singleLine = true,
         modifier = (if (semanticId == null) modifier else modifier.testTag(semanticId))
             .semantics(mergeDescendants = true) { contentDescription = label }
             .fillMaxWidth()
@@ -235,6 +221,7 @@ internal fun TimePickerInput(
         label = { Text(label) },
         readOnly = true,
         enabled = enabled,
+        singleLine = true,
         modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth().clickable(enabled) { open = true },
         trailingIcon = { TextButton(onClick = { open = true }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
         shape = RoundedCornerShape(12.dp),
@@ -363,7 +350,7 @@ internal fun ChoicePicker(
         }
     }
     val trigger: @Composable () -> Unit = {
-        FinanceButton(
+        OutlinedButton(
             onClick = {
                 if (useAnchoredMenu) {
                     if (menuHost.isShowing(menuKey)) {
@@ -374,11 +361,10 @@ internal fun ChoicePicker(
                 }
             },
             enabled = enabled,
-            variant = FinanceButtonVariant.Secondary,
             shape = if (fieldStyle) RoundedCornerShape(10.dp) else RoundedCornerShape(22.dp),
-            focusRequester = if (useAnchoredMenu) triggerFocusRequester else null,
             modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId))
                 .fillMaxWidth()
+                .then(if (useAnchoredMenu) Modifier.focusRequester(triggerFocusRequester) else Modifier)
                 .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier),
         ) {
             if (fieldStyle) {
@@ -558,13 +544,6 @@ internal fun InlineError(text: String?) {
 }
 
 @Composable
-internal fun BusyButton(label: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    FinanceButton(onClick = onClick, enabled = enabled, loading = busy, modifier = modifier) {
-        Text(if (busy) localizedText("copy_1cac8ac7f5") else label)
-    }
-}
-
-@Composable
 internal fun ConfirmationDialog(
     title: String,
     message: String,
@@ -602,7 +581,9 @@ internal fun FormActions(
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
-        BusyButton(primaryLabel, busy, onPrimary, enabled = primaryEnabled)
+        Button(onClick = onPrimary, enabled = primaryEnabled && !busy) {
+            Text(if (busy) localizedText("copy_1cac8ac7f5") else primaryLabel)
+        }
     }
 }
 

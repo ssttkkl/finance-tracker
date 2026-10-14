@@ -21,13 +21,13 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -66,6 +66,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.collectAsState
@@ -101,7 +102,6 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.PopupProperties
-import com.composeunstyled.UnstyledButton
 import com.finance.tracker.core.design.GeneratedTokens
 import org.jetbrains.compose.resources.painterResource
 import androidx.lifecycle.ViewModelStore
@@ -130,7 +130,6 @@ internal fun CompactAppShell(
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                modifier = Modifier.width(304.dp),
                 drawerContainerColor = colors.surface,
                 drawerContentColor = colors.foreground,
             ) {
@@ -238,7 +237,7 @@ private class AccountMenuKeyboardHandler {
 @Composable
 private fun NavigationHeader() {
     Box(
-        modifier = Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 20.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
         contentAlignment = Alignment.CenterStart,
     ) {
         Text(localizedText("copy_2e5de483d7"), style = MaterialTheme.typography.titleMedium)
@@ -312,7 +311,7 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
         ) {
             Column(Modifier.weight(1f)) {
                 val toggleLabel = localizedText(if (expanded) "navigation_rail_collapse" else "navigation_rail_expand")
-                UnstyledButton(
+                IconButton(
                     onClick = {
                         if (expanded) {
                             pinnedExpanded = false
@@ -324,14 +323,12 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp)
                         .onFocusChanged { railToggleFocused = it.isFocused }
-                        .focusable()
                         .border(if (railToggleFocused) 2.dp else 0.dp, if (railToggleFocused) colors.focus else Color.Transparent, RoundedCornerShape(8.dp))
                         .semantics { contentDescription = toggleLabel }
                         .testTag(SemanticIds.navigationRailToggle),
                 ) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = if (expanded) Alignment.CenterStart else Alignment.Center) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = if (expanded) Alignment.CenterStart else Alignment.Center) {
                         RailGlyph(
                             if (expanded) NavigationGlyphKind.CHEVRON_LEFT else NavigationGlyphKind.CHEVRON_RIGHT,
                             colors.mutedForShell(),
@@ -407,14 +404,17 @@ private fun NavigationDestinationItem(
     val hovered by interactionSource.collectIsHoveredAsState()
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(8.dp)
-    UnstyledButton(
+    TextButton(
         onClick = onClick,
+        contentPadding = PaddingValues(0.dp),
+        interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
-            .focusable()
-            .hoverable(interactionSource)
             .onFocusChanged { focused = it.isFocused }
+            .clip(shape)
+            .background(if (selected || hovered) colors.field else Color.Transparent, shape)
+            .border(if (focused && showFocusRing) 2.dp else 0.dp, if (focused && showFocusRing) colors.focus else Color.Transparent, shape)
+            .hoverable(interactionSource)
             .semantics {
                 contentDescription = label
                 this.selected = selected
@@ -423,10 +423,7 @@ private fun NavigationDestinationItem(
     ) {
         Row(
             modifier = Modifier
-                .fillMaxSize()
-                .clip(shape)
-                .background(if (selected || hovered) colors.field else Color.Transparent, shape)
-                .border(if (focused && showFocusRing) 2.dp else 0.dp, if (focused && showFocusRing) colors.focus else Color.Transparent, shape)
+                .fillMaxWidth()
                 .padding(horizontal = if (expanded) 8.dp else 0.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = if (expanded) Arrangement.Start else Arrangement.Center,
@@ -544,7 +541,6 @@ private fun DesktopAccountMenu(
                 onDismissRequest = dismissMenu,
                 properties = PopupProperties(focusable = clickOpen),
                 modifier = Modifier
-                    .width(320.dp)
                     .heightIn(max = 680.dp)
                     .border(1.dp, colors.fieldBorder.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
             ) {
@@ -603,15 +599,17 @@ private fun AccountTrigger(
     val shape = RoundedCornerShape(8.dp)
     val interactions = interactionSource ?: remember { MutableInteractionSource() }
     var focused by remember { mutableStateOf(false) }
-    UnstyledButton(
+    FilledTonalButton(
         onClick = onClick,
+        contentPadding = PaddingValues(0.dp),
+        colors = androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+            containerColor = colors.field,
+            contentColor = colors.foreground,
+        ),
         modifier = modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
             .clip(shape)
-            .background(colors.field, shape)
             .onFocusChanged { focused = it.isFocused }
-            .focusable()
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && (event.key == Key.Enter || event.key == Key.Spacebar)) {
                     onClick()
@@ -735,12 +733,11 @@ private fun AccountPanelContent(
         }
         if (error != null && pendingWorkspaceId != null) {
             Text(error, color = colors.danger, style = MaterialTheme.typography.bodySmall)
-            UnstyledButton(
+            TextButton(
                 onClick = { onWorkspaceSelected(pendingWorkspaceId.orEmpty()) },
                 enabled = !busy,
+                contentPadding = PaddingValues(0.dp),
                 modifier = Modifier
-                    .heightIn(min = 36.dp)
-                    .focusable()
                     .semantics {
                         contentDescription = retryLabel
                         if (busy) disabled()
@@ -795,17 +792,19 @@ private fun AccountWorkspaceOption(
         if (current) append(". ").append(currentLabel)
     }
     var focused by remember { mutableStateOf(false) }
-    UnstyledButton(
+    TextButton(
         onClick = onClick,
         enabled = !busy && !current,
+        contentPadding = PaddingValues(0.dp),
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            containerColor = if (current) colors.field else Color.Transparent,
+            contentColor = colors.foreground,
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 48.dp)
             .clip(shape)
-            .background(if (current) colors.field else Color.Transparent, shape)
             .border(if (focused) 2.dp else 0.dp, if (focused) colors.focus else Color.Transparent, shape)
             .onFocusChanged { focused = it.isFocused }
-            .focusable()
             .semantics {
                 contentDescription = accessibilityLabel
                 selected = current
@@ -854,15 +853,20 @@ private fun AccountAction(
     val interactions = remember { MutableInteractionSource() }
     val hovered by interactions.collectIsHoveredAsState()
     var focused by remember { mutableStateOf(false) }
-    UnstyledButton(
+    TextButton(
         onClick = onClick,
         enabled = enabled,
+        contentPadding = PaddingValues(0.dp),
+        colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+            containerColor = if (hovered) colors.field else Color.Transparent,
+            contentColor = colors.foreground,
+        ),
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .clip(shape)
+            .border(if (focused) 2.dp else 0.dp, if (focused) colors.focus else Color.Transparent, shape)
             .hoverable(interactions)
             .onFocusChanged { focused = it.isFocused }
-            .focusable()
             .semantics {
                 contentDescription = label
                 if (!enabled) disabled()
@@ -871,10 +875,7 @@ private fun AccountAction(
     ) {
         Row(
             Modifier
-                .fillMaxSize()
-                .clip(shape)
-                .background(if (hovered) colors.field else Color.Transparent, shape)
-                .border(if (focused) 2.dp else 0.dp, if (focused) colors.focus else Color.Transparent, shape)
+                .fillMaxWidth()
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,9 +27,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -335,8 +338,13 @@ private fun SecondaryPageFullScreen(
     footer: @Composable () -> Unit,
 ) {
     val colors = LocalFinanceColorRoles.current
+    val safeAreaPadding = if (sizeClass == WindowSizeClass.COMPACT) {
+        Modifier.windowInsetsPadding(WindowInsets.safeDrawing)
+    } else {
+        Modifier
+    }
     Column(
-        modifier = modifier.fillMaxSize().background(colors.surface).testTag("secondary-page-fullscreen"),
+        modifier = modifier.fillMaxSize().background(colors.surface).then(safeAreaPadding).testTag("secondary-page-fullscreen"),
     ) {
         SecondaryPageHeader(title, compact = true, sizeClass = sizeClass, onClose = onClose)
         HorizontalDivider(color = colors.fieldBorder)
@@ -376,7 +384,7 @@ private fun SecondaryPageHeader(title: String, compact: Boolean, sizeClass: Wind
         if (compact) {
             IconButton(
                 onClick = onClose,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier
                     .focusRequester(initialControlFocus)
                     .onFocusChanged { initialControlFocused = it.isFocused }
                     .focusable()
@@ -401,7 +409,7 @@ private fun SecondaryPageHeader(title: String, compact: Boolean, sizeClass: Wind
         if (!compact) {
             IconButton(
                 onClick = onClose,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier
                     .focusRequester(initialControlFocus)
                     .onFocusChanged { initialControlFocused = it.isFocused }
                     .focusable()

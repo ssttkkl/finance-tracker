@@ -29,7 +29,7 @@
 
 ## 跨平台产品一致性门禁
 
-- Web `compact` presentation 与 Native Phone 属于同一份产品合同；Native `regular`/`wide` 必须按逻辑窗口宽度适配 Android 多设备形态、iPhone 和 iPad，且 Native `wide` 的导航层级、信息区域顺序、筛选/详情/操作关系与 Web 大屏保持一致。
+- Compose Web `compact` presentation 与 Native Phone 属于同一份产品合同；Native `regular`/`wide` 必须按逻辑窗口宽度适配 Android 多设备形态、iPhone 和 iPad，且 Native `wide` 的导航层级、信息区域顺序、筛选/详情/操作关系与 Compose Web 大屏保持一致。旧 React UI 位于 `web/src`，仅作迁移参考；Compose Web 工程与 QA 位于 `compose/`。
 - 任何涉及 Web 或 Mobile UI、用户可见文案、页面结构/导航、用户操作、loading/empty/error/disabled 状态、表单校验、modal/sheet/menu 或响应式布局的变更，均必须执行 Cross-platform Impact Check，并在 `tasks.md` 写明 Web、Native、共享层各自是否受影响及理由。
 - 禁止只修改一个平台后默认另一个平台不受影响。除明确登记在 `presentation` 合同或 OpenSpec 的平台差异外，用户可观察差异默认按 defect 处理。
 - 跨端共享的是文案、页面区域、操作、状态、语义测试 ID 和响应式不变量，不要求 Web DOM 与 React Native 组件实现相同；平台特有控件必须保持相同的值、标签、确认语义、错误处理和业务结果。
@@ -103,7 +103,7 @@
 ### Compose 实现一致性门禁
 
 - `openspec/specs/shared/design-system/tokens/*.json` 是设计 token 唯一输入，`GeneratedTokens.kt` 是 Compose 消费副本；生成器、CI 不再维护或校验 Pen 变量副本。
-- Compose 自定义交互控件使用仓库已有的 Compose Unstyled 封装（如 `UnstyledButton`、`UnstyledTextField`），按 Git token 和 Finance 组件合同组合；Material3 可用于无视觉表现的基础布局/文字，或组件合同明确采用其外观的场景。
+- Compose 页面直接使用 Material 3 交互控件；按钮和文本输入不得通过 Finance 包装层或 Compose Unstyled 重复封装。保留 `FinanceTheme` 的颜色、字体与 token，在调用点明确表达业务状态、标签、校验和语义。
 - 除非仓库已验证可用的代码生成器，不得声称代码由工具自动生成；必须明确记录实际实现方式。
 - 最终预览按 `COMPACT`、`REGULAR`、`WIDE` 三类窗口尺寸检查节点层级、几何尺寸、间距、排版、颜色、组件外观和状态。硬性 token/响应式约束必须满足；截图用于复核，不取代行为和实现检查。
 - 在 `tasks.md` 记录截图路径、视口/状态、响应式与无障碍检查、发现和处置结果、独立设计复核。未解释的重大 finding 未清零前，不得勾选设计 QA 完成、提交或发布。

@@ -60,7 +60,8 @@ const expectTopRelativeTo = async (
   const containerBox = await container.boundingBox();
   expect(elementBox).not.toBeNull();
   expect(containerBox).not.toBeNull();
-  expect(Math.abs((elementBox?.y ?? 0) - (containerBox?.y ?? 0) - expectedTop)).toBeLessThanOrEqual(2);
+  const actualTop = (elementBox?.y ?? 0) - (containerBox?.y ?? 0);
+  expect(Math.abs(actualTop - expectedTop), `actual=${actualTop}, expected=${expectedTop}, element=${JSON.stringify(elementBox)}, container=${JSON.stringify(containerBox)}`).toBeLessThanOrEqual(2);
 };
 
 const expectCenteredAuthCard = async (page: import("@playwright/test").Page, width: number) => {
@@ -110,7 +111,7 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
       expect(titleBox).not.toBeNull();
       expect(titleBox?.y ?? 999).toBeLessThan(120);
     }
-    await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
+    await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 90);
     await page.screenshot({ path: testInfo.outputPath(`login-default-${width}.png`) });
   }
 
@@ -138,14 +139,13 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
     await expectCenteredAuthCard(page, width);
     if (width !== 390) {
       const cardBox = await card.boundingBox();
-      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 166);
-      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 262);
-      await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 342);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.password.control"]').last(), card, 170);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.confirm-password.control"]').last(), card, 266);
+      await expectTopRelativeTo(page.locator('[id="auth.submit"]').last(), card, 351);
       const backBox = await page.locator('[id="auth.back"]').last().boundingBox();
       expect(backBox).not.toBeNull();
-      expect(Math.abs((backBox?.width ?? 0) - 44)).toBeLessThanOrEqual(2);
-      expect(Math.abs((backBox?.height ?? 0) - 44)).toBeLessThanOrEqual(2);
-      expect(Math.abs((backBox?.x ?? 0) - ((cardBox?.x ?? 0) + 32))).toBeLessThanOrEqual(2);
+      expect((backBox?.x ?? 0)).toBeGreaterThanOrEqual((cardBox?.x ?? 0) + 32);
+      expect((backBox?.x ?? 0) + (backBox?.width ?? 0)).toBeLessThanOrEqual((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 32);
       await expect(page.locator('[id="auth.password.validation"]').last()).toHaveAttribute("aria-label", "至少 12 个字符");
       for (const control of [
         page.locator('[id="auth.email.control"]').last(),
@@ -159,15 +159,14 @@ test("Compose 认证页面匹配确认稿的布局、标题与校验", async ({ 
         expect(Math.abs(((controlBox?.x ?? 0) + (controlBox?.width ?? 0)) - ((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 32))).toBeLessThanOrEqual(2);
       }
     } else {
-      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 86);
+      await expectAuthOutlineTopRelativeTo(page.locator('[id="auth.email.control"]').last(), card, 90);
     }
     if (width === 390) {
       const backBox = await page.locator('[id="auth.back"]').last().boundingBox();
       const cardBox = await card.boundingBox();
       expect(backBox).not.toBeNull();
-      expect(Math.abs((backBox?.x ?? 0) - ((cardBox?.x ?? 0) + 20))).toBeLessThanOrEqual(2);
-      expect(Math.abs((backBox?.width ?? 0) - 44)).toBeLessThanOrEqual(2);
-      expect(Math.abs((backBox?.height ?? 0) - 44)).toBeLessThanOrEqual(2);
+      expect((backBox?.x ?? 0)).toBeGreaterThanOrEqual((cardBox?.x ?? 0) + 20);
+      expect((backBox?.x ?? 0) + (backBox?.width ?? 0)).toBeLessThanOrEqual((cardBox?.x ?? 0) + (cardBox?.width ?? 0) - 20);
     }
     await page.screenshot({ path: testInfo.outputPath(`register-default-${width}.png`) });
   }

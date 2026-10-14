@@ -33,13 +33,16 @@ test("Compose Resources have complete locale catalogs and matching format argume
     }
   }
   for (const key of defaultKeys) {
-    assert.equal(catalogs["values-zh"].get(key), catalogs.values.get(key), `${key} differs in values-zh`);
-    assert.equal(catalogs["values-b+zh+Hans"].get(key), catalogs.values.get(key), `${key} differs in zh-Hans`);
+    assert.equal(
+      catalogs["values-zh"].get(key),
+      catalogs["values-b+zh+Hans"].get(key),
+      `${key} differs between Chinese locale catalogs`,
+    );
     assert.doesNotMatch(catalogs["values-en"].get(key), /\p{Script=Han}/u, `${key} is not translated in English`);
   }
 
   const kotlin = kotlinFiles(kotlinRoot).map((path) => [path, readFileSync(path, "utf8")]);
-  const resourceName = /["']((?:copy_[a-f0-9]{10}|navigation_[a-z0-9_]+|display_(?:not_provided|time_not_provided|date_full|date_time_full|month)|cash_account_multiple|cash_source_(?:merged|bank_security_transfer)|cash_type_(?:expense|income|merged|other)|cash_record_(?:consumption|refund|reversal|transfer_reversal|withdrawal_in|withdrawal_out|transfer_in|transfer_out|repayment|income|investment_in|investment_out|interest|fee|fx_in|fx_out|other)|cash_relation_(?:other|payment_mirror|refund_offset|transfer_pair|cash_investment_funding)|cash_impact_(?:refund|mirror|transfer|merged)|investment_fact_(?:cash_account|cash_amount|cash_time|note)|auth_email_placeholder|workspace_access_denied|app_name))["']/g;
+  const resourceName = /["']((?:copy_[a-f0-9]{10}|navigation_[a-z0-9_]+|display_(?:not_provided|time_not_provided|date_full|date_time_full|date_time_short|month)|cash_import_channel_bank|cash_account_multiple|cash_source_(?:merged|bank_security_transfer)|cash_type_(?:expense|income|merged|other)|cash_record_(?:consumption|refund|reversal|transfer_reversal|withdrawal_in|withdrawal_out|transfer_in|transfer_out|repayment|income|investment_in|investment_out|interest|fee|fx_in|fx_out|other)|cash_relation_(?:other|payment_mirror|refund_offset|transfer_pair|cash_investment_funding)|cash_impact_(?:refund|mirror|transfer|merged)|investment_fact_(?:cash_account|cash_amount|cash_time|note)|auth_email_placeholder|workspace_access_denied|app_name))["']/g;
   const referenced = new Set(kotlin.flatMap(([, source]) => [...source.matchAll(resourceName)].map(([, name]) => name)));
   for (const name of referenced) assert.ok(defaultKeys.has(name), `Missing Compose resource: ${name}`);
 
@@ -47,7 +50,8 @@ test("Compose Resources have complete locale catalogs and matching format argume
     .filter(({ line }) => /\p{Script=Han}/u.test(line)));
   const unexpected = chineseLines.filter(({ path, line }) =>
     !(path.endsWith("CashImportViewModel.kt") && /name\.contains\("(?:花呗|信用卡)"\)/.test(line)) &&
-    !(path.endsWith("CashLedgerDisplay.kt") && /joinToString\("、"\)/.test(line)));
+    !(path.endsWith("CashLedgerDisplay.kt") && /joinToString\("、"\)/.test(line)) &&
+    !(path.endsWith("DemoRepositories.kt") && line.includes("i18n-allow: demo-fixture")));
   assert.deepEqual(unexpected, [], "Fixed Chinese UI copy must live in Compose Resources");
 
   const directUiCopy = kotlin.flatMap(([path, source]) => source.split("\n").map((line, index) => ({ path, line, index: index + 1 }))

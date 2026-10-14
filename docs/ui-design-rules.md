@@ -30,7 +30,9 @@
 
 ### 2.3 操作和按钮
 
-- 按钮文案使用短的业务动词；常规操作不能仅靠图标表达。返回等通用导航按钮可以只显示图标，但必须提供明确的无障碍名称，且触控区域至少为 44 px。
+- 按钮文案使用短的业务动词；常规操作不能仅靠图标表达。返回等通用导航按钮可以只显示图标，但必须提供明确的无障碍名称；触控区域沿用 Material 3 控件默认行为。
+- Material 3 控件按内容和组件默认值决定尺寸。调用点不得仅为统一外观而写死控件的 `width`、`height`、`size`，或设置 `widthIn(min)` / `heightIn(min)`；标签变长时控件应随内容增长。仅在父布局确实要求时使用 `fillMaxWidth`、`weight` 等约束。
+- 响应式表单/容器的 `widthIn(max)`、弹出菜单的滚动上限，以及图标、头像、进度指示器、分隔线和装饰图形的绘制尺寸可以显式设置。页面结构尺寸只有在表达明确的布局合同且不会裁切内容时才保留；复核时记录其用途。
 - 保存、复制、创建链接、移除等有明确语义的操作可以使用通用图标，但必须保留文字标签和无障碍名称。
 - 删除等危险操作降低视觉优先级，并在实际执行前提供明确的二次确认；确认内容只说明具体影响，不写泛化教学文案。
 
@@ -74,9 +76,9 @@ A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按�
 - OpenSpec 保存用户任务、信息架构、行为合同和验收；Compose `commonMain` 是页面结构和样式的当前事实源；`openspec/specs/shared/design-system/tokens/*.json` 是 token 唯一事实源。不再维护重复的页面或组件 YAML。
 - `design/*.pen` 与 `design/generated/pen-variables.json` 作为历史参考保留，不属于当前 UI 工作流输入或验收项；不要求生成、同步或审查这些文件。
 - `scripts/generate_ui_tokens.py` 只生成 Compose Kotlin token；CI 只校验 Git token 与生成代码的一致性。
-- Compose 自定义交互控件使用仓库已有的 Compose Unstyled 封装（如 `UnstyledButton`、`UnstyledTextField`）保持行为与无障碍语义，再按 Git token 和 Finance 组件合同实现视觉。Material3 可用于不承担控件视觉的基础排版，或组件合同明确采用其样式的场景。
+- Compose 页面直接使用 Material 3 控件完成交互；按钮与文本输入在页面调用点明确声明业务回调、标签、禁用/错误状态、校验和语义 ID，不增加 Finance 控件包装层。现有 `FinanceTheme` 继续提供颜色、字体与 token，基础布局使用 Compose Foundation。
 - 除非仓库已验证可用的代码生成器，不得声称代码由工具自动生成；必须明确记录实际实现方式。
-- Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。React、Expo 和 TypeScript shared packages 仅作迁移参考，不进入默认设计或实现工作流。
+- Compose Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。旧 React UI 位于 `web/src`，仅作为迁移参考，不定义 Compose 的设计或实现合同。
 
 ## 7. Compose 实现与响应式 QA
 

@@ -473,7 +473,9 @@
     <string name="display_time_not_provided">Time not provided</string>
     <string name="display_date_full">%2$d/%3$d/%1$d</string>
     <string name="display_date_time_full">%2$d/%3$d/%1$d %4$s</string>
+    <string name="display_date_time_short">%2$s/%3$d · %4$s</string>
     <string name="display_month">%2$d/%1$d</string>
+    <string name="cash_import_channel_bank">Bank statement</string>
     <string name="investment_fact_cash_account">Cash account</string>
     <string name="investment_fact_cash_amount">Cash amount</string>
     <string name="investment_fact_cash_time">Cash time</string>

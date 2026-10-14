@@ -214,7 +214,7 @@ PostgreSQL 与 SQLite MUST 对相同工作区账本和关系输入返回等价�
 - **WHEN** 使用者在 `COMPACT` 窗口打开账单导入
 - **THEN** 导入 MUST 覆盖当前窗口显示为全屏页面
 - **AND** 页面左上方 MUST 提供有无障碍名称的返回按钮及唯一页面标题
-- **AND** 返回 MUST 回到收支账本，且主要操作 MUST 保持至少 `44 dp` 命中区域
+- **AND** 返回 MUST 回到收支账本，且返回按钮 MUST 使用 Material 3 默认图标按钮尺寸与触控目标
 
 #### Scenario: 在步骤间返回
 
