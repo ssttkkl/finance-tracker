@@ -89,3 +89,51 @@ class FoojayMetadataTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WebApiBuildConfigTests(unittest.TestCase):
+    def test_writes_api_origin_into_generated_config(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "config.js"
+            config_path.write_text('window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n')
+
+            bootstrap.configure_web_api_origin(
+                config_path, "https://finance-api.example.com"
+            )
+
+            self.assertEqual(
+                config_path.read_text(),
+                'window.FT_API_ORIGIN = "https://finance-api.example.com";\n',
+            )
+
+    def test_blank_origin_resets_stale_config_to_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "config.js"
+            default_config = 'window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n'
+            config_path.write_text('window.FT_API_ORIGIN = "https://old.example.com";\n')
+
+            bootstrap.configure_web_api_origin(config_path, "")
+
+            self.assertEqual(config_path.read_text(), default_config)
+
+    def test_rejects_api_paths_and_non_https_origins(self):
+        for invalid_origin in (
+            "https://finance-api.example.com/api",
+            "http://finance-api.example.com",
+            "https://user:pass@finance-api.example.com",
+        ):
+            with self.subTest(origin=invalid_origin):
+                with tempfile.TemporaryDirectory() as directory:
+                    config_path = Path(directory) / "config.js"
+                    config_path.write_text('window.FT_API_ORIGIN = "";\n')
+                    with self.assertRaises(bootstrap.BuildError):
+                        bootstrap.configure_web_api_origin(config_path, invalid_origin)
+
+    def test_rejects_invalid_port(self):
+        with tempfile.TemporaryDirectory() as directory:
+            config_path = Path(directory) / "config.js"
+            config_path.write_text('window.FT_API_ORIGIN = "";\n')
+            with self.assertRaisesRegex(bootstrap.BuildError, "端口"):
+                bootstrap.configure_web_api_origin(
+                    config_path, "https://finance-api.example.com:70000"
+                )

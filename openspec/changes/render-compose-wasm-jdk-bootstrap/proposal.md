@@ -5,8 +5,8 @@ Render 的构建环境可能没有预装 Java，因此直接运行 Gradle Wrappe
 ## What Changes
 
 - 新增 Compose Web 构建入口与 Python 引导程序：查询 Azul Zulu JDK 21 GA 包，读取 Foojay 提供的 SHA-256 或校验文件 URI，校验下载后缓存到 `$XDG_CACHE_HOME`。
-- 脚本设置 `JAVA_HOME` 后运行 `:webApp:wasmJsBrowserDistribution`。
-- 在 `compose/README.md` 记录 Render 的根目录和构建命令。
+- 脚本设置 `JAVA_HOME` 后运行 `:webApp:wasmJsBrowserDistribution`，并将可选的 Render Build Environment 变量 `FT_API_ORIGIN` 写入生成产物的 `config.js`。未设置时保留空配置。
+- 在 `compose/README.md` 记录 Render 的根目录、构建命令、前端 API origin 和后端 CORS origin 配置。
 
 ## Capabilities
 

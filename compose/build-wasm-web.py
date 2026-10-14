@@ -24,6 +24,9 @@ from typing import Any
 FOOJAY_API = "https://api.foojay.io/disco/v3.0"
 USER_AGENT = "finance-tracker-render-build/2.0"
 SHA256_PATTERN = re.compile(r"(?<![A-Fa-f0-9])[A-Fa-f0-9]{64}(?![A-Fa-f0-9])")
+API_ORIGIN_PATTERN = re.compile(
+    r"^https://(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+)(?::([0-9]{1,5}))?$"
+)
 
 
 class BuildError(RuntimeError):
@@ -309,6 +312,33 @@ def install_jdk(package: dict[str, str], architecture: str, cache_root: Path) ->
     return cache_dir / "jdk"
 
 
+def normalize_web_api_origin(api_origin: str) -> str:
+    candidate = api_origin.strip().removesuffix("/")
+    if not candidate:
+        return ""
+    match = API_ORIGIN_PATTERN.fullmatch(candidate)
+    if match is None:
+        raise BuildError(
+            "FT_API_ORIGIN 必须是 HTTPS origin，不能包含路径、查询参数或凭据"
+        )
+    port = match.group(1)
+    if port is not None and int(port) not in range(1, 65536):
+        raise BuildError("FT_API_ORIGIN 的端口必须在 1 到 65535 之间")
+    return candidate
+
+
+def configure_web_api_origin(config_path: Path, api_origin: str) -> None:
+    candidate = normalize_web_api_origin(api_origin)
+    if not config_path.is_file():
+        raise BuildError(f"Wasm 产物中未找到 config.js：{config_path}")
+    if candidate:
+        config = f"window.FT_API_ORIGIN = {json.dumps(candidate)};\n"
+    else:
+        config = 'window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n'
+    config_path.write_text(config, encoding="utf-8")
+    print("Configured Compose Web API origin from FT_API_ORIGIN.")
+
+
 def detect_architecture() -> str:
     if platform.system() != "Linux":
         raise BuildError("此脚本仅支持 Linux 构建环境")
@@ -332,10 +362,11 @@ def main() -> int:
             cache_base = str(Path(home) / ".cache")
         cache_root = Path(cache_base) / "finance-tracker" / "jdks"
         cache_root.mkdir(parents=True, exist_ok=True)
+        environment = os.environ.copy()
+        api_origin = normalize_web_api_origin(environment.get("FT_API_ORIGIN", ""))
 
         package = query_package(architecture)
         jdk_home = install_jdk(package, architecture, cache_root)
-        environment = os.environ.copy()
         environment["JAVA_HOME"] = str(jdk_home)
         environment["PATH"] = str(jdk_home / "bin") + os.pathsep + environment.get("PATH", "")
         try:
@@ -351,11 +382,20 @@ def main() -> int:
             raise BuildError("JDK 版本不是 Java 21")
         print(f"Using {version_output.splitlines()[0]}")
         gradle = script_dir / "gradlew"
-        os.execve(
-            str(gradle),
+        result = subprocess.run(
             [str(gradle), ":webApp:wasmJsBrowserDistribution", *sys.argv[1:]],
-            environment,
+            cwd=script_dir,
+            env=environment,
+            check=False,
         )
+        if result.returncode != 0:
+            return result.returncode
+        config_path = (
+            script_dir
+            / "webApp/build/dist/wasmJs/productionExecutable/config.js"
+        )
+        configure_web_api_origin(config_path, api_origin)
+        return 0
     except BuildError as error:
         print(f"build-wasm-web: {error}", file=sys.stderr)
         return 1
