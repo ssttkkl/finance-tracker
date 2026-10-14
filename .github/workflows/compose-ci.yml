@@ -16,6 +16,7 @@ concurrency:
 
 env:
   NODE_VERSION: "24"
+  PYTHON_VERSION: "3.11"
 
 jobs:
   compose:
@@ -32,14 +33,14 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: package-lock.json
 
-      - name: Install workflow tools
-        run: npm ci --no-audit --no-fund
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - name: Generate UI tokens
-        run: npm run tokens:generate
+        run: python3 scripts/generate_ui_tokens.py
 
       - name: Check generated UI tokens
         run: git diff --exit-code -- compose/shared/src/commonMain/kotlin/com/finance/tracker/core/design/GeneratedTokens.kt design/generated/pen-variables.json
@@ -70,7 +71,8 @@ jobs:
       - name: Run pen.dev validation and export
         if: ${{ env.PEN_CLI_KEY != '' }}
         run: |
-          if ! npx --no-install pen status >/dev/null 2>&1; then
+          npm install --global @pen.dev/cli@0.3.9
+          if ! pen status >/dev/null 2>&1; then
             echo "pen.dev authentication check failed"
             exit 1
           fi
@@ -89,7 +91,7 @@ jobs:
           const input = `Export(${JSON.stringify(frames.map((frame) => frame.id))}, "png", ${JSON.stringify(exportDir)})`;
           process.stdout.write(`execute({input: ${JSON.stringify(input)}})\nexit()\n`);
           NODE
-            npx --no-install pen interactive --in "$source" --out "$RUNNER_TEMP/$label.pen" < "$commands_file"
+            pen interactive --in "$source" --out "$RUNNER_TEMP/$label.pen" < "$commands_file"
             after_count="$(find "$export_dir" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
             test "$((after_count - before_count))" -eq "$(node -e 'const fs=require("node:fs");const document=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(String((document.children||[]).filter((node)=>node.type==="frame").length))' "$source")"
           done

@@ -32,7 +32,7 @@ uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8
 - `/api/v1/relations/*`、`/api/v1/cash-facts/*`：关系操作和可审计事实删除；
 - `/api/v1/operations/*`：仅管理员可执行的同步和投影运维。
 
-Web 使用 `npm run dev:web`，Expo 使用 `npm run start:mobile`、`npm run android` 和 `npm run ios`。共享 API 契约、错误模型、精确十进制字符串和导入会话状态位于 `packages/`；DOM、Native 文件 URI、导航和平台存储留在各自客户端。
+默认工作流使用 Compose Multiplatform。旧 Web 与 Expo 客户端只作为迁移参考；仓库不提供根级 npm workspace 命令。需要处理旧客户端时，先检查对应目录中的清单和依赖，再按专项变更记录执行，不要使用 `npm run dev:web`、`npm run start:mobile` 等根级命令。共享 API 契约、错误模型、精确十进制字符串和导入会话状态位于 `packages/`；DOM、Native 文件 URI、导航和平台存储留在各自客户端。
 
 ## 账单与财务规则
 
@@ -50,15 +50,6 @@ Web 使用 `npm run dev:web`，Expo 使用 `npm run start:mobile`、`npm run and
 
 ## 开发工作流
 
-行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 OpenSpec 主流程（`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`）。完成实现后运行：
-
-```bash
-npm run test:web
-npm run build:web
-npm run test:shared
-PYTHONPATH=tests:.:src uv run pytest
-uv build
-git diff --check
-```
+行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 OpenSpec 主流程（`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`）。默认 Compose 与后端工作流见根目录 `README.md`。旧 Web、Expo 与 TypeScript shared packages 不属于默认 CI；恢复或验证这些客户端时，先确认其当前依赖和构建入口，并在对应 OpenSpec 变更中记录。
 
 双后端测试必须使用专用 `_test` PostgreSQL 数据库；测试脚本会拒绝业务库或其他数据库名。不要自行提交、推送、建 PR 或部署，除非用户明确授权。

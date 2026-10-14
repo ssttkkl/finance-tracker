@@ -2,7 +2,7 @@
 set -euo pipefail
 
 uv sync
-npm ci --no-audit --no-fund
+(cd web && npm ci --no-audit --no-fund)
 
 for database in finance_tracker finance_tracker_test; do
   if ! psql -U postgres -d postgres -Atqc \
@@ -11,4 +11,4 @@ for database in finance_tracker finance_tracker_test; do
   fi
 done
 
-npm exec --workspace finance-tracker-web -- playwright install chromium
+(cd web && npx playwright install chromium)

@@ -12,7 +12,7 @@
 
 ## 环境准备
 
-需要 Python 3.11+、`uv`、Node.js 20.19+，以及 PostgreSQL 或本地可写 SQLite 路径。pen.dev CLI 另需 Node.js 22.19+，详见 [`design/README.md`](design/README.md)。
+需要 Python 3.11+、`uv`、Node.js 20.19+（运行 Compose Web 本地预览），以及 PostgreSQL 或本地可写 SQLite 路径。pen.dev CLI 另需 Node.js 22.19+，详见 [`design/README.md`](design/README.md)。
 
 ```bash
 uv sync
@@ -52,15 +52,15 @@ uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8
 Compose Multiplatform 是默认客户端工作流：
 
 ```bash
-npm install
-npm run compose:test
-npm run compose:build:web
-npm run compose:build:android
-npm run compose:build:ios
-npm run compose:demo
+python3 scripts/generate_ui_tokens.py
+(cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache)
+(cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache)
+(cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
+(cd compose && ./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache)
+node web/scripts/start-compose-demo.mjs
 ```
 
-Compose Web demo 使用 `npm run compose:demo`；Android/iOS 本地运行方式见 [`compose/README.md`](compose/README.md)。设计工作区和 pen.dev 接入约定见 [`design/README.md`](design/README.md)。
+Compose Web demo 使用 `node web/scripts/start-compose-demo.mjs`；Android/iOS 本地运行方式见 [`compose/README.md`](compose/README.md)。设计工作区和 pen.dev 接入约定见 [`design/README.md`](design/README.md)。
 
 本地 Compose 调试通过 `FT_API_PROXY_ORIGIN` 配置 API 代理；生产目标只接受 HTTPS。具体 target 和运行参数见 [`compose/README.md`](compose/README.md)。
 
@@ -110,9 +110,9 @@ Compose Web、Android、iOS 使用同一个导入流程：选择文件 → 识�
 ## 开发与验证
 
 ```bash
-npm run tokens:generate
-npm run compose:test
-npm run compose:build:web
+python3 scripts/generate_ui_tokens.py
+(cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache)
+(cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache)
 PYTHONPATH=tests:.:src uv run pytest
 uv run alembic heads
 git diff --check
@@ -121,7 +121,7 @@ git diff --check
 Compose Android：
 
 ```bash
-npm run compose:build:android
+(cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
 ```
 
 旧 `web/`、`mobile/` 和 TypeScript shared packages 仅供迁移期间查阅，不再从根目录启动或纳入默认 CI；需要运行旧实现时，应在独立迁移任务中显式执行其目录内命令。

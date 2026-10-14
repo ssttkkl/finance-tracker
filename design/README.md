@@ -17,7 +17,7 @@ HeroUI 官方代码、`@heroui/styles` 和 CSS variables 是视觉与 token 的�
 
 ## 本地 bootstrap
 
-pen.dev CLI 需要 Node.js 22.19+；其余仓库 Node 工作流仍以根 `package.json` 声明的 20.19+ 为准。
+pen.dev CLI 需要 Node.js 22.19+。Compose Web 本地预览需要 Node.js 20.19+；CI 使用 Node.js 24。
 
 ```bash
 npm install --global @pen.dev/cli
@@ -37,7 +37,7 @@ CI 使用组织范围的 `PEN_CLI_KEY`；不要提交 `~/.pencil/session-cli.jso
 ## Token 与 HeroUI 参考同步
 
 ```bash
-python scripts/generate_ui_tokens.py
+python3 scripts/generate_ui_tokens.py
 ```
 
 生成器会更新 Compose Kotlin token 和 `generated/pen-variables.json`。变量写入 `.pen` 必须继续通过 pen.dev CLI/MCP 完成。

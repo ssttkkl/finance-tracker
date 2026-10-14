@@ -17,7 +17,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 
 active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收支账本；投资事件、持仓和估值的 Web 展示规划见 `investment-ledger-browser` active change，完成归档前不属于当前主规格。
 
-收支账本的生产预览需在 `npm run build` 时设置 `VITE_FT_API_ORIGIN`，随后才运行 `npm run start`；预览
+收支账本的生产预览需在 `web/` 目录运行 `VITE_FT_API_ORIGIN=... npm run build`，随后运行 `npm run start`；预览
 服务器不会重新读取该变量。具体命令见 [项目说明](../README.md#收支账本-web)。
 
 ## 使用与结构
