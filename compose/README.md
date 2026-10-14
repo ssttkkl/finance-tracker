@@ -4,7 +4,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。
 
-在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。构建成功后，`FT_API_ORIGIN` 会写入 Wasm 产物的 `config.js`；它是公开客户端配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。未设置或留空时构建仍会成功，生成的 API 地址保持空值，此时 Web 无法访问后端 API。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
+在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。构建成功后，`FT_API_ORIGIN` 会写入 Wasm 产物的 `config.js`；它是公开客户端配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。未设置或留空时构建仍会成功，并默认写入 `http://127.0.0.1:8000`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:8000`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
 
 仓库根目录的 `render.yaml` 仍用于 `web/` 下的服务配置，不用于此 Compose Web Static Site。
 

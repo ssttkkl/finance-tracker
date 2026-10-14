@@ -106,15 +106,18 @@ class WebApiBuildConfigTests(unittest.TestCase):
                 'window.FT_API_ORIGIN = "https://finance-api.example.com";\n',
             )
 
-    def test_blank_origin_resets_stale_config_to_default(self):
+    def test_empty_origin_defaults_to_local_backend(self):
         with tempfile.TemporaryDirectory() as directory:
             config_path = Path(directory) / "config.js"
-            default_config = 'window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n'
-            config_path.write_text('window.FT_API_ORIGIN = "https://old.example.com";\n')
+            expected_config = 'window.FT_API_ORIGIN = "http://127.0.0.1:8000";\n'
 
-            bootstrap.configure_web_api_origin(config_path, "")
-
-            self.assertEqual(config_path.read_text(), default_config)
+            for empty_origin in ("", "   "):
+                with self.subTest(origin=empty_origin):
+                    config_path.write_text(
+                        'window.FT_API_ORIGIN = "https://old.example.com";\n'
+                    )
+                    bootstrap.configure_web_api_origin(config_path, empty_origin)
+                    self.assertEqual(config_path.read_text(), expected_config)
 
     def test_rejects_api_paths_and_non_https_origins(self):
         for invalid_origin in (

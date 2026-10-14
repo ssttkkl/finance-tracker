@@ -24,6 +24,7 @@ from typing import Any
 FOOJAY_API = "https://api.foojay.io/disco/v3.0"
 USER_AGENT = "finance-tracker-render-build/2.0"
 SHA256_PATTERN = re.compile(r"(?<![A-Fa-f0-9])[A-Fa-f0-9]{64}(?![A-Fa-f0-9])")
+LOCAL_API_ORIGIN = "http://127.0.0.1:8000"
 API_ORIGIN_PATTERN = re.compile(
     r"^https://(?:\[[0-9A-Fa-f:]+\]|[A-Za-z0-9.-]+)(?::([0-9]{1,5}))?$"
 )
@@ -315,7 +316,7 @@ def install_jdk(package: dict[str, str], architecture: str, cache_root: Path) ->
 def normalize_web_api_origin(api_origin: str) -> str:
     candidate = api_origin.strip().removesuffix("/")
     if not candidate:
-        return ""
+        return LOCAL_API_ORIGIN
     match = API_ORIGIN_PATTERN.fullmatch(candidate)
     if match is None:
         raise BuildError(
@@ -331,10 +332,7 @@ def configure_web_api_origin(config_path: Path, api_origin: str) -> None:
     candidate = normalize_web_api_origin(api_origin)
     if not config_path.is_file():
         raise BuildError(f"Wasm 产物中未找到 config.js：{config_path}")
-    if candidate:
-        config = f"window.FT_API_ORIGIN = {json.dumps(candidate)};\n"
-    else:
-        config = 'window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n'
+    config = f"window.FT_API_ORIGIN = {json.dumps(candidate)};\n"
     config_path.write_text(config, encoding="utf-8")
     print("Configured Compose Web API origin from FT_API_ORIGIN.")
 
