@@ -529,6 +529,9 @@
     <string name="cash_import_add_file_heading">Add statement files</string>
     <string name="cash_import_file_formats">CSV · XLSX · PDF</string>
     <string name="cash_import_choose_file">Choose file</string>
+    <string name="cash_import_demo_statement">Built-in sample statement</string>
+    <string name="cash_import_use_demo_statement">Use sample statement</string>
+    <string name="cash_import_demo_statement_added">Sample statement added</string>
     <string name="cash_import_replace_file">Replace file</string>
     <string name="cash_import_discard_note">Leaving discards this import</string>
     <string name="cash_import_next">Next</string>

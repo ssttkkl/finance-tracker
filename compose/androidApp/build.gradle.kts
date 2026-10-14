@@ -1,13 +1,8 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
-val configuredApiOrigin = providers.gradleProperty("ftApiOrigin")
-    .orElse(providers.environmentVariable("FT_API_ORIGIN"))
-    .getOrElse("")
-val escapedApiOrigin = configuredApiOrigin.replace("\\", "\\\\").replace("\"", "\\\"")
 val configuredWebOrigin = providers.gradleProperty("ftWebOrigin")
     .orElse(providers.environmentVariable("FT_WEB_ORIGIN"))
     .getOrElse("")
-
 plugins {
     alias(libs.plugins.androidApplication)
     alias(libs.plugins.composeCompiler)
@@ -37,7 +32,6 @@ android {
         targetSdk = libs.versions.android.targetSdk.get().toInt()
         versionCode = 1
         versionName = "1.0"
-        buildConfigField("String", "FT_API_ORIGIN", "\"$escapedApiOrigin\"")
         manifestPlaceholders["ftWebOrigin"] = configuredWebOrigin
     }
     packaging {

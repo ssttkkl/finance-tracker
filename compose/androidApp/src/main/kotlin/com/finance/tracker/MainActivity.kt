@@ -1,6 +1,7 @@
 package com.finance.tracker
 
 import com.finance.tracker.app.App
+import com.finance.tracker.app.isComposeDemoModeBuildEnabled
 import com.finance.tracker.core.*
 
 import android.os.Bundle
@@ -15,11 +16,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        AndroidTokenStoreContext.install(applicationContext)
+        val demoMode = BuildConfig.DEBUG && isComposeDemoModeBuildEnabled()
+        if (!demoMode) AndroidTokenStoreContext.install(applicationContext)
         intent?.dataString?.let(::receiveIncomingInvitationUrl)
 
         setContent {
-            App(BuildConfig.FT_API_ORIGIN)
+            App(demoMode = demoMode)
         }
     }
 

@@ -529,6 +529,9 @@
     <string name="cash_import_add_file_heading">添加账单文件</string>
     <string name="cash_import_file_formats">CSV · XLSX · PDF</string>
     <string name="cash_import_choose_file">选择文件</string>
+    <string name="cash_import_demo_statement">内置演示账单</string>
+    <string name="cash_import_use_demo_statement">使用内置账单</string>
+    <string name="cash_import_demo_statement_added">已添加演示账单</string>
     <string name="cash_import_replace_file">更换文件</string>
     <string name="cash_import_discard_note">离开后将丢弃未完成导入</string>
     <string name="cash_import_next">下一步</string>

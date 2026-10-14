@@ -18,9 +18,9 @@ function stopActiveChild(signal) {
 process.once("SIGINT", () => stopActiveChild("SIGINT"));
 process.once("SIGTERM", () => stopActiveChild("SIGTERM"));
 
-function run(command, args, cwd, description) {
+function run(command, args, cwd, description, env = process.env) {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, env: process.env, stdio: "inherit" });
+    const child = spawn(command, args, { cwd, env, stdio: "inherit" });
     activeChild = child;
     let settled = false;
 
@@ -46,7 +46,8 @@ if (process.env.FT_GRADLE_INIT_SCRIPT) {
 gradleArguments.push(":webApp:wasmJsBrowserDistribution", "--no-configuration-cache");
 
 try {
-  const build = await run(gradleWrapper, gradleArguments, composeRoot, "Unable to start the Compose Web build");
+  const buildEnvironment = { ...process.env, FT_COMPOSE_DEMO_MODE: "false" };
+  const build = await run(gradleWrapper, gradleArguments, composeRoot, "Unable to start the Compose Web build", buildEnvironment);
   if (build.code !== 0) {
     process.exitCode = build.code ?? (build.signal === "SIGINT" ? 130 : 1);
     process.exit();

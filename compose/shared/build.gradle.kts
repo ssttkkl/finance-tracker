@@ -1,5 +1,7 @@
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.BOOLEAN
+import com.codingfeline.buildkonfig.compiler.FieldSpec.Type.STRING
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -7,6 +9,22 @@ plugins {
     alias(libs.plugins.composeMultiplatform)
     alias(libs.plugins.composeCompiler)
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.buildKonfig)
+}
+
+val composeDemoModeEnabled = providers.environmentVariable("FT_COMPOSE_DEMO_MODE")
+    .map { it.equals("true", ignoreCase = true) }
+    .getOrElse(false)
+val composeApiOrigin = providers.environmentVariable("FT_API_ORIGIN").getOrElse("")
+
+buildkonfig {
+    packageName = "com.finance.tracker.shared"
+    objectName = "ComposeBuildConfig"
+
+    defaultConfigs {
+        buildConfigField(BOOLEAN, "COMPOSE_DEMO_MODE", composeDemoModeEnabled.toString())
+        buildConfigField(STRING, "FT_API_ORIGIN", composeApiOrigin)
+    }
 }
 
 kotlin {

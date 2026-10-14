@@ -1,12 +1,15 @@
-version: 1
-source: design/finance-ui.lib.pen
-reference: design/heroui.lib.pen
+version: 2
+source: openspec/specs/shared/design-system/tokens/*.tokens.json
+implementation: compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt
+historicalReferences:
+  penComponents: design/finance-ui.lib.pen
+  penUpstreamReference: design/heroui.lib.pen
 upstream:
   implementation: HeroUI v3 official code and @heroui/styles
   tokens: HeroUI CSS variables, copied into project token JSON before generation
-  componentCapture: Browser Import from a temporary HeroUI Gallery
+  componentReview: Compare Compose implementations with the recorded Finance component contracts
   figmaKit: optional visual-check source; never the Finance UI or token source
-pageSource: design/cash-ledger.pen follows Web Cash Ledger region order and responsive classes
+pageSource: Compose screens and AppShell define page structure, region order, and responsive behavior
 components:
   Finance/Button:
     compose: FinanceButton
@@ -29,7 +32,7 @@ components:
   Finance/DataTable:
     compose: FinanceDataTable
     heroUi: HeroUI/Table
-    penVariants: [Finance/DataTable/InvestmentHoldings, Finance/DataTable/InvestmentEvents]
+    screens: [InvestmentHoldingsScreen, InvestmentEventsScreen]
     states: [loading, ready, empty, error]
   Finance/FilterBar:
     compose: FinanceFilterBar

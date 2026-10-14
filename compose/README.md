@@ -4,7 +4,7 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在 Render 创建 Static Site 时，将 **Root Directory** 设为 `compose`，**Build Command** 设为 `./build-wasm-web.sh`，**Publish Directory** 设为 `webApp/build/dist/wasmJs/productionExecutable`。构建脚本会下载并校验 Azul Zulu JDK 21 GA 版本，再执行 Compose Web 的 Wasm 浏览器分发任务；下载的 JDK 缓存到 Render 提供的 `$XDG_CACHE_HOME`。
 
-在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。构建成功后，`FT_API_ORIGIN` 会写入 Wasm 产物的 `config.js`；它是公开客户端配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。未设置或留空时构建仍会成功，并默认写入 `http://127.0.0.1:8000`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:8000`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
+在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:8000`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:8000`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
 
 仓库根目录的 `render.yaml` 仍用于 `web/` 下的服务配置，不用于此 Compose Web Static Site。
 
@@ -18,9 +18,11 @@ node web/scripts/start-compose-demo.mjs
 
 命令会构建 Wasm production distribution，并启动本地 SPA 预览，默认地址为 <http://127.0.0.1:5186/>；按 `Ctrl+C` 停止。预览服务器把同源 `/api/*` 请求转发到现有 FastAPI，默认目标为 `http://127.0.0.1:8000`，因此需要 API 流程时请另行启动仓库现有后端。可用 `FT_API_PROXY_ORIGIN=http://127.0.0.1:<端口>` 指向本机其他 API 端口，或用 `FT_COMPOSE_PREVIEW_PORT=<端口>` 更改 demo 端口。构建依赖需要镜像时，可通过 `FT_GRADLE_INIT_SCRIPT=/本机路径/gradle-mirror.init.gradle` 提供仓库外 Gradle init script。
 
-Android 可在 Android Studio 打开本目录并运行 `androidApp`；本机后端通过模拟器访问时，先执行 `adb reverse tcp:8000 tcp:8000`，再用构建参数 `ftApiOrigin=http://localhost:8000`。iOS 可在 Xcode 打开 `iosApp/iosApp.xcodeproj`，选择 `iosApp` scheme 和本地 Simulator 运行；需要 API 流程时，在 Debug Build Settings 将 `FT_API_ORIGIN` 设为 `http://localhost:8000`。这些步骤只运行本地 demo，不会启动或修改云端服务。
+需要无需 API 服务器的 Compose 演示时，在仓库根目录运行 `node web/scripts/start-compose-offline-demo.mjs`。它通过构建环境变量 `FT_COMPOSE_DEMO_MODE=true` 和空的 `FT_API_ORIGIN` 生成共享模块的 `ComposeBuildConfig`，并启动不提供 API 代理的静态服务，默认地址为 <http://127.0.0.1:5186/>；正式 API 预览仍使用上面的 `node web/scripts/start-compose-demo.mjs` 命令。演示初始进入固定合成用户和工作区，收支、分类、投资、邀请和工作区数据均由进程内仓库提供，改动在进程结束后重置；导入流程提供内置合成账单。演示模式不会读取真实登录凭据或请求 API 服务器；字体等静态资源仍可从配置的 CDN 加载。
 
-设计工作区位于仓库根目录的 `design/`，业务行为位于 `openspec/specs/`，页面与组件设计由 `.pen` 维护，token 位于 `openspec/specs/shared/design-system/tokens/`。登录设计稿使用 `design/login.pen`，组件库使用 `design/finance-ui.lib.pen`；通过 pen.dev CLI/MCP 修改后，再按同一合同实现 Compose。
+Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_MODE` 与 `FT_API_ORIGIN`。演示模式默认关闭；API 地址默认为空。Android 可在仓库根目录运行 `cd compose && FT_COMPOSE_DEMO_MODE=true ./gradlew :androidApp:installDebug` 安装演示包。iOS Debug 构建也使用同一环境变量，Swift 入口仅在 `#if DEBUG` 下读取演示模式开关。可通过 `cd compose && FT_COMPOSE_DEMO_MODE=true xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build` 构建 iOS 演示包。Android、iOS Release 和仓库生产 Web 构建都会强制使用正式数据图。构建需连接 API 的原生包时，通过构建环境变量设置地址，例如 `FT_API_ORIGIN=http://localhost:8000 ./gradlew :androidApp:installDebug` 或 `FT_API_ORIGIN=http://localhost:8000 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build`。Compose Web 本地预览在变量为空时使用预览站点 origin，再由本地代理转发 `/api/*` 请求。
+
+UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。仓库根目录的 `design/*.pen` 是历史参考，不属于当前开发或验收流程。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.

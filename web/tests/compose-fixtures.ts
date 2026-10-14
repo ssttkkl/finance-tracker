@@ -255,7 +255,6 @@ export async function installComposeApiFixtures(
   };
 
   await page.addInitScript((hasToken) => {
-    (window as Window & { FT_API_ORIGIN?: string }).FT_API_ORIGIN = window.location.origin;
     if (hasToken) window.localStorage.setItem("finance-tracker:session-token", "compose-e2e-token");
   }, seedToken);
 

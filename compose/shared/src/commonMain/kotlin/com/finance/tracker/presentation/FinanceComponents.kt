@@ -149,7 +149,7 @@ internal fun FinanceButton(
             .then(focusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
             .then(if (enabled && !loading) Modifier else Modifier.semantics { disabled() })
             .onFocusChanged { focused = it.isFocused }
-            .then(if (focusRequester != null) Modifier.focusable() else Modifier)
+            .focusable(enabled = enabled && !loading)
             .heightIn(min = 44.dp)
             .border(borderWidth, border, shape)
             .background(if (enabled && !loading) background else if (variant == FinanceButtonVariant.Tertiary) Color.Transparent else colors.disabled, shape)

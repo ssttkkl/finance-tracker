@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.text.font.FontFamily
+import com.finance.tracker.shared.ComposeBuildConfig
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import web.navigator.navigator
@@ -65,7 +66,8 @@ actual fun readDisplayPreference(key: String): String? = js("window.localStorage
 
 actual fun writeDisplayPreference(key: String, value: String) { js("window.localStorage.setItem(key, value)") }
 
-actual fun getConfiguredApiOrigin(): String = js("window.FT_API_ORIGIN || ''")
+actual fun getConfiguredApiOrigin(): String =
+    ComposeBuildConfig.FT_API_ORIGIN.ifBlank { currentBrowserOrigin() }
 
 actual fun getLocalTimeZoneId(): String = js("Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'")
 
@@ -80,6 +82,8 @@ actual fun getConfiguredWebOrigin(): String = js("window.location.origin")
 actual suspend fun copyTextToClipboard(value: String): Boolean = suspendCoroutine { continuation ->
     writeClipboard(value) { copied -> continuation.resume(copied) }
 }
+
+private fun currentBrowserOrigin(): String = js("window.location.origin")
 
 private fun browserPathname(): String = js("window.location.pathname")
 

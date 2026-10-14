@@ -65,10 +65,6 @@ test("Compose preview serves deep links from the origin root and proxies registr
 
   try {
     await waitForHealth(previewOrigin, previewProcess);
-    const configResponse = await fetch(`${previewOrigin}/config.js`);
-    assert.equal(configResponse.status, 200);
-    assert.match(await configResponse.text(), /window\.FT_API_ORIGIN = window\.FT_API_ORIGIN \|\| "" \|\| window\.location\.origin;/);
-
     const deepLinkResponse = await fetch(`${previewOrigin}/w/workspace-1/cash-import`);
     assert.equal(deepLinkResponse.status, 200);
     assert.match(await deepLinkResponse.text(), /<base href="\/">/);
@@ -89,6 +85,42 @@ test("Compose preview serves deep links from the origin root and proxies registr
       contentType: "application/json",
       body: payload,
     });
+  } finally {
+    previewProcess.kill("SIGTERM");
+    await Promise.race([once(previewProcess, "exit"), delay(2_000)]);
+    await new Promise((resolve, reject) => apiServer.close((error) => error ? reject(error) : resolve()));
+  }
+});
+
+test("offline Compose demo serves no API proxy", async () => {
+  let upstreamRequests = 0;
+  const apiServer = createServer((_request, response) => {
+    upstreamRequests += 1;
+    response.writeHead(204).end();
+  });
+  apiServer.listen(0, "127.0.0.1");
+  await once(apiServer, "listening");
+  const apiPort = apiServer.address().port;
+  const previewPort = await reservePort();
+  const previewProcess = spawn(process.execPath, [previewScript], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      FT_API_ORIGIN: `http://127.0.0.1:${apiPort}`,
+      FT_API_PROXY_ORIGIN: `http://127.0.0.1:${apiPort}`,
+      FT_COMPOSE_OFFLINE_DEMO: "1",
+      FT_COMPOSE_PREVIEW_PORT: String(previewPort),
+    },
+    stdio: "ignore",
+  });
+  const previewOrigin = `http://127.0.0.1:${previewPort}`;
+
+  try {
+    await waitForHealth(previewOrigin, previewProcess);
+    const response = await fetch(`${previewOrigin}/api/v1/auth/register`, { method: "POST" });
+    assert.equal(response.status, 404);
+    assert.deepEqual(await response.json(), { error: { code: "demo_api_unavailable" } });
+    assert.equal(upstreamRequests, 0);
   } finally {
     previewProcess.kill("SIGTERM");
     await Promise.race([once(previewProcess, "exit"), delay(2_000)]);

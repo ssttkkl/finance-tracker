@@ -11,8 +11,6 @@
 			</array>
 		</dict>
 	</array>
-	<key>FT_API_ORIGIN</key>
-	<string>$(FT_API_ORIGIN)</string>
 	<key>FT_WEB_ORIGIN</key>
 	<string>$(FT_WEB_ORIGIN)</string>
 	<key>CADisableMinimumFrameDurationOnPhone</key>

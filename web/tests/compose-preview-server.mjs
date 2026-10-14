@@ -9,8 +9,8 @@ const composeRoot = path.join(repoRoot, "compose");
 const bundleRoot = path.join(composeRoot, "webApp/build/dist/wasmJs/productionExecutable");
 const composeResourceRoot = path.join(composeRoot, "webApp/build/processedResources/wasmJs/main");
 const resourceRoot = path.join(composeRoot, "webApp/src/webMain/resources");
-const configuredApiOrigin = process.env.FT_API_ORIGIN ?? "";
-const apiProxyOrigin = new URL(process.env.FT_API_PROXY_ORIGIN ?? "http://127.0.0.1:8000");
+const offlineDemo = process.env.FT_COMPOSE_OFFLINE_DEMO === "1";
+const apiProxyOrigin = new URL(offlineDemo ? "http://127.0.0.1:8000" : process.env.FT_API_PROXY_ORIGIN ?? "http://127.0.0.1:8000");
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
   ".html": "text/html; charset=utf-8",
@@ -23,7 +23,7 @@ const mimeTypes = {
   ".wasm": "application/wasm",
 };
 
-if (apiProxyOrigin.protocol !== "http:" || apiProxyOrigin.pathname !== "/" || apiProxyOrigin.search || apiProxyOrigin.hash) {
+if (!offlineDemo && (apiProxyOrigin.protocol !== "http:" || apiProxyOrigin.pathname !== "/" || apiProxyOrigin.search || apiProxyOrigin.hash)) {
   throw new Error("FT_API_PROXY_ORIGIN must be an http origin without a path, query, or fragment");
 }
 
@@ -36,6 +36,11 @@ createServer((request, response) => {
   const pathname = requestUrl.pathname;
 
   if (pathname === "/api" || pathname.startsWith("/api/")) {
+    if (offlineDemo) {
+      response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
+      response.end(JSON.stringify({ error: { code: "demo_api_unavailable" } }));
+      return;
+    }
     const upstreamUrl = new URL(`${pathname}${requestUrl.search}`, apiProxyOrigin);
     const headers = { ...request.headers };
     delete headers.host;
@@ -67,16 +72,6 @@ createServer((request, response) => {
     return;
   }
 
-  if (pathname === "/config.js") {
-    const body = Buffer.from(`window.FT_API_ORIGIN = window.FT_API_ORIGIN || ${JSON.stringify(configuredApiOrigin)} || window.location.origin;`);
-    response.writeHead(200, {
-      "content-type": "text/javascript; charset=utf-8",
-      "content-length": body.byteLength,
-      "cache-control": "no-store",
-    }).end(sendBody ? body : undefined);
-    return;
-  }
-
   let relativePath;
   try {
     relativePath = decodeURIComponent(pathname).replace(/^\/+/, "");
@@ -97,6 +92,6 @@ createServer((request, response) => {
     "content-length": body.byteLength,
   }).end(sendBody ? body : undefined);
 }).listen(port, "127.0.0.1", () => {
-  console.log(`Compose Web demo: http://127.0.0.1:${port}/`);
-  console.log(`Local API proxy: ${process.env.FT_API_ORIGIN || "same-origin"} → ${apiProxyOrigin.origin}`);
+  console.log(`${offlineDemo ? "Offline Compose Web demo" : "Compose Web demo"}: http://127.0.0.1:${port}/`);
+  if (!offlineDemo) console.log(`Local API proxy: ${process.env.FT_API_ORIGIN || "same-origin"} → ${apiProxyOrigin.origin}`);
 });

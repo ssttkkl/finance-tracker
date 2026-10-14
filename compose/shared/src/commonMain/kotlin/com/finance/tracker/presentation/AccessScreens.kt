@@ -40,10 +40,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.vector.path
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.contentDescription
@@ -60,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.finance.tracker.core.WindowSizeClass
 import com.finance.tracker.core.design.FinanceTokens
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_arrow_back
+import org.jetbrains.compose.resources.painterResource
 
 @Composable
 internal fun AuthScreen(
@@ -270,7 +269,7 @@ private fun AuthHeader(registering: Boolean, enabled: Boolean, onBack: () -> Uni
                         .then(if (enabled) Modifier else Modifier.semantics { disabled() }),
                 ) {
                     Icon(
-                        imageVector = AuthBackIcon,
+                        painter = painterResource(Res.drawable.ic_arrow_back),
                         contentDescription = localizedText("auth_back_to_login"),
                         modifier = Modifier.size(24.dp),
                         tint = MaterialTheme.colorScheme.onSurface,
@@ -381,27 +380,6 @@ private fun validationTagFor(semanticId: String): String = when (semanticId) {
     SemanticIds.authPassword -> SemanticIds.authPasswordValidation
     else -> SemanticIds.authConfirmPasswordValidation
 }
-
-private val AuthBackIcon: ImageVector = ImageVector.Builder(
-    name = "ArrowBack",
-    defaultWidth = 24.dp,
-    defaultHeight = 24.dp,
-    viewportWidth = 24f,
-    viewportHeight = 24f,
-).apply {
-    path(fill = SolidColor(Color.Black)) {
-        moveTo(20f, 11f)
-        horizontalLineTo(7.83f)
-        lineToRelative(5.59f, -5.59f)
-        lineTo(12f, 4f)
-        lineToRelative(-8f, 8f)
-        lineToRelative(8f, 8f)
-        lineToRelative(1.41f, -1.41f)
-        lineTo(7.83f, 13f)
-        horizontalLineTo(20f)
-        close()
-    }
-}.build()
 
 @Composable
 internal fun WorkspaceAccessScreen(

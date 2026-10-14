@@ -92,32 +92,30 @@ if __name__ == "__main__":
 
 
 class WebApiBuildConfigTests(unittest.TestCase):
-    def test_writes_api_origin_into_generated_config(self):
-        with tempfile.TemporaryDirectory() as directory:
-            config_path = Path(directory) / "config.js"
-            config_path.write_text('window.FT_API_ORIGIN = window.FT_API_ORIGIN || "";\n')
+    def test_production_build_forces_compose_demo_mode_off(self):
+        environment = {"FT_COMPOSE_DEMO_MODE": "true"}
 
-            bootstrap.configure_web_api_origin(
-                config_path, "https://finance-api.example.com"
-            )
+        bootstrap.disable_compose_demo_mode(environment)
 
-            self.assertEqual(
-                config_path.read_text(),
-                'window.FT_API_ORIGIN = "https://finance-api.example.com";\n',
-            )
+        self.assertEqual(environment["FT_COMPOSE_DEMO_MODE"], "false")
+
+    def test_configures_shared_buildkonfig_api_origin(self):
+        environment = {"FT_API_ORIGIN": "https://finance-api.example.com"}
+
+        api_origin = bootstrap.configure_web_api_origin(environment)
+
+        self.assertEqual(api_origin, "https://finance-api.example.com")
+        self.assertEqual(environment["FT_API_ORIGIN"], "https://finance-api.example.com")
 
     def test_empty_origin_defaults_to_local_backend(self):
-        with tempfile.TemporaryDirectory() as directory:
-            config_path = Path(directory) / "config.js"
-            expected_config = 'window.FT_API_ORIGIN = "http://127.0.0.1:8000";\n'
-
-            for empty_origin in ("", "   "):
-                with self.subTest(origin=empty_origin):
-                    config_path.write_text(
-                        'window.FT_API_ORIGIN = "https://old.example.com";\n'
-                    )
-                    bootstrap.configure_web_api_origin(config_path, empty_origin)
-                    self.assertEqual(config_path.read_text(), expected_config)
+        for empty_origin in ("", "   "):
+            with self.subTest(origin=empty_origin):
+                environment = {"FT_API_ORIGIN": empty_origin}
+                self.assertEqual(
+                    bootstrap.configure_web_api_origin(environment),
+                    "http://127.0.0.1:8000",
+                )
+                self.assertEqual(environment["FT_API_ORIGIN"], "http://127.0.0.1:8000")
 
     def test_rejects_api_paths_and_non_https_origins(self):
         for invalid_origin in (
@@ -126,17 +124,11 @@ class WebApiBuildConfigTests(unittest.TestCase):
             "https://user:pass@finance-api.example.com",
         ):
             with self.subTest(origin=invalid_origin):
-                with tempfile.TemporaryDirectory() as directory:
-                    config_path = Path(directory) / "config.js"
-                    config_path.write_text('window.FT_API_ORIGIN = "";\n')
-                    with self.assertRaises(bootstrap.BuildError):
-                        bootstrap.configure_web_api_origin(config_path, invalid_origin)
+                with self.assertRaises(bootstrap.BuildError):
+                    bootstrap.configure_web_api_origin({"FT_API_ORIGIN": invalid_origin})
 
     def test_rejects_invalid_port(self):
-        with tempfile.TemporaryDirectory() as directory:
-            config_path = Path(directory) / "config.js"
-            config_path.write_text('window.FT_API_ORIGIN = "";\n')
-            with self.assertRaisesRegex(bootstrap.BuildError, "端口"):
-                bootstrap.configure_web_api_origin(
-                    config_path, "https://finance-api.example.com:70000"
-                )
+        with self.assertRaisesRegex(bootstrap.BuildError, "端口"):
+            bootstrap.configure_web_api_origin(
+                {"FT_API_ORIGIN": "https://finance-api.example.com:70000"}
+            )

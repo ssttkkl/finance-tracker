@@ -15,7 +15,7 @@
 
 - 环境必须提供 OpenSpec CLI `1.7.0+` 与 Node.js `20.19.0+`；初始化或升级后以 `openspec --version` 确认。OpenSpec CLI 在终端运行，`$openspec-*` 必须按 Codex Skill 调用，不能作为 shell 子命令。
 - 在 Xcode 26.x 环境下编译本地 iOS 包（包括真机开发包）时，必须先在 `mobile/` 目录执行 `CI=1 npx expo prebuild --platform ios --no-install`，再在 `mobile/ios/` 执行 `pod install --no-repo-update` 后编译。该步骤通过 `mobile/app.json` 注册的 `withExpoModulesJsiXcode26` 复用 `.github/workflows/mobile-ci.yml` 的兼容处理；禁止跳过 `prebuild` 直接编译已有 iOS 工程，或另加仅本机运行的兼容补丁。真机目标仍须使用适用的开发者签名，不能照搬 CI 的模拟器目标和关闭签名参数。
-- 项目不依赖 gstack 或其他仓库外 Skill。UI 设计和审查使用仓库级 `.agents/skills/` 中的 Hallmark 与 `pen-design` 技能；A 类 UI 原型通过 `$hallmark` 明确调用设计动作，并通过 `$pen-design` 生成或修改 Pen 设计稿，任何等级的 UI 改动在最终 UI 形成后调用 `$hallmark audit`。Hallmark 和 `pen-design` 都是技能调用，不是 shell 命令；若 Hallmark 不可用，记录不可用并完成可替代的人工审查，不得声称已执行 Hallmark。Pen 文件必须通过 pen.dev 官方 CLI、Desktop 或 MCP 生成和修改。
+- 项目不依赖 gstack 或其他仓库外 Skill。A 类 UI 和重大 UI 变更使用仓库级 `.agents/skills/` 中的 Hallmark 形成设计方向并自查；任何等级的 UI 改动在最终 UI 形成后调用 `$hallmark audit`。Hallmark 是技能调用，不是 shell 命令；若不可用，记录不可用并完成可替代的人工审查，不得声称已执行 Hallmark。Pen 设计稿和 HTML 原型不再是当前 UI 工作流的产物。
 - Web QA 使用仓库实际提供的 Vitest、Playwright、生产预览和适用浏览器工具；缺少某个浏览器 Skill 时，改用可用工具完成同等检查。
 - PostgreSQL 双后端验证属于交付前门禁，不由测试代码自动发现或自动启动数据库。完成开发和 SQLite 回归后，执行者必须在本机准备专用测试库：优先使用本地 Docker PostgreSQL 或本机 `psql` 可连接的数据库，将连接配置到 `FT_TEST_POSTGRES_URL` 后补跑同一契约矩阵；数据库名必须以 `_test` 结尾。未配置时只能记录为未完成，不能把跳过项计入完整验证。
 - 代码改动必须提交相应的 `openspec/`、`.agents/skills/openspec-*`、`openspec/specs/` 与 `openspec/changes/` 记录；纯文档改动不创建空的 OpenSpec scaffolding。运行缓存、凭据、浏览器状态与真实财务数据留在仓库外。
@@ -73,7 +73,7 @@
 | 阶段 | A：完整变更 | B：轻量变更 | C：局部缺陷修复 |
 |------|-------------|-------------|-----------------|
 | 1. 思考 | 阅读项目上下文、主规格、active changes、词表、代码和测试；使用 `$openspec-explore`；有产品取舍时完成产品探讨。 | 阅读受影响规格、代码和测试，记录目标、非目标、风险与不升级理由。 | 确认根因、既定行为和复现路径；根因不明则升级 A。 |
-| 2. 计划 | 完整 proposal、delta spec、design；覆盖场景、失败模式、兼容、回滚与适用专项策略；A 类 UI 按「Hallmark 设计方向 → Pen 视觉设计 → HTML 交互原型」形成一组一致的设计产物，并在实现前取得用户确认。 | 小型 change 记录验收、受影响文件、实现选择和风险；新架构决策补充 design。 | 记录缺陷、预期行为、最小修复边界和非目标；出现取舍或需求解释则升级。 |
+| 2. 计划 | 完整 proposal、delta spec、design；覆盖场景、失败模式、兼容、回滚与适用专项策略；A 类或重大 UI 记录用户任务、信息架构、验收、将删除的冗余信息及 Hallmark 设计方向和自查，再直接进入 Compose 实现。 | 小型 change 记录验收、受影响文件、实现选择和风险；新架构决策补充 design。 | 记录缺陷、预期行为、最小修复边界和非目标；出现取舍或需求解释则升级。 |
 | 3. 任务拆分与一致性 | 任务覆盖每项 requirement、场景、失败测试、实施、审查和验证，并检查 artifacts 一致性。 | 覆盖验收、失败测试、最小实现、范围复核和验证。 | 先安排失败回归测试，再安排最小修复、复核和验证。 |
 | 4. 构建 | 在独立 feature 分支或 worktree 中按 tasks 实施；每项测试先失败再转绿。 | 在隔离 worktree 小步实施；先失败测试再转绿。 | 以失败回归测试驱动最小修复，只恢复既定行为。 |
 | 5. 审查 | 产品/范围、工程和最终 diff 必做；开发者体验、设计与安全按风险触发。 | 范围化 diff 必做，其他视角按改动触发。 | 复核根因、修复边界与回归风险。 |
@@ -85,36 +85,35 @@
 
 - 产品/范围复核检查用户、优先级、范围和成功标准；工程复核检查边界、数据流、失败模式、兼容、回滚、测试和复杂度；设计复核检查核心任务、信息架构、状态、无障碍和响应式；开发者体验复核检查 API/CLI/SDK 的可发现性、一致性、错误、示例和迁移成本；安全复核检查资产、信任边界、权限、输入、日志、依赖和外部回调。最终 diff 复核检查 artifact 偏离、遗漏测试和回归。
 - 审查由独立复核上下文、人工或可用辅助工具完成。每次在正式 artifact 记录范围、覆盖风险、按严重级别排序的 finding、采纳/拒绝或延期理由及回写位置；阻断性 finding 修复后重新复核。
-- UI 改动在最终 UI 形成后必须调用 Hallmark `audit`，并对照 Pen 设计稿、交互原型和实际页面执行独立设计复核；在 `tasks.md` 记录审查目标、覆盖状态、按严重级别排序的 finding、处置理由和结论。所有 critical、major 或阻断性 finding 修复后重新 audit/复核；无 finding 同样记录范围和结论。
+- UI 改动在最终 UI 形成后必须调用 Hallmark `audit`，并对照 OpenSpec 验收、实际 Compose 页面和截图执行独立设计复核；在 `tasks.md` 记录审查目标、覆盖状态、按严重级别排序的 finding、处置理由和结论。所有 critical、major 或阻断性 finding 修复后重新 audit/复核；无 finding 同样记录范围和结论。重大 UI 变更必须在 Compose 演示模式中交付用户评审，收到用户确认后才能标记完成。
 - 执行变更的 AI 从 artifacts、改动和当前项目命令确定适用检查。存储行为变更以同一 Application Service 和用户合同在 SQLite、真实 PostgreSQL 运行契约矩阵；Web 行为或交互变更运行 Vitest、构建、Playwright 和生产预览，覆盖主流程、错误/空状态、键盘和相关响应式宽度；性能与安全风险运行专项检查。
 - 在 `tasks.md` 记录实际命令、结果、当前 `HEAD`、比较基线、执行时间、未解决风险和审查结论。未运行项必须记录不适用原因、残余风险与准确补跑条件；`HEAD`、目标分支或依赖变化后重跑受影响验证。
 
-## A 类 UI 原型与 Hallmark 门禁
+## A 类 UI 信息架构与 Hallmark 门禁
 
-完整原型门禁适用于所有 A 类变更中的用户可见 UI，以及任何重大调整用户可见页面、视图、交互流程、信息架构、视觉层级或响应式行为的变更；不可见实现、文案错字和等值视觉 token 替换不触发完整原型流程。任何等级的 UI 改动仍须按审查门禁执行 Hallmark `audit`。
+适用于所有 A 类变更中的用户可见 UI，以及任何重大调整用户可见页面、视图、交互流程、信息架构、视觉层级或响应式行为的变更。任何等级的 UI 改动仍须在最终 UI 形成后执行 Hallmark `audit`。
 
-1. 设计前读取 `docs/ui-design-rules.md`、现有 Pen 组件库和设计 token，并明确用户任务、信息架构及将删除的冗余信息。随后在 A 类 UI 或重大 UI 任务中显式调用 `$hallmark` 设计动作，完成项目预检、设计方向与自我审查。Hallmark 的产物是设计方法和方向，不得另造一套脱离项目 token 的视觉系统。
-2. 显式调用 `$pen-design`，将 Hallmark 设计方向落实为 `design/*.pen` 中的正式 Pen 设计稿，通过 pen.dev 官方 CLI、Desktop 或 MCP 生成和修改；不得直接编辑 `.pen` 内部 JSON、节点 ID 或引用。Pen 是页面结构与视觉表现的唯一事实源，覆盖核心任务、明确标注的占位内容、正常/空/错误状态及适用的焦点、禁用、加载、成功状态；按 Compose `WindowSizeClass` 的 `COMPACT`、`REGULAR`、`WIDE` 各提供一张标注类别的代表画板，默认代表视口为 390、768、1440 px。不得为同一类别重复制作固定宽度画板；断点边界、最小宽度或具体缺陷可另做无设计稿的补充 QA。
-3. 在当前 OpenSpec change 下创建独立、可直接打开的 `prototype/index.html` 交互原型，不依赖生产路由、后端、凭据或网络服务。交互原型必须从 Pen 的页面区域、层级、文案、token、尺寸和状态派生，用于走查核心任务、点击/键盘操作、状态转换和响应式；它是交互验证物，不是第二份视觉事实源。平台特有交互可以不同，但须来自已登记的平台差异并保留相同的语义操作、状态和结果。
-4. Pen 保持三类代表画板；HTML 原型按 Hallmark 要求在 320、375、414、768 px 检查无横向滚动、文本溢出和可点击文案折行。另按 `docs/ui-design-rules.md` 在 390、768、1440 px 保存截图；这些检查视口不要求新增 Pen 画板。原型须覆盖核心任务、正常/空/错误、焦点/禁用/加载/成功等适用状态。
-5. `design.md` 记录 Hallmark 预检和自我审查、设计选择、Pen 路径及 frame/node ID、HTML 原型路径、适用状态、响应式检查、Pen 到 Compose 的逐项映射和审查结论。进入第 3 阶段前，Pen 与 HTML 原型必须互相核对并作为一组具体结果提交用户确认；重大 UI 实现只能在确认后开始。
-6. 第 5 阶段对最终生产 UI 执行 Hallmark `audit`，并逐项对照已确认的 Pen 与交互原型；critical、major 或阻断性 finding 修复后重新 audit。范围、核心任务、信息架构、视觉层级或关键交互改变时，Flow-Back 更新 Pen、HTML 原型和 `design.md`，重新取得受影响设计的确认后再实施。
+1. 开始前读取 `docs/ui-design-rules.md` 和现有设计 token，明确用户任务、信息架构、验收标准及将删除的冗余信息。
+2. A 类或重大 UI 变更显式调用 `$hallmark` 设计动作，完成项目预检、设计方向和自我审查；方向遵守项目 token、品牌和现有组件，不另造脱离项目的视觉系统。
+3. OpenSpec `design.md` 记录任务、信息架构、验收、删除的冗余信息、Hallmark 方向和自查。此后直接实现共享 Compose 页面；Pen 设计稿、Pen 节点映射、`prototype/index.html` 和实现前原型确认都不是交付物或实现门禁。
+4. Compose 实现是页面结构和样式的视觉事实源；OpenSpec 保存信息架构、行为和验收；截图仅作为 QA 证据。代码按 Git 中的 token JSON 和 Compose 组件合同实现。
+5. 完成后通过开发/QA Compose 演示模式评审受影响页面，在 `COMPACT`、`REGULAR`、`WIDE` 下记录交互证据和截图。重大 UI 变更须由用户确认演示结果后才能标记完成。
+6. 最终 UI 调用 Hallmark `audit`，基于 OpenSpec 验收审查实际页面；critical、major 或阻断性 finding 修复后重新 audit/复核。范围或核心任务变化时回写 OpenSpec，再继续实现。
 
-### Pen 到代码的一致性门禁
+### Compose 实现一致性门禁
 
-- 已确认的 `.pen` 是页面结构与视觉表现的事实源；`openspec/specs/shared/design-system/tokens/*.json` 是设计 token 的事实源。二者冲突时先修订 Pen 并重新取得确认，不得由实现者自行取舍。
-- 实施前在 OpenSpec `design.md` 建立 Pen 页面/节点 ID 到 Compose 页面、组件和属性的映射，至少覆盖布局尺寸、间距、对齐、颜色/token、字体、边框/圆角、阴影、状态与响应式断点。代码逐项照映射实现，不得以“风格接近”替代；映射不到的属性必须先记录差异、修订设计并获确认。
-- Compose 自定义交互控件必须使用仓库已有的 Compose Unstyled 封装（如 `UnstyledButton`、`UnstyledTextField`），再按 Pen 样式组合；不得直接用 Material3 默认控件外观代替设计稿。Material3 可用于无视觉表现的基础布局/文字或设计稿确实采用其外观的场景。
-- 除非仓库已验证可用的 Pen-to-Compose 代码生成器，否则不得声称代码由工具自动生成；必须明确记录为“依据已确认 Pen 逐项实现”。
-- 生产预览中按 `COMPACT`、`REGULAR`、`WIDE` 对应的 Pen 代表视口和状态截图。逐项检查节点层级、几何尺寸、间距、排版、颜色、组件外观和状态；几何差异不得超过 2 dp，token 颜色必须一致。字体栅格化等不可避免的像素差异可忽略，但任何结构、样式或响应式差异都必须修复或回到 Pen 经用户确认。
-- 在 `tasks.md` 记录节点映射、截图路径、视口/状态、对比结果、容差例外和独立设计复核。未解释的重大差异未清零前，不得勾选设计 QA 完成、提交或发布。
+- `openspec/specs/shared/design-system/tokens/*.json` 是设计 token 唯一输入，`GeneratedTokens.kt` 是 Compose 消费副本；生成器、CI 不再维护或校验 Pen 变量副本。
+- Compose 自定义交互控件使用仓库已有的 Compose Unstyled 封装（如 `UnstyledButton`、`UnstyledTextField`），按 Git token 和 Finance 组件合同组合；Material3 可用于无视觉表现的基础布局/文字，或组件合同明确采用其外观的场景。
+- 除非仓库已验证可用的代码生成器，不得声称代码由工具自动生成；必须明确记录实际实现方式。
+- 最终预览按 `COMPACT`、`REGULAR`、`WIDE` 三类窗口尺寸检查节点层级、几何尺寸、间距、排版、颜色、组件外观和状态。硬性 token/响应式约束必须满足；截图用于复核，不取代行为和实现检查。
+- 在 `tasks.md` 记录截图路径、视口/状态、响应式与无障碍检查、发现和处置结果、独立设计复核。未解释的重大 finding 未清零前，不得勾选设计 QA 完成、提交或发布。
 
 ## UI 设计必须约束
 
 - 详细规则唯一维护于 [`docs/ui-design-rules.md`](docs/ui-design-rules.md)。任何 UI 设计、原型、实现或审查开始前，必须先读取该文件；违反其中任一硬性约束不得进入实现或 PR。
-- UI 必须先按用户任务提交信息架构和“将删除的冗余信息”。A 类 UI 使用 Hallmark 形成设计方向，以 Pen 固定视觉事实，再由 Pen 派生交互原型；重大 UI 变更须对 Pen 和交互原型取得用户确认后才能实现，范围变化必须同步回写两者和设计记录。
+- UI 必须先按用户任务提交信息架构和“将删除的冗余信息”。A 类或重大 UI 变更记录 Hallmark 设计方向和自查，然后直接实现 Compose；重大 UI 在演示模式中评审并由用户确认后完成，范围变化同步回写 OpenSpec。
 - 用户可见文案不得暴露数据库、领域模型、投影、服务边界或实现细节；正常状态帮助文字最多 2 处、每处不超过 16 个汉字，不得添加教学区、重复说明或卡片套卡片。
-- 桌面端单项任务表单最大宽度为 720 px；移动端单列且无横向滚动。适用页面按 Compose `WindowSizeClass` 检查 `COMPACT`、`REGULAR`、`WIDE` 三类，默认代表视口分别为 390/768/1440 px，三类都须截图审查；断点边界或缺陷宽度作为有理由的补充 QA，不增加固定宽度设计稿。
+- 桌面端单项任务表单最大宽度为 720 px；移动端单列且无横向滚动。适用页面按 Compose `WindowSizeClass` 检查 `COMPACT`、`REGULAR`、`WIDE` 三类，默认代表视口分别为 390/768/1440 px，三类都须截图审查；断点边界或缺陷宽度作为有理由的补充 QA。
 - 实现后必须做可见文字必要性自检、范围化术语搜索和独立设计复核；结果与 finding 必须回写对应 OpenSpec `tasks.md`。
 
 ## 工程原则与外部写

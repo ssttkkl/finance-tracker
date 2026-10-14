@@ -3,10 +3,22 @@ package com.finance.tracker.app
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_account_balance_wallet
+import com.finance.tracker.resources.ic_check
+import com.finance.tracker.resources.ic_chevron_left
+import com.finance.tracker.resources.ic_chevron_right
+import com.finance.tracker.resources.ic_event
+import com.finance.tracker.resources.ic_file_upload
+import com.finance.tracker.resources.ic_keyboard_arrow_down
+import com.finance.tracker.resources.ic_label
+import com.finance.tracker.resources.ic_logout
+import com.finance.tracker.resources.ic_menu
+import com.finance.tracker.resources.ic_pie_chart
+import com.finance.tracker.resources.ic_settings
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -37,15 +49,11 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
@@ -73,7 +81,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -96,6 +103,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.window.PopupProperties
 import com.composeunstyled.UnstyledButton
 import com.finance.tracker.core.design.GeneratedTokens
+import org.jetbrains.compose.resources.painterResource
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -903,81 +911,26 @@ private fun navigationGlyphFor(page: AppPage): NavigationGlyphKind = when (page)
 
 @Composable
 private fun RailGlyph(kind: NavigationGlyphKind, color: Color, modifier: Modifier = Modifier.size(20.dp)) {
-    Canvas(modifier) {
-        val unit = size.minDimension / 24f
-        val stroke = 1.8f * unit
-        fun point(x: Float, y: Float) = Offset(x * unit, y * unit)
-        fun path(vararg coordinates: Float, close: Boolean = false) {
-            if (coordinates.size < 4) return
-            val shape = Path().apply {
-                moveTo(coordinates[0] * unit, coordinates[1] * unit)
-                var index = 2
-                while (index + 1 < coordinates.size) {
-                    lineTo(coordinates[index] * unit, coordinates[index + 1] * unit)
-                    index += 2
-                }
-                if (close) this.close()
-            }
-            drawPath(shape, color, style = Stroke(stroke, cap = androidx.compose.ui.graphics.StrokeCap.Round, join = androidx.compose.ui.graphics.StrokeJoin.Round))
-        }
-        fun outlineRect(left: Float, top: Float, right: Float, bottom: Float, radius: Float = 2f) {
-            drawRoundRect(
-                color = color,
-                topLeft = point(left, top),
-                size = Size((right - left) * unit, (bottom - top) * unit),
-                cornerRadius = CornerRadius(radius * unit),
-                style = Stroke(stroke),
-            )
-        }
-        fun line(x1: Float, y1: Float, x2: Float, y2: Float) = drawLine(color, point(x1, y1), point(x2, y2), stroke)
-        when (kind) {
-            NavigationGlyphKind.MENU -> { line(4f, 6f, 20f, 6f); line(4f, 12f, 20f, 12f); line(4f, 18f, 20f, 18f) }
-            NavigationGlyphKind.CHEVRON_LEFT -> path(15f, 5f, 8f, 12f, 15f, 19f)
-            NavigationGlyphKind.CHEVRON_RIGHT -> path(9f, 5f, 16f, 12f, 9f, 19f)
-            NavigationGlyphKind.CHEVRON_DOWN -> path(5f, 9f, 12f, 15f, 19f, 9f)
-            NavigationGlyphKind.WALLET -> {
-                outlineRect(3f, 6f, 21f, 19f, 2.5f)
-                path(3f, 9f, 16f, 9f, 16f, 6f)
-                path(15f, 12f, 21f, 12f, 21f, 16f, 15f, 16f, 15f, 12f, close = true)
-                drawCircle(color, 0.8f * unit, point(18f, 14f))
-            }
-            NavigationGlyphKind.IMPORT -> {
-                path(12f, 3f, 12f, 14f)
-                path(8f, 10f, 12f, 14f, 16f, 10f)
-                path(5f, 15f, 5f, 20f, 19f, 20f, 19f, 15f)
-            }
-            NavigationGlyphKind.TAG -> {
-                path(3f, 11f, 11f, 3f, 20f, 3f, 21f, 13f, 13f, 21f, 3f, 11f, close = true)
-                drawCircle(color, 1f * unit, point(15.5f, 8f), style = Stroke(stroke))
-            }
-            NavigationGlyphKind.HOLDINGS -> {
-                drawArc(color, -90f, 270f, false, point(3f, 3f), Size(18f * unit, 18f * unit), style = Stroke(stroke))
-                path(12f, 4f, 12f, 12f, 19f, 16f)
-            }
-            NavigationGlyphKind.EVENTS -> {
-                outlineRect(3f, 5f, 21f, 21f, 2f)
-                line(3f, 9f, 21f, 9f)
-                line(8f, 3f, 8f, 7f)
-                line(16f, 3f, 16f, 7f)
-                line(7f, 13f, 9f, 13f)
-                line(13f, 13f, 15f, 13f)
-            }
-            NavigationGlyphKind.SETTINGS -> {
-                line(4f, 6f, 20f, 6f)
-                line(4f, 12f, 20f, 12f)
-                line(4f, 18f, 20f, 18f)
-                drawCircle(color, 2f * unit, point(9f, 6f))
-                drawCircle(color, 2f * unit, point(15f, 12f))
-                drawCircle(color, 2f * unit, point(8f, 18f))
-            }
-            NavigationGlyphKind.SIGN_OUT -> {
-                path(10f, 4f, 5f, 4f, 5f, 20f, 10f, 20f)
-                path(13f, 8f, 17f, 12f, 13f, 16f)
-                line(17f, 12f, 9f, 12f)
-            }
-            NavigationGlyphKind.CHECK -> path(4f, 12f, 9f, 17f, 20f, 6f)
-        }
+    val painter = when (kind) {
+        NavigationGlyphKind.MENU -> painterResource(Res.drawable.ic_menu)
+        NavigationGlyphKind.CHEVRON_LEFT -> painterResource(Res.drawable.ic_chevron_left)
+        NavigationGlyphKind.CHEVRON_RIGHT -> painterResource(Res.drawable.ic_chevron_right)
+        NavigationGlyphKind.CHEVRON_DOWN -> painterResource(Res.drawable.ic_keyboard_arrow_down)
+        NavigationGlyphKind.WALLET -> painterResource(Res.drawable.ic_account_balance_wallet)
+        NavigationGlyphKind.IMPORT -> painterResource(Res.drawable.ic_file_upload)
+        NavigationGlyphKind.TAG -> painterResource(Res.drawable.ic_label)
+        NavigationGlyphKind.HOLDINGS -> painterResource(Res.drawable.ic_pie_chart)
+        NavigationGlyphKind.EVENTS -> painterResource(Res.drawable.ic_event)
+        NavigationGlyphKind.SETTINGS -> painterResource(Res.drawable.ic_settings)
+        NavigationGlyphKind.SIGN_OUT -> painterResource(Res.drawable.ic_logout)
+        NavigationGlyphKind.CHECK -> painterResource(Res.drawable.ic_check)
     }
+    Icon(
+        painter = painter,
+        contentDescription = null,
+        modifier = modifier,
+        tint = color,
+    )
 }
 
 private fun com.finance.tracker.core.design.FinanceColorRoles.mutedForShell(): Color = foreground.copy(alpha = 0.68f)

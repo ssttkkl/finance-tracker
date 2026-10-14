@@ -2,7 +2,7 @@ package com.finance.tracker.core.design
 
 import androidx.compose.ui.graphics.Color
 
-/** Semantic roles shared by Finance UI components and Pen variables. */
+/** Semantic roles consumed by Finance UI components. */
 data class FinanceColorRoles(
     val background: Color,
     val foreground: Color,

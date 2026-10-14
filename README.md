@@ -12,7 +12,7 @@
 
 ## 环境准备
 
-需要 Python 3.11+、`uv`、Node.js 20.19+（运行 Compose Web 本地预览），以及 PostgreSQL 或本地可写 SQLite 路径。pen.dev CLI 另需 Node.js 22.19+，详见 [`design/README.md`](design/README.md)。
+需要 Python 3.11+、`uv`、Node.js 20.19+（运行 Compose Web 本地预览），以及 PostgreSQL 或本地可写 SQLite 路径。
 
 ```bash
 uv sync
@@ -58,9 +58,10 @@ python3 scripts/generate_ui_tokens.py
 (cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
 (cd compose && ./gradlew :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache)
 node web/scripts/start-compose-demo.mjs
+node web/scripts/start-compose-offline-demo.mjs
 ```
 
-Compose Web demo 使用 `node web/scripts/start-compose-demo.mjs`；Android/iOS 本地运行方式见 [`compose/README.md`](compose/README.md)。设计工作区和 pen.dev 接入约定见 [`design/README.md`](design/README.md)。
+Compose Web 后端连接预览使用 `node web/scripts/start-compose-demo.mjs`；无 API 后端演示使用 `node web/scripts/start-compose-offline-demo.mjs`。Android/iOS 演示方式见 [`compose/README.md`](compose/README.md)，历史 UI 设计资料见 [`design/README.md`](design/README.md)。
 
 本地 Compose 调试通过 `FT_API_PROXY_ORIGIN` 配置 API 代理；生产目标只接受 HTTPS。具体 target 和运行参数见 [`compose/README.md`](compose/README.md)。
 

@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.text.font.FontFamily
+import com.finance.tracker.shared.ComposeBuildConfig
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.noto_sans_sc
 import org.jetbrains.compose.resources.Font
@@ -66,7 +67,8 @@ actual fun readDisplayPreference(key: String): String? = js("window.localStorage
 
 actual fun writeDisplayPreference(key: String, value: String) { js("window.localStorage.setItem(key, value)") }
 
-actual fun getConfiguredApiOrigin(): String = js("window.FT_API_ORIGIN || ''")
+actual fun getConfiguredApiOrigin(): String =
+    ComposeBuildConfig.FT_API_ORIGIN.ifBlank { currentBrowserOrigin() }
 
 actual fun getLocalTimeZoneId(): String = js("Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'")
 
@@ -83,6 +85,8 @@ actual suspend fun copyTextToClipboard(value: String): Boolean = suspendCoroutin
 }
 
 private fun currentBrowserPathname(): String = js("window.location.pathname")
+
+private fun currentBrowserOrigin(): String = js("window.location.origin")
 
 private fun currentBrowserSearch(): String = js("window.location.search")
 

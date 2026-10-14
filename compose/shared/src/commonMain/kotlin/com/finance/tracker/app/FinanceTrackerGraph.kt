@@ -3,17 +3,23 @@ package com.finance.tracker.app
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.core.DiagnosticLogger
 import com.finance.tracker.core.createDiagnosticLogger
+import com.finance.tracker.core.NoOpDiagnosticLogger
 import com.finance.tracker.data.FinanceApiClient
+import com.finance.tracker.data.DemoFinanceRepository
+import com.finance.tracker.data.DemoSessionRepository
+import com.finance.tracker.data.DemoStatementFileSource
 import com.finance.tracker.data.KtorFinanceRepository
 import com.finance.tracker.data.KtorSessionRepository
 import com.finance.tracker.domain.FinanceRepository
+import com.finance.tracker.domain.FileSource
 import com.finance.tracker.domain.SessionRepository
 
 data class FinanceTrackerGraph(
-    val apiClient: FinanceApiClient,
+    val apiClient: FinanceApiClient?,
     val sessionRepository: SessionRepository,
     val financeRepository: FinanceRepository,
     val diagnosticLogger: DiagnosticLogger,
+    val demoStatement: FileSource? = null,
 )
 
 fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): FinanceTrackerGraph {
@@ -25,3 +31,11 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         diagnosticLogger = createDiagnosticLogger(),
     )
 }
+
+fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph = FinanceTrackerGraph(
+    apiClient = null,
+    sessionRepository = DemoSessionRepository(),
+    financeRepository = DemoFinanceRepository(),
+    diagnosticLogger = NoOpDiagnosticLogger,
+    demoStatement = DemoStatementFileSource(),
+)

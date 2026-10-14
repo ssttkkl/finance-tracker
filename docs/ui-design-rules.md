@@ -5,7 +5,7 @@
 ## 1. 先理解任务，再设计界面
 
 - UI 必须围绕用户当前要完成的任务组织，不得按数据库表、领域对象、服务边界、接口结构或开发文档章节组织。
-- UI 实施前，必须先提交信息架构，以及明确列出将删除的冗余信息；涉及页面结构、核心流程或视觉层级的重大变更，必须完成 Hallmark 设计方向、Pen 视觉设计和 HTML 交互原型，并等用户确认后再实现。
+- UI 实施前，必须先提交信息架构，以及明确列出将删除的冗余信息；涉及页面结构、核心流程或视觉层级的重大变更，还须记录 Hallmark 设计方向和自查，再直接实现 Compose。
 - 页面首屏只保留完成当前任务必需的信息和操作。不要添加“功能介绍”“操作影响”“设计优势”“适用场景”等教学区。
 
 ## 2. 用户可见内容约束
@@ -38,41 +38,25 @@
 
 - 桌面端单项任务表单最大宽度为 720 px，标签与控件对齐；信息管理、数据表格等确实需要横向空间的页面，可以按信息架构铺开，不得为了套用窄表单而压缩信息。
 - 移动端使用单列布局，不允许横向滚动、逐字换行或把桌面多栏硬挤到一行。
-- 设计稿按 Compose `WindowSizeClass` 覆盖 `COMPACT`、`REGULAR`、`WIDE` 三类，各提供一张有明确类别标记的代表画板；默认代表视口分别为 390 px、768 px、1440 px。不得为同一类别重复制作多张固定宽度画板。
-- Web 与 Native QA 按三类窗口尺寸验证布局，并分别在对应代表视口截图审查。只有验证断点边界、最小支持宽度或复现具体响应式缺陷时，才额外检查其他宽度；额外宽度检查不要求新增 Pen 画板。
+- Web 与 Native QA 按 Compose `WindowSizeClass` 的 `COMPACT`、`REGULAR`、`WIDE` 三类窗口尺寸验证布局，并分别在 390 px、768 px、1440 px 代表视口截图审查。只有验证断点边界、最小支持宽度或复现具体响应式缺陷时，才额外检查其他宽度。
 - 页面内容区、侧边导航和移动顶栏的滚动边界必须明确；瀑布流内容不得带着固定导航或账户区一起滚动。
 
-## 4. Hallmark、Pen 设计稿、原型与实现门禁
+## 4. Hallmark 方向与 Compose 实现门禁
 
 ### 4.1 Hallmark 设计方向
 
 A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按当前项目的设计 token、组件库和任务范围调用 `$hallmark` 设计动作。Hallmark 用于形成视觉层级、信息结构和交互方向，并执行设计自检；它不能覆盖本文件、现有品牌或 token 事实源，也不能单独成为待实现的视觉规格。Hallmark 的预检、设计选择和自评记录到 OpenSpec `design.md`。
 
-### 4.2 Pen 视觉事实源
+### 4.2 代码即视觉事实源
 
-新增或调整用户可见 UI 时，必须调用项目级 `$pen-design` 技能，并通过 pen.dev 官方工具生成或更新对应的 `.pen` 设计稿。设计稿至少覆盖：
+- Compose 实现是页面结构与样式的事实源。OpenSpec 保存用户任务、信息架构、验收标准、状态和平台不变量；Git token JSON 是设计 token 的事实源。
+- A 类 UI 和重大 UI 变更在对应 OpenSpec `design.md` 记录 Hallmark 方向、自查和实现选择后直接进入 Compose 实现；不要求 Pen 文件、Pen 节点映射、HTML 原型或实现前设计稿确认。
+- 重大 UI 变更在开发/QA Compose 演示模式中评审。评审覆盖受影响流程及 `COMPACT`、`REGULAR`、`WIDE` 三类布局；用户确认演示结果后，才能把变更标记完成。
+- 生产页面或演示截图是 QA 证据，不是独立设计稿；页面调整后以 OpenSpec 验收和实际 Compose 行为复核。
 
-- 核心任务的正常状态；
-- 空状态、错误状态、加载状态、成功状态；
-- 禁用状态、焦点状态和适用的危险操作确认；
-- 适用的桌面与移动布局。
+### 4.3 Hallmark 审计
 
-重大 UI 变更须取得用户对设计稿的确认后才能继续实现页面。若用户修改信息架构、核心任务、文案预算或关键交互，必须先回写 Pen 设计稿和设计记录，再继续开发。
-
-已确认的 Pen 画面同时是页面结构与视觉表现的唯一事实源；页面布局、尺寸、间距、对齐、排版、颜色应用、控件样式和状态不得由实现者重新发挥。若设计稿与仓库 token 或硬性约束冲突，先修订 Pen 并取得确认，再实现。
-
-### 4.3 交互原型与双产物确认
-
-- A 类 UI 和任何重大 UI 调整都在当前 OpenSpec change 下提供独立、可直接打开的 `prototype/index.html`。它从 Pen 派生，用于验证核心任务、点击与键盘路径、状态转换和响应式行为；不依赖生产路由、后端、凭据或网络服务。
-- Pen 是唯一视觉事实源，HTML 原型是交互验证物，不是第二份设计稿。原型的页面区域、顺序、文案、颜色/token、尺寸、间距和状态必须与 Pen 一致；原型只可加入驱动交互所需的行为代码。若原型暴露可用性问题，先 Flow-Back 修订 Pen，再同步原型，不能让两份产物各自演进。
-- Pen 仅保留 `COMPACT`、`REGULAR`、`WIDE` 三张代表画板；交互原型还须在 320、375、414、768 px 检查无横向滚动、文本溢出和可点击文字折行。应在 390、768、1440 px 保留对应类别的浏览器截图，与 Pen/Compose 对照；额外检查宽度不增加 Pen 画板。
-- 交互原型与 Pen 覆盖相同的核心任务和适用状态，包括正常、空、错误、焦点、禁用、加载和成功；原型必须能实际操作来验证状态转换，静态截图不能替代交互原型。
-- 只有已登记的跨平台 presentation 差异可以采用不同的控件表面；操作语义、标签、状态反馈与业务结果仍须一致，并在原型与 `design.md` 中标注差异。
-- A 类 UI 或重大 UI 实施前，用户须确认 Pen 视觉设计和对应 HTML 交互原型这组结果。设计范围变化后重新同步并确认受影响部分。
-
-### 4.4 Hallmark 审计
-
-任何等级的 UI 改动在最终 UI 形成后都必须调用 `$hallmark audit`，审查生产 UI，并结合适用的 Pen 与交互原型核对。critical、major finding 修复后重新 audit；无 finding 也须在 `tasks.md` 记录审查范围和结论。若当前运行时未提供 Hallmark，记录技能不可用并按 `.agents/skills/hallmark/references/verbs/audit.md` 完成替代审查，不得声称执行了 Hallmark。
+任何等级的 UI 改动在最终 UI 形成后都必须调用 `$hallmark audit`，审查实际 Compose 页面并对照 OpenSpec 验收。critical、major finding 修复后重新 audit；无 finding 也须在 `tasks.md` 记录审查范围和结论。若当前运行时未提供 Hallmark，记录技能不可用并按 `.agents/skills/hallmark/references/verbs/audit.md` 完成替代审查，不得声称执行了 Hallmark。
 
 ## 5. 实现后自检和独立审查
 
@@ -83,21 +67,19 @@ A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按�
 - 是否为新增或修改的用户可见字符串运行范围化静态搜索。
 - 是否存在只在开发环境成立的布局、路径或浏览器行为。
 
-最终 UI 必须调用 Hallmark `audit`，并对照 Pen 设计稿、交互原型和实际页面执行独立设计复核；在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。critical、major 或阻断性 finding 修复后必须重新 audit/复核；没有 finding 也记录范围和结论。
+最终 UI 必须调用 Hallmark `audit`，并对照 OpenSpec 验收、实际页面和演示截图执行独立设计复核；在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。critical、major 或阻断性 finding 修复后必须重新 audit/复核；没有 finding 也记录范围和结论。
 
-## 6. Spec、pen.dev 与 Compose
+## 6. OpenSpec、Git token 与 Compose
 
-- OpenSpec 保存业务行为和验收规则；`.pen` 保存页面、表单、组件、状态画面、反馈位置和无障碍设计，并作为视觉唯一事实源；`prototype/index.html` 是该设计的交互验证物，不得维护与 Pen 冲突的布局、样式或文案；不再重复保存页面或组件 YAML。`openspec/specs/shared/design-system/tokens/*.json` 是 token 唯一事实源。
-- `design/*.pen` 保存页面结构、表单顺序、反馈位置、组件语义、无障碍设计和状态排布，必须通过 pen.dev 官方 CLI、Desktop 或 MCP 生成和修改，不直接编辑内部 JSON、节点 ID 或引用。
-- `design/finance-ui.lib.pen` 是当前可复用的视觉组件库；页面设计优先引用库组件，缺失组件先补库组件；涉及业务行为变化时更新对应 OpenSpec，再进入页面。`finance-design-system.lib.pen` 仅保留历史资料。
-- 生成器 `scripts/generate_ui_tokens.py` 只同步 Compose Kotlin token 和 `design/generated/pen-variables.json`；pen.dev variables 是消费镜像，不得成为第二套 token 事实源。
-- 设计确认后由 Compose `commonMain` 按 Pen 逐项实现；实施前必须在 OpenSpec `design.md` 建立 Pen 页面/节点 ID 到 Compose 页面、组件和属性的映射，至少列明布局尺寸、间距、对齐、颜色/token、字体、边框/圆角、阴影、状态和响应式布局。不得凭视觉印象另造样式或用“接近”代替；无法实现的属性先回写 Pen 并取得用户确认。
-- 当前工作流是依据已确认 Pen 映射后实现 Compose，不代表自动代码生成。只有仓库已验证的 Pen-to-Compose 生成器实际产出并通过同一套 QA，才能称为自动生成；生成结果仍须经过对照验收。
-- Compose 自定义交互控件使用仓库已有的 Compose Unstyled 库（如 `UnstyledButton`、`UnstyledTextField`）封装行为与无障碍语义，再按 Pen 组合视觉；不得用 Material3 默认控件样式替代 Pen。Material3 仅用于不承担控件视觉的基础排版，或设计稿明确采用对应样式时使用。
+- OpenSpec 保存用户任务、信息架构、行为合同和验收；Compose `commonMain` 是页面结构和样式的当前事实源；`openspec/specs/shared/design-system/tokens/*.json` 是 token 唯一事实源。不再维护重复的页面或组件 YAML。
+- `design/*.pen` 与 `design/generated/pen-variables.json` 作为历史参考保留，不属于当前 UI 工作流输入或验收项；不要求生成、同步或审查这些文件。
+- `scripts/generate_ui_tokens.py` 只生成 Compose Kotlin token；CI 只校验 Git token 与生成代码的一致性。
+- Compose 自定义交互控件使用仓库已有的 Compose Unstyled 封装（如 `UnstyledButton`、`UnstyledTextField`）保持行为与无障碍语义，再按 Git token 和 Finance 组件合同实现视觉。Material3 可用于不承担控件视觉的基础排版，或组件合同明确采用其样式的场景。
+- 除非仓库已验证可用的代码生成器，不得声称代码由工具自动生成；必须明确记录实际实现方式。
 - Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。React、Expo 和 TypeScript shared packages 仅作迁移参考，不进入默认设计或实现工作流。
 
-## 7. Pen 与实现一致性验收
+## 7. Compose 实现与响应式 QA
 
-- 使用生产构建预览，在与 Pen 同一窗口尺寸类别代表视口、主题、页面模式和交互状态下截取实际页面；至少覆盖 `COMPACT`（默认 `390 px`）、`REGULAR`（默认 `768 px`）、`WIDE`（默认 `1440 px`）。若额外验证断点边界或缺陷宽度，应记录原因，但不增加对应设计画板。
-- 对照节点映射逐项检查层级、位置、宽高、间距、对齐、字体规格、颜色、边框/圆角、阴影、文案和状态。几何差异最多 `2 dp`，token 颜色必须一致；字体抗锯齿等栅格差异不作为缺陷。超过容差或未映射差异必须修复，或修订 Pen 并重新取得确认。
-- `tasks.md` 保存 Pen/Compose 映射、对应状态和视口、截图路径、差异与修复记录、独立设计复核结论。截图仅作证据，不替代逐项属性核对；存在未解释的重大差异时，设计 QA 不得通过，也不得提交或发布。
+- 使用开发/QA 演示构建或适用的生产预览，至少覆盖 `COMPACT`（默认 `390 px`）、`REGULAR`（默认 `768 px`）、`WIDE`（默认 `1440 px`）及相应主题、页面模式和交互状态。若额外验证断点边界或缺陷宽度，应记录原因。
+- 检查区域层级、位置、宽高、间距、对齐、字体规格、token 颜色、边框/圆角、阴影、文案和状态；发现响应式或视觉缺陷时修复 Compose 实现并重新检查。
+- `tasks.md` 保存状态与视口、截图路径、差异与修复记录、无障碍和独立设计复核结论。截图作为证据，不替代行为、键盘焦点、状态和真实浏览器检查；重大 finding 未清零时设计 QA 不得通过，也不得提交或发布。

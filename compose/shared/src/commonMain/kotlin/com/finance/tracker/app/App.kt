@@ -67,8 +67,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.launch
 
 @Composable
-fun App(apiOrigin: String = getConfiguredApiOrigin()) {
-    FinanceTrackerApp(apiOrigin = apiOrigin)
+fun App(apiOrigin: String = getConfiguredApiOrigin(), demoMode: Boolean = false) {
+    FinanceTrackerApp(apiOrigin = apiOrigin, demoMode = demoMode)
 }
 
 internal data class DestinationState(
@@ -91,6 +91,7 @@ internal data class DestinationState(
     val onInvitationAccepted: (Session) -> Unit,
     val onWorkspaceSelected: (String) -> Unit,
     val onLogout: () -> Unit,
+    val demoStatement: FileSource? = null,
     val navigationIcon: @Composable () -> Unit = {},
 )
 
@@ -110,6 +111,7 @@ private fun accessErrorText(code: String): String = when (code) {
 @Composable
 fun FinanceTrackerApp(
     apiOrigin: String = getConfiguredApiOrigin(),
+    demoMode: Boolean = false,
     initialRoute: AppRoute = AppRoute(page = AppPage.CASH_LEDGER),
     onNavigate: (AppRoute) -> Unit = {},
 ) {
@@ -118,7 +120,7 @@ fun FinanceTrackerApp(
         onDispose { owner.viewModelStore.clear() }
     }
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-        FinanceTrackerAppContent(apiOrigin, initialRoute, onNavigate)
+        FinanceTrackerAppContent(apiOrigin, demoMode, initialRoute, onNavigate)
     }
 }
 
@@ -129,11 +131,17 @@ private class FinanceTrackerViewModelStoreOwner : ViewModelStoreOwner {
 @Composable
 private fun FinanceTrackerAppContent(
     apiOrigin: String,
+    demoMode: Boolean,
     initialRoute: AppRoute,
     onNavigate: (AppRoute) -> Unit,
 ) {
-    val tokenStore = remember { createPlatformTokenStore() }
-    val graph = remember(apiOrigin, tokenStore) { createFinanceTrackerGraph(apiOrigin, tokenStore) }
+    val graph = remember(apiOrigin, demoMode) {
+        if (demoMode) {
+            createDemoFinanceTrackerGraph()
+        } else {
+            createFinanceTrackerGraph(apiOrigin, createPlatformTokenStore())
+        }
+    }
     val apiClient = graph.apiClient
     val accessViewModel: AccessViewModel = viewModel(
         key = "access:$apiOrigin",
@@ -146,10 +154,10 @@ private fun FinanceTrackerAppContent(
     val session = accessState.session
     val accessBusy = accessState.busy
     val accessError = accessState.errorCode?.let { accessErrorText(it) }
-    var invitationSignInRequested by remember(apiClient) { mutableStateOf(false) }
+    var invitationSignInRequested by remember(apiClient, demoMode) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     DisposableEffect(apiClient) {
-        onDispose { apiClient.close() }
+        onDispose { apiClient?.close() }
     }
     val resolvedInitialRoute = getBrowserLocation()?.let { parseAppRoute(it.pathname, it.search) }
         ?: IncomingInvitationLinks.currentToken()?.let { AppRoute(AppPage.INVITATION, invitationToken = it) }
@@ -376,6 +384,7 @@ private fun FinanceTrackerAppContent(
                         financeRepository = graph.financeRepository,
                         sessionRepository = graph.sessionRepository,
                         diagnosticLogger = graph.diagnosticLogger,
+                        demoStatement = graph.demoStatement,
                         session = currentSession,
                         accessBusy = accessBusy,
                         accessError = accessError,
@@ -405,6 +414,7 @@ private fun FinanceTrackerAppContent(
                         if (state.route.page == AppPage.CASH_IMPORT) {
                             CashImportScreen(
                                 repository = graph.financeRepository,
+                                demoStatement = graph.demoStatement,
                                 workspaceId = currentSession.activeWorkspaceId.orEmpty(),
                                 sizeClass = windowSizeClass,
                                 canWrite = currentSession.workspaces.firstOrNull { it.id == currentSession.activeWorkspaceId }?.role?.canWrite == true,

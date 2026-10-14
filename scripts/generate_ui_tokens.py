@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate stable Compose token code and a pen.dev variable manifest."""
+"""Generate stable Compose token code from the canonical Git token files."""
 
 from __future__ import annotations
 
@@ -11,9 +11,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TOKEN_DIR = ROOT / "openspec" / "specs" / "shared" / "design-system" / "tokens"
 KOTLIN_OUT = ROOT / "compose" / "shared" / "src" / "commonMain" / "kotlin" / "com" / "finance" / "tracker" / "core" / "design" / "GeneratedTokens.kt"
-PEN_OUT = ROOT / "design" / "generated" / "pen-variables.json"
-
-
 def pascal(value: str) -> str:
     parts = re.split(r"[^A-Za-z0-9]+", value)
     result = "".join(part[:1].upper() + part[1:] for part in parts if part)
@@ -73,23 +70,6 @@ def generate() -> None:
     lines.append("")
     KOTLIN_OUT.parent.mkdir(parents=True, exist_ok=True)
     KOTLIN_OUT.write_text("\n".join(lines), encoding="utf-8")
-
-    PEN_OUT.parent.mkdir(parents=True, exist_ok=True)
-    PEN_OUT.write_text(
-        json.dumps(
-            {
-                "source": "openspec/specs/shared/design-system/tokens/*.tokens.json",
-                "variables": [
-                    {"name": name, "type": token["type"], "value": token["value"], "source": token["source"]}
-                    for name, token in tokens.items()
-                ],
-            },
-            indent=2,
-            ensure_ascii=True,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
 
 
 if __name__ == "__main__":

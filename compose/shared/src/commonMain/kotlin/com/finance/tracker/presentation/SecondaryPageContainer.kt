@@ -4,6 +4,9 @@ import com.finance.tracker.core.WindowSizeClass
 import com.finance.tracker.core.PlatformBackHandler
 import com.finance.tracker.core.LocalFinanceColorRoles
 import com.finance.tracker.core.design.FinanceTokens
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_arrow_back
+import com.finance.tracker.resources.ic_close
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -31,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -74,6 +78,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import org.jetbrains.compose.resources.painterResource
 
 internal enum class SecondaryPageLayout {
     FULL_SCREEN,
@@ -380,7 +385,7 @@ private fun SecondaryPageHeader(title: String, compact: Boolean, sizeClass: Wind
                     .semantics { contentDescription = closeLabel }
                     .testTag("secondary-page-back"),
             ) {
-                Text("←", style = MaterialTheme.typography.headlineSmall, fontSize = 24.sp)
+                PageNavigationGlyph(isClose = false, color = colors.foreground)
             }
         }
         Text(
@@ -405,10 +410,20 @@ private fun SecondaryPageHeader(title: String, compact: Boolean, sizeClass: Wind
                     .semantics { contentDescription = closeLabel }
                     .testTag("secondary-page-close"),
             ) {
-                Text("×", style = MaterialTheme.typography.headlineSmall, fontSize = 26.sp)
+                PageNavigationGlyph(isClose = true, color = colors.foreground)
             }
         }
     }
+}
+
+@Composable
+private fun PageNavigationGlyph(isClose: Boolean, color: Color) {
+    Icon(
+        painter = painterResource(if (isClose) Res.drawable.ic_close else Res.drawable.ic_arrow_back),
+        contentDescription = null,
+        modifier = Modifier.size(20.dp),
+        tint = color,
+    )
 }
 
 @Composable

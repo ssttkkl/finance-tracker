@@ -2,6 +2,7 @@ package com.finance.tracker.core
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontFamily
+import com.finance.tracker.shared.ComposeBuildConfig
 import platform.UIKit.UIDevice
 import platform.Foundation.NSBundle
 import platform.Foundation.NSDate
@@ -36,7 +37,7 @@ actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 @Composable
 actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) = Unit
 
-actual fun getConfiguredApiOrigin(): String = ""
+actual fun getConfiguredApiOrigin(): String = ComposeBuildConfig.FT_API_ORIGIN
 
 actual fun readDisplayPreference(key: String): String? = NSUserDefaults.standardUserDefaults.stringForKey(key)
 

@@ -33,4 +33,4 @@
 
 ## 设计资源
 
-页面与组件设计由 `design/` 下的 `.pen` 维护，业务行为写入对应规格；不再单独维护页面或组件 YAML。[共享 token 资源](shared/design-system/README.md) 保留现有代码生成输入，不计作新增主规格。
+页面结构与样式以 Compose 实现为准，业务行为与验收写入对应规格；`design/` 下的 `.pen` 仅保留为历史参考，不是当前设计产物或事实源。[共享 token 资源](shared/design-system/README.md) 保留现有代码生成输入，不计作新增主规格。

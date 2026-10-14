@@ -3,6 +3,7 @@ package com.finance.tracker.core
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.text.font.FontFamily
+import com.finance.tracker.shared.ComposeBuildConfig
 import android.content.Context
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -63,7 +64,7 @@ actual fun writeDisplayPreference(key: String, value: String) {
     context.getSharedPreferences("finance-tracker-display", Context.MODE_PRIVATE).edit().putString(key, value).apply()
 }
 
-actual fun getConfiguredApiOrigin(): String = ""
+actual fun getConfiguredApiOrigin(): String = ComposeBuildConfig.FT_API_ORIGIN
 
 actual fun getLocalTimeZoneId(): String = TimeZone.getDefault().id
 

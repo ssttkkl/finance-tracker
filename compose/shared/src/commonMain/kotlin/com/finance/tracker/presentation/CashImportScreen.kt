@@ -3,8 +3,12 @@ package com.finance.tracker.presentation
 import com.finance.tracker.core.*
 import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.domain.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_arrow_forward
+import com.finance.tracker.resources.ic_check
+import com.finance.tracker.resources.ic_description
+import com.finance.tracker.resources.ic_file_upload
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +33,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -42,9 +47,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.platform.testTag
@@ -71,6 +74,7 @@ import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import com.composeunstyled.UnstyledButton
+import org.jetbrains.compose.resources.painterResource
 
 private class PlatformImportFileSource(private val file: PlatformFile) : FileSource {
     override val name: String get() = file.name
@@ -88,6 +92,7 @@ internal fun CashImportScreen(
     onBack: () -> Unit,
     onDone: () -> Unit,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
+    demoStatement: FileSource? = null,
 ) {
     val viewModel: CashImportViewModel = viewModel(
         key = "cash-import:$workspaceId",
@@ -118,12 +123,14 @@ internal fun CashImportScreen(
         Arrangement.spacedBy(8.dp, Alignment.End)
     }
 
-    val filePicker = rememberFilePickerLauncher(
-        type = FileKitType.File(extensions = listOf("csv", "xls", "xlsx", "pdf")),
-        mode = FileKitMode.Multiple(maxItems = MAX_IMPORT_FILES),
-        onError = { viewModel.setPickerError() },
-        onResult = { files -> viewModel.receiveFiles(files?.map(::PlatformImportFileSource)) },
-    )
+    val filePicker = if (demoStatement == null) {
+        rememberFilePickerLauncher(
+            type = FileKitType.File(extensions = listOf("csv", "xls", "xlsx", "pdf")),
+            mode = FileKitMode.Multiple(maxItems = MAX_IMPORT_FILES),
+            onError = { viewModel.setPickerError() },
+            onResult = { files -> viewModel.receiveFiles(files?.map(::PlatformImportFileSource)) },
+        )
+    } else null
 
     FinanceLightSurfaceTheme {
         SecondaryPageContainer(
@@ -236,13 +243,22 @@ internal fun CashImportScreen(
                                     Text(localizedText("cash_import_select_file_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                                     ImportUploadSurface(
                                         selectedFiles = selectedFiles,
+                                        demoStatement = demoStatement != null,
                                         busy = busy,
-                                        onChoose = { filePicker.launch() },
+                                        onChoose = {
+                                            if (demoStatement != null) viewModel.receiveFiles(listOf(demoStatement))
+                                            else filePicker?.launch()
+                                        },
                                     )
                                     selectedFiles.forEachIndexed { index, picked ->
                                         ImportOutlinedCard {
                                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                Text("▤", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.headlineSmall)
+                                                Icon(
+                                                    painter = painterResource(Res.drawable.ic_description),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(24.dp),
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                )
                                                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                                                     Text(picked.identity.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                                     Text(formatFileSize(picked.identity.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -475,7 +491,12 @@ internal fun CashImportScreen(
                                         Modifier.size(56.dp).background(GeneratedTokens.Light.Color.StateSuccessSurface, CircleShape),
                                         contentAlignment = Alignment.Center,
                                     ) {
-                                        Text("✓", color = GeneratedTokens.Core.Color.SemanticIncome, style = MaterialTheme.typography.headlineSmall)
+                                        Icon(
+                                            painter = painterResource(Res.drawable.ic_check),
+                                            contentDescription = null,
+                                            modifier = Modifier.size(28.dp),
+                                            tint = GeneratedTokens.Core.Color.SemanticIncome,
+                                        )
                                     }
                                     Text(localizedText("copy_75c33f5c2e"), style = MaterialTheme.typography.titleLarge)
                                     Text(localizedText("copy_07c4b4b5e5", committed.newRows, committed.updatedRows, preview?.summary?.existing ?: 0, committed.skippedRows))
@@ -492,6 +513,7 @@ internal fun CashImportScreen(
 @Composable
 private fun ImportUploadSurface(
     selectedFiles: List<PickedImportFile>,
+    demoStatement: Boolean,
     busy: Boolean,
     onChoose: () -> Unit,
 ) {
@@ -513,19 +535,22 @@ private fun ImportUploadSurface(
             ImportUploadIcon(colors.accent)
         }
         Text(
-            selectedFiles.firstOrNull()?.identity?.name ?: localizedText("cash_import_add_file_heading"),
+            if (demoStatement) localizedText("cash_import_demo_statement")
+            else selectedFiles.firstOrNull()?.identity?.name ?: localizedText("cash_import_add_file_heading"),
             style = MaterialTheme.typography.titleMedium,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
-            localizedText("cash_import_file_formats"),
-            style = MaterialTheme.typography.bodySmall,
-            fontSize = 15.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        if (!demoStatement) {
+            Text(
+                localizedText("cash_import_file_formats"),
+                style = MaterialTheme.typography.bodySmall,
+                fontSize = 15.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         FinanceButton(
             onClick = onChoose,
             modifier = Modifier.widthIn(min = 176.dp).testTag(SemanticIds.importChooseFile),
@@ -533,10 +558,15 @@ private fun ImportUploadSurface(
             shape = CircleShape,
             borderColor = colors.accent,
             borderWidth = 2.dp,
-            enabled = !busy,
+            enabled = !busy && (!demoStatement || selectedFiles.isEmpty()),
         ) {
             Text(
-                if (selectedFiles.isEmpty()) localizedText("cash_import_choose_file") else localizedText("copy_7c3a726882"),
+                when {
+                    demoStatement && selectedFiles.isEmpty() -> localizedText("cash_import_use_demo_statement")
+                    demoStatement -> localizedText("cash_import_demo_statement_added")
+                    selectedFiles.isEmpty() -> localizedText("cash_import_choose_file")
+                    else -> localizedText("copy_7c3a726882")
+                },
                 color = colors.accent,
             )
         }
@@ -572,16 +602,12 @@ private fun ImportScanAction(
 
 @Composable
 private fun ImportUploadIcon(color: Color) {
-    Canvas(Modifier.size(32.dp)) {
-        val midX = size.width / 2f
-        val stroke = 2.dp.toPx()
-        drawLine(color, Offset(midX, size.height * 0.57f), Offset(midX, size.height * 0.16f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(midX, size.height * 0.16f), Offset(size.width * 0.31f, size.height * 0.36f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(midX, size.height * 0.16f), Offset(size.width * 0.69f, size.height * 0.36f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.2f, size.height * 0.57f), Offset(size.width * 0.2f, size.height * 0.83f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.2f, size.height * 0.83f), Offset(size.width * 0.8f, size.height * 0.83f), stroke, cap = StrokeCap.Round)
-        drawLine(color, Offset(size.width * 0.8f, size.height * 0.83f), Offset(size.width * 0.8f, size.height * 0.57f), stroke, cap = StrokeCap.Round)
-    }
+    Icon(
+        painter = painterResource(Res.drawable.ic_file_upload),
+        contentDescription = null,
+        modifier = Modifier.size(32.dp),
+        tint = color,
+    )
 }
 
 @Composable
@@ -746,7 +772,12 @@ private fun ImportRelationCard(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     ImportRelationRecordView(relation.primary, Modifier.weight(1f))
-                    Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleLarge)
+                    Icon(
+                        painter = painterResource(Res.drawable.ic_arrow_forward),
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     ImportRelationTarget(relation, draft, currentSecondary, rejected, Modifier.weight(1f), onCandidateSelected)
                 }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -762,7 +793,12 @@ private fun ImportRelationCard(
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ImportRelationRecordView(relation.primary, Modifier.weight(1f))
-                Text("→", color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.titleLarge)
+                Icon(
+                    painter = painterResource(Res.drawable.ic_arrow_forward),
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 ImportRelationTarget(relation, draft, currentSecondary, rejected, Modifier.weight(1.1f), onCandidateSelected)
                 ImportStatusPill(
                     statusLabel,
@@ -897,12 +933,21 @@ private fun ImportStepper(
                             .testTag("${SemanticIds.importStepper}.$index.indicator"),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            if (done) "✓" else (index + 1).toString(),
-                            color = if (current || done) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
-                        )
+                        if (done) {
+                            Icon(
+                                painter = painterResource(Res.drawable.ic_check),
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White,
+                            )
+                        } else {
+                            Text(
+                                (index + 1).toString(),
+                                color = if (current) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                        }
                     }
                     Text(
                         label,

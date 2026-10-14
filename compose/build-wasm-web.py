@@ -328,13 +328,14 @@ def normalize_web_api_origin(api_origin: str) -> str:
     return candidate
 
 
-def configure_web_api_origin(config_path: Path, api_origin: str) -> None:
-    candidate = normalize_web_api_origin(api_origin)
-    if not config_path.is_file():
-        raise BuildError(f"Wasm 产物中未找到 config.js：{config_path}")
-    config = f"window.FT_API_ORIGIN = {json.dumps(candidate)};\n"
-    config_path.write_text(config, encoding="utf-8")
-    print("Configured Compose Web API origin from FT_API_ORIGIN.")
+def configure_web_api_origin(environment: dict[str, str]) -> str:
+    candidate = normalize_web_api_origin(environment.get("FT_API_ORIGIN", ""))
+    environment["FT_API_ORIGIN"] = candidate
+    return candidate
+
+
+def disable_compose_demo_mode(environment: dict[str, str]) -> None:
+    environment["FT_COMPOSE_DEMO_MODE"] = "false"
 
 
 def detect_architecture() -> str:
@@ -361,7 +362,8 @@ def main() -> int:
         cache_root = Path(cache_base) / "finance-tracker" / "jdks"
         cache_root.mkdir(parents=True, exist_ok=True)
         environment = os.environ.copy()
-        api_origin = normalize_web_api_origin(environment.get("FT_API_ORIGIN", ""))
+        disable_compose_demo_mode(environment)
+        configure_web_api_origin(environment)
 
         package = query_package(architecture)
         jdk_home = install_jdk(package, architecture, cache_root)
@@ -388,11 +390,7 @@ def main() -> int:
         )
         if result.returncode != 0:
             return result.returncode
-        config_path = (
-            script_dir
-            / "webApp/build/dist/wasmJs/productionExecutable/config.js"
-        )
-        configure_web_api_origin(config_path, api_origin)
+        print("Compose Web API origin is compiled into shared BuildKonfig.")
         return 0
     except BuildError as error:
         print(f"build-wasm-web: {error}", file=sys.stderr)

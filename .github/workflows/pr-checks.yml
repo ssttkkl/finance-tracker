@@ -38,7 +38,7 @@ jobs:
         run: python3 scripts/generate_ui_tokens.py
 
       - name: Check generated UI tokens
-        run: git diff --exit-code -- compose/shared/src/commonMain/kotlin/com/finance/tracker/core/design/GeneratedTokens.kt design/generated/pen-variables.json
+        run: git diff --exit-code -- compose/shared/src/commonMain/kotlin/com/finance/tracker/core/design/GeneratedTokens.kt
 
       - name: Set up Java
         uses: actions/setup-java@v5
@@ -54,6 +54,22 @@ jobs:
       - name: Build Compose Web distribution
         working-directory: compose
         run: ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache
+
+      - name: Verify normal Web build keeps demo mode off
+        run: grep -Fq 'COMPOSE_DEMO_MODE: Boolean = false' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
+
+      - name: Build Compose offline demo distribution
+        working-directory: compose
+        run: FT_COMPOSE_DEMO_MODE=true ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache
+
+      - name: Verify Web demo build enables demo mode
+        run: grep -Fq 'COMPOSE_DEMO_MODE: Boolean = true' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
+
+      - name: Check production Compose Web demo boundary
+        run: python3 compose/tests/test_build_wasm_web.py
+
+      - name: Check live and offline Compose preview servers
+        run: node --test web/tests/compose-preview-proxy.node-test.mjs
 
   backend-sqlite:
     name: Backend (SQLite)
