@@ -4,7 +4,7 @@ Render 的构建环境可能没有预装 Java，因此直接运行 Gradle Wrappe
 
 ## What Changes
 
-- 新增 Compose Web 构建脚本：查询 Azul Zulu JDK 21 最新 GA 包，校验 SHA-256，并将解压后的 JDK 缓存到 `$XDG_CACHE_HOME`。
+- 新增 Compose Web 构建入口与 Python 引导程序：查询 Azul Zulu JDK 21 GA 包，读取 Foojay 提供的 SHA-256 或校验文件 URI，校验下载后缓存到 `$XDG_CACHE_HOME`。
 - 脚本设置 `JAVA_HOME` 后运行 `:webApp:wasmJsBrowserDistribution`。
 - 在 `compose/README.md` 记录 Render 的根目录和构建命令。
 
@@ -14,7 +14,7 @@ Render 的构建环境可能没有预装 Java，因此直接运行 Gradle Wrappe
 
 ## Impact
 
-- 影响 `compose/build-wasm-web.sh` 和 `compose/README.md`。
-- 使用系统已有的 Python 3、`curl`、`tar` 和 SHA-256 工具；不新增依赖。
+- 影响 `compose/build-wasm-web.sh`、`compose/build-wasm-web.py`、`compose/tests/test_build_wasm_web.py` 和 `compose/README.md`。
+- 使用系统已有的 Python 3 与 `tar`；不新增依赖。
 - 不修改现有 `render.yaml`，该文件仍用于仓库中的 `web/` 服务。
 - 回滚时删除构建脚本及对应 README 说明即可；不修改应用数据或 Render 服务配置。
