@@ -44,6 +44,7 @@ _TARGETED_TRANSFER_SUBTYPES = frozenset({
 })
 _TARGETED_TRANSFER_WINDOW_SECONDS = 7 * 24 * 60 * 60
 _TARGETED_TRANSFER_DAY_PAD = _TARGETED_TRANSFER_WINDOW_SECONDS // (24 * 60 * 60)
+_TRANSFER_PAIR_MATCH_WINDOW_SECONDS = 5 * 60
 
 
 def _full_account_identifier(value: str) -> str:
@@ -271,7 +272,7 @@ def evaluate_transfer_pair(
             continue
         if _abs_decimal(seed.signed_amount) != _abs_decimal(candidate.signed_amount):
             continue
-        if _time_delta_seconds(seed.occurred_at, candidate.occurred_at) > 5 * 60:
+        if _time_delta_seconds(seed.occurred_at, candidate.occurred_at) > _TRANSFER_PAIR_MATCH_WINDOW_SECONDS:
             continue
         account_eligible, account_unique = _candidate_matches_counterparty_account(
             seed,
@@ -452,6 +453,11 @@ def match_transfer_pairs_phase_c(
     ]
     by_id = {fact.id: fact for fact in active}
     selected = {str(item) for item in seed_ids} if seed_ids is not None else None
+    selected_positive_ids = {
+        str(fact.id) for fact in active
+        if selected is not None and str(fact.id) in selected and fact.signed_amount > 0
+    }
+    candidate_index = index or FactCandidateIndex(active)
     proposals = match_normalized_subtype_transfers(
         active,
         seed_ids=seed_ids,
@@ -469,26 +475,25 @@ def match_transfer_pairs_phase_c(
         if seed.id in used or seed.signed_amount >= 0:
             continue
         seed_selected = selected is None or str(seed.id) in selected
-        others = [fact for fact in active if fact.id != seed.id and fact.id not in used]
-        if not seed_selected:
-            # A newly imported positive repayment/transfer may be the only
-            # selected endpoint.  Evaluate the existing negative side against
-            # the complete candidate pool so the result preserves the same
-            # uniqueness semantics as an outgoing seed; only retain a proposal
-            # when the selected positive endpoint participates in it.
-            selected_positive_ids = {
-                str(fact.id)
-                for fact in active
-                if str(fact.id) in selected and fact.signed_amount > 0
-            }
-            if not selected_positive_ids:
-                continue
+        candidate_window = (
+            PERSONAL_FX_STRONG_SECONDS
+            if str(seed.record_subtype or "") == "currency_exchange"
+            else _TRANSFER_PAIR_MATCH_WINDOW_SECONDS
+        )
+        candidates = candidate_index.transfer_pair_candidates(
+            seed, window_seconds=candidate_window,
+        )
+        candidates = [fact for fact in candidates if fact.id not in used]
+        if not seed_selected and (
+            not selected_positive_ids
+            or not any(str(candidate.id) in selected_positive_ids for candidate in candidates)
+        ):
+            continue
         if str(seed.record_subtype or "") == "currency_exchange":
-            proposal = match_personal_fx_exchange(seed, others)
+            proposal = match_personal_fx_exchange(seed, candidates)
         else:
             proposal = evaluate_transfer_pair(
-                seed,
-                others,
+                seed, candidates,
                 account_identifiers_by_value=account_identifiers_by_value,
                 card_tails_by_value=card_tails_by_value,
             )

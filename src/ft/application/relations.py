@@ -557,6 +557,90 @@ def _projection_relation_key(payload: Mapping[str, Any]) -> tuple:
     return kind, str(payload.get("subtype") or ""), *endpoints
 
 
+def _localized_projection_validation_inputs(
+    context: ProjectionValidationContext,
+    accepted_relations: Sequence[Mapping[str, Any]],
+    accepted_companions: Sequence[RelationProposal],
+    proposal: RelationProposal,
+) -> tuple[
+    tuple[Mapping[str, Any], ...],
+    tuple[RelationProposal, ...],
+    ProjectionValidationContext,
+] | None:
+    """Limit one pending-candidate check to the accepted components it joins."""
+    component_to_parent = dict(context.component_to_parent)
+    relation_rows: list[tuple[Mapping[str, Any], int, int]] = []
+    proposal_edges: list[tuple[RelationProposal, int, int]] = []
+    edges: list[tuple[int, int]] = []
+
+    for relation in accepted_relations:
+        if relation.get("status") != RelationStatus.ACCEPTED.value:
+            continue
+        payload = _projection_relation_payload_from_row(relation)
+        primary = component_to_parent.get(str(payload.get("primary_fact_id") or ""))
+        secondary = component_to_parent.get(str(payload.get("secondary_fact_id") or ""))
+        if primary is None or secondary is None:
+            return None
+        relation_rows.append((relation, primary, secondary))
+        edges.append((primary, secondary))
+
+    for companion in accepted_companions:
+        if companion.secondary_fact_id in (None, "") or companion.open_leg:
+            continue
+        primary = component_to_parent.get(str(companion.primary_fact_id))
+        secondary = component_to_parent.get(str(companion.secondary_fact_id))
+        if primary is None or secondary is None:
+            return None
+        proposal_edges.append((companion, primary, secondary))
+        edges.append((primary, secondary))
+
+    candidate_primary = component_to_parent.get(str(proposal.primary_fact_id))
+    candidate_secondary = component_to_parent.get(str(proposal.secondary_fact_id or ""))
+    if candidate_primary is None or candidate_secondary is None:
+        return None
+
+    adjacency: dict[int, set[int]] = defaultdict(set)
+    for primary, secondary in edges:
+        adjacency[primary].add(secondary)
+        adjacency[secondary].add(primary)
+
+    def connected_component(start: int) -> set[int]:
+        reached: set[int] = set()
+        pending = [start]
+        while pending:
+            current = pending.pop()
+            if current in reached:
+                continue
+            reached.add(current)
+            pending.extend(adjacency[current] - reached)
+        return reached
+
+    affected_parents = connected_component(candidate_primary)
+    affected_parents.update(connected_component(candidate_secondary))
+    local_relations = tuple(
+        relation
+        for relation, primary, secondary in relation_rows
+        if primary in affected_parents and secondary in affected_parents
+    )
+    local_companions = tuple(
+        companion
+        for companion, primary, secondary in proposal_edges
+        if primary in affected_parents and secondary in affected_parents
+    )
+    local_projection_facts = tuple(
+        fact
+        for fact in context.projection_facts
+        if fact.id in affected_parents
+    )
+    if {fact.id for fact in local_projection_facts} != affected_parents:
+        return None
+    return (
+        local_relations,
+        local_companions,
+        replace(context, projection_facts=local_projection_facts),
+    )
+
+
 def _build_projection_validation_context(
     facts: Sequence[FactView],
 ) -> ProjectionValidationContext:
@@ -754,19 +838,33 @@ def _filter_illegal_automatic_proposals(
         and item.secondary_fact_id not in (None, "")
         and not item.open_leg
     )
+    accepted_batch_reason = None
+    if accepted_batch:
+        # Every accepted proposal is checked against this same complete batch,
+        # so its projection validation result is identical for each member.
+        accepted_batch_reason = _projection_validation_reason(
+            facts,
+            active_relations,
+            accepted_batch[0],
+            accepted_batch,
+            validation_context=validation_context,
+        )
     filtered: list[RelationProposal] = []
     for proposal in proposals:
         if proposal.created_by != "system" or proposal.secondary_fact_id in (None, "") or proposal.open_leg:
             filtered.append(proposal)
             continue
-        companions = accepted_batch if proposal.status == RelationStatus.ACCEPTED.value else (*accepted_batch, proposal)
-        reason = _projection_validation_reason(
-            facts,
-            active_relations,
-            proposal,
-            companions,
-            validation_context=validation_context,
-        )
+        is_accepted_batch_member = proposal.status == RelationStatus.ACCEPTED.value
+        if is_accepted_batch_member:
+            reason = accepted_batch_reason
+        else:
+            reason = _projection_validation_reason(
+                facts,
+                active_relations,
+                proposal,
+                (*accepted_batch, proposal),
+                validation_context=validation_context,
+            )
         if reason is not None:
             _warn_illegal_automatic_proposal(
                 proposal,
@@ -797,24 +895,24 @@ def _validate_automatic_replacement_batch(
         and not proposal.open_leg
     )
     validation_context = validation_context or _build_projection_validation_context(facts)
-    for proposal in replacements:
-        reason = _projection_validation_reason(
-            facts,
-            accepted_relations,
-            proposal,
-            replacements,
-            validation_context=validation_context,
-        )
-        if reason is None:
-            continue
-        _warn_illegal_automatic_proposal(
-            proposal,
-            facts,
-            reason=reason,
-            workspace_id=workspace_id,
-        )
-        return False
-    return True
+    if not replacements:
+        return True
+    reason = _projection_validation_reason(
+        facts,
+        accepted_relations,
+        replacements[0],
+        replacements,
+        validation_context=validation_context,
+    )
+    if reason is None:
+        return True
+    _warn_illegal_automatic_proposal(
+        replacements[0],
+        facts,
+        reason=reason,
+        workspace_id=workspace_id,
+    )
+    return False
 
 
 def _append_relation_edge(context: MatchContext, relation: dict) -> None:
@@ -1184,11 +1282,14 @@ class RelationService:
         for proposal in canonical:
             if proposal.status != RelationStatus.ACCEPTED.value:
                 continue
-            outcome = self._persist_automatic_proposal(
+            # The complete accepted replacement set passed projection
+            # validation above.  Persist each member without repeating that
+            # same full-graph validation; accepted_relations only gains edges
+            # already present in the validated replacement set.
+            outcome = self._persist_proposal(
                 uow,
                 proposal,
                 {},
-                facts=facts,
                 accepted_relations=accepted_relations,
             )
             if outcome is not None and outcome.get("status") == RelationStatus.ACCEPTED.value:
@@ -1610,6 +1711,8 @@ class RelationService:
         uow,
         facts: Sequence[FactView],
         proposals: Sequence[RelationProposal],
+        *,
+        validation_context: ProjectionValidationContext | None = None,
     ) -> None:
         """Reject a stale cached graph before any relation write is possible."""
         accepted_relations = [
@@ -1617,7 +1720,26 @@ class RelationService:
             for item in uow.relations.list_active()
             if item.get("status") == RelationStatus.ACCEPTED.value
         ]
-        validation_context = _build_projection_validation_context(facts)
+        validation_context = validation_context or _build_projection_validation_context(facts)
+        accepted_companions = tuple(
+            item
+            for item in proposals
+            if (
+                item.created_by == "system"
+                and item.status == RelationStatus.ACCEPTED.value
+                and item.secondary_fact_id not in (None, "")
+                and not item.open_leg
+            )
+        )
+        accepted_batch_reason = None
+        if accepted_companions:
+            accepted_batch_reason = _projection_validation_reason(
+                facts,
+                accepted_relations,
+                accepted_companions[0],
+                accepted_companions,
+                validation_context=validation_context,
+            )
         for proposal in proposals:
             if (
                 proposal.created_by != "system"
@@ -1625,25 +1747,32 @@ class RelationService:
                 or proposal.open_leg
             ):
                 continue
-            companions = tuple(
-                item
-                for item in proposals
-                if (
-                    item.created_by == "system"
-                    and item.status == RelationStatus.ACCEPTED.value
-                    and item.secondary_fact_id not in (None, "")
-                    and not item.open_leg
+            if proposal.status == RelationStatus.ACCEPTED.value:
+                reason = accepted_batch_reason
+            else:
+                localized = _localized_projection_validation_inputs(
+                    validation_context,
+                    accepted_relations,
+                    accepted_companions,
+                    proposal,
                 )
-            )
-            if proposal.status != RelationStatus.ACCEPTED.value:
-                companions = (*companions, proposal)
-            reason = _projection_validation_reason(
-                facts,
-                accepted_relations,
-                proposal,
-                companions,
-                validation_context=validation_context,
-            )
+                if localized is None:
+                    reason = _projection_validation_reason(
+                        facts,
+                        accepted_relations,
+                        proposal,
+                        (*accepted_companions, proposal),
+                        validation_context=validation_context,
+                    )
+                else:
+                    local_relations, local_companions, local_context = localized
+                    reason = _projection_validation_reason(
+                        facts,
+                        local_relations,
+                        proposal,
+                        (*local_companions, proposal),
+                        validation_context=local_context,
+                    )
             if reason is None:
                 continue
             _warn_illegal_automatic_proposal(
@@ -1832,6 +1961,7 @@ class RelationService:
         accepted_relations: Sequence[dict],
         *,
         skip_refund_ids: set[str] | None = None,
+        proposed_pairs_only: bool = False,
     ) -> set[tuple[str, str]]:
         """Retire an automatic bank refund after its platform pair is known.
 
@@ -1906,19 +2036,44 @@ class RelationService:
                 pair = (str(expense.id), str(refund.id))
                 platform_refund_pairs[pair] = (expense, refund)
 
-        for relation in accepted_for_helper:
+        if not proposed_pairs_only:
+            for relation in accepted_for_helper:
+                if (
+                    relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                    and relation.get("status") == RelationStatus.ACCEPTED.value
+                ):
+                    add_refund_pair(
+                        relation.get("primary_fact_id"),
+                        relation.get("secondary_fact_id"),
+                    )
+
+        def is_direct_system_bank_refund_for_pair(relation, pair, platform_refund) -> bool:
+            secondary_id = str(relation.get("secondary_fact_id") or "")
+            bank_refund = by_id.get(secondary_id)
             if (
-                relation.get("kind") == RelationKind.REFUND_OFFSET.value
-                and relation.get("status") == RelationStatus.ACCEPTED.value
+                relation.get("kind") != RelationKind.REFUND_OFFSET.value
+                or relation.get("status") != RelationStatus.ACCEPTED.value
+                or relation.get("created_by") != "system"
+                or _is_human_decision(relation)
+                or str(relation.get("primary_fact_id") or "") != pair[0]
+                or bank_refund is None
+                or source_group(bank_refund) != "bank"
+                or bank_refund.signed_amount <= 0
             ):
-                add_refund_pair(relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                return False
+            # A provisional bank edge can be replaced when the refund rows
+            # are already mirrored, or when their exact amounts identify the
+            # same refund.  Sharing only the expense is not enough evidence.
+            refund_component = components.get(pair[1], frozenset())
+            return (
+                secondary_id in refund_component
+                or bank_refund.signed_amount == abs(platform_refund.signed_amount)
+            )
+
         for proposal in proposals:
             if (
                 proposal.kind == RelationKind.REFUND_OFFSET.value
-                and proposal.status in {
-                    RelationStatus.ACCEPTED.value,
-                    RelationStatus.PENDING_REVIEW.value,
-                }
+                and proposal.status == RelationStatus.ACCEPTED.value
                 and proposal.rule_id.startswith("scan.")
                 and str(proposal.secondary_fact_id or "") not in skip_refund_ids
             ):
@@ -1943,14 +2098,9 @@ class RelationService:
                 for fact_id in refund_component
             )
             has_direct_system_bank_refund = any(
-                relation.get("kind") == RelationKind.REFUND_OFFSET.value
-                and relation.get("status") == RelationStatus.ACCEPTED.value
-                and relation.get("created_by") == "system"
-                and not _is_human_decision(relation)
-                and str(relation.get("primary_fact_id") or "") == pair[0]
-                and str(relation.get("secondary_fact_id") or "") in by_id
-                and source_group(by_id[str(relation.get("secondary_fact_id"))]) == "bank"
-                and by_id[str(relation.get("secondary_fact_id"))].signed_amount > 0
+                is_direct_system_bank_refund_for_pair(
+                    relation, pair, platform_refund,
+                )
                 for relation in accepted_for_helper
             )
             if (has_bank_expense and has_bank_refund) or has_direct_system_bank_refund:
@@ -1961,10 +2111,61 @@ class RelationService:
         if not platform_refund_pairs:
             return set()
 
-        # The accepted platform refund may still be a proposal in this import
-        # batch.  Persist it before retiring the provisional bank edge so the
-        # audit trail can point at the exact replacement relation.
+        replaceable_pairs_by_relation_id: dict[str, set[tuple[str, str]]] = defaultdict(set)
+        replaceable_bank_refunds_by_pair: dict[tuple[str, str], list[dict]] = defaultdict(list)
+        for pair, (platform_expense, platform_refund) in platform_refund_pairs.items():
+            expense_component = components.get(str(platform_expense.id), frozenset())
+            refund_component = components.get(str(platform_refund.id), frozenset())
+            for relation in accepted_for_helper:
+                if is_direct_system_bank_refund_for_pair(
+                    relation, pair, platform_refund,
+                ):
+                    candidate = True
+                else:
+                    primary_id = str(relation.get("primary_fact_id") or "")
+                    secondary_id = str(relation.get("secondary_fact_id") or "")
+                    primary_fact = by_id.get(primary_id)
+                    secondary_fact = by_id.get(secondary_id)
+                    candidate = (
+                        relation.get("kind") == RelationKind.REFUND_OFFSET.value
+                        and relation.get("status") == RelationStatus.ACCEPTED.value
+                        and relation.get("created_by") == "system"
+                        and not _is_human_decision(relation)
+                        and primary_fact is not None
+                        and primary_fact.signed_amount < 0
+                        and primary_id in expense_component
+                        and secondary_fact is not None
+                        and source_group(secondary_fact) == "bank"
+                        and secondary_fact.signed_amount > 0
+                        and secondary_id in refund_component
+                    )
+                if not candidate:
+                    continue
+                relation_id = str(relation.get("id") or "")
+                if not str(relation.get("secondary_fact_id") or "") or not relation_id:
+                    continue
+                replaceable_pairs_by_relation_id[relation_id].add(pair)
+                replaceable_bank_refunds_by_pair[pair].append(relation)
+
+        superseded_pairs: set[tuple[str, str]] = set()
+        replaceable_bank_refund_relation_ids: set[str] = set()
+        # Retire a uniquely identified provisional edge before adding its
+        # platform replacement.  The repository enforces refund capacity
+        # against active relations, so the replacement must see that capacity
+        # as free while it is inserted.
         for pair in platform_refund_pairs:
+            candidates = replaceable_bank_refunds_by_pair.get(pair, ())
+            # Replacement needs a one-to-one match.  A bank refund must not
+            # match multiple platform pairs, and a platform pair must not
+            # absorb multiple equally plausible bank refunds. Track relation
+            # IDs here so the later history pass cannot bypass this check.
+            replaceable_bank_refunds = []
+            if len(candidates) == 1:
+                candidate = candidates[0]
+                candidate_id = str(candidate.get("id") or "")
+                if len(replaceable_pairs_by_relation_id.get(candidate_id, ())) == 1:
+                    replaceable_bank_refunds = [candidate]
+                    replaceable_bank_refund_relation_ids.add(candidate_id)
             existing = next(
                 (
                     relation for relation in accepted_for_helper
@@ -1984,10 +2185,7 @@ class RelationService:
                     item for item in proposals
                     if (
                         item.kind == RelationKind.REFUND_OFFSET.value
-                        and item.status in {
-                            RelationStatus.ACCEPTED.value,
-                            RelationStatus.PENDING_REVIEW.value,
-                        }
+                        and item.status == RelationStatus.ACCEPTED.value
                         and item.rule_id.startswith("scan.")
                         and str(item.secondary_fact_id or "") not in skip_refund_ids
                         and str(item.primary_fact_id) == pair[0]
@@ -1998,22 +2196,53 @@ class RelationService:
             )
             if proposal is None:
                 continue
-            persistable_proposal = (
-                replace(proposal, status=RelationStatus.ACCEPTED.value)
-                if proposal.status == RelationStatus.PENDING_REVIEW.value
-                else proposal
-            )
+            persistable_proposal = proposal
+            for relation in replaceable_bank_refunds:
+                uow.relations.update_status(
+                    relation["id"],
+                    status=RelationStatus.SUPERSEDED.value,
+                    decided_by="system",
+                )
+            if replaceable_bank_refunds:
+                replaced_ids = {
+                    str(relation["id"]) for relation in replaceable_bank_refunds
+                }
+                accepted_for_helper = [
+                    relation for relation in accepted_for_helper
+                    if str(relation.get("id") or "") not in replaced_ids
+                ]
+            remaining_after_replacement = self._refund_remaining(uow, list(facts))
             created = self._persist_automatic_proposal(
                 uow,
                 persistable_proposal,
-                {},
+                remaining_after_replacement,
                 facts=facts,
                 accepted_relations=accepted_for_helper,
                 validation_proposals=proposals,
             )
             if created is not None and created.get("status") == RelationStatus.ACCEPTED.value:
+                for relation in replaceable_bank_refunds:
+                    uow.relations.update_status(
+                        relation["id"],
+                        status=RelationStatus.SUPERSEDED.value,
+                        decided_by="system",
+                        decision_reason="superseded_by_cross_source_refund",
+                        superseded_by_id=created["id"],
+                    )
+                    superseded_pairs.add((
+                        str(relation.get("primary_fact_id") or ""),
+                        str(relation.get("secondary_fact_id") or ""),
+                    ))
                 accepted_for_helper.append(created)
                 platform_relation_ids[pair] = str(created["id"])
+            elif replaceable_bank_refunds:
+                for relation in replaceable_bank_refunds:
+                    uow.relations.update_status(
+                        relation["id"],
+                        status=RelationStatus.ACCEPTED.value,
+                        decided_by="system",
+                    )
+                    accepted_for_helper.append(relation)
 
         bank_refund_ids: set[str] = set()
         bank_refund_to_platform_relations: dict[str, set[str]] = defaultdict(set)
@@ -2050,19 +2279,21 @@ class RelationService:
                     and not _is_human_decision(relation)
                     and str(relation.get("primary_fact_id") or "") == pair[0]
                     and secondary_id in by_id
-                    and source_group(by_id[secondary_id]) == "bank"
-                    and by_id[secondary_id].signed_amount > 0
+                    and is_direct_system_bank_refund_for_pair(
+                        relation, pair, platform_refund,
+                    )
                 ):
                     bank_refund_to_platform_relations[secondary_id].add(platform_relation_id)
                     bank_refund_ids.add(secondary_id)
 
-        superseded_pairs: set[tuple[str, str]] = set()
         for relation in accepted_for_helper:
             if (
                 relation.get("kind") != RelationKind.REFUND_OFFSET.value
                 or relation.get("status") != RelationStatus.ACCEPTED.value
                 or relation.get("created_by") != "system"
                 or _is_human_decision(relation)
+                or str(relation.get("id") or "")
+                not in replaceable_bank_refund_relation_ids
             ):
                 continue
             primary = by_id.get(str(relation.get("primary_fact_id") or ""))
@@ -2104,7 +2335,13 @@ class RelationService:
         if not plan_digest or (expected_digest is not None and plan_digest != str(expected_digest)):
             raise ValueError("import_relation_reconfirmation_required")
         facts, proposals = self._cached_proposals_in_uow(uow, cached_plan)
-        self._validate_cached_plan_legality_in_uow(uow, facts, proposals)
+        validation_context = _build_projection_validation_context(facts)
+        self._validate_cached_plan_legality_in_uow(
+            uow,
+            facts,
+            proposals,
+            validation_context=validation_context,
+        )
         if relation_decisions is not None and not isinstance(relation_decisions, (list, tuple)):
             raise ValueError("import_relation_candidate_invalid")
         decisions = list(relation_decisions or ())
@@ -2142,7 +2379,6 @@ class RelationService:
         affected: set[int] = set()
         accepted_decisions: list[dict] = []
         pre_persisted_rejection_keys: set[str] = set()
-        protected_mirror_fact_ids: set[str] = set()
         for proposal in proposals:
             proposal_key = relation_proposal_key(proposal, facts)
             decision = decisions_by_key.get(proposal_key)
@@ -2152,37 +2388,18 @@ class RelationService:
                 outcome = self._persist_rejected_proposal(uow, proposal)
                 created.append(outcome)
                 pre_persisted_rejection_keys.add(proposal_key)
-                continue
-            endpoints = self._decision_mirror_endpoints(proposal, decision, facts)
-            if endpoints is not None:
-                protected_mirror_fact_ids.update(endpoints)
         accepted_relations = [
             dict(item)
             for item in uow.relations.list_active()
             if item.get("status") == RelationStatus.ACCEPTED.value
         ]
-        affected.update(self._reconcile_system_payment_mirrors(
-            uow,
-            facts,
-            protected_fact_ids=protected_mirror_fact_ids,
-        ))
-        accepted_relations = [
-            dict(item)
-            for item in uow.relations.list_active()
-            if item.get("status") == RelationStatus.ACCEPTED.value
-        ]
-        refund_affected, superseded_bank_refunds = self._reconcile_system_refund_offsets(
-            uow, facts, skip_refund_ids=blocked_refund_ids,
-        )
-        affected.update(refund_affected)
-        accepted_relations = [
-            dict(item)
-            for item in uow.relations.list_active()
-            if item.get("status") == RelationStatus.ACCEPTED.value
-        ]
-        superseded_bank_refunds |= self._supersede_redundant_bank_refunds(
+        # Only explicit cached platform-refund proposals may replace old
+        # system bank edges.  Confirmation does not rescan unrelated ledger
+        # facts or revise their automatic relationships.
+        superseded_bank_refunds = self._supersede_redundant_bank_refunds(
             uow, facts, proposals, accepted_relations,
             skip_refund_ids=blocked_refund_ids,
+            proposed_pairs_only=True,
         )
         for primary_id, secondary_id in superseded_bank_refunds:
             affected.update(
@@ -2196,6 +2413,25 @@ class RelationService:
             for item in uow.relations.list_active()
             if item.get("status") == RelationStatus.ACCEPTED.value
         ]
+        shared_validation_proposal = next(
+            (
+                proposal
+                for proposal in proposals
+                if proposal.secondary_fact_id not in (None, "") and not proposal.open_leg
+            ),
+            None,
+        )
+        shared_validation_reason = (
+            _projection_validation_reason(
+                facts,
+                accepted_relations,
+                shared_validation_proposal,
+                proposals,
+                validation_context=validation_context,
+            )
+            if shared_validation_proposal is not None
+            else None
+        )
         for proposal in proposals:
             if (
                 proposal.kind == RelationKind.REFUND_OFFSET.value
@@ -2219,14 +2455,29 @@ class RelationService:
                     continue
                 # Skipped/ignored suggestions retain the normal pending or
                 # automatic cache behaviour below.
-            outcome = self._persist_automatic_proposal(
-                uow,
-                proposal,
-                remaining,
-                facts=facts,
-                accepted_relations=accepted_relations,
-                validation_proposals=proposals,
-            )
+            if (
+                proposal.secondary_fact_id not in (None, "")
+                and not proposal.open_leg
+                and shared_validation_reason is not None
+            ):
+                _warn_illegal_automatic_proposal(
+                    proposal,
+                    facts,
+                    reason=shared_validation_reason,
+                    workspace_id=str(getattr(uow, "workspace_id", "") or ""),
+                )
+                outcome = None
+            else:
+                # This cached plan was validated as one complete graph above.
+                # Every member is already included in ``proposals``, so adding
+                # persisted members to accepted_relations does not change the
+                # relation keys represented by the shared validation result.
+                outcome = self._persist_proposal(
+                    uow,
+                    proposal,
+                    remaining,
+                    accepted_relations=accepted_relations,
+                )
             if outcome is None:
                 continue
             created.append(outcome)
@@ -2247,15 +2498,6 @@ class RelationService:
                             remaining.get(expense_id, Decimal("0"))
                             - abs(refund_fact.signed_amount)
                         )
-        # The seed-scoped plan may contain a pending mirror that is not part
-        # of the canonical all-source assignment. Clean those stale system
-        # suggestions after applying the plan, before returning to the import
-        # service for explicit human decisions.
-        affected.update(self._reconcile_system_payment_mirrors(
-            uow,
-            facts,
-            protected_fact_ids=protected_mirror_fact_ids,
-        ))
         return created, affected, accepted_decisions
 
     def apply_import_plan_in_uow(

@@ -423,6 +423,46 @@ def test_cash_import_previews_composite_alipay_rows_but_blocks_unallocated_confi
         assert rows == []
 
 
+def test_relation_preview_skips_composite_rows_without_exact_allocations(tmp_path, monkeypatch):
+    from ft.adapters.relational.models import AccountModel
+    from ft.application.relations import RelationService
+
+    sessions, service = _service(tmp_path, {"alipay": []})
+    service._relation_service = RelationService(service._uow)
+    row = _row(
+        record_id="unallocated-composite",
+        amount="-30.00",
+        account_name="支付宝余额",
+        component_allocation={
+            "status": "requires_allocation",
+            "components": [
+                {"account_key": "alipay:余额", "amount": None},
+                {"account_key": "ccb_debit:1234", "amount": None},
+            ],
+        },
+    )
+
+    def unexpected_plan(*_args, **_kwargs):
+        pytest.fail("unallocated component amounts must not reach relation planning")
+
+    monkeypatch.setattr(service._relation_service, "plan_in_uow", unexpected_plan)
+    with service._uow as uow:
+        account = uow._state().session.query(AccountModel).filter_by(
+            workspace_id="wizard-workspace", name="支付宝余额",
+        ).one()
+        relations, digest, plan = service._preview_relation_suggestions(
+            uow,
+            prepared=[(row, "unallocated-composite")],
+            items_by_id={},
+            channel="alipay",
+            accounts_by_name={"支付宝余额": account},
+        )
+
+    assert relations == []
+    assert digest == ""
+    assert plan is None
+
+
 def test_cash_import_blocks_file_with_only_unallocated_alipay_rows_without_writes(tmp_path):
     from ft.adapters.relational.models import AccountModel, CashTransactionModel, StatementAccountMappingModel
 
@@ -837,6 +877,16 @@ def test_session_commit_applies_cached_preview_plan_without_replanning(tmp_path,
         raise AssertionError("confirmation must apply the cached preview plan")
 
     monkeypatch.setattr(cash_import._relation_service, "plan_in_uow", must_not_replan)
+    monkeypatch.setattr(
+        cash_import._relation_service,
+        "_reconcile_system_payment_mirrors",
+        must_not_replan,
+    )
+    monkeypatch.setattr(
+        cash_import._relation_service,
+        "_reconcile_system_refund_offsets",
+        must_not_replan,
+    )
     result = service.commit_import_session(
         scan["import_token"],
         preview_relation_digest=preview["relation_digest"],
@@ -1707,6 +1757,137 @@ def test_cash_import_batch_matches_relations_across_all_files(tmp_path):
     assert {relation["primary"]["relation_ref"], relation["secondary"]["relation_ref"]} == {
         "alipay:expense-from-alipay", "wechat:refund-from-wechat",
     }
+
+
+def test_cash_import_replaces_direct_bank_refund_before_persisting_platform_refund(tmp_path):
+    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.application.cash_import_session import CashImportSessionService
+    from ft.application.cash_import_staging import InMemoryImportStagingStore
+    from ft.application.relations import RelationService
+
+    platform_rows = [
+        _row(
+            record_id="platformorder_refund",
+            occurred_at="2024-04-20T11:00:03+08:00",
+            amount="10.00",
+            counterparty="商家A",
+            note="退款",
+            payment_method="账户余额",
+            record_type="refund",
+            category="退款",
+            source_payload={"txn_id": "platformorder_refund", "status": "退款成功"},
+        ),
+    ]
+    sessions, cash_import = _service(tmp_path, {"alipay": platform_rows})
+    cash_import._relation_service = RelationService(cash_import._uow)
+
+    with cash_import._uow as uow:
+        bank_expense_id = uow.cashflows.add("cash", {
+            "occurred_at": "2024-04-17T10:00:00+08:00",
+            "amount": "-10.00",
+            "currency": "CNY",
+            "counterparty": "商家A",
+            "note": "消费",
+            "record_type": "consumption",
+            "account_name": "支付宝余额",
+            "source_type": "ccb_debit",
+            "bill_source": "ccb_debit",
+            "record_id": "bank-order",
+            "source_payload": {"金额": "10.00"},
+        })
+        bank_refund_id = uow.cashflows.add("cash", {
+            "occurred_at": "2024-04-20T11:00:00+08:00",
+            "amount": "10.00",
+            "currency": "CNY",
+            "counterparty": "商家A",
+            "note": "消费退货",
+            "record_type": "refund",
+            "account_name": "支付宝余额",
+            "source_type": "ccb_debit",
+            "bill_source": "ccb_debit",
+            "record_id": "bank-order-refund",
+            "source_payload": {"金额": "10.00"},
+        })
+        platform_expense_id = uow.cashflows.add("cash", {
+            "occurred_at": "2024-04-17T10:00:03+08:00",
+            "amount": "-10.00",
+            "currency": "CNY",
+            "counterparty": "商家A",
+            "note": "平台消费",
+            "record_type": "consumption",
+            "account_name": "支付宝余额",
+            "source_type": "alipay",
+            "bill_source": "alipay",
+            "record_id": "platformorder",
+            "source_payload": {"txn_id": "platformorder", "status": "交易成功"},
+        })
+        uow.commit()
+
+    assert cash_import._relation_service.check(
+        seed_fact_ids=[platform_expense_id], trigger="import_batch",
+    ).ok
+    with sessions() as session:
+        old_refund_relation_id = session.query(TransactionRelationModel.id).filter_by(
+            workspace_id="wizard-workspace",
+            kind="refund_offset",
+            status="accepted",
+        ).scalar()
+    assert old_refund_relation_id is not None
+
+    source = tmp_path / "alipay.csv"
+    source.write_bytes(b"alipay import fixture")
+    import_service = CashImportSessionService(
+        cash_import,
+        InMemoryImportStagingStore(),
+        workspace_id="wizard-workspace",
+        user_id="user-a",
+    )
+    scan = import_service.scan_import_batch([{
+        "filename": source.name,
+        "content": source.read_bytes(),
+        "source": "alipay",
+    }])
+    group = scan["groups"][0]
+    mapping = [{
+        "group_id": group["group_id"],
+        "account_id": scan["accounts"][0]["id"],
+        "mapping_revision": group["suggestion"]["mapping_revision"],
+    }]
+    preview = import_service.preview_import_batch_session(
+        scan["import_token"], mapping=mapping,
+    )
+    platform_refund_suggestions = [
+        item for item in preview["relations"]
+        if (
+            item["kind"] == "refund_offset"
+            and item["primary"]["record_id"] == "platformorder"
+            and item["secondary"]["record_id"] == "platformorder_refund"
+        )
+    ]
+    assert len(platform_refund_suggestions) == 1
+    assert platform_refund_suggestions[0]["status"] == "accepted"
+
+    result = import_service.commit_import_batch_session(
+        scan["import_token"],
+        preview_digest=preview["batch_digest"],
+        preview_relation_digest=preview["relation_digest"],
+        preview_channel=preview["channel"],
+        relation_decisions=[],
+        mapping=mapping,
+        idempotency_key="replace-bank-refund-with-platform-refund",
+    )
+
+    assert result["new_rows"] == 1
+    with sessions() as session:
+        old_bank_refund = session.get(TransactionRelationModel, old_refund_relation_id)
+        assert old_bank_refund.status == "superseded"
+        assert old_bank_refund.superseded_by_id is not None
+        assert session.query(CashTransactionModel).count() == 4
+        assert session.query(TransactionRelationModel).filter_by(
+            workspace_id="wizard-workspace",
+            kind="refund_offset",
+            status="accepted",
+        ).count() == 1
 
 
 def test_cash_import_batch_rolls_back_everything_when_final_commit_fails(tmp_path, monkeypatch):

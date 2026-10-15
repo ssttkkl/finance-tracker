@@ -28,6 +28,49 @@ def test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply
     assert result.member_ids == frozenset({1, 2, 3})
 
 
+def test_projection_builder_passes_only_component_relations_to_each_group(monkeypatch):
+    from datetime import datetime, timezone
+    import ft.domain.cash_projection as cash_projection
+
+    def fact(identifier: int, amount: str):
+        return cash_projection.CashProjectionFact(
+            id=identifier,
+            account_id=101,
+            occurred_at=datetime(2026, 1, identifier, tzinfo=timezone.utc),
+            amount=Decimal(amount),
+            currency="CNY",
+            counterparty="独立流水",
+            category_id="category-fixture",
+            note="",
+            source_type="fixture",
+            record_id=f"component-{identifier}",
+        )
+
+    facts = (
+        fact(1, "-10"), fact(2, "10"),
+        fact(3, "-20"), fact(4, "20"),
+        fact(5, "-30"), fact(6, "5"),
+    )
+    relations = (
+        cash_projection.ProjectionRelation(1, "transfer_pair", 1, 2, subtype="ordinary_transfer"),
+        cash_projection.ProjectionRelation(2, "transfer_pair", 3, 4, subtype="ordinary_transfer"),
+    )
+    original = cash_projection._validate_group
+    received_relations = []
+
+    def capture(group, fact_by_id, component_relations):
+        received_relations.append((tuple(group), tuple(item.id for item in component_relations)))
+        return original(group, fact_by_id, component_relations)
+
+    monkeypatch.setattr(cash_projection, "_validate_group", capture)
+
+    result = cash_projection.build_cash_projections(facts, relations)
+
+    assert len(result.projections) == 4
+    assert sum(len(relation_ids) for _group, relation_ids in received_relations) == 2
+    assert sorted(relation_ids for _group, relation_ids in received_relations) == [(), (), (1,), (2,)]
+
+
 def test_payment_mirror_uses_primary_record_once_and_is_deterministic():
     first = _build("payment_mirror")
     second = _build("payment_mirror")

@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from ft.domain.relations import FactView, RelationStatus, match_transfer_pairs_phase_c
+from ft.domain.relations import FactCandidateIndex, FactView, RelationStatus, match_transfer_pairs_phase_c
+from ft.domain.relations.transfer import match as transfer_match
 
 
 def _fact(**kwargs) -> FactView:
@@ -112,3 +113,100 @@ def test_phase_c_selected_incoming_still_scans_existing_outgoing_counterpart():
     assert proposals[0].primary_fact_id == "out"
     assert proposals[0].secondary_fact_id == "in"
     assert proposals[0].status == RelationStatus.ACCEPTED.value
+
+
+def test_phase_c_limits_selected_incoming_scan_to_indexed_counterparts(monkeypatch):
+    outgoing = _fact(
+        id="out", amount="-100.00", account_id="source", occurred_at="2026-01-01 10:00:00",
+        record_type="repayment", record_subtype="credit_repayment",
+    )
+    incoming = _fact(
+        id="in", amount="100.00", account_id="target", occurred_at="2026-01-01 10:00:05",
+        record_type="repayment", record_subtype="credit_repayment",
+    )
+    unrelated = [
+        _fact(
+            id=f"noise-out-{index}", amount="-1.00", account_id="other",
+            occurred_at="2026-01-01 10:00:00", record_type="expense", record_subtype="consumption",
+        )
+        for index in range(40)
+    ] + [
+        _fact(
+            id=f"noise-in-{index}", amount="1.00", account_id="other",
+            occurred_at="2026-01-01 10:00:00", record_type="income", record_subtype="consumption",
+        )
+        for index in range(40)
+    ]
+    facts = [outgoing, incoming, *unrelated]
+    observed_candidate_ids = []
+    evaluate = transfer_match.evaluate_transfer_pair
+
+    def observe(seed, candidates, **kwargs):
+        observed_candidate_ids.append((seed.id, tuple(item.id for item in candidates)))
+        return evaluate(seed, candidates, **kwargs)
+
+    monkeypatch.setattr(transfer_match, "evaluate_transfer_pair", observe)
+    proposals = match_transfer_pairs_phase_c(
+        facts, index=FactCandidateIndex(facts), seed_ids=["in"],
+    )
+
+    assert [(item.primary_fact_id, item.secondary_fact_id) for item in proposals] == [("out", "in")]
+    assert observed_candidate_ids == [("out", ("in",))]
+
+
+def test_transfer_candidate_index_keeps_integer_second_window_boundaries():
+    outgoing = _fact(
+        id="out", amount="-100.00", account_id="source", occurred_at="2026-01-01 10:00:00",
+        record_type="repayment", record_subtype="credit_repayment",
+    )
+    within_window = _fact(
+        id="within", amount="100.00", account_id="target",
+        occurred_at="2026-01-01 10:05:00.900", record_type="repayment",
+        record_subtype="credit_repayment",
+    )
+    outside_window = _fact(
+        id="outside", amount="100.00", account_id="target",
+        occurred_at="2026-01-01 10:05:01", record_type="repayment",
+        record_subtype="credit_repayment",
+    )
+    wrong_amount = _fact(
+        id="amount", amount="101.00", account_id="target",
+        occurred_at="2026-01-01 10:00:01", record_type="repayment",
+        record_subtype="credit_repayment",
+    )
+    wrong_currency = _fact(
+        id="currency", amount="100.00", currency="USD", account_id="target",
+        occurred_at="2026-01-01 10:00:01", record_type="repayment",
+        record_subtype="credit_repayment",
+    )
+    wrong_subtype = _fact(
+        id="subtype", amount="100.00", account_id="target",
+        occurred_at="2026-01-01 10:00:01", record_type="repayment",
+        record_subtype="ordinary_transfer",
+    )
+    index = FactCandidateIndex([
+        outgoing, within_window, outside_window, wrong_amount, wrong_currency, wrong_subtype,
+    ])
+
+    assert index.transfer_pair_candidates(outgoing, window_seconds=300) == [within_window]
+
+
+def test_transfer_candidate_index_finds_personal_fx_incoming_within_window():
+    outgoing = _fact(
+        id="fx-out", amount="-100.00", currency="CNY", account_id="cash",
+        occurred_at="2026-01-01 10:00:00", record_type="fx_out",
+        record_subtype="currency_exchange",
+    )
+    within_window = _fact(
+        id="fx-in", amount="110.00", currency="HKD", account_id="cash",
+        occurred_at="2026-01-01 10:01:00.900", record_type="fx_in",
+        record_subtype="currency_exchange",
+    )
+    outside_window = _fact(
+        id="fx-late", amount="110.00", currency="HKD", account_id="cash",
+        occurred_at="2026-01-01 10:01:01", record_type="fx_in",
+        record_subtype="currency_exchange",
+    )
+    index = FactCandidateIndex([outgoing, within_window, outside_window])
+
+    assert index.transfer_pair_candidates(outgoing, window_seconds=60) == [within_window]

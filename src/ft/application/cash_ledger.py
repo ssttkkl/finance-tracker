@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64
@@ -1875,6 +1875,32 @@ class CashLedgerCommandService:
             "channel": channel,
         }
 
+    @staticmethod
+    def _component_allocation_is_relation_ready(row: dict) -> bool:
+        allocation = row.get("component_allocation")
+        if not isinstance(allocation, dict):
+            return True
+        if allocation.get("status") == "requires_allocation":
+            return False
+        components = allocation.get("components")
+        if not isinstance(components, (list, tuple)) or not components:
+            return False
+        try:
+            amounts = [
+                Decimal(str(component["amount"]))
+                for component in components
+                if isinstance(component, dict)
+            ]
+            if len(amounts) != len(components):
+                return False
+            parent_amount = Decimal(str(row["amount"]))
+        except (KeyError, InvalidOperation, TypeError, ValueError):
+            return False
+        return (
+            all(amount.is_finite() for amount in amounts)
+            and sum(amounts, Decimal("0")) == parent_amount
+        )
+
     def _preview_relation_suggestions(
         self,
         uow,
@@ -1897,6 +1923,8 @@ class CashLedgerCommandService:
         preview_rows = []
         preview_ids: list[str] = []
         for row, record_id in prepared:
+            if not self._component_allocation_is_relation_ready(row):
+                continue
             account = accounts_by_name.get(row.get("account_name"))
             row_channel = str(row.get("source_type") or row.get("bill_source") or channel or "").strip()
             if account is None or (row_channel, str(record_id).strip()) in existing_by_identity:

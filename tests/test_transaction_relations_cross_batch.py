@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from ft.domain.relations import (
     RelationEvidence,
     RelationKind,
@@ -338,6 +340,301 @@ def test_reverse_order_platform_refund_supersedes_prior_system_bank_refund(
     assert int(old_bank_refund["secondary_fact_id"] or 0) == int(ids["reverse-system-bank-refund"])
 
 
+def test_platform_refund_replacement_retires_bank_edge_before_persisting(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("退款替换容量账户", "cash", "CNY").ok
+    common = dict(account_name="退款替换容量账户", currency="CNY")
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-10.00"), counterparty="商家", note="银行消费",
+        source="ccb_debit", bill_source="ccb_debit", date="2024-04-17 10:00:00",
+        record_id="capacity-bank-expense", record_type="consumption", **common,
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("10.00"), counterparty="商家", note="银行退款",
+        source="ccb_debit", bill_source="ccb_debit", date="2024-04-20 11:00:00",
+        record_id="capacity-bank-refund", record_type="refund", **common,
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-10.00"), counterparty="商家", note="平台消费",
+        source="alipay", bill_source="alipay", date="2024-04-17 10:00:03",
+        record_id="capacity-platform-order", record_type="consumption", **common,
+    )
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["capacity-platform-order"],
+            "secondary_fact_id": ids["capacity-bank-refund"],
+            "primary_component_id": ids["capacity-platform-order"],
+            "secondary_component_id": ids["capacity-bank-refund"],
+            "anchor_fact_id": ids["capacity-platform-order"],
+            "anchor_component_id": ids["capacity-platform-order"],
+            "created_by": "system",
+            "applied_amount": Decimal("10.00"),
+        })
+        uow.commit()
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("10.00"), counterparty="商家", note="平台退款",
+        source="alipay", bill_source="alipay", date="2024-04-20 11:00:03",
+        record_id="capacity-platform-order_refund", record_type="refund", **common,
+    )
+    ids = _ids_by_record(services)
+
+    proposal = RelationProposal(
+        kind=RelationKind.REFUND_OFFSET.value,
+        primary_fact_id=str(ids["capacity-platform-order"]),
+        secondary_fact_id=str(ids["capacity-platform-order_refund"]),
+        status=RelationStatus.ACCEPTED.value,
+        rule_id="scan.test.platform_refund",
+        evidence=RelationEvidence(
+            rule_id="scan.test.platform_refund",
+            extras={"refund_amount": "10.00"},
+        ),
+    )
+    with services.uow as uow:
+        facts = services.relations._list_active_cash_facts(uow)
+        old = uow.relations.get(old_id)
+        assert old["status"] == RelationStatus.ACCEPTED.value
+        accepted = [dict(old)]
+        superseded = services.relations._supersede_redundant_bank_refunds(
+            uow, facts, [proposal], accepted,
+        )
+        replacement = next(
+            item for item in uow.relations.list_active(
+                kind=RelationKind.REFUND_OFFSET.value,
+                status=RelationStatus.ACCEPTED.value,
+            )
+            if str(item["secondary_fact_id"]) == str(ids["capacity-platform-order_refund"])
+        )
+        old_after = uow.relations.get(old["id"])
+        uow.commit()
+
+    assert superseded == {
+        (str(ids["capacity-platform-order"]), str(ids["capacity-bank-refund"])),
+    }
+    assert old_after["status"] == RelationStatus.SUPERSEDED.value
+    assert str(old_after["superseded_by_id"]) == str(replacement["id"])
+
+
+def test_platform_refund_does_not_replace_multiple_equally_matching_bank_refunds(
+    relation_runtime,
+):
+    services = relation_runtime.services
+    assert services.accounts.create_account("歧义退款账户", "cash", "CNY").ok
+    common = dict(account_name="歧义退款账户", currency="CNY")
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-30.00"), counterparty="商家", note="平台消费",
+        source="alipay", bill_source="alipay", date="2024-09-10 10:00:00",
+        record_id="ambiguous-platform-expense", record_type="consumption", **common,
+    )
+    for record_id, date in (
+        ("ambiguous-bank-refund-one", "2024-09-12 11:00:00"),
+        ("ambiguous-bank-refund-two", "2024-09-13 11:00:00"),
+    ):
+        services.cashflow.add_manual_transaction(
+            amount=Decimal("10.00"), counterparty="商家", note="银行退款",
+            source="ccb_debit", bill_source="ccb_debit", date=date,
+            record_id=record_id, record_type="refund", **common,
+        )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("10.00"), counterparty="商家", note="平台退款",
+        source="alipay", bill_source="alipay", date="2024-09-12 11:00:03",
+        record_id="ambiguous-platform-refund", record_type="refund", **common,
+    )
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_ids = []
+        for bank_refund_key in (
+            "ambiguous-bank-refund-one",
+            "ambiguous-bank-refund-two",
+        ):
+            old_ids.append(uow.relations.add({
+                "kind": RelationKind.REFUND_OFFSET.value,
+                "status": RelationStatus.ACCEPTED.value,
+                "primary_fact_id": ids["ambiguous-platform-expense"],
+                "secondary_fact_id": ids[bank_refund_key],
+                "primary_component_id": ids["ambiguous-platform-expense"],
+                "secondary_component_id": ids[bank_refund_key],
+                "anchor_fact_id": ids["ambiguous-platform-expense"],
+                "anchor_component_id": ids["ambiguous-platform-expense"],
+                "created_by": "system",
+                "applied_amount": Decimal("10.00"),
+            }))
+        uow.commit()
+
+    proposal = RelationProposal(
+        kind=RelationKind.REFUND_OFFSET.value,
+        primary_fact_id=str(ids["ambiguous-platform-expense"]),
+        secondary_fact_id=str(ids["ambiguous-platform-refund"]),
+        status=RelationStatus.ACCEPTED.value,
+        rule_id="scan.test.platform_refund",
+        evidence=RelationEvidence(
+            rule_id="scan.test.platform_refund",
+            extras={"refund_amount": "10.00"},
+        ),
+    )
+    with services.uow as uow:
+        facts = services.relations._list_active_cash_facts(uow)
+        accepted = [
+            dict(item) for item in uow.relations.list_active(
+                kind=RelationKind.REFUND_OFFSET.value,
+                status=RelationStatus.ACCEPTED.value,
+            )
+        ]
+        superseded = services.relations._supersede_redundant_bank_refunds(
+            uow, facts, [proposal], accepted,
+        )
+        old_after = [uow.relations.get(item_id) for item_id in old_ids]
+        uow.commit()
+
+    assert superseded == set()
+    assert [item["status"] for item in old_after] == [
+        RelationStatus.ACCEPTED.value,
+        RelationStatus.ACCEPTED.value,
+    ]
+
+
+def test_cached_refund_replacement_requires_a_cached_platform_pair(relation_runtime):
+    services = relation_runtime.services
+    assert services.accounts.create_account("缓存退款边界账户", "cash", "CNY").ok
+    common = dict(account_name="缓存退款边界账户", currency="CNY")
+    for row in (
+        dict(
+            amount=Decimal("-20.00"), counterparty="商家", note="平台消费",
+            source="alipay", bill_source="alipay", date="2024-09-20 10:00:00",
+            record_id="cached-boundary-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("10.00"), counterparty="商家", note="银行退款",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-09-21 11:00:00",
+            record_id="cached-boundary-bank-refund", record_type="refund",
+        ),
+        dict(
+            amount=Decimal("10.00"), counterparty="商家", note="平台退款",
+            source="alipay", bill_source="alipay", date="2024-09-21 11:00:03",
+            record_id="cached-boundary-platform-refund", record_type="refund",
+        ),
+    ):
+        services.cashflow.add_manual_transaction(**row, **common)
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        bank_relation_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["cached-boundary-expense"],
+            "secondary_fact_id": ids["cached-boundary-bank-refund"],
+            "primary_component_id": ids["cached-boundary-expense"],
+            "secondary_component_id": ids["cached-boundary-bank-refund"],
+            "anchor_fact_id": ids["cached-boundary-expense"],
+            "anchor_component_id": ids["cached-boundary-expense"],
+            "created_by": "system",
+            "applied_amount": Decimal("10.00"),
+        })
+        platform_relation_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["cached-boundary-expense"],
+            "secondary_fact_id": ids["cached-boundary-platform-refund"],
+            "primary_component_id": ids["cached-boundary-expense"],
+            "secondary_component_id": ids["cached-boundary-platform-refund"],
+            "anchor_fact_id": ids["cached-boundary-expense"],
+            "anchor_component_id": ids["cached-boundary-expense"],
+            "created_by": "system",
+            "applied_amount": Decimal("10.00"),
+        })
+        facts = services.relations._list_active_cash_facts(uow)
+        accepted = [
+            dict(item) for item in uow.relations.list_active(
+                kind=RelationKind.REFUND_OFFSET.value,
+                status=RelationStatus.ACCEPTED.value,
+            )
+        ]
+        superseded = services.relations._supersede_redundant_bank_refunds(
+            uow, facts, [], accepted, proposed_pairs_only=True,
+        )
+        statuses = [
+            uow.relations.get(item_id)["status"]
+            for item_id in (bank_relation_id, platform_relation_id)
+        ]
+        uow.commit()
+
+    assert superseded == set()
+    assert statuses == [
+        RelationStatus.ACCEPTED.value,
+        RelationStatus.ACCEPTED.value,
+    ]
+
+
+def test_pending_platform_refund_does_not_replace_automatic_bank_refund(
+    relation_runtime,
+):
+    services = relation_runtime.services
+    assert services.accounts.create_account("待审核退款保护账户", "cash", "CNY").ok
+    common = dict(account_name="待审核退款保护账户", currency="CNY")
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("-20.00"), counterparty="商家", note="平台消费",
+        source="alipay", bill_source="alipay", date="2024-10-01 10:00:00",
+        record_id="pending-platform-expense", record_type="consumption", **common,
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("10.00"), counterparty="商家", note="银行退款",
+        source="ccb_debit", bill_source="ccb_debit", date="2024-10-02 11:00:00",
+        record_id="pending-bank-refund", record_type="refund", **common,
+    )
+    services.cashflow.add_manual_transaction(
+        amount=Decimal("10.00"), counterparty="商家", note="平台退款",
+        source="alipay", bill_source="alipay", date="2024-10-02 11:00:03",
+        record_id="pending-platform-refund", record_type="refund", **common,
+    )
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_id = uow.relations.add({
+            "kind": RelationKind.REFUND_OFFSET.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["pending-platform-expense"],
+            "secondary_fact_id": ids["pending-bank-refund"],
+            "primary_component_id": ids["pending-platform-expense"],
+            "secondary_component_id": ids["pending-bank-refund"],
+            "anchor_fact_id": ids["pending-platform-expense"],
+            "anchor_component_id": ids["pending-platform-expense"],
+            "created_by": "system",
+            "applied_amount": Decimal("10.00"),
+        })
+        uow.commit()
+
+    proposal = RelationProposal(
+        kind=RelationKind.REFUND_OFFSET.value,
+        primary_fact_id=str(ids["pending-platform-expense"]),
+        secondary_fact_id=str(ids["pending-platform-refund"]),
+        status=RelationStatus.PENDING_REVIEW.value,
+        rule_id="scan.test.platform_refund",
+        evidence=RelationEvidence(
+            rule_id="scan.test.platform_refund",
+            extras={"refund_amount": "10.00"},
+        ),
+    )
+    with services.uow as uow:
+        facts = services.relations._list_active_cash_facts(uow)
+        old = uow.relations.get(old_id)
+        superseded = services.relations._supersede_redundant_bank_refunds(
+            uow, facts, [proposal], [dict(old)], proposed_pairs_only=True,
+        )
+        old_after = uow.relations.get(old_id)
+        created_platform_edges = [
+            item for item in uow.relations.list_active(
+                kind=RelationKind.REFUND_OFFSET.value,
+                status=RelationStatus.ACCEPTED.value,
+            )
+            if str(item["secondary_fact_id"]) == str(ids["pending-platform-refund"])
+        ]
+        uow.commit()
+
+    assert superseded == set()
+    assert old_after["status"] == RelationStatus.ACCEPTED.value
+    assert created_platform_edges == []
+
+
 def test_later_platform_evidence_reselects_system_bank_refund(
     relation_runtime,
 ):
@@ -575,6 +872,71 @@ def test_invalid_payment_mirror_replacement_keeps_old_relation_untouched(
         assert uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value) == [
             uow.relations.get(old_id)
         ]
+
+
+def test_valid_payment_mirror_replacement_persists_after_one_batch_validation(
+    relation_runtime, monkeypatch,
+):
+    services = relation_runtime.services
+    assert services.accounts.create_account("镜像批量校验原子账户", "cash", "CNY").ok
+    common = dict(account_name="镜像批量校验原子账户", currency="CNY")
+    for row in (
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="平台消费",
+            source="alipay", bill_source="alipay", date="2024-08-04 10:00:00",
+            record_id="batch-platform-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="旧银行卡消费",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-04 10:00:01",
+            record_id="batch-old-bank-expense", record_type="consumption",
+        ),
+        dict(
+            amount=Decimal("-12.00"), counterparty="商家F", note="新银行卡消费",
+            source="ccb_debit", bill_source="ccb_debit", date="2024-08-04 10:00:02",
+            record_id="batch-new-bank-expense", record_type="consumption",
+        ),
+    ):
+        services.cashflow.add_manual_transaction(**row, **common)
+    ids = _ids_by_record(services)
+    with services.uow as uow:
+        old_id = uow.relations.add({
+            "kind": RelationKind.PAYMENT_MIRROR.value,
+            "status": RelationStatus.ACCEPTED.value,
+            "primary_fact_id": ids["batch-platform-expense"],
+            "secondary_fact_id": ids["batch-old-bank-expense"],
+            "primary_component_id": ids["batch-platform-expense"],
+            "secondary_component_id": ids["batch-old-bank-expense"],
+            "anchor_fact_id": ids["batch-platform-expense"],
+            "anchor_component_id": ids["batch-platform-expense"],
+            "created_by": "system",
+        })
+        facts = services.relations._list_active_cash_facts(uow)
+        by_id = {str(fact.id): fact for fact in facts}
+        replacement = evaluate_payment_mirror(
+            by_id[str(ids["batch-platform-expense"])],
+            [by_id[str(ids["batch-new-bank-expense"])]],
+        )
+        assert replacement is not None
+        calls = []
+
+        monkeypatch.setattr(
+            "ft.application.relations.match_canonical_payment_mirrors",
+            lambda *_args, **_kwargs: [replacement],
+        )
+
+        def validate(*_args, **_kwargs):
+            calls.append(1)
+            return None
+
+        monkeypatch.setattr("ft.application.relations._projection_validation_reason", validate)
+        services.relations._reconcile_system_payment_mirrors(uow, facts)
+
+        active = uow.relations.list_active(kind=RelationKind.PAYMENT_MIRROR.value)
+        assert len(calls) == 1
+        assert uow.relations.get(old_id)["status"] == RelationStatus.SUPERSEDED.value
+        assert len(active) == 1
+        assert active[0]["secondary_fact_id"] == ids["batch-new-bank-expense"]
 
 
 def test_invalid_refund_replacement_keeps_old_relation_untouched(

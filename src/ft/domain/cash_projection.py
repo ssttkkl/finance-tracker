@@ -146,7 +146,15 @@ def _components(ids: Iterable[int], relations: tuple[ProjectionRelation, ...]) -
 
 
 def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], relations: tuple[ProjectionRelation, ...]) -> CashProjection:
-    contained = tuple(sorted((item for item in relations if item.primary_fact_id in group and item.secondary_fact_id in group), key=lambda item: item.id))
+    group_members = set(group)
+    contained = tuple(sorted(
+        (
+            item
+            for item in relations
+            if item.primary_fact_id in group_members and item.secondary_fact_id in group_members
+        ),
+        key=lambda item: item.id,
+    ))
     mirror_relations = tuple(item for item in contained if item.kind == "payment_mirror")
     for relation in mirror_relations:
         primary, secondary = facts[relation.primary_fact_id], facts[relation.secondary_fact_id]
@@ -371,9 +379,24 @@ def build_cash_projections(
     for relation in accepted:
         if relation.primary_fact_id == relation.secondary_fact_id or relation.primary_fact_id not in fact_by_id or relation.secondary_fact_id not in fact_by_id:
             raise CashProjectionError("projection.invalid_relation")
+    groups = _components(fact_by_id, accepted)
+    component_by_fact = {
+        fact_id: component_index
+        for component_index, group in enumerate(groups)
+        for fact_id in group
+    }
+    relations_by_component: list[list[ProjectionRelation]] = [
+        [] for _group in groups
+    ]
+    for relation in accepted:
+        primary_component = component_by_fact.get(relation.primary_fact_id)
+        secondary_component = component_by_fact.get(relation.secondary_fact_id)
+        if primary_component is None or primary_component != secondary_component:
+            raise CashProjectionError("projection.invalid_relation")
+        relations_by_component[primary_component].append(relation)
     projections = tuple(
-        _validate_group(group, fact_by_id, accepted)
-        for group in _components(fact_by_id, accepted)
+        _validate_group(group, fact_by_id, tuple(relations_by_component[index]))
+        for index, group in enumerate(groups)
     )
     ordered = tuple(sorted(projections, key=lambda item: item.projection_id))
     if len({member for item in ordered for member in item.member_ids}) != len(fact_by_id):

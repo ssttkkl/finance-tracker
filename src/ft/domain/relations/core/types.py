@@ -11,6 +11,8 @@ import re
 
 from ft.domain.relations.core.geometry import _abs_decimal, _as_decimal, _parse_dt, _text_blob, business_day_utc
 from ft.domain.relations.core.record_types import (
+    is_fx_in_record,
+    is_fx_out_record,
     is_payment_mirror_expense,
     is_payment_mirror_refund,
     is_refund_expense_candidate,
@@ -178,29 +180,53 @@ class FactCandidateIndex:
         # sorted day keys per account/currency for refund window walk
         self._expense_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
         self._refund_days_by_account_currency: dict[tuple[str, str], list[str]] = defaultdict(list)
+        self._transfer_pair_by_key: dict[tuple[str, str, Decimal], list[_IndexedFact]] = defaultdict(list)
+        self._transfer_pair_timestamps: dict[tuple[str, str, Decimal], list[float]] = {}
+        self._transfer_pair_all_by_key: dict[tuple[str, str, Decimal], list[FactView]] = defaultdict(list)
+        self._transfer_pair_invalid_by_key: dict[tuple[str, str, Decimal], list[FactView]] = defaultdict(list)
+        self._fx_in_by_time: list[_IndexedFact] = []
+        self._fx_in_timestamps: list[float] = []
+        self._fx_in_all: list[FactView] = []
+        self._fx_in_invalid: list[FactView] = []
         expense_days: dict[tuple[str, str], set[str]] = defaultdict(set)
         refund_days: dict[tuple[str, str], set[str]] = defaultdict(set)
 
         for fact in facts:
             if fact.deleted or fact.fact_type != FactType.CASH.value:
                 continue
+            amount = fact.signed_amount
+            if amount == 0:
+                continue
+            currency = str(fact.currency or "CNY").upper()
+            transfer_key = (
+                str(fact.record_subtype or ""), currency, _abs_decimal(amount),
+            )
+            if amount > 0:
+                self._transfer_pair_all_by_key[transfer_key].append(fact)
+                if is_fx_in_record(fact):
+                    self._fx_in_all.append(fact)
             try:
                 dt = _parse_dt(fact.occurred_at)
             except ValueError:
-                continue
-            amount = fact.signed_amount
-            if amount == 0:
+                if amount > 0:
+                    self._transfer_pair_invalid_by_key[transfer_key].append(fact)
+                    if is_fx_in_record(fact):
+                        self._fx_in_invalid.append(fact)
                 continue
             idx = _IndexedFact(
                 fact=fact,
                 ts=dt.timestamp(),
                 day=dt.date().isoformat(),
                 abs_amount=_abs_decimal(amount),
-                currency=str(fact.currency or "CNY").upper(),
+                currency=currency,
                 sign=1 if amount > 0 else -1,
                 group=self._source_group(fact),
             )
             self.by_id[fact.id] = fact
+            if amount > 0:
+                self._transfer_pair_by_key[transfer_key].append(idx)
+                if is_fx_in_record(fact):
+                    self._fx_in_by_time.append(idx)
             # mirror: platform vs bank buckets by (group, currency, abs, day)
             if idx.group in {"platform", "bank"}:
                 self._mirror_buckets[(idx.group, idx.currency, idx.abs_amount, idx.day)].append(idx)
@@ -220,6 +246,11 @@ class FactCandidateIndex:
         self._refund_days_by_account_currency = {
             key: sorted(days) for key, days in refund_days.items()
         }
+        for key, items in self._transfer_pair_by_key.items():
+            items.sort(key=lambda item: item.ts)
+            self._transfer_pair_timestamps[key] = [item.ts for item in items]
+        self._fx_in_by_time.sort(key=lambda item: item.ts)
+        self._fx_in_timestamps = [item.ts for item in self._fx_in_by_time]
 
     @staticmethod
     def _neighbor_days(day: str, pad: int = CANDIDATE_DAY_PAD) -> list[str]:
@@ -264,6 +295,58 @@ class FactCandidateIndex:
             for item in self._transfer_in_by_day.get(candidate_day, ())
             if item.fact.id != seed.id
         ]
+
+    def transfer_pair_candidates(
+        self,
+        seed: FactView,
+        *,
+        window_seconds: int,
+    ) -> list[FactView]:
+        """Return only positive facts that can satisfy the transfer time window.
+
+        Standard transfer matching uses exact subtype, currency, and amount.
+        Personal FX matching uses its explicit incoming record type and time
+        window; the matcher remains responsible for the remaining rule checks.
+        """
+        if seed.deleted or seed.fact_type != FactType.CASH.value or seed.signed_amount >= 0:
+            return []
+
+        subtype = str(seed.record_subtype or "")
+        try:
+            seed_ts = _parse_dt(seed.occurred_at).timestamp()
+        except ValueError:
+            if subtype == "currency_exchange" and is_fx_out_record(seed):
+                return list(self._fx_in_all)
+            key = (
+                subtype,
+                str(seed.currency or "CNY").upper(),
+                _abs_decimal(seed.signed_amount),
+            )
+            return list(self._transfer_pair_all_by_key.get(key, ()))
+
+        # _time_delta_seconds truncates to an integer, so a 300.9 second delta
+        # remains eligible for a 300 second rule. Exclude only the exact outer
+        # boundary, then let the existing matcher make the final decision.
+        lower = seed_ts - int(window_seconds) - 1
+        upper = seed_ts + int(window_seconds) + 1
+
+        def by_window(items: list[_IndexedFact], timestamps: list[float]) -> list[FactView]:
+            lo = bisect.bisect_right(timestamps, lower)
+            hi = bisect.bisect_left(timestamps, upper)
+            return [item.fact for item in items[lo:hi]]
+
+        if subtype == "currency_exchange" and is_fx_out_record(seed):
+            return by_window(self._fx_in_by_time, self._fx_in_timestamps) + list(self._fx_in_invalid)
+
+        key = (
+            subtype,
+            str(seed.currency or "CNY").upper(),
+            _abs_decimal(seed.signed_amount),
+        )
+        return by_window(
+            self._transfer_pair_by_key.get(key, []),
+            self._transfer_pair_timestamps.get(key, []),
+        ) + list(self._transfer_pair_invalid_by_key.get(key, ()))
 
     def refund_candidates(self, seed: FactView) -> list[FactView]:
         """Bounded, same-account consumption/refund candidates."""

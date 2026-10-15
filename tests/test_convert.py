@@ -131,6 +131,43 @@ class TestAlipayCategory:
         records, _ = _read_alipay_raw(csv_path)
         assert records == []
 
+    def test_不计收支_信用还款按付款账户流出且保留来源(self):
+        csv_path = str(TEST_DIR / "alipay_credit_repayment_nocount.csv")
+        _make_alipay_csv([
+            [
+                "2023-08-15 02:13:13", "信用借还", "花呗", "花呗自动还款",
+                "不计收支", "1814.58", "工商银行储蓄卡(3697)&账户余额",
+                "还款成功", "ORDER_REPAYMENT_1", "MERCHANT_REPAYMENT_1",
+            ],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+        from ft.domain.record_type import classify_cash_record
+
+        records, _ = _read_alipay_raw(csv_path)
+
+        assert len(records) == 1
+        assert records[0]["amount"] == Decimal("-1814.58")
+        assert records[0]["category"] == "expense"
+        assert classify_cash_record("alipay", records[0]) == ("repayment", "credit_repayment")
+        assert records[0]["_source_payload"]["金额"] == "1814.58"
+        assert records[0]["_source_payload"]["收/支"] == "不计收支"
+        assert records[0]["_source_payload"]["收/付款方式"] == "工商银行储蓄卡(3697)&账户余额"
+
+    def test_不计收支_零金额信用还款保持零(self):
+        csv_path = str(TEST_DIR / "alipay_credit_repayment_zero.csv")
+        _make_alipay_csv([
+            [
+                "2023-08-15 02:13:13", "信用借还", "花呗", "花呗自动还款",
+                "不计收支", "0.00", "账户余额", "还款成功", "ORDER_REPAYMENT_ZERO",
+            ],
+        ], csv_path)
+        from ft.convert import _read_alipay_raw
+
+        records, _ = _read_alipay_raw(csv_path)
+
+        assert len(records) == 1
+        assert records[0]["amount"] == Decimal("0.00")
+
     def test_不计收支_转入余利宝_余额流出(self):
         csv_path = str(TEST_DIR / "alipay_yulibao_inflow_nocount.csv")
         _make_alipay_csv([

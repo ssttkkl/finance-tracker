@@ -1229,8 +1229,11 @@ def _read_alipay_raw(path: str):
                     and any(k in desc_for_direction for k in ("余额宝", "余利宝"))
                 )
                 is_wealth_to_balance = "余额宝-转出到余额" in desc_for_direction
+                # Alipay records successful credit repayments as "不计收支" with a
+                # positive source amount, but the mapped funding account is flowing out.
                 if (
                     txn_type == "账户提现"
+                    or txn_type == "信用借还"
                     or "提现-实时提现" in desc_for_direction
                     or "转出到网商银行" in desc_for_direction
                     or is_investment_outflow

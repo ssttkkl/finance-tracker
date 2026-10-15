@@ -1,4 +1,6 @@
+from dataclasses import replace
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 
@@ -8,6 +10,7 @@ from ft.application.relations import (
     _fact_view_from_row,
     _filter_illegal_automatic_proposals,
     _log_illegal_automatic_proposal_once,
+    _validate_automatic_replacement_batch,
     _stable_fact_ref,
     _relation_context_digest,
     plan_relation_proposals,
@@ -177,6 +180,192 @@ def test_complete_refund_diamond_candidate_is_accepted_without_changing_matching
     )
 
     assert filtered == (refund_mirror,)
+
+
+def test_accepted_batch_projection_validation_is_shared_once(monkeypatch):
+    facts = _diamond_facts()
+    proposals = (
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "expense-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "refund-platform", "refund-bank"),
+    )
+    calls = []
+
+    def validate(_facts, _relations, proposal, companions, **_kwargs):
+        calls.append((proposal.primary_fact_id, tuple(item.primary_fact_id for item in companions)))
+        return None
+
+    monkeypatch.setattr("ft.application.relations._projection_validation_reason", validate)
+
+    filtered = _filter_illegal_automatic_proposals(facts, (), proposals)
+
+    assert filtered == proposals
+    assert calls == [
+        ("expense-platform", ("expense-platform", "refund-platform")),
+    ]
+
+
+def test_automatic_replacement_batch_projection_validation_is_shared_once(monkeypatch):
+    facts = _diamond_facts()
+    proposals = (
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "expense-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "refund-platform", "refund-bank"),
+    )
+    calls = []
+
+    def validate(_facts, _relations, proposal, companions, **_kwargs):
+        calls.append((proposal.primary_fact_id, tuple(item.primary_fact_id for item in companions)))
+        return None
+
+    monkeypatch.setattr("ft.application.relations._projection_validation_reason", validate)
+
+    assert _validate_automatic_replacement_batch(facts, (), proposals)
+
+    assert calls == [
+        ("expense-platform", ("expense-platform", "refund-platform")),
+    ]
+
+
+def test_cached_plan_legality_shares_accepted_batch_and_checks_pending_candidates(monkeypatch):
+    facts = [
+        *_diamond_facts(),
+        _fact("unrelated", amount="-5.00", counterparty="另一商户", record_type="consumption", occurred_at="2024-02-01T10:00:00+08:00"),
+        _fact("unrelated-bank", amount="-5.00", counterparty="另一商户", record_type="consumption", occurred_at="2024-02-01T10:01:00+08:00"),
+    ]
+    accepted = (
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "expense-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "refund-platform", "refund-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "unrelated", "unrelated-bank"),
+    )
+    pending = replace(
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "refund-bank"),
+        status=RelationStatus.PENDING_REVIEW.value,
+    )
+    proposals = (accepted[0], pending, accepted[1], accepted[2])
+    calls = []
+
+    def validate(_facts, _relations, proposal, companions, **_kwargs):
+        context = _kwargs["validation_context"]
+        calls.append((
+            proposal.primary_fact_id,
+            tuple(item.primary_fact_id for item in companions),
+            len(context.projection_facts),
+        ))
+        return None
+
+    monkeypatch.setattr("ft.application.relations._projection_validation_reason", validate)
+    uow = SimpleNamespace(
+        relations=SimpleNamespace(list_active=lambda: []),
+        workspace_id="test-workspace",
+    )
+
+    RelationService._validate_cached_plan_legality_in_uow(
+        object(), uow, facts, proposals,
+    )
+
+    assert calls == [
+        ("expense-platform", ("expense-platform", "refund-platform", "unrelated"), 6),
+        ("expense-platform", ("expense-platform", "refund-platform", "expense-platform"), 4),
+    ]
+
+
+def test_localized_pending_projection_check_matches_full_graph_result():
+    import ft.application.relations as relations
+
+    facts = [
+        *_diamond_facts(),
+        _fact("unrelated", amount="-5.00", counterparty="另一商户", record_type="consumption", occurred_at="2024-02-01T10:00:00+08:00"),
+        _fact("unrelated-bank", amount="-5.00", counterparty="另一商户", record_type="consumption", occurred_at="2024-02-01T10:01:00+08:00"),
+    ]
+    accepted = (
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "expense-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "refund-platform", "refund-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "unrelated", "unrelated-bank"),
+    )
+    pending = replace(
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "refund-bank"),
+        status=RelationStatus.PENDING_REVIEW.value,
+    )
+    context = relations._build_projection_validation_context(facts)
+
+    localized = relations._localized_projection_validation_inputs(
+        context, (), accepted, pending,
+    )
+    assert localized is not None
+    local_relations, local_companions, local_context = localized
+    full_reason = relations._projection_validation_reason(
+        facts, (), pending, (*accepted, pending), validation_context=context,
+    )
+    local_reason = relations._projection_validation_reason(
+        facts, local_relations, pending, (*local_companions, pending),
+        validation_context=local_context,
+    )
+
+    assert len(local_context.projection_facts) == 4
+    assert len(local_companions) == 2
+    assert full_reason == local_reason == "projection_invalid"
+
+
+def test_cached_import_reuses_projection_validation_without_rescanning(monkeypatch):
+    facts = _diamond_facts()
+    proposals = (
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "expense-platform", "expense-bank"),
+        _proposal(RelationKind.PAYMENT_MIRROR.value, "refund-platform", "refund-bank"),
+    )
+    calls = []
+
+    def validate(_facts, _relations, proposal, companions, **_kwargs):
+        calls.append((proposal.primary_fact_id, tuple(item.primary_fact_id for item in companions)))
+        return None
+
+    monkeypatch.setattr("ft.application.relations._projection_validation_reason", validate)
+    monkeypatch.setattr(
+        RelationService,
+        "_cached_proposals_in_uow",
+        lambda _self, _uow, _cached_plan: (facts, proposals),
+    )
+    def must_not_rescan(*_args, **_kwargs):
+        raise AssertionError("cached import confirmation must not rescan relations")
+
+    monkeypatch.setattr(RelationService, "_reconcile_system_payment_mirrors", must_not_rescan)
+    monkeypatch.setattr(RelationService, "_reconcile_system_refund_offsets", must_not_rescan)
+    monkeypatch.setattr(
+        RelationService,
+        "_supersede_redundant_bank_refunds",
+        lambda _self, _uow, _facts, _proposals, _accepted, **_kwargs: set(),
+    )
+    monkeypatch.setattr(
+        RelationService,
+        "_refund_remaining",
+        lambda _self, _uow, _facts: {},
+    )
+    monkeypatch.setattr(
+        RelationService,
+        "_persist_proposal",
+        lambda _self, _uow, proposal, _remaining, **_kwargs: {
+            "id": f"pending:{proposal.primary_fact_id}",
+            "kind": proposal.kind,
+            "primary_fact_id": proposal.primary_fact_id,
+            "secondary_fact_id": proposal.secondary_fact_id,
+            "status": RelationStatus.PENDING_REVIEW.value,
+        },
+    )
+    uow = SimpleNamespace(relations=SimpleNamespace(list_active=lambda: []), workspace_id="test-workspace")
+    service = object.__new__(RelationService)
+
+    created, affected, accepted_decisions = service.apply_cached_import_plan_in_uow(
+        uow,
+        cached_plan={"plan_digest": "digest"},
+        relation_decisions=[],
+        expected_digest="digest",
+    )
+
+    assert len(created) == 2
+    assert affected == set()
+    assert accepted_decisions == []
+    assert calls == [
+        ("expense-platform", ("expense-platform", "refund-platform")),
+        ("expense-platform", ("expense-platform", "refund-platform")),
+    ]
 
 
 def test_wechat_hard_refund_occupies_pair_before_same_amount_merchant_matching():
