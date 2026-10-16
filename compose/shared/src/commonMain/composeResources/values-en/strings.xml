@@ -388,6 +388,8 @@
     <string name="copy_dc35af8d69">Sort</string>
     <string name="copy_dcce9a144a">Filter</string>
     <string name="ledger_search_counterparty">Search counterparty</string>
+    <string name="ledger_column_occurred_at">Date &amp; time</string>
+    <string name="ledger_column_transaction_info">Transaction info</string>
     <string name="ledger_quick_all">All</string>
     <string name="ledger_quick_expense">Expense</string>
     <string name="ledger_quick_income">Income</string>
@@ -557,6 +559,8 @@
     <string name="cash_import_discard_note">Leaving discards this import</string>
     <string name="cash_import_next">Next</string>
     <string name="cash_import_mapping_heading">Choose target accounts</string>
+    <string name="cash_import_edit_new_account">Edit</string>
+    <string name="cash_import_edit_new_account_title">Edit new account</string>
     <string name="cash_import_relation_heading">Match transactions</string>
     <string name="cash_import_status_linked">Linked</string>
     <string name="cash_import_status_pending">Pending</string>

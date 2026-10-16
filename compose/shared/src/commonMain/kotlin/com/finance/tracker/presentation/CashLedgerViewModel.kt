@@ -21,14 +21,22 @@ import com.finance.tracker.domain.FailureCategory
 import com.finance.tracker.domain.LedgerOptions
 import com.finance.tracker.domain.SaveCashRecordUseCase
 import com.finance.tracker.domain.DomainFailure
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.cachedIn
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModel(
     private val repository: CashLedgerRepository,
     private val categoryRepository: CashCategoryRepository,
@@ -37,8 +45,27 @@ class CashLedgerViewModel(
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(CashLedgerUiState())
     val state: StateFlow<CashLedgerUiState> = mutableState.asStateFlow()
+    val cashProjections = mutableState
+        .map { it.filters to it.listRevision }
+        .distinctUntilChanged()
+        .flatMapLatest { (filters, revision) ->
+            Pager(
+                config = PagingConfig(pageSize = 20, prefetchDistance = 5, enablePlaceholders = false),
+                pagingSourceFactory = {
+                    CashProjectionPagingSource(repository, filters, diagnostics) { page, firstPage ->
+                        if (firstPage && mutableState.value.filters == filters && mutableState.value.listRevision == revision) {
+                            mutableState.value = mutableState.value.copy(
+                                page = page.copy(items = emptyList()),
+                                filterOptions = page.filterOptions,
+                                projectionVersion = page.projectionVersion,
+                            )
+                        }
+                    }
+                },
+            ).flow
+        }
+        .cachedIn(viewModelScope)
     private var initialized = false
-    private var pageRequestId = 0
     private var detailRequestId = 0
     private var relationRequestId = 0
     private var relationSearchJob: Job? = null
@@ -47,7 +74,6 @@ class CashLedgerViewModel(
         if (initialized) return
         initialized = true
         loadReferences()
-        loadPage(mutableState.value.filters, clearSelection = true)
     }
 
     fun loadReferences() {
@@ -87,8 +113,13 @@ class CashLedgerViewModel(
 
     fun updateFilters(filters: CashFilters) {
         if (filters == mutableState.value.filters) return
-        mutableState.value = mutableState.value.copy(filters = filters)
-        loadPage(filters, clearSelection = true)
+        mutableState.value = mutableState.value.copy(
+            filters = filters,
+            page = null,
+            projectionVersion = 0,
+            selectedIds = emptySet(),
+            listRevision = mutableState.value.listRevision + 1,
+        )
     }
 
     fun reportInvalidRecordAmount() {
@@ -105,40 +136,15 @@ class CashLedgerViewModel(
 
     fun clearFilters() = updateFilters(CashFilters())
 
-    fun reload() = loadPage(mutableState.value.filters, clearSelection = true)
+    fun reload() = refreshListing(clearSelection = true)
 
-    fun loadMore() {
-        val current = mutableState.value
-        val cursor = current.nextCursor ?: return
-        if (current.loadingMore || current.loading) return
-        val requestId = pageRequestId
-        viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(loadingMore = true, appendErrorCode = null)
-            try {
-                val result = repository.fetchCashPage(current.filters, cursor)
-                if (requestId != pageRequestId) return@launch
-                if (result.projectionVersion != current.projectionVersion) {
-                    loadPage(current.filters, clearSelection = true)
-                } else {
-                    val existingIds = mutableState.value.rows.mapTo(mutableSetOf(), CashProjection::projectionId)
-                    val currentPage = mutableState.value.page
-                    mutableState.value = mutableState.value.copy(
-                        rows = mutableState.value.rows + result.items.filter { it.projectionId !in existingIds },
-                        nextCursor = result.nextCursor,
-                        page = currentPage?.copy(monthlySummaries = result.monthlySummaries),
-                    )
-                }
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD_NEXT_PAGE)
-                if (requestId == pageRequestId) {
-                    mutableState.value = mutableState.value.copy(appendErrorCode = cause.safeErrorCode())
-                }
-            } finally {
-                if (requestId == pageRequestId) mutableState.value = mutableState.value.copy(loadingMore = false)
-            }
+    fun reloadAfterImport() {
+        if (!initialized) {
+            initialize()
+            return
         }
+        loadReferences()
+        reload()
     }
 
     fun toggleSelection(id: String, selected: Boolean) {
@@ -168,7 +174,7 @@ class CashLedgerViewModel(
             mutableState.value = mutableState.value.copy(classifyBusy = true, classifyErrorCode = null)
             try {
                 repository.classifyCashProjections(ids, current.projectionVersion, categoryId)
-                loadPage(mutableState.value.filters, clearSelection = true)
+                reload()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
@@ -208,7 +214,7 @@ class CashLedgerViewModel(
             try {
                 repository.deleteCashProjections(ids, current.projectionVersion)
                 mutableState.value = mutableState.value.copy(deleteProjectionImpact = null, selectedIds = emptySet())
-                loadPage(mutableState.value.filters, clearSelection = true)
+                reload()
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Throwable) {
@@ -604,7 +610,7 @@ class CashLedgerViewModel(
                     recordSaveErrorCode = null,
                     confirmRelationImpact = false,
                 )
-                loadPage(mutableState.value.filters, clearSelection = true)
+                reload()
                 if (selected != null) loadSelectedRow(selected, detailRequestId)
             } catch (cause: CancellationException) {
                 throw cause
@@ -622,40 +628,14 @@ class CashLedgerViewModel(
         }
     }
 
-    private fun loadPage(filters: CashFilters, clearSelection: Boolean) {
-        val requestId = ++pageRequestId
-        viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(
-                loading = true,
-                errorCode = null,
-                appendErrorCode = null,
-                loadingMore = false,
-                rows = emptyList(),
-                page = null,
-                nextCursor = null,
-                projectionVersion = 0,
-                selectedIds = if (clearSelection) emptySet() else mutableState.value.selectedIds,
-            )
-            try {
-                val result = repository.fetchCashPage(filters)
-                if (requestId != pageRequestId) return@launch
-                mutableState.value = mutableState.value.copy(
-                    page = result,
-                    filterOptions = result.filterOptions,
-                    rows = result.items,
-                    nextCursor = result.nextCursor,
-                    projectionVersion = result.projectionVersion,
-                    loading = false,
-                )
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.LOAD)
-                if (requestId == pageRequestId) {
-                    mutableState.value = mutableState.value.copy(loading = false, page = null, errorCode = cause.safeErrorCode())
-                }
-            }
-        }
+    private fun refreshListing(clearSelection: Boolean) {
+        val current = mutableState.value
+        mutableState.value = current.copy(
+            page = null,
+            projectionVersion = 0,
+            selectedIds = if (clearSelection) emptySet() else current.selectedIds,
+            listRevision = current.listRevision + 1,
+        )
     }
 
     private fun scheduleRelationSearch(debounce: Boolean) {

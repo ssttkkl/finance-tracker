@@ -249,6 +249,7 @@ internal fun WorkspaceManagementScreen(
                                 options = listOf("admin" to localizedText("copy_ef84e765e0"), "editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
                                 modifier = Modifier.widthIn(max = 220.dp),
                                 enabled = busyMember != member.userId,
+                                semanticId = SemanticIds.workspaceManagementMemberRole,
                                 onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), isAdmin) },
                             )
                             TextButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
@@ -285,6 +286,7 @@ internal fun WorkspaceManagementScreen(
                     options = listOf("editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
                     onSelected = { viewModel.setInvitationRole(WorkspaceRole.valueOf(it.uppercase())) },
                     enabled = isAdmin,
+                    semanticId = SemanticIds.workspaceManagementInvitationRole,
                 )
                 Button(onClick = createInvite, enabled = isAdmin, modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
                 if (invitationLink.isNotEmpty()) {

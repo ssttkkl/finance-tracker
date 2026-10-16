@@ -388,6 +388,8 @@
     <string name="copy_dc35af8d69">排序</string>
     <string name="copy_dcce9a144a">筛选</string>
     <string name="ledger_search_counterparty">搜索交易对方</string>
+    <string name="ledger_column_occurred_at">发生时间</string>
+    <string name="ledger_column_transaction_info">交易信息</string>
     <string name="ledger_quick_all">全部</string>
     <string name="ledger_quick_expense">支出</string>
     <string name="ledger_quick_income">收入</string>
@@ -557,6 +559,8 @@
     <string name="cash_import_discard_note">离开后将丢弃未完成导入</string>
     <string name="cash_import_next">下一步</string>
     <string name="cash_import_mapping_heading">选择目标账户</string>
+    <string name="cash_import_edit_new_account">修改</string>
+    <string name="cash_import_edit_new_account_title">修改新账户</string>
     <string name="cash_import_relation_heading">关系配对</string>
     <string name="cash_import_status_linked">已关联</string>
     <string name="cash_import_status_pending">待确认</string>

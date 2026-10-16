@@ -4,26 +4,34 @@ import com.finance.tracker.core.*
 import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.domain.*
 import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_arrow_back
 import com.finance.tracker.resources.ic_arrow_forward
 import com.finance.tracker.resources.ic_check
+import com.finance.tracker.resources.ic_close
 import com.finance.tracker.resources.ic_description
-import com.finance.tracker.resources.ic_file_upload
+import com.finance.tracker.resources.ic_edit
+import com.finance.tracker.resources.ic_file_download
+import com.finance.tracker.resources.ic_link
+import com.finance.tracker.resources.ic_link_off
+import com.finance.tracker.resources.ic_more_vert
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.focusable
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -40,9 +48,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.TextButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -55,10 +64,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
@@ -121,6 +137,9 @@ internal fun CashImportScreen(
     val passwords = state.passwords
     val busy = state.busy
     val error = state.errorCode?.let { importErrorText(it) }
+    var editingAccountGroupId by remember { mutableStateOf<String?>(null) }
+    var editingAccountName by remember { mutableStateOf("") }
+    var editingAccountType by remember { mutableStateOf("cash") }
     val footerButtonArrangement = if (sizeClass == WindowSizeClass.COMPACT) {
         Arrangement.SpaceBetween
     } else {
@@ -136,384 +155,577 @@ internal fun CashImportScreen(
         )
     } else null
 
-    FinanceLightSurfaceTheme {
-        SecondaryPageContainer(
-            title = localizedText("cash_import_title"),
-            sizeClass = sizeClass,
-            onClose = onBack,
-            footer = {
-                if (!canWrite) {
-                    TextButton(onClick = onBack) { Text(localizedText("copy_855fa817d2")) }
-                } else when (stage) {
-                    ImportStage.SELECT -> {
-                        val canScan = selectedFiles.isNotEmpty() && !busy && scan?.files?.none {
-                            it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank())
-                        } != false
-                        if (sizeClass == WindowSizeClass.COMPACT) {
-                            Column(
-                                Modifier.fillMaxWidth(),
-                                horizontalAlignment = Alignment.End,
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                CashImportDiscardNote(Modifier.fillMaxWidth())
-                                ImportScanAction(
-                                    enabled = canScan,
-                                    busy = busy,
-                                    modifier = Modifier.testTag(SemanticIds.importNext),
-                                    onClick = { viewModel.scanSelectedFiles() },
-                                )
-                            }
+    SecondaryPageContainer(
+        title = localizedText("cash_import_title"),
+        sizeClass = sizeClass,
+        onClose = onBack,
+        footer = {
+            if (!canWrite) {
+                TextButton(onClick = onBack, modifier = Modifier.testTag("import.return")) {
+                    Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
+                    Spacer(Modifier.size(8.dp))
+                    Text(localizedText("copy_855fa817d2"))
+                }
+            } else when (stage) {
+                ImportStage.SELECT -> {
+                    val canScan = selectedFiles.isNotEmpty() && !busy && scan?.files?.none {
+                        it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank())
+                    } != false
+                    if (sizeClass == WindowSizeClass.COMPACT) {
+                        Column(
+                            Modifier.fillMaxWidth(),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            CashImportDiscardNote(Modifier.fillMaxWidth())
+                            ImportScanAction(
+                                enabled = canScan,
+                                busy = busy,
+                                modifier = Modifier.testTag(SemanticIds.importNext),
+                                onClick = { viewModel.scanSelectedFiles() },
+                            )
+                        }
+                    } else {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            CashImportDiscardNote()
+                            ImportScanAction(
+                                enabled = canScan,
+                                busy = busy,
+                                modifier = Modifier.testTag(SemanticIds.importNext),
+                                onClick = { viewModel.scanSelectedFiles() },
+                            )
+                        }
+                    }
+                }
+                ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                    OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                        Spacer(Modifier.size(8.dp))
+                        Text(localizedText("copy_75ef1241c0"))
+                    }
+                    Button(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                        Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115"))
+                        Spacer(Modifier.size(8.dp))
+                        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                    }
+                }
+                ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                    OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                        Spacer(Modifier.size(8.dp))
+                        Text(localizedText("copy_75ef1241c0"))
+                    }
+                    Button(onClick = {
+                        if (preview?.let { hasIncompleteAllocations(it, allocationDrafts) } == true) {
+                            viewModel.setErrorCode("import_component_allocation_incomplete")
+                        } else if (preview?.items?.any { it.components.orEmpty().size > 1 } == true) {
+                            viewModel.loadPreview(ImportStage.RELATIONS)
                         } else {
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
+                            viewModel.stage(ImportStage.RELATIONS)
+                        }
+                    }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                        Text(localizedText("copy_1fc1afc5c5"))
+                        Spacer(Modifier.size(8.dp))
+                        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                    }
+                }
+                ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                    OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                        Spacer(Modifier.size(8.dp))
+                        Text(localizedText("copy_75ef1241c0"))
+                    }
+                    Button(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
+                        Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.confirm.icon"))
+                        Spacer(Modifier.size(8.dp))
+                        Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d"))
+                    }
+                }
+                ImportStage.SUCCESS -> Button(onClick = onBack, modifier = Modifier.fillMaxWidth().testTag("import.return")) {
+                    Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
+                    Spacer(Modifier.size(8.dp))
+                    Text(localizedText("copy_855fa817d2"))
+                }
+            }
+        },
+        overlayContent = {
+            val editingDraft = editingAccountGroupId?.let { groupId -> accountDrafts[groupId]?.newAccount }
+            if (editingAccountGroupId != null && editingDraft != null && stage == ImportStage.MAPPING) {
+                ImportNewAccountEditOverlay(
+                    name = editingAccountName,
+                    type = editingAccountType,
+                    currencies = editingDraft.currencies,
+                    onNameChanged = { editingAccountName = it.take(255) },
+                    onTypeChanged = { editingAccountType = it },
+                    onDismiss = { editingAccountGroupId = null },
+                    onApply = {
+                        editingAccountGroupId?.let { groupId ->
+                            viewModel.updateNewAccount(groupId) {
+                                it.copy(name = editingAccountName, type = editingAccountType)
+                            }
+                        }
+                        editingAccountGroupId = null
+                    },
+                )
+            }
+        },
+    ) {
+        if (canWrite && stage != ImportStage.SUCCESS) {
+            Box(
+                Modifier.fillMaxWidth()
+                    .padding(horizontal = if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 36.dp)
+                    .padding(top = 24.dp, bottom = 4.dp),
+            ) {
+                ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
+            }
+        }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            FeaturePage(
+                localizedText("cash_import_title"),
+                SemanticIds.importScreen,
+                modifier = Modifier.widthIn(max = if (stage == ImportStage.RELATIONS) 1480.dp else 720.dp).fillMaxWidth(),
+                showTitle = false,
+                scrollable = false,
+                contentPadding = PaddingValues(
+                    start = when (sizeClass) {
+                        WindowSizeClass.COMPACT -> 16.dp
+                        WindowSizeClass.REGULAR -> 24.dp
+                        WindowSizeClass.WIDE -> 32.dp
+                    },
+                    end = when (sizeClass) {
+                        WindowSizeClass.COMPACT -> 16.dp
+                        WindowSizeClass.REGULAR -> 24.dp
+                        WindowSizeClass.WIDE -> 32.dp
+                    },
+                    top = if (sizeClass == WindowSizeClass.COMPACT) 8.dp else 12.dp,
+                    bottom = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 12.dp,
+                ),
+            ) {
+                if (!canWrite) {
+                    StateMessage(localizedText("copy_459f937086"))
+                } else {
+                    InlineError(error)
+                    when (stage) {
+                        ImportStage.SELECT -> {
+                            Column(
+                                Modifier.fillMaxWidth().testTag("import.stage-content"),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
                             ) {
-                                CashImportDiscardNote()
-                                ImportScanAction(
-                                    enabled = canScan,
-                                    busy = busy,
-                                    modifier = Modifier.testTag(SemanticIds.importNext),
-                                    onClick = { viewModel.scanSelectedFiles() },
+                                Text(
+                                    localizedText("cash_import_select_file_heading"),
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.SemiBold,
                                 )
+                                ImportUploadSurface(
+                                    selectedFiles = selectedFiles,
+                                    demoStatement = demoStatement != null,
+                                    busy = busy,
+                                    onChoose = {
+                                        if (demoStatement != null) viewModel.receiveFiles(listOf(demoStatement))
+                                        else filePicker?.launch()
+                                    },
+                                )
+                                selectedFiles.forEachIndexed { index, picked ->
+                                    ImportOutlinedCard {
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                painter = painterResource(Res.drawable.ic_description),
+                                                contentDescription = null,
+                                                modifier = Modifier.size(24.dp),
+                                                tint = MaterialTheme.colorScheme.primary,
+                                            )
+                                            Column(Modifier.weight(1f).padding(start = 12.dp)) {
+                                                Text(picked.identity.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                                Text(formatFileSize(picked.identity.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                scan?.files?.firstOrNull { it.index == index }?.let { status ->
+                                                    Text(importFileStatus(status), style = MaterialTheme.typography.bodySmall)
+                                                }
+                                            }
+                                            TextButton(
+                                                onClick = { viewModel.removeFile(picked.identity.digest) },
+                                                enabled = !busy,
+                                                modifier = Modifier.testTag("${SemanticIds.importRemoveFile}.${picked.identity.digest}"),
+                                            ) {
+                                                Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.remove-file.icon.${picked.identity.digest}"))
+                                                Spacer(Modifier.size(8.dp))
+                                                Text(localizedText("copy_2f752c005e"))
+                                            }
+                                        }
+                                    }
+                                }
+                                scan?.files?.filter { it.status == "password_required" }?.forEach { fileStatus ->
+                                    val picked = selectedFiles.getOrNull(fileStatus.index) ?: return@forEach
+                                    val passwordLabel = localizedText("copy_f1b6b76a6f", picked.identity.name)
+                                    OutlinedTextField(
+                                        value = passwords[fileStatus.index.toString()].orEmpty(),
+                                        onValueChange = { viewModel.updatePassword(fileStatus.index, it) },
+                                        label = { Text(passwordLabel) },
+                                        singleLine = true,
+                                        visualTransformation = PasswordVisualTransformation(),
+                                        modifier = Modifier.fillMaxWidth()
+                                            .testTag("${SemanticIds.importFilePassword}.${fileStatus.index}")
+                                            .semantics(mergeDescendants = true) { contentDescription = passwordLabel },
+                                    )
+                                }
+                                scan?.files?.filter { it.status == "error" }?.forEach { fileStatus ->
+                                    InlineError("${selectedFiles.getOrNull(fileStatus.index)?.identity?.name ?: fileStatus.filename}：${importFileStatus(fileStatus)}")
+                                }
+                            }
+                        }
+                        ImportStage.MAPPING -> scan?.let { current ->
+                            Column(
+                                Modifier.fillMaxWidth().testTag("import.stage-content"),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                ImportOutlinedCard {
+                                    Text(localizedText("copy_56bc6903d6", importChannelLabel(current.channel, current.channelLabel), current.groups.size), style = MaterialTheme.typography.titleSmall)
+                                    Text(current.files.joinToString(" · ") { it.filename.orEmpty() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (current.unresolvedCount > 0) Text(localizedText("copy_40b67ad6b4", current.unresolvedCount), color = MaterialTheme.colorScheme.error)
+                                }
+                                Text(localizedText("cash_import_mapping_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                current.groups.forEach { group ->
+                                    val draft = accountDrafts[group.groupId]
+                                    val ownDraftId = "draft-${group.groupId}"
+                                    val sharedDrafts = accountDrafts.values.mapNotNull(ImportAccountDraft::newAccount).distinctBy { it.draftId }
+                                    val targetOptions = listOf("" to localizedText("copy_ce1ec4bd2e")) +
+                                        current.accounts.map {
+                                            it.id.toString() to importMappedAccountOptionLabel(it.name, it.type, it.currencies.orEmpty())
+                                        } +
+                                        sharedDrafts.filterNot { it.draftId == ownDraftId }.map {
+                                            "__draft__${it.draftId}" to importMappedAccountOptionLabel(it.name, it.type, it.currencies)
+                                        } +
+                                        ("__create__" to localizedText("copy_93b0b8ba3b"))
+                                    val targetValue = when {
+                                        draft?.newAccount?.draftId == ownDraftId -> "__create__"
+                                        draft?.newAccount != null -> "__draft__${draft.newAccount.draftId}"
+                                        else -> draft?.accountId?.toString().orEmpty()
+                                    }
+                                    val targetPicker: @Composable (Modifier) -> Unit = { pickerModifier ->
+                                        ChoicePicker(
+                                            localizedText("copy_8ab177def7"),
+                                            targetValue,
+                                            targetOptions,
+                                            { viewModel.selectAccount(group, it) },
+                                            modifier = pickerModifier,
+                                            semanticId = "${SemanticIds.importMapping}.${group.groupId}",
+                                        )
+                                    }
+                                    val targetSummary: @Composable () -> Unit = {
+                                        val selectedAccount = current.accounts.firstOrNull { it.id == draft?.accountId }
+                                        val newAccount = draft?.newAccount
+                                        when {
+                                            selectedAccount != null -> {
+                                                val missingCurrencies = group.currencies.filterNot { it in selectedAccount.currencies.orEmpty() }
+                                                if (missingCurrencies.isNotEmpty()) {
+                                                    Text(localizedText("copy_6f136836ac", missingCurrencies.joinToString("、")), color = MaterialTheme.colorScheme.error)
+                                                }
+                                            }
+                                            newAccount?.draftId == ownDraftId -> ImportMappedAccountSummary(
+                                                name = newAccount.name,
+                                                type = newAccount.type,
+                                                currencies = newAccount.currencies,
+                                                onEdit = {
+                                                    editingAccountGroupId = group.groupId
+                                                    editingAccountName = newAccount.name
+                                                    editingAccountType = newAccount.type
+                                                },
+                                            )
+                                            newAccount != null -> Row(
+                                                Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.End,
+                                            ) {
+                                                TextButton(
+                                                    onClick = {
+                                                        editingAccountGroupId = group.groupId
+                                                        editingAccountName = newAccount.name
+                                                        editingAccountType = newAccount.type
+                                                    },
+                                                    modifier = Modifier.testTag("import.mapping.edit"),
+                                                ) {
+                                                    Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.mapping.edit.icon"))
+                                                    Spacer(Modifier.size(8.dp))
+                                                    Text(localizedText("cash_import_edit_new_account"))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    ImportOutlinedCard(Modifier.testTag("import.mapping.card.${group.groupId}")) {
+                                        if (sizeClass == WindowSizeClass.COMPACT) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                ImportMappingSource(group)
+                                                targetPicker(Modifier)
+                                                targetSummary()
+                                            }
+                                        } else {
+                                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                                ImportMappingSource(group, Modifier.weight(1.2f))
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                                    targetPicker(Modifier)
+                                                    targetSummary()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        ImportStage.PREVIEW -> preview?.let { current ->
+                            Column(
+                                Modifier.fillMaxWidth().testTag("import.stage-content"),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(localizedText("copy_0433a1c196"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                ImportFilterBar(
+                                    selected = previewFilter,
+                                    semanticPrefix = "import.preview-filter",
+                                    options = listOf(
+                                        "all" to localizedText("copy_f229c64eb7", current.summary.total),
+                                        "new" to localizedText("copy_4be80bff60", current.summary.new),
+                                        "existing" to localizedText("copy_eb4f38232d", current.summary.existing),
+                                        "unresolved" to localizedText("copy_6d5268fd33", current.summary.unresolved),
+                                        "requires_allocation" to localizedText("copy_44d8ec2ba9", incompleteAllocationCount(current, allocationDrafts)),
+                                    ),
+                                    onSelect = viewModel::setPreviewFilter,
+                                )
+                                val visibleItems = current.items.filter { previewFilter == "all" || it.status == previewFilter }
+                                val monthGroups = importPreviewMonthGroups(visibleItems)
+                                if (visibleItems.isEmpty()) ImportEmptyState(if (current.items.isEmpty()) localizedText("copy_e0329985a9") else localizedText("copy_43dd57a28f"))
+                                monthGroups.forEach { group ->
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(importPreviewMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
+                                        if (group.summary?.currencies.isNullOrEmpty()) {
+                                            Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                    group.summary?.currencies.orEmpty().forEach { totals ->
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Text(localizedText("copy_5e64d382a1", importPreviewSummaryAmount("income", totals.income), totals.currency), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                                            Text(localizedText("copy_19c079014a", importPreviewSummaryAmount("expense", totals.expense), totals.currency), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                        }
+                                    }
+                                    group.items.forEach { item ->
+                                        ImportOutlinedCard(Modifier.testTag("import-item-${item.recordId}")) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Text(importPreviewDateTimeLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                ImportStatusPill(importStatusLabel(item.status), item.status)
+                                            }
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+                                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                                    Text(item.counterparty.ifBlank { "-" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+                                                    Text(item.note.ifBlank { "-" }, style = MaterialTheme.typography.bodyMedium)
+                                                    Text("${item.accountName} · ${importRecordTypeLabel(item.recordType)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                                }
+                                                val direction = importPreviewDirection(item)
+                                                Text(
+                                                    importPreviewAmountLabel(item),
+                                                    color = when (direction) {
+                                                        "income" -> MaterialTheme.colorScheme.primary
+                                                        "expense" -> MaterialTheme.colorScheme.error
+                                                        else -> MaterialTheme.colorScheme.onSurface
+                                                    },
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                )
+                                            }
+                                            item.message.takeIf(String::isNotBlank)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                                            if (item.components.orEmpty().size > 1) {
+                                                Text(localizedText("copy_a62d0b68c2"), style = MaterialTheme.typography.labelLarge)
+                                                val key = importItemKey(item)
+                                                val currentAmounts = allocationDrafts[key].orEmpty()
+                                                item.components.orEmpty().forEachIndexed { index, component ->
+                                                    OutlinedTextField(
+                                                        value = currentAmounts.getOrElse(index) { component.amount?.removePrefix("+")?.removePrefix("-").orEmpty() },
+                                                        onValueChange = { value -> viewModel.updateAllocation(key, index, value) },
+                                                        modifier = Modifier.testTag("${SemanticIds.importAllocation}.$key.$index")
+                                                            .accessibleTextFieldLabel(component.sourceLabel),
+                                                        label = { Text(component.sourceLabel) },
+                                                        singleLine = true,
+                                                    )
+                                                }
+                                                val balance = allocationBalance(item.amount, currentAmounts)
+                                                Text(when (balance.state) {
+                                                    "complete" -> localizedText("copy_67bca171d2", balance.total, item.currency)
+                                                    "invalid" -> localizedText("copy_d9ea7affdf")
+                                                    else -> if (balance.difference.startsWith("-")) localizedText("copy_4c52e0e5fc", balance.difference.drop(1), item.currency) else localizedText("copy_9be1d4be37", balance.difference, item.currency)
+                                                }, color = if (balance.state == "complete") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
+                                            }
+                                        }
+                                    }
+                                }
+                                if (importUnresolvedCount(current) > 0) Text(localizedText("copy_3652352085", importUnresolvedCount(current)))
+                                if (importUnsupportedCount(current) > 0) InlineError(localizedText("copy_1b89edc1fd"))
+                            }
+                        }
+                        ImportStage.RELATIONS -> preview?.let { current ->
+                            Column(
+                                Modifier.fillMaxWidth().testTag("import.stage-content"),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(localizedText("cash_import_relation_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                val linkedCount = current.relations.count { relation ->
+                                    val draft = relationDrafts[relation.id]
+                                    val status = draft?.status ?: if (relation.automatic) "automatic" else "pending"
+                                    status == "automatic" || status == "accepted"
+                                }
+                                val pendingCount = current.relations.count { relation ->
+                                    val draft = relationDrafts[relation.id]
+                                    (draft?.status ?: if (relation.automatic) "automatic" else "pending") == "pending"
+                                }
+                                ImportFilterBar(
+                                    selected = relationFilter,
+                                    semanticPrefix = "import.relation-filter",
+                                    options = listOf(
+                                        "all" to localizedText("cash_import_filter_all", current.relations.size),
+                                        "pending" to localizedText("cash_import_filter_pending", pendingCount),
+                                        "linked" to localizedText("cash_import_filter_linked", linkedCount),
+                                    ),
+                                    onSelect = viewModel::setRelationFilter,
+                                )
+                                val filtered = current.relations.filter { relation ->
+                                    val draft = relationDrafts[relation.id]
+                                    val status = draft?.status ?: if (relation.automatic) "automatic" else "pending"
+                                    relationFilter == "all" ||
+                                        (relationFilter == "linked" && (status == "automatic" || status == "accepted")) ||
+                                        (relationFilter == "pending" && status == "pending")
+                                }
+                                if (current.relations.isEmpty() || filtered.isEmpty()) ImportEmptyState(localizedText("copy_f7ad800eb1"))
+                                filtered.forEach { relation ->
+                                    val draft = relationDrafts[relation.id] ?: ImportRelationDraft(relation.kind, if (relation.automatic) "automatic" else "pending", relation.secondary)
+                                    ImportRelationCard(
+                                        relation = relation,
+                                        draft = draft,
+                                        sizeClass = sizeClass,
+                                        onKindSelected = { value -> viewModel.setRelationDraft(relation, draft.copy(kind = value)) },
+                                        onCandidateSelected = { value ->
+                                            val selected = relation.candidates.firstOrNull { importItemKey(it) == value }
+                                            viewModel.setRelationDraft(relation, draft.copy(status = if (selected == null) "pending" else "accepted", secondary = selected, restoreStatus = null, restoreSecondary = null))
+                                        },
+                                        onToggleRejected = { viewModel.toggleRelationRejected(relation, draft) },
+                                    )
+                                }
+                            }
+                        }
+                        ImportStage.SUCCESS -> result?.let { committed ->
+                            Column(
+                                Modifier.fillMaxWidth().testTag("import.stage-content"),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Box(
+                                    Modifier.size(56.dp).background(LocalFinanceColorRoles.current.successSurface, CircleShape),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Icon(
+                                        painter = painterResource(Res.drawable.ic_check),
+                                        contentDescription = null,
+                                        modifier = Modifier.size(28.dp),
+                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    )
+                                }
+                                Text(localizedText("copy_75c33f5c2e"), style = MaterialTheme.typography.titleLarge)
+                                Text(localizedText("copy_07c4b4b5e5", committed.newRows, committed.updatedRows, preview?.summary?.existing ?: 0, committed.skippedRows))
                             }
                         }
                     }
-                    ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115")) }
-                    }
-                    ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = {
-                            if (preview?.let { hasIncompleteAllocations(it, allocationDrafts) } == true) {
-                                viewModel.setErrorCode("import_component_allocation_incomplete")
-                            } else if (preview?.items?.any { it.components.orEmpty().size > 1 } == true) {
-                                viewModel.loadPreview(ImportStage.RELATIONS)
-                            } else {
-                                viewModel.stage(ImportStage.RELATIONS)
-                            }
-                        }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.testTag(SemanticIds.importNext)) { Text(localizedText("copy_1fc1afc5c5")) }
-                    }
-                    ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                        OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) { Text(localizedText("copy_75ef1241c0")) }
-                        Button(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) { Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d")) }
-                    }
-                    ImportStage.SUCCESS -> Button(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text(localizedText("copy_855fa817d2")) }
-                }
-            },
-        ) {
-            if (canWrite && stage != ImportStage.SUCCESS) {
-                Box(
-                    Modifier.fillMaxWidth()
-                        .padding(horizontal = if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 36.dp)
-                        .padding(top = 24.dp, bottom = 4.dp),
-                ) {
-                    ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
                 }
             }
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
-                FeaturePage(
-                    localizedText("cash_import_title"),
-                    SemanticIds.importScreen,
-                    modifier = Modifier.widthIn(max = if (stage == ImportStage.RELATIONS) 1480.dp else 720.dp).fillMaxWidth(),
-                    showTitle = false,
-                    scrollable = false,
-                    contentPadding = PaddingValues(
-                        start = when (sizeClass) {
-                            WindowSizeClass.COMPACT -> 16.dp
-                            WindowSizeClass.REGULAR -> 24.dp
-                            WindowSizeClass.WIDE -> 32.dp
-                        },
-                        end = when (sizeClass) {
-                            WindowSizeClass.COMPACT -> 16.dp
-                            WindowSizeClass.REGULAR -> 24.dp
-                            WindowSizeClass.WIDE -> 32.dp
-                        },
-                        top = if (sizeClass == WindowSizeClass.COMPACT) 8.dp else 12.dp,
-                        bottom = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 12.dp,
+        }
+    }
+}
+
+@Composable
+private fun ImportNewAccountEditOverlay(
+    name: String,
+    type: String,
+    currencies: List<String>,
+    onNameChanged: (String) -> Unit,
+    onTypeChanged: (String) -> Unit,
+    onDismiss: () -> Unit,
+    onApply: () -> Unit,
+) {
+    val title = localizedText("cash_import_edit_new_account_title")
+    var typeMenuExpanded by remember { mutableStateOf(false) }
+    PlatformBackHandler(enabled = true, onBack = onDismiss)
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && !typeMenuExpanded) {
+                    onDismiss()
+                    true
+                } else false
+            }
+            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(Modifier.fillMaxSize().clickable(onClick = onDismiss))
+        Surface(
+            modifier = Modifier.widthIn(max = 560.dp)
+                .fillMaxWidth(0.9f)
+                .heightIn(max = maxHeight * 0.9f)
+                .testTag("import.mapping.edit-dialog")
+                .semantics {
+                    paneTitle = title
+                },
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            tonalElevation = 6.dp,
+            shadowElevation = 8.dp,
+        ) {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+            ) {
+                Text(title, style = MaterialTheme.typography.headlineSmall)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = onNameChanged,
+                    modifier = Modifier.fillMaxWidth()
+                        .accessibleTextFieldLabel(localizedText("copy_238452a115"))
+                        .testTag("import.mapping.edit-name"),
+                    label = { Text(localizedText("copy_238452a115")) },
+                    singleLine = true,
+                )
+                ChoicePicker(
+                    label = localizedText("copy_082c31df2b"),
+                    value = type,
+                    options = listOf(
+                        "cash" to localizedText("copy_ca5bd21330"),
+                        "loan" to localizedText("copy_099f8b5c68"),
+                        "lend" to localizedText("copy_4a2637c23f"),
                     ),
+                    onSelected = onTypeChanged,
+                    semanticId = "import.mapping.edit-type",
+                    onMenuExpandedChange = { typeMenuExpanded = it },
+                )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    if (!canWrite) {
-                        StateMessage(localizedText("copy_459f937086"))
-                    } else {
-                        InlineError(error)
-                        when (stage) {
-                            ImportStage.SELECT -> {
-                                Column(
-                                    Modifier.fillMaxWidth().testTag("import.stage-content"),
-                                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                                ) {
-                                    Text(localizedText("cash_import_select_file_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                    ImportUploadSurface(
-                                        selectedFiles = selectedFiles,
-                                        demoStatement = demoStatement != null,
-                                        busy = busy,
-                                        onChoose = {
-                                            if (demoStatement != null) viewModel.receiveFiles(listOf(demoStatement))
-                                            else filePicker?.launch()
-                                        },
-                                    )
-                                    selectedFiles.forEachIndexed { index, picked ->
-                                        ImportOutlinedCard {
-                                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    painter = painterResource(Res.drawable.ic_description),
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(24.dp),
-                                                    tint = MaterialTheme.colorScheme.primary,
-                                                )
-                                                Column(Modifier.weight(1f).padding(start = 12.dp)) {
-                                                    Text(picked.identity.name, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                                    Text(formatFileSize(picked.identity.size), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    scan?.files?.firstOrNull { it.index == index }?.let { status ->
-                                                        Text(importFileStatus(status), style = MaterialTheme.typography.bodySmall)
-                                                    }
-                                                }
-                                                TextButton(
-                                                    onClick = { viewModel.removeFile(picked.identity.digest) },
-                                                    enabled = !busy,
-                                                    modifier = Modifier.testTag("${SemanticIds.importRemoveFile}.${picked.identity.digest}"),
-                                                ) { Text(localizedText("copy_2f752c005e")) }
-                                            }
-                                        }
-                                    }
-                                    scan?.files?.filter { it.status == "password_required" }?.forEach { fileStatus ->
-                                        val picked = selectedFiles.getOrNull(fileStatus.index) ?: return@forEach
-                                        val passwordLabel = localizedText("copy_f1b6b76a6f", picked.identity.name)
-                                        OutlinedTextField(
-                                            value = passwords[fileStatus.index.toString()].orEmpty(),
-                                            onValueChange = { viewModel.updatePassword(fileStatus.index, it) },
-                                            label = { Text(passwordLabel) },
-                                            singleLine = true,
-                                            visualTransformation = PasswordVisualTransformation(),
-                                            modifier = Modifier.fillMaxWidth()
-                                                .testTag("${SemanticIds.importFilePassword}.${fileStatus.index}")
-                                                .semantics(mergeDescendants = true) { contentDescription = passwordLabel },
-                                        )
-                                    }
-                                    scan?.files?.filter { it.status == "error" }?.forEach { fileStatus ->
-                                        InlineError("${selectedFiles.getOrNull(fileStatus.index)?.identity?.name ?: fileStatus.filename}：${importFileStatus(fileStatus)}")
-                                    }
-                                }
-                            }
-                            ImportStage.MAPPING -> scan?.let { current ->
-                                Column(
-                                    Modifier.fillMaxWidth().testTag("import.stage-content"),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    ImportOutlinedCard {
-                                        Text(localizedText("copy_56bc6903d6", importChannelLabel(current.channel, current.channelLabel), current.groups.size), style = MaterialTheme.typography.titleSmall)
-                                        Text(current.files.joinToString(" · ") { it.filename.orEmpty() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        if (current.unresolvedCount > 0) Text(localizedText("copy_40b67ad6b4", current.unresolvedCount), color = MaterialTheme.colorScheme.error)
-                                    }
-                                    Text(localizedText("cash_import_mapping_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                    current.groups.forEach { group ->
-                                        val draft = accountDrafts[group.groupId]
-                                        val sharedDrafts = accountDrafts.values.mapNotNull(ImportAccountDraft::newAccount).distinctBy { it.draftId }
-                                        ImportOutlinedCard {
-                                            if (sizeClass == WindowSizeClass.COMPACT) {
-                                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                                    ImportMappingSource(group)
-                                                    ChoicePicker(
-                                                        localizedText("copy_8ab177def7"),
-                                                        draft?.newAccount?.let { "__draft__${it.draftId}" } ?: draft?.accountId?.toString().orEmpty(),
-                                                        listOf("" to localizedText("copy_ce1ec4bd2e")) + current.accounts.map { it.id.toString() to it.name } +
-                                                            sharedDrafts.map { "__draft__${it.draftId}" to localizedText("copy_ec72e9b1d3", it.name) } + ("__create__" to localizedText("copy_93b0b8ba3b")),
-                                                        { viewModel.selectAccount(group, it) },
-                                                        semanticId = "${SemanticIds.importMapping}.${group.groupId}",
-                                                        fieldStyle = true,
-                                                    )
-                                                }
-                                            } else {
-                                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                                    ImportMappingSource(group, Modifier.weight(1.2f))
-                                                    ChoicePicker(
-                                                        localizedText("copy_8ab177def7"),
-                                                        draft?.newAccount?.let { "__draft__${it.draftId}" } ?: draft?.accountId?.toString().orEmpty(),
-                                                        listOf("" to localizedText("copy_ce1ec4bd2e")) + current.accounts.map { it.id.toString() to it.name } +
-                                                            sharedDrafts.map { "__draft__${it.draftId}" to localizedText("copy_ec72e9b1d3", it.name) } + ("__create__" to localizedText("copy_93b0b8ba3b")),
-                                                        { viewModel.selectAccount(group, it) },
-                                                        modifier = Modifier.weight(1f),
-                                                        semanticId = "${SemanticIds.importMapping}.${group.groupId}",
-                                                        fieldStyle = true,
-                                                    )
-                                                }
-                                            }
-                                            draft?.newAccount?.let { account ->
-                                                OutlinedTextField(
-                                                    value = account.name,
-                                                    onValueChange = { value -> viewModel.updateNewAccount(group.groupId) { it.copy(name = value.take(255)) } },
-                                                    modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_238452a115")),
-                                                    label = { Text(localizedText("copy_238452a115")) },
-                                                    singleLine = true,
-                                                )
-                                                ChoicePicker(localizedText("copy_082c31df2b"), account.type, listOf("cash" to localizedText("copy_ca5bd21330"), "loan" to localizedText("copy_099f8b5c68"), "lend" to localizedText("copy_4a2637c23f")), { value -> viewModel.updateNewAccount(group.groupId) { it.copy(type = value) } })
-                                                Text(localizedText("copy_b241eb825a", account.currencies.joinToString(" / ")))
-                                            }
-                                            val selectedAccount = current.accounts.firstOrNull { it.id == draft?.accountId }
-                                            val missingCurrencies = if (selectedAccount == null) emptyList() else group.currencies.filterNot { it in selectedAccount.currencies.orEmpty() }
-                                            if (missingCurrencies.isNotEmpty()) Text(localizedText("copy_6f136836ac", missingCurrencies.joinToString("、")))
-                                        }
-                                    }
-                                }
-                            }
-                            ImportStage.PREVIEW -> preview?.let { current ->
-                                Column(
-                                    Modifier.fillMaxWidth().testTag("import.stage-content"),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Text(localizedText("copy_0433a1c196"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                    ImportFilterBar(
-                                        selected = previewFilter,
-                                        semanticPrefix = "import.preview-filter",
-                                        options = listOf(
-                                            "all" to localizedText("copy_f229c64eb7", current.summary.total),
-                                            "new" to localizedText("copy_4be80bff60", current.summary.new),
-                                            "existing" to localizedText("copy_eb4f38232d", current.summary.existing),
-                                            "unresolved" to localizedText("copy_6d5268fd33", current.summary.unresolved),
-                                            "requires_allocation" to localizedText("copy_44d8ec2ba9", incompleteAllocationCount(current, allocationDrafts)),
-                                        ),
-                                        onSelect = viewModel::setPreviewFilter,
-                                    )
-                                    val visibleItems = current.items.filter { previewFilter == "all" || it.status == previewFilter }
-                                    val monthGroups = importPreviewMonthGroups(visibleItems)
-                                    if (visibleItems.isEmpty()) ImportEmptyState(if (current.items.isEmpty()) localizedText("copy_e0329985a9") else localizedText("copy_43dd57a28f"))
-                                    monthGroups.forEach { group ->
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text(importPreviewMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
-                                            if (group.summary?.currencies.isNullOrEmpty()) {
-                                                Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall)
-                                            }
-                                        }
-                                        group.summary?.currencies.orEmpty().forEach { totals ->
-                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                Text(localizedText("copy_5e64d382a1", importPreviewSummaryAmount("income", totals.income), totals.currency), color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
-                                                Text(localizedText("copy_19c079014a", importPreviewSummaryAmount("expense", totals.expense), totals.currency), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                                            }
-                                        }
-                                        group.items.forEach { item ->
-                                            ImportOutlinedCard(Modifier.testTag("import-item-${item.recordId}")) {
-                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                    Text(importPreviewDateTimeLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    ImportStatusPill(importStatusLabel(item.status), item.status)
-                                                }
-                                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
-                                                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                                        Text(item.counterparty.ifBlank { "-" }, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
-                                                        Text(item.note.ifBlank { "-" }, style = MaterialTheme.typography.bodyMedium)
-                                                        Text("${item.accountName} · ${importRecordTypeLabel(item.recordType)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                                    }
-                                                    val direction = importPreviewDirection(item)
-                                                    Text(
-                                                        importPreviewAmountLabel(item),
-                                                        color = when (direction) {
-                                                            "income" -> GeneratedTokens.Core.Color.SemanticIncome
-                                                            "expense" -> GeneratedTokens.Core.Color.SemanticExpense
-                                                            else -> MaterialTheme.colorScheme.onSurface
-                                                        },
-                                                        style = MaterialTheme.typography.titleMedium,
-                                                    )
-                                                }
-                                                item.message.takeIf(String::isNotBlank)?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-                                                if (item.components.orEmpty().size > 1) {
-                                                    Text(localizedText("copy_a62d0b68c2"), style = MaterialTheme.typography.labelLarge)
-                                                    val key = importItemKey(item)
-                                                    val currentAmounts = allocationDrafts[key].orEmpty()
-                                                    item.components.orEmpty().forEachIndexed { index, component ->
-                                                        OutlinedTextField(
-                                                            value = currentAmounts.getOrElse(index) { component.amount?.removePrefix("+")?.removePrefix("-").orEmpty() },
-                                                            onValueChange = { value -> viewModel.updateAllocation(key, index, value) },
-                                                            modifier = Modifier.testTag("${SemanticIds.importAllocation}.$key.$index")
-                                                                .accessibleTextFieldLabel(component.sourceLabel),
-                                                            label = { Text(component.sourceLabel) },
-                                                            singleLine = true,
-                                                        )
-                                                    }
-                                                    val balance = allocationBalance(item.amount, currentAmounts)
-                                                    Text(when (balance.state) {
-                                                        "complete" -> localizedText("copy_67bca171d2", balance.total, item.currency)
-                                                        "invalid" -> localizedText("copy_d9ea7affdf")
-                                                        else -> if (balance.difference.startsWith("-")) localizedText("copy_4c52e0e5fc", balance.difference.drop(1), item.currency) else localizedText("copy_9be1d4be37", balance.difference, item.currency)
-                                                    }, color = if (balance.state == "complete") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error)
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if (importUnresolvedCount(current) > 0) Text(localizedText("copy_3652352085", importUnresolvedCount(current)))
-                                    if (importUnsupportedCount(current) > 0) InlineError(localizedText("copy_1b89edc1fd"))
-                                }
-                            }
-                            ImportStage.RELATIONS -> preview?.let { current ->
-                                Column(
-                                    Modifier.fillMaxWidth().testTag("import.stage-content"),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Text(localizedText("cash_import_relation_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                                    val linkedCount = current.relations.count { relation ->
-                                        val draft = relationDrafts[relation.id]
-                                        val status = draft?.status ?: if (relation.automatic) "automatic" else "pending"
-                                        status == "automatic" || status == "accepted"
-                                    }
-                                    val pendingCount = current.relations.count { relation ->
-                                        val draft = relationDrafts[relation.id]
-                                        (draft?.status ?: if (relation.automatic) "automatic" else "pending") == "pending"
-                                    }
-                                    ImportFilterBar(
-                                        selected = relationFilter,
-                                        semanticPrefix = "import.relation-filter",
-                                        options = listOf(
-                                            "all" to localizedText("cash_import_filter_all", current.relations.size),
-                                            "pending" to localizedText("cash_import_filter_pending", pendingCount),
-                                            "linked" to localizedText("cash_import_filter_linked", linkedCount),
-                                        ),
-                                        onSelect = viewModel::setRelationFilter,
-                                    )
-                                    val filtered = current.relations.filter { relation ->
-                                        val draft = relationDrafts[relation.id]
-                                        val status = draft?.status ?: if (relation.automatic) "automatic" else "pending"
-                                        relationFilter == "all" ||
-                                            (relationFilter == "linked" && (status == "automatic" || status == "accepted")) ||
-                                            (relationFilter == "pending" && status == "pending")
-                                    }
-                                    if (current.relations.isEmpty() || filtered.isEmpty()) ImportEmptyState(localizedText("copy_f7ad800eb1"))
-                                    filtered.forEach { relation ->
-                                        val draft = relationDrafts[relation.id] ?: ImportRelationDraft(relation.kind, if (relation.automatic) "automatic" else "pending", relation.secondary)
-                                        ImportRelationCard(
-                                            relation = relation,
-                                            draft = draft,
-                                            sizeClass = sizeClass,
-                                            onKindSelected = { value -> viewModel.setRelationDraft(relation, draft.copy(kind = value)) },
-                                            onCandidateSelected = { value ->
-                                                val selected = relation.candidates.firstOrNull { importItemKey(it) == value }
-                                                viewModel.setRelationDraft(relation, draft.copy(status = if (selected == null) "pending" else "accepted", secondary = selected, restoreStatus = null, restoreSecondary = null))
-                                            },
-                                            onToggleRejected = { viewModel.toggleRelationRejected(relation, draft) },
-                                        )
-                                    }
-                                }
-                            }
-                            ImportStage.SUCCESS -> result?.let { committed ->
-                                Column(
-                                    Modifier.fillMaxWidth().testTag("import.stage-content"),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                ) {
-                                    Box(
-                                        Modifier.size(56.dp).background(GeneratedTokens.Light.Color.StateSuccessSurface, CircleShape),
-                                        contentAlignment = Alignment.Center,
-                                    ) {
-                                        Icon(
-                                            painter = painterResource(Res.drawable.ic_check),
-                                            contentDescription = null,
-                                            modifier = Modifier.size(28.dp),
-                                            tint = GeneratedTokens.Core.Color.SemanticIncome,
-                                        )
-                                    }
-                                    Text(localizedText("copy_75c33f5c2e"), style = MaterialTheme.typography.titleLarge)
-                                    Text(localizedText("copy_07c4b4b5e5", committed.newRows, committed.updatedRows, preview?.summary?.existing ?: 0, committed.skippedRows))
-                                }
-                            }
+                    Text(
+                        localizedText("copy_b241eb825a", currencies.joinToString(" / ")),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
+                        TextButton(onClick = onDismiss) {
+                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.edit.cancel.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("copy_4d0b4688c7"))
+                        }
+                        TextButton(onClick = onApply, modifier = Modifier.testTag("import.edit.apply")) {
+                            Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.edit.apply.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("ledger_filter_done"))
                         }
                     }
                 }
@@ -550,6 +762,7 @@ private fun ImportUploadSurface(
             if (demoStatement) localizedText("cash_import_demo_statement")
             else selectedFiles.firstOrNull()?.identity?.name ?: localizedText("cash_import_add_file_heading"),
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
             fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
@@ -571,6 +784,8 @@ private fun ImportUploadSurface(
             colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.accent),
             enabled = !busy && (!demoStatement || selectedFiles.isEmpty()),
         ) {
+            Icon(painterResource(Res.drawable.ic_description), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.choose-file.icon"), tint = colors.accent)
+            Spacer(Modifier.size(8.dp))
             Text(
                 when {
                     demoStatement && selectedFiles.isEmpty() -> localizedText("cash_import_use_demo_statement")
@@ -607,6 +822,8 @@ private fun ImportScanAction(
         modifier = modifier,
         border = BorderStroke(1.dp, if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),
     ) {
+        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+        Spacer(Modifier.size(8.dp))
         Text(if (busy) localizedText("copy_4a5e035eb9") else localizedText("cash_import_next"))
     }
 }
@@ -614,7 +831,7 @@ private fun ImportScanAction(
 @Composable
 private fun ImportUploadIcon(color: Color) {
     Icon(
-        painter = painterResource(Res.drawable.ic_file_upload),
+        painter = painterResource(Res.drawable.ic_file_download),
         contentDescription = null,
         modifier = Modifier.size(32.dp),
         tint = color,
@@ -650,6 +867,44 @@ private fun ImportMappingSource(group: ImportSourceGroup, modifier: Modifier = M
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
+}
+
+@Composable
+private fun importMappedAccountOptionLabel(name: String, type: String, currencies: List<String>): String =
+    "$name · ${importAccountTypeLabel(type)} · ${localizedText("copy_b241eb825a", currencies.distinct().sorted().joinToString(" / "))}"
+
+@Composable
+private fun ImportMappedAccountSummary(
+    name: String,
+    type: String,
+    currencies: List<String>,
+    onEdit: (() -> Unit)? = null,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(name, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+            Text(
+                "${importAccountTypeLabel(type)} · ${localizedText("copy_b241eb825a", currencies.joinToString(" / "))}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (onEdit != null) {
+            TextButton(onClick = onEdit, modifier = Modifier.testTag("import.mapping.edit")) {
+                Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.mapping.edit.icon"))
+                Spacer(Modifier.size(8.dp))
+                Text(localizedText("cash_import_edit_new_account"))
+            }
+        }
+    }
+}
+
+@Composable
+private fun importAccountTypeLabel(type: String): String = when (type) {
+    "cash" -> localizedText("copy_ca5bd21330")
+    "loan" -> localizedText("copy_099f8b5c68")
+    "lend" -> localizedText("copy_4a2637c23f")
+    else -> localizedText("copy_082c31df2b")
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -720,8 +975,20 @@ private fun ImportStatusPill(
     }
     val actionsDescription = localizedText("cash_import_more_actions")
     val chip: @Composable () -> Unit = {
-        Box(Modifier.background(background, CircleShape).padding(horizontal = 12.dp, vertical = 7.dp)) {
+        Row(
+            Modifier.background(background, CircleShape).padding(horizontal = 12.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(label, color = foreground, style = MaterialTheme.typography.labelMedium, maxLines = 1)
+            if (onActionClick != null) {
+                Icon(
+                    painterResource(Res.drawable.ic_more_vert),
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp).testTag("${actionTestTag ?: "import.relation-actions"}.icon"),
+                    tint = foreground,
+                )
+            }
         }
     }
     if (onActionClick == null) {
@@ -823,10 +1090,16 @@ private fun ImportRelationCard(
                         draft.kind,
                         listOf("payment_mirror" to localizedText("copy_2b6feb78fe"), "refund_offset" to localizedText("copy_b441aa2b9b"), "transfer_pair" to localizedText("copy_e4aaa144b7")),
                         onKindSelected,
-                        fieldStyle = true,
                     )
                 }
                 TextButton(onClick = onToggleRejected) {
+                    Icon(
+                        painterResource(if (rejected) Res.drawable.ic_link else Res.drawable.ic_link_off),
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp).testTag("import.relation.toggle.icon"),
+                        tint = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Spacer(Modifier.size(8.dp))
                     Text(if (rejected) localizedText("copy_3290b42bd1") else localizedText("copy_86ab462000"))
                 }
             }
@@ -872,9 +1145,6 @@ private fun ImportRelationTarget(
             modifier = modifier,
             semanticId = "${SemanticIds.importRelations}.${relation.id}",
             autoScrollMenuIntoView = true,
-            fieldStyle = true,
-            simpleMenuOnWeb = true,
-            anchoredMenuOnWeb = true,
         )
     }
 }
@@ -945,12 +1215,12 @@ private fun ImportStepper(
                                 painter = painterResource(Res.drawable.ic_check),
                                 contentDescription = null,
                                 modifier = Modifier.size(16.dp),
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                             )
                         } else {
                             Text(
                                 (index + 1).toString(),
-                                color = if (current) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = if (current) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                             )

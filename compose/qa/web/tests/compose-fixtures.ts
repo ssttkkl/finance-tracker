@@ -15,6 +15,8 @@ type FixtureOptions = {
   workspaceSelectDelayMs?: number;
   cashPageFailures?: number;
   cashPageEmpty?: boolean;
+  cashPaginatedPageCount?: number;
+  cashAppendFailures?: number;
   withAcceptedCashRelation?: boolean;
 };
 
@@ -24,6 +26,7 @@ export type ComposeApiFixtures = {
     session: ComposeSession | null;
     categoryItems: Array<Record<string, unknown>>;
     workspaceName: string;
+    cashProjectionPageIds: string[][];
     recordWrites: Array<Record<string, unknown>>;
     classificationWrites: Array<Record<string, unknown>>;
     projectionDeletes: Array<Record<string, unknown>>;
@@ -172,6 +175,14 @@ const cashProjection = {
   visible: true,
 };
 
+const importedCashProjection = {
+  ...cashProjection,
+  projection_id: "projection-imported",
+  counterparty: "刚刚导入的流水",
+  amount: "-12.34",
+  record_id: "record-imported",
+};
+
 const cashRecord = {
   id: "record-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
@@ -295,10 +306,14 @@ export async function installComposeApiFixtures(
   const projectionDeletes: Array<Record<string, unknown>> = [];
   let cashRelations = options.withAcceptedCashRelation ? [acceptedCashRelation, secondAcceptedCashRelation] : [];
   let cashPageRequests = 0;
+  let cashAppendFailuresRemaining = 0;
+  let cashImportCommitted = false;
+  const cashProjectionPageIds: string[][] = [];
   const state = {
     session: initialSession,
     categoryItems: categoryItems.map((item) => ({ ...item })),
     workspaceName: initialSession?.workspaces.find((item) => item.id === initialSession.active_workspace_id)?.name ?? "家庭账本",
+    cashProjectionPageIds,
     recordWrites: writes,
     classificationWrites,
     projectionDeletes,
@@ -430,9 +445,58 @@ export async function installComposeApiFixtures(
       if (cashPageRequests <= (options.cashPageFailures ?? 0)) {
         return json({ error: { code: "temporarily_unavailable" } }, 503);
       }
+      if (options.cashPaginatedPageCount) {
+        const cursor = searchParams.get("cursor");
+        const pageNumber = cursor ? Number(cursor.replace("cash-scroll-page-", "")) : 1;
+        if (pageNumber === 1) cashAppendFailuresRemaining = options.cashAppendFailures ?? 0;
+        if (pageNumber > 1 && cashAppendFailuresRemaining > 0) {
+          cashAppendFailuresRemaining--;
+          return json({ error: { code: "temporarily_unavailable" } }, 503);
+        }
+        const economicType = searchParams.get("economic_type") === "income" ? "income" : "expense";
+        const items = Array.from({ length: 24 }, (_, index) => ({
+          ...cashProjection,
+          projection_id: pageNumber === 1 && index === 1
+            ? "cash-scroll-1-1"
+            : pageNumber > 1 && index === 0
+              ? "cash-scroll-1-24"
+              : `cash-scroll-${pageNumber}-${index + 1}`,
+          occurred_at: pageNumber === 1 && index === 1
+            ? "2026-09-24T10:30:00+08:00"
+            : pageNumber > 1 && index === 0
+              ? "2026-09-01T10:30:00+08:00"
+              : `2026-09-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`,
+          counterparty: pageNumber === 1 && index === 1
+            ? "重复流水"
+            : pageNumber > 1 && index === 0
+              ? "第1页流水24"
+              : `第${pageNumber}页流水${String(index + 1).padStart(2, "0")}`,
+          amount: economicType === "income" ? "28.50" : "-28.50",
+          economic_type: economicType,
+        }));
+        cashProjectionPageIds.push(items.map((item) => item.projection_id));
+        return json({
+          projection_version: 1,
+          items: options.cashPageEmpty ? [] : items,
+          next_cursor: pageNumber < options.cashPaginatedPageCount ? `cash-scroll-page-${pageNumber + 1}` : null,
+          page_size: items.length,
+          filter_options: {
+            categories: state.categoryItems,
+            currencies: ["CNY"],
+            economic_types: [
+              { economic_type: "expense", transfer_subtypes: [] },
+              { economic_type: "income", transfer_subtypes: [] },
+            ],
+          },
+          monthly_summaries: options.cashPageEmpty ? [] : [{
+            month: "2026-09",
+            currencies: [{ currency: "CNY", income: economicType === "income" ? "28.50" : "0", expense: economicType === "expense" ? "28.50" : "0" }],
+          }],
+        });
+      }
       return json({
         projection_version: 1,
-        items: options.cashPageEmpty ? [] : [cashProjection],
+        items: options.cashPageEmpty ? [] : [cashProjection, ...(cashImportCommitted ? [importedCashProjection] : [])],
         next_cursor: null,
         page_size: 20,
         filter_options: {
@@ -559,6 +623,7 @@ export async function installComposeApiFixtures(
       });
     }
     if (pathname === "/api/v1/cash-import/commit" && method === "POST") {
+      cashImportCommitted = true;
       return json({ message: "ok", new_rows: 1, updated_rows: 0, skipped_rows: 0, channel: "bank", digest: "digest-e2e" });
     }
 

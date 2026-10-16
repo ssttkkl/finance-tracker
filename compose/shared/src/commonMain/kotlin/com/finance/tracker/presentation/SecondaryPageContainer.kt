@@ -11,7 +11,6 @@ import com.finance.tracker.resources.ic_close
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,32 +23,24 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -57,28 +48,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import org.jetbrains.compose.resources.painterResource
@@ -91,67 +69,6 @@ internal enum class SecondaryPageLayout {
 internal fun secondaryPageLayoutFor(sizeClass: WindowSizeClass): SecondaryPageLayout =
     if (sizeClass == WindowSizeClass.COMPACT) SecondaryPageLayout.FULL_SCREEN else SecondaryPageLayout.MODAL
 
-internal data class SecondaryPageOverlayMenu(
-    val key: String,
-    val anchor: LayoutCoordinates,
-    val options: List<Pair<String, String>>,
-    val selectedValue: String,
-    val onSelected: (String) -> Unit,
-    val triggerFocusRequester: FocusRequester,
-    val optionFocusRequesters: List<FocusRequester>,
-    val focusedOptionIndex: Int,
-    val anchorRevision: Int = 0,
-)
-
-internal class SecondaryPageOverlayMenuHost {
-    var rootCoordinates by mutableStateOf<LayoutCoordinates?>(null)
-    var menu by mutableStateOf<SecondaryPageOverlayMenu?>(null)
-        private set
-
-    fun isShowing(key: String): Boolean = menu?.key == key
-
-    fun show(menu: SecondaryPageOverlayMenu) {
-        this.menu = menu
-    }
-
-    fun updateAnchor(key: String, anchor: LayoutCoordinates) {
-        val current = menu?.takeIf { it.key == key } ?: return
-        menu = current.copy(anchor = anchor, anchorRevision = current.anchorRevision + 1)
-    }
-
-    fun updateFocusedOption(key: String, index: Int) {
-        val current = menu?.takeIf { it.key == key } ?: return
-        if (current.focusedOptionIndex != index) menu = current.copy(focusedOptionIndex = index)
-    }
-
-    fun moveFocus(key: String, delta: Int) {
-        val current = menu?.takeIf { it.key == key } ?: return
-        if (current.options.isEmpty()) return
-        val nextIndex = (current.focusedOptionIndex + delta).coerceIn(0, current.options.lastIndex)
-        current.optionFocusRequesters.getOrNull(nextIndex)?.requestFocus()
-    }
-
-    fun selectFocused(key: String) {
-        val current = menu?.takeIf { it.key == key } ?: return
-        current.options.getOrNull(current.focusedOptionIndex)?.let { select(it.first) }
-    }
-
-    fun dismiss(restoreFocus: Boolean = true) {
-        val current = menu ?: return
-        menu = null
-        if (restoreFocus) current.triggerFocusRequester.requestFocus()
-    }
-
-    fun select(value: String) {
-        val current = menu ?: return
-        menu = null
-        current.onSelected(value)
-        current.triggerFocusRequester.requestFocus()
-    }
-}
-
-internal val LocalSecondaryPageOverlayMenuHost = staticCompositionLocalOf<SecondaryPageOverlayMenuHost?> { null }
-
 /** Shared host for page-level secondary destinations; callers supply task content and footer actions. */
 @Composable
 internal fun SecondaryPageContainer(
@@ -160,6 +77,7 @@ internal fun SecondaryPageContainer(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     footer: @Composable () -> Unit,
+    overlayContent: @Composable () -> Unit = {},
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = LocalFinanceColorRoles.current
@@ -184,7 +102,7 @@ internal fun SecondaryPageContainer(
                 clippingEnabled = false,
             ),
         ) {
-            SecondaryPageOverlayHost(Modifier.fillMaxSize()) {
+            SecondaryPageOverlayHost(Modifier.fillMaxSize(), overlayContent) {
                 if (layout == SecondaryPageLayout.FULL_SCREEN) {
                     SecondaryPageFullScreen(title, sizeClass, onClose, modifier, content, footer)
                 } else {
@@ -219,112 +137,21 @@ internal fun SecondaryPageContainer(
             }
         }
     } else {
-        SecondaryPageOverlayHost(Modifier.fillMaxSize()) {
+        SecondaryPageOverlayHost(Modifier.fillMaxSize(), overlayContent) {
             SecondaryPageFullScreen(title, sizeClass, onClose, modifier, content, footer)
         }
     }
 }
 
 @Composable
-private fun SecondaryPageOverlayHost(modifier: Modifier, content: @Composable () -> Unit) {
-    val host = remember { SecondaryPageOverlayMenuHost() }
-    CompositionLocalProvider(LocalSecondaryPageOverlayMenuHost provides host) {
-        Box(modifier.onGloballyPositioned { host.rootCoordinates = it }) {
-            content()
-            SecondaryPageOverlayMenuLayer(host, Modifier.matchParentSize())
-        }
-    }
-}
-
-@Composable
-private fun SecondaryPageOverlayMenuLayer(host: SecondaryPageOverlayMenuHost, modifier: Modifier = Modifier) {
-    val menu = host.menu
-    val rootCoordinates = host.rootCoordinates
-    val density = LocalDensity.current
-    LaunchedEffect(menu?.key) {
-        menu?.let { currentMenu ->
-            withFrameNanos { }
-            currentMenu.optionFocusRequesters.getOrNull(currentMenu.focusedOptionIndex)?.requestFocus()
-        }
-    }
-    if (menu == null || rootCoordinates == null || !menu.anchor.isAttached) return
-
-    BoxWithConstraints(modifier.zIndex(10f)) {
-        val anchorPosition = rootCoordinates.localPositionOf(menu.anchor, Offset.Zero)
-        val anchorX = with(density) { anchorPosition.x.toDp() }
-        val anchorY = with(density) { anchorPosition.y.toDp() }
-        val anchorWidth = with(density) { menu.anchor.size.width.toDp() }
-        val anchorHeight = with(density) { menu.anchor.size.height.toDp() }
-        val margin = 12.dp
-        val gap = 4.dp
-        val availableWidth = (maxWidth - margin * 2).coerceAtLeast(160.dp)
-        val menuWidth = anchorWidth.coerceAtLeast(260.dp).coerceAtMost(availableWidth)
-        val menuMaxHeight = (maxHeight - margin * 2).coerceAtLeast(120.dp).coerceAtMost(420.dp)
-        val estimatedHeight = (menu.options.size * 48 + 16).dp.coerceAtMost(menuMaxHeight)
-        val belowSpace = maxHeight - (anchorY + anchorHeight + gap)
-        val aboveSpace = anchorY - gap - margin
-        val placeBelow = belowSpace >= estimatedHeight || belowSpace >= aboveSpace
-        val maxMenuY = (maxHeight - estimatedHeight - margin).coerceAtLeast(margin)
-        val menuY = if (placeBelow) {
-            (anchorY + anchorHeight + gap).coerceIn(margin, maxMenuY)
-        } else {
-            (anchorY - estimatedHeight - gap).coerceIn(margin, maxMenuY)
-        }
-        val menuX = anchorX.coerceIn(margin, (maxWidth - menuWidth - margin).coerceAtLeast(margin))
-
-        Box(
-            Modifier.fillMaxSize().pointerInput(menu.key) {
-                detectTapGestures(onTap = { host.dismiss() })
-            },
-        )
-        Card(
-            modifier = Modifier
-                .offset(menuX, menuY)
-                .width(menuWidth)
-                .heightIn(max = menuMaxHeight)
-                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(10.dp))
-                .testTag("choice-overlay-menu")
-                .onPreviewKeyEvent { event ->
-                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                        host.dismiss()
-                        true
-                    } else false
-                },
-            shape = RoundedCornerShape(10.dp),
-            colors = androidx.compose.material3.CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        ) {
-            Column(
-                Modifier
-                    .heightIn(max = menuMaxHeight)
-                    .verticalScroll(rememberScrollState())
-                    .padding(8.dp),
-            ) {
-                menu.options.forEachIndexed { index, (optionValue, optionLabel) ->
-                    val isSelected = optionValue == menu.selectedValue
-                    TextButton(
-                        onClick = { host.select(optionValue) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .focusRequester(menu.optionFocusRequesters[index])
-                            .focusable()
-                            .onFocusChanged { if (it.isFocused) host.updateFocusedOption(menu.key, index) }
-                            .testTag("choice-option-$optionValue")
-                            .semantics(mergeDescendants = true) {
-                                contentDescription = optionLabel
-                                role = Role.Button
-                                selected = isSelected
-                            },
-                    ) {
-                        Text(
-                            optionLabel,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
-                }
-            }
-        }
+private fun SecondaryPageOverlayHost(
+    modifier: Modifier,
+    overlayContent: @Composable () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    Box(modifier) {
+        content()
+        overlayContent()
     }
 }
 

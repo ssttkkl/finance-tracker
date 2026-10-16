@@ -234,6 +234,7 @@ private fun CategoryEditor(
             value = draft.parentId.orEmpty(),
             options = listOf("" to localizedText("copy_6e83bd81ca")) + parents.map { it.id to (it.path.map { pathItem -> pathItem.name } + it.name).joinToString(" / ") },
             onSelected = { onChange(draft.copy(parentId = it.ifEmpty { null })) },
+            semanticId = SemanticIds.cashCategoryParent,
         )
         OutlinedTextField(
             value = draft.description,

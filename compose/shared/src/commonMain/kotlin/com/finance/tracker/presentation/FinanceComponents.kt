@@ -87,10 +87,11 @@ internal fun RowScope.FinanceTableCell(
     weight: Float,
     header: Boolean = false,
     textAlign: TextAlign = TextAlign.Start,
+    modifier: Modifier = Modifier,
 ) {
     Text(
         text = value,
-        modifier = Modifier.weight(weight).padding(horizontal = 8.dp, vertical = 10.dp),
+        modifier = Modifier.weight(weight).padding(horizontal = 8.dp, vertical = 10.dp).then(modifier),
         style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
         color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
         textAlign = textAlign,

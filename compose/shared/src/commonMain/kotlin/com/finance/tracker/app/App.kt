@@ -49,10 +49,8 @@ import androidx.compose.runtime.movableContentOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -80,7 +78,7 @@ internal data class DestinationState(
     val accessBusy: Boolean,
     val accessError: String?,
     val sizeClass: WindowSizeClass,
-    val importButtonFocusRequester: FocusRequester,
+    val cashLedgerReloadRevision: Int,
     val onNavigate: (AppPage) -> Unit,
     val canNavigateBack: Boolean,
     val onNavigateBack: () -> Unit,
@@ -165,15 +163,15 @@ private fun FinanceTrackerAppContent(
     var navigationState by rememberAppNavigationState(resolvedInitialRoute)
     val currentRoute = navigationState.currentRoute
     val routeHistory = navigationState.backStack
-    val importButtonFocusRequester = remember { FocusRequester() }
     var previousPage by remember { mutableStateOf(currentRoute.page) }
+    var importCompletedAwaitingReturn by remember { mutableStateOf(false) }
+    var cashLedgerReloadRevision by remember { mutableStateOf(0) }
     LaunchedEffect(currentRoute.page) {
-        val shouldRestoreImportFocus = previousPage == AppPage.CASH_IMPORT && currentRoute.page == AppPage.CASH_LEDGER
-        previousPage = currentRoute.page
-        if (shouldRestoreImportFocus) {
-            withFrameNanos { }
-            importButtonFocusRequester.requestFocus()
+        if (previousPage == AppPage.CASH_IMPORT && currentRoute.page == AppPage.CASH_LEDGER && importCompletedAwaitingReturn) {
+            cashLedgerReloadRevision += 1
+            importCompletedAwaitingReturn = false
         }
+        previousPage = currentRoute.page
     }
 
     DisposableEffect(Unit) {
@@ -327,9 +325,7 @@ private fun FinanceTrackerAppContent(
         invitationSignInRequested = false
     }
 
-    FinanceTheme(
-        darkThemeOverride = if (currentRoute.page == AppPage.CASH_IMPORT) false else null,
-    ) {
+    FinanceTheme {
         BoxWithConstraints(
             Modifier
                 .fillMaxSize()
@@ -389,7 +385,7 @@ private fun FinanceTrackerAppContent(
                         accessBusy = accessBusy,
                         accessError = accessError,
                         sizeClass = windowSizeClass,
-                        importButtonFocusRequester = importButtonFocusRequester,
+                        cashLedgerReloadRevision = cashLedgerReloadRevision,
                         onNavigate = selectPage,
                         canNavigateBack = getBrowserLocation() == null && routeHistory.isNotEmpty(),
                         onNavigateBack = navigateBack,
@@ -419,7 +415,7 @@ private fun FinanceTrackerAppContent(
                                 sizeClass = windowSizeClass,
                                 canWrite = currentSession.workspaces.firstOrNull { it.id == currentSession.activeWorkspaceId }?.role?.canWrite == true,
                                 onBack = state.onCloseSecondaryPage,
-                                onDone = {},
+                                onDone = { importCompletedAwaitingReturn = true },
                                 diagnostics = graph.diagnosticLogger,
                             )
                         }

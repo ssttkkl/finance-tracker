@@ -567,13 +567,19 @@ private fun CashRecordRelatedSection(
                             options.relationTypes.map { it.value to it.label },
                             viewModel::updateEditingRelationKind,
                             enabled = canWrite && !relationBusy,
+                            semanticId = "record.related.kind.edit",
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             TextButton(
                                 onClick = { viewModel.saveRelationEdit(canWrite) },
                                 enabled = canWrite && !relationBusy && state.editingRelationKind != relation.kind,
+                                modifier = Modifier.testTag("record.related.kind.save"),
                             ) { Text(localizedText("copy_fadf24dbc5")) }
-                            TextButton(onClick = viewModel::cancelEditingRelation, enabled = !relationBusy) { Text(localizedText("copy_4d0b4688c7")) }
+                            TextButton(
+                                onClick = viewModel::cancelEditingRelation,
+                                enabled = !relationBusy,
+                                modifier = Modifier.testTag("record.related.kind.cancel"),
+                            ) { Text(localizedText("copy_4d0b4688c7")) }
                         }
                     } else {
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

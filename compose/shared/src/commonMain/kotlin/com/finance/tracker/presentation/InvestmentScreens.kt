@@ -92,7 +92,7 @@ internal fun InvestmentHoldingsScreen(
             Text(localizedText("copy_dcce9a144a"), style = MaterialTheme.typography.titleMedium)
             if (sizeClass != WindowSizeClass.WIDE) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) })
+                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) }, semanticId = SemanticIds.investmentHoldingsAccount)
                     ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) })
                     ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) })
                     OutlinedTextField(
@@ -115,7 +115,7 @@ internal fun InvestmentHoldingsScreen(
                 }
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) }, Modifier.weight(1f))
+                    ChoicePicker(localizedText("copy_c3d92b20c8"), displayOptions.accountId, accountOptions, { viewModel.updateDisplayOptions(displayOptions.copy(accountId = it)) }, Modifier.weight(1f), semanticId = SemanticIds.investmentHoldingsAccount)
                     ChoicePicker(localizedText("copy_dc35af8d69"), displayOptions.sort, listOf("market_value_desc" to localizedText("copy_78cce8bd24"), "profit_desc" to localizedText("copy_b3d9d1f6e9"), "ticker_asc" to localizedText("copy_d93f4c9f05")), { viewModel.updateDisplayOptions(displayOptions.copy(sort = it)) }, Modifier.weight(1f))
                     ChoicePicker(localizedText("copy_4f3f8fb53f"), displayOptions.grouping, listOf("split" to localizedText("copy_0f296cc8d7"), "merge" to localizedText("copy_3296293efd")), { viewModel.updateDisplayOptions(displayOptions.copy(grouping = it)) }, Modifier.weight(1f))
                     OutlinedTextField(

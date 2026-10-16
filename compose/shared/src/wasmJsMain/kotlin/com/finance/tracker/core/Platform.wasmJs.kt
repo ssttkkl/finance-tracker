@@ -111,56 +111,38 @@ private fun registerBrowserPopState(onPopState: () -> Unit): () -> Unit = js(
     })()""",
 )
 
-private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = js(
-    """(() => {
-        const listener = event => {
-            if (event.key !== 'Escape') return;
-            const isVisible = element => {
-                let current = element;
-                while (current instanceof HTMLElement) {
-                    const style = window.getComputedStyle(current);
-                    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) return false;
-                    current = current.parentElement;
-                }
-                const bounds = element.getBoundingClientRect();
-                return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0 && bounds.top < window.innerHeight && bounds.left < window.innerWidth;
-            };
-            const hasVisibleRoleModal = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).some(isVisible);
-            const hasMountedComposeModal = ['ledger.record-panel', 'ledger.filter.details', 'ledger.category-dialog']
-                .some(id => document.getElementById(id) instanceof HTMLElement);
-            if (hasVisibleRoleModal || hasMountedComposeModal) return;
-            event.preventDefault();
-            event.stopPropagation();
-            onEscape();
-        };
-        window.addEventListener('keydown', listener, true);
-        return () => window.removeEventListener('keydown', listener, true);
-    })()""",
-)
+private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape)
 
-private fun registerBrowserModalEscapeListener(onEscape: () -> Unit): () -> Unit = js(
+private fun registerBrowserModalEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape)
+
+private fun registerBrowserEscapeHandler(onEscape: () -> Unit): () -> Unit = js(
     """(() => {
-        const listener = event => {
-            if (event.key !== 'Escape') return;
-            const isVisible = element => {
-                let current = element;
-                while (current instanceof HTMLElement) {
-                    const style = window.getComputedStyle(current);
-                    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) return false;
-                    current = current.parentElement;
-                }
-                const bounds = element.getBoundingClientRect();
-                return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0 && bounds.top < window.innerHeight && bounds.left < window.innerWidth;
+        const stackKey = '__financeTrackerEscapeHandlers';
+        const listenerKey = '__financeTrackerEscapeListener';
+        const handlers = window[stackKey] || (window[stackKey] = []);
+        const entry = { callback: onEscape };
+        handlers.push(entry);
+        if (!window[listenerKey]) {
+            window[listenerKey] = event => {
+                if (event.key !== 'Escape') return;
+                const active = window[stackKey]?.[window[stackKey].length - 1];
+                if (!active) return;
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                active.callback();
             };
-            const hasVisibleAlert = Array.from(document.querySelectorAll('[role="alertdialog"]')).some(isVisible);
-            const hasVisibleChoiceMenu = Array.from(document.querySelectorAll('[id="choice-overlay-menu"], [id^="choice-option-"]')).some(isVisible);
-            if (hasVisibleAlert || hasVisibleChoiceMenu) return;
-            event.preventDefault();
-            event.stopPropagation();
-            onEscape();
+            window.addEventListener('keydown', window[listenerKey], true);
+        }
+        return () => {
+            const activeHandlers = window[stackKey] || [];
+            const index = activeHandlers.indexOf(entry);
+            if (index >= 0) activeHandlers.splice(index, 1);
+            if (activeHandlers.length === 0 && window[listenerKey]) {
+                window.removeEventListener('keydown', window[listenerKey], true);
+                delete window[listenerKey];
+                delete window[stackKey];
+            }
         };
-        window.addEventListener('keydown', listener, true);
-        return () => window.removeEventListener('keydown', listener, true);
     })()""",
 )
 

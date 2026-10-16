@@ -2,39 +2,31 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
-import com.finance.tracker.resources.Res
-import com.finance.tracker.resources.ic_keyboard_arrow_down
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.Text
@@ -47,34 +39,23 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.flow.collect
-import kotlinx.coroutines.launch
 import com.finance.tracker.core.design.GeneratedTokens
-import org.jetbrains.compose.resources.painterResource
 
 internal fun Modifier.accessibleTextFieldLabel(label: String): Modifier =
     semantics { contentDescription = label }
@@ -293,6 +274,7 @@ internal fun DateTimePickerInput(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ChoicePicker(
     label: String,
@@ -303,228 +285,70 @@ internal fun ChoicePicker(
     enabled: Boolean = true,
     semanticId: String? = null,
     autoScrollMenuIntoView: Boolean = false,
-    fieldStyle: Boolean = false,
-    simpleMenuOnWeb: Boolean = false,
-    anchoredMenuOnWeb: Boolean = false,
+    onMenuExpandedChange: ((Boolean) -> Unit)? = null,
 ) {
-    var expanded by remember(label) { mutableStateOf(false) }
-    val menuHost = LocalSecondaryPageOverlayMenuHost.current
-    val menuKey = semanticId ?: label
-    val useAnchoredMenu = isWebPlatform && anchoredMenuOnWeb && menuHost != null
-    var anchorCoordinates by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    var openingAnchoredMenu by remember { mutableStateOf(false) }
-    val coroutineScope = rememberCoroutineScope()
-    val triggerFocusRequester = remember { FocusRequester() }
-    val optionFocusRequesters = remember(options.size) { List(options.size) { FocusRequester() } }
+    var expanded by remember(label, semanticId) { mutableStateOf(false) }
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(expanded, autoScrollMenuIntoView) {
         if (expanded && autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
     }
     val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value.ifEmpty { localizedText("copy_778fc8f994") }
-    val openAnchoredMenu = {
-        if (menuHost != null && !openingAnchoredMenu) {
-            openingAnchoredMenu = true
-            coroutineScope.launch {
-                try {
-                    if (autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
-                    // Bring-into-view can move the scrollable body after the pointer click.
-                    // Wait for Compose to publish the new anchor coordinates before positioning the overlay.
-                    withFrameNanos { }
-                    anchorCoordinates?.takeIf { it.isAttached }?.let { anchor ->
-                        menuHost.show(
-                            SecondaryPageOverlayMenu(
-                                key = menuKey,
-                                anchor = anchor,
-                                options = options,
-                                selectedValue = value,
-                                onSelected = onSelected,
-                                triggerFocusRequester = triggerFocusRequester,
-                                optionFocusRequesters = optionFocusRequesters,
-                                focusedOptionIndex = options.indexOfFirst { it.first == value }.takeIf { it >= 0 } ?: 0,
-                            ),
-                        )
-                    }
-                } finally {
-                    openingAnchoredMenu = false
-                }
-            }
-        }
+    val fieldLabel: (@Composable () -> Unit)? = if (label.isBlank()) null else { { Text(label) } }
+    val updateExpanded: (Boolean) -> Unit = { nextExpanded ->
+        expanded = nextExpanded
+        onMenuExpandedChange?.invoke(nextExpanded)
     }
-    val trigger: @Composable () -> Unit = {
-        OutlinedButton(
-            onClick = {
-                if (useAnchoredMenu) {
-                    if (menuHost.isShowing(menuKey)) {
-                        menuHost.dismiss()
-                    } else openAnchoredMenu()
-                } else {
-                    expanded = !expanded
-                }
-            },
-            enabled = enabled,
-            shape = if (fieldStyle) RoundedCornerShape(10.dp) else RoundedCornerShape(22.dp),
-            modifier = (if (semanticId == null) Modifier else Modifier.testTag(semanticId))
-                .fillMaxWidth()
-                .then(if (useAnchoredMenu) Modifier.focusRequester(triggerFocusRequester) else Modifier)
-                .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier),
-        ) {
-            if (fieldStyle) {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    if (label.isNotBlank()) {
-                        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(selectedLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                        Icon(
-                            painter = painterResource(Res.drawable.ic_keyboard_arrow_down),
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            } else {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(selectedLabel, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
-                }
-            }
-        }
-    }
-    if (isWebPlatform) {
-        Column(
-            modifier.fillMaxWidth().onPreviewKeyEvent { event ->
-                if (!useAnchoredMenu && expanded && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
-                    expanded = false
+    PlatformEscapeHandler(enabled = expanded) { updateExpanded(false) }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { updateExpanded(it) },
+        modifier = modifier.fillMaxWidth()
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && expanded) {
+                    updateExpanded(false)
                     true
-                } else {
-                    false
-                }
-            },
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                } else false
+            }
+            .then(if (autoScrollMenuIntoView) Modifier.bringIntoViewRequester(menuBringIntoViewRequester) else Modifier),
+    ) {
+        OutlinedTextField(
+            value = selectedLabel,
+            onValueChange = {},
+            readOnly = true,
+            enabled = enabled,
+            singleLine = false,
+            maxLines = 2,
+            label = fieldLabel,
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            modifier = Modifier.menuAnchor()
+                .fillMaxWidth()
+                .then(if (semanticId == null) Modifier else Modifier.testTag(semanticId))
+                .then(if (label.isBlank()) Modifier.semantics { contentDescription = selectedLabel } else Modifier),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { updateExpanded(false) },
+            modifier = Modifier
+                .testTag("choice-overlay-menu")
+                .onPreviewKeyEvent { event ->
+                    if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && expanded) {
+                        updateExpanded(false)
+                        true
+                    } else false
+                },
         ) {
-            if (useAnchoredMenu) {
-                Box(
-                    Modifier.fillMaxWidth()
-                        .onPreviewKeyEvent { event ->
-                            if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                            when {
-                                menuHost.isShowing(menuKey) && event.key == Key.Escape -> {
-                                    menuHost.dismiss()
-                                    true
-                                }
-                                menuHost.isShowing(menuKey) && event.key == Key.DirectionDown -> {
-                                    menuHost.moveFocus(menuKey, 1)
-                                    true
-                                }
-                                menuHost.isShowing(menuKey) && event.key == Key.DirectionUp -> {
-                                    menuHost.moveFocus(menuKey, -1)
-                                    true
-                                }
-                                menuHost.isShowing(menuKey) && (event.key == Key.Enter || event.key == Key.Spacebar) -> {
-                                    menuHost.selectFocused(menuKey)
-                                    true
-                                }
-                                !menuHost.isShowing(menuKey) && (event.key == Key.Enter || event.key == Key.Spacebar) -> {
-                                    openAnchoredMenu()
-                                    true
-                                }
-                                else -> false
-                            }
-                        }
-                        .onGloballyPositioned {
-                            anchorCoordinates = it
-                            menuHost.updateAnchor(menuKey, it)
-                        },
-                ) {
-                    trigger()
-                }
-            } else {
-                trigger()
-            }
-            if (expanded && !useAnchoredMenu) {
-                val menuShape = RoundedCornerShape(6.dp)
-                Card(
-                    modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, menuShape),
-                    shape = menuShape,
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .heightIn(max = 420.dp)
-                            .verticalScroll(rememberScrollState())
-                            .selectableGroup()
-                            .padding(8.dp),
-                    ) {
-                        options.forEach { (optionValue, optionLabel) ->
-                            val isSelected = optionValue == value
-                            val selectOption = {
-                                expanded = false
-                                onSelected(optionValue)
-                            }
-                            if (simpleMenuOnWeb) {
-                                TextButton(
-                                    onClick = selectOption,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("choice-option-$optionValue")
-                                        .semantics(mergeDescendants = true) {
-                                            contentDescription = optionLabel
-                                            role = Role.Button
-                                            selected = isSelected
-                                        },
-                                ) {
-                                    Text(
-                                        optionLabel,
-                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                    )
-                                }
-                            } else {
-                                TextButton(
-                                    onClick = selectOption,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .testTag("choice-option-$optionValue")
-                                        .semantics(mergeDescendants = true) {
-                                            contentDescription = optionLabel
-                                            role = Role.RadioButton
-                                            selected = isSelected
-                                        },
-                                ) {
-                                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(selected = isSelected, onClick = selectOption)
-                                        Text(optionLabel, modifier = Modifier.padding(vertical = 4.dp))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        androidx.compose.foundation.layout.Box(modifier) {
-            trigger()
-            androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { (optionValue, optionLabel) ->
-                    val isSelected = optionValue == value
-                    androidx.compose.material3.DropdownMenuItem(
-                        text = { Text(optionLabel) },
-                        onClick = {
-                            expanded = false
-                            onSelected(optionValue)
-                        },
-                        modifier = Modifier
-                            .testTag("choice-option-$optionValue")
-                            .semantics(mergeDescendants = true) {
-                                contentDescription = optionLabel
-                                role = Role.RadioButton
-                                selected = isSelected
-                            },
-                    )
-                }
+            options.forEach { (optionValue, optionLabel) ->
+                DropdownMenuItem(
+                    text = { Text(optionLabel) },
+                    onClick = {
+                        onSelected(optionValue)
+                        updateExpanded(false)
+                    },
+                    modifier = Modifier
+                        .testTag("choice-option-$optionValue"),
+                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
+                )
             }
         }
     }

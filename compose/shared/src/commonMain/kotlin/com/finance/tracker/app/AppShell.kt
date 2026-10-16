@@ -994,7 +994,7 @@ internal fun DestinationScaffold(
                     state.sizeClass,
                     state.onNavigate,
                     state.diagnosticLogger,
-                    state.importButtonFocusRequester,
+                    state.cashLedgerReloadRevision,
                 )
                 AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> CashCategoryScreen(

@@ -5,6 +5,7 @@ import com.finance.tracker.core.*
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
+import androidx.paging.PagingSource
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -18,6 +19,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModelTest {
@@ -60,68 +62,45 @@ class CashLedgerViewModelTest {
     }
 
     @Test
-    fun delayedReferenceLoadCannotReplaceTheLoadedPageState() = runTest {
+    fun initializeLoadsReferenceDataWithoutDuplicatingPagingRequests() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val accounts = CompletableDeferred<List<Account>>()
-            val page = CompletableDeferred<CashPage>()
-            val repository = FakeCashLedgerRepository(delayedAccounts = accounts, delayedPage = page)
+            val repository = FakeCashLedgerRepository(delayedAccounts = accounts)
             val viewModel = CashLedgerViewModel(repository, repository)
 
             viewModel.initialize()
             runCurrent()
-            page.complete(
-                CashPage(
-                    projectionVersion = 3,
-                    items = listOf(
-                        CashProjection(
-                            projectionId = "first",
-                            occurredAt = "2026-09-26T09:00:00Z",
-                            amount = "-10",
-                            currency = "CNY",
-                            economicType = "expense",
-                            recordId = "record-first",
-                        ),
-                    ),
-                    pageSize = 1,
-                    monthlySummaries = listOf(CashMonthlySummary("2026-09", listOf(CashMonthlyCurrencySummary("CNY", "0", "10")))),
-                ),
-            )
-            runCurrent()
-            assertEquals(listOf("first"), viewModel.state.value.rows.map { it.projectionId })
-            assertFalse(viewModel.state.value.loading)
+            assertEquals(emptyList(), viewModel.state.value.accounts)
 
             accounts.complete(listOf(Account(1, "Cash", "cash")))
             advanceUntilIdle()
 
-            assertEquals(listOf("first"), viewModel.state.value.rows.map { it.projectionId })
-            assertEquals("2026-09", viewModel.state.value.page?.monthlySummaries?.single()?.month)
-            assertFalse(viewModel.state.value.loading)
+            assertEquals("Cash", viewModel.state.value.accounts.single().name)
+            assertEquals(emptyList(), repository.pageCursors)
         } finally {
             Dispatchers.resetMain()
         }
     }
 
     @Test
-    fun loadsReferencesAndAppendsOnlyNewRows() = runTest {
+    fun pagingSourceAppendsOnlyUnseenRowsAndInvalidatesOnVersionChange() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = FakeCashLedgerRepository()
-            val viewModel = CashLedgerViewModel(repository, repository)
+            val source = CashProjectionPagingSource(repository, CashFilters()) { _, _ -> }
+            val first = source.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 20, placeholdersEnabled = false)) as PagingSource.LoadResult.Page<String, CashProjection>
+            val append = source.load(PagingSource.LoadParams.Append(key = "next", loadSize = 20, placeholdersEnabled = false)) as PagingSource.LoadResult.Page<String, CashProjection>
 
-            viewModel.initialize()
-            advanceUntilIdle()
-
-            assertEquals(listOf("first"), viewModel.state.value.rows.map { it.projectionId })
-            assertEquals("next", viewModel.state.value.nextCursor)
-            assertEquals("Cash", viewModel.state.value.accounts.single().name)
-
-            viewModel.loadMore()
-            advanceUntilIdle()
-
-            assertEquals(listOf("first", "second"), viewModel.state.value.rows.map { it.projectionId })
-            assertEquals(null, viewModel.state.value.nextCursor)
+            assertEquals(listOf("first"), first.data.map { it.projectionId })
+            assertEquals(listOf("second"), append.data.map { it.projectionId })
             assertEquals(listOf(null, "next"), repository.pageCursors)
+
+            repository.nextPageProjectionVersion = 4
+            val invalidatedSource = CashProjectionPagingSource(repository, CashFilters()) { _, _ -> }
+            invalidatedSource.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 20, placeholdersEnabled = false))
+            val invalidated = invalidatedSource.load(PagingSource.LoadParams.Append(key = "next", loadSize = 20, placeholdersEnabled = false))
+            assertTrue(invalidated is PagingSource.LoadResult.Invalid)
         } finally {
             Dispatchers.resetMain()
         }
@@ -144,8 +123,8 @@ class CashLedgerViewModelTest {
             viewModel.classifySelection(canWrite = false)
             advanceUntilIdle()
 
-            assertEquals(filters, repository.pageFilters.last())
-            assertEquals(listOf("first"), viewModel.state.value.rows.map { it.projectionId })
+            assertEquals(filters, viewModel.state.value.filters)
+            assertEquals(1, viewModel.state.value.listRevision)
             assertEquals(0, repository.classificationCalls)
             assertFalse(viewModel.state.value.classifyBusy)
         } finally {
@@ -183,7 +162,7 @@ class CashLedgerViewModelTest {
             val viewModel = CashLedgerViewModel(repository, repository)
             viewModel.initialize()
             advanceUntilIdle()
-            viewModel.openRow(viewModel.state.value.rows.single())
+            viewModel.openRow(CashProjection("first", "2026-09-26T09:00:00Z", amount = "-10", currency = "CNY", economicType = "expense", recordId = "record-first"))
             advanceUntilIdle()
 
             viewModel.openRelationComposer()
@@ -205,18 +184,17 @@ class CashLedgerViewModelTest {
 
 private class FakeCashLedgerRepository(
     private val delayedAccounts: CompletableDeferred<List<Account>>? = null,
-    private val delayedPage: CompletableDeferred<CashPage>? = null,
 ) : CashLedgerRepository, CashCategoryRepository {
     val pageCursors = mutableListOf<String?>()
     val pageFilters = mutableListOf<CashFilters>()
     val relationPageCursors = mutableListOf<String?>()
     var classificationCalls = 0
     var createdWrite: CashRecordWrite? = null
+    var nextPageProjectionVersion = 3
 
     override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
         pageCursors += cursor
         pageFilters += filters
-        if (cursor == null && delayedPage != null) return delayedPage.await()
         return when (cursor) {
             null -> CashPage(
                 projectionVersion = 3,
@@ -225,7 +203,7 @@ private class FakeCashLedgerRepository(
                 pageSize = 1,
             )
             else -> CashPage(
-                projectionVersion = 3,
+                projectionVersion = nextPageProjectionVersion,
                 items = listOf(projection("first"), projection("second")),
                 nextCursor = null,
                 pageSize = 2,

@@ -140,7 +140,11 @@ class CashImportViewModel(
     fun selectAccount(group: ImportSourceGroup, value: String) {
         val current = mutableState.value
         val drafts = when {
-            value == "__create__" -> current.accountDrafts + (group.groupId to ImportAccountDraft(newAccount = defaultAccount(group)))
+            value == "__create__" -> {
+                val selectedNewAccount = current.accountDrafts[group.groupId]?.newAccount
+                if (selectedNewAccount?.draftId == "draft-${group.groupId}") current.accountDrafts
+                else current.accountDrafts + (group.groupId to ImportAccountDraft(newAccount = defaultAccount(group)))
+            }
             value.startsWith("__draft__") -> {
                 val draftId = value.removePrefix("__draft__")
                 val selected = current.accountDrafts.values.mapNotNull(ImportAccountDraft::newAccount).firstOrNull { it.draftId == draftId }
