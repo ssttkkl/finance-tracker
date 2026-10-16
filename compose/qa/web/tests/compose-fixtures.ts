@@ -15,6 +15,7 @@ type FixtureOptions = {
   workspaceSelectDelayMs?: number;
   cashPageFailures?: number;
   cashPageEmpty?: boolean;
+  withAcceptedCashRelation?: boolean;
 };
 
 export type ComposeApiFixtures = {
@@ -24,6 +25,8 @@ export type ComposeApiFixtures = {
     categoryItems: Array<Record<string, unknown>>;
     workspaceName: string;
     recordWrites: Array<Record<string, unknown>>;
+    classificationWrites: Array<Record<string, unknown>>;
+    projectionDeletes: Array<Record<string, unknown>>;
   };
 };
 
@@ -186,6 +189,48 @@ const cashRecord = {
   account_type: "cash",
 };
 
+const relatedCashRecord = {
+  ...cashRecord,
+  id: "record-2",
+  occurred_at: "2026-09-24T10:35:00+08:00",
+  counterparty: "便利店",
+  note: "矿泉水",
+};
+
+const secondRelatedCashRecord = {
+  ...cashRecord,
+  id: "record-3",
+  occurred_at: "2026-09-24T10:42:00+08:00",
+  amount: "8.00",
+  counterparty: "超市",
+  note: "水果",
+};
+
+const candidateCashRecord = {
+  ...cashRecord,
+  id: "record-candidate",
+  occurred_at: "2026-09-24T11:00:00+08:00",
+  amount: "16.00",
+  counterparty: "待关联流水",
+  note: "",
+};
+
+const acceptedCashRelation = {
+  id: "relation-1",
+  kind: "payment_mirror",
+  label: "同笔支付",
+  status: "accepted",
+  primary_record: cashRecord,
+  secondary_record: relatedCashRecord,
+};
+
+const secondAcceptedCashRelation = {
+  ...acceptedCashRelation,
+  id: "relation-2",
+  primary_record: cashRecord,
+  secondary_record: secondRelatedCashRecord,
+};
+
 const investmentEvent = {
   event_id: "event-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
@@ -246,12 +291,17 @@ export async function installComposeApiFixtures(
   const seedToken = options.seedToken ?? initialSession !== null;
   const calls: ComposeApiFixtures["calls"] = [];
   const writes: Array<Record<string, unknown>> = [];
+  const classificationWrites: Array<Record<string, unknown>> = [];
+  const projectionDeletes: Array<Record<string, unknown>> = [];
+  let cashRelations = options.withAcceptedCashRelation ? [acceptedCashRelation, secondAcceptedCashRelation] : [];
   let cashPageRequests = 0;
   const state = {
     session: initialSession,
     categoryItems: categoryItems.map((item) => ({ ...item })),
     workspaceName: initialSession?.workspaces.find((item) => item.id === initialSession.active_workspace_id)?.name ?? "家庭账本",
     recordWrites: writes,
+    classificationWrites,
+    projectionDeletes,
   };
 
   await page.addInitScript((hasToken) => {
@@ -343,7 +393,10 @@ export async function installComposeApiFixtures(
           { value: "expense", label: "支出", subtypes: [] },
           { value: "income", label: "收入", subtypes: [] },
         ],
-        relation_types: [{ value: "payment_mirror", label: "同笔支付" }],
+        relation_types: [
+          { value: "payment_mirror", label: "同笔支付" },
+          { value: "refund_offset", label: "退款冲销" },
+        ],
       });
     }
     if (pathname === "/api/v1/cash-categories" && method === "GET") return json({ revision: 2, items: state.categoryItems });
@@ -390,12 +443,52 @@ export async function installComposeApiFixtures(
         monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: [{ currency: "CNY", income: "0", expense: "28.50" }] }],
       });
     }
+    if (pathname === "/api/v1/cash-projections/categories" && method === "PUT") {
+      const values = JSON.parse(body ?? "{}") as Record<string, unknown>;
+      classificationWrites.push(values);
+      return json({
+        projection_version: 1,
+        projection_count: Array.isArray(values.projection_ids) ? values.projection_ids.length : 0,
+        updated_transaction_count: Array.isArray(values.projection_ids) ? values.projection_ids.length : 0,
+        category_id: values.category_id ?? null,
+      });
+    }
+    if (pathname === "/api/v1/cash-projections/delete-impact" && method === "POST") {
+      return json({ projection_count: 1, transaction_count: 1, relation_group_count: 0 });
+    }
+    if (pathname === "/api/v1/cash-projections" && method === "DELETE") {
+      const values = JSON.parse(body ?? "{}") as Record<string, unknown>;
+      projectionDeletes.push(values);
+      return json({ projection_count: 1, transaction_count: 1, relation_group_count: 0, deleted: true, projection_version: 2 });
+    }
     if (pathname === "/api/v1/cash-records" && method === "POST") {
       const values = JSON.parse(body ?? "{}");
       writes.push(values);
       return json({ record: { ...cashRecord, ...values, id: "record-created" }, relations: [], options: {} });
     }
-    if (pathname === "/api/v1/cash-records/record-1" && method === "GET") return json({ record: cashRecord, relations: [], options: {} });
+    if (pathname === "/api/v1/cash-records" && method === "GET") {
+      return json({ items: [candidateCashRecord], next_cursor: null });
+    }
+    if (pathname === "/api/v1/cash-records/record-1" && method === "GET") {
+      return json({
+        record: cashRecord,
+        relations: cashRelations,
+        options: {},
+      });
+    }
+    if (/^\/api\/v1\/cash-relations\/relation-\d+$/.test(pathname) && method === "PUT") {
+      const relationId = pathname.split("/").at(-1);
+      const values = JSON.parse(body ?? "{}") as Record<string, unknown>;
+      const kind = String(values.kind ?? "");
+      const label = kind === "refund_offset" ? "退款冲销" : "同笔支付";
+      cashRelations = cashRelations.map((relation) => relation.id === relationId ? { ...relation, kind, label } : relation);
+      return json({ record: cashRecord, relations: cashRelations, options: {} });
+    }
+    if (/^\/api\/v1\/cash-relations\/relation-\d+$/.test(pathname) && method === "DELETE") {
+      const relationId = pathname.split("/").at(-1);
+      cashRelations = cashRelations.filter((relation) => relation.id !== relationId);
+      return json({ ok: true });
+    }
     if (pathname === "/api/v1/cash-records/record-1" && method === "PUT") {
       const values = JSON.parse(body ?? "{}");
       writes.push(values);

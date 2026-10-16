@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DatePicker
@@ -391,7 +392,17 @@ internal fun ChoicePicker(
         }
     }
     if (isWebPlatform) {
-        Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(
+            modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                if (!useAnchoredMenu && expanded && event.type == KeyEventType.KeyDown && event.key == Key.Escape) {
+                    expanded = false
+                    true
+                } else {
+                    false
+                }
+            },
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
             if (useAnchoredMenu) {
                 Box(
                     Modifier.fillMaxWidth()
@@ -553,6 +564,7 @@ internal fun ConfirmationDialog(
     error: String? = null,
     busy: Boolean = false,
     confirmEnabled: Boolean = true,
+    destructive: Boolean = false,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -564,7 +576,11 @@ internal fun ConfirmationDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm, enabled = !busy && confirmEnabled) { Text(if (busy) localizedText("copy_1cac8ac7f5") else confirmLabel) }
+            TextButton(
+                onClick = onConfirm,
+                enabled = !busy && confirmEnabled,
+                colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
+            ) { Text(if (busy) localizedText("copy_1cac8ac7f5") else confirmLabel) }
         },
         dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) } },
     )

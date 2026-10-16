@@ -1,12 +1,21 @@
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  calculateBuildInputsFingerprint,
+  needsFreshBuild,
+  writeFreshBuildStamp,
+} from "./compose-build-freshness.mjs";
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "../../../..");
 const composeRoot = path.join(repositoryRoot, "compose");
 const gradleWrapper = path.join(composeRoot, "gradlew");
 const previewServer = path.join(repositoryRoot, "compose/qa/web/tests/compose-preview-server.mjs");
+const distribution = path.join(composeRoot, "webApp/build/dist/wasmJs/productionExecutable");
+const processedResources = path.join(composeRoot, "webApp/build/processedResources/wasmJs/main");
+const servedArtifacts = [distribution, processedResources];
+const buildStamp = path.join(composeRoot, "webApp/build/compose-preview-build.json");
 let activeChild = null;
 let shuttingDown = false;
 
@@ -39,17 +48,53 @@ function run(command, args, cwd, description, env = process.env) {
   });
 }
 
-const gradleArguments = [];
-if (process.env.FT_GRADLE_INIT_SCRIPT) gradleArguments.push("-I", process.env.FT_GRADLE_INIT_SCRIPT);
-gradleArguments.push(":webApp:wasmJsBrowserDistribution", "--no-configuration-cache");
-
 try {
   const buildEnvironment = { ...process.env, FT_COMPOSE_DEMO_MODE: "true", FT_API_ORIGIN: "" };
+  const extraBuildInputs = process.env.FT_GRADLE_INIT_SCRIPT
+    ? [path.resolve(composeRoot, process.env.FT_GRADLE_INIT_SCRIPT)]
+    : [];
+  const inputFingerprintBeforeBuild = await calculateBuildInputsFingerprint({
+    composeRoot,
+    env: buildEnvironment,
+    extraFiles: extraBuildInputs,
+  });
+  const forceGradleRebuild = await needsFreshBuild({
+    stampPath: buildStamp,
+    composeRoot,
+    artifactDirectory: servedArtifacts,
+    env: buildEnvironment,
+    extraFiles: extraBuildInputs,
+  });
+  const gradleArguments = [];
+  if (process.env.FT_GRADLE_INIT_SCRIPT) gradleArguments.push("-I", process.env.FT_GRADLE_INIT_SCRIPT);
+  gradleArguments.push(":webApp:wasmJsBrowserDistribution", "--no-configuration-cache");
+  if (forceGradleRebuild) {
+    console.log("Compose offline demo bundle is missing or stale; forcing a full Gradle task run.");
+    gradleArguments.push("--rerun-tasks");
+  }
+
   const build = await run(gradleWrapper, gradleArguments, composeRoot, "Unable to build the offline Compose Web demo", buildEnvironment);
   if (build.code !== 0) {
     process.exitCode = build.code ?? (build.signal === "SIGINT" ? 130 : 1);
     process.exit();
   }
+
+  const inputFingerprintAfterBuild = await calculateBuildInputsFingerprint({
+    composeRoot,
+    env: buildEnvironment,
+    extraFiles: extraBuildInputs,
+  });
+  if (inputFingerprintAfterBuild !== inputFingerprintBeforeBuild) {
+    throw new Error("Compose sources or build configuration changed during the build; restart the preview to rebuild from a consistent snapshot.");
+  }
+  await writeFreshBuildStamp({
+    stampPath: buildStamp,
+    composeRoot,
+    artifactDirectory: servedArtifacts,
+    env: buildEnvironment,
+    extraFiles: extraBuildInputs,
+    expectedInputFingerprint: inputFingerprintBeforeBuild,
+  });
 
   const serverEnvironment = { ...process.env, FT_COMPOSE_OFFLINE_DEMO: "1", FT_API_ORIGIN: "", FT_API_PROXY_ORIGIN: "" };
   const server = await run(process.execPath, [previewServer], repositoryRoot, "Unable to start the offline Compose Web demo", serverEnvironment);

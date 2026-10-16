@@ -37,6 +37,9 @@ actual fun PlatformBackHandler(enabled: Boolean, onBack: () -> Unit) = Unit
 @Composable
 actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) = Unit
 
+@Composable
+actual fun PlatformModalEscapeHandler(enabled: Boolean, onEscape: () -> Unit) = Unit
+
 actual fun getConfiguredApiOrigin(): String = ComposeBuildConfig.FT_API_ORIGIN
 
 actual fun readDisplayPreference(key: String): String? = NSUserDefaults.standardUserDefaults.stringForKey(key)

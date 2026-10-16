@@ -10,8 +10,8 @@
     "demo": "node scripts/start-compose-demo.mjs",
     "demo:offline": "node scripts/start-compose-offline-demo.mjs",
     "test": "npm run test:node && npm run test:e2e",
-    "test:e2e": "playwright test -c playwright.config.ts",
-    "test:node": "node --test tests/compose-preview-proxy.node-test.mjs"
+    "test:e2e": "node scripts/run-compose-playwright.mjs",
+    "test:node": "node --test tests/*.node-test.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1"

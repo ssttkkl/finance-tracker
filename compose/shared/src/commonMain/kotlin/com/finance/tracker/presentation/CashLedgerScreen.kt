@@ -2,28 +2,60 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_add
+import com.finance.tracker.resources.ic_close
+import com.finance.tracker.resources.ic_delete
+import com.finance.tracker.resources.ic_file_upload
+import com.finance.tracker.resources.ic_keyboard_arrow_down
+import com.finance.tracker.resources.ic_label
+import com.finance.tracker.resources.ic_search
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FloatingActionButtonMenu
+import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,7 +63,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -39,9 +77,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import com.finance.tracker.core.design.GeneratedTokens
+import org.jetbrains.compose.resources.painterResource
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun CashLedgerScreen(
     repository: FinanceRepository,
@@ -57,6 +97,7 @@ internal fun CashLedgerScreen(
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) { viewModel.initialize() }
+    val recordPanelOpen = state.selectedRow != null || state.recordDraft != null
 
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val rowGroups = cashProjectionMonthGroups(state.rows, state.page?.monthlySummaries.orEmpty())
@@ -66,170 +107,260 @@ internal fun CashLedgerScreen(
     val classifyError = state.classifyErrorCode?.let { ledgerErrorText(it) }
     val deleteProjectionError = state.deleteProjectionErrorCode?.let { ledgerErrorText(it) }
     val recordSaveError = state.recordSaveErrorCode?.let { ledgerErrorText(it) }
+    var actionsMenuExpanded by remember { mutableStateOf(false) }
+    var batchCategoryDialogOpen by remember { mutableStateOf(false) }
+    val selectionMode = state.selectedIds.isNotEmpty()
+    LaunchedEffect(selectionMode) {
+        if (selectionMode) actionsMenuExpanded = false
+    }
 
-    FeaturePage(
-        localizedText("copy_c1f4f28c6c"),
-        SemanticIds.ledgerScreen,
-        headerActionsInline = sizeClass != WindowSizeClass.COMPACT,
-        showTitle = false,
-        headerActions = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { viewModel.startNewRecord(localDateTimeForInput()) }, enabled = canWrite, modifier = Modifier.testTag(SemanticIds.ledgerAdd)) { Text(localizedText("copy_1f62e3f53f")) }
-                OutlinedButton(
-                    onClick = { onNavigate(AppPage.CASH_IMPORT) },
-                    enabled = canWrite,
-                    modifier = Modifier
-                        .then(importButtonFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
-                        .testTag(SemanticIds.ledgerImport),
-                ) { Text(localizedText("copy_aee4e0d769")) }
-            }
-        },
-    ) {
+    Box(Modifier.fillMaxSize()) {
+        FeaturePage(
+            localizedText("copy_c1f4f28c6c"),
+            SemanticIds.ledgerScreen,
+            modifier = Modifier.fillMaxSize(),
+            showTitle = false,
+            contentPadding = PaddingValues(
+                start = GeneratedTokens.Core.Space.Token4,
+                top = GeneratedTokens.Core.Space.Token3,
+                end = GeneratedTokens.Core.Space.Token4,
+                bottom = 104.dp,
+            ),
+        ) {
         if (referencesError != null) StateMessage(referencesError, isError = true) {
             TextButton(onClick = viewModel::loadReferences) { Text(localizedText("copy_e2d53a6d3a")) }
         }
-        CashFilterPanel(
-            value = state.filters,
-            sizeClass = sizeClass,
-            onChange = viewModel::updateFilters,
-            accounts = state.accounts,
-            categories = state.categories,
-            currencies = state.filterOptions.currencies,
-            typeOptions = state.filterOptions.economicTypes,
-            onReset = viewModel::clearFilters,
-            onInvalidAmount = viewModel::reportInvalidAmountFilter,
-        )
-        rowGroups.forEach { group ->
-            SectionCard(modifier = Modifier.testTag(SemanticIds.ledgerSummary)) {
-                Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
-                if (group.summary?.currencies.isNullOrEmpty()) Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall)
-                group.summary?.currencies.orEmpty().forEach { currencySummary ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        if (sizeClass == WindowSizeClass.COMPACT) {
-                            Column(Modifier.weight(1f)) {
-                                Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", currencySummary.income)), color = MaterialTheme.colorScheme.primary)
-                                Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", currencySummary.expense)), color = MaterialTheme.colorScheme.error)
-                            }
-                            Text(currencySummary.currency)
-                        } else {
-                            Text(currencySummary.currency)
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", currencySummary.income)), color = MaterialTheme.colorScheme.primary)
-                                Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", currencySummary.expense)), color = MaterialTheme.colorScheme.error)
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = 0.dp,
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                CashFilterPanel(
+                    value = state.filters,
+                    sizeClass = sizeClass,
+                    onChange = viewModel::updateFilters,
+                    accounts = state.accounts,
+                    categories = state.categories,
+                    currencies = state.filterOptions.currencies,
+                    typeOptions = state.filterOptions.economicTypes,
+                    onReset = viewModel::clearFilters,
+                    onInvalidAmount = viewModel::reportInvalidAmountFilter,
+                )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                if (selectionMode) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().testTag(SemanticIds.ledgerSelectedCount),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            localizedText("ledger_selection_count", state.selectedIds.size.toString()),
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        InlineError(classifyError ?: deleteProjectionError)
+                    }
+                }
+                if (state.loading && state.rows.isEmpty()) StateMessage(localizedText("copy_ced64cb470"))
+                if (pageError != null) StateMessage(pageError, isError = true) {
+                    TextButton(onClick = viewModel::reload, modifier = Modifier.testTag(SemanticIds.ledgerRetry)) { Text(localizedText("copy_e2d53a6d3a")) }
+                }
+                if (!state.loading && pageError == null && state.rows.isEmpty()) StateMessage(localizedText("copy_8eb3d2788b"), modifier = Modifier.testTag(SemanticIds.ledgerEmpty))
+                if (state.rows.isNotEmpty() && sizeClass != WindowSizeClass.COMPACT) {
+                    CashLedgerTableHeader(sizeClass)
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(0.dp), modifier = Modifier.testTag(SemanticIds.ledgerList)) {
+                    rowGroups.forEachIndexed { groupIndex, group ->
+                        if (groupIndex > 0) Spacer(Modifier.height(16.dp))
+                        CashProjectionMonthHeader(group = group, compact = sizeClass == WindowSizeClass.COMPACT)
+                        Column(Modifier.fillMaxWidth().testTag("${SemanticIds.ledgerTable}-${group.month}")) {
+                            group.items.forEach { row ->
+                                key(row.projectionId) {
+                                    CashProjectionRow(
+                                        item = row,
+                                        checked = row.projectionId in state.selectedIds,
+                                        canWrite = canWrite,
+                                        sizeClass = sizeClass,
+                                        selectionMode = selectionMode,
+                                        onChecked = { viewModel.toggleSelection(row.projectionId, it) },
+                                        onOpen = { viewModel.openRow(row) },
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
-        }
-        if (state.selectedIds.isNotEmpty()) {
-            SectionCard {
-                Text(localizedText("copy_f38a8170a8", state.selectedIds.size), style = MaterialTheme.typography.titleMedium)
-                ChoicePicker(
-                    label = localizedText("copy_a42e73f0a7"),
-                    value = state.selectedCategory,
-                    options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
-                    onSelected = viewModel::setSelectedCategory,
-                    enabled = canWrite,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = { viewModel.classifySelection(canWrite) },
-                        enabled = canWrite && state.selectedCategory.isNotEmpty() && !state.classifyBusy,
-                    ) { Text(if (state.classifyBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_3b314319d9")) }
-                    TextButton(onClick = { viewModel.requestDeleteSelection(canWrite) }, enabled = canWrite && !state.deleteProjectionBusy) { Text(localizedText("copy_5d071a7a42")) }
-                    TextButton(onClick = viewModel::clearSelection) { Text(localizedText("copy_f02e943954")) }
+                if (appendError != null) {
+                    StateMessage(appendError, isError = true) {
+                        TextButton(onClick = viewModel::loadMore) { Text(localizedText("copy_b647ee0bdc")) }
+                    }
                 }
-                InlineError(classifyError ?: deleteProjectionError)
+                if (state.nextCursor != null && appendError == null) {
+                    Button(onClick = viewModel::loadMore, enabled = !state.loadingMore) {
+                        Text(if (state.loadingMore) localizedText("copy_fcabadb2a7") else localizedText("copy_3a0fab4978"))
+                    }
+                }
             }
         }
-        if (state.loading && state.rows.isEmpty()) StateMessage(localizedText("copy_ced64cb470"))
-        if (pageError != null) StateMessage(pageError, isError = true) {
-            TextButton(onClick = viewModel::reload, modifier = Modifier.testTag(SemanticIds.ledgerRetry)) { Text(localizedText("copy_e2d53a6d3a")) }
         }
-        if (!state.loading && pageError == null && state.rows.isEmpty()) StateMessage(localizedText("copy_8eb3d2788b"), modifier = Modifier.testTag(SemanticIds.ledgerEmpty))
-        if (state.rows.isNotEmpty()) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Checkbox(
-                    checked = state.rows.all { it.projectionId in state.selectedIds },
-                    onCheckedChange = viewModel::selectAllLoaded,
-                    enabled = canWrite,
-                )
-                Text(localizedText("copy_f0dce17676"))
-            }
-            if (sizeClass == WindowSizeClass.WIDE) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+
+        FloatingActionButtonMenu(
+            expanded = actionsMenuExpanded,
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 16.dp, bottom = 16.dp),
+            button = {
+                ToggleFloatingActionButton(
+                    checked = actionsMenuExpanded,
+                    onCheckedChange = { if (canWrite) actionsMenuExpanded = it },
+                    modifier = Modifier
+                        .testTag(SemanticIds.ledgerActionsFab)
+                        .then(importButtonFocusRequester?.let { Modifier.focusRequester(it) } ?: Modifier)
+                        .semantics { if (!canWrite) disabled() },
                 ) {
-                    Spacer(Modifier.width(48.dp))
-                    FinanceTableCell(localizedText("copy_b6fed9af83"), weight = 2f, header = true)
-                    FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 2f, header = true)
-                    FinanceTableCell(localizedText("copy_34943c40c9"), weight = 1f, header = true)
-                    Spacer(Modifier.width(148.dp))
+                    Icon(
+                        painter = painterResource(if (actionsMenuExpanded) Res.drawable.ic_close else Res.drawable.ic_add),
+                        contentDescription = localizedText("ledger_actions"),
+                    )
                 }
-            }
-        }
-        rowGroups.forEach { group ->
-            FinanceDataTable(
-                rows = group.items,
-                modifier = Modifier.testTag("${SemanticIds.ledgerTable}-${group.month}"),
-                empty = { StateMessage(localizedText("copy_8eb3d2788b")) },
-            ) { row ->
-                CashProjectionRow(
-                    item = row,
-                    checked = row.projectionId in state.selectedIds,
-                    canWrite = canWrite,
-                    wide = sizeClass == WindowSizeClass.WIDE,
-                    onChecked = { viewModel.toggleSelection(row.projectionId, it) },
-                    onOpen = { viewModel.openRow(row) },
-                    onClassify = {
-                        viewModel.clearSelection()
-                        viewModel.toggleSelection(row.projectionId, selected = true)
-                        viewModel.setSelectedCategory(row.category?.id ?: UNCATEGORIZED_SELECTION)
+            },
+        ) {
+            if (selectionMode) {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        actionsMenuExpanded = false
+                        if (canWrite) batchCategoryDialogOpen = true
                     },
+                    icon = { Icon(painterResource(Res.drawable.ic_label), contentDescription = null) },
+                    text = { Text(localizedText("ledger_action_set_category")) },
+                    modifier = Modifier.testTag(SemanticIds.ledgerBatchCategory),
                 )
-            }
-        }
-        if (appendError != null) {
-            StateMessage(appendError, isError = true) {
-                TextButton(onClick = viewModel::loadMore) { Text(localizedText("copy_b647ee0bdc")) }
-            }
-        }
-        if (state.nextCursor != null && appendError == null) {
-            Button(onClick = viewModel::loadMore, enabled = !state.loadingMore) {
-                Text(if (state.loadingMore) localizedText("copy_fcabadb2a7") else localizedText("copy_3a0fab4978"))
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        actionsMenuExpanded = false
+                        viewModel.requestDeleteSelection(canWrite)
+                    },
+                    icon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    text = { Text(localizedText("ledger_action_delete"), color = MaterialTheme.colorScheme.error) },
+                    modifier = Modifier.testTag(SemanticIds.ledgerBatchDelete),
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        actionsMenuExpanded = false
+                        viewModel.clearSelection()
+                    },
+                    icon = { Icon(painterResource(Res.drawable.ic_close), contentDescription = null) },
+                    text = { Text(localizedText("ledger_action_cancel_selection")) },
+                    modifier = Modifier.testTag(SemanticIds.ledgerCancelSelection),
+                )
+            } else {
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        actionsMenuExpanded = false
+                        if (canWrite) viewModel.startNewRecord(localDateTimeForInput())
+                    },
+                    icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
+                    text = { Text(localizedText("copy_1f62e3f53f")) },
+                    modifier = Modifier.testTag(SemanticIds.ledgerAdd),
+                )
+                FloatingActionButtonMenuItem(
+                    onClick = {
+                        actionsMenuExpanded = false
+                        if (canWrite) onNavigate(AppPage.CASH_IMPORT)
+                    },
+                    icon = { Icon(painterResource(Res.drawable.ic_file_upload), contentDescription = null) },
+                    text = { Text(localizedText("copy_aee4e0d769")) },
+                    modifier = Modifier.testTag(SemanticIds.ledgerImport),
+                )
             }
         }
     }
 
-    if (state.selectedRow != null) {
-        CashRecordDetailDialog(
-            state = state,
-            viewModel = viewModel,
-            canWrite = canWrite,
-            options = state.options,
-            onEdit = { viewModel.editRecord() },
-            onEditRelated = viewModel::editRecord,
-            onClose = viewModel::closeSelectedRow,
+    if (batchCategoryDialogOpen) {
+        AlertDialog(
+            modifier = Modifier.testTag(SemanticIds.ledgerCategoryDialog),
+            onDismissRequest = { batchCategoryDialogOpen = false },
+            title = { Text(localizedText("ledger_category_dialog_title")) },
+            text = {
+                ChoicePicker(
+                    label = localizedText("ledger_category_label"),
+                    value = state.selectedCategory,
+                    options = listOf("" to localizedText("copy_3759bf861f"), UNCATEGORIZED_SELECTION to localizedText("copy_f11956caf6")) + state.categories.map { it.id to cashCategoryDisplayPath(it) },
+                    onSelected = viewModel::setSelectedCategory,
+                    enabled = canWrite && !state.classifyBusy,
+                    semanticId = SemanticIds.ledgerCategoryPicker,
+                    fieldStyle = true,
+                    simpleMenuOnWeb = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        batchCategoryDialogOpen = false
+                        viewModel.classifySelection(canWrite)
+                    },
+                    enabled = canWrite && !state.classifyBusy && state.selectedCategory.isNotEmpty(),
+                    modifier = Modifier.testTag(SemanticIds.ledgerCategoryApply),
+                ) { Text(localizedText("ledger_category_apply")) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { batchCategoryDialogOpen = false },
+                    modifier = Modifier.testTag(SemanticIds.ledgerCategoryCancel),
+                ) { Text(localizedText("ledger_category_cancel")) }
+            },
         )
     }
-    state.recordDraft?.let { draft ->
-        CashRecordEditorDialog(
-            draft = draft,
+
+    if (recordPanelOpen) {
+        val draft = state.recordDraft
+        val onPanelBack = {
+            when {
+                state.deleteRecordConfirm -> viewModel.dismissDeleteRecord()
+                state.confirmRelationImpact -> viewModel.dismissRelationImpactConfirmation()
+                state.relationComposerOpen -> viewModel.closeRelationComposer()
+                else -> viewModel.dismissRecordPanel()
+            }
+        }
+        val panelTitle = when {
+            draft?.id != null -> localizedText("copy_6a5c4515c6")
+            draft != null -> localizedText("copy_1f62e3f53f")
+            else -> localizedText("copy_8cb72a44a5")
+        }
+        CashRecordModalPanel(
             sizeClass = sizeClass,
-            accounts = state.accounts,
-            categories = state.categories,
-            options = state.options,
-            busy = state.recordBusy,
-            error = recordSaveError,
-            onChange = viewModel::updateRecordDraft,
-            onSave = { viewModel.saveRecord(canWrite) },
-            onCancel = viewModel::cancelRecordEdit,
-            onInvalidAmount = viewModel::reportInvalidRecordAmount,
-            onInvalidDateTime = viewModel::reportInvalidRecordDateTime,
-        )
+            title = panelTitle,
+            onDismiss = viewModel::dismissRecordPanel,
+            onBack = onPanelBack,
+        ) {
+            if (draft != null) {
+                CashRecordEditorContent(
+                    draft = draft,
+                    sizeClass = sizeClass,
+                    accounts = state.accounts,
+                    categories = state.categories,
+                    options = state.options,
+                    busy = state.recordBusy,
+                    error = recordSaveError,
+                    onChange = viewModel::updateRecordDraft,
+                    onSave = { viewModel.saveRecord(canWrite) },
+                    onCancel = viewModel::cancelRecordEdit,
+                    onInvalidAmount = viewModel::reportInvalidRecordAmount,
+                    onInvalidDateTime = viewModel::reportInvalidRecordDateTime,
+                )
+            } else {
+                CashRecordDetailContent(
+                    state = state,
+                    viewModel = viewModel,
+                    canWrite = canWrite,
+                    options = state.options,
+                    onEdit = { viewModel.editRecord() },
+                    onEditRelated = viewModel::editRecord,
+                )
+            }
+        }
     }
     if (state.confirmRelationImpact && state.recordDraft != null) {
         ConfirmationDialog(
@@ -250,7 +381,76 @@ internal fun CashLedgerScreen(
             onDismiss = viewModel::dismissDeleteSelection,
             error = deleteProjectionError,
             busy = state.deleteProjectionBusy,
+            destructive = true,
         )
+    }
+}
+
+@Composable
+private fun CashLedgerTableHeader(sizeClass: WindowSizeClass) {
+    Row(
+        modifier = Modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Spacer(Modifier.width(48.dp))
+        if (sizeClass == WindowSizeClass.WIDE) {
+            FinanceTableCell(localizedText("copy_b6fed9af83"), weight = 1.1f, header = true)
+            FinanceTableCell(localizedText("copy_4b5a03c119"), weight = 2f, header = true)
+            FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 1.3f, header = true)
+            FinanceTableCell(localizedText("copy_435c5259e4"), weight = 1.4f, header = true)
+            FinanceTableCell(localizedText("copy_e81089915c"), weight = 1.2f, header = true)
+            FinanceTableCell(localizedText("copy_34943c40c9"), weight = 1.1f, header = true, textAlign = TextAlign.End)
+        } else {
+            FinanceTableCell(localizedText("copy_b6fed9af83"), weight = 1.1f, header = true)
+            FinanceTableCell(localizedText("copy_4b5a03c119"), weight = 3f, header = true)
+            FinanceTableCell(localizedText("copy_34943c40c9"), weight = 1.2f, header = true, textAlign = TextAlign.End)
+        }
+        Spacer(Modifier.width(72.dp))
+    }
+    HorizontalDivider()
+}
+
+@Composable
+private fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact: Boolean) {
+    val summaries = group.summary?.currencies.orEmpty()
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag(SemanticIds.ledgerSummary),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (compact) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
+                if (summaries.isEmpty()) {
+                    Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        summaries.forEach { summary ->
+                            Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
+                            Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
+                if (summaries.isEmpty()) {
+                    Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        summaries.forEach { summary ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
+                                Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -263,6 +463,7 @@ internal fun ledgerErrorText(code: String): String = userError(
     ),
 )
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 private fun CashFilterPanel(
     value: CashFilters,
@@ -276,43 +477,181 @@ private fun CashFilterPanel(
     onInvalidAmount: () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
-    var advancedVisible by remember { mutableStateOf(false) }
-    val accountFilter: @Composable (Modifier) -> Unit = { modifier ->
-        ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier)
+    var detailedVisible by remember { mutableStateOf(false) }
+    val detailedFiltersLabel = localizedText("copy_dcce9a144a")
+    val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val selectedType = when {
+        value.economicType == "bank_security_transfer" -> "internal_transfer"
+        value.economicType.isNullOrEmpty() && !value.transferSubtype.isNullOrEmpty() -> "internal_transfer"
+        else -> value.economicType.orEmpty()
     }
-    val categoryFilter: @Composable (Modifier) -> Unit = { modifier ->
-        ChoicePicker(localizedText("copy_435c5259e4"), value.categoryId.orEmpty(), listOf("" to localizedText("copy_a8e369c4b6"), "__uncategorized__" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }, {
-            onChange(value.copy(categoryId = if (it.isEmpty() || it == "__uncategorized__") null else it, uncategorized = if (it == "__uncategorized__") "true" else null))
-        }, modifier)
+    val orderedTypes = listOf("expense", "income", "internal_transfer")
+    val closeDetailedFilters: () -> Unit = {
+        detailedVisible = false
     }
-    val counterpartyFilter: @Composable (Modifier) -> Unit = { modifier ->
+
+    Column(
+        modifier = Modifier.fillMaxWidth().testTag(SemanticIds.ledgerFilters),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         OutlinedTextField(
             value = value.counterparty.orEmpty(),
             onValueChange = { onChange(value.copy(counterparty = it.ifBlank { null })) },
-            modifier = modifier.accessibleTextFieldLabel(localizedText("copy_4b5a03c119")),
-            label = { Text(localizedText("copy_4b5a03c119")) },
+            modifier = Modifier.fillMaxWidth()
+                .accessibleTextFieldLabel(localizedText("ledger_search_counterparty"))
+                .testTag(SemanticIds.ledgerSearch),
+            placeholder = { Text(localizedText("ledger_search_counterparty")) },
+            leadingIcon = {
+                Icon(
+                    painter = painterResource(Res.drawable.ic_search),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            },
             singleLine = true,
         )
+        FlowRow(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            FilterChip(
+                selected = selectedType.isEmpty(),
+                onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
+                label = { Text(localizedText("ledger_quick_all")) },
+                modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
+            )
+            orderedTypes.forEach { economicType ->
+                FilterChip(
+                    selected = selectedType == economicType,
+                    onClick = { onChange(value.copy(economicType = economicType, transferSubtype = null)) },
+                    label = { Text(cashEconomicTypeQuickFilterLabel(economicType)) },
+                    modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-$economicType"),
+                )
+            }
+            TextButton(
+                onClick = { detailedVisible = true },
+                modifier = Modifier.testTag(SemanticIds.ledgerMoreFilters),
+            ) {
+                Text(detailedFiltersLabel)
+                Icon(
+                    painter = painterResource(Res.drawable.ic_keyboard_arrow_down),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+
+    if (detailedVisible && compact) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)
+        ModalBottomSheet(
+            onDismissRequest = closeDetailedFilters,
+            sheetState = filterSheetState,
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
+        ) {
+            CashDetailedFilters(
+                value = value,
+                sizeClass = sizeClass,
+                onChange = onChange,
+                accounts = accounts,
+                categories = categories,
+                currencies = currencies,
+                typeOptions = typeOptions,
+                onReset = onReset,
+                onClose = closeDetailedFilters,
+                onInvalidAmount = onInvalidAmount,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
+            )
+        }
+    } else if (detailedVisible) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = closeDetailedFilters)
+        Dialog(
+            onDismissRequest = closeDetailedFilters,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = !isWebPlatform,
+                dismissOnClickOutside = true,
+            ),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                if (isWebPlatform) {
+                    Box(
+                        Modifier.fillMaxSize()
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.38f))
+                            .pointerInput(Unit) { detectTapGestures(onTap = { closeDetailedFilters() }) },
+                    )
+                }
+                Surface(
+                    modifier = Modifier.widthIn(max = 720.dp)
+                    .fillMaxWidth(0.92f)
+                    .heightIn(max = 760.dp)
+                        .semantics { contentDescription = detailedFiltersLabel },
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    tonalElevation = 0.dp,
+                ) {
+                    CashDetailedFilters(
+                        value = value,
+                        sizeClass = sizeClass,
+                        onChange = onChange,
+                        accounts = accounts,
+                        categories = categories,
+                        currencies = currencies,
+                        typeOptions = typeOptions,
+                        onReset = onReset,
+                        onClose = closeDetailedFilters,
+                        onInvalidAmount = onInvalidAmount,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun cashEconomicTypeQuickFilterLabel(value: String): String = when (value) {
+    "expense" -> localizedText("ledger_quick_expense")
+    "income" -> localizedText("ledger_quick_income")
+    "internal_transfer" -> localizedText("ledger_quick_transfer")
+    else -> economicTypeLabel(value)
+}
+
+@Composable
+private fun CashDetailedFilters(
+    value: CashFilters,
+    sizeClass: WindowSizeClass,
+    onChange: (CashFilters) -> Unit,
+    accounts: List<Account>,
+    categories: List<CashCategory>,
+    currencies: List<String>,
+    typeOptions: List<CashEconomicTypeFilterOption>,
+    onReset: () -> Unit,
+    onClose: () -> Unit,
+    onInvalidAmount: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val compact = sizeClass == WindowSizeClass.COMPACT
+    val accountFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
+        ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, fieldModifier)
+    }
+    val categoryFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
+        ChoicePicker(localizedText("copy_435c5259e4"), value.categoryId.orEmpty(), listOf("" to localizedText("copy_a8e369c4b6"), "__uncategorized__" to localizedText("copy_f11956caf6")) + categories.map { it.id to cashCategoryDisplayPath(it) }, {
+            onChange(value.copy(categoryId = if (it.isEmpty() || it == "__uncategorized__") null else it, uncategorized = if (it == "__uncategorized__") "true" else null))
+        }, fieldModifier)
     }
     val currenciesWithCurrent = (listOfNotNull(value.currency) + currencies).distinct()
-    val currencyFilter: @Composable (Modifier) -> Unit = { modifier ->
-        ChoicePicker(localizedText("copy_a81ab5e100"), value.currency.orEmpty(), listOf("" to localizedText("copy_7f566e2869")) + currenciesWithCurrent.map { it to it }, { onChange(value.copy(currency = it.ifEmpty { null })) }, modifier)
+    val currencyFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
+        ChoicePicker(localizedText("copy_a81ab5e100"), value.currency.orEmpty(), listOf("" to localizedText("copy_7f566e2869")) + currenciesWithCurrent.map { it to it }, { onChange(value.copy(currency = it.ifEmpty { null })) }, fieldModifier)
     }
-    val economicTypeFilter: @Composable (Modifier) -> Unit = { modifier ->
-        ChoicePicker(
-            localizedText("copy_c939d425cd"),
-            value.economicType.orEmpty(),
-            listOf("" to localizedText("copy_4cfe6e1c20")) + typeOptions.map { it.economicType to economicTypeLabel(it.economicType) },
-            { onChange(value.copy(economicType = it.ifEmpty { null }, transferSubtype = null)) },
-            modifier,
-        )
-    }
-    val amountMinFilter: @Composable (Modifier) -> Unit = { modifier ->
+    val amountMinFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         val invalid = value.amountMin != null && !isExactDecimalString(value.amountMin)
         OutlinedTextField(
             value = value.amountMin.orEmpty(),
             onValueChange = { onChange(value.copy(amountMin = it.ifBlank { null })) },
-            modifier = modifier
+            modifier = fieldModifier
                 .onFocusLost(onFocusLost = { if (invalid) onInvalidAmount() })
                 .accessibleTextFieldLabel(localizedText("copy_d1e673ac4e")),
             label = { Text(localizedText("copy_d1e673ac4e")) },
@@ -320,12 +659,12 @@ private fun CashFilterPanel(
             singleLine = true,
         )
     }
-    val amountMaxFilter: @Composable (Modifier) -> Unit = { modifier ->
+    val amountMaxFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         val invalid = value.amountMax != null && !isExactDecimalString(value.amountMax)
         OutlinedTextField(
             value = value.amountMax.orEmpty(),
             onValueChange = { onChange(value.copy(amountMax = it.ifBlank { null })) },
-            modifier = modifier
+            modifier = fieldModifier
                 .onFocusLost(onFocusLost = { if (invalid) onInvalidAmount() })
                 .accessibleTextFieldLabel(localizedText("copy_e84edb075b")),
             label = { Text(localizedText("copy_e84edb075b")) },
@@ -333,63 +672,73 @@ private fun CashFilterPanel(
             singleLine = true,
         )
     }
-    FinanceFilterBar(title = localizedText("copy_dcce9a144a"), modifier = Modifier.testTag(SemanticIds.ledgerFilters)) {
-        if (compact) {
-            DatePickerInput(value.dateFrom.orEmpty(), { onChange(value.copy(dateFrom = it.ifBlank { null })) }, localizedText("copy_1f29196891"))
-            DatePickerInput(value.dateTo.orEmpty(), { onChange(value.copy(dateTo = it.ifBlank { null })) }, localizedText("copy_f4b9b2b5de"))
-            accountFilter(Modifier)
-        } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                DatePickerInput(value.dateFrom.orEmpty(), { onChange(value.copy(dateFrom = it.ifBlank { null })) }, localizedText("copy_1f29196891"), modifier = Modifier.weight(1f))
-                DatePickerInput(value.dateTo.orEmpty(), { onChange(value.copy(dateTo = it.ifBlank { null })) }, localizedText("copy_f4b9b2b5de"), modifier = Modifier.weight(1f))
-                if (sizeClass == WindowSizeClass.WIDE) {
-                    accountFilter(Modifier.weight(1f))
-                    categoryFilter(Modifier.weight(1f))
-                    economicTypeFilter(Modifier.weight(1f))
-                    currencyFilter(Modifier.weight(1f))
-                }
-            }
-            if (sizeClass == WindowSizeClass.REGULAR) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    accountFilter(Modifier.weight(1f))
-                    categoryFilter(Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    economicTypeFilter(Modifier.weight(1f))
-                    currencyFilter(Modifier.weight(1f))
-                }
-            }
+    val normalizedEconomicType = if (value.economicType == "bank_security_transfer") "internal_transfer" else value.economicType
+    val transferSubtypes = typeOptions.firstOrNull { it.economicType == normalizedEconomicType }?.transferSubtypes.orEmpty()
+
+    Column(
+        modifier = modifier.fillMaxWidth()
+            .then(if (compact) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
+            .testTag(SemanticIds.ledgerFilterDetails),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(localizedText("copy_dcce9a144a"), style = MaterialTheme.typography.titleLarge)
         }
-        if (advancedVisible) {
+        HorizontalDivider()
+        Column(
+            modifier = (if (compact) Modifier.weight(1f) else Modifier).fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             if (compact) {
+                DatePickerInput(value.dateFrom.orEmpty(), { onChange(value.copy(dateFrom = it.ifBlank { null })) }, localizedText("copy_1f29196891"))
+                DatePickerInput(value.dateTo.orEmpty(), { onChange(value.copy(dateTo = it.ifBlank { null })) }, localizedText("copy_f4b9b2b5de"))
+                accountFilter(Modifier)
                 categoryFilter(Modifier)
-                economicTypeFilter(Modifier)
                 currencyFilter(Modifier)
-                counterpartyFilter(Modifier)
-                amountMinFilter(Modifier)
-                amountMaxFilter(Modifier)
+                amountMinFilter(Modifier.fillMaxWidth())
+                amountMaxFilter(Modifier.fillMaxWidth())
             } else {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    counterpartyFilter(Modifier.weight(1f))
+                    DatePickerInput(value.dateFrom.orEmpty(), { onChange(value.copy(dateFrom = it.ifBlank { null })) }, localizedText("copy_1f29196891"), modifier = Modifier.weight(1f))
+                    DatePickerInput(value.dateTo.orEmpty(), { onChange(value.copy(dateTo = it.ifBlank { null })) }, localizedText("copy_f4b9b2b5de"), modifier = Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    accountFilter(Modifier.weight(1f))
+                    categoryFilter(Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    currencyFilter(Modifier.weight(1f))
                     amountMinFilter(Modifier.weight(1f))
                     amountMaxFilter(Modifier.weight(1f))
                 }
             }
-            if (!value.economicType.isNullOrEmpty()) {
-                val subtypes = typeOptions.firstOrNull { it.economicType == value.economicType }?.transferSubtypes.orEmpty()
-                if (subtypes.isNotEmpty()) ChoicePicker(localizedText("copy_82fa0e654c"), value.transferSubtype.orEmpty(), listOf("" to localizedText("copy_778fc8f994")) + subtypes.map { it to transferSubtypeLabel(it) }, { onChange(value.copy(transferSubtype = it.ifEmpty { null })) })
+            if (transferSubtypes.isNotEmpty()) {
+                ChoicePicker(
+                    localizedText("copy_82fa0e654c"),
+                    value.transferSubtype.orEmpty(),
+                    listOf("" to localizedText("copy_778fc8f994")) + transferSubtypes.map { it to transferSubtypeLabel(it) },
+                    { onChange(value.copy(transferSubtype = it.ifEmpty { null })) },
+                )
             }
-            ChoicePicker(localizedText("copy_cc498b84ff"), value.composition.orEmpty(), listOf("" to localizedText("copy_778fc8f994"), "single" to localizedText("copy_4a70b7e986"), "payment_mirror" to localizedText("copy_2b6feb78fe"), "refund_offset" to localizedText("copy_b441aa2b9b"), "combined" to localizedText("copy_e5847fcd94")), { onChange(value.copy(composition = it.ifEmpty { null })) })
+            ChoicePicker(
+                localizedText("copy_cc498b84ff"),
+                value.composition.orEmpty(),
+                listOf("" to localizedText("copy_778fc8f994"), "single" to localizedText("copy_4a70b7e986"), "payment_mirror" to localizedText("copy_2b6feb78fe"), "refund_offset" to localizedText("copy_b441aa2b9b"), "combined" to localizedText("copy_e5847fcd94")),
+                { onChange(value.copy(composition = it.ifEmpty { null })) },
+            )
         }
+        HorizontalDivider()
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(
-                onClick = { advancedVisible = !advancedVisible },
-                modifier = Modifier.testTag(SemanticIds.ledgerMoreFilters),
-            ) { Text(localizedText(if (advancedVisible) "ledger_less_filters" else "ledger_more_filters")) }
-            TextButton(onClick = { onReset(); advancedVisible = false }) { Text(localizedText("copy_7b15e5e8e7")) }
+            TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            Spacer(Modifier.weight(1f))
+            TextButton(onClick = onClose) { Text(localizedText("ledger_filter_done")) }
         }
     }
 }
@@ -399,41 +748,103 @@ private fun CashProjectionRow(
     item: CashProjection,
     checked: Boolean,
     canWrite: Boolean,
-    wide: Boolean,
+    sizeClass: WindowSizeClass,
+    selectionMode: Boolean,
     onChecked: (Boolean) -> Unit,
     onOpen: () -> Unit,
-    onClassify: () -> Unit,
 ) {
-    SectionCard(modifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.projectionId}")) {
-        if (wide) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Checkbox(checked = checked, onCheckedChange = onChecked, enabled = canWrite)
-                Column(Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall)
-                    Text(item.counterparty.ifBlank { localizedText("copy_58daac42e1") }, style = MaterialTheme.typography.bodyMedium)
+    val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.projectionId}")
+    if (sizeClass == WindowSizeClass.COMPACT) {
+        SectionCard(
+            modifier = recordModifier.combinedClickable(
+                onClick = { if (selectionMode) onChecked(!checked) else onOpen() },
+                onLongClick = { if (canWrite && !selectionMode) onChecked(true) },
+            ),
+        ) {
+            Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (selectionMode) {
+                    Checkbox(
+                        checked = checked,
+                        onCheckedChange = onChecked,
+                        enabled = canWrite,
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                    )
                 }
-                Text(cashProjectionAccountLabel(item), modifier = Modifier.weight(2f), style = MaterialTheme.typography.bodyMedium)
-                FinanceAmount(cashProjectionAmountLabel(item), modifier = Modifier.weight(1f), negative = item.amount.startsWith("-"))
-                TextButton(onClick = onOpen, modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord)) { Text(localizedText("copy_faea8c1db9")) }
-                TextButton(onClick = onClassify, enabled = canWrite) { Text(localizedText("copy_a798298529")) }
-            }
-        } else {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Checkbox(checked = checked, onCheckedChange = onChecked, enabled = canWrite)
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(item.counterparty.ifBlank { item.account?.name ?: localizedText("copy_58daac42e1") }, style = MaterialTheme.typography.titleMedium)
-                    Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall)
-                    Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall)
-                    Text(cashProjectionEconomicTypeLabel(item), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    cashProjectionSourceLabel(item)?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    if (item.note.isNotBlank()) Text(item.note, style = MaterialTheme.typography.bodySmall)
+                Column(
+                    Modifier.weight(1f).testTag(SemanticIds.ledgerOpenRecord),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(item.counterparty.ifBlank { localizedText("copy_58daac42e1") }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val source = cashProjectionSourceLabel(item)
+                    Text(
+                        listOfNotNull(cashProjectionEconomicTypeLabel(item), source).joinToString(" · "),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (item.note.isNotBlank()) Text(item.note, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 FinanceAmount(cashProjectionAmountLabel(item), negative = item.amount.startsWith("-"))
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onOpen, modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord)) { Text(localizedText("copy_faea8c1db9")) }
-                TextButton(onClick = onClassify, enabled = canWrite) { Text(localizedText("copy_a798298529")) }
+        }
+    } else {
+        Column(recordModifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Checkbox(
+                    checked = checked,
+                    onCheckedChange = onChecked,
+                    enabled = canWrite,
+                    modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                )
+                if (sizeClass == WindowSizeClass.WIDE) {
+                    FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = 1.1f)
+                    Column(Modifier.weight(2f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(item.counterparty.ifBlank { localizedText("copy_58daac42e1") }, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        cashProjectionSourceLabel(item)?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    }
+                    FinanceTableCell(cashProjectionAccountLabel(item), weight = 1.3f)
+                    FinanceTableCell(cashCategoryDisplayPath(item.category), weight = 1.4f)
+                    FinanceTableCell(cashProjectionEconomicTypeLabel(item), weight = 1.2f)
+                    FinanceAmount(
+                        cashProjectionAmountLabel(item),
+                        modifier = Modifier.weight(1.1f).padding(horizontal = 8.dp),
+                        negative = item.amount.startsWith("-"),
+                        textAlign = TextAlign.End,
+                    )
+                } else {
+                    FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = 1.1f)
+                    Column(Modifier.weight(3f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(item.counterparty.ifBlank { localizedText("copy_58daac42e1") }, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val source = cashProjectionSourceLabel(item)
+                        Text(
+                            listOfNotNull(cashProjectionEconomicTypeLabel(item), source).joinToString(" · "),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    FinanceAmount(
+                        cashProjectionAmountLabel(item),
+                        modifier = Modifier.weight(1.2f).padding(horizontal = 8.dp),
+                        negative = item.amount.startsWith("-"),
+                        textAlign = TextAlign.End,
+                    )
+                }
+                TextButton(
+                    onClick = onOpen,
+                    modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord),
+                ) { Text(localizedText("copy_faea8c1db9")) }
             }
+            HorizontalDivider()
         }
     }
 }

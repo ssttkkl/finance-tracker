@@ -56,6 +56,15 @@ actual fun PlatformEscapeHandler(enabled: Boolean, onEscape: () -> Unit) {
     }
 }
 
+@Composable
+actual fun PlatformModalEscapeHandler(enabled: Boolean, onEscape: () -> Unit) {
+    val currentOnEscape = rememberUpdatedState(onEscape)
+    DisposableEffect(enabled) {
+        val unregister = if (enabled) registerBrowserModalEscapeListener { currentOnEscape.value() } else ({})
+        onDispose(unregister)
+    }
+}
+
 actual fun createPlatformTokenStore(): TokenStore = object : TokenStore {
     override suspend fun get(): String? = runCatching { readBrowserToken() }.getOrNull()
     override suspend fun set(value: String) { runCatching { writeBrowserToken(value) } }
@@ -109,6 +118,46 @@ private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = js
     """(() => {
         const listener = event => {
             if (event.key !== 'Escape') return;
+            const isVisible = element => {
+                let current = element;
+                while (current instanceof HTMLElement) {
+                    const style = window.getComputedStyle(current);
+                    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) return false;
+                    current = current.parentElement;
+                }
+                const bounds = element.getBoundingClientRect();
+                return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0 && bounds.top < window.innerHeight && bounds.left < window.innerWidth;
+            };
+            const hasVisibleRoleModal = Array.from(document.querySelectorAll('[role="dialog"], [role="alertdialog"]')).some(isVisible);
+            const hasMountedComposeModal = ['ledger.record-panel', 'ledger.filter.details', 'ledger.category-dialog']
+                .some(id => document.getElementById(id) instanceof HTMLElement);
+            if (hasVisibleRoleModal || hasMountedComposeModal) return;
+            event.preventDefault();
+            event.stopPropagation();
+            onEscape();
+        };
+        window.addEventListener('keydown', listener, true);
+        return () => window.removeEventListener('keydown', listener, true);
+    })()""",
+)
+
+private fun registerBrowserModalEscapeListener(onEscape: () -> Unit): () -> Unit = js(
+    """(() => {
+        const listener = event => {
+            if (event.key !== 'Escape') return;
+            const isVisible = element => {
+                let current = element;
+                while (current instanceof HTMLElement) {
+                    const style = window.getComputedStyle(current);
+                    if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0 || current.getAttribute('aria-hidden') === 'true' || current.hasAttribute('inert')) return false;
+                    current = current.parentElement;
+                }
+                const bounds = element.getBoundingClientRect();
+                return bounds.width > 0 && bounds.height > 0 && bounds.bottom > 0 && bounds.right > 0 && bounds.top < window.innerHeight && bounds.left < window.innerWidth;
+            };
+            const hasVisibleAlert = Array.from(document.querySelectorAll('[role="alertdialog"]')).some(isVisible);
+            const hasVisibleChoiceMenu = Array.from(document.querySelectorAll('[id="choice-overlay-menu"], [id^="choice-option-"]')).some(isVisible);
+            if (hasVisibleAlert || hasVisibleChoiceMenu) return;
             event.preventDefault();
             event.stopPropagation();
             onEscape();

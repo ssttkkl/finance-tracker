@@ -281,7 +281,13 @@ private fun PersistentNavigationShell(state: DestinationState, content: @Composa
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown) {
                     if (event.key == Key.Tab) keyboardNavigationActive = true
-                    if (event.key == Key.Escape) accountMenuKeyboardHandler.onEscape() else false
+                    if (event.key == Key.Escape) {
+                        // Compose Web routes Escape through the modal-aware browser listeners.
+                        // Keep this preview handler for native keyboard use, where Dialog owns back precedence.
+                        if (isWebPlatform) false else accountMenuKeyboardHandler.onEscape()
+                    } else {
+                        false
+                    }
                 } else {
                     false
                 }

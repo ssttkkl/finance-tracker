@@ -147,12 +147,6 @@ class CashLedgerViewModel(
         mutableState.value = mutableState.value.copy(selectedIds = selectedIds)
     }
 
-    fun selectAllLoaded(selected: Boolean) {
-        val state = mutableState.value
-        val ids = state.rows.mapTo(mutableSetOf(), CashProjection::projectionId)
-        mutableState.value = state.copy(selectedIds = if (selected) state.selectedIds + ids else state.selectedIds - ids)
-    }
-
     fun setSelectedCategory(categoryId: String) {
         mutableState.value = mutableState.value.copy(selectedCategory = categoryId, classifyErrorCode = null)
     }
@@ -276,6 +270,15 @@ class CashLedgerViewModel(
             deleteRecordConfirm = false,
             deleteRecordBusy = false,
         )
+    }
+
+    fun dismissRecordPanel() {
+        val current = mutableState.value
+        if (current.recordDraft != null) {
+            if (!current.recordBusy) cancelRecordEdit()
+        } else {
+            closeSelectedRow()
+        }
     }
 
     fun updateRecordDetail(detail: CashRecordDetail?) {

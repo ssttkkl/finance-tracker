@@ -1,4 +1,12 @@
-[{
+[
+  {
+    "date": "2026-10-15",
+    "macrostructure": "Workbench / Cash Ledger Transaction Table",
+    "theme": "Cobalt (FinanceTheme tokens)",
+    "enrichment": "none",
+    "brief": "Shared Compose cash ledger with compact cards, regular/wide table, collapsible filters, responsive FAB menus, batch selection, and one create/detail/edit panel"
+  },
+  {
     "date": "2026-09-07",
     "macrostructure": "Index-First",
     "theme": "Cobalt (system-preserved)",

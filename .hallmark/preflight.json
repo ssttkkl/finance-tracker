@@ -1,10 +1,22 @@
 {
-  "date": "2026-10-12",
-  "framework": "Compose Multiplatform shared commonMain, targeting Compose Web, Android, and iOS; standalone HTML OpenSpec prototype",
+  "date": "2026-10-15",
+  "framework": "Compose Multiplatform shared commonMain for Compose Web (Wasm), Android, and iOS",
   "fonts": ["Noto Sans SC", "IBM Plex Mono"],
-  "palette": "Finance design tokens with cobalt accent and light/dark semantic surface roles",
-  "motion": "motion-cut for the prototype; no new motion behavior is required",
-  "spacing": "4-point semantic scale",
-  "preserve": ["existing login page hierarchy", "FinanceTheme typography and palette", "responsive page width", "existing navigation destinations and actions"],
-  "introduce": ["shared login/workspace/invitation entry shell", "one TopAppBar title for authenticated pages", "entry and shell state coverage"]
+  "palette": "FinanceTheme consumes shared design tokens for brand, income/expense, surface, and focus colors",
+  "motion": "motion-cut; ledger interactions use no added animation",
+  "spacing": "4 dp semantic scale from shared design tokens",
+  "preserve": [
+    "FinanceTheme colors, typography, and Material 3 components",
+    "shared Compose page contract across Web, Android, and iOS",
+    "existing cash-ledger navigation, data, and operations",
+    "responsive breakpoints and semantic financial colors"
+  ],
+  "introduce": [
+    "COMPACT transaction cards and REGULAR/WIDE compact tables",
+    "monthly totals within each transaction group",
+    "collapsible counterparty search with fixed type shortcuts and detailed filters",
+    "one Material 3 FAB menu that switches between add/import and batch actions",
+    "Compact long-press selection and desktop row checkboxes without select-all",
+    "one responsive modal information surface for create, detail, and edit"
+  ]
 }

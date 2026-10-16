@@ -387,6 +387,12 @@
     <string name="copy_db47592d34">Inflow</string>
     <string name="copy_dc35af8d69">Sort</string>
     <string name="copy_dcce9a144a">Filter</string>
+    <string name="ledger_search_counterparty">Search counterparty</string>
+    <string name="ledger_quick_all">All</string>
+    <string name="ledger_quick_expense">Expense</string>
+    <string name="ledger_quick_income">Income</string>
+    <string name="ledger_quick_transfer">Transfer</string>
+    <string name="ledger_filter_done">Done</string>
     <string name="ledger_more_filters">More filters</string>
     <string name="ledger_less_filters">Fewer filters</string>
     <string name="copy_dd1212991d">Loading investment events…</string>
@@ -441,6 +447,19 @@
     <string name="copy_f38a8170a8">%1$s selected</string>
     <string name="copy_f3ccf8829e">Quote time</string>
     <string name="copy_f46e36d281">Related transactions</string>
+    <string name="ledger_detail_transaction_facts">Transaction details</string>
+    <string name="ledger_detail_view_related">View related transactions</string>
+    <string name="ledger_detail_hide_related">Hide related transactions</string>
+    <string name="ledger_detail_current_record">Current transaction</string>
+    <string name="ledger_detail_other_records">Other related transactions</string>
+    <string name="ledger_detail_related_count">%1$s items</string>
+    <string name="cash_source_manual">Manual entry</string>
+    <string name="cash_source_alipay">Alipay</string>
+    <string name="cash_source_wechat">WeChat Pay</string>
+    <string name="cash_source_bank">Bank statement</string>
+    <string name="cash_source_icbc_asia">ICBC Asia</string>
+    <string name="cash_source_icbc_credit">ICBC credit card</string>
+    <string name="cash_source_imported">Imported statement</string>
     <string name="copy_f4b9b2b5de">End date</string>
     <string name="copy_f4bdccd114">Resolve the subcategories first.</string>
     <string name="copy_f526c89937">Done</string>
@@ -545,4 +564,13 @@
     <string name="cash_import_filter_pending">Pending %1$s</string>
     <string name="cash_import_filter_linked">Matched %1$s</string>
     <string name="cash_import_more_actions">More match actions</string>
+    <string name="ledger_actions">Ledger actions</string>
+    <string name="ledger_action_set_category">Set category</string>
+    <string name="ledger_action_delete">Delete</string>
+    <string name="ledger_action_cancel_selection">Cancel selection</string>
+    <string name="ledger_selection_count">%1$s selected</string>
+    <string name="ledger_category_dialog_title">Set category</string>
+    <string name="ledger_category_label">Category</string>
+    <string name="ledger_category_cancel">Cancel</string>
+    <string name="ledger_category_apply">Apply</string>
 </resources>

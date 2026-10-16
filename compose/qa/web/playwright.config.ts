@@ -25,7 +25,10 @@ export default defineConfig({
   webServer: {
     command: `"${process.execPath}" "${startScript}"`,
     url: `${composeUrl}/health`,
-    reuseExistingServer: !process.env.CI,
+    env: { ...process.env, FT_COMPOSE_PREVIEW_PORT: String(composePort) },
+    // Always run the build freshness gate. Reusing a manually started server can
+    // make QA pass against a bundle from an earlier checkout state.
+    reuseExistingServer: false,
     timeout: 180_000,
   },
   reporter: "list",

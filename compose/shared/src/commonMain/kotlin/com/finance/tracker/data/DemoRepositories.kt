@@ -176,7 +176,7 @@ class DemoFinanceRepository : FinanceRepository {
     override suspend fun fetchCashAccounts(): List<Account> = accounts.filter { it.type == "cash" }
 
     override suspend fun fetchEvidence(id: String): Evidence {
-        val record = findRecord(id)
+        val record = findRecord(id.removePrefix("projection-"))
         val item = projection(record)
         val evidence = evidenceRecord(record)
         return Evidence(
@@ -268,7 +268,7 @@ class DemoFinanceRepository : FinanceRepository {
         val relation = CashRelation(
             id = "demo-relation-${nextRelationNumber++}",
             kind = kind,
-            label = kind,
+            label = demoRelationLabel(kind),
             status = "accepted",
             primaryRecord = primary,
             secondaryRecord = secondary,
@@ -280,7 +280,7 @@ class DemoFinanceRepository : FinanceRepository {
     override suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail {
         val index = relations.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_relation_not_found", 404)
-        relations[index] = relations[index].copy(kind = kind, label = kind)
+        relations[index] = relations[index].copy(kind = kind, label = demoRelationLabel(kind))
         return recordDetail(relations[index].primaryRecord ?: throw demoFailure("cash_record_not_found", 404))
     }
 
@@ -563,7 +563,7 @@ class DemoFinanceRepository : FinanceRepository {
     )
 
     private fun recordDetail(record: CashRecord) = CashRecordDetail(
-        record = record,
+        record = record.copy(category = categoryById(record.categoryId)),
         relations = relations.filter { it.primaryRecord?.id == record.id || it.secondaryRecord?.id == record.id },
         options = demoLedgerOptions(),
     )
@@ -793,6 +793,9 @@ private fun demoLedgerOptions() = LedgerOptions(
     ),
     relationTypes = listOf(SimpleOption("payment_mirror", "同笔支付"), SimpleOption("refund", "退款")), // i18n-allow: demo-fixture
 )
+
+private fun demoRelationLabel(kind: String): String =
+    demoLedgerOptions().relationTypes.firstOrNull { it.value == kind }?.label.orEmpty()
 
 private const val DEMO_PAGE_SIZE = 20
 

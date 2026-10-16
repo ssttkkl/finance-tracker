@@ -154,10 +154,26 @@ internal fun cashEvidenceMemberImpactResourceKey(member: EvidenceMember): String
 @Composable
 internal fun cashEvidenceMemberImpactLabel(member: EvidenceMember): String = localizedText(cashEvidenceMemberImpactResourceKey(member))
 
+@Composable
 internal fun cashEvidenceSourceLabel(evidence: Evidence): String {
     val projection = evidence.projection
-    if (projection.economicType != "internal_transfer" && projection.transferSubtype != "bank_security_transfer") {
-        return evidence.rootRecord.sourceType?.takeIf(String::isNotBlank) ?: "-"
+    val sources = if (projection.economicType != "internal_transfer" && projection.transferSubtype != "bank_security_transfer") {
+        listOfNotNull(evidence.rootRecord.sourceType?.takeIf(String::isNotBlank))
+    } else {
+        evidence.members.mapNotNull(EvidenceMember::sourceType).filter(String::isNotBlank).distinct()
     }
-    return evidence.members.mapNotNull(EvidenceMember::sourceType).distinct().joinToString("、").ifBlank { "-" }
+    val labels = mutableListOf<String>()
+    for (source in sources.distinct()) labels += cashEvidenceSourceTypeLabel(source)
+    return labels.distinct().joinToString("、")
+}
+
+@Composable
+private fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lowercase()) {
+    "manual" -> localizedText("cash_source_manual")
+    "alipay" -> localizedText("cash_source_alipay")
+    "wechat", "wechatpay", "wechat_pay" -> localizedText("cash_source_wechat")
+    "bank" -> localizedText("cash_source_bank")
+    "icbc_asia" -> localizedText("cash_source_icbc_asia")
+    "icbc_credit" -> localizedText("cash_source_icbc_credit")
+    else -> localizedText("cash_source_imported")
 }

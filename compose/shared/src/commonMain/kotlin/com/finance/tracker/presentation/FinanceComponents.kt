@@ -12,8 +12,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.LocalFinanceColorRoles
@@ -48,10 +51,23 @@ internal fun FinanceSurface(
 }
 
 @Composable
-internal fun FinanceAmount(value: String, modifier: Modifier = Modifier, negative: Boolean = value.startsWith("-")) {
+internal fun FinanceAmount(
+    value: String,
+    modifier: Modifier = Modifier,
+    negative: Boolean = value.startsWith("-"),
+    textAlign: TextAlign? = null,
+) {
     val colors = LocalFinanceColorRoles.current
-    Text(value, modifier = modifier, color = if (negative) colors.danger else colors.accent)
+    Text(
+        value,
+        modifier = modifier,
+        color = if (negative) colors.danger else colors.accent,
+        style = LocalTextStyle.current.withTabularNumbers(),
+        textAlign = textAlign,
+    )
 }
+
+internal fun TextStyle.withTabularNumbers(): TextStyle = copy(fontFeatureSettings = "tnum")
 
 @Composable
 internal fun <T> FinanceDataTable(
@@ -66,12 +82,18 @@ internal fun <T> FinanceDataTable(
 }
 
 @Composable
-internal fun RowScope.FinanceTableCell(value: String, weight: Float, header: Boolean = false) {
+internal fun RowScope.FinanceTableCell(
+    value: String,
+    weight: Float,
+    header: Boolean = false,
+    textAlign: TextAlign = TextAlign.Start,
+) {
     Text(
         text = value,
         modifier = Modifier.weight(weight).padding(horizontal = 8.dp, vertical = 10.dp),
         style = if (header) MaterialTheme.typography.labelMedium else MaterialTheme.typography.bodySmall,
         color = if (header) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+        textAlign = textAlign,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
     )

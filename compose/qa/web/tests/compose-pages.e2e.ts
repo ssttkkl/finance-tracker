@@ -14,6 +14,7 @@ import {
 const workspaceRoot = "/w/workspace-1";
 const responsiveWidths = [320, 375, 390, 414, 768, 1440];
 const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
+const changeScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261015");
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
 
 async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yRatio = 0.5): Promise<void> {
@@ -41,6 +42,11 @@ async function clickComposeUntil(page: Page, locator: Locator, isDone: () => Pro
   throw new Error("Compose target did not produce the expected state");
 }
 
+async function hasRenderedComposeBounds(locator: Locator): Promise<boolean> {
+  const bounds = await locator.boundingBox();
+  return !!bounds && bounds.width > 0 && bounds.height > 0;
+}
+
 async function clickVisibleComposeTargetUntil(page: Page, locator: Locator, isDone: () => Promise<boolean>): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Missing Playwright viewport");
@@ -65,6 +71,87 @@ async function clickVisibleComposeTargetUntil(page: Page, locator: Locator, isDo
   }
   if (lastError instanceof Error) throw lastError;
   throw new Error("No in-viewport Compose target became available");
+}
+
+async function getLedgerFab(page: Page): Promise<Locator> {
+  const taggedFab = page.locator('[id="ledger.actions-fab"]').last();
+  if (await taggedFab.count() && await taggedFab.isVisible().catch(() => false)) return taggedFab;
+  return page.getByRole("button", { name: "账单操作" }).last();
+}
+
+async function clickFabMenuItemFromBottom(page: Page, itemIndexFromBottom: number): Promise<void> {
+  const menuItem = page.locator(`[id="${itemIndexFromBottom === 0 ? "ledger.import" : "ledger.add"}"]`).last();
+  // Compose Web draws the menu on its canvas and keeps an invisible semantics
+  // mirror in the DOM; use the mirrored bounds to click the rendered action.
+  await expect.poll(() => hasRenderedComposeBounds(menuItem), { timeout: 2_500 }).toBe(true);
+  await clickComposeTarget(page, menuItem);
+  await expect.poll(() => page.url().endsWith("/cash-import"), { timeout: 1_500 }).toBe(true);
+}
+
+async function captureLedgerScene(page: Page, name: string, width: number, height: number): Promise<void> {
+  if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS !== "1") return;
+  const screenshotDirectory = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
+    ? path.join(changeScreenshotDir, "dark")
+    : changeScreenshotDir;
+  await mkdir(screenshotDirectory, { recursive: true });
+  await page.setViewportSize({ width, height });
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(screenshotDirectory, `${name}-${width}.png`) });
+}
+
+async function screenshotDifferenceRatio(page: Page, before: Buffer, after: Buffer): Promise<number> {
+  return page.evaluate(async ({ beforeBase64, afterBase64 }) => {
+    const decode = async (data: string): Promise<HTMLImageElement> => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${data}`;
+      await image.decode();
+      return image;
+    };
+    const [beforeImage, afterImage] = await Promise.all([decode(beforeBase64), decode(afterBase64)]);
+    const canvas = document.createElement("canvas");
+    canvas.width = beforeImage.naturalWidth;
+    canvas.height = beforeImage.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to compare Compose screenshots");
+    context.drawImage(beforeImage, 0, 0);
+    const beforePixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(afterImage, 0, 0);
+    const afterPixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let changed = 0;
+    let samples = 0;
+    for (let y = 12; y < canvas.height; y += 24) {
+      for (let x = 12; x < canvas.width; x += 24) {
+        const offset = (y * canvas.width + x) * 4;
+        const difference = Math.abs(beforePixels[offset] - afterPixels[offset]) +
+          Math.abs(beforePixels[offset + 1] - afterPixels[offset + 1]) +
+          Math.abs(beforePixels[offset + 2] - afterPixels[offset + 2]);
+        if (difference > 72) changed += 1;
+        samples += 1;
+      }
+    }
+    return samples === 0 ? 0 : changed / samples;
+  }, { beforeBase64: before.toString("base64"), afterBase64: after.toString("base64") });
+}
+
+async function selectFirstLedgerRecord(page: Page, width: number): Promise<void> {
+  const row = page.locator('[id="ledger.record-projection-1"]').last();
+  if (width < 600) {
+    const bounds = await row.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.mouse.move(bounds!.x + bounds!.width * 0.45, bounds!.y + bounds!.height * 0.5);
+    await page.mouse.down();
+    await page.waitForTimeout(800);
+    await page.mouse.up();
+  } else {
+    await clickComposeTarget(page, page.locator('[id="ledger.record-checkbox-projection-1"]').last());
+  }
+}
+
+async function openLedgerActions(page: Page): Promise<void> {
+  const fab = await getLedgerFab(page);
+  const addAction = page.locator('[id="ledger.add"]').last();
+  await clickComposeUntil(page, fab, async () => hasRenderedComposeBounds(addAction));
 }
 
 async function chooseComposeFiles(page: Page, files: Array<{ name: string; mimeType: string; buffer: Buffer }>): Promise<void> {
@@ -248,10 +335,16 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
   for (const width of [320, 375, 390, 414, 768, 1440]) {
     const height = width === 390 ? 844 : width === 768 ? 1024 : 900;
     await page.setViewportSize({ width, height });
+    // Resize before navigation so Compose Web builds its semantics tree for
+    // this viewport instead of reusing bounds captured at the previous width.
+    await page.goto(`${workspaceRoot}/`);
+    await expect(page.locator('[id="ledger.screen"]').last()).toBeVisible();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    const importButton = page.locator('[id="ledger.import"]').last();
+    await openLedgerActions(page);
+    if (width === 320) await captureLedgerScene(page, "fab-idle-compact-boundary", width, height);
     const importUrl = `${workspaceRoot}/cash-import`;
-    await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
+    await clickFabMenuItemFromBottom(page, 0);
+    await expect.poll(() => page.url().endsWith("/cash-import"), { timeout: 1_500 }).toBe(true);
     await expect(page).toHaveURL(importUrl);
 
     if (width < 600) {
@@ -286,17 +379,12 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
 
     await expect(page).toHaveURL(`${workspaceRoot}/`);
     await page.waitForTimeout(350);
-    if (width !== 1440) {
-      // Compose Web keeps a stale semantics mirror after a page-level dialog closes;
-      // reload between viewport cases so each next entry starts from a fresh tree.
-      await page.reload();
-      await expect(page.locator('[id="ledger.import"]').last()).toBeVisible();
-    }
   }
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${workspaceRoot}/`);
-  const importButton = page.locator('[id="ledger.import"]').last();
+  await openLedgerActions(page);
+  const importButton = page.getByText("导入账单", { exact: true }).last();
   await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
   await chooseComposeFiles(page, [{
     name: "discard-me.csv",
@@ -306,6 +394,7 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
   await expect(page.getByText("discard-me.csv", { exact: true }).first()).toBeVisible();
   await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
   await expect(page).toHaveURL(`${workspaceRoot}/`);
+  await openLedgerActions(page);
   await clickComposeUntil(page, importButton, async () => page.url().endsWith("/cash-import"));
   await expect(page.getByText("discard-me.csv", { exact: true })).toHaveCount(0);
   await clickComposeTarget(page, page.locator('[id="secondary-page-back"]').last());
@@ -317,34 +406,70 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
   await page.setViewportSize({ width: 390, height: 1800 });
   await page.goto(`${workspaceRoot}/`);
   await expect(page.locator('[id="ledger.summary"]').last()).toContainText("支出");
+  await expect(page.locator('[id="ledger.filter.quick-type-all"]').last()).toBeVisible();
+  await expect(page.locator('[id="ledger.filter.quick-type-expense"]').last()).toBeVisible();
+  await expect(page.locator('[id="ledger.filter.quick-type-income"]').last()).toBeVisible();
+  await expect(page.locator('[id="ledger.filter.quick-type-internal_transfer"]').last()).toBeVisible();
 
-  await page.getByRole("button", { name: "账户 全部账户", exact: true }).last().click({ force: true });
-  await page.getByRole("button", { name: "日常账户", exact: true }).last().click({ force: true });
+  const moreFilters = page.locator('[id="ledger.more-filters"]').last();
+  await clickComposeUntil(page, moreFilters, async () => page.getByRole("button", { name: "账户 全部账户", exact: true }).isVisible());
+  await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
+  const accountFilter = page.getByRole("button", { name: "账户 全部账户", exact: true }).last();
+  await clickComposeUntil(page, accountFilter, async () => page.getByRole("button", { name: "日常账户", exact: true }).last().isVisible());
+  const dailyAccount = page.getByRole("button", { name: "日常账户", exact: true }).last();
+  await clickComposeUntil(page, dailyAccount, async () => api.calls.some((call) => call.path.includes("account_id=1")));
 
   await expect.poll(() => api.calls.some((call) => call.path.includes("account_id=1"))).toBe(true);
-  await page.mouse.click(380, 1700);
+  const filteredLedgerPath = api.calls.find((call) => call.path.includes("account_id=1"))?.path.split("?")[0];
+  expect(filteredLedgerPath).toBeTruthy();
+  const callsBeforeReset = api.calls.length;
+  await clickComposeUntil(
+    page,
+    page.getByRole("button", { name: "清除", exact: true }).last(),
+    async () => page.getByRole("button", { name: "账户 全部账户", exact: true }).isVisible(),
+  );
+  await expect.poll(() => api.calls.slice(callsBeforeReset).some((call) => call.path.startsWith(filteredLedgerPath!))).toBe(true);
+  const resetLedgerCalls = api.calls.slice(callsBeforeReset).filter((call) => call.path.startsWith(filteredLedgerPath!));
+  expect(resetLedgerCalls[resetLedgerCalls.length - 1].path).not.toContain("account_id=1");
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  await page.reload();
+  await expect(page.locator('[id="ledger.filters"]').last()).toBeVisible();
   await expect(page.getByRole("textbox", { name: "最低金额" })).toHaveCount(0);
-  const moreFilters = page.locator('[id="ledger.more-filters"]').last();
-  await clickComposeUntil(page, moreFilters, async () => page.getByRole("textbox", { name: "最低金额" }).isVisible());
-  await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
-  await clickComposeUntil(page, moreFilters, async () => (await page.getByRole("textbox", { name: "最低金额" }).count()) === 0);
   for (const width of responsiveWidths) {
     await page.setViewportSize({ width, height: 844 });
     await page.waitForTimeout(150);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    if (width === 1440) {
+    if (width >= 768) {
       await expect(page.locator('[id="ledger.table-header"]')).toContainText("日期");
       await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.50 CNY");
+    } else {
+      await expect(page.locator('[id="ledger.table-header"]')).toHaveCount(0);
+      await expect(page.locator('[id="ledger.record-projection-1"]')).toBeVisible();
     }
+  }
+  await page.goto(`${workspaceRoot}/`);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(page.locator('[id="ledger.record-projection-1"]').last()).toBeVisible();
+    await captureLedgerScene(page, `list-${sizeName}`, width, height);
   }
   await page.setViewportSize({ width: 390, height: 1800 });
   await page.waitForTimeout(300);
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+    await mkdir(screenshotDir, { recursive: true });
     const themeSuffix = process.env.FT_COMPOSE_COLOR_SCHEME === "dark" ? "-dark" : "";
     await page.evaluate(async () => { await document.fonts.ready; });
     await page.waitForTimeout(3000);
     await page.screenshot({
       path: path.join(screenshotDir, `web-final-390${themeSuffix}.png`),
+    });
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.waitForTimeout(500);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({
+      path: path.join(screenshotDir, `web-final-768${themeSuffix}.png`),
     });
 
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -356,21 +481,224 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
   }
 });
 
+test("F-03 Compact 默认隐藏复选框，长按选中并在取消最后一笔后退出", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.record-projection-1"]').last()).toBeVisible();
+  await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(0);
+
+  const row = page.locator('[id="ledger.record-projection-1"]').last();
+  const bounds = await row.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.move(bounds!.x + bounds!.width * 0.45, bounds!.y + bounds!.height * 0.5);
+  await page.mouse.down();
+  await page.waitForTimeout(800);
+  await page.mouse.up();
+
+  await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
+  await expect(page.locator('[id="ledger.record-checkbox-projection-1"]')).toBeVisible();
+  await captureLedgerScene(page, "batch-selection-toolbar-compact", 390, 844);
+  await row.click({ force: true });
+  await expect(page.locator('[id="ledger.selected-count"]')).toHaveCount(0);
+  await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(0);
+});
+
+test("F-03 各窗口通过同一 FAB 打开新增与导入菜单", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  for (const [width, height] of [[390, 844], [768, 1024], [1440, 1000]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    const fab = await getLedgerFab(page);
+    await clickComposeUntil(page, fab, async () => page.locator('[id="ledger.add"]:visible').last().isVisible());
+    await expect(page.locator('[id="ledger.import"]:visible').last()).toBeVisible();
+    await expect(page.locator('[id="ledger.add"]:visible').last()).toBeVisible();
+    await captureLedgerScene(page, `fab-idle-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`, width, height);
+  }
+});
+
+test("F-03 Regular/Wide 保留行复选框、移除全选并通过菜单取消选择", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  for (const width of [768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`${workspaceRoot}/`);
+    const checkbox = page.locator('[id="ledger.record-checkbox-projection-1"]').last();
+    await expect(checkbox).toBeVisible();
+    await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(1);
+    await clickComposeUntil(page, checkbox, async () => page.locator('[id="ledger.selected-count"]').isVisible());
+    await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
+    const sizeName = width === 768 ? "regular" : "wide";
+    await captureLedgerScene(page, `batch-selection-toolbar-${sizeName}`, width, 1000);
+    const fab = await getLedgerFab(page);
+    await clickComposeUntil(page, fab, async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
+    await expect(page.locator('[id="ledger.batch-delete"]')).toBeVisible();
+    await expect(page.locator('[id="ledger.cancel-selection"]')).toBeVisible();
+    await captureLedgerScene(page, `fab-batch-${sizeName}`, width, 1000);
+    await page.locator('[id="ledger.cancel-selection"]').last().click({ force: true });
+    await expect(page.locator('[id="ledger.selected-count"]')).toHaveCount(0);
+    await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(1);
+  }
+});
+
+test("F-03 批量分类取消不写入", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await selectFirstLedgerRecord(page, width);
+    await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
+    await captureLedgerScene(page, `batch-selection-toolbar-${sizeName}`, width, height);
+
+    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
+    await captureLedgerScene(page, `fab-batch-${sizeName}`, width, height);
+    const dialog = page.locator('[id="ledger.category-dialog"]').last();
+    await page.locator('[id="ledger.batch-category"]').last().click({ force: true });
+    await expect(dialog).toBeVisible();
+    await captureLedgerScene(page, `batch-category-dialog-${sizeName}`, width, height);
+    await dialog.locator('[id="ledger.category-picker"]').click({ force: true });
+    await expect(page.locator('[id="choice-option-coffee"]').last()).toBeVisible();
+    await captureLedgerScene(page, `batch-category-options-${sizeName}`, width, height);
+    await page.locator('[id="choice-option-coffee"]').last().click({ force: true });
+    await expect(dialog.locator('[id="ledger.category.apply"]')).toBeEnabled();
+    await captureLedgerScene(page, `batch-classify-ready-${sizeName}`, width, height);
+    const writesBeforeCancel = api.state.classificationWrites.length;
+    await dialog.locator('[id="ledger.category.cancel"]').click({ force: true });
+    await captureLedgerScene(page, `batch-classify-cancelled-${sizeName}`, width, height);
+    expect(api.state.classificationWrites).toHaveLength(writesBeforeCancel);
+  }
+});
+
+test("F-03 批量分类应用时沿用现有写入", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await selectFirstLedgerRecord(page, width);
+    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
+    await page.locator('[id="ledger.batch-category"]').last().click({ force: true });
+    const dialog = page.locator('[id="ledger.category-dialog"]:visible').last();
+    await expect(dialog).toBeVisible();
+    const categoryPicker = dialog.getByRole("button", { name: "分类 选择分类", exact: true }).last();
+    await clickComposeUntil(page, categoryPicker, async () => page.getByRole("button", { name: "餐饮 / 咖啡", exact: true }).last().isVisible());
+    const coffeeOption = page.getByRole("button", { name: "餐饮 / 咖啡", exact: true }).last();
+    await clickComposeUntil(page, coffeeOption, async () => dialog.getByRole("button", { name: "分类 餐饮 / 咖啡", exact: true }).last().isVisible());
+    await captureLedgerScene(page, `batch-classify-ready-${sizeName}`, width, height);
+    const writesBeforeApply = api.state.classificationWrites.length;
+    const applyButton = dialog.getByRole("button", { name: "应用", exact: true }).last();
+    await clickComposeUntil(page, applyButton, async () => api.state.classificationWrites.length === writesBeforeApply + 1);
+    expect(api.state.classificationWrites.at(-1)).toMatchObject({ projection_ids: ["projection-1"], projection_version: 1, category_id: "coffee" });
+    await captureLedgerScene(page, `batch-classify-applied-${sizeName}`, width, height);
+  }
+});
+
+test("F-03 批量删除仍要求确认", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await selectFirstLedgerRecord(page, width);
+    const deleteCallsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-projections/delete-impact" && call.method === "POST").length;
+    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-delete"]').last().isVisible());
+    await page.locator('[id="ledger.batch-delete"]').last().click({ force: true });
+    await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-projections/delete-impact" && call.method === "POST").length).toBe(deleteCallsBefore + 1);
+    await expect(page.getByRole("button", { name: "取消", exact: true }).last()).toBeVisible();
+    await captureLedgerScene(page, `batch-delete-confirm-${sizeName}`, width, height);
+    await page.getByRole("button", { name: "取消", exact: true }).last().click({ force: true });
+    expect(api.state.projectionDeletes).toHaveLength(0);
+    await captureLedgerScene(page, `batch-delete-cancelled-${sizeName}`, width, height);
+  }
+});
+
 test("F-03 账本请求失败后可重试，空结果显示空态", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { cashPageFailures: 1 });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${workspaceRoot}/`);
   const retry = page.locator('[id="ledger.retry"]');
   await expect(retry).toContainText("重试");
+  if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+    for (const [name, width, height] of [["compact", 390, 844], ["regular", 768, 1024], ["wide", 1440, 1000]] as const) {
+      await captureLedgerScene(page, `ledger-api-error-${name}`, width, height);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+  }
   await clickComposeUntil(page, retry, async () => page.locator('[id="ledger.record-projection-1"]').last().isVisible());
   await expect(page.locator('[id="ledger.record-projection-1"]').last()).toContainText("咖啡店");
   expect(api.calls.filter((call) => call.path.startsWith("/api/v1/cash-projections")).length).toBe(2);
+});
+
+test("F-03 桌面详细筛选弹窗按内容高度展开", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto(`${workspaceRoot}/`);
+  const moreFilters = page.locator('[id="ledger.more-filters"]').last();
+  const details = page.locator('[id="ledger.filter.details"]').last();
+  await clickComposeUntil(page, moreFilters, async () => details.isVisible());
+  let bounds = await details.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds?.height ?? 1000).toBeLessThan(600);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.waitForTimeout(150);
+  bounds = await details.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(720);
+});
+
+test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  const sizes = [
+    { name: "compact", width: 390, height: 844 },
+    { name: "regular", width: 768, height: 1024 },
+    { name: "wide", width: 1440, height: 1000 },
+  ] as const;
+  for (const size of sizes) {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.goto(`${workspaceRoot}/`);
+    const moreFilters = page.locator('[id="ledger.more-filters"]').last();
+    const details = page.locator('[id="ledger.filter.details"]').last();
+    await clickComposeUntil(page, moreFilters, async () => details.isVisible());
+    await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
+    if (size.name === "compact") {
+      const amountBounds = await page.getByRole("textbox", { name: "最低金额" }).boundingBox();
+      expect(amountBounds).not.toBeNull();
+      expect(amountBounds?.width ?? 0).toBeGreaterThan(320);
+    }
+    await captureLedgerScene(page, `filters-open-${size.name}`, size.width, size.height);
+    let openScreenshot = await page.screenshot();
+
+    const doneButton = page.getByRole("button", { name: "完成", exact: true }).last();
+    await clickComposeTarget(page, doneButton);
+    await page.waitForTimeout(300);
+    const doneClosedScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, openScreenshot, doneClosedScreenshot)).toBeGreaterThan(0.03);
+    await captureLedgerScene(page, `filters-done-closed-${size.name}`, size.width, size.height);
+
+    await page.goto(`${workspaceRoot}/`);
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.more-filters"]').last(),
+      async () => page.getByRole("textbox", { name: "最低金额" }).isVisible(),
+    );
+    openScreenshot = await page.screenshot();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(300);
+    const closedScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, openScreenshot, closedScreenshot)).toBeGreaterThan(0.03);
+    await captureLedgerScene(page, `filters-escape-closed-${size.name}`, size.width, size.height);
+  }
 });
 
 test("F-03 账本没有记录时显示空态", async ({ page }) => {
   await installComposeApiFixtures(page, { cashPageEmpty: true });
   await page.goto(`${workspaceRoot}/`);
   await expect(page.locator('[id="ledger.empty"]')).toContainText("没有匹配的收支记录。");
+  if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+    for (const [name, width, height] of [["compact", 390, 844], ["regular", 768, 1024], ["wide", 1440, 1000]] as const) {
+      await captureLedgerScene(page, `ledger-api-empty-${name}`, width, height);
+    }
+  }
 });
 
 test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ page }) => {
@@ -379,42 +707,31 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
   await page.setViewportSize({ width: 390, height: 1800 });
   await page.goto(`${workspaceRoot}/`);
   await expect.poll(() => api.calls.some((call) => call.path.startsWith("/api/v1/cash-ledger/options"))).toBe(true);
-  await page.locator('[id="ledger.add"]').last().dispatchEvent("click");
+  await openLedgerActions(page);
+  const panel = page.locator('[id="ledger.record-panel"]');
+  await clickComposeUntil(page, page.locator('[id="ledger.add"]:visible').last(), async () => panel.isVisible());
   await expect(page.getByText("记一笔", { exact: true })).toBeVisible();
   await expect(page.locator('[id="record.type"]').last()).toContainText("支出");
   await typeIntoComposeInput(page, '[id="record.amount"]', "12.50");
   await expect(page.getByText("12.50", { exact: true })).toBeVisible();
   await typeIntoComposeInput(page, '[id="record.counterparty"]', "午餐店");
-  for (const width of responsiveWidths) {
-    await page.setViewportSize({ width, height: 844 });
-    await page.waitForTimeout(150);
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect(page.getByText("记一笔", { exact: true })).toBeVisible();
-    const fieldIds = ["record.amount", "record.counterparty", "record.counterparty-account", "record.occurred-at"];
-    const readFieldBounds = () => Promise.all(
-      fieldIds.map(async (id) => page.locator(`[id="${id}"]`).last().boundingBox()),
-    );
-    await expect.poll(async () => (await readFieldBounds()).every(Boolean)).toBe(true);
-    const fields = await readFieldBounds();
-    expect(fields.every(Boolean)).toBe(true);
-    expect(fields[0]!.y).toBeLessThan(fields[1]!.y);
-    expect(fields[1]!.y).toBeLessThan(fields[2]!.y);
-    expect(fields[2]!.y).toBeLessThan(fields[3]!.y);
-    if (width === 1440) {
-      // Compose's accessibility mirror reports dp coordinates here; inspect the real backing-input px anchor.
-      const focusedInputX = await page.locator("canvas").evaluate((canvas) => {
-        const anchor = canvas?.parentElement;
-        return Number.parseFloat(anchor ? getComputedStyle(anchor).getPropertyValue("--compose-internal-web-backing-input-left") : "");
-      });
-      expect(focusedInputX).toBeGreaterThan(900);
-    }
-    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1" && (width === 390 || width === 1440)) {
-      await page.screenshot({ path: `/tmp/finance-compose-cash-record-${width}.png` });
-    }
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const fieldIds = ["record.amount", "record.counterparty", "record.counterparty-account", "record.occurred-at"];
+  const readFieldBounds = () => Promise.all(
+    fieldIds.map(async (id) => page.locator(`[id="${id}"]`).last().boundingBox()),
+  );
+  await expect.poll(async () => (await readFieldBounds()).every(Boolean)).toBe(true);
+  const fields = await readFieldBounds();
+  expect(fields.every(Boolean)).toBe(true);
+  expect(fields[0]!.y).toBeLessThan(fields[1]!.y);
+  expect(fields[1]!.y).toBeLessThan(fields[2]!.y);
+  expect(fields[2]!.y).toBeLessThan(fields[3]!.y);
+  if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+    await mkdir(screenshotDir, { recursive: true });
+    await page.screenshot({ path: path.join(screenshotDir, "cash-record-create-390.png") });
   }
-  await page.setViewportSize({ width: 390, height: 1800 });
   await page.waitForTimeout(300);
-  await page.locator('[id="record.save"]').last().dispatchEvent("click");
+  await clickComposeUntil(page, page.locator('[id="record.save"]:visible').last(), async () => api.state.recordWrites.length === 1);
 
   await expect.poll(() => api.state.recordWrites.length).toBe(1);
   expect(api.state.recordWrites[0]).toMatchObject({ amount: "12.50", account_name: "日常账户", record_type: "expense" });
@@ -422,7 +739,7 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
   await page.reload();
   await expect(page.locator('[id="ledger.record-projection-1"]').last()).toContainText("咖啡店");
 
-  await page.locator('[id="ledger.open-record"]').last().dispatchEvent("click");
+  await clickComposeUntil(page, page.locator('[id="ledger.record-projection-1"]').last(), async () => api.calls.some((call) => call.path === "/api/v1/evidence/cash-projections/projection-1"));
   await expect.poll(() => api.calls.some((call) => call.path === "/api/v1/evidence/cash-projections/projection-1")).toBe(true);
   await expect(page.getByText("流水详情", { exact: true }).last()).toContainText("流水详情");
   await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
@@ -434,11 +751,220 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
   await page.waitForTimeout(250);
   await typeIntoComposeInput(page, '[id="record.note"]', "已修改", { replace: true });
   await page.waitForTimeout(300);
-  await page.locator('[id="record.save"]').last().dispatchEvent("click");
+  await clickComposeUntil(page, page.locator('[id="record.save"]:visible').last(), async () => api.state.recordWrites.length === 2);
 
   await expect.poll(() => api.state.recordWrites.length).toBe(2);
   expect(api.state.recordWrites[1]).toMatchObject({ amount: "30.00", note: "已修改" });
   expect(api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/cash-records/record-1")).toBe(true);
+});
+
+test("F-04 编辑流水在详情面板内切换，不叠加第二个模态层", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 768, height: 1000 });
+  await page.goto(`${workspaceRoot}/`);
+
+  const openDetail = page.locator('[id="ledger.open-record"]').last();
+  const panel = page.locator('[id="ledger.record-panel"]');
+  await openDetail.scrollIntoViewIfNeeded();
+  await clickComposeUntil(page, openDetail, async () => page.getByText("流水详情", { exact: true }).last().isVisible());
+  await expect(panel).toHaveCount(1);
+  await expect(panel).toBeVisible();
+  await expect(page.getByRole("button", { name: "解散关联", exact: true })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
+  await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
+  await expect(panel).toHaveCount(1);
+
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
+  await expect(panel).toHaveCount(1);
+  await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
+  await page.waitForTimeout(250);
+  const detailScreenshot = await page.screenshot();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  const listScreenshot = await page.screenshot();
+  expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+});
+
+test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  const panel = page.locator('[id="ledger.record-panel"]');
+  const expectPanelBounds = async (width: number, height: number) => {
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    if (width < 600) {
+      expect(bounds!.x).toBeCloseTo(0, 0);
+      expect(bounds!.y).toBeCloseTo(0, 0);
+      expect(bounds!.width).toBeCloseTo(width, 0);
+      expect(bounds!.height).toBeCloseTo(height, 0);
+    } else {
+      expect(bounds!.width).toBeLessThanOrEqual(560);
+      expect(bounds!.x).toBeGreaterThan(width * 0.25);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width - 16, 0);
+      expect(bounds!.y).toBeCloseTo(16, 0);
+      expect(bounds!.y + bounds!.height).toBeCloseTo(height - 16, 0);
+    }
+  };
+
+  for (const width of [390, 768, 1440]) {
+    const height = width === 390 ? 844 : width === 768 ? 1024 : 1000;
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await openLedgerActions(page);
+    await clickComposeUntil(page, page.locator('[id="ledger.add"]:visible').last(), async () => panel.isVisible());
+    await expect(panel).toBeVisible();
+    await expect(page.getByText("记一笔", { exact: true })).toBeVisible();
+    await expectPanelBounds(width, height);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await mkdir(screenshotDir, { recursive: true });
+      await page.screenshot({ path: path.join(screenshotDir, `cash-record-create-${width}.png`) });
+    }
+    await captureLedgerScene(page, `record-create-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`, width, height);
+    await page.goto(`${workspaceRoot}/`);
+    const openDetail = width < 600
+      ? page.locator('[id="ledger.record-projection-1"]').last()
+      : page.locator('[id="ledger.open-record"]:visible').last();
+    await openDetail.scrollIntoViewIfNeeded();
+    await clickComposeUntil(page, openDetail, async () => page.getByText("流水详情", { exact: true }).last().isVisible());
+    await expect(panel).toBeVisible();
+    await expectPanelBounds(width, height);
+    await expect(page.locator('[id="record.related.toggle"]')).toHaveCount(0);
+    await expect(page.getByText("来源：-", { exact: true })).toHaveCount(0);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(screenshotDir, `cash-record-detail-${width}.png`) });
+    }
+    await captureLedgerScene(page, `record-detail-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`, width, height);
+
+    await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
+    await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
+    await expect(panel).toHaveCount(1);
+    await expectPanelBounds(width, height);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(screenshotDir, `cash-record-edit-${width}.png`) });
+    }
+    await captureLedgerScene(page, `record-edit-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`, width, height);
+    await page.keyboard.press("Escape");
+    await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
+    await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
+    await page.waitForTimeout(250);
+    const detailScreenshot = await page.screenshot();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    const listScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+  }
+});
+
+test("F-04 流水删除确认在三类窗口保留危险操作样式", async ({ page }) => {
+  test.setTimeout(90_000);
+  await installComposeApiFixtures(page);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    const openDetail = width < 600
+      ? page.locator('[id="ledger.record-projection-1"]').last()
+      : page.locator('[id="ledger.open-record"]:visible').last();
+    await clickComposeUntil(page, openDetail, async () => page.locator('[id="ledger.record-panel"]').isVisible());
+    await expect(page.locator('[id="ledger.record-panel"]')).toBeVisible();
+    await page.getByRole("button", { name: "删除", exact: true }).last().click({ force: true });
+    await expect(page.getByText("删除流水", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("button", { name: "取消", exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("button", { name: "确认删除", exact: true }).last()).toBeVisible();
+    await captureLedgerScene(page, `record-delete-confirm-${sizeName}`, width, height);
+  }
+});
+
+test("F-04 已关联流水的解散关联与删除选项使用危险色", async ({ page }) => {
+  test.setTimeout(150_000);
+  await installComposeApiFixtures(page, { withAcceptedCashRelation: true });
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    const openDetail = width < 600
+      ? page.locator('[id="ledger.record-projection-1"]').last()
+      : page.locator('[id="ledger.open-record"]:visible').last();
+    await clickComposeUntil(page, openDetail, async () => page.locator('[id="ledger.record-panel"]').isVisible());
+    await expect(page.getByRole("button", { name: "解散关联", exact: true }).last()).toBeVisible();
+    const relatedToggle = page.locator('[id="record.related.toggle"]').last();
+    await expect(relatedToggle).toBeVisible();
+    await expect(page.locator('[id="record.related.content"]')).toHaveCount(0);
+    await captureLedgerScene(page, `related-detail-${sizeName}`, width, height);
+    await relatedToggle.click({ force: true });
+    const relatedContent = page.locator('[id="record.related.content"]').last();
+    await expect(relatedContent).toBeVisible();
+    await expect(relatedContent).toContainText("当前流水");
+    await expect(relatedContent).toContainText("其他关联流水");
+    await expect(relatedContent).toContainText("咖啡店");
+    await expect(relatedContent).toContainText("便利店");
+    await expect(relatedContent).toContainText("超市");
+    await expect(page.getByRole("button", { name: "编辑流水", exact: true })).toHaveCount(2);
+    await expect(page.getByRole("button", { name: "更改类型", exact: true })).toHaveCount(2);
+    await page.getByRole("button", { name: "新增关联", exact: true }).last().click({ force: true });
+    await page.mouse.move(width < 600 ? width / 2 : width - 80, height / 2);
+    await page.mouse.wheel(0, 1_600);
+    await page.waitForTimeout(220);
+    const relationComposerTitle = page.getByText("关联另一笔流水", { exact: true });
+    await relationComposerTitle.scrollIntoViewIfNeeded();
+    await expect(relationComposerTitle).toBeVisible();
+    const relationCandidate = page.getByText("待关联流水", { exact: true });
+    await relationCandidate.scrollIntoViewIfNeeded();
+    await expect(relationCandidate).toBeVisible();
+    await captureLedgerScene(page, `relation-composer-${sizeName}`, width, height);
+    await page.getByRole("button", { name: "取消", exact: true }).last().click({ force: true });
+    await expect(page.getByText("关联另一笔流水", { exact: true })).toHaveCount(0);
+    await captureLedgerScene(page, `related-detail-expanded-${sizeName}`, width, height);
+    await page.mouse.move(width < 600 ? width / 2 : width - 80, height - 300);
+    await page.mouse.wheel(0, 900);
+    await page.waitForTimeout(180);
+    await captureLedgerScene(page, `related-detail-expanded-scrolled-${sizeName}`, width, height);
+    await page.getByRole("button", { name: "删除", exact: true }).last().click({ force: true });
+    await expect(page.getByText("删除流水", { exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("button", { name: "仅删除此流水", exact: true }).last()).toBeVisible();
+    await expect(page.getByRole("button", { name: "删除整笔收支", exact: true }).last()).toBeVisible();
+    await captureLedgerScene(page, `related-record-delete-confirm-${sizeName}`, width, height);
+    await page.getByRole("button", { name: "取消", exact: true }).last().click({ force: true });
+  }
+
+  await page.goto(`${workspaceRoot}/`);
+  const relationOpenDetail = page.locator('[id="ledger.open-record"]:visible').last();
+  await clickComposeUntil(page, relationOpenDetail, async () => page.locator('[id="ledger.record-panel"]').isVisible());
+  await page.locator('[id="record.related.toggle"]').last().click({ force: true });
+  await page.mouse.move(1360, 700);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(180);
+  await clickComposeTarget(page, page.getByRole("button", { name: "更改类型", exact: true }).first());
+  await clickComposeTarget(page, page.getByRole("button", { name: /关联类型/ }).last());
+  const refundOffsetOption = page.getByText("退款冲销", { exact: true }).last();
+  await expect(refundOffsetOption).toBeVisible();
+  await clickComposeTarget(page, refundOffsetOption);
+  const saveRelationType = page.getByRole("button", { name: "保存", exact: true }).last();
+  await page.mouse.move(1360, 700);
+  await page.mouse.wheel(0, 800);
+  await page.waitForTimeout(180);
+  await expect.poll(async () => {
+    const bounds = await saveRelationType.boundingBox();
+    return !!bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= 1440 && bounds.y + bounds.height <= 1000;
+  }).toBe(true);
+  await clickComposeTarget(page, saveRelationType);
+  await expect(page.getByRole("button", { name: "保存", exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="record.related.content"]').last()).toContainText("退款冲销");
+
+  await page.getByRole("button", { name: "编辑流水", exact: true }).first().click({ force: true });
+  await expect(page.locator('[id="record.counterparty"]').last()).toBeVisible();
+  await expect(page.getByText("便利店", { exact: true }).last()).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
+  await page.locator('[id="record.related.toggle"]').last().click({ force: true });
+
+  await page.mouse.move(1360, 700);
+  await page.mouse.wheel(0, 900);
+  await page.waitForTimeout(180);
+  await clickComposeTarget(page, page.getByRole("button", { name: "取消关联", exact: true }).first());
+  const remainingRelatedContent = page.locator('[id="record.related.content"]').last();
+  await expect(remainingRelatedContent).toContainText("超市");
+  await expect(remainingRelatedContent).not.toContainText("便利店");
 });
 
 test("F-05 导入可完成选择、扫描、预览、确认和结果摘要", async ({ page }) => {
@@ -1110,8 +1636,10 @@ test("查看者在账本、导入和分类页不能执行写入操作", async ({
   const api = await installComposeApiFixtures(page, { initialSession: viewerSession });
   await page.setViewportSize({ width: 390, height: 1800 });
   await page.goto(`${workspaceRoot}/`);
-  await expect(page.locator('[id="ledger.add"]').last()).toBeVisible();
-  await page.locator('[id="ledger.add"]').last().click({ force: true });
+  const fab = page.locator('[id="ledger.actions-fab"]').last();
+  await expect(fab).toBeVisible();
+  await fab.click({ force: true });
+  await expect(page.locator('[id="ledger.add"]').last()).toBeHidden();
   await expect(page.locator('[id="record.screen"]')).toHaveCount(0);
   await expect.poll(() => api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/cash-records")).toBe(false);
 
