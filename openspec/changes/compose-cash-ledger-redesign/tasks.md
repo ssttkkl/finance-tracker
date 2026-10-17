@@ -7,6 +7,8 @@
 - [x] 1.5 用户确认主要动作增加图标且保留文字；删除、解散关联及删除确认按钮使用危险色。
 - [x] 1.6 结合支付宝与微信详情参考，确认摘要区、标签/值字段分组及详情内联关联折叠区；用户明确排除详情面板内嵌套弹层。
 - [x] 1.7 用户确认详情卡片的淡紫色需要修正，金额颜色维持现状。
+- [x] 1.8 用户确认多选后 FAB 自动展开并切换多选图标，已选数量移至 FAB 左侧提示胶囊；筛选区独立固定，各月份流水使用分开的视觉容器。
+- [x] 1.9 用户确认详细筛选使用「时间」「金额」「分类」「账户」「其他条件」五组常驻标题；金额组包含币种与范围，其他条件包含资金转移类型和合并状态，Compact 纵向排列、较宽窗口组内并排，筛选行为不变。
 
 ## 2. 计划
 
@@ -20,6 +22,8 @@
 - [x] 2.8 补充视觉合同：流水信息卡与关联流水卡显式使用现有 `surface.muted` 中性色，防止 Material 3 默认淡紫色渗入；金额配色不变。Web 与 Native 共用 `commonMain`，按用户要求仅复验 Web。
 - [x] 2.9 用户确认将 Material 3 `surfaceContainer*` 角色映射放入全局 FinanceTheme；Web、Android、iOS 和共享层都受主题默认容器色影响，旧 React Web 不变。本轮只验证 Web，Native 运行时复验不执行。
 - [x] 2.10 经用户确认，更新 proposal、账本浏览 delta、design 与 tasks：账本筛选/列表共享前景 Surface 并用分割线分区；详情摘要留在中性面板底色，信息卡/关联卡使用 Material 3 默认前景角色；颜色只映射现有 token，金额颜色不变。
+- [x] 2.11 更新 proposal、账本浏览 delta 与 design，明确固定筛选容器、仅列表滚动、月度独立容器及选择模式自动展开 FAB；Cross-platform Impact Check：Web/Android/iOS 均使用共享 `commonMain` 页面，均受布局和交互影响；按用户要求仅执行 Compose Web 浏览器验证，Native 运行时未验证。
+- [x] 2.12 更新 proposal、账本浏览 delta、design 与 tasks，补充五组详细筛选字段归属、常驻标题和响应式排布；Cross-platform Impact Check：Web、Android、iOS 与共享 `commonMain` 均受筛选面板信息层级影响；按用户要求只做 Web 浏览器验证。
 
 ## 3. 任务拆分与一致性
 
@@ -27,6 +31,8 @@
 - [x] 3.2 核对 proposal、delta、design 与任务覆盖一致；筛选、汇总、分页、批量操作、权限、凭证、关系、危险确认及 Compose 演示详情路径均保留原有实现和入口。
 - [x] 3.3 扩展 Playwright 回归，覆盖 Compact 长按/点击/最后一项退出、Regular/Wide 复选框、FAB 两种菜单、分类取消/应用、流水删除确认和已关联流水危险动作；原完整 Chromium 回归 15/15 通过，本轮新增删除/关联场景在浅色与深色主题均通过。历史开发期红色基线未保留；演示仓库分类详情及关联 fixture 回归先失败、修复后通过。
 - [x] 3.4 追查浏览器测试间歇性使用旧 Compose Web 包的原因；确认本地 Playwright 可能复用已有端口服务，Gradle 默认增量任务也不能单独证明实际分发产物与当前源码一致。将双重防护和失败关闭规则补入 design。
+- [x] 3.5 增加固定筛选、月份分页边界连续性、不同月份容器和选择菜单自动展开的 Web 回归；先确认旧布局至少在固定筛选与自动展开断言上失败。
+- [x] 3.6 为详细筛选分组标题、字段归属和三种窗口布局增加 Playwright 回归；先运行旧界面确认缺少 `ledger.filter.group.time` 等语义节点，再验证新界面在各尺寸通过。
 
 ## 4. 构建
 
@@ -59,6 +65,11 @@
 - [x] 4.27 将账本筛选和流水表格包入共享前景 Surface，以 `outlineVariant` 分隔；详情面板使用中性高层角色，详情与关联卡使用 Material 3 ElevatedCard 默认 `surfaceContainerLow` 角色，移除组件内颜色覆盖与 tonal elevation 色调叠加。
 - [x] 4.28 更新功能地图 F-03/F-04，说明全局主题表面角色及其默认卡片/弹窗影响。
 - [x] 4.29 根据真实 Compose Web 截图发现普通 Card 的 `surfaceContainerHighest` 与详情面板同色；改用 Material 3 ElevatedCard 默认前景角色。Compose Web 关闭筛选后仍会保留可见几何信息的语义镜像，回归使用实际截图差异检查弹层关闭；viewer 的写入菜单语义节点也会保留在 DOM，权限回归断言其不可见。
+- [x] 4.30 将筛选容器移出 `LazyColumn` 并固定于账本上方，让流水列表独立滚动；分页时按已加载行首尾连续绘制独立月份容器，不提前加载整月。
+- [x] 4.31 选择模式进入时自动展开 FAB 菜单并使用多选图标；将已选数量提示胶囊放到 FAB 左侧，移除列表中的数量项；紧凑行不再嵌套单笔卡片。
+- [x] 4.32 更新 F-03 功能地图和 Web 语义/交互证据；图标仅复用现有资源或在共享 drawable 中添加多选图标，不增加依赖。
+- [x] 4.33 将详细筛选按五组呈现并为新标题补齐四套语言资源；保持字段值、回调和过滤语义不变。
+- [x] 4.34 更新 F-03 功能地图，记录详细筛选的分组结构与跨端共享实现。
 
 ## 5. 审查
 
@@ -74,6 +85,8 @@
 - [x] 5.10 使用 `.agents/skills/hallmark` 的 `audit` 技能检查本 change 重构的账本列表、搜索/筛选、批量操作、新增、详情、编辑和关联区域；按 severity 记录 findings、截图范围、修复与复审结论。此前任务行中把 Hallmark 技能误称为命令入口，本次记录为实际技能审查。
 - [x] 5.11 对全局 surface container 映射及使用 Material 3 默认卡片/弹窗颜色的 Compose 页面执行 Web 范围复核；检查默认角色层级及跨页颜色影响。
 - [x] 5.12 最终 UI 形成后用 Hallmark `audit` 检查账本表面层级、详情面板/卡片、默认弹窗和三类尺寸截图；finding 与复审结论写入本节。
+- [x] 5.13 对最终账本固定筛选区、月度容器、FAB 多选状态和数量提示执行 Hallmark `audit`；在本节记录设计检查范围、严重度 finding、处置与复审结果。
+- [x] 5.14 对详细筛选五组标题及 Compact/Regular/Wide 排布执行 Hallmark `audit`，记录 finding、处置和最终结论。
 
 ## 6. 测试与 QA
 
@@ -94,14 +107,19 @@
 - [x] 6.15 用当前 Compose Web 产物刷新浅/深主题截图与图库，仅保留当前 UI 状态；覆盖 `COMPACT`、`REGULAR`、`WIDE` 的列表、筛选、选择/FAB、批量操作、新增、详情、编辑、关联创建表单和关联折叠区。
 - [x] 6.16 只在 Compose Web 重新构建并用真实 Chromium 检查账本与详情的浅/深色三类尺寸；同时复核其他使用 Material 3 默认 Card/Dialog 容器角色的主要页面。记录浏览器 URL、视口、交互、截图、控制台/网络结果；不运行 Android/iOS 验证。
 - [x] 6.17 运行 OpenSpec 严格校验、`openspec doctor`、`git diff --check`，记录 `HEAD`、基线及共享 Compose Native 运行时未复验的残余风险。
+- [x] 6.18 使用新鲜 Compose Web 产物和真实 Chromium 在 `390×844`、`768×1024`、`1440×1000` 验证筛选固定、仅列表滚动、分页跨月容器闭合/连续、选择后 FAB 自动展开与数量提示位置；覆盖浅/深色截图及关键空/加载/错误状态，记录浏览器控制台和网络结果；不运行 Android/iOS QA。
+- [x] 6.19 运行 OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`，记录 HEAD、基线、验证命令和共享 Compose Native 运行时未验证风险；重大 UI 演示等待用户确认后才可完成或提交/推送。
+- [x] 6.20 使用新鲜 Compose Web 产物和 Chromium 在代表视口验证五组标题、字段归属、组内排布、Bottom Sheet/模态滚动及既有筛选行为；浅/深主题回归和三尺寸截图见下方记录；不运行 Android/iOS QA。
 
 ## 7. 发布
 
-- [x] 7.1 记录交付摘要、回滚路径与观察项；当前只有工作树改动，未获提交/推送/发布授权，未执行外部写入。
+- [x] 7.1 记录交付摘要、回滚路径与观察项；既有用户授权覆盖本仓库推送 `main`，但重大 UI 演示仍待用户确认，当前未提交或推送，也未执行其他外部写入。
+- [ ] 7.2 按既有用户授权，本任务最终可提交并推送到 `main`；在重大 UI 演示获得用户确认后再执行，授权不覆盖其他外部写入。
 
 ## 8. 反思
 
 - [x] 8.1 演示仓库未剥离 projection ID 前缀会让新详情面板无法加载；已加入回归测试。无需新增通用工作流规则。
+- [x] 8.2 复盘固定筛选/分页连续容器的实现取舍及测试发现，判断是否需更新共享 Compose UI 工作流防复发。
 
 ## 审查记录
 
@@ -110,6 +128,8 @@
 - **焦点范围：** 流水面板没有 `FocusRequester`、显式 `requestFocus` 或关闭后恢复触发入口焦点的逻辑；其焦点沿用 Compose/平台默认行为。`CashLedgerScreen.kt` 仍接入导入页面导航既有的 `importButtonFocusRequester`；共享选择器的焦点逻辑仍用于其独立键盘选择行为。这些既有行为与面板无关，按用户要求保留。未添加焦点恢复断言。
 - **设计审查：** 之前记录的人工审查并非 Hallmark 技能审计；当时把技能误判为命令工具。当前 Hallmark 技能审计及修复结果见 5.10 和下方 2026-10-16 记录。
 - **文案与无障碍：** 可见标签沿用既有简体中文与 Material 3 控件语义；未增加帮助文案或实现术语；保留稳定语义 ID。按项目词表和中文排版约定复核，无需新增术语或文案更改。
+- **Hallmark 最终审查（2026-10-17）：** 按 `.agents/skills/hallmark/SKILL.md` 的 `audit` 动作复核此 change 重构的页面；本轮重点检查固定筛选卡、月度分区、长列表/分页跨月边界、Compact/Wide 选择态、自动展开的批量 FAB 与数量胶囊，并结合既有新增、详情、编辑、关联场景的 Hallmark 截图复查。浅/深色截图覆盖 `COMPACT 390×844`、`REGULAR 768×1024`、`WIDE 1440×1000`；当前证据位于 `screenshots/current-review-20261017/`。首次视觉检查发现 1 项 Material 3 表面层级设计问题（筛选区使用普通 Card 时与月卡层级反转），已改用 `ElevatedCard`；紧凑窗口快捷筛选与详细筛选原先分行，已收紧 FlowRow 间距并压缩筛选按钮内边距。最终审查未发现命名 Hallmark 反模式或未解决设计 finding：**0 critical · 0 major · 0 minor**。不需改 token，也无需更新共享 Compose 工作流。
+- **滚动与多选的工程复核（2026-10-17）：** 筛选卡位于 `LazyColumn` 外，只有列表接收滚动；当前月的分页末行保持平直端点，直到后续行已加载并确认月份边界，才闭合为独立月容器，故不需要预取整月。选择状态以已选 ID 为唯一来源驱动菜单自动展开，选中计数作为 FAB 同级的左侧 Material 3 Surface；取消最后一笔后既有状态会自动退出。未改 API、筛选语义、金额或持久化，不需要新增通用工作流规则。
 
 ## 验证记录
 
@@ -146,3 +166,9 @@
 - **最终 Web 交付复核（2026-10-16）：** 当前代码未再变化；浅色 Chromium `CI=1 FT_COMPOSE_PREVIEW_PORT=5188 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03|F-04'`：16/16 通过；深色相同命令、加 `FT_COMPOSE_COLOR_SCHEME=dark` 并使用端口 `5190`：16/16 通过；查看者只读回归端口 `5181`：1/1 通过；深色投资事件历史回归端口 `5183`：1/1 通过。离线演示使用 `FT_COMPOSE_PREVIEW_PORT=5196 npm run demo:offline`；freshness 守卫识别旧包并强制 `:webApp:wasmJsBrowserDistribution --no-configuration-cache --rerun-tasks`，49 个 Gradle 任务成功。`http://127.0.0.1:5196/health` 与工作区路由均返回 HTTP 200；局域网入口 `http://192.168.1.11:52914/w/demo-workspace/` 通过转发接入 5196，并经 `/health`、工作区路由双检查均返回 200。Hallmark 图集实际解析 25 个场景 × 3 种尺寸 × 2 个主题，150 张截图全部存在。最终 `openspec validate --all --strict`：32/32 通过；`openspec doctor`：Root OK、无声明引用；`git diff --check`：通过；`HEAD`/比较基线为 `8b6ebfb503d8efd7fab92d16b2b775e1d4d58fe2`。改动仍在工作树，未提交或推送；按用户范围未运行 Android/iOS 验证；重大 UI 仍待用户确认演示结果（6.9）。
 - **局域网演示浏览器冒烟（2026-10-16）：** Playwright Chromium 访问 `http://192.168.1.11:52914/w/demo-workspace/`，依次使用 `390×844`、`768×1024`、`1440×1000` 视口；三种尺寸均渲染「收支账本」，无页面横向溢出、`pageErrors=0`、`failedRequests=0`。Compact 最新页面截图暂存于 `/tmp/cash-ledger-demo-compact.png`；完整当前 UI 状态图集仍以 `compose/qa/openspec/changes/compose-cash-ledger-redesign/screenshots/hallmark-audit-20261016/index.html` 为入口。
 - **完整 Compose Web 回归（2026-10-16）：** 修复此前全套回归暴露的 viewer 隐藏语义节点断言和筛选关闭截图阈值后，浅色 `CI=1 FT_COMPOSE_PREVIEW_PORT=5201 npm run test:e2e`：57/57 通过（6.2 分钟）；深色 `CI=1 FT_COMPOSE_PREVIEW_PORT=5202 FT_COMPOSE_COLOR_SCHEME=dark npm run test:e2e`：57/57 通过（4.8 分钟）。覆盖访问、导航、账本/详情/批量操作、导入、分类、投资事件和权限；运行输出仅有已知 `NO_COLOR`/`FORCE_COLOR` 与 webpack 资源体积告警。仅 Compose Web，未运行 Android/iOS QA。
+- **固定筛选与月度列表实现 QA（2026-10-17）：** 当前 `HEAD=8ce4bfa939623bfeac8b26ff89058892187d2cbb`，比较基线为 `main=3b3bbe25b4dbd6007be024fdb7b35473a0ea229f`；工作分支为 `enhanced-ape`。`cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL。`cd compose/qa/web && npm run test:node`：3/3 通过。Chromium `zh-CN` 使用 freshness runner（`reuseExistingServer: false`，每轮隔离端口）：浅色 `CI=1 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep F-03` 17/17 通过；深色同命令加 `FT_COMPOSE_COLOR_SCHEME=dark` 17/17 通过；最终 import 排序和测试格式整理后，固定端口回归 `CI=1 FT_COMPOSE_PREVIEW_PORT=5217 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep "筛选卡片固定"` 1/1 通过，浏览器 URL 为 `http://127.0.0.1:5217/w/workspace-1/`。覆盖视口 `390×844`、`768×1024`、`1440×1000` 下筛选坐标滚动前后不变、仅列表触发分页、跨月月份头/卡片边界、Compact 长按和 Regular/Wide 勾选、多选 FAB 自动展开、计数胶囊在 FAB 左侧、批量分类取消/应用、删除确认、空态/请求错误/追加错误与重试；首轮旧布局回归曾确认筛选滚动离开视口且选择菜单仍折叠。浅/深截图在 `screenshots/current-review-20261017/` 及 `dark/`，包括三尺寸列表、固定筛选、月度边界、批量菜单和空/错态。测试的浏览器诊断断言通过，无非预期页面错误、失败请求或 HTTP 错误；终端仅出现已知 Node `NO_COLOR`/`FORCE_COLOR` 和 Webpack 资源体积警告。
+- **当前 OpenSpec 与差异检查（2026-10-17）：** `npm run test:node`：3/3；`openspec validate compose-cash-ledger-redesign --strict`：有效；`openspec doctor`：Root OK、无声明引用；`git diff --check`：通过。代码只改共享 `commonMain` 和浏览器回归；按用户指示没有执行 Android/iOS 构建或设备验证，因此 Native 运行时视觉/手势仍未由本轮证明。账本需求、设计说明、任务记录及 `docs/feature-map.md` 已更新；仍待用户确认本地演示（6.9）后才能完成重大 UI 审查及按既有授权推送 `main`（7.2）。
+- **新鲜离线演示与内网访问（2026-10-17）：** `FT_COMPOSE_PREVIEW_PORT=5203 FT_COMPOSE_COLOR_SCHEME=light npm run demo:offline` 的 freshness 守卫发现离线包缺失或过期，强制完整执行 `:webApp:wasmJsBrowserDistribution --no-configuration-cache --rerun-tasks`，49 个 Gradle task 成功。离线服务 `http://127.0.0.1:5203/`；通过 `0.0.0.0:52915` 转发到该服务的内网入口 `http://192.168.1.11:52915/w/demo-workspace/`；`/health` 返回 `ok`、工作区页面返回 HTTP 200。Playwright Chromium `zh-CN` 直接打开内网地址并在 `390×844`、`768×1024`、`1440×1000` 截图；三个尺寸均无横向溢出，`pageErrors=0`、`failedRequests=0`、API 请求数为 0。控制台仅有现存 Kotlin/Wasm `wasmExports` memory 访问弃用提示。演示截图为 `screenshots/current-review-20261017/demo-offline-{compact-390,regular-768,wide-1440}.png`；服务和内网转发仍在运行以供用户评审。
+- **详细筛选分组实现与 Web QA（2026-10-17）：** 依用户确认，在 `CashDetailedFilters` 中以常驻标题组织时间、金额、分类、账户和其他条件；Compact 保持单列并在 Bottom Sheet 内滚动，Regular/Wide 在组内并排放日期、金额范围和其他条件。账户、分类、日期、币种和金额筛选回调维持原值，资金转移类型及合并状态使用与原实现相同的值与选项；四套资源包含本地化标题。`docs/feature-map.md` F-03、proposal、delta spec 与 design 已同步。无新领域术语，已按 `DOMAIN_GLOSSARY.md` 和中文文案规范复核。
+- **详细筛选 Hallmark 审查（2026-10-17）：** 按 `.agents/skills/hallmark` 的 `audit` 指引检查实际 Compose 筛选界面与已确认的信息架构；范围为筛选入口、五组标题及字段、Bottom Sheet 和模态弹窗、深浅主题与响应式排布。对照实际 Chromium 截图检查层级、控件标签/状态、对比度、横向溢出、触控可达和重复装饰；未发现命名反模式或需要修复的视觉问题：**0 critical · 0 major · 0 minor**。
+- **详细筛选最终浏览器验证（2026-10-17）：** Chromium `zh-CN`，Playwright freshness runner 使用隔离预览端口、`reuseExistingServer: false`，工作区 URL 为 `http://127.0.0.1:<port>/w/workspace-1/`。浅色 `CI=1 FT_COMPOSE_PREVIEW_PORT=5231 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03'`：18/18 通过；深色同命令加 `FT_COMPOSE_COLOR_SCHEME=dark`、端口 `5239`：18/18 通过。分组回归覆盖 `320×800`、`375×812`、`390×844`、`414×896`、`768×1024`、`1440×1000`；浅/深截图在 `screenshots/current-review-20261017/` 和 `dark/`，包括 `filters-grouped-compact-390.png`、`filters-grouped-compact-bottom-390.png`、`filters-grouped-regular-768.png` 和 `filters-grouped-wide-1440.png`。验证五组 DOM 顺序、所有字段归属、Compact 上下滚动、Regular/Wide 组内并排、账户筛选写入、固定筛选与列表滚动、分页、错误/空态、完成与 Escape 关闭。Playwright 每个通过用例的 Console/网络/HTTP 诊断均通过，无非预期错误；终端只有既有 `NO_COLOR`/`FORCE_COLOR` 警告。中途发现紧凑面板增长后旧账户筛选回归未滚动到面板下方字段，修正为在面板内滚动后选项可见；深色主题的截图采样旧阈值低估了关闭面板的差异，按实际闭合画面调整断言阈值并复验通过。最终浅色全 F-03 为 18/18，深色全 F-03 为 18/18。按用户要求仅做 Compose Web；没有执行 Android/iOS 运行时验证，残余平台风险仍按共享 `commonMain` 记录。最终 `openspec validate --all --strict`：32/32；`openspec doctor`：Root OK、无声明引用；`npm run test:node`：3/3；`git diff --check`：通过；当前 `HEAD=8ce4bfa939623bfeac8b26ff89058892187d2cbb`，比较基线 `main=3b3bbe25b4dbd6007be024fdb7b35473a0ea229f`。重大 UI 演示仍待用户确认（6.9），未提交或推送。

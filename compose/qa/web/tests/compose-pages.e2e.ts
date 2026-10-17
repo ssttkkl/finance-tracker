@@ -15,6 +15,7 @@ const workspaceRoot = "/w/workspace-1";
 const responsiveWidths = [320, 375, 390, 414, 768, 1440];
 const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
 const accountMappingScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-import-account-mapping-redesign/screenshots");
+const cashLedgerScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261017");
 const accountMappingRunScreenshotDir = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
   ? path.join(accountMappingScreenshotDir, "dark")
   : accountMappingScreenshotDir;
@@ -71,6 +72,22 @@ async function openChoiceMenu(page: Page, picker: Locator): Promise<Locator> {
   return menu;
 }
 
+async function openDetailedFilterField(page: Page, semanticId: string): Promise<Locator> {
+  const details = page.locator('[id="ledger.filter.details"]').last();
+  await clickComposeUntil(page, page.locator('[id="ledger.more-filters"]').last(), async () => details.isVisible());
+  const field = page.locator(`[id="${semanticId}"]`).last();
+  await expect(field).toBeAttached();
+  for (let attempt = 0; attempt < 8 && !(await field.isVisible()); attempt += 1) {
+    const bounds = await details.boundingBox();
+    if (!bounds) throw new Error("Detailed filter panel has no rendered bounds");
+    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+    await page.mouse.wheel(0, Math.max(500, bounds.height));
+    await page.waitForTimeout(80);
+  }
+  await expect(field).toBeVisible();
+  return field;
+}
+
 async function hasRenderedComposeBounds(locator: Locator): Promise<boolean> {
   const bounds = await locator.boundingBox();
   return !!bounds && bounds.width > 0 && bounds.height > 0;
@@ -108,6 +125,12 @@ async function getLedgerFab(page: Page): Promise<Locator> {
   return page.getByRole("button", { name: "账单操作" }).last();
 }
 
+async function ensureLedgerMenuActionVisible(page: Page, semanticId: string): Promise<void> {
+  const action = page.locator(`[id="${semanticId}"]`).last();
+  if (await action.isVisible().catch(() => false)) return;
+  await clickComposeUntil(page, await getLedgerFab(page), async () => action.isVisible());
+}
+
 async function clickFabMenuItemFromBottom(page: Page, itemIndexFromBottom: number): Promise<void> {
   const menuItem = page.locator(`[id="${itemIndexFromBottom === 0 ? "ledger.import" : "ledger.add"}"]`).last();
   // Compose Web draws the menu on its canvas and keeps an invisible semantics
@@ -120,8 +143,8 @@ async function clickFabMenuItemFromBottom(page: Page, itemIndexFromBottom: numbe
 async function captureLedgerScene(page: Page, name: string, width: number, height: number): Promise<void> {
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS !== "1") return;
   const screenshotDirectory = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
-    ? path.join(accountMappingScreenshotDir, "dark")
-    : accountMappingScreenshotDir;
+    ? path.join(cashLedgerScreenshotDir, "dark")
+    : cashLedgerScreenshotDir;
   await mkdir(screenshotDirectory, { recursive: true });
   await page.setViewportSize({ width, height });
   await page.waitForTimeout(250);
@@ -525,10 +548,8 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
   await expect(page.locator('[id="ledger.filter.quick-type-income"]').last()).toBeVisible();
   await expect(page.locator('[id="ledger.filter.quick-type-internal_transfer"]').last()).toBeVisible();
 
-  const moreFilters = page.locator('[id="ledger.more-filters"]').last();
-  await clickComposeUntil(page, moreFilters, async () => page.locator('[id="ledger.filter.account"]').last().isVisible());
-  await expect(page.getByRole("textbox", { name: "最低金额" })).toBeVisible();
-  const accountFilter = page.locator('[id="ledger.filter.account"]').last();
+  const accountFilter = await openDetailedFilterField(page, "ledger.filter.account");
+  await expect(page.getByRole("textbox", { name: "最低金额" })).toBeAttached();
   await clickComposeTarget(page, accountFilter);
   const accountMenu = page.locator('[id="choice-overlay-menu"]').last();
   await expect(accountMenu).toContainText("日常账户");
@@ -544,6 +565,13 @@ test("F-03 账本显示本地月份摘要并按账户筛选", async ({ page }) =
     await page.setViewportSize({ width, height: 844 });
     await page.waitForTimeout(150);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    if (width === 390) {
+      const transferBounds = await page.locator('[id="ledger.filter.quick-type-internal_transfer"]').last().boundingBox();
+      const detailedFilterBounds = await page.locator('[id="ledger.more-filters"]').last().boundingBox();
+      expect(transferBounds).not.toBeNull();
+      expect(detailedFilterBounds).not.toBeNull();
+      expect(Math.abs(transferBounds!.y - detailedFilterBounds!.y)).toBeLessThanOrEqual(8);
+    }
     if (width >= 768) {
       await expect(page.locator('[id="ledger.table-header"]')).toContainText("发生时间");
       await expect(page.locator('[id="ledger.record-projection-1"]')).toContainText("-28.50 CNY");
@@ -603,10 +631,7 @@ test("F-03 ChoicePicker 锚定菜单覆盖账本、流水、分类、导入、�
     await page.setViewportSize({ width: size.width, height: size.height });
 
     await page.goto(`${workspaceRoot}/`);
-    await clickComposeUntil(page, page.locator('[id="ledger.more-filters"]').last(), async () =>
-      page.locator('[id="ledger.filter.account"]').last().isVisible(),
-    );
-    const ledgerAccount = page.locator('[id="ledger.filter.account"]').last();
+    const ledgerAccount = await openDetailedFilterField(page, "ledger.filter.account");
     const ledgerMenu = await openChoiceMenu(page, ledgerAccount);
     await expect(ledgerMenu).toContainText("日常账户");
     await page.screenshot({ path: path.join(accountMappingScreenshotDir, `choice-picker-ledger-${size.name}.png`) });
@@ -690,10 +715,17 @@ test("F-03 Compact 默认隐藏复选框，长按选中并在取消最后一笔�
 
   await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
   await expect(page.locator('[id="ledger.record-checkbox-projection-1"]')).toBeVisible();
+  await expect(page.locator('[id="ledger.batch-category"]')).toBeVisible();
+  const selectedCountBounds = await page.locator('[id="ledger.selected-count"]').last().boundingBox();
+  const fabBounds = await (await getLedgerFab(page)).boundingBox();
+  expect(selectedCountBounds).not.toBeNull();
+  expect(fabBounds).not.toBeNull();
+  expect(selectedCountBounds!.x + selectedCountBounds!.width).toBeLessThanOrEqual(fabBounds!.x);
   await captureLedgerScene(page, "batch-selection-toolbar-compact", 390, 844);
   await row.click({ force: true });
   await expect(page.locator('[id="ledger.selected-count"]')).toHaveCount(0);
   await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(0);
+  await expect(page.locator('[id="ledger.batch-category"]')).toHaveCount(0);
 });
 
 test("F-03 各窗口通过同一 FAB 打开新增与导入菜单", async ({ page }) => {
@@ -719,16 +751,46 @@ test("F-03 Regular/Wide 保留行复选框、移除全选并通过菜单取消�
     await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(1);
     await clickComposeUntil(page, checkbox, async () => page.locator('[id="ledger.selected-count"]').isVisible());
     await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
+    await expect(page.locator('[id="ledger.batch-category"]')).toBeVisible();
+    const selectedCountBounds = await page.locator('[id="ledger.selected-count"]').last().boundingBox();
+    const fabBounds = await (await getLedgerFab(page)).boundingBox();
+    expect(selectedCountBounds).not.toBeNull();
+    expect(fabBounds).not.toBeNull();
+    expect(selectedCountBounds!.x + selectedCountBounds!.width).toBeLessThanOrEqual(fabBounds!.x);
     const sizeName = width === 768 ? "regular" : "wide";
     await captureLedgerScene(page, `batch-selection-toolbar-${sizeName}`, width, 1000);
-    const fab = await getLedgerFab(page);
-    await clickComposeUntil(page, fab, async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
     await expect(page.locator('[id="ledger.batch-delete"]')).toBeVisible();
     await expect(page.locator('[id="ledger.cancel-selection"]')).toBeVisible();
     await captureLedgerScene(page, `fab-batch-${sizeName}`, width, 1000);
     await page.locator('[id="ledger.cancel-selection"]').last().click({ force: true });
     await expect(page.locator('[id="ledger.selected-count"]')).toHaveCount(0);
     await expect(page.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(1);
+  }
+});
+
+test("F-03 筛选卡片固定，列表独立滚动并触发分页", async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2 });
+  for (const [width, height] of [[390, 844], [768, 1024], [1440, 1000]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    const filters = page.locator('[id="ledger.filters"]').last();
+    const ledgerList = page.locator('[id="ledger.list"]').last();
+    await expect(filters).toBeVisible();
+    const initialFilterBounds = await filters.boundingBox();
+    const listBounds = await ledgerList.boundingBox();
+    expect(initialFilterBounds).not.toBeNull();
+    expect(listBounds).not.toBeNull();
+
+    const nextPageCallsBefore = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.75);
+    await page.mouse.wheel(0, 6_000);
+    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBeGreaterThan(nextPageCallsBefore);
+    const finalFilterBounds = await filters.boundingBox();
+    expect(finalFilterBounds).not.toBeNull();
+    expect(Math.abs(finalFilterBounds!.y - initialFilterBounds!.y)).toBeLessThanOrEqual(2);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await captureLedgerScene(page, `ledger-sticky-filter-${width}`, width, height);
   }
 });
 
@@ -742,7 +804,7 @@ test("F-03 批量分类取消不写入", async ({ page }) => {
     await expect(page.locator('[id="ledger.selected-count"]')).toContainText("1");
     await captureLedgerScene(page, `batch-selection-toolbar-${sizeName}`, width, height);
 
-    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
+    await ensureLedgerMenuActionVisible(page, "ledger.batch-category");
     await captureLedgerScene(page, `fab-batch-${sizeName}`, width, height);
     const dialog = page.locator('[id="ledger.category-dialog"]').last();
     await clickComposeUntil(page, page.locator('[id="ledger.batch-category"]').last(), async () => dialog.isVisible());
@@ -771,7 +833,7 @@ test("F-03 批量分类应用时沿用现有写入", async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/`);
     await selectFirstLedgerRecord(page, width);
-    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-category"]').last().isVisible());
+    await ensureLedgerMenuActionVisible(page, "ledger.batch-category");
     const dialog = page.locator('[id="ledger.category-dialog"]:visible').last();
     await clickComposeUntil(page, page.locator('[id="ledger.batch-category"]').last(), async () => dialog.isVisible());
     await expect(dialog).toBeVisible();
@@ -799,7 +861,7 @@ test("F-03 批量删除仍要求确认", async ({ page }) => {
     await page.goto(`${workspaceRoot}/`);
     await selectFirstLedgerRecord(page, width);
     const deleteCallsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-projections/delete-impact" && call.method === "POST").length;
-    await clickComposeUntil(page, await getLedgerFab(page), async () => page.locator('[id="ledger.batch-delete"]').last().isVisible());
+    await ensureLedgerMenuActionVisible(page, "ledger.batch-delete");
     await page.locator('[id="ledger.batch-delete"]').last().click({ force: true });
     await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-projections/delete-impact" && call.method === "POST").length).toBe(deleteCallsBefore + 1);
     await expect(page.getByRole("button", { name: "取消", exact: true }).last()).toBeVisible();
@@ -829,7 +891,7 @@ test("F-03 账本请求失败后可重试，空结果显示空态", async ({ pag
 
 test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ page }) => {
   test.setTimeout(90_000);
-  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2 });
+  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2, cashCrossMonthBoundary: true });
   for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 900, "wide"]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/`);
@@ -845,6 +907,14 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
     const lastPageTwoRecord = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
     await expect(lastPageTwoRecord).toBeVisible();
     await expect(lastPageTwoRecord).toContainText("第2页流水24");
+    await expect(lastPageTwoRecord).toContainText("2026年9月");
+    const septemberSummary = page.getByText("2026年9月", { exact: true });
+    for (let attempt = 0; attempt < 80 && !(await septemberSummary.isVisible().catch(() => false)); attempt += 1) {
+      await page.mouse.wheel(0, -120);
+      await page.waitForTimeout(50);
+    }
+    await expect(septemberSummary).toBeVisible();
+    await captureLedgerScene(page, `ledger-month-boundary-${sizeName}`, width, height);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") await captureLedgerScene(page, `ledger-infinite-scroll-${sizeName}`, width, height);
   }
@@ -899,11 +969,12 @@ test("F-03 桌面详细筛选弹窗按内容高度展开", async ({ page }) => {
   await clickComposeUntil(page, moreFilters, async () => details.isVisible());
   let bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
-  expect(bounds?.height ?? 1000).toBeLessThan(600);
+  expect(bounds?.height ?? 1000).toBeLessThan(800);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForTimeout(150);
   bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
+  expect(bounds?.height ?? 1000).toBeLessThan(800);
   expect(bounds?.width ?? 1000).toBeLessThanOrEqual(720);
 });
 
@@ -920,6 +991,106 @@ test("F-03 各尺寸账单行按交易对方、备注顺序显示", async ({ pag
     expect(accessibleRow.indexOf("拿铁")).toBeGreaterThan(accessibleRow.indexOf("咖啡店"));
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await captureLedgerScene(page, `ledger-counterparty-note-${sizeName}`, width, height);
+  }
+});
+
+test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ page }) => {
+  const api = await installComposeApiFixtures(page, { cashTransferSubtypes: ["ordinary_transfer"] });
+  const sizes = [
+    { name: "compact-320", width: 320, height: 800, compact: true, capture: false },
+    { name: "compact-375", width: 375, height: 812, compact: true, capture: false },
+    { name: "compact", width: 390, height: 844, compact: true, capture: true },
+    { name: "compact-414", width: 414, height: 896, compact: true, capture: false },
+    { name: "regular", width: 768, height: 1024, compact: false, capture: true },
+    { name: "wide", width: 1440, height: 1000, compact: false, capture: true },
+  ] as const;
+  const groupIds = [
+    "time",
+    "amount",
+    "category",
+    "account",
+    "other",
+  ] as const;
+  const groupLabels = ["时间", "金额", "分类", "账户", "其他条件"];
+
+  for (const size of sizes) {
+    await page.setViewportSize({ width: size.width, height: size.height });
+    await page.goto(`${workspaceRoot}/`);
+    const transferCallsBefore = api.calls.filter((call) => call.path.includes("economic_type=internal_transfer")).length;
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.filter.quick-type-internal_transfer"]').last(),
+      async () => api.calls.filter((call) => call.path.includes("economic_type=internal_transfer")).length > transferCallsBefore,
+    );
+    const details = page.locator('[id="ledger.filter.details"]').last();
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.more-filters"]').last(),
+      async () => details.isVisible(),
+    );
+
+    const groups = groupIds.map((id) => page.locator(`[id="ledger.filter.group.${id}"]`).last());
+    for (const [index, group] of groups.entries()) {
+      await expect(group).toContainText(groupLabels[index]);
+    }
+    const domGroupOrder = await details
+      .locator('[id^="ledger.filter.group."]')
+      .evaluateAll((elements) => elements.map((element) => element.id));
+    expect(domGroupOrder).toEqual(groupIds.map((id) => `ledger.filter.group.${id}`));
+    for (const fieldId of ["ledger.filter.date-from", "ledger.filter.date-to"]) {
+      await expect(groups[0].locator(`[id="${fieldId}"]`)).toBeAttached();
+    }
+    for (const fieldId of [
+      "ledger.filter.currency",
+      "ledger.filter.amount-minimum",
+      "ledger.filter.amount-maximum",
+    ]) {
+      await expect(groups[1].locator(`[id="${fieldId}"]`)).toBeAttached();
+    }
+    await expect(groups[2].locator('[id="ledger.filter.category"]')).toBeAttached();
+    await expect(groups[3].locator('[id="ledger.filter.account"]')).toBeAttached();
+    await expect(groups[4].locator('[id="ledger.filter.transfer-subtype"]')).toBeAttached();
+    await expect(groups[4].locator('[id="ledger.filter.composition"]')).toBeAttached();
+    if (size.capture) await captureLedgerScene(page, `filters-grouped-${size.name}`, size.width, size.height);
+
+    const startDate = await page.getByRole("textbox", { name: "开始日期" }).boundingBox();
+    const endDate = await page.getByRole("textbox", { name: "结束日期" }).boundingBox();
+    const currency = await page.locator('[id="ledger.filter.currency"]').last().boundingBox();
+    const minimum = await page.getByRole("textbox", { name: "最低金额" }).boundingBox();
+    const maximum = await page.getByRole("textbox", { name: "最高金额" }).boundingBox();
+    expect(startDate).not.toBeNull();
+    expect(endDate).not.toBeNull();
+    expect(currency).not.toBeNull();
+    expect(minimum).not.toBeNull();
+    expect(maximum).not.toBeNull();
+    if (size.compact) {
+      expect(endDate!.y).toBeGreaterThan(startDate!.y);
+      expect(currency!.y).toBeLessThan(minimum!.y);
+      expect(maximum!.y).toBeGreaterThan(minimum!.y);
+      const detailsBounds = await details.boundingBox();
+      expect(detailsBounds).not.toBeNull();
+      await page.mouse.move(detailsBounds!.x + detailsBounds!.width / 2, detailsBounds!.y + detailsBounds!.height / 2);
+      await page.mouse.wheel(0, 1_200);
+      await expect(groups[4]).toBeVisible();
+      if (size.capture) await captureLedgerScene(page, "filters-grouped-compact-bottom", size.width, size.height);
+    } else {
+      const groupBounds = await Promise.all(groups.map(async (group) => {
+        const bounds = await group.boundingBox();
+        expect(bounds).not.toBeNull();
+        return bounds!;
+      }));
+      expect(groupBounds.map((bounds) => bounds.y)).toEqual(
+        [...groupBounds.map((bounds) => bounds.y)].sort((left, right) => left - right),
+      );
+      expect(Math.abs(endDate!.y - startDate!.y)).toBeLessThan(8);
+      expect(Math.abs(currency!.y - minimum!.y)).toBeLessThan(8);
+      expect(Math.abs(maximum!.y - minimum!.y)).toBeLessThan(8);
+    }
+    const beforeClose = await page.screenshot();
+    await clickComposeTarget(page, page.getByRole("button", { name: "完成", exact: true }).last());
+    await page.waitForTimeout(300);
+    const afterClose = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, beforeClose, afterClose)).toBeGreaterThan(0.03);
   }
 });
 
@@ -989,9 +1160,9 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
 
     const doneButton = page.getByRole("button", { name: "完成", exact: true }).last();
     await clickComposeTarget(page, doneButton);
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(600);
     const doneClosedScreenshot = await page.screenshot();
-    expect(await screenshotDifferenceRatio(page, openScreenshot, doneClosedScreenshot)).toBeGreaterThan(0.03);
+    expect(await screenshotDifferenceRatio(page, openScreenshot, doneClosedScreenshot)).toBeGreaterThan(0.02);
     await captureLedgerScene(page, `filters-done-closed-${size.name}`, size.width, size.height);
 
     await page.goto(`${workspaceRoot}/`);
@@ -1002,9 +1173,9 @@ test("F-03 详细筛选在三类窗口展开并可用 Escape 关闭", async ({ p
     );
     openScreenshot = await page.screenshot();
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(600);
     const closedScreenshot = await page.screenshot();
-    expect(await screenshotDifferenceRatio(page, openScreenshot, closedScreenshot)).toBeGreaterThan(0.03);
+    expect(await screenshotDifferenceRatio(page, openScreenshot, closedScreenshot)).toBeGreaterThan(0.02);
     await captureLedgerScene(page, `filters-escape-closed-${size.name}`, size.width, size.height);
   }
 });

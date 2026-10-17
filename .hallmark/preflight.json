@@ -1,5 +1,5 @@
 {
-  "date": "2026-10-15",
+  "date": "2026-10-17",
   "framework": "Compose Multiplatform shared commonMain for Compose Web (Wasm), Android, and iOS",
   "fonts": ["Noto Sans SC", "IBM Plex Mono"],
   "palette": "FinanceTheme consumes shared design tokens for brand, income/expense, surface, and focus colors",
@@ -13,9 +13,9 @@
   ],
   "introduce": [
     "COMPACT transaction cards and REGULAR/WIDE compact tables",
-    "monthly totals within each transaction group",
+    "pinned foreground filter card, independently separated monthly transaction containers, and monthly totals within each container",
     "collapsible counterparty search with fixed type shortcuts and detailed filters",
-    "one Material 3 FAB menu that switches between add/import and batch actions",
+    "one Material 3 FAB menu that auto-expands on selection and switches to a multi-select icon with a count pill to its left",
     "Compact long-press selection and desktop row checkboxes without select-all",
     "one responsive modal information surface for create, detail, and edit"
   ]

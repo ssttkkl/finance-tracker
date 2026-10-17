@@ -577,4 +577,9 @@
     <string name="ledger_category_label">分类</string>
     <string name="ledger_category_cancel">取消</string>
     <string name="ledger_category_apply">应用</string>
+    <string name="ledger_filter_group_time">时间</string>
+    <string name="ledger_filter_group_amount">金额</string>
+    <string name="ledger_filter_group_category">分类</string>
+    <string name="ledger_filter_group_account">账户</string>
+    <string name="ledger_filter_group_other">其他条件</string>
 </resources>

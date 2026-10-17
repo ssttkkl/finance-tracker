@@ -16,7 +16,9 @@ type FixtureOptions = {
   cashPageFailures?: number;
   cashPageEmpty?: boolean;
   cashPaginatedPageCount?: number;
+  cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
+  cashTransferSubtypes?: string[];
   withAcceptedCashRelation?: boolean;
 };
 
@@ -461,7 +463,11 @@ export async function installComposeApiFixtures(
             : pageNumber > 1 && index === 0
               ? "cash-scroll-1-24"
               : `cash-scroll-${pageNumber}-${index + 1}`,
-          occurred_at: pageNumber === 1 && index === 1
+          occurred_at: options.cashCrossMonthBoundary && pageNumber === 1
+            ? `2026-10-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`
+            : options.cashCrossMonthBoundary && pageNumber > 1
+              ? `2026-09-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`
+              : pageNumber === 1 && index === 1
             ? "2026-09-24T10:30:00+08:00"
             : pageNumber > 1 && index === 0
               ? "2026-09-01T10:30:00+08:00"
@@ -486,12 +492,20 @@ export async function installComposeApiFixtures(
             economic_types: [
               { economic_type: "expense", transfer_subtypes: [] },
               { economic_type: "income", transfer_subtypes: [] },
+              { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
             ],
           },
-          monthly_summaries: options.cashPageEmpty ? [] : [{
-            month: "2026-09",
-            currencies: [{ currency: "CNY", income: economicType === "income" ? "28.50" : "0", expense: economicType === "expense" ? "28.50" : "0" }],
-          }],
+          monthly_summaries: options.cashPageEmpty
+            ? []
+            : options.cashCrossMonthBoundary && pageNumber === 1
+              ? ["2026-10", "2026-09"].map((month) => ({
+                month,
+                currencies: [{ currency: "CNY", income: economicType === "income" ? "28.50" : "0", expense: economicType === "expense" ? "28.50" : "0" }],
+              }))
+              : [{
+                month: "2026-09",
+                currencies: [{ currency: "CNY", income: economicType === "income" ? "28.50" : "0", expense: economicType === "expense" ? "28.50" : "0" }],
+              }],
         });
       }
       return json({
@@ -502,7 +516,10 @@ export async function installComposeApiFixtures(
         filter_options: {
           categories: state.categoryItems,
           currencies: ["CNY"],
-          economic_types: [{ economic_type: "expense", transfer_subtypes: [] }],
+          economic_types: [
+            { economic_type: "expense", transfer_subtypes: [] },
+            { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
+          ],
         },
         monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: [{ currency: "CNY", income: "0", expense: "28.50" }] }],
       });

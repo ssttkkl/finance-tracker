@@ -1,5 +1,12 @@
 [
   {
+    "date": "2026-10-17",
+    "macrostructure": "Workbench / Pinned Cash Ledger and Monthly Containers",
+    "theme": "Cobalt (FinanceTheme tokens)",
+    "enrichment": "none",
+    "brief": "Keep the filter card fixed while the ledger list scrolls; separate each month into a foreground surface, preserve lazy paging across month boundaries, and expose selection actions beside an auto-expanded multi-select FAB"
+  },
+  {
     "date": "2026-10-15",
     "macrostructure": "Workbench / Cash Ledger Transaction Table",
     "theme": "Cobalt (FinanceTheme tokens)",

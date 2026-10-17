@@ -577,4 +577,9 @@
     <string name="ledger_category_label">Category</string>
     <string name="ledger_category_cancel">Cancel</string>
     <string name="ledger_category_apply">Apply</string>
+    <string name="ledger_filter_group_time">Time</string>
+    <string name="ledger_filter_group_amount">Amount</string>
+    <string name="ledger_filter_group_category">Category</string>
+    <string name="ledger_filter_group_account">Account</string>
+    <string name="ledger_filter_group_other">Other conditions</string>
 </resources>

@@ -96,7 +96,7 @@ class CashLedgerViewModelTest {
             assertEquals(listOf("second"), append.data.map { it.projectionId })
             assertEquals(listOf(null, "next"), repository.pageCursors)
 
-            repository.nextPageProjectionVersion = 4
+            repository.nextPageProjectionVersion = 4L
             val invalidatedSource = CashProjectionPagingSource(repository, CashFilters()) { _, _ -> }
             invalidatedSource.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 20, placeholdersEnabled = false))
             val invalidated = invalidatedSource.load(PagingSource.LoadParams.Append(key = "next", loadSize = 20, placeholdersEnabled = false))
@@ -190,7 +190,7 @@ private class FakeCashLedgerRepository(
     val relationPageCursors = mutableListOf<String?>()
     var classificationCalls = 0
     var createdWrite: CashRecordWrite? = null
-    var nextPageProjectionVersion = 3
+    var nextPageProjectionVersion = 3L
 
     override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
         pageCursors += cursor
