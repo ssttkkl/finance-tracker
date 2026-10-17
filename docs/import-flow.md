@@ -1,86 +1,41 @@
-# 原始账单导入、关系与同步
+# 导入、关系与同步流程
 
-可执行行为以 `openspec/specs/` 与代码为准。本文描述 015 之后的运行时语义：没有文件 reconcile、converted-CSV append 或独立 raw 作业表。Web 与 Expo 使用相同的导入 API 和导入会话。
+可执行行为以 `openspec/specs/`、客户端调用和后端实现为准。本文记录 Compose 现金账单导入主流程，并区分投资账单导入、关系处理和连接器同步。
 
-## 一步导入（主路径）
+## Compose 现金账单导入
 
-客户端调用以下接口，顺序为：
+Compose 使用多文件会话 API。一次导入按以下顺序进行：
 
-```text
-POST /api/v1/cash-import/detect
-POST /api/v1/cash-import/scan
-POST /api/v1/cash-import/preview
-POST /api/v1/cash-import/commit
-```
+1. `POST /api/v1/cash-import/scan`：JSON 请求携带多份文件及其内容；服务端识别来源、扫描文件并创建导入会话。
+2. 如文件需要密码，再调用 `scan` 提交对应文件的密码并重扫会话。
+3. `POST /api/v1/cash-import/preview`：携带 `import_token`、账户映射和币种选项，生成流水预览及关系候选。
+4. Agent 或用户处理待分配的组合支付金额，选择账户映射；对可唯一确认的关系提交决定。候选仍有歧义时先结合账单证据判断，无法消除歧义则保持未关联或请求用户决定。
+5. `POST /api/v1/cash-import/commit`：携带 `import_token`、映射与关系决定、预览摘要，并使用 `Idempotency-Key` 确认整批导入。
 
-文件通过 `application/octet-stream` 上传，文件名、来源和可选币种放在查询参数；确认阶段也可以使用 JSON `content_base64`。账单密码通过 `X-FT-Statement-Password` 请求头传递，不放进 URL、日志或持久化对象。确认导入必须携带 `Idempotency-Key`。
+扫描和预览不写入正式账户、流水或关系。确认阶段在同一个工作单元（Unit of Work）中校验预览上下文、应用账户决定（包括必要的新建账户或币种扩充）、写入流水并应用关系。失败时整批回滚；同一来源业务行不会重复发布。
 
-- 现金账单：账户由账单字段和 workspace 映射决定，客户端不覆盖账户。
-- 投资账单：确认时选择 `security` 或 `crypto` 账户。
-- `currency` 只在行内缺省币种时作为回退；有效值为任意 3 位字母码并归一为大写。
-- 同一文件可以路由到多个现金账户；整批在一个 Unit of Work 内提交。
-- `convert` 不再是独立用户步骤，预览直接留在导入会话中。
+账户映射以来源账单中的账户身份和工作区映射为依据。银行卡匹配应结合银行、卡类型与卡尾号；支付平台余额、微信零钱、花呗、余额宝和余利宝等按来源账户身份映射到相应账户。币种以来源行提供的值为准；用户选择的币种只在来源行缺少币种时作为回退。
 
-## 事务语义
+Compose 主流程不调用 `detect`，也不通过原始文件 body 执行单文件扫描、预览或确认。后端仍保留的兼容入口不构成 Compose 主流程；其废弃和删除状态见[现金账单导入后端架构](cash-import-backend-architecture.md)。
 
-```text
-原始文件或 API 页
-  → parser / connector 映射为行或投资事件
-  → 幂等键：source_type × record_id（渠道名 × 业务行键）
-  → 已存在则跳过；新行写入 cash_transactions 或 investment_events
-       （现金 source_payload 仅保存该业务行的完整原始列和值；无 raw_records 表）
-  → 投资：apply_investment_event → ledger_snapshots + 校验
-  → 现金导入后可触发关系检查（镜像 / 转账 / 退款等）
-  → 同步成功则 upsert sync_cursors
-  → COMMIT
+## 投资账单导入
 
-任一行映射、校验、分页或账户决策失败 → 回滚本批；无部分正式事实或游标
-```
+投资账单使用独立的 `investment-statement-import` 能力和证券事件模型。它与现金账单的解析结果、账户映射和提交语义分开处理；不要把投资账单塞入现金账单批次。
 
-报告与持仓只消费未逻辑删除的活跃事实与已确认关系。配对不物理删除事实、不改写金额；历史重复使用 Web/Expo 的事实删除确认流程。
+## 关系与事实处理
+
+现金导入关系候选由流水的账户组成项和来源证据生成。镜像关系、转账关系（包括信用卡还款）和退款抵销关系不删除或改写原始事实金额。确认前，服务端会校验候选端点、预览摘要和当前关系上下文；过期或冲突时需重新预览或处理决定，不能伪造成功。
+
+关系审查 API、账户别名及事实删除流程以 `transaction-relations` 规格为准。具体可用操作见后端 OpenAPI 与 Compose API 包装层。
 
 ## 连接器同步
 
-同步接口为 `POST /api/v1/operations/sync`，仅管理员可调用。请求只包含 `source`、`account`、`full` 和 `batch_size`；交易所/Polymarket 凭据从后端受控配置加载，客户端永远不接触密钥。增量游标为 `workspace_id + account_id + source_type`，拉取、映射、事件写入和游标更新保持同一事务语义。
+连接器同步由受权限控制的后端操作触发。交易所和 Polymarket 凭据从后端受控配置读取，不交给客户端。同步将数据映射为正式投资事件；事件写入与增量游标更新必须保持同一事务语义。provider 范围和失败处理以 `investment-connector-sync` 规格及实现为准。
 
-首批 provider：`binance`、`kraken`、`okx`、`polymarket`。失败 fail-closed，不留部分事件或游标。
+## 来源行、幂等与溯源
 
-## 关系审查
-
-关系接口如下：
-
-```text
-GET  /api/v1/relations/pending
-POST /api/v1/relations/check
-POST /api/v1/relations/{relation_id}/accept
-POST /api/v1/relations/{relation_id}/reject
-POST /api/v1/relations/aliases
-DELETE /api/v1/cash-facts/{fact_id}
-```
-
-资金调拨关系使用 `/api/v1/funding-relations/*`，包括 `scan`、`pending`、`confirm` 和 `reject`。`card_tail` 只接受四位尾号；`account_identifier` 用于完整数字账号。别名冲突时不得自动确认关系。
-
-导入关系决策包含 proposal key、关系种类、子类型、规则版本、两端事实和 `accepted` / `rejected` 状态。服务端会检查预览 digest 与当前关系上下文；过期、冲突或重复提交返回可识别错误，不伪造成功。
-
-## Provider、Mapping 与时间
-
-| Source | 输入 | 无 offset 时间 |
-|---|---|---|
-| Alipay / WeChat / ICBC / CCB / DFZQ 等文件 | CSV/XLSX/PDF | Asia/Shanghai |
-| ccxt 交易所 / Polymarket Activity | API | 连接器规范 |
-
-带 offset 的时间保留瞬时；事实侧统一保存为 UTC，分桶使用 workspace 时区。
-
-历史 mapping 文件可能位于受控本地配置中。匹配优先更长 `fnmatch`；`default: error|fail` 时未匹配整批失败。映射只决定账户路由，不覆盖账单行的权威币种。
-
-## 失败、精度与溯源
-
-- 文件、解析、密码或工具缺失：API 返回安全错误，不写库。
-- 账户不存在、类型不符、币种非法、金额非有限或超精度：整批回滚。
-- 无法保留完整原始业务行：整批回滚，不以标准化字段补造 `source_payload`。
-- 重复 `(workspace, source_type, record_id)`：跳过，不重复发布。
-- 所有金额、数量和成本保持精确十进制文本；客户端不使用浮点计算账务。
-- `source_payload` 保存该业务行原始列和值，不保存来源路径、整份文件、映射结果或关系处理字段。
-- 账号隐私数据不得回显到错误信息、日志或测试夹具。
-
-关系种类包括 `payment_mirror`、`transfer_pair`（可含 `credit_repayment`）和 `refund_offset`；扫描细节见对应 statement-source skill 与 006/007/008 specs。
+- 现金来源行解析为现金流水及账户组成项；一条来源行可能因组合支付形成多个账户组成项。
+- 来源业务键用于判定重复导入；重复事实不会再次发布。
+- `source_payload` 保存单条业务行的原始字段和值，不以整份账单或来源路径代替。
+- 金额、数量与成本在账务边界使用精确十进制表示。
+- 现金账单、证券账单和连接器同步各自遵循所属领域规格；不要将一类来源的兼容行为推及其他来源。

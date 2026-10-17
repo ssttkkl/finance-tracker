@@ -1,63 +1,22 @@
-# 东方财富（DFZQ）对账单转换器字段偏移量
+# 东方证券 PDF 资金流水布局
 
-## 问题
+东方证券 PDF 由 `qpdf`（需要解密时）和 `mutool draw -F text` 提取文本，`parse_dfzq_text` 按“资金流水明细”区域及每笔交易的日期边界解析字段。当前字段布局处理见 [`dfzq.py`](../src/ft/importers/dfzq.py)。
 
-东方证券 PDF 对账单的表格各行字段数不一致。部分行缺少"证券名称"列，部分行还缺少"成交数量"列。
+## 标准交易块
 
-## 根因
+标准块的字段顺序为：
 
-PDF 表格的 11 列标准格式为：
+`发生日期 | 买卖类别 | 证券代码 | 证券名称 | 成交数量 | 成交价格 | 总发生金额 | 手续费 | [印花税] | [过户费] | 资金余额`
 
-```
-发生日期 | 买卖类别 | 证券代码 | 证券名称 | 成交数量 | 成交价格 | 总发生金额 | 手续费 | 印花税 | 过户费 | 资金余额
-```
+来源文本中的空字段会使单笔交易块缺少字段。解析器用“证券名称位置是否为数字”和后续单元数量区分含名称、无名称、OTC 资金变动和银行转账布局：
 
-但以下情况的空字段被 mutool 跳过（不输出空文本）：
-- **银行转证券 / 证券转银行 / 利息归本**：证券名称和成交数量均为空 → 缺 2 列
-- **OTC 资金划出 / OTC 资金划入**：证券名称为空（成交数量不为空，为 "0"） → 缺 1 列
+- 标准交易包含证券名称、数量、价格、发生金额和费用等字段。
+- OTC 资金块可能缺少证券名称字段，但仍包含数量和价格字段。
+- 银行转证券、证券转银行等资金块可能同时缺少名称和成交数量字段。
+- “红股入账”使用专门的短块解析分支。
 
-## 检测方法
+各分支对可选印花税、过户费和余额字段的读取条件不同。新导出格式应先增加去标识化 fixture 与解析测试，再调整偏移逻辑。
 
-`block[3]` 是纯数字时进入"无名称"分支：
+## 当前测试
 
-1. **含小数点**（如 `"0.0000"`）→ 银行转账格式，缺 2 列
-   - ticker → price → total_amount → fee → [stamp, transfer,] balance
-2. **纯整数**（如 `"0"`）→ OTC 格式，缺 1 列
-   - ticker → shares → price → total_amount → fee → [stamp, transfer,] balance
-3. **有名称列**（含中文字符）→ 标准格式
-   - ticker → name → shares → price → total_amount → fee → stamp → transfer → balance
-
-## 验证方法
-
-```bash
-cd ~/.hermes/skills/finance/finance-tracker
-find src/ft/__pycache__/ src/ft/importers/__pycache__/ -name "*.cpython-311.pyc" -delete
-
-# 检查 DEPOSIT 金额非零
-python3 -c "
-import csv
-with open('/tmp/dfzq_test.csv') as f:
-    reader = csv.DictReader(f)
-    bad = sum(1 for r in reader if r['action'] == 'DEPOSIT' and Decimal(r['amount']) == 0)
-    print(f'零金额DEPOSIT: {bad}')
-"
-
-# 检查 commission ≠ amount
-python3 -c "
-import csv
-with open('/tmp/dfzq_test.csv') as f:
-    reader = csv.DictReader(f)
-    bad = [(r['date'][:10], r['action'], r['amount'], r['commission'])
-           for r in reader if r['action'] in ('DEPOSIT','WITHDRAW')
-           and abs(Decimal(r['amount'])) > 0 and Decimal(r['amount']) == Decimal(r['commission'])]
-    print(f'fee==amount的DEPOSIT/WITHDRAW: {len(bad)}')
-    for b in bad[:5]: print(b)
-"
-```
-
-## 修改的文件
-
-`src/ft/importers/dfzq.py`
-- 新增 `_is_numeric()` 辅助函数
-- 在标准分支前添加 `has_name_col` 判断
-- `not has_name_col` 分支内按 `'.' in block[3]` 二分为银行转账格式和 OTC 格式
+解析与事件映射测试位于 [`test_dfzq_parser.py`](../tests/unit/importers/test_dfzq_parser.py) 和 [`test_dfzq_event_mapping.py`](../tests/unit/importers/test_dfzq_event_mapping.py)。现有 PDF 文本 fixture 位于 [`tests/fixtures/dfzq/`](../tests/fixtures/dfzq/)；使用前应检查其是否含个人或账户信息。

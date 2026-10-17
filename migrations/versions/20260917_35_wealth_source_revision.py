@@ -4,7 +4,7 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-from ft.adapters.relational.wealth_source_revision import install_source_revision_triggers
+from migrations.wealth_source_revision import install_source_revision_triggers
 
 
 revision = "20260917_35"
@@ -34,7 +34,7 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     bind = op.get_bind()
-    from ft.adapters.relational.wealth_source_revision import drop_source_revision_triggers
+    from migrations.wealth_source_revision import drop_source_revision_triggers
 
     drop_source_revision_triggers(bind)
     op.drop_table("wealth_source_revisions")

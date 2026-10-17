@@ -7,10 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import DBAPIError, OperationalError
 
-from .models import Base, WealthSourceRevisionModel, WorkspaceModel
+from .models import Base, WorkspaceModel
 from .imports import RelationalImportRepository
-from .wealth_facts import RelationalWealthFactWriter
-from .wealth_source_revision import ensure_source_revision_row, install_source_revision_triggers
 from .repositories import (
     RelationalAccountAliasRepository,
     RelationalAccountRepository,
@@ -30,8 +28,6 @@ class UnknownWorkspaceError(ValueError):
 def create_schema(engine) -> None:
     """Create metadata for isolated adapter tests only; runtime uses Alembic."""
     Base.metadata.create_all(engine)
-    with engine.begin() as connection:
-        install_source_revision_triggers(connection)
 
 
 def create_session_factory(engine):
@@ -46,8 +42,6 @@ def ensure_workspace(session_factory, workspace_id: str, *, name: str | None = N
             session.flush()
         elif name is not None:
             workspace.name = name
-        if session.get(WealthSourceRevisionModel, workspace_id) is None:
-            ensure_source_revision_row(session, workspace_id)
 
 
 class RelationalUnitOfWork:
@@ -66,7 +60,6 @@ class RelationalUnitOfWork:
         investments: object | None = None
         snapshot: object | None = None
         imports: object | None = None
-        wealth_facts: object | None = None
         relations: object | None = None
         account_aliases: object | None = None
         statement_account_mappings: object | None = None
@@ -97,10 +90,6 @@ class RelationalUnitOfWork:
     @property
     def imports(self):
         return self._state().imports
-
-    @property
-    def wealth_facts(self):
-        return self._state().wealth_facts
 
     @property
     def relations(self):
@@ -140,7 +129,6 @@ class RelationalUnitOfWork:
             investments=RelationalInvestmentRepository(session, self.workspace_id),
             snapshot=RelationalSnapshotRepository(session, self.workspace_id),
             imports=RelationalImportRepository(session, self.workspace_id),
-            wealth_facts=RelationalWealthFactWriter(session, self.workspace_id),
             relations=RelationalRelationRepository(session, self.workspace_id),
             account_aliases=RelationalAccountAliasRepository(session, self.workspace_id),
             statement_account_mappings=RelationalStatementAccountMappingRepository(session, self.workspace_id),

@@ -1,6 +1,6 @@
 # Finance Tracker
 
-多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并在此之上提供持仓估值与财富归因内核。
+多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
 项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。`web/`、`mobile/` 和 TypeScript shared packages 暂时保留为迁移参考，不属于默认开发、构建、测试或发布工作流。
 
@@ -140,14 +140,13 @@ PYTHONPATH=tests:.:src uv run pytest
 
 | 文档 | 内容 |
 |---|---|
-| [Compose / Legacy 功能地图](docs/feature-map.md) | Compose 主线页面盘点、跨端覆盖状态和 legacy 对齐历史 |
-| [docs/README.md](docs/README.md) | 文档索引 |
-| [docs/import-flow.md](docs/import-flow.md) | 导入、关系、同步事务语义 |
-| [docs/export-csv-format.md](docs/export-csv-format.md) | 预览/交换 CSV 字段 |
-| [docs/database-schema.md](docs/database-schema.md) | ORM 与 Alembic 表结构速查 |
-| [docs/productization-refactor-plan.md](docs/productization-refactor-plan.md) | 产品路线 |
-| [docs/productization-wealth-report-design.md](docs/productization-wealth-report-design.md) | 财富报告产品决策输入 |
-| [openspec/](openspec/) | 主规格、active changes 与历史归档 |
-| [references/](references/) | 解析器与行情供应商细节 |
+| [Compose 功能地图](docs/feature-map.md) | Compose 页面、实现证据与当前覆盖缺口 |
+| [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
+| [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
+| [现金导入后端架构](docs/cash-import-backend-architecture.md) | Compose 多文件现金导入链路与重构计划 |
+| [现金导入临时存储](docs/cash-import-r2-staging.md) | 导入会话暂存配置与安全边界 |
+| [UI 设计约束](docs/ui-design-rules.md) | Compose UI 实现与审查约定 |
+| [OpenSpec](openspec/) | 行为规格、active changes 与归档 |
+| [解析与行情参考](references/) | 账单格式、解析器与行情适配细节 |
 
 账单源 onboarding、投资对账单和账单导出流程优先使用仓库内对应 skill；它们只负责领域工作流，不绕过 API 和客户端边界。

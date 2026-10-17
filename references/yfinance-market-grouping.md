@@ -1,20 +1,14 @@
-# yfinance market grouping quirk
+# 证券行情批量读取与回退
 
-## Symptom
-When the Web/API portfolio query fetched prices for a mixed basket containing US (`.US`), China A-shares (`.SZ` / `.SS`), and HK (`.HK`) tickers in the same `yfinance.download(...)` batch, the resulting Close series could contain `NaN` for the US names, causing portfolio market values to print as `nan`.
+证券行情 provider 会先把账本标的映射为行情代码，将去重后的代码提交给批量读取，再从结果中提取每个标的的价格。当前主路径不按美股、A 股和港股强制拆批。
 
-## Repro
-- Mixed basket example: `nvda.us`, `mu.us`, `avgo.us`, `159330.sz`, `159740.sz`, `00700.hk`
-- Batch download returned valid rows for some markets, but US tickers were `NaN` in the extracted Close data.
+## 结果形状与缺失回退
 
-## Fix pattern
-1. Split downloads by market:
-   - US tickers: `.US`
-   - A-shares: `.SZ`
-   - Shanghai: `.SS`
-   - HK: `.HK`
-2. Keep HK tickers in their own single-ticker downloads if needed.
-3. If a batched download still returns `NaN` or missing data for a name, retry that ticker individually as a fallback.
+- 单标的响应可能在 `Close` 下提供单个时间序列。
+- 多标的响应可能在 `Close` 下提供按代码索引的列。
+- 适配器分别处理单序列和多列结果；缺少列、空响应或 provider 异常会进入缺失结果处理。
+- 缺失标的按配置的 fallback provider 链逐个补取；超过期限或全部来源不可用时保留缺失状态。
 
-## Verification
-Use a small probe that calls `_fetch_prices([...])` with a mixed basket and verify every ticker returns a numeric price, especially after adding new markets or changing ticker normalization.
+对一个标的的批量结果缺失，不应把其他市场整批重跑作为默认策略。新增 provider 或更改批量响应解析时，应覆盖单标的、多标的、局部缺失、超时及回退路径。
+
+实现见 [`market_data.py`](../src/ft/adapters/market_data.py)，行情合同测试见 [`test_market_data.py`](../tests/test_market_data.py)。

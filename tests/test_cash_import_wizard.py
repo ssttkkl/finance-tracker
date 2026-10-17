@@ -1182,8 +1182,7 @@ def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_pat
 
 def test_cash_import_shared_new_account_draft_creates_one_account_for_multiple_groups(tmp_path):
     from ft.adapters.relational.models import (
-        AccountLifecycleEventModel, AccountModel, CashTransactionModel,
-        StatementAccountMappingModel,
+        AccountModel, CashTransactionModel, StatementAccountMappingModel,
     )
     from ft.adapters.relational import ensure_workspace
     from ft.application.cash_ledger import CashLedgerCommandService
@@ -1246,13 +1245,6 @@ def test_cash_import_shared_new_account_draft_creates_one_account_for_multiple_g
             StatementAccountMappingModel.workspace_id == workspace_id,
             StatementAccountMappingModel.account_id == account.id,
         )) == 2
-        assert session.scalar(select(func.count()).select_from(AccountLifecycleEventModel).where(
-            AccountLifecycleEventModel.workspace_id == workspace_id,
-            AccountLifecycleEventModel.account_id == account.id,
-            AccountLifecycleEventModel.event_kind == "opened",
-        )) == 1
-
-
 def test_cash_import_shared_new_account_draft_conflicts_fail_closed(tmp_path):
     from ft.adapters.relational import ensure_workspace
     from ft.application.cash_ledger import CashLedgerCommandService

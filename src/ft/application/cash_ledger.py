@@ -2593,11 +2593,6 @@ class CashLedgerCommandService:
                         session.flush()
                         created = {"model": model, "account": account}
                         created_drafts[draft_id] = created
-                        uow.wealth_facts.record_lifecycle(
-                            account_name=model.name,
-                            event_kind="opened",
-                            effective_at=datetime.now(timezone.utc),
-                        )
                     model = created["model"]
                     target["account_id"] = model.id
                     account["id"] = model.id
@@ -2875,11 +2870,6 @@ class CashLedgerCommandService:
                         session.flush()
                         created = {"model": model, "account": account}
                         created_drafts[draft_id] = created
-                        uow.wealth_facts.record_lifecycle(
-                            account_name=model.name,
-                            event_kind="opened",
-                            effective_at=datetime.now(timezone.utc),
-                        )
                     model = created["model"]
                     target["account_id"] = model.id
                     account["id"] = model.id

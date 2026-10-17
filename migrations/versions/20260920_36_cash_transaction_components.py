@@ -290,7 +290,7 @@ def upgrade() -> None:
 
     # Revision 35 predates this table, so its trigger installer could not
     # attach component events. Reinstall after the new source table exists.
-    from ft.adapters.relational.wealth_source_revision import install_source_revision_triggers
+    from migrations.wealth_source_revision import install_source_revision_triggers
 
     install_source_revision_triggers(op.get_bind())
 

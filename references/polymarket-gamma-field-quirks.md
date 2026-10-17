@@ -1,41 +1,7 @@
-# Polymarket Gamma field quirks
+# Polymarket Gamma 字段解析
 
-## Symptom
-The Web/API portfolio query / `_fetch_prices()` may show the wrong Polymarket market price, even though the slug is correct.
+`PredictionMarketQuoteProvider` 从 Gamma 响应的 `outcomes` 和 `outcomePrices` 字段读取预测市场结果价格。provider 可能返回原生 JSON 数组，也可能返回编码为 JSON 文本的数组；当前实现会对字符串值执行 JSON 解码，再根据结果名称匹配 Yes/No 价格。
 
-## Cause
-`https://gamma-api.polymarket.com/markets?slug=...` can return some list-like fields as **JSON strings** instead of native arrays, for example:
+解析实现见 [`market_data.py`](../src/ft/adapters/market_data.py)。HTTP JSON helper 设置 `User-Agent` 请求头。
 
-- `outcomes = "[\"Yes\",\"No\"]"`
-- `outcomePrices = "[\"0.08\",\"0.92\"]"`
-
-If code treats these as normal iterables, it iterates characters and silently builds nonsense mappings.
-
-## Fix
-Parse stringified list fields with `json.loads()` when the field is a string and the trimmed text starts with `[`.
-
-Recommended helper pattern:
-
-```python
-def _coerce_json_list(value):
-    if isinstance(value, list):
-        return value
-    if isinstance(value, str):
-        text = value.strip()
-        if text:
-            parsed = json.loads(text)
-            if isinstance(parsed, list):
-                return parsed
-            return [parsed]
-    return []
-```
-
-## Verification
-Use a regression test with a fake gamma response that returns stringified lists and confirm:
-
-- `pm:<slug>:yes` resolves to the Yes price
-- `pm:<slug>:no` resolves to the No price
-
-## Notes
-- Keep the `User-Agent` header when calling Gamma API.
-- This quirk affects price lookup and therefore security-account valuation for Polymarket holdings.
+测试应同时覆盖数组和 JSON 文本两种字段形态，并检查 Yes、No 代码映射到对应价格。当前回归用例见 [`test_market_data.py`](../tests/test_market_data.py)。

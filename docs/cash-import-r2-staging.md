@@ -1,33 +1,30 @@
-# 现金导入临时存储（Cloudflare R2）
+# 现金导入临时存储配置
 
-生产环境使用私有 R2 Bucket 保存一次导入会话的原始账单和短期预览对象。R2 只承载临时来源，不是账本事实源；账户、流水、映射和关系仍只在最终确认时写入 Neon 的单一事务。
+现金导入会话需要短期保存原始文件和会话数据。后端支持 R2 对象存储和显式启用的进程内存储；暂存内容不是账本事实，正式账户、流水与关系只在确认导入时写入数据库。
 
-## Render 环境变量
+## R2 配置
 
-在 Render 的 Secret Environment Variables 中配置：
+设置 `FT_IMPORT_STAGING_BACKEND=r2`，并提供：
 
-- `FT_IMPORT_STAGING_BACKEND=r2`
 - `FT_R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com`
 - `FT_R2_BUCKET=<private-bucket-name>`
 - `FT_R2_ACCESS_KEY_ID=<scoped-access-key>`
 - `FT_R2_SECRET_ACCESS_KEY=<scoped-secret-key>`
-- `FT_R2_REGION=auto`
-- `FT_R2_PREFIX=cash-import`
-- `FT_IMPORT_STAGING_TTL_SECONDS=1800`
 
-凭据只授予临时 Bucket 所需的对象读、写、删权限。不要启用公开 `r2.dev` 地址，也不要把上述值写入仓库、日志或浏览器响应。
+可选配置：
 
-## Bucket 清理
+- `FT_R2_PREFIX=cash-import`：对象键前缀。
+- `FT_IMPORT_STAGING_TTL_SECONDS=1800`：会话有效时间，范围为 1–1800 秒。
 
-为 `cash-import/` 前缀配置不超过 24 小时的生命周期删除规则，作为应用成功删除和会话 TTL 的兜底。应用默认会话 TTL 为 30 分钟，成功确认后立即删除对象；清理失败不能回滚已经成功的业务事务，也不能让会话再次确认。
+凭据应限制在暂存 bucket 所需的对象读、写和删权限。bucket 不应公开访问；不要将凭据写入仓库、日志或浏览器响应。可配置对象生命周期清理作为应用清理的兜底，保留期限不得超过业务允许的账单暂存周期。
 
-## 本地和测试
+部署平台、数据库和对象存储的选择由运行环境决定；本文不假设特定生产供应商。
 
-没有 R2 凭据时只能显式使用：
+## 本地与测试
 
-```text
-FT_IMPORT_STAGING_BACKEND=memory
-FT_IMPORT_STAGING_ALLOW_MEMORY=1
-```
+内存后端必须显式选择并允许：
 
-内存适配器仅用于本地或测试。生产缺少 R2 配置时应用应失败关闭，不使用 Render 本地文件系统作为回退。
+`FT_IMPORT_STAGING_BACKEND=memory`
+`FT_IMPORT_STAGING_ALLOW_MEMORY=1`
+
+内存适配器适用于本地开发或测试，不具备跨进程持久性。未显式配置暂存后端、R2 配置缺失或无效时，应用应启动失败，不应静默切换到其他存储。

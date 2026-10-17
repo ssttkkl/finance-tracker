@@ -1,24 +1,21 @@
-# References
+# 解析与行情参考
 
-本目录保留 **当前运行时**仍有用的 parser、账单格式与只读行情适配资料。  
-文件账本、reconcile session、旧 `stock sync` 流程等已删除；考古用 Git history。
+本目录记录当前解析器和行情适配器中仍有用的来源格式与行为。项目规格、实现和测试是行为事实源；本文档只补充特定 provider 的输入布局与适配边界。
 
-## 原始账单解析
+## 账单解析与方向
 
 - [建行借记卡 XLS 格式](ccb-debit-xls-format.md)
-- [工行信用卡格式（2026-06）](icbc-credit-card-format-202606.md)
-- [工行账单格式](icbc-statement-format.md)
-- [东方证券字段偏移](dfzq-field-offsets.md)
-- [支付账单方向审计](payment-statement-direction-audit.md)
+- [工行信用卡 PDF 格式](icbc-credit-card-format.md)
+- [工行银行卡 PDF 解析](icbc-statement-format.md)
+- [东方证券 PDF 资金流水布局](dfzq-field-offsets.md)
+- [支付账单方向与类别语义](payment-statement-direction-audit.md)
 - [微信中性交易](wechat-neutral-txns.md)
-- [转换器不得静默丢行](convert-no-silent-drop.md)
+- [来源行解析与跳过行为](statement-row-handling.md)
 
-## 报告与行情
+## 行情适配
 
-- [Yahoo Finance ticker 格式](yfinance-ticker-format.md)
-- [Yahoo Finance 市场分组](yfinance-market-grouping.md)
-- [Yahoo Finance 港股价格](yfinance-hk-price-fetch.md)
-- [Polymarket gamma 字段](polymarket-gamma-field-quirks.md)（估值 017 / 同步 018 相关）
+- [证券代码到行情 provider 的映射](yfinance-ticker-format.md)
+- [证券行情批量读取与回退](yfinance-market-grouping.md)
+- [Polymarket Gamma 字段解析](polymarket-gamma-field-quirks.md)
 
-实现行为以 feature artifacts、代码和测试为准；reference 只补充供应商格式细节。  
-操作总览见根 [README.md](../README.md) 与 [docs/import-flow.md](../docs/import-flow.md)。
+操作总览见根目录 [README.md](../README.md)、[导入流程](../docs/import-flow.md) 和[现金导入后端架构](../docs/cash-import-backend-architecture.md)。
