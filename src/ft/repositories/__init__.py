@@ -5,28 +5,9 @@ from .protocols import (
     InvestmentRepository,
     UnitOfWork,
 )
-from .wealth import (
-    AccountFact,
-    CashflowFact,
-    InvestmentFact,
-    LifecycleFact,
-    ValuationFact,
-    WealthFactRepository,
-    WealthReadModelRepository,
-    WealthSourceItem,
-)
-
 __all__ = [
     "AccountRepository",
     "CashflowRepository",
     "InvestmentRepository",
     "UnitOfWork",
-    "AccountFact",
-    "CashflowFact",
-    "InvestmentFact",
-    "LifecycleFact",
-    "ValuationFact",
-    "WealthFactRepository",
-    "WealthReadModelRepository",
-    "WealthSourceItem",
 ]

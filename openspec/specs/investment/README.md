@@ -15,4 +15,3 @@
 - [投资账单导入](../import/investment-statement-import/spec.md)
 - [连接器同步](../import/investment-connector-sync/spec.md)
 - [账户与币种](../accounts/README.md)
-- [财富归因](../wealth/README.md)

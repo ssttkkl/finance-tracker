@@ -144,7 +144,7 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
     command.upgrade(config, "20260720_03")
     engine = create_engine(url)
     _seed_legacy_same_name_accounts(engine, conflict=False)
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260920_36")
 
     with engine.connect() as connection:
         accounts = connection.execute(text(
@@ -217,6 +217,24 @@ def test_merge_same_name_same_type_rewrites_cash_valuation_identities(tmp_path, 
         if isinstance(snapshot_payload, str):
             snapshot_payload = json.loads(snapshot_payload)
         assert snapshot_payload["accounts"]["cash"]["工行"] == {"CNY": "10", "JPY": "20"}
+
+    command.upgrade(config, "head")
+    with engine.connect() as connection:
+        tables = set(connection.execute(text(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+            if backend == "sqlite" else
+            "SELECT tablename FROM pg_tables WHERE schemaname = current_schema()"
+        )).scalars().all())
+        assert not {
+            "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
+            "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
+            "wealth_source_revisions", "wealth_daily_results", "wealth_active_manifests",
+            "wealth_components", "wealth_evidence_manifests", "wealth_evidence_items",
+            "wealth_evidence_manifest_items", "wealth_coverage_dispositions",
+        } & tables
+        assert connection.scalar(text(
+            "SELECT count(*) FROM cash_transactions WHERE workspace_id = 'w'"
+        )) == 2
     engine.dispose()
     if backend == "postgresql":
         from conftest import reset_postgres_schema

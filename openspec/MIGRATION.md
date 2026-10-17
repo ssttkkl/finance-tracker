@@ -35,7 +35,6 @@
 | `workspace-management` | [`workspace/workspace-management`](specs/workspace/workspace-management/spec.md) |
 | `user-workspace-access` | [`authentication/user-workspace-access`](specs/authentication/user-workspace-access/spec.md) |
 | `mobile-login-api-origin` | [`authentication/mobile-login-api-origin`](specs/authentication/mobile-login-api-origin/spec.md) |
-| `wealth-attribution` | [`wealth/wealth-attribution`](specs/wealth/wealth-attribution/spec.md) |
 | `ledger-records` | [`shared/ledger-records`](specs/shared/ledger-records/spec.md) |
 | `time-semantics` | [`shared/time-semantics`](specs/shared/time-semantics/spec.md) |
 | `runtime-database` | [`shared/runtime-database`](specs/shared/runtime-database/spec.md) |
@@ -109,7 +108,7 @@
 |----------|----------------------|
 | `001-postgres-only-storage` | 数据库边界进入 `runtime-database`，原始输入进入 `statement-import`；PostgreSQL-only 行为已被双后端运行时取代 |
 | `002-dual-database-runtime` | `runtime-database`、`time-semantics` |
-| `003-wealth-attribution-core` | `wealth-attribution`、`time-semantics` |
+| `003-wealth-attribution-core` | 财富归因实现于 migration `20261018_37` 退役；历史规格与实现记录保留在归档 |
 | `004-mapping-import-open-currency` | `statement-import`、`multi-currency-accounts` |
 | `005-multi-currency-accounts` | `multi-currency-accounts` |
 | `006-transaction-relations` | `transaction-relations`、`ledger-records`、`time-semantics` |

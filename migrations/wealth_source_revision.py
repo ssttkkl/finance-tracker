@@ -1,7 +1,7 @@
 """Database-maintained revision tokens for formal wealth source rows."""
 from __future__ import annotations
 
-from sqlalchemy import inspect, text
+from sqlalchemy import inspect
 
 
 _TRIGGERED_TABLES = (
@@ -12,20 +12,6 @@ _TRIGGERED_TABLES = (
     "cash_transaction_components",
     "investment_events",
 )
-
-
-def ensure_source_revision_row(session, workspace_id: str) -> None:
-    """Create the token row for a newly created workspace."""
-    if session.bind.dialect.name == "postgresql":
-        session.execute(text(
-            "INSERT INTO wealth_source_revisions (workspace_id, revision) "
-            "VALUES (:workspace_id, 0) ON CONFLICT (workspace_id) DO NOTHING"
-        ), {"workspace_id": workspace_id})
-    else:
-        session.execute(text(
-            "INSERT OR IGNORE INTO wealth_source_revisions (workspace_id, revision) "
-            "VALUES (:workspace_id, 0)"
-        ), {"workspace_id": workspace_id})
 
 
 def _sqlite_revision_trigger(table: str, operation: str, event: str, columns: str = "") -> str:
@@ -141,7 +127,10 @@ def install_source_revision_triggers(connection) -> None:
 def drop_source_revision_triggers(connection) -> None:
     """Remove trigger objects before a migration drops their token table."""
     if connection.dialect.name == "postgresql":
+        tables = set(inspect(connection).get_table_names())
         for table in _TRIGGERED_TABLES:
+            if table not in tables:
+                continue
             connection.exec_driver_sql(
                 f"DROP TRIGGER IF EXISTS wealth_source_revision_{table}_ai ON {table}"
             )

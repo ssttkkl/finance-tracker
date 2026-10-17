@@ -47,6 +47,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260816_34_cash_relation_metadata.py",
                 "20260917_35_wealth_source_revision.py",
                 "20260920_36_cash_transaction_components.py",
+                "20261018_37_remove_wealth_attribution.py",
             ]
 
 
@@ -79,6 +80,13 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
     } <= tables
     assert not {"import_batches", "raw_files", "raw_records", "record_revisions",
                 "fact_deletion_events", "relation_check_runs"} & tables
+    assert not {
+        "valuation_observations", "account_lifecycle_events", "wealth_source_manifests",
+        "wealth_source_manifest_items", "wealth_generations", "wealth_generation_days",
+        "wealth_source_revisions", "wealth_daily_results", "wealth_active_manifests",
+        "wealth_components", "wealth_evidence_manifests", "wealth_evidence_items",
+        "wealth_evidence_manifest_items", "wealth_coverage_dispositions",
+    } & tables
     relation_columns = {
         column["name"]
         for column in inspect(engine).get_columns("transaction_relations")
@@ -86,8 +94,8 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(relation_columns)
     assert "candidate_fact_ids" in relation_columns
 
-    # 005 is an explicitly one-shot, non-reversible account merge.
-    with pytest.raises(NotImplementedError, match="one-shot"):
+    # Revision 37 deletes wealth-source snapshots and is intentionally irreversible.
+    with pytest.raises(NotImplementedError, match="restore from backup"):
         command.downgrade(config, "base")
 
 

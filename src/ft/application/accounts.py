@@ -1,6 +1,4 @@
 """Account application service."""
-from datetime import datetime, timezone
-
 from ft.domain.accounts import ACCOUNT_TYPES, AccountDTO, AccountResult, normalize_currency
 from ft.repositories import UnitOfWork
 
@@ -76,11 +74,6 @@ class AccountService:
                 if isinstance(pockets, dict):
                     pockets.setdefault(seed_currency, "0")
                 uow.snapshot.save(snap)
-            if hasattr(uow, "wealth_facts"):
-                uow.wealth_facts.record_lifecycle(
-                    account_name=account.name, event_kind="opened",
-                    effective_at=datetime.now(timezone.utc),
-                )
             uow.commit()
         return AccountResult.success(account)
 
@@ -150,11 +143,5 @@ class AccountService:
                 uow.rollback()
                 return AccountResult.fail("account.not_found", f"未找到账户: {name}")
             target = uow.accounts.set_active(name, active)
-            if hasattr(uow, "wealth_facts"):
-                uow.wealth_facts.record_lifecycle(
-                    account_name=target.name,
-                    event_kind="reactivated" if active else "closed",
-                    effective_at=datetime.now(timezone.utc),
-                )
             uow.commit()
             return AccountResult.success(target)

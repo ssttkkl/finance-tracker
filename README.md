@@ -1,6 +1,6 @@
 # Finance Tracker
 
-多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并在此之上提供持仓估值与财富归因内核。
+多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
 项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。`web/`、`mobile/` 和 TypeScript shared packages 暂时保留为迁移参考，不属于默认开发、构建、测试或发布工作流。
 
@@ -146,7 +146,6 @@ PYTHONPATH=tests:.:src uv run pytest
 | [docs/export-csv-format.md](docs/export-csv-format.md) | 预览/交换 CSV 字段 |
 | [docs/database-schema.md](docs/database-schema.md) | ORM 与 Alembic 表结构速查 |
 | [docs/productization-refactor-plan.md](docs/productization-refactor-plan.md) | 产品路线 |
-| [docs/productization-wealth-report-design.md](docs/productization-wealth-report-design.md) | 财富报告产品决策输入 |
 | [openspec/](openspec/) | 主规格、active changes 与历史归档 |
 | [references/](references/) | 解析器与行情供应商细节 |
 

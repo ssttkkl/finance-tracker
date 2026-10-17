@@ -240,7 +240,7 @@ def test_postgresql_empty_database_upgrades_through_015_to_016():
             columns = {column["name"]: column for column in inspector.get_columns(table)}
             assert str(columns[column_name]["type"]) == "VARCHAR(36)"
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260920_36")
         inspector = inspect(engine)
         for table, column_name in (
             ("valuation_observations", "owner_account_id"),

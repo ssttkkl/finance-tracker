@@ -16,7 +16,7 @@ from ft.domain.cash_projection import (
     RULES_VERSION,
     build_cash_projections,
 )
-from ft.domain.wealth import canonical_bytes
+from ft.domain.canonical import canonical_bytes
 
 from .models import (
     CashProjectionDatasetModel,

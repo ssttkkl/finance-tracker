@@ -18,13 +18,6 @@ def _decimal_text(value, field: str) -> str:
     return format(_exact_decimal(value, field), "f")
 
 
-def _parse_utc_datetime(value: str) -> datetime:
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
 class CashflowService:
     def __init__(self, uow: UnitOfWork):
         self._uow = uow
@@ -116,11 +109,6 @@ class CashflowService:
                                 "locked": "",
             }
             fact_id = uow.cashflows.add(account.type, row)
-            if hasattr(uow, "wealth_facts"):
-                observed_at = _parse_utc_datetime(date_str)
-                uow.wealth_facts.record_cash_checkin(
-                    account_name=account_name, currency=operation_currency, balance=balance, occurred_at=observed_at,
-                )
             snap = uow.snapshot.load(lock=True)
             _ensure_snapshot_account(snap, account.type, account_name, operation_currency)
             uow.snapshot.set_balance(snap, account_name, account.type, operation_currency, balance)

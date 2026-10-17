@@ -11,8 +11,7 @@ SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会�
 - **现金导入 / 分类 / 关系**：`statement-import`、`cash-record-classification`、`transaction-relations`
 - **投资事件 / 文件导入**：`investment-event-model`、`investment-statement-import`
 - **估值 / 连接器同步**：`portfolio-valuation`、`investment-connector-sync`
-- **Alembic / `SCHEMA_REVISION` head**：`20260729_11`
-- **财富归因内核**（Phase 3 内核，已落地）：`wealth-attribution`（暂无专用 Web 页面）
+- **Alembic / `SCHEMA_REVISION` head**：`20261018_37`
 - **收支账本 Web**：`cash-ledger-browser`（收支投影、稳定分页和证据详情）
 
 active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收支账本；投资事件、持仓和估值的 Web 展示规划见 `investment-ledger-browser` active change，完成归档前不属于当前主规格。
@@ -37,8 +36,6 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 |---|---|
 | [产品化重构顶层路线](productization-refactor-plan.md) | 阶段依赖与完成门槛 |
 | [Phase 2 Web 单一 Spec 交接](phase2-web-spec-handoff.md) | 020 创建前输入；**非实施权威** |
-| [财富解释与趋势对比设计](productization-wealth-report-design.md) | 已批准决策输入；**非**实施权威 |
-| [财富报告线框](productization-wealth-report-wireframe.html) | 线框参考 |
 | [UI 设计必须约束](ui-design-rules.md) | 所有 UI 设计稿、实现和审查必须遵守的规则 |
 
 ## OpenSpec
@@ -51,7 +48,7 @@ active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收
 - [运行时数据库](../openspec/specs/shared/runtime-database/spec.md)、[账本记录](../openspec/specs/shared/ledger-records/spec.md)
 - [账单导入](../openspec/specs/import/statement-import/spec.md)、[交易关系](../openspec/specs/cash-ledger/transaction-relations/spec.md)
 - [投资事件模型](../openspec/specs/investment/investment-event-model/spec.md)、[投资组合估值](../openspec/specs/investment/portfolio-valuation/spec.md)
-- [财富归因](../openspec/specs/wealth/wealth-attribution/spec.md)、[收支账本浏览](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md)
+- [收支账本浏览](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md)
 
 完整列表以 `openspec/` 目录和 `openspec list --specs` 为准；本索引不维护平行任务清单。
 

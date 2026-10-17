@@ -12,7 +12,6 @@ from sqlalchemy import delete, select, update
 
 from ft.adapters.relational.models import (
     AccountAliasModel,
-    AccountLifecycleEventModel,
     AccountModel,
     CashCategoryModel,
     CashCategoryStateModel,
@@ -31,19 +30,6 @@ from ft.adapters.relational.models import (
     TransactionRelationModel,
     UserModel,
     UserSessionModel,
-    ValuationObservationModel,
-    WealthActiveManifestModel,
-    WealthComponentModel,
-    WealthCoverageDispositionModel,
-    WealthDailyResultModel,
-    WealthEvidenceItemModel,
-    WealthEvidenceManifestItemModel,
-    WealthEvidenceManifestModel,
-    WealthGenerationDayModel,
-    WealthGenerationModel,
-    WealthSourceManifestItemModel,
-    WealthSourceManifestModel,
-    WealthSourceRevisionModel,
     WorkspaceInvitationModel,
     WorkspaceMembershipModel,
     WorkspaceModel,
@@ -161,7 +147,6 @@ class AccessService:
         with self._sessions.begin() as session:
             session.add(WorkspaceModel(id=workspace_id, name=name))
             session.flush()
-            session.add(WealthSourceRevisionModel(workspace_id=workspace_id, revision=0))
             session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id=user_id, role="admin"))
             session.flush()
             from ft.application.cash_projections import CashProjectionService
@@ -257,7 +242,7 @@ class AccessService:
         """Remove workspace-owned rows that have restricted relationships.
 
         Most workspace data is protected by a direct workspace cascade, but
-        ledger projections and wealth snapshots deliberately use restricted
+        ledger projections deliberately use restricted
         composite foreign keys.  Clear those dependants explicitly in one
         transaction so workspace deletion has the same contract on SQLite and
         PostgreSQL.
@@ -274,33 +259,6 @@ class AccessService:
         for model in (CashInvestmentFundingRelationModel, TransactionRelationModel):
             session.execute(delete(model).where(model.workspace_id == workspace_id))
         for model in (CashTransactionModel, InvestmentEventModel):
-            session.execute(delete(model).where(model.workspace_id == workspace_id))
-
-        # These records hold restricted account references.
-        for model in (
-            ValuationObservationModel,
-            AccountLifecycleEventModel,
-            WealthCoverageDispositionModel,
-        ):
-            session.execute(delete(model).where(model.workspace_id == workspace_id))
-
-        # Wealth records form two small dependency trees.  Delete leaves and
-        # restricted links before their manifests/results.
-        for model in (
-            WealthGenerationDayModel,
-            WealthActiveManifestModel,
-            WealthComponentModel,
-            WealthEvidenceManifestItemModel,
-        ):
-            session.execute(delete(model).where(model.workspace_id == workspace_id))
-        for model in (
-            WealthEvidenceManifestModel,
-            WealthEvidenceItemModel,
-            WealthGenerationModel,
-            WealthDailyResultModel,
-            WealthSourceManifestItemModel,
-            WealthSourceManifestModel,
-        ):
             session.execute(delete(model).where(model.workspace_id == workspace_id))
 
         # Categories have a self-restricting parent relationship.  Nulling the
