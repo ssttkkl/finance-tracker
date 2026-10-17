@@ -1,0 +1,6 @@
+interface:
+  display_name: "现金账单 API 导入"
+  short_description: "按 Compose 流程通过后端批量导入现金账单"
+  default_prompt: "使用 $cash-statement-import 通过 Compose 同款 API 流程导入我提供的现金账单。"
+policy:
+  allow_implicit_invocation: true

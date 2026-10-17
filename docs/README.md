@@ -1,67 +1,33 @@
 # 文档索引
 
-可执行行为的唯一事实源是 [`openspec/project-context.md`](../openspec/project-context.md) 与 `openspec/specs/<module>/<capability>/spec.md`。本目录只保存使用说明、顶层路线和冻结的产品决策记录。
+当前行为以 [`openspec/project-context.md`](../openspec/project-context.md)、`openspec/specs/` 和实现为准。本目录提供运行说明、架构梳理与 UI 约束，不维护平行的行为规格或历史路线。
 
-运行时：`FT_DATABASE_URL` 选择 **PostgreSQL 或文件型 SQLite** 之一——不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。
-SQLite 遇到繁忙、读写权限或 schema 错误时会直接报告，不会静默改用其他存储后端。
+运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不自动回退、不双写、不隐式迁移。迁移版本以 Alembic 当前 head 和 `SCHEMA_REVISION` 为准；当前仓库值为 `20261018_37`。
 
-## 当前基线
+## 当前能力基线
 
-- **运行时 / 账户 / 账本**：`runtime-database`、`multi-currency-accounts`、`ledger-records`
-- **现金导入 / 分类 / 关系**：`statement-import`、`cash-record-classification`、`transaction-relations`
-- **投资事件 / 文件导入**：`investment-event-model`、`investment-statement-import`
-- **估值 / 连接器同步**：`portfolio-valuation`、`investment-connector-sync`
-- **Alembic / `SCHEMA_REVISION` head**：`20261018_37`
-- **收支账本 Web**：`cash-ledger-browser`（收支投影、稳定分页和证据详情）
+- 运行时、账户与账本：`runtime-database`、`multi-currency-accounts`、`ledger-records`
+- 现金导入、分类与关系：`statement-import`、`cash-record-classification`、`transaction-relations`
+- 投资事件、对账单导入、估值与同步：`investment-event-model`、`investment-statement-import`、`portfolio-valuation`、`investment-connector-sync`
 
-active change 通过 `openspec list` 查看。`cash-ledger-browser` 只包含收支账本；投资事件、持仓和估值的 Web 展示规划见 `investment-ledger-browser` active change，完成归档前不属于当前主规格。
+当前规格和 active changes 分别通过 `openspec list --specs` 与 `openspec list` 查看。
 
-收支账本的生产预览需在 `web/` 目录运行 `VITE_FT_API_ORIGIN=... npm run build`，随后运行 `npm run start`；预览
-服务器不会重新读取该变量。具体命令见 [项目说明](../README.md#收支账本-web)。
-
-## 使用与结构
+## 使用与架构
 
 | 文档 | 说明 |
 |---|---|
-| [项目说明](../README.md) | 安装、API、Web、Expo、导入、同步与验证 |
-| [收支账本 Web 规格](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md) | 只读收支投影浏览与本机双进程运行形态 |
-| [投资账本 active change](../openspec/changes/investment-ledger-browser/proposal.md) | 尚未实现的投资事件与持仓浏览规划 |
-| [导入 / 关系 / 同步流程](import-flow.md) | 事务语义与 API（015 后） |
-| [显式 CSV 导出格式](export-csv-format.md) | 只读预览，非账本 |
-| [数据库表结构](database-schema.md) | ORM + Alembic 速查（含 `sync_cursors`） |
-
-## 路线与产品决策
-
-| 文档 | 说明 |
-|---|---|
-| [产品化重构顶层路线](productization-refactor-plan.md) | 阶段依赖与完成门槛 |
-| [Phase 2 Web 单一 Spec 交接](phase2-web-spec-handoff.md) | 020 创建前输入；**非实施权威** |
-| [UI 设计必须约束](ui-design-rules.md) | 所有 UI 设计稿、实现和审查必须遵守的规则 |
+| [项目说明](../README.md) | 环境准备、后端、Compose 客户端、API 与开发验证 |
+| [Compose 功能地图](feature-map.md) | Compose 页面、实现证据与当前 QA 覆盖 |
+| [导入、关系与同步流程](import-flow.md) | 当前主要导入和数据提交流程 |
+| [现金账单导入后端架构](cash-import-backend-architecture.md) | Compose 多文件现金导入的服务链路、问题与重构建议 |
+| [现金导入临时存储配置](cash-import-r2-staging.md) | R2 与内存暂存后端的配置和边界 |
+| [UI 设计约束](ui-design-rules.md) | Compose UI 实现与审查规则 |
+| [设计系统组件登记](design-system/registry.yaml) | 当前共享展示辅助项 |
 
 ## OpenSpec
 
-[业务能力规格导航](../openspec/specs/README.md) 按模块列出当前主规格，`openspec/specs/` 保存当前能力主规格，`openspec/changes/` 保存 active change，完成后归档到
-`openspec/changes/archive/`。迁移清单和每个旧 feature 的完整产物见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)。约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [AGENTS.md](../AGENTS.md)。
-
-已完成能力（节选）：
-
-- [运行时数据库](../openspec/specs/shared/runtime-database/spec.md)、[账本记录](../openspec/specs/shared/ledger-records/spec.md)
-- [账单导入](../openspec/specs/import/statement-import/spec.md)、[交易关系](../openspec/specs/cash-ledger/transaction-relations/spec.md)
-- [投资事件模型](../openspec/specs/investment/investment-event-model/spec.md)、[投资组合估值](../openspec/specs/investment/portfolio-valuation/spec.md)
-- [收支账本浏览](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md)
-
-完整列表以 `openspec/` 目录和 `openspec list --specs` 为准；本索引不维护平行任务清单。
+[业务能力规格导航](../openspec/specs/README.md) 按模块列出当前主规格。`openspec/changes/` 保存 active changes，完成变更归档于 `openspec/changes/archive/`。迁移信息见 [`openspec/MIGRATION.md`](../openspec/MIGRATION.md)，工程约定见 [`openspec/project-context.md`](../openspec/project-context.md) 与根目录 [`AGENTS.md`](../AGENTS.md)。
 
 ## 解析与行情参考
 
-供应商格式与适配细节：[references/](../references/README.md)。
-
-## 已移除的过时文档
-
-下列路径**不再维护**（曾描述文件账本、旧三步 reconcile、或已吸收的 phase 笔记）：
-
-- `docs/import-reconcile-flow.md` → 由 [import-flow.md](import-flow.md) 取代
-- `docs/unified-csv-format.md` → 由 [export-csv-format.md](export-csv-format.md) 取代
-- `docs/phase1-application-services.md` / `docs/phase2-postgresql-storage.md`（仓库中已不存在；内容由 constitution + specs 吸收）
-
-考古用 Git history，勿把旧流程当操作说明。
+供应商账单格式、解析器行为和行情适配细节见 [references/](../references/README.md)。参考资料补充特定来源细节；当前行为仍以代码、测试和对应规格为准。
