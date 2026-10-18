@@ -105,7 +105,7 @@
 
 ## 6. 发布准备
 
-- [ ] 6.1 按用户授权将本 change 直接提交并推送到 `main`；提交前检查 `git status`、`git diff --check`、影响范围与验证结果，并在完成后记录提交 ID 和推送结果。重大 UI change 仍须等待用户复核 Compose 演示结果后才能标记完成。
+- [x] 6.1 按用户授权将本 change 直接提交并推送到 `main`。2026-10-18，开发工作分支 `enhanced-ape` 上的实现提交 `d0b15a947e4ec2ef215a38e15329fc3517c86c85`（`feat(compose): conform dialogs to Material 3`）通过 `git push origin HEAD:main` 快进推送成功（`70f0283..d0b15a9 HEAD -> main`）。提交前检查工作树、暂存范围、`git diff --check`、OpenSpec 严格校验、Node QA 3/3 与聚焦 Web 回归 9/9 均通过。重大 UI change 仍须等待用户复核 Compose 演示结果后才能标记完成。
 - [ ] 6.2 等待用户复核 Compose 演示结果后再将 change 标记完成；演示需覆盖 `COMPACT`、`REGULAR`、`WIDE`。
 - [x] 6.3 无数据迁移；回滚通过还原本次提交完成。发布后重点观察 Compact 全屏详情与独立关联任务、Regular/Wide 全高面板，以及删除/关系移除确认和异步错误知悉路径。
 
