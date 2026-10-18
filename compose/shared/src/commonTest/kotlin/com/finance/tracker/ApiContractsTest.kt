@@ -113,6 +113,7 @@ class ApiContractsTest {
         assertEquals("workspace.management.invite", SemanticIds.workspaceManagementInvite)
         assertEquals("workspace-management.name", SemanticIds.workspaceManagementName)
         assertEquals("workspace-management.invite-link", SemanticIds.workspaceManagementInviteLink)
+        assertEquals("investment.event.detail.open", SemanticIds.investmentEventDetailOpen)
         assertEquals("investment.event.detail", SemanticIds.investmentEventDetail)
         assertEquals("investment-events.load-more", SemanticIds.investmentEventsLoadMore)
         assertEquals("investment.event.detail.close", SemanticIds.investmentEventDetailClose)

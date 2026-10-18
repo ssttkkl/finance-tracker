@@ -2,6 +2,8 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_close
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -20,6 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -29,11 +33,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import org.jetbrains.compose.resources.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -144,7 +150,7 @@ internal fun InvestmentEventsScreen(
                     FinanceTableCell(investmentAssetLines(event).joinToString("\n") { (_, value) -> value }, 1.8f)
                     FinanceTableCell(event.commission.amount?.let { "${formatInvestmentAmount(it)} ${event.commission.asset ?: event.currency}" } ?: "—", 0.8f)
                     FinanceTableCell(event.note.ifBlank { "—" }, 1.2f)
-                    TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.weight(0.7f).testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
+                    TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.weight(0.7f).testTag(SemanticIds.investmentEventDetailOpen)) { Text(localizedText("copy_faea8c1db9")) }
                 }
                 HorizontalDivider()
             } else SectionCard(modifier = Modifier.testTag("investment-event-${event.eventId}")) {
@@ -170,7 +176,7 @@ internal fun InvestmentEventsScreen(
                     Text(localizedText("copy_267bdc72ce", formatInvestmentAmount(event.commission.amount), event.commission.asset ?: event.currency))
                 }
                 if (event.note.isNotBlank() || event.sourceType != null) Text(event.note.ifBlank { localizedText("copy_6d33d6cd64") })
-                TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.testTag(SemanticIds.investmentEventDetail)) { Text(localizedText("copy_faea8c1db9")) }
+                TextButton(onClick = { viewModel.selectEvent(event) }, modifier = Modifier.testTag(SemanticIds.investmentEventDetailOpen)) { Text(localizedText("copy_faea8c1db9")) }
             }
         }
         if (appendError != null) StateMessage(appendError.orEmpty(), isError = true) {
@@ -208,7 +214,7 @@ internal fun InvestmentEventsScreen(
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
                     Column(Modifier.fillMaxWidth()) {
-                        InvestmentEventDetailHeader(event)
+                        InvestmentEventDetailHeader(event, viewModel::closeEvidence)
                         HorizontalDivider()
                         InvestmentEventDetailBody(
                             Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
@@ -218,16 +224,6 @@ internal fun InvestmentEventsScreen(
                             evidenceError,
                             viewModel::retryEvidence,
                         )
-                        HorizontalDivider()
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            TextButton(
-                                onClick = viewModel::closeEvidence,
-                                modifier = Modifier.testTag(SemanticIds.investmentEventDetailClose),
-                            ) { Text(localizedText("copy_6c14bd7f6f")) }
-                        }
                     }
                 }
             }
@@ -236,12 +232,22 @@ internal fun InvestmentEventsScreen(
 }
 
 @Composable
-private fun InvestmentEventDetailHeader(event: InvestmentEvent) {
-    Text(
-        eventTitle(event),
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
-        style = MaterialTheme.typography.headlineSmall,
-    )
+private fun InvestmentEventDetailHeader(event: InvestmentEvent, onClose: () -> Unit) {
+    val closeLabel = localizedText("copy_6c14bd7f6f")
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .semantics { contentDescription = closeLabel }
+                .testTag(SemanticIds.investmentEventDetailClose),
+        ) {
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+        }
+        Text(eventTitle(event), modifier = Modifier.testTag("investment.event.detail.title"), style = MaterialTheme.typography.headlineSmall)
+    }
 }
 
 @Composable

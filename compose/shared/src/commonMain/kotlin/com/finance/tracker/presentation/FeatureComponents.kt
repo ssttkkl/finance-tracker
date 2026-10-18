@@ -138,6 +138,7 @@ internal fun DatePickerInput(
     var open by remember { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoDateToUtcMillis(value))
     val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
+    val closeLabel = localizedText("copy_6c14bd7f6f")
     val setOpen: (Boolean) -> Unit = { next ->
         if (inlinePicker && onInlinePickerActiveChange != null) onInlinePickerActiveChange(next) else open = next
     }
@@ -218,7 +219,19 @@ internal fun DatePickerInput(
                     ) { Text(localizedText("copy_4d0b4688c7")) }
                 },
             ) {
-                DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
+                Column {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(
+                            onClick = { open = false },
+                            modifier = Modifier
+                                .semantics { contentDescription = closeLabel }
+                                .testTag(semanticId?.let { "$it-close" } ?: "date-picker-close"),
+                        ) {
+                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+                        }
+                    }
+                    DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
+                }
             }
         }
     }
@@ -358,9 +371,11 @@ internal fun ChoicePicker(
     semanticId: String? = null,
     autoScrollMenuIntoView: Boolean = false,
     onMenuExpandedChange: ((Boolean) -> Unit)? = null,
+    menuExpanded: Boolean? = null,
     onMenuEscape: (() -> Unit)? = null,
 ) {
-    var expanded by remember(label, semanticId) { mutableStateOf(false) }
+    var internalExpanded by remember(label, semanticId) { mutableStateOf(false) }
+    val expanded = menuExpanded ?: internalExpanded
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
     LaunchedEffect(expanded, autoScrollMenuIntoView) {
         if (expanded && autoScrollMenuIntoView) menuBringIntoViewRequester.bringIntoView()
@@ -368,7 +383,7 @@ internal fun ChoicePicker(
     val selectedLabel = options.firstOrNull { it.first == value }?.second ?: value.ifEmpty { localizedText("copy_778fc8f994") }
     val fieldLabel: (@Composable () -> Unit)? = if (label.isBlank()) null else { { Text(label) } }
     val updateExpanded: (Boolean) -> Unit = { nextExpanded ->
-        expanded = nextExpanded
+        internalExpanded = nextExpanded
         onMenuExpandedChange?.invoke(nextExpanded)
     }
     val dismissMenuFromEscape: () -> Unit = {
@@ -408,11 +423,10 @@ internal fun ChoicePicker(
         ExposedDropdownMenu(
             expanded = expanded,
             onDismissRequest = { updateExpanded(false) },
-            modifier = Modifier
-                .testTag("choice-overlay-menu")
+            modifier = Modifier.testTag("choice-overlay-menu")
                 .onPreviewKeyEvent { event ->
                     if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && expanded) {
-                        updateExpanded(false)
+                        dismissMenuFromEscape()
                         true
                     } else false
                 },
@@ -424,8 +438,7 @@ internal fun ChoicePicker(
                         onSelected(optionValue)
                         updateExpanded(false)
                     },
-                    modifier = Modifier
-                        .testTag("choice-option-$optionValue"),
+                    modifier = Modifier.testTag("choice-option-$optionValue"),
                     contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding,
                 )
             }

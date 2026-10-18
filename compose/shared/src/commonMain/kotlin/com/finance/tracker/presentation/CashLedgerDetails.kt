@@ -3,7 +3,6 @@ package com.finance.tracker.presentation
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.resources.Res
-import com.finance.tracker.resources.ic_check
 import com.finance.tracker.resources.ic_close
 import com.finance.tracker.resources.ic_delete
 import com.finance.tracker.resources.ic_edit
@@ -17,28 +16,23 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -50,28 +44,38 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import org.jetbrains.compose.resources.painterResource
+import kotlin.math.roundToInt
+import kotlinx.coroutines.launch
 
 @Composable
 internal fun CashRecordModalPanel(
@@ -81,32 +85,27 @@ internal fun CashRecordModalPanel(
     semanticStateKey: Any? = null,
     onDismiss: () -> Unit,
     onBack: () -> Unit,
-    showWideHeaderClose: Boolean = true,
-    showCompactHeaderClose: Boolean = true,
-    headerAction: @Composable RowScope.() -> Unit = {},
     footer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
     val fullScreen = compact && compactFullScreen
     PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onBack)
-    key(sizeClass, title, semanticStateKey) {
-        Dialog(
-            onDismissRequest = onBack,
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                dismissOnBackPress = !isWebPlatform,
-                dismissOnClickOutside = !fullScreen,
-            ),
-        ) {
+    Dialog(
+        onDismissRequest = onBack,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            dismissOnBackPress = !isWebPlatform,
+            dismissOnClickOutside = !fullScreen,
+        ),
+    ) {
+        key(sizeClass, title, semanticStateKey) {
             CashRecordModalOverlay(
                 sizeClass = sizeClass,
                 title = title,
                 onDismiss = onDismiss,
+                onBack = onBack,
                 compactFullScreen = fullScreen,
-                showWideHeaderClose = showWideHeaderClose,
-                showCompactHeaderClose = showCompactHeaderClose,
-                headerAction = headerAction,
                 footer = footer,
                 content = content,
             )
@@ -119,27 +118,62 @@ private fun CashRecordModalOverlay(
     sizeClass: WindowSizeClass,
     title: String,
     onDismiss: () -> Unit,
+    onBack: () -> Unit,
     compactFullScreen: Boolean,
-    showWideHeaderClose: Boolean,
-    showCompactHeaderClose: Boolean,
-    headerAction: @Composable RowScope.() -> Unit,
     footer: (@Composable () -> Unit)?,
     content: @Composable () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
     val fullScreen = compact && compactFullScreen
-    val edgeMargin = when (sizeClass) {
+    val horizontalMargin = when (sizeClass) {
         WindowSizeClass.COMPACT -> if (fullScreen) 0.dp else 16.dp
         WindowSizeClass.REGULAR -> 16.dp
         WindowSizeClass.WIDE -> 56.dp
     }
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxSize(),
+    val layoutDirection = LocalLayoutDirection.current
+    val endDirection = if (layoutDirection == LayoutDirection.Ltr) 1f else -1f
+    val dragThresholdPx = with(LocalDensity.current) { 120.dp.toPx() }
+    var sideSheetDragOffset by remember(sizeClass, title) { mutableFloatStateOf(0f) }
+    var sideSheetWidthPx by remember(sizeClass, title) { mutableFloatStateOf(0f) }
+    val animationScope = rememberCoroutineScope()
+    val sideSheetDragModifier = Modifier.pointerInput(sizeClass, title, layoutDirection) {
+        detectHorizontalDragGestures(
+            onHorizontalDrag = { change, dragAmount ->
+                change.consume()
+                val proposedOffset = sideSheetDragOffset + dragAmount
+                sideSheetDragOffset = if (proposedOffset * endDirection > 0f) proposedOffset else 0f
+            },
+            onDragEnd = {
+                val currentOffset = sideSheetDragOffset
+                if (currentOffset * endDirection >= dragThresholdPx) {
+                    animationScope.launch {
+                        Animatable(currentOffset).animateTo(
+                            targetValue = sideSheetWidthPx * endDirection,
+                            animationSpec = tween(durationMillis = 180),
+                        ) { sideSheetDragOffset = value }
+                        onBack()
+                    }
+                } else {
+                    animationScope.launch {
+                        Animatable(currentOffset).animateTo(
+                            targetValue = 0f,
+                            animationSpec = tween(durationMillis = 180),
+                        ) { sideSheetDragOffset = value }
+                    }
+                }
+            },
+            onDragCancel = { sideSheetDragOffset = 0f },
+        )
+    }
+    Box(
+        modifier = Modifier.fillMaxSize().padding(start = if (compact) 0.dp else horizontalMargin),
         contentAlignment = if (compact) Alignment.Center else Alignment.CenterEnd,
     ) {
-        val maxDialogHeight = minOf(maxHeight - edgeMargin * 2, 760.dp)
+        if (!compact) {
+            Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onBack))
+        }
         Box(
-            modifier = Modifier.fillMaxSize().padding(edgeMargin),
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = if (compact) Alignment.Center else Alignment.CenterEnd,
         ) {
             Surface(
@@ -147,19 +181,22 @@ private fun CashRecordModalOverlay(
                     Modifier.fillMaxSize()
                 } else {
                     Modifier.widthIn(max = 560.dp)
-                        .fillMaxWidth(0.92f)
-                        .heightIn(max = maxDialogHeight)
+                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .onSizeChanged { sideSheetWidthPx = it.width.toFloat() }
+                        .offset { IntOffset(sideSheetDragOffset.roundToInt(), 0) }
+                        .then(sideSheetDragModifier)
                 })
                     .testTag(SemanticIds.ledgerRecordPanel)
                     .semantics { paneTitle = title },
-                shape = if (fullScreen) RectangleShape else MaterialTheme.shapes.extraLarge,
-                color = if (fullScreen) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerHigh,
-                tonalElevation = if (fullScreen) 0.dp else AlertDialogDefaults.TonalElevation,
+                shape = if (fullScreen) RectangleShape else MaterialTheme.shapes.large,
+                color = if (fullScreen) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow,
+                tonalElevation = 0.dp,
             ) {
                 Column(
                     Modifier.fillMaxWidth()
-                        .then(if (fullScreen) Modifier.fillMaxHeight() else Modifier)
-                        .then(if (fullScreen) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
+                        .then(if (fullScreen || !compact) Modifier.fillMaxHeight() else Modifier)
+                        .then(if (fullScreen || !compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
                         .padding(
                         horizontal = if (fullScreen) 16.dp else 24.dp,
                         vertical = if (fullScreen) 12.dp else 20.dp,
@@ -167,49 +204,29 @@ private fun CashRecordModalOverlay(
                 ) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         val closeLabel = localizedText("copy_6c14bd7f6f")
-                        if (compact) {
-                            if (fullScreen || showCompactHeaderClose) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier.testTag("ledger.record-panel.close")
-                                        .semantics { contentDescription = closeLabel },
-                                ) {
-                                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-                                }
-                            }
-                            Text(
-                                title,
-                                modifier = Modifier.weight(1f).testTag("ledger.record-panel.title"),
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (fullScreen) headerAction()
-                        } else {
-                            Text(title, Modifier.testTag("ledger.record-panel.title"), style = MaterialTheme.typography.headlineSmall)
-                            Spacer(Modifier.weight(1f))
-                            if (showWideHeaderClose) {
-                                IconButton(
-                                    onClick = onDismiss,
-                                    modifier = Modifier.testTag("ledger.record-panel.close")
-                                        .semantics { contentDescription = closeLabel },
-                                ) {
-                                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-                                }
-                            }
+                        IconButton(
+                            onClick = onDismiss,
+                            modifier = Modifier.testTag("ledger.record-panel.close")
+                                .semantics { contentDescription = closeLabel },
+                        ) {
+                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
                         }
+                        Text(
+                            title,
+                            modifier = Modifier.weight(1f).testTag("ledger.record-panel.title"),
+                            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
                     }
                     HorizontalDivider()
                     Box(
-                        Modifier.weight(1f, fill = fullScreen).fillMaxWidth(),
+                        Modifier.weight(1f, fill = fullScreen || !compact).fillMaxWidth(),
                     ) { content() }
                     footer?.let {
                         HorizontalDivider()
                         Box(
-                            Modifier.fillMaxWidth().padding(
-                                horizontal = if (fullScreen) 16.dp else 24.dp,
-                                vertical = 8.dp,
-                            ),
+                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
                         ) { it() }
                     }
                 }
@@ -225,270 +242,199 @@ internal fun CashRecordDetailContent(
     viewModel: CashLedgerViewModel,
     canWrite: Boolean,
     options: LedgerOptions,
-    sizeClass: WindowSizeClass,
+    relatedExpanded: Boolean,
+    onToggleRelated: () -> Unit,
     onEditRelated: (CashRecord) -> Unit,
 ) {
     val evidence = state.evidence
     val detail = state.recordDetail
     val record = detail?.record
-    val relationBusy = state.relationBusy
-    val relationError = state.detailActionErrorCode?.let { ledgerErrorText(it) }
-    val compactFullScreenTask = sizeClass == WindowSizeClass.COMPACT && state.relationComposerOpen
-    if (state.deleteRecordConfirm && record != null) {
-        val hasRelations = detail.relations.any { it.status == "accepted" }
-        val currentOnlyLabel = localizedText("copy_6f762bedaa")
-        val deleteAllLabel = localizedText("copy_22edecb09e")
-        Column(Modifier.fillMaxWidth().then(if (compactFullScreenTask) Modifier.fillMaxHeight() else Modifier)) {
-            Column(
-                Modifier.fillMaxWidth()
-                    .then(if (compactFullScreenTask) Modifier.weight(1f) else Modifier)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    if (hasRelations) localizedText("copy_7a51756482") else localizedText("copy_42ece48726"),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                if (hasRelations) {
-                    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth()
-                                    .selectable(
-                                        selected = state.deleteRecordMode == "delete_current_dissolve",
-                                        onClick = { viewModel.selectDeleteRecordMode("delete_current_dissolve") },
-                                        role = Role.RadioButton,
-                                    )
-                                .testTag("record.delete.scope.current"),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = state.deleteRecordMode == "delete_current_dissolve", onClick = null)
-                            Text(currentOnlyLabel, style = MaterialTheme.typography.bodyLarge)
-                        }
-                        Row(
-                            Modifier.fillMaxWidth()
-                                    .selectable(
-                                        selected = state.deleteRecordMode == "delete_all",
-                                        onClick = { viewModel.selectDeleteRecordMode("delete_all") },
-                                        role = Role.RadioButton,
-                                    )
-                                .testTag("record.delete.scope.group"),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = state.deleteRecordMode == "delete_all", onClick = null)
-                            Text(deleteAllLabel, style = MaterialTheme.typography.bodyLarge)
-                        }
-                    }
+    Column(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            when {
+                state.recordLoading -> Text(localizedText("copy_875adbe057"))
+                state.recordErrorCode != null -> {
+                    InlineError(ledgerErrorText(state.recordErrorCode))
+                    TextButton(onClick = viewModel::retrySelectedRow) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
-                InlineError(relationError)
-            }
-        }
-    } else if (record != null && (state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll)) {
-        val pendingRelation = detail.relations.firstOrNull { it.id == state.pendingRelationRemovalId }
-        val relatedRecord = pendingRelation?.let { relation ->
-            if (relation.primaryRecord?.id == record.id) relation.secondaryRecord else relation.primaryRecord
-        }
-        val unlinkingOne = state.pendingRelationRemovalId != null
-        Column(Modifier.fillMaxWidth().then(if (compactFullScreenTask) Modifier.fillMaxHeight() else Modifier)) {
-            Column(
-                Modifier.fillMaxWidth()
-                    .then(if (compactFullScreenTask) Modifier.weight(1f) else Modifier)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    if (unlinkingOne) {
-                        localizedText(
-                            "ledger_relation_unlink_message",
-                            relatedRecord?.counterparty?.takeIf(String::isNotBlank)
-                                ?: relatedRecord?.accountName
-                                ?: localizedText("copy_6ea13ee38c"),
-                        )
-                    } else {
-                        localizedText("ledger_relation_dissolve_message")
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                InlineError(relationError)
-            }
-        }
-    } else {
-    Column(Modifier.fillMaxWidth().then(if (compactFullScreenTask) Modifier.fillMaxHeight() else Modifier)) {
-            InlineError(state.recordSaveErrorCode?.let { ledgerErrorText(it) })
-            InlineError(relationError)
-            Column(
-                Modifier.fillMaxWidth()
-                    .then(if (compactFullScreenTask) Modifier.weight(1f) else Modifier)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                when {
-                    state.recordLoading -> Text(localizedText("copy_875adbe057"))
-                    state.recordErrorCode != null -> {
-                        InlineError(ledgerErrorText(state.recordErrorCode))
-                        TextButton(onClick = viewModel::retrySelectedRow) { Text(localizedText("copy_e2d53a6d3a")) }
+                record != null -> {
+                    val selectedProjection = state.selectedRow
+                    val acceptedRelations = detail?.relations.orEmpty().filter { it.status == "accepted" }
+                    val relatedRecordIds = acceptedRelations.mapNotNull { relation ->
+                        if (relation.primaryRecord?.id == record.id) relation.secondaryRecord?.id else relation.primaryRecord?.id
+                    }.toSet()
+                    val relatedEvidenceMembers = evidence?.members.orEmpty().filterNot { member ->
+                        val id = member.recordId ?: member.id
+                        id == record.id || id == evidence?.rootRecord?.id || id in relatedRecordIds
                     }
-                    record != null -> {
-                        val selectedProjection = state.selectedRow
-                        val acceptedRelations = detail.relations.filter { it.status == "accepted" }
-                        val relatedRecordIds = acceptedRelations.mapNotNull { relation ->
-                            if (relation.primaryRecord?.id == record.id) relation.secondaryRecord?.id else relation.primaryRecord?.id
-                        }.toSet()
-                        val relatedEvidenceMembers = evidence?.members.orEmpty().filterNot { member ->
-                            val id = member.recordId ?: member.id
-                            id == record.id || id == evidence?.rootRecord?.id || id in relatedRecordIds
-                        }
-                        val hasRelatedInformation = relatedEvidenceMembers.isNotEmpty() || acceptedRelations.isNotEmpty() || record.components.orEmpty().size > 1 ||
-                            evidence?.refundTimeline.orEmpty().isNotEmpty() || evidence?.acceptedRelations.orEmpty().isNotEmpty()
-                        val economicType = selectedProjection?.let { cashProjectionEconomicTypeLabel(it) }
-                        val amountLabel = selectedProjection?.let(::cashProjectionAmountLabel) ?: "${record.amount} ${record.currency}"
-                        val amountIsNegative = selectedProjection?.amount?.startsWith("-") ?: record.amount.startsWith("-")
-                        val relatedExpanded = remember(record.id) { mutableStateOf(false) }
-                        var activeRelationDatePicker by remember(record.id) { mutableStateOf<String?>(null) }
-                        LaunchedEffect(state.relationComposerOpen) {
-                            if (!state.relationComposerOpen) activeRelationDatePicker = null
-                        }
+                    val hasRelatedInformation = relatedEvidenceMembers.isNotEmpty() || acceptedRelations.isNotEmpty() || record.components.orEmpty().size > 1 ||
+                        evidence?.refundTimeline.orEmpty().isNotEmpty() || evidence?.acceptedRelations.orEmpty().isNotEmpty()
+                    val economicType = selectedProjection?.let { cashProjectionEconomicTypeLabel(it) }
+                    val amountLabel = selectedProjection?.let(::cashProjectionAmountLabel) ?: "${record.amount} ${record.currency}"
+                    val amountIsNegative = selectedProjection?.amount?.startsWith("-") ?: record.amount.startsWith("-")
 
-                        Text(
-                            amountLabel,
-                            style = MaterialTheme.typography.headlineMedium.withTabularNumbers(),
-                            color = if (amountIsNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        )
-                        Text(record.counterparty.ifBlank { record.accountName }, style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            listOfNotNull(economicType, formatLocalDateTime(record.occurredAt)).joinToString(" · "),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        ElevatedCard(
-                            modifier = Modifier.fillMaxWidth(),
+                    Text(
+                        amountLabel,
+                        style = MaterialTheme.typography.headlineMedium.withTabularNumbers(),
+                        color = if (amountIsNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    )
+                    Text(record.counterparty.ifBlank { record.accountName }, style = MaterialTheme.typography.titleLarge)
+                    Text(
+                        listOfNotNull(economicType, formatLocalDateTime(record.occurredAt)).joinToString(" · "),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(
+                            Modifier.fillMaxWidth().padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Column(
-                                Modifier.fillMaxWidth().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp),
-                            ) {
-                                Text(localizedText("ledger_detail_transaction_facts"), style = MaterialTheme.typography.titleMedium)
-                                HorizontalDivider()
-                                CashRecordFact(localizedText("copy_e81089915c"), cashRecordTypeLabel(record.recordType, options))
-                                CashRecordFact(localizedText("copy_c3d92b20c8"), record.accountName)
-                                CashRecordFact(localizedText("copy_a42e73f0a7"), cashCategoryDisplayPath(record.category))
-                                options.recordTypes.firstOrNull { it.value == record.recordType }
-                                    ?.subtypes?.firstOrNull { it.value == record.recordSubtype }
-                                    ?.label?.takeIf { record.recordSubtype != "not_applicable" }
-                                    ?.let { CashRecordFact(localizedText("copy_1fcff8b8d5"), it) }
-                                record.counterpartyAccount.takeIf(String::isNotBlank)?.let {
-                                    CashRecordFact(localizedText("copy_27a7edc87c"), it)
-                                }
-                                record.note.takeIf(String::isNotBlank)?.let {
-                                    CashRecordFact(localizedText("copy_e0361480e3"), it)
-                                }
-                                if (evidence != null && cashEvidenceSourceLabel(evidence).isNotBlank()) {
-                                    HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                                    Text(localizedText("copy_b9e9fd25ac", cashEvidenceSourceLabel(evidence)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        }
-                        if (hasRelatedInformation) {
-                            CashRecordRelatedSection(
-                                record = record,
-                                amountLabel = amountLabel,
-                                acceptedRelations = acceptedRelations,
-                                relatedEvidenceMembers = relatedEvidenceMembers,
-                                evidence = evidence,
-                                options = options,
-                                state = state,
-                                viewModel = viewModel,
-                                canWrite = canWrite,
-                                relationBusy = relationBusy,
-                                onEditRelated = onEditRelated,
-                                expanded = relatedExpanded.value,
-                                onToggle = { relatedExpanded.value = !relatedExpanded.value },
-                            )
-                        }
-                        if (state.relationComposerOpen) {
+                            Text(localizedText("ledger_detail_transaction_facts"), style = MaterialTheme.typography.titleMedium)
                             HorizontalDivider()
-                            val relationDateFrom: @Composable (Modifier) -> Unit = { fieldModifier ->
-                                DatePickerInput(
-                                    state.relationDateFrom,
-                                    viewModel::updateRelationDateFrom,
-                                    localizedText("copy_1f29196891"),
-                                    modifier = fieldModifier,
-                                    semanticId = "record.relation-date-from",
-                                    inlinePicker = true,
-                                    inlinePickerActive = activeRelationDatePicker == "from",
-                                    onInlinePickerActiveChange = { activeRelationDatePicker = if (it) "from" else null },
-                                )
+                            CashRecordFact(localizedText("copy_e81089915c"), cashRecordTypeLabel(record.recordType, options))
+                            CashRecordFact(localizedText("copy_c3d92b20c8"), record.accountName)
+                            CashRecordFact(localizedText("copy_a42e73f0a7"), cashCategoryDisplayPath(record.category))
+                            options.recordTypes.firstOrNull { it.value == record.recordType }
+                                ?.subtypes?.firstOrNull { it.value == record.recordSubtype }
+                                ?.label?.takeIf { record.recordSubtype != "not_applicable" }
+                                ?.let { CashRecordFact(localizedText("copy_1fcff8b8d5"), it) }
+                            record.counterpartyAccount.takeIf(String::isNotBlank)?.let {
+                                CashRecordFact(localizedText("copy_27a7edc87c"), it)
                             }
-                            val relationDateTo: @Composable (Modifier) -> Unit = { fieldModifier ->
-                                DatePickerInput(
-                                    state.relationDateTo,
-                                    viewModel::updateRelationDateTo,
-                                    localizedText("copy_f4b9b2b5de"),
-                                    modifier = fieldModifier,
-                                    semanticId = "record.relation-date-to",
-                                    inlinePicker = true,
-                                    inlinePickerActive = activeRelationDatePicker == "to",
-                                    onInlinePickerActiveChange = { activeRelationDatePicker = if (it) "to" else null },
-                                )
+                            record.note.takeIf(String::isNotBlank)?.let {
+                                CashRecordFact(localizedText("copy_e0361480e3"), it)
                             }
-                            if (activeRelationDatePicker != null) {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    relationDateFrom(Modifier.fillMaxWidth())
-                                    relationDateTo(Modifier.fillMaxWidth())
-                                }
-                            } else {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    relationDateFrom(Modifier.weight(1f))
-                                    relationDateTo(Modifier.weight(1f))
-                                }
-                            }
-                            OutlinedTextField(
-                                value = state.relationQuery,
-                                onValueChange = viewModel::updateRelationQuery,
-                                modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_c219d66be7")),
-                                label = { Text(localizedText("copy_c219d66be7")) },
-                                singleLine = true,
-                            )
-                            ChoicePicker(localizedText("copy_2ce741e7ab"), state.relationType, options.relationTypes.map { it.value to it.label }, viewModel::updateRelationType)
-                            if (relationBusy) Text(localizedText("copy_455d870542"), style = MaterialTheme.typography.bodySmall)
-                            if (state.relationLoadError) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text(localizedText("copy_9af3904f9f"), color = MaterialTheme.colorScheme.error)
-                                    TextButton(onClick = viewModel::retryRelationPage, enabled = !relationBusy) { Text(localizedText("copy_e2d53a6d3a")) }
-                                }
-                            }
-                            if (!relationBusy && !state.relationLoadError && state.relationCandidates.isEmpty() && isValidCashRelationDateFilter(state.relationDateFrom, state.relationDateTo)) {
-                                Text(localizedText("copy_3e5d827a71"), style = MaterialTheme.typography.bodySmall)
-                            }
-                            state.relationCandidates.forEach { candidate ->
-                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                    androidx.compose.material3.RadioButton(
-                                        selected = state.relationTarget == candidate.id,
-                                        onClick = { viewModel.selectRelationTarget(candidate.id) },
-                                        enabled = canWrite && !relationBusy,
-                                    )
-                                    Column(Modifier.weight(1f)) {
-                                        Text(candidate.counterparty.ifBlank { localizedText("copy_6ea13ee38c") }, style = MaterialTheme.typography.titleSmall)
-                                        Text("${candidate.accountName} · ${formatLocalDateTime(candidate.occurredAt)}", style = MaterialTheme.typography.bodySmall)
-                                    }
-                                    Text("${candidate.amount} ${candidate.currency}", style = MaterialTheme.typography.labelLarge.withTabularNumbers())
-                                }
-                            }
-                            if (state.relationCandidates.isNotEmpty()) {
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text(localizedText("copy_d2fee7cb23", state.relationPageNumber), style = MaterialTheme.typography.bodySmall)
-                                    Row {
-                                        TextButton(onClick = viewModel::previousRelationPage, enabled = state.relationPageNumber > 1 && !relationBusy) { Text(localizedText("copy_b41561d807")) }
-                                        TextButton(onClick = viewModel::nextRelationPage, enabled = state.relationNextCursor != null && !relationBusy) { Text(localizedText("copy_67a246a344")) }
-                                    }
-                                }
+                            if (evidence != null && cashEvidenceSourceLabel(evidence).isNotBlank()) {
+                                HorizontalDivider(Modifier.padding(vertical = 4.dp))
+                                Text(localizedText("copy_b9e9fd25ac", cashEvidenceSourceLabel(evidence)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     }
+                    if (hasRelatedInformation) {
+                        CashRecordRelatedSection(
+                            record = record,
+                            amountLabel = amountLabel,
+                            acceptedRelations = acceptedRelations,
+                            relatedEvidenceMembers = relatedEvidenceMembers,
+                            evidence = evidence,
+                            options = options,
+                            state = state,
+                            viewModel = viewModel,
+                            canWrite = canWrite,
+                            relationBusy = state.relationBusy,
+                            onEditRelated = onEditRelated,
+                            expanded = relatedExpanded,
+                            onToggle = onToggleRelated,
+                        )
+                    }
                 }
             }
+        }
     }
+}
+
+@Composable
+internal fun CashRecordRelationComposerContent(
+    state: CashLedgerUiState,
+    viewModel: CashLedgerViewModel,
+    canWrite: Boolean,
+    options: LedgerOptions,
+) {
+    var activeDatePicker by remember { mutableStateOf<String?>(null) }
+    val relationDateFrom: @Composable (Modifier) -> Unit = { fieldModifier ->
+        DatePickerInput(
+            state.relationDateFrom,
+            viewModel::updateRelationDateFrom,
+            localizedText("copy_1f29196891"),
+            modifier = fieldModifier,
+            semanticId = "record.relation-date-from",
+            inlinePicker = true,
+            inlinePickerActive = activeDatePicker == "from",
+            onInlinePickerActiveChange = { activeDatePicker = if (it) "from" else null },
+        )
     }
+    val relationDateTo: @Composable (Modifier) -> Unit = { fieldModifier ->
+        DatePickerInput(
+            state.relationDateTo,
+            viewModel::updateRelationDateTo,
+            localizedText("copy_f4b9b2b5de"),
+            modifier = fieldModifier,
+            semanticId = "record.relation-date-to",
+            inlinePicker = true,
+            inlinePickerActive = activeDatePicker == "to",
+            onInlinePickerActiveChange = { activeDatePicker = if (it) "to" else null },
+        )
     }
+    Column(Modifier.fillMaxSize()) {
+        Column(
+            Modifier.fillMaxWidth().weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            if (activeDatePicker != null) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    relationDateFrom(Modifier.fillMaxWidth())
+                    relationDateTo(Modifier.fillMaxWidth())
+                }
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    relationDateFrom(Modifier.weight(1f))
+                    relationDateTo(Modifier.weight(1f))
+                }
+            }
+            OutlinedTextField(
+                value = state.relationQuery,
+                onValueChange = viewModel::updateRelationQuery,
+                modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_c219d66be7")),
+                label = { Text(localizedText("copy_c219d66be7")) },
+                singleLine = true,
+            )
+            ChoicePicker(
+                localizedText("copy_2ce741e7ab"),
+                state.relationType,
+                options.relationTypes.map { it.value to it.label },
+                viewModel::updateRelationType,
+            )
+            if (state.relationBusy) Text(localizedText("copy_455d870542"), style = MaterialTheme.typography.bodySmall)
+            if (state.relationLoadError) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(localizedText("copy_9af3904f9f"), color = MaterialTheme.colorScheme.error)
+                    TextButton(onClick = viewModel::retryRelationPage, enabled = !state.relationBusy) { Text(localizedText("copy_e2d53a6d3a")) }
+                }
+            }
+            if (!state.relationBusy && !state.relationLoadError && state.relationCandidates.isEmpty() &&
+                isValidCashRelationDateFilter(state.relationDateFrom, state.relationDateTo)
+            ) {
+                Text(localizedText("copy_3e5d827a71"), style = MaterialTheme.typography.bodySmall)
+            }
+            state.relationCandidates.forEach { candidate ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(
+                        selected = state.relationTarget == candidate.id,
+                        onClick = { viewModel.selectRelationTarget(candidate.id) },
+                        enabled = canWrite && !state.relationBusy,
+                    )
+                    Column(Modifier.weight(1f)) {
+                        Text(candidate.counterparty.ifBlank { localizedText("copy_6ea13ee38c") }, style = MaterialTheme.typography.titleSmall)
+                        Text("${candidate.accountName} · ${formatLocalDateTime(candidate.occurredAt)}", style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text("${candidate.amount} ${candidate.currency}", style = MaterialTheme.typography.labelLarge.withTabularNumbers())
+                }
+            }
+            if (state.relationCandidates.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(localizedText("copy_d2fee7cb23", state.relationPageNumber), style = MaterialTheme.typography.bodySmall)
+                    Row {
+                        TextButton(onClick = viewModel::previousRelationPage, enabled = state.relationPageNumber > 1 && !state.relationBusy) { Text(localizedText("copy_b41561d807")) }
+                        TextButton(onClick = viewModel::nextRelationPage, enabled = state.relationNextCursor != null && !state.relationBusy) { Text(localizedText("copy_67a246a344")) }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 internal fun CashRecordEditorContent(
@@ -615,10 +561,6 @@ internal fun CashRecordDetailActions(
         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Button(onClick = onEdit, modifier = Modifier.testTag("record.detail.edit")) {
-            Icon(painterResource(Res.drawable.ic_edit), contentDescription = null)
-            Text(localizedText("copy_a7f814c0a4"))
-        }
         Box {
             TextButton(
                 onClick = { moreActionsExpanded.value = true },
@@ -664,6 +606,10 @@ internal fun CashRecordDetailActions(
                     modifier = Modifier.testTag("record.detail.action.delete"),
                 )
             }
+        }
+        Button(onClick = onEdit, modifier = Modifier.testTag("record.detail.edit")) {
+            Icon(painterResource(Res.drawable.ic_edit), contentDescription = null)
+            Text(localizedText("copy_a7f814c0a4"))
         }
     }
 }

@@ -36,6 +36,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -45,7 +47,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,6 +62,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.Surface
@@ -81,6 +83,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -124,6 +127,7 @@ internal fun CashLedgerScreen(
         listState.scrollToItem(0)
     }
     val recordPanelOpen = state.selectedRow != null || state.recordDraft != null
+    var relatedSectionExpanded by remember(state.selectedRow?.recordId) { mutableStateOf(false) }
 
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
@@ -432,201 +436,33 @@ internal fun CashLedgerScreen(
         )
     }
 
-    if (recordPanelOpen) {
+    val hasRecordConfirmation = state.confirmRecordDiscard || state.confirmRelationImpact ||
+        state.deleteRecordConfirm || state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll
+    val hasRecordAcknowledgement = recordSaveError != null || detailActionError != null
+    val showRecordTaskPanel = recordPanelOpen && !hasRecordConfirmation && !hasRecordAcknowledgement && !state.relationComposerOpen
+    val showRelationComposer = recordPanelOpen && state.relationComposerOpen && !hasRecordConfirmation && !hasRecordAcknowledgement
+
+    if (showRecordTaskPanel) {
         val draft = state.recordDraft
-        val compactRecordTaskIsFullScreen = sizeClass == WindowSizeClass.COMPACT && (draft != null || state.relationComposerOpen)
-        val onPanelBack = {
-            when {
-                state.confirmRecordDiscard -> viewModel.dismissRecordDiscardConfirmation()
-                state.deleteRecordConfirm -> viewModel.dismissDeleteRecord()
-                state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll -> viewModel.dismissPendingRelationRemoval()
-                state.confirmRelationImpact -> viewModel.dismissRelationImpactConfirmation()
-                state.relationComposerOpen -> viewModel.closeRelationComposer()
-                else -> viewModel.dismissRecordPanel()
-            }
-        }
+        val compactFullScreen = sizeClass == WindowSizeClass.COMPACT
         val panelTitle = when {
-            state.confirmRecordDiscard && sizeClass != WindowSizeClass.COMPACT -> localizedText("ledger_record_discard_title")
-            state.confirmRelationImpact -> localizedText("copy_e17cb4ec33")
-            state.deleteRecordConfirm -> localizedText("copy_a995e3b53e")
-            state.pendingRelationRemovalId != null -> localizedText("ledger_relation_unlink_title")
-            state.pendingRelationDissolveAll -> localizedText("ledger_relation_dissolve_title")
-            state.relationComposerOpen -> localizedText("copy_f1c5c548ba")
             draft?.id != null -> localizedText("copy_6a5c4515c6")
             draft != null -> localizedText("copy_1f62e3f53f")
             else -> localizedText("copy_8cb72a44a5")
         }
-        val compactDialogStateKey = when {
-            sizeClass != WindowSizeClass.COMPACT -> null
-            state.confirmRecordDiscard -> "discard-confirm"
-            recordSaveError != null -> "save-error"
-            detailActionError != null -> "action-error"
-            else -> null
-        }
         CashRecordModalPanel(
             sizeClass = sizeClass,
             title = panelTitle,
-            compactFullScreen = compactRecordTaskIsFullScreen,
-            semanticStateKey = compactDialogStateKey,
-            onDismiss = onPanelBack,
-            onBack = onPanelBack,
-            showWideHeaderClose =
-                draft == null &&
-                    !state.confirmRecordDiscard &&
-                    !state.confirmRelationImpact &&
-                    !state.deleteRecordConfirm &&
-                    state.pendingRelationRemovalId == null &&
-                    !state.pendingRelationDissolveAll &&
-                    !state.relationComposerOpen,
-            showCompactHeaderClose =
-                draft == null &&
-                    !state.confirmRecordDiscard &&
-                    !state.confirmRelationImpact &&
-                    !state.deleteRecordConfirm &&
-                    state.pendingRelationRemovalId == null &&
-                    !state.pendingRelationDissolveAll &&
-                    !state.relationComposerOpen,
-            headerAction = {
-            if (compactRecordTaskIsFullScreen) {
-                    when {
-                        state.confirmRelationImpact -> {
-                            Button(
-                                onClick = { viewModel.saveRecord(canWrite, confirmImpact = true) },
-                                enabled = canWrite,
-                                modifier = Modifier.testTag("record.relation-impact.confirm"),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                                Text(if (state.recordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_2b9228c01b"))
-                            }
-                        }
-                        draft != null && !state.confirmRecordDiscard -> {
-                            Button(
-                                onClick = { viewModel.saveRecord(canWrite) },
-                                enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
-                                    draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
-                                modifier = Modifier.testTag(SemanticIds.recordSave),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                                Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
-                            }
-                        }
-                        state.deleteRecordConfirm -> {
-                            Button(
-                                onClick = { viewModel.deleteRecord(state.deleteRecordMode, canWrite) },
-                                enabled = canWrite,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.error,
-                                    contentColor = MaterialTheme.colorScheme.onError,
-                                ),
-                                modifier = Modifier.testTag("record.delete.confirm"),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_delete), contentDescription = null)
-                                Text(if (state.deleteRecordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_3c06abe116"))
-                            }
-                        }
-                        state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll -> {
-                            val unlinkingOne = state.pendingRelationRemovalId != null
-                            TextButton(
-                                onClick = { viewModel.confirmPendingRelationRemoval(canWrite) },
-                                enabled = canWrite,
-                                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                                modifier = Modifier.testTag("record.relation-removal.confirm"),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_link_off), contentDescription = null)
-                                Text(
-                                    if (state.relationBusy) localizedText(if (unlinkingOne) "ledger_relation_unlinking" else "ledger_relation_dissolving")
-                                    else localizedText(if (unlinkingOne) "ledger_relation_unlink_confirm" else "ledger_relation_dissolve_confirm"),
-                                )
-                            }
-                        }
-                        state.relationComposerOpen -> {
-                            Button(
-                                onClick = { viewModel.createRelation(canWrite) },
-                                enabled = canWrite && state.relationTarget != null,
-                                modifier = Modifier.testTag("record.relation-create.confirm"),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
-                                Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
-                            }
-                        }
-                    }
-                }
-            },
-            footer = {
-                when {
-                    compactRecordTaskIsFullScreen -> Unit
-                    draft == null && !state.recordLoading && state.recordDetail?.record != null && !state.deleteRecordConfirm &&
-                        state.pendingRelationRemovalId == null && !state.pendingRelationDissolveAll && !state.relationComposerOpen &&
-                        !state.confirmRelationImpact && !state.confirmRecordDiscard ->
-                        CashRecordDetailActions(state, viewModel, canWrite, viewModel::editRecord)
-                    state.confirmRecordDiscard -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(
-                            onClick = viewModel::dismissRecordDiscardConfirmation,
-                            modifier = Modifier.testTag("ledger.record.discard-continue"),
-                        ) { Text(localizedText("ledger_record_discard_continue")) }
-                        TextButton(
-                            onClick = viewModel::confirmRecordDiscard,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            modifier = Modifier.testTag("ledger.record.discard-confirm"),
-                        ) { Text(localizedText("ledger_record_discard_confirm")) }
-                    }
-                    draft != null && state.confirmRelationImpact -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(
-                            onClick = viewModel::dismissRelationImpactConfirmation,
-                            modifier = Modifier.testTag("record.relation-impact.cancel"),
-                        ) { Text(localizedText("copy_4d0b4688c7")) }
-                        Button(
-                            onClick = { viewModel.saveRecord(canWrite, confirmImpact = true) },
-                            enabled = canWrite,
-                            modifier = Modifier.testTag("record.relation-impact.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                            Text(if (state.recordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_2b9228c01b"))
-                        }
-                    }
-                    state.deleteRecordConfirm -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = viewModel::dismissDeleteRecord, modifier = Modifier.testTag("record.delete.cancel")) {
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                        TextButton(
-                            onClick = { viewModel.deleteRecord(state.deleteRecordMode, canWrite) },
-                            enabled = canWrite,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            modifier = Modifier.testTag("record.delete.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_delete), contentDescription = null)
-                            Text(if (state.deleteRecordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_3c06abe116"))
-                        }
-                    }
-                    state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = viewModel::dismissPendingRelationRemoval, modifier = Modifier.testTag("record.relation-removal.cancel")) {
-                            Text(localizedText("ledger_relation_keep"))
-                        }
-                        val unlinkingOne = state.pendingRelationRemovalId != null
-                        TextButton(
-                            onClick = { viewModel.confirmPendingRelationRemoval(canWrite) },
-                            enabled = canWrite,
-                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                            modifier = Modifier.testTag("record.relation-removal.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_link_off), contentDescription = null)
-                            Text(if (state.relationBusy) localizedText(if (unlinkingOne) "ledger_relation_unlinking" else "ledger_relation_dissolving") else localizedText(if (unlinkingOne) "ledger_relation_unlink_confirm" else "ledger_relation_dissolve_confirm"))
-                        }
-                    }
-                    state.relationComposerOpen -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                        Button(
-                            onClick = { viewModel.createRelation(canWrite) },
-                            enabled = canWrite && state.relationTarget != null,
-                            modifier = Modifier.testTag("record.relation-create.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
-                            Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
-                        }
-                    }
-                    draft != null -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            compactFullScreen = compactFullScreen,
+            semanticStateKey = if (draft == null) "record-detail" else "record-editor",
+            onDismiss = viewModel::dismissRecordPanel,
+            onBack = viewModel::dismissRecordPanel,
+            footer = when {
+                draft == null && !state.recordLoading && state.recordDetail?.record != null -> ({
+                    CashRecordDetailActions(state, viewModel, canWrite, viewModel::editRecord)
+                })
+                draft != null -> ({
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
                             Text(localizedText("copy_4d0b4688c7"))
                         }
@@ -640,58 +476,73 @@ internal fun CashLedgerScreen(
                             Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
                         }
                     }
-                    draft == null && !state.recordLoading && state.recordDetail?.record != null -> CashRecordDetailActions(
-                        state = state,
-                        viewModel = viewModel,
-                        canWrite = canWrite,
-                        onEdit = viewModel::editRecord,
-                    )
-                }
+                })
+                else -> null
             },
         ) {
-            if (state.confirmRecordDiscard && sizeClass != WindowSizeClass.COMPACT) {
-                Text(
-                    localizedText("ledger_record_discard_message"),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                    style = MaterialTheme.typography.bodyLarge,
+            if (draft != null) {
+                CashRecordEditorContent(
+                    draft = draft,
+                    sizeClass = sizeClass,
+                    canWrite = canWrite,
+                    accounts = state.accounts,
+                    categories = state.categories,
+                    options = state.options,
+                    busy = state.recordBusy,
+                    error = null,
+                    onChange = viewModel::updateRecordDraft,
+                    onInvalidAmount = viewModel::reportInvalidRecordAmount,
+                    onInvalidDateTime = viewModel::reportInvalidRecordDateTime,
                 )
-            } else if (draft != null) {
-                if (state.confirmRelationImpact) {
-                    Column(
-                        Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
-                    ) {
-                        Text(localizedText("copy_24c943b133"), style = MaterialTheme.typography.bodyLarge)
-                        InlineError(recordSaveError)
-                    }
-                } else {
-                    CashRecordEditorContent(
-                        draft = draft,
-                        sizeClass = sizeClass,
-                        canWrite = canWrite,
-                        accounts = state.accounts,
-                        categories = state.categories,
-                        options = state.options,
-                        busy = state.recordBusy,
-                        error = recordSaveError.takeUnless { sizeClass == WindowSizeClass.COMPACT },
-                        onChange = viewModel::updateRecordDraft,
-                        onInvalidAmount = viewModel::reportInvalidRecordAmount,
-                        onInvalidDateTime = viewModel::reportInvalidRecordDateTime,
-                    )
-                }
             } else {
                 CashRecordDetailContent(
                     state = state,
                     viewModel = viewModel,
                     canWrite = canWrite,
                     options = state.options,
-                    sizeClass = sizeClass,
+                    relatedExpanded = relatedSectionExpanded,
+                    onToggleRelated = { relatedSectionExpanded = !relatedSectionExpanded },
                     onEditRelated = viewModel::editRecord,
                 )
             }
         }
     }
-    if (recordPanelOpen && sizeClass == WindowSizeClass.COMPACT && state.confirmRecordDiscard) {
+
+    if (showRelationComposer) {
+        val compactFullScreen = sizeClass == WindowSizeClass.COMPACT
+        CashRecordModalPanel(
+            sizeClass = sizeClass,
+            title = localizedText("copy_f1c5c548ba"),
+            compactFullScreen = compactFullScreen,
+            semanticStateKey = "relation-composer",
+            onDismiss = viewModel::closeRelationComposer,
+            onBack = viewModel::closeRelationComposer,
+            footer = {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
+                        Text(localizedText("copy_4d0b4688c7"))
+                    }
+                    Button(
+                        onClick = { viewModel.createRelation(canWrite) },
+                        enabled = canWrite && state.relationTarget != null,
+                        modifier = Modifier.testTag("record.relation-create.confirm"),
+                    ) {
+                        Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
+                        Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
+                    }
+                }
+            },
+        ) {
+            CashRecordRelationComposerContent(
+                state = state,
+                viewModel = viewModel,
+                canWrite = canWrite,
+                options = state.options,
+            )
+        }
+    }
+
+    if (recordPanelOpen && state.confirmRecordDiscard) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRecordDiscardConfirmation)
         AlertDialog(
             modifier = Modifier.testTag("ledger.record.discard-dialog"),
@@ -711,7 +562,109 @@ internal fun CashLedgerScreen(
                 }
             },
         )
-    } else if (recordPanelOpen && sizeClass == WindowSizeClass.COMPACT && recordSaveError != null) {
+    } else if (recordPanelOpen && state.deleteRecordConfirm && state.recordDetail?.record != null) {
+        val recordDetail = requireNotNull(state.recordDetail)
+        val hasRelations = recordDetail.relations.any { it.status == "accepted" }
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDeleteRecord)
+        AlertDialog(
+            modifier = Modifier.testTag("ledger.record.delete-dialog"),
+            onDismissRequest = viewModel::dismissDeleteRecord,
+            title = { Text(localizedText("copy_a995e3b53e")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (hasRelations) localizedText("copy_7a51756482") else localizedText("copy_42ece48726"))
+                    if (hasRelations) {
+                        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().selectable(
+                                    selected = state.deleteRecordMode == "delete_current_dissolve",
+                                    onClick = { viewModel.selectDeleteRecordMode("delete_current_dissolve") },
+                                    role = Role.RadioButton,
+                                ).testTag("record.delete.scope.current"),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(selected = state.deleteRecordMode == "delete_current_dissolve", onClick = null)
+                                Text(localizedText("copy_6f762bedaa"))
+                            }
+                            Row(
+                                Modifier.fillMaxWidth().selectable(
+                                    selected = state.deleteRecordMode == "delete_all",
+                                    onClick = { viewModel.selectDeleteRecordMode("delete_all") },
+                                    role = Role.RadioButton,
+                                ).testTag("record.delete.scope.group"),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(selected = state.deleteRecordMode == "delete_all", onClick = null)
+                                Text(localizedText("copy_22edecb09e"))
+                            }
+                        }
+                    }
+                    InlineError(detailActionError)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.deleteRecord(state.deleteRecordMode, canWrite) },
+                    enabled = canWrite,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("record.delete.confirm"),
+                ) {
+                    Text(if (state.deleteRecordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_3c06abe116"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissDeleteRecord, modifier = Modifier.testTag("record.delete.cancel")) {
+                    Text(localizedText("copy_4d0b4688c7"))
+                }
+            },
+        )
+    } else if (recordPanelOpen && (state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll)) {
+        val pendingRelation = state.recordDetail?.relations?.firstOrNull { it.id == state.pendingRelationRemovalId }
+        val relatedRecord = pendingRelation?.let { relation ->
+            if (relation.primaryRecord?.id == state.recordDetail?.record?.id) relation.secondaryRecord else relation.primaryRecord
+        }
+        val unlinkingOne = state.pendingRelationRemovalId != null
+        val dismiss = viewModel::dismissPendingRelationRemoval
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = dismiss)
+        AlertDialog(
+            modifier = Modifier.testTag("ledger.record.relation-removal-dialog"),
+            onDismissRequest = dismiss,
+            title = { Text(localizedText(if (unlinkingOne) "ledger_relation_unlink_title" else "ledger_relation_dissolve_title")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (unlinkingOne) {
+                            localizedText(
+                                "ledger_relation_unlink_message",
+                                relatedRecord?.counterparty?.takeIf(String::isNotBlank)
+                                    ?: relatedRecord?.accountName
+                                    ?: localizedText("copy_6ea13ee38c"),
+                            )
+                        } else localizedText("ledger_relation_dissolve_message"),
+                    )
+                    InlineError(detailActionError)
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.confirmPendingRelationRemoval(canWrite) },
+                    enabled = canWrite,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("record.relation-removal.confirm"),
+                ) {
+                    Text(
+                        if (state.relationBusy) localizedText(if (unlinkingOne) "ledger_relation_unlinking" else "ledger_relation_dissolving")
+                        else localizedText(if (unlinkingOne) "ledger_relation_unlink_confirm" else "ledger_relation_dissolve_confirm"),
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = dismiss, modifier = Modifier.testTag("record.relation-removal.cancel")) {
+                    Text(localizedText("ledger_relation_keep"))
+                }
+            },
+        )
+    } else if (recordPanelOpen && recordSaveError != null) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRecordSaveError)
         AlertDialog(
             modifier = Modifier.testTag("ledger.record.save-error-dialog"),
@@ -724,9 +677,27 @@ internal fun CashLedgerScreen(
                 }
             },
         )
-    } else if (recordPanelOpen && sizeClass == WindowSizeClass.COMPACT && detailActionError != null &&
-        (state.recordDraft != null || state.relationComposerOpen)
-    ) {
+    } else if (recordPanelOpen && state.confirmRelationImpact) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRelationImpactConfirmation)
+        AlertDialog(
+            modifier = Modifier.testTag("record.relation-impact.dialog"),
+            onDismissRequest = viewModel::dismissRelationImpactConfirmation,
+            title = { Text(localizedText("copy_e17cb4ec33")) },
+            text = { Text(localizedText("copy_24c943b133")) },
+            confirmButton = {
+                TextButton(
+                    onClick = { viewModel.saveRecord(canWrite, confirmImpact = true) },
+                    enabled = canWrite,
+                    modifier = Modifier.testTag("record.relation-impact.confirm"),
+                ) { Text(if (state.recordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_2b9228c01b")) }
+            },
+            dismissButton = {
+                TextButton(onClick = viewModel::dismissRelationImpactConfirmation, modifier = Modifier.testTag("record.relation-impact.cancel")) {
+                    Text(localizedText("copy_4d0b4688c7"))
+                }
+            },
+        )
+    } else if (recordPanelOpen && detailActionError != null) {
         PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDetailActionError)
         AlertDialog(
             modifier = Modifier.testTag("ledger.record.action-error-dialog"),
@@ -747,10 +718,9 @@ internal fun CashLedgerScreen(
             title = { Text(localizedText("ledger_record_save_error_title")) },
             text = { Text(recordSaveError) },
             confirmButton = {
-                TextButton(
-                    onClick = viewModel::dismissRecordSaveError,
-                    modifier = Modifier.testTag("ledger.record.save-error-acknowledge"),
-                ) { Text(localizedText("dialog_error_acknowledge")) }
+                TextButton(onClick = viewModel::dismissRecordSaveError, modifier = Modifier.testTag("ledger.record.save-error-acknowledge")) {
+                    Text(localizedText("dialog_error_acknowledge"))
+                }
             },
         )
     } else if (!recordPanelOpen && detailActionError != null) {
@@ -1040,6 +1010,7 @@ private fun CashDetailedFilters(
     modifier: Modifier = Modifier,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
+    val closeLabel = localizedText("copy_6c14bd7f6f")
     var activeDatePicker by remember { mutableStateOf<String?>(null) }
     val accountFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         ChoicePicker(localizedText("copy_c3d92b20c8"), value.accountId.orEmpty(), listOf("" to localizedText("copy_c5e5d57837")) + accounts.map { it.id.toString() to it.name }, { onChange(value.copy(accountId = it.ifEmpty { null })) }, modifier = fieldModifier, semanticId = SemanticIds.ledgerFilterAccount)
@@ -1112,7 +1083,18 @@ private fun CashDetailedFilters(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(localizedText("copy_dcce9a144a"), style = MaterialTheme.typography.titleLarge)
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier.testTag("ledger.filter.close")
+                    .semantics { contentDescription = closeLabel },
+            ) {
+                Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+            }
+            Text(
+                localizedText("copy_dcce9a144a"),
+                modifier = Modifier.testTag("ledger.filter.title"),
+                style = MaterialTheme.typography.titleLarge,
+            )
         }
         HorizontalDivider()
         Column(

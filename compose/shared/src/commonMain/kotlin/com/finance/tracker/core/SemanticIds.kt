@@ -131,6 +131,7 @@ object SemanticIds {
     const val investmentHoldingsScreen = "investment-holdings.screen"
     const val investmentHoldingsAccount = "investment-holdings.account"
     const val investmentEventsScreen = "investment-events.screen"
+    const val investmentEventDetailOpen = "investment.event.detail.open"
     const val investmentEventDetail = "investment.event.detail"
     const val investmentEventDetailClose = "investment.event.detail.close"
     const val investmentEventsLoadMore = "investment-events.load-more"

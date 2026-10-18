@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Compose dialogs follow Material 3 task and interaction guidance
-Compose modal dialogs MUST open in response to a user action and stay focused on one task. Short decisions and focused input MUST use a basic dialog; workflows with a sequence of steps MUST use a full-screen dialog at compact breakpoints and a basic dialog at regular or wide breakpoints. Basic dialogs MUST not exceed 560 dp in width. Dialog titles and actions MUST communicate the task and its outcome. Custom dialog containers MUST expose their task title as an accessible pane title. A dialog MUST preserve staged values when dismissed or cancelled, except that live query controls such as ledger filters apply their selections immediately and closing their container does not roll back those filters. Dialogs MUST keep the background unavailable while open and MUST offer a clear way to leave when the task permits dismissal. Full-screen dialogs MUST place the task's confirming action in the header; their body MAY scroll while the header remains fixed. A compact full-screen dialog MAY present a basic dialog above it for a nested focused task such as editing, discard confirmation, or acknowledgement of a failed submission; a basic dialog MUST NOT present another basic dialog above itself.
+Compose modal dialogs MUST open in response to a user action and stay focused on one task. Short decisions and focused input MUST use a basic dialog; workflows with a sequence of steps MUST use a full-screen dialog at compact breakpoints and a basic dialog at regular or wide breakpoints, except where a more specific product contract below requires a different presentation. Cash record detail and editing MUST share a full-screen task at compact breakpoints and a right-side full-height modal panel at regular and wide breakpoints. Basic dialogs MUST not exceed 560 dp in width. Dialog titles and actions MUST communicate the task and its outcome. Custom dialog containers MUST expose their task title as an accessible pane title. A dialog MUST preserve staged values when dismissed or cancelled, except that live query controls such as ledger filters apply their selections immediately and closing their container does not roll back those filters. Dialogs MUST keep the background unavailable while open and MUST offer a clear way to leave when the task permits dismissal. All task operation buttons MUST remain in a bottom action area, with the primary action rightmost and secondary or cancel actions to its left. Every non-AlertDialog modal MUST expose a close button at the top-left; AlertDialog MUST retain its component-provided actions without action icons. A full-screen task's body MAY scroll while its title and close affordance remain fixed. A compact full-screen dialog MAY present a basic dialog above it for a nested focused task such as editing, discard confirmation, or acknowledgement of a failed submission; a basic dialog MUST NOT present another basic dialog above itself.
 
 #### Scenario: A user cancels a staged value selection
 - **WHEN** a user changes a staged value in a dialog and chooses cancel, presses Back/Escape, or dismisses the dialog without confirming
@@ -24,12 +24,12 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 - **AND** regular and wide presentation MUST use a basic dialog no wider than 560 dp
 - **AND** any scrollable content MUST keep the title and final actions visible
 
-#### Scenario: A compact full-screen task has a persistent confirming action
+#### Scenario: A compact full-screen task has fixed bottom actions
 - **WHEN** a user edits a record or creates a relationship in a compact full-screen dialog
-- **THEN** the task's confirming action MUST remain in the full-screen header
-- **AND** the dismissive action MUST return to the prior task state or request discard confirmation when there are unsaved changes
-- **AND** the body MAY scroll without hiding the header action
-- **AND** the same action MUST NOT be duplicated in a bottom action row
+- **THEN** the confirming action MUST remain in a fixed bottom action area
+- **AND** the dismissive action MUST be to its left and MUST return to the prior task state or request discard confirmation when there are unsaved changes
+- **AND** the header MUST retain the title and a top-left close affordance
+- **AND** the body MAY scroll without hiding the title, close affordance, or bottom actions
 
 #### Scenario: A user dismisses a full-screen task with unsaved work
 - **WHEN** a user attempts to close, navigate Back, or press Escape on a full-screen task that contains unsubmitted work
@@ -38,24 +38,39 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 - **AND** choosing the dismissive action MUST keep the task and all staged values intact
 - **AND** confirming discard MUST leave the task without committing its unsubmitted data
 
-#### Scenario: A modal detail surface adapts to the window
+#### Scenario: A cash record detail and edit share a responsive modal container
 - **WHEN** a user opens a read-only cash record detail
-- **THEN** compact presentation MUST use a centered basic dialog and regular or wide presentation MUST keep the agreed right-side basic dialog with the ledger visible behind a scrim
-- **AND** the detail body MUST scroll independently while its title, close action, and detail actions remain visible
-- **AND** the wide panel MUST remain at least 56 dp from the screen edges
+- **THEN** compact presentation MUST use a full-screen task and regular or wide presentation MUST keep the right-side full-height modal panel
+- **AND** switching from detail to edit MUST replace the layout inside the same modal container without opening a separate edit dialog
+- **AND** the detail body MUST scroll independently while its title, top-left close action, and bottom detail actions remain visible
+- **AND** the regular and wide panels MUST fill the viewport height
+- **AND** the regular and wide panels MUST align their logical end edge to the viewport edge and retain only a 16 dp / 56 dp logical start gutter
+- **AND** the regular and wide panels MUST use `surfaceContainerLow`, the theme's Large shape, and zero tonal elevation
+- **AND** tapping the modal scrim MUST dismiss the panel using the current task's exit behavior
+- **AND** dragging the panel toward its logical end edge MUST dismiss it using the current task's exit behavior
+- **AND** the primary Edit action MUST be rightmost in the bottom action area, with More actions to its left
 - **AND** the background ledger MUST remain unavailable until the panel is closed
 
-#### Scenario: A cash record edit or relationship task adapts to the window
-- **WHEN** a user edits a cash record or opens the relationship composer
-- **THEN** compact presentation MUST use a full-screen dialog for the staged form task
-- **AND** regular and wide presentation MUST use the existing right-side basic dialog
-- **AND** returning from the task MUST restore its previous detail state and preserve committed business data
+#### Scenario: A modal cash record panel follows the Material 3 Side Sheet contract
+- **WHEN** a user opens cash record detail, edit, or relation creation at regular or wide size
+- **THEN** the task MUST be displayed as a modal side sheet anchored to the logical end edge and filling the viewport height
+- **AND** the sheet MUST use `surfaceContainerLow`, the theme's Large shape, and zero tonal elevation
+- **AND** the scrim MUST block interaction with the ledger and support dismissal
+- **AND** dragging the sheet toward its logical end edge MUST dismiss it
+- **AND** the top-left close affordance MUST remain visible while the body scrolls
+- **AND** all task operation buttons MUST remain fixed at the bottom with the primary button rightmost
 
-#### Scenario: A cash record short confirmation stays within its basic dialog
+#### Scenario: A relationship composer is an independent modal task
+- **WHEN** a user opens the relationship composer from cash record detail
+- **THEN** the composer MUST be presented as its own M3 modal task, with compact full-screen presentation and a right-side full-height modal panel at regular and wide breakpoints
+- **AND** only the composer task MUST be the active modal while it is open
+- **AND** canceling or completing the composer MUST return to the previous cash record detail without losing its committed data
+
+#### Scenario: A cash record short confirmation uses a Material 3 confirmation dialog
 - **WHEN** a user requests record deletion, relation removal, or relation dissolution from a cash record detail
-- **THEN** the existing basic detail dialog MUST switch to a confirmation state rather than opening a full-screen dialog or another basic dialog
+- **THEN** the operation MUST use a Material 3 confirmation dialog as the sole active modal
 - **AND** the confirmation MUST explain the consequence and collect any deletion scope before its final action
-- **AND** canceling or dismissing the confirmation MUST return to the same detail without changing the record or relationship
+- **AND** canceling or dismissing the confirmation MUST restore the same detail without changing the record or relationship
 - **AND** the final destructive action MUST remain visible and use the theme's error color role
 
 #### Scenario: A user opens a read-only investment detail
@@ -66,17 +81,15 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 
 #### Scenario: A user attempts to discard an edited cash record
 - **WHEN** a user changes a cash record draft and attempts to cancel, navigate Back, press Escape, or close the editor
-- **THEN** compact presentation MUST show a basic discard confirmation dialog above the existing full-screen editor
-- **AND** regular and wide presentation MUST show the discard choice within the existing basic dialog without opening a nested basic dialog
+- **THEN** the editor task panel MUST be temporarily suspended and one Material 3 discard confirmation dialog MUST be the only active modal at every breakpoint
 - **AND** choosing the dismissive action MUST keep the draft and editor available
-- **AND** confirming discard MUST discard only the unsaved draft and return to the record detail or ledger without issuing a save request
+- **AND** confirming discard MUST discard only the unsaved draft and return to the record detail without issuing a save request
 
 #### Scenario: A cash record save fails
 - **WHEN** saving a cash record fails with a general error while the editor remains open
-- **THEN** compact presentation MUST show a basic error acknowledgement dialog above the current full-screen editor
-- **AND** regular and wide presentation MUST show the error within the current basic editor dialog
+- **THEN** the editor task panel MUST be temporarily suspended and one Material 3 error acknowledgement dialog MUST be the only active modal at every breakpoint
 - **AND** the save action MUST remain available for retry when the draft is still valid
-- **AND** the draft MUST remain available for correction or retry
+- **AND** acknowledging the error MUST restore the editor with its draft available for correction or retry
 - **AND** if the editor was dismissed while the save was in progress, the error MUST appear in a basic acknowledgement dialog on the ledger page
 
 #### Scenario: A confirmation request is in progress
@@ -96,10 +109,11 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 #### Scenario: A required field in an edit dialog is empty
 - **WHEN** a user clears a required account name in the new-account editor
 - **THEN** the apply action MUST be disabled in compact, regular, and wide presentations
+- **AND** the disabled state MUST be exposed through the action's accessibility semantics
 - **AND** restoring a non-empty name MUST enable the apply action without discarding the draft
 
 ### Requirement: Custom Compose dialog containers use Material 3 surface and structure
-Custom Compose basic dialogs MUST provide an inner Material surface container, use the current `MaterialTheme` shape and surface color roles, and render above one scrim without drawing a second competing scrim. The container MUST remain within the available window, MUST not exceed the basic dialog maximum width of 560 dp, and MUST keep its title and primary actions visible when its body scrolls. Custom-positioned basic dialogs on wide windows MUST respect at least 56 dp of screen-edge margin. Full-screen dialogs MUST be reserved for compact workflows that involve staged input or unsaved changes, and MUST keep the confirming action in the header. Read-only detail and short confirmation tasks MUST use a basic dialog. A full-screen dialog MAY host a basic dialog above it for a focused nested task; a basic dialog MUST NOT host another basic dialog, and MUST instead use an in-place state. Standard Material 3 dialogs and pickers MUST retain their component-provided structure and defaults unless a documented product requirement requires an override.
+Custom Compose basic dialogs MUST provide an inner Material surface container, use the current `MaterialTheme` shape and surface color roles, and render above one scrim without drawing a second competing scrim. The container MUST remain within the available window, MUST not exceed the basic dialog maximum width of 560 dp, and MUST keep its title and primary actions visible when its body scrolls. Custom-positioned basic dialogs on wide windows MUST respect at least 56 dp of screen-edge margin. Every non-AlertDialog modal MUST put its close button at the top-left; task operations MUST remain in a bottom action area with the primary action rightmost. AlertDialog action buttons MUST contain text without icons. Read-only details and short confirmation tasks SHOULD use a basic dialog, except where a more specific product contract requires a full-screen task or right-side panel. A full-screen dialog MAY host a basic dialog above it for a focused nested task; a basic dialog MUST NOT host another basic dialog, and MUST instead use an in-place state unless a more specific product contract requires a separate M3 AlertDialog as the sole active modal. Standard Material 3 dialogs and pickers MUST retain their component-provided structure and defaults unless a documented product requirement requires an override.
 
 #### Scenario: A custom basic dialog contains scrollable content
 - **WHEN** dialog content is taller than its available viewport
@@ -115,7 +129,7 @@ Custom Compose basic dialogs MUST provide an inner Material surface container, u
 #### Scenario: A record detail body is scrollable
 - **WHEN** a cash record detail is open and its facts or related-record section exceeds the visible body area
 - **THEN** the detail body MUST scroll independently
-- **AND** the primary edit action and more-actions menu MUST remain fixed at the trailing edge of the dialog's action area
+- **AND** the primary edit action and more-actions menu MUST remain fixed in the bottom action area, with Edit rightmost and More actions to its left
 - **AND** the two direct actions MUST NOT be repeated inside the scrolling body
 
 #### Scenario: A compact full-screen dialog contains a long task
@@ -130,8 +144,8 @@ Custom Compose basic dialogs MUST provide an inner Material surface container, u
 
 #### Scenario: A modal task needs a confirmation, edit, or error state
 - **WHEN** a task already uses a full-screen or basic dialog and needs to confirm discard, edit a subtask, or acknowledge an error
-- **THEN** a compact full-screen task MAY show a basic dialog above its full-screen container
-- **AND** a regular or wide basic task MUST switch its existing container to the required in-place state
+- **THEN** a compact full-screen task MAY show a basic dialog above its full-screen container when that task contract allows nested focused work
+- **AND** a regular or wide basic task MUST switch its existing container to the required in-place state unless a more specific product contract requires a separate M3 AlertDialog as the sole active modal
 - **AND** a basic dialog MUST NOT open a nested `AlertDialog`, `DatePickerDialog`, or basic `Dialog`
 - **AND** canceling or acknowledging the nested/in-place state MUST return to the prior task with its staged values intact
 
@@ -141,16 +155,16 @@ Custom Compose basic dialogs MUST provide an inner Material surface container, u
 - **AND** the underlying dialog MUST remain open with its current task state intact
 - **AND** a subsequent Escape MAY dismiss the dialog according to that task's dismissal rules
 
-#### Scenario: A read-only detail is shown at a compact breakpoint
-- **WHEN** a user opens a read-only detail with no staged edits or multi-step task
+#### Scenario: A read-only non-ledger detail is shown at a compact breakpoint
+- **WHEN** a user opens a read-only investment detail with no staged edits or multi-step task
 - **THEN** the application MUST use a basic dialog rather than a full-screen dialog
 - **AND** the body MAY scroll while the title and acknowledgement action remain visible
 
-#### Scenario: A short confirmation is shown from a basic detail dialog
-- **WHEN** a user opens a delete or relationship-removal confirmation from a basic detail dialog
-- **THEN** the dialog MUST transition its own content to the confirmation state
-- **AND** the application MUST NOT stack a second basic dialog or expand the short confirmation to a full-screen dialog
-- **AND** canceling MUST restore the detail state without applying the operation
+#### Scenario: An edited cash record is discarded
+- **WHEN** a user attempts to cancel, navigate Back, press Escape, or close a cash record edit with unsaved changes
+- **THEN** the application MUST show a Material 3 discard confirmation dialog as the sole active modal
+- **AND** canceling MUST restore the same edit container and preserve its draft
+- **AND** confirming discard MUST discard only the unsaved draft and return to the cash record detail
 
 #### Scenario: A date or time picker is opened from a modal task
 - **WHEN** a user opens a date or time picker from a full-screen or basic dialog, including a filter surface or record editor
@@ -184,27 +198,32 @@ A dialog action area MUST present at most one confirming action and one dismissi
 
 #### Scenario: A user confirms a task in a compact full-screen dialog
 - **WHEN** a compact full-screen dialog for a staged edit or relationship-creation task has a valid result that can be committed
-- **THEN** its primary confirming action MUST appear in the header
-- **AND** its body MUST NOT repeat that action in a footer
-- **AND** the dismissive action MUST remain available through the header
+- **THEN** its primary confirming action MUST appear at the right of its bottom action area
+- **AND** the dismissive action MUST appear to its left
+- **AND** the header MUST expose the close action at its top-left
 
 #### Scenario: A user removes one or more cash record relationships
 - **WHEN** a user chooses to unlink one related record or dissolve all accepted relationships from a cash record
 - **THEN** the application MUST explain that the relationship will be removed and the underlying cash records will remain
-- **AND** the confirmation MUST use the existing cash record basic dialog's in-place state
+- **AND** the detail task panel MUST be temporarily suspended while one Material 3 confirmation dialog is shown as the sole active modal
 - **AND** the user MUST confirm before the existing relationship-removal operation is called
-- **AND** canceling the confirmation MUST leave the relationship unchanged
+- **AND** canceling the confirmation MUST leave the relationship unchanged and restore the same detail state
 - **AND** the confirming action MUST use the theme's error role while the dismissive action remains available
 
-#### Scenario: A wide cash record task exposes one dismissive action
-- **WHEN** a user views a cash record task in regular or wide presentation
-- **THEN** read-only detail MUST expose a visible header close action
-- **AND** edit, deletion, relation creation, and confirmation states MUST use their in-task cancel or keep action without a duplicate header close icon
-- **AND** compact presentation MUST keep its header close action for the full-screen task
+#### Scenario: A cash record task exposes a consistent close affordance
+- **WHEN** a user views a cash record task in any presentation
+- **THEN** detail, edit, and relation creation MUST expose a visible top-left header close action
+- **AND** edit and relation creation MAY also provide bottom cancel actions as task operations
+- **AND** AlertDialog confirmation states MUST retain their standard M3 structure without a separate close icon
 - **AND** Escape or outside dismissal MUST follow the task's existing cancel, discard, or in-flight request behavior
 
+#### Scenario: A cash record short confirmation is dismissed
+- **WHEN** a user sees a deletion, relationship-removal, discard, or error acknowledgement dialog for a cash record task
+- **THEN** the underlying detail, editor, or relation composer panel MUST not be rendered as a second active modal
+- **AND** canceling or acknowledging the dialog MUST restore the exact originating task and preserve its staged draft
+
 #### Scenario: A modal task state changes accessibly
-- **WHEN** a cash record modal changes from detail to edit or confirmation, or returns to its previous task state
+- **WHEN** a user changes a cash record modal task or advances a stage in a multi-step modal workflow
 - **THEN** its accessible title and available controls MUST describe the current task state
 - **AND** controls from the previous task state MUST NOT remain exposed as the active dialog controls
 - **AND** changing modal task state MUST preserve the task's committed and staged business data

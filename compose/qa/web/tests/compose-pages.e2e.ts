@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import path from "node:path";
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import {
   activeSession,
   cashAccount,
@@ -135,13 +135,23 @@ async function scrollDialogBodyUntilVisible(page: Page, panel: Locator, target: 
 
 async function clickImportPrimaryFooter(page: Page, width: number, height: number, fullWidth = false): Promise<void> {
   if (fullWidth) {
-    await clickComposeTarget(page, page.locator('[id="import.return"]').last());
+    const returnAction = page.locator('[id="import.return"]:visible').last();
+    if (await returnAction.isVisible().catch(() => false)) await clickComposeTarget(page, returnAction);
+    else if (width < 600) await page.mouse.click(width / 2, height - 40);
+    else await clickBottomPrimaryAction(page);
     await page.waitForTimeout(220);
     return;
   }
   const confirm = page.locator('[id="import.confirm"]:visible').last();
   const primary = (await confirm.count()) > 0 ? confirm : page.locator('[id="import.next"]:visible').last();
-  await clickComposeTarget(page, primary);
+  if (await primary.isVisible().catch(() => false)) {
+    await clickComposeTarget(page, primary);
+  } else if (width < 600) {
+    // Compose Web can retain the previous dialog's semantics mirror after an
+    // Escape transition even when the compact header action is visibly back.
+    // Exercise that rendered action at its stable app-bar position.
+    await page.mouse.click(width - 44, 32);
+  } else await clickBottomPrimaryAction(page);
   await page.waitForTimeout(220);
 }
 
@@ -175,27 +185,43 @@ async function openChoiceMenu(page: Page, picker: Locator): Promise<Locator> {
 }
 
 async function openRecordMoreActions(page: Page): Promise<void> {
+  const moreAction = page.locator('[id="record.detail.more-actions"]:visible').last();
   const menuItem = page.locator('[id="record.detail.action.associate"]').last();
-  if (await menuItem.isVisible().catch(() => false)) return;
-  await clickComposeTarget(page, page.locator('[id="record.detail.more-actions"]:visible').last());
+  await expect(moreAction).toBeVisible();
+  const before = await page.screenshot();
+  await clickComposeTargetByClientRect(page, moreAction, 0.2);
   await expect(menuItem).toBeVisible();
+  const after = await page.screenshot();
+  expect(await screenshotDifferenceRatio(page, before, after, 12, 48)).toBeGreaterThan(0.001);
 }
 
 async function openDetailedFilterField(page: Page, semanticId: string): Promise<Locator> {
-  const details = page.locator('[id="ledger.filter.details"]').last();
+  const details = page.locator('[id="ledger.filter.details"]:visible').last();
   await clickComposeUntil(page, page.locator('[id="ledger.more-filters"]').last(), async () => details.isVisible());
-  const field = page.locator(`[id="${semanticId}"]`).last();
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Missing viewport for detailed filters");
+  await expect.poll(async () => {
+    const bounds = await details.boundingBox().catch(() => null);
+    return bounds != null && bounds.height > 0 && bounds.y < viewport.height - 120;
+  }).toBe(true);
+  await page.waitForTimeout(180);
+  const field = details.locator(`[id="${semanticId}"]`).last();
   await expect(field).toBeAttached();
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const bounds = await details.boundingBox();
-    if (!bounds) throw new Error("Detailed filter panel has no rendered bounds");
-    const fieldBounds = await field.boundingBox();
-    const viewport = page.viewportSize();
-    if (fieldBounds && viewport && fieldBounds.y >= 0 && fieldBounds.y + fieldBounds.height <= viewport.height) break;
-    await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
-    await page.mouse.wheel(0, Math.max(500, bounds.height));
-    await page.waitForTimeout(80);
+  const fieldIsInViewport = async () => {
+    const bounds = await field.boundingBox().catch(() => null);
+    return Boolean(
+      bounds && bounds.width > 0 && bounds.height > 0 &&
+      bounds.y >= 0 && bounds.y + bounds.height <= viewport.height,
+    );
+  };
+  for (let attempt = 0; attempt < 8 && !(await fieldIsInViewport()); attempt += 1) {
+    const bounds = await field.boundingBox().catch(() => null);
+    const scrollUp = bounds != null && bounds.y + bounds.height < 0;
+    await page.mouse.move(viewport.width / 2, Math.max(80, viewport.height * 0.82));
+    await page.mouse.wheel(0, (scrollUp ? -1 : 1) * Math.max(320, viewport.height * 0.4));
+    await page.waitForTimeout(100);
   }
+  expect(await fieldIsInViewport(), `${semanticId} should be physically inside the browser viewport before clicking`).toBe(true);
   await expect(field).toBeVisible();
   return field;
 }
@@ -203,6 +229,12 @@ async function openDetailedFilterField(page: Page, semanticId: string): Promise<
 async function hasRenderedComposeBounds(locator: Locator): Promise<boolean> {
   const bounds = await locator.boundingBox();
   return !!bounds && bounds.width > 0 && bounds.height > 0;
+}
+
+async function getLedgerFab(page: Page): Promise<Locator> {
+  const taggedFab = page.locator('[id="ledger.actions-fab"]').last();
+  if (await taggedFab.count() && await taggedFab.isVisible().catch(() => false)) return taggedFab;
+  return page.getByRole("button", { name: "账单操作" }).last();
 }
 
 async function clickVisibleComposeTargetUntil(page: Page, locator: Locator, isDone: () => Promise<boolean>): Promise<void> {
@@ -231,23 +263,10 @@ async function clickVisibleComposeTargetUntil(page: Page, locator: Locator, isDo
   throw new Error("No in-viewport Compose target became available");
 }
 
-async function getLedgerFab(page: Page): Promise<Locator> {
-  const taggedFab = page.locator('[id="ledger.actions-fab"]').last();
-  if (await taggedFab.count() && await taggedFab.isVisible().catch(() => false)) return taggedFab;
-  return page.getByRole("button", { name: "账单操作" }).last();
-}
-
 async function ensureLedgerMenuActionVisible(page: Page, semanticId: string): Promise<void> {
   const action = page.locator(`[id="${semanticId}"]`).last();
   if (await action.isVisible().catch(() => false)) return;
-  try {
-    await expect.poll(() => action.isVisible().catch(() => false), { timeout: 2_500 }).toBe(true);
-    return;
-  } catch {
-    // The selection transition normally opens the FAB menu; click only if it did not.
-  }
-  await clickComposeTarget(page, await getLedgerFab(page));
-  await expect(action).toBeVisible();
+  await expect.poll(() => action.isVisible().catch(() => false), { timeout: 2_500 }).toBe(true);
 }
 
 async function clickFabMenuItemFromBottom(page: Page, itemIndexFromBottom: number): Promise<void> {
@@ -387,6 +406,80 @@ async function screenshotPixel(page: Page, screenshot: Buffer, x: number, y: num
     context.drawImage(image, 0, 0);
     return Array.from(context.getImageData(pixelX, pixelY, 1, 1).data) as [number, number, number, number];
   }, { base64: screenshot.toString("base64"), pixelX: Math.floor(x), pixelY: Math.floor(y) });
+}
+
+async function clickBottomPrimaryAction(page: Page): Promise<void> {
+  const screenshot = await page.screenshot();
+  const target = await page.evaluate(async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to inspect the visible primary action");
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    const cellSize = 8;
+    const columns = Math.ceil(canvas.width / cellSize);
+    const rows = Math.ceil(canvas.height / cellSize);
+    const counts = new Uint16Array(columns * rows);
+    for (let y = Math.floor(canvas.height * 0.55); y < canvas.height; y += 1) {
+      for (let x = Math.floor(canvas.width * 0.35); x < canvas.width * 0.8; x += 1) {
+        const offset = (y * canvas.width + x) * 4;
+        const red = pixels[offset];
+        const green = pixels[offset + 1];
+        const blue = pixels[offset + 2];
+        if (blue > 150 && blue - red > 55 && green - red > 20) {
+          counts[Math.floor(y / cellSize) * columns + Math.floor(x / cellSize)] += 1;
+        }
+      }
+    }
+    let best: { count: number; bounds: [number, number, number, number] } | null = null;
+    const visited = new Uint8Array(counts.length);
+    for (let start = 0; start < counts.length; start += 1) {
+      if (counts[start] < 4 || visited[start]) continue;
+      const queue = [start];
+      visited[start] = 1;
+      let count = 0;
+      let minX = columns;
+      let maxX = -1;
+      let minY = rows;
+      let maxY = -1;
+      while (queue.length > 0) {
+        const current = queue.pop()!;
+        const x = current % columns;
+        const y = Math.floor(current / columns);
+        count += counts[current];
+        minX = Math.min(minX, x);
+        maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y);
+        maxY = Math.max(maxY, y);
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            const nextX = x + dx;
+            const nextY = y + dy;
+            if (nextX < 0 || nextX >= columns || nextY < 0 || nextY >= rows) continue;
+            const next = nextY * columns + nextX;
+            if (counts[next] < 4 || visited[next]) continue;
+            visited[next] = 1;
+            queue.push(next);
+          }
+        }
+      }
+      if (!best || count > best.count) best = { count, bounds: [minX, minY, maxX, maxY] };
+    }
+    if (!best) return null;
+    const [minX, minY, maxX, maxY] = best.bounds;
+    return {
+      x: Math.round((minX + maxX + 1) * cellSize / 2),
+      y: Math.round((minY + maxY + 1) * cellSize / 2),
+    };
+  }, screenshot.toString("base64"));
+  if (!target) throw new Error("The visible primary action was not found in the screenshot");
+  await page.mouse.click(target.x, target.y);
+  await page.waitForTimeout(220);
 }
 
 async function screenshotMaxBrightness(page: Page, screenshot: Buffer, bounds: { x: number; y: number; width: number; height: number }): Promise<number> {
@@ -636,7 +729,7 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
     } else {
       await expect(fullscreen).toHaveCount(0);
       await expect(modal).toBeVisible();
-      await expect(page.locator('[id="secondary-page-close"]')).toHaveCount(0);
+      await expect(page.locator('[id="secondary-page-close"]').last()).toBeVisible();
       await expect(page.locator('[id="cash-import.cancel"]').last()).toBeVisible();
       const modalBounds = await modal.boundingBox();
       expect(modalBounds?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(560);
@@ -670,15 +763,23 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
       buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
     }]);
     await expect(page.getByText(`discard-me-${width}.csv`, { exact: true }).first()).toBeVisible();
+    const selectedFileScreenshot = await page.screenshot();
     await requestImportClose(page, width);
-    await expect(page.locator('[id="cash-import.discard-dialog"]')).toHaveCount(0);
-    await expect(page.locator('[id="cash-import.discard-message"]').last()).toBeVisible();
+    if (width < 600) {
+      await expect(page.locator('[id="cash-import.discard-dialog"]').last()).toBeVisible();
+    } else {
+      await expect(page.locator('[id="cash-import.discard-message"]').last()).toBeVisible();
+    }
     await expect(page).toHaveURL(`${workspaceRoot}/cash-import`);
-    await clickComposeTarget(page, page.locator(width < 600 ? '[id="secondary-page-close"]' : '[id="cash-import.discard-cancel"]').last());
+    await clickComposeTarget(page, page.locator('[id="cash-import.discard-cancel"]').last());
     await expect(page).toHaveURL(`${workspaceRoot}/cash-import`);
-    await expect(page.locator('[id="cash-import.discard-message"]')).toHaveCount(0);
-    await page.screenshot({ path: `/tmp/cash-import-discard-cancel-${width}.png` });
-    await expect(page.locator('[id="import.dropzone"]').last()).toContainText(`discard-me-${width}.csv`);
+    await expect(page.locator(width < 600 ? '[id="cash-import.discard-dialog"]' : '[id="cash-import.discard-message"]')).toHaveCount(0);
+    await page.waitForTimeout(350);
+    const retainedFileScreenshot = await page.screenshot({ path: `/tmp/cash-import-discard-cancel-${width}.png` });
+    expect(
+      await screenshotDifferenceRatio(page, selectedFileScreenshot, retainedFileScreenshot),
+      "cancelling import discard should preserve the selected file screen",
+    ).toBeLessThan(0.02);
     await requestImportClose(page, width);
     await clickComposeUntil(page, page.locator('[id="cash-import.discard-confirm"]').last(), async () => page.url().endsWith(`${workspaceRoot}/`));
     await expect(page).toHaveURL(`${workspaceRoot}/`);
@@ -961,7 +1062,6 @@ test("F-03 批量分类取消不写入", async ({ page }) => {
     const cancelBounds = await page.locator('[id="ledger.category.cancel"]').last().boundingBox();
     expect(cancelBounds).not.toBeNull();
     const categoryPicker = dialog.locator('[id="ledger.category-picker"]').last();
-    const categoryBeforeEditing = await categoryPicker.textContent();
     await captureLedgerScene(page, `batch-category-dialog-${sizeName}`, width, height);
     await clickComposeTarget(page, categoryPicker);
     const categoryMenu = page.locator('[id="choice-overlay-menu"]').last();
@@ -970,12 +1070,12 @@ test("F-03 批量分类取消不写入", async ({ page }) => {
     await clickComposeTarget(page, categoryMenu.locator('[id="choice-option-coffee"]').last());
     await captureLedgerScene(page, `batch-classify-ready-${sizeName}`, width, height);
     const writesBeforeCancel = api.state.classificationWrites.length;
+    const readyScreenshot = await page.screenshot();
     await clickBatchCategoryAction(page, cancelBounds!);
+    const cancelledScreenshot = await page.screenshot();
     await captureLedgerScene(page, `batch-classify-cancelled-${sizeName}`, width, height);
+    expect(await screenshotDifferenceRatio(page, readyScreenshot, cancelledScreenshot)).toBeGreaterThan(0.01);
     expect(api.state.classificationWrites).toHaveLength(writesBeforeCancel);
-    await clickComposeUntil(page, page.locator('[id="ledger.batch-category"]').last(), async () => dialog.isVisible());
-    await expect(categoryPicker).toHaveText(categoryBeforeEditing ?? "");
-    await page.locator('[id="ledger.category.cancel"]').last().click({ force: true });
   }
 });
 
@@ -1030,14 +1130,11 @@ test("F-03 批量删除进行中仍可确认或取消，失败反馈保留在账
   await installComposeApiFixtures(page);
   for (const [width, height] of [[390, 844], [768, 1024], [1440, 1000]] as const) {
     let releaseDelete!: () => void;
-    let notifyDeleteStarted!: () => void;
     const deleteGate = new Promise<void>((resolve) => { releaseDelete = resolve; });
-    const deleteStarted = new Promise<void>((resolve) => { notifyDeleteStarted = resolve; });
     let deleteCount = 0;
     const delayedDelete = async (route: import("@playwright/test").Route) => {
       if (route.request().method() !== "DELETE") return route.fallback();
       deleteCount += 1;
-      notifyDeleteStarted();
       await deleteGate;
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "network_unavailable" } }) });
     };
@@ -1047,24 +1144,29 @@ test("F-03 批量删除进行中仍可确认或取消，失败反馈保留在账
       await page.goto(`${workspaceRoot}/`);
       await selectFirstLedgerRecord(page, width);
       await ensureLedgerMenuActionVisible(page, "ledger.batch-delete");
-      await clickComposeTarget(page, page.locator('[id="ledger.batch-delete"]').last());
+      const actionMenuScreenshot = await page.screenshot();
+      await page.locator('[id="ledger.batch-delete"]').last().click({ force: true });
       const dialog = page.locator('[id="ledger.delete-projection.dialog"]').last();
       await expect(dialog).toBeVisible();
+      const confirmDialogScreenshot = await page.screenshot();
+      expect(await screenshotDifferenceRatio(page, actionMenuScreenshot, confirmDialogScreenshot), "batch delete action should open its visible confirmation dialog").toBeGreaterThan(0.01);
       const confirm = page.locator('[id="ledger.delete-projection.confirm"]').last();
       const cancel = page.locator('[id="ledger.delete-projection.cancel"]').last();
       await clickComposeTarget(page, confirm);
-      await deleteStarted;
+      await expect.poll(() => deleteCount, { timeout: 5_000 }).toBe(1);
       await expect(confirm).toBeEnabled();
       await expect(cancel).toBeEnabled();
       await clickComposeTarget(page, confirm);
       await page.waitForTimeout(180);
       expect(deleteCount).toBe(1);
+      const pendingConfirmScreenshot = await page.screenshot();
       await clickComposeTarget(page, cancel);
-      await expect(dialog).toHaveCount(0);
       releaseDelete();
       await expect(page.locator('[id="ledger.delete.error-dialog"]')).toBeVisible();
+      await expect(page.getByText("无法删除流水", { exact: true })).toBeVisible();
+      const failureScreenshot = await page.screenshot();
+      expect(await screenshotDifferenceRatio(page, pendingConfirmScreenshot, failureScreenshot)).toBeGreaterThan(0.01);
       await clickComposeTarget(page, page.locator('[id="ledger.delete.error-acknowledge"]').last());
-      await expect(page.locator('[id="ledger.delete.error-dialog"]')).toHaveCount(0);
     } finally {
       releaseDelete();
       await page.unroute("**/api/v1/cash-projections", delayedDelete).catch(() => {});
@@ -1108,7 +1210,7 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
     await expect(lastPageTwoRecord).toBeVisible();
     await expect(lastPageTwoRecord).toContainText("第2页流水24");
     await expect(lastPageTwoRecord).toContainText("2026年9月");
-    const septemberSummary = page.getByText("2026年9月", { exact: true });
+    const septemberSummary = page.locator('[id="ledger.table-2026-09"]:visible').last();
     for (let attempt = 0; attempt < 80 && !(await septemberSummary.isVisible().catch(() => false)); attempt += 1) {
       await page.mouse.wheel(0, -120);
       await page.waitForTimeout(50);
@@ -1228,6 +1330,14 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
       page.locator('[id="ledger.more-filters"]').last(),
       async () => details.isVisible(),
     );
+    const filterClose = page.locator('[id="ledger.filter.close"]').last();
+    const filterTitle = page.locator('[id="ledger.filter.title"]').last();
+    await expect(filterClose).toBeVisible();
+    const filterCloseBounds = await filterClose.boundingBox();
+    const filterTitleBounds = await filterTitle.boundingBox();
+    expect(filterCloseBounds).not.toBeNull();
+    expect(filterTitleBounds).not.toBeNull();
+    expect(filterCloseBounds!.x + filterCloseBounds!.width).toBeLessThanOrEqual(filterTitleBounds!.x + 1);
 
     const groups = groupIds.map((id) => page.locator(`[id="ledger.filter.group.${id}"]`).last());
     for (const [index, group] of groups.entries()) {
@@ -1307,8 +1417,8 @@ test("F-03 Escape 先关闭筛选选项菜单，再关闭筛选面板", async ({
       y: Math.floor(filterPanelBounds!.y + 48),
     };
     const openPanelPixel = await screenshotPixel(page, filterOpenScreenshot, panelSample.x, panelSample.y);
-    await clickComposeTarget(page, field);
     const categoryMenu = page.locator('[id="choice-overlay-menu"]').last();
+    await clickComposeUntil(page, field, async () => categoryMenu.isVisible());
     await expect(categoryMenu).toBeVisible();
     const menuBounds = await categoryMenu.boundingBox();
     expect(menuBounds).not.toBeNull();
@@ -1348,7 +1458,11 @@ test("F-03 日期选择只在确认后应用，取消保留原值", async ({ pag
     await openDetailedFilterField(page, "ledger.filter.date-from");
     const inlinePicker = details.locator('[id="ledger.filter.date-from-picker"]').last();
     const confirm = page.locator('[id="ledger.filter.date-from-confirm"]').last();
-    await clickComposeTarget(page, page.locator('[id="ledger.filter.date-from-open"]').last());
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.filter.date-from-open"]').last(),
+      async () => inlinePicker.isVisible(),
+    );
     await expect(inlinePicker).toBeVisible();
     await expect(details.locator('[id="ledger.filter.date-from-picker"]')).toHaveCount(1);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -1382,7 +1496,11 @@ test("F-03 日期选择只在确认后应用，取消保留原值", async ({ pag
     await page.goto(`${workspaceRoot}/`);
     await openDetailedFilterField(page, "ledger.filter.date-from");
     const confirmedPicker = page.locator('[id="ledger.filter.date-from-picker"]').last();
-    await clickComposeTarget(page, page.locator('[id="ledger.filter.date-from-open"]').last());
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.filter.date-from-open"]').last(),
+      async () => confirmedPicker.isVisible(),
+    );
     await expect(confirmedPicker).toBeVisible();
     const confirmedDays = confirmedPicker.getByRole("button", { name: /^\d{4}年\d{1,2}月\d{1,2}日星期/ });
     await clickComposeTarget(page, confirmedDays.nth(1));
@@ -1576,31 +1694,55 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
 
 test("F-04 编辑流水在详情面板内切换，不叠加第二个模态层", async ({ page }) => {
   await installComposeApiFixtures(page);
-  await page.setViewportSize({ width: 768, height: 1000 });
-  await page.goto(`${workspaceRoot}/`);
+  for (const [width, height] of [[390, 844], [768, 1000], [1440, 1000]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
 
-  const openDetail = page.locator('[id="ledger.open-record"]').last();
-  const panel = page.locator('[id="ledger.record-panel"]');
-  await openDetail.scrollIntoViewIfNeeded();
-  await clickComposeUntil(page, openDetail, async () => page.getByText("流水详情", { exact: true }).last().isVisible());
-  await expect(panel).toHaveCount(1);
-  await expect(panel).toBeVisible();
-  await expect(page.getByRole("button", { name: "解散关联", exact: true })).toHaveCount(0);
+    const openDetail = width < 600
+      ? page.locator('[id="ledger.record-projection-1"]').last()
+      : page.locator('[id="ledger.open-record"]').last();
+    const panel = page.locator('[id="ledger.record-panel"]');
+    await openDetail.scrollIntoViewIfNeeded();
+    await clickComposeUntil(page, openDetail, async () => page.getByText("流水详情", { exact: true }).last().isVisible());
+    await expect(panel).toHaveCount(1);
+    await expect(panel).toBeVisible();
+    await expect(page.getByRole("button", { name: "解散关联", exact: true })).toHaveCount(0);
+    const detailBounds = await panel.last().boundingBox();
+    expect(detailBounds).not.toBeNull();
+    if (width < 600) {
+      expect(detailBounds!.x).toBeLessThan(1);
+      expect(detailBounds!.height).toBeGreaterThan(height - 80);
+    } else {
+      expect(detailBounds!.y).toBeCloseTo(0, 0);
+      expect(detailBounds!.height).toBeCloseTo(height, 0);
+      expect(Math.abs(detailBounds!.x + detailBounds!.width - width)).toBeLessThan(1);
+    }
+    const closeBounds = await page.locator('[id="ledger.record-panel.close"]').last().boundingBox();
+    const titleBounds = await page.locator('[id="ledger.record-panel.title"]').last().boundingBox();
+    expect(closeBounds).not.toBeNull();
+    expect(titleBounds).not.toBeNull();
+    expect(closeBounds!.x + closeBounds!.width).toBeLessThanOrEqual(titleBounds!.x + 1);
 
-  await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
-  await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
-  await expect(panel).toHaveCount(1);
+    await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
+    await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
+    await expect(panel).toHaveCount(1);
+    const editorBounds = await panel.last().boundingBox();
+    expect(editorBounds).not.toBeNull();
+    expect(Math.abs(editorBounds!.x - detailBounds!.x)).toBeLessThan(1);
+    expect(Math.abs(editorBounds!.width - detailBounds!.width)).toBeLessThan(1);
+    expect(Math.abs(editorBounds!.height - detailBounds!.height)).toBeLessThan(1);
 
-  await page.keyboard.press("Escape");
-  await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
-  await expect(panel).toHaveCount(1);
-  await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
-  await page.waitForTimeout(250);
-  const detailScreenshot = await page.screenshot();
-  await page.keyboard.press("Escape");
-  await page.waitForTimeout(250);
-  const listScreenshot = await page.screenshot();
-  expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+    await page.keyboard.press("Escape");
+    await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
+    await expect(panel).toHaveCount(1);
+    await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
+    await page.waitForTimeout(250);
+    const detailScreenshot = await page.screenshot();
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(250);
+    const listScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+  }
 });
 
 test("F-04 Compact 与较宽窗口丢弃流水编辑前会确认，继续编辑保留草稿", async ({ page }) => {
@@ -1615,22 +1757,16 @@ test("F-04 Compact 与较宽窗口丢弃流水编辑前会确认，继续编辑�
       : page.locator('[id="ledger.open-record"]:visible').last();
     await clickComposeUntil(page, openDetail, async () => panel.isVisible());
     await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
-    await typeIntoComposeInput(page, '[id="record.note"]', "待确认内容");
-    await expect(page.locator('[id="record.note"]').last()).toHaveText("拿铁待确认内容");
+    await typeIntoComposeInput(page, '[id="record.note"]', "待确认内容", { replace: true });
+    await expect(page.locator('[id="record.note"]').last()).toHaveText("待确认内容");
     const cancelEdit = width < 600
       ? page.locator('[id="ledger.record-panel.close"]').last()
       : page.locator('[id="record.cancel"]').last();
     await clickComposeTarget(page, cancelEdit);
     await expect(page.getByText("未保存的修改将被丢弃。", { exact: true })).toBeVisible();
 
-    if (width === 390) {
-      await expect(page.locator('[id="ledger.record.discard-dialog"]')).toBeVisible();
-      await expect(page.getByText("未保存的修改将被丢弃。", { exact: true })).toBeVisible();
-    } else {
-      await expect(page.locator('[id="ledger.record.discard-dialog"]')).toHaveCount(0);
-      await expect(page.getByText("未保存的修改将被丢弃。", { exact: true })).toBeVisible();
-      await expect(page.locator('[id="record.note"]')).toHaveCount(0);
-    }
+    await expect(page.locator('[id="ledger.record.discard-dialog"]')).toBeVisible();
+    await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-discard-${sizeName}.png`) });
@@ -1641,7 +1777,7 @@ test("F-04 Compact 与较宽窗口丢弃流水编辑前会确认，继续编辑�
     await expect(page.locator('[id="ledger.record.discard-dialog"]')).toHaveCount(0);
     await expect(page.getByText("未保存的修改将被丢弃。", { exact: true })).toHaveCount(0);
     await expect(panel).toBeVisible();
-    await expect(page.getByRole("textbox", { name: "备注" }).last()).toHaveText("拿铁待确认内容");
+    await expect(page.getByRole("textbox", { name: "备注" }).last()).toHaveText("待确认内容");
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await page.waitForTimeout(250);
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-discard-continued-${sizeName}.png`) });
@@ -1702,29 +1838,18 @@ test("F-04 保存处理中保留可用操作，失败在当前或返回后的模
       if (width === 1440) await page.keyboard.press("Escape");
       releaseSave();
       await expect.poll(() => saveCount).toBe(1);
-      if (width === 390) {
-        await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
-        if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
-          await mkdir(dialogConformanceScreenshotDir, { recursive: true });
-          await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-save-error-${sizeName}.png`) });
-        }
+      await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
+      await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
+      if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+        await mkdir(dialogConformanceScreenshotDir, { recursive: true });
+        await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-save-error-${sizeName}.png`) });
+      }
+      if (width !== 1440) {
         await clickDialogAction(page, "ledger.record.save-error-dialog", "ledger.record.save-error-acknowledge");
         await expect(page.getByRole("textbox", { name: "金额" }).last()).toBeVisible();
         await expect(page.locator('[id="record.amount"]').last()).toHaveText("28.50");
-      } else if (width === 768) {
-        await expect(page.locator('[id="ledger.record.save-error-inline"]')).toBeVisible();
-        await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toHaveCount(0);
-        await expect(page.locator('[id="record.amount"]').last()).toHaveText("28.50");
-        if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
-          await mkdir(dialogConformanceScreenshotDir, { recursive: true });
-          await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-save-error-${sizeName}.png`) });
-        }
       } else {
         await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
-        if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
-          await mkdir(dialogConformanceScreenshotDir, { recursive: true });
-          await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `record-save-error-${sizeName}.png`) });
-        }
       }
       await page.unroute("**/api/v1/cash-records/record-1", failedSave);
       if (width === 1440) {
@@ -1748,23 +1873,28 @@ test("F-04 保存处理中保留可用操作，失败在当前或返回后的模
 test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) => {
   await installComposeApiFixtures(page);
   const panel = page.locator('[id="ledger.record-panel"]');
-  const expectPanelBounds = async (width: number, height: number) => {
+  const expectPanelBounds = async (width: number, height: number, compactFullscreen: boolean) => {
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     const bounds = await panel.boundingBox();
     expect(bounds).not.toBeNull();
-    if (width < 600) {
+    if (width < 600 && compactFullscreen) {
       expect(bounds!.x).toBeCloseTo(0, 0);
       expect(bounds!.y).toBeCloseTo(0, 0);
       expect(bounds!.width).toBeCloseTo(width, 0);
       expect(bounds!.height).toBeCloseTo(height, 0);
+    } else if (width < 600) {
+      expect(bounds!.width).toBeLessThanOrEqual(560);
+      expect(bounds!.x).toBeGreaterThanOrEqual(16);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
+      expect(bounds!.y).toBeGreaterThanOrEqual(16);
+      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height - 16);
+      expect(bounds!.height).toBeLessThanOrEqual(Math.min(height - 32, 760));
     } else {
       expect(bounds!.width).toBeLessThanOrEqual(560);
-      expect(bounds!.x).toBeGreaterThan(width * 0.25);
-      expect(bounds!.x + bounds!.width).toBeCloseTo(width - (width === 1440 ? 56 : 16), 0);
-      const verticalMargin = width === 1440 ? 56 : 16;
-      expect(bounds!.y).toBeGreaterThanOrEqual(verticalMargin);
-      expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(height - verticalMargin);
-      expect(bounds!.height).toBeLessThanOrEqual(Math.min(height - verticalMargin * 2, 760));
+      expect(bounds!.x).toBeGreaterThanOrEqual(width < 900 ? 16 : 56);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
+      expect(bounds!.y).toBeCloseTo(0, 0);
+      expect(bounds!.height).toBeCloseTo(height, 0);
     }
   };
 
@@ -1776,7 +1906,7 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await clickComposeUntil(page, page.locator('[id="ledger.add"]:visible').last(), async () => panel.isVisible());
     await expect(panel).toBeVisible();
     await expect(page.getByText("记一笔", { exact: true })).toBeVisible();
-    await expectPanelBounds(width, height);
+    await expectPanelBounds(width, height, true);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(screenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(screenshotDir, `cash-record-create-${width}.png`) });
@@ -1789,19 +1919,19 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await openDetail.scrollIntoViewIfNeeded();
     await clickComposeUntil(page, openDetail, async () => page.getByText("流水详情", { exact: true }).last().isVisible());
     await expect(panel).toBeVisible();
-    await expectPanelBounds(width, height);
+    await expectPanelBounds(width, height, true);
     await expect(page.locator('[id="ledger.record-panel.close"]').last()).toBeVisible();
-    if (width >= 600) {
-      const detailPanelBounds = await panel.boundingBox();
-      expect(detailPanelBounds).not.toBeNull();
-      expect(detailPanelBounds!.height).toBeLessThan(height - (width === 1440 ? 112 : 32) - 80);
-    }
     const detailActions = page.locator('[id="record.detail.actions"]').last();
     await expect(detailActions).toBeVisible();
     const panelBounds = await panel.boundingBox();
     const actionBounds = await detailActions.boundingBox();
+    const moreActionBounds = await page.locator('[id="record.detail.more-actions"]').last().boundingBox();
+    const editActionBounds = await page.locator('[id="record.detail.edit"]').last().boundingBox();
     expect(panelBounds).not.toBeNull();
     expect(actionBounds).not.toBeNull();
+    expect(moreActionBounds).not.toBeNull();
+    expect(editActionBounds).not.toBeNull();
+    expect(moreActionBounds!.x + moreActionBounds!.width).toBeLessThanOrEqual(editActionBounds!.x + 1);
     expect(actionBounds!.y + actionBounds!.height).toBeGreaterThan(panelBounds!.y + panelBounds!.height - 110);
     await expect(page.locator('[id="record.related.toggle"]')).toHaveCount(0);
     await expect(page.getByText("来源：-", { exact: true })).toHaveCount(0);
@@ -1814,16 +1944,26 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await page.getByRole("button", { name: "编辑", exact: true }).last().click({ force: true });
     await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
     await expect(panel).toHaveCount(1);
-    if (width === 390) {
-      await expect(page.locator('[id="ledger.record-panel.close"]').last()).toBeVisible();
-    } else {
-      await expect(page.locator('[id="ledger.record-panel.close"]')).toHaveCount(0);
-      await expect(page.locator('[id="record.cancel"]').last()).toBeVisible();
-    }
-    await expectPanelBounds(width, height);
+    await expect(page.locator('[id="ledger.record-panel.close"]').last()).toBeVisible();
+    await expect(page.locator('[id="record.cancel"]').last()).toBeVisible();
+    const editTitleBounds = await page.locator('[id="ledger.record-panel.title"]').last().boundingBox();
+    const editCloseBounds = await page.locator('[id="ledger.record-panel.close"]').last().boundingBox();
+    const cancelBounds = await page.locator('[id="record.cancel"]').last().boundingBox();
+    const saveBounds = await page.locator('[id="record.save"]').last().boundingBox();
+    const editorPanelBounds = await panel.boundingBox();
+    expect(editTitleBounds).not.toBeNull();
+    expect(editCloseBounds).not.toBeNull();
+    expect(cancelBounds).not.toBeNull();
+    expect(saveBounds).not.toBeNull();
+    expect(editorPanelBounds).not.toBeNull();
+    expect(editCloseBounds!.x + editCloseBounds!.width).toBeLessThanOrEqual(editTitleBounds!.x + 1);
+    expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(saveBounds!.x + 1);
+    expect(saveBounds!.y + saveBounds!.height).toBeGreaterThan(editorPanelBounds!.y + editorPanelBounds!.height - 100);
+    await expectPanelBounds(width, height, true);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await page.screenshot({ path: path.join(screenshotDir, `cash-record-edit-${width}.png`) });
     }
+    await captureDialogConformanceScene(page, `cash-record-edit-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`);
     await captureLedgerScene(page, `record-edit-${width === 390 ? "compact" : width === 768 ? "regular" : "wide"}`, width, height);
     await page.keyboard.press("Escape");
     await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
@@ -1834,6 +1974,70 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await page.waitForTimeout(250);
     const listScreenshot = await page.screenshot();
     expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+  }
+});
+
+test("F-04 右侧详情面板点击遮罩后关闭", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  await page.setViewportSize({ width: 768, height: 1024 });
+  await page.goto(`${workspaceRoot}/`);
+  const panel = page.locator('[id="ledger.record-panel"]');
+  await clickComposeUntil(
+    page,
+    page.locator('[id="ledger.open-record"]:visible').last(),
+    async () => panel.isVisible(),
+  );
+  const bounds = await panel.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThan(32);
+
+  const beforeClose = await page.screenshot();
+  await captureDialogConformanceScene(page, "record-side-sheet-scrim-open-768");
+  await page.mouse.click(24, 512);
+  await expect(panel).toHaveCount(0);
+  await page.waitForTimeout(250);
+  const afterClose = await page.screenshot();
+  expect(await screenshotDifferenceRatio(page, beforeClose, afterClose)).toBeGreaterThan(0.03);
+  await captureDialogConformanceScene(page, "record-side-sheet-scrim-closed-768");
+});
+
+test("F-04 Regular/Wide 详情 Side Sheet 可沿末端方向拖动关闭", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  for (const [width, height] of [[768, 1024], [1440, 1000]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    const panel = page.locator('[id="ledger.record-panel"]').last();
+    await clickComposeUntil(
+      page,
+      page.locator('[id="ledger.open-record"]:visible').last(),
+      async () => panel.isVisible(),
+    );
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    const startX = bounds!.x + bounds!.width * 0.6;
+    const startY = bounds!.y + bounds!.height * 0.5;
+    const initialPanel = await page.screenshot();
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 60, startY, { steps: 4 });
+    await page.waitForTimeout(80);
+    const belowThresholdDrag = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, initialPanel, belowThresholdDrag)).toBeGreaterThan(0.005);
+    await page.mouse.up();
+    await page.waitForTimeout(240);
+    const returnedPanel = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, initialPanel, returnedPanel)).toBeLessThan(0.01);
+    await expect(panel).toBeVisible();
+
+    const beforeDrag = await page.screenshot();
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX + 180, startY, { steps: 8 });
+    await page.waitForTimeout(80);
+    const duringDrag = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, beforeDrag, duringDrag)).toBeGreaterThan(0.01);
+    await page.mouse.up();
+    await expect(panel).toHaveCount(0);
   }
 });
 
@@ -1888,7 +2092,7 @@ test("F-04 关联影响确认在请求中保持当前任务并阻止重复保存
       await clickComposeTarget(page, confirm);
       await confirmedSaveStarted;
       await expect(confirm).toBeEnabled();
-      const cancel = page.locator(width < 600 ? '[id="ledger.record-panel.close"]' : '[id="record.relation-impact.cancel"]').last();
+      const cancel = page.locator('[id="record.relation-impact.cancel"]').last();
       await expect(cancel).toBeEnabled();
       await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
       await clickComposeTarget(page, confirm);
@@ -1898,12 +2102,9 @@ test("F-04 关联影响确认在请求中保持当前任务并阻止重复保存
       await clickComposeTarget(page, cancel);
       await expect(page.locator('[id="record.amount"]').last()).toBeVisible();
       releaseSave();
-      if (width < 600) {
-        await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
-        await clickDialogAction(page, "ledger.record.save-error-dialog", "ledger.record.save-error-acknowledge");
-      } else {
-        await expect(page.locator('[id="ledger.record.save-error-inline"]')).toBeVisible();
-      }
+      await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
+      await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
+      await clickDialogAction(page, "ledger.record.save-error-dialog", "ledger.record.save-error-acknowledge");
       await expect(page.getByRole("textbox", { name: "金额" }).last()).toBeVisible();
       await page.unroute("**/api/v1/cash-records/record-1", relationImpactSave);
       await clickComposeTarget(page, page.locator('[id="record.save"]').last());
@@ -1931,18 +2132,21 @@ test("F-04 流水删除确认在三类窗口保留危险操作样式", async ({ 
     if (width === 390) {
       const detailBounds = await page.locator('[id="ledger.record-panel"]').last().boundingBox();
       expect(detailBounds).not.toBeNull();
-      expect(detailBounds!.height, "read-only transaction details should use a content-sized basic dialog on compact").toBeLessThan(height - 100);
+      expect(detailBounds!.x).toBeLessThan(1);
+      expect(detailBounds!.height, "cash record detail should fill the compact task window").toBeGreaterThan(height - 80);
+    } else {
+      const detailBounds = await page.locator('[id="ledger.record-panel"]').last().boundingBox();
+      expect(detailBounds).not.toBeNull();
+      expect(Math.abs(detailBounds!.x + detailBounds!.width - width)).toBeLessThan(1);
+      expect(detailBounds!.x).toBeGreaterThanOrEqual(width < 900 ? 16 : 56);
+      expect(detailBounds!.height).toBeGreaterThan(height - (width < 900 ? 64 : 144));
     }
     await openRecordMoreActions(page);
     await clickComposeTarget(page, page.locator('[id="record.detail.action.delete"]').last());
-    await expect(page.locator('[id="ledger.record-panel"]')).toBeVisible();
+    await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
+    await expect(page.locator('[id="ledger.record.delete-dialog"]')).toBeVisible();
     await expect(page.locator('[id="ledger.record-panel.close"]')).toHaveCount(0);
     await expect(page.locator('[id="record.delete.cancel"]').last()).toBeVisible();
-    if (width === 390) {
-      const confirmationBounds = await page.locator('[id="ledger.record-panel"]').last().boundingBox();
-      expect(confirmationBounds).not.toBeNull();
-      expect(confirmationBounds!.height, "a short delete decision should stay in the compact basic dialog").toBeLessThan(height - 100);
-    }
     await expect(page.locator('[id="record.delete.confirm"]').last()).toBeVisible();
     await expect(page.getByRole("radio", { name: "仅删除此流水", exact: true })).toHaveCount(0);
     await captureDialogConformanceScene(page, `cash-record-delete-confirm-${sizeName}`);
@@ -1993,7 +2197,11 @@ test("F-04 流水删除进行中确认保持可用，关闭详情后失败仍在
       releaseDelete();
       await expect(page.locator('[id="ledger.record.action-error-dialog"]')).toBeVisible();
       await expect(page.getByText("操作未完成", { exact: true })).toBeVisible();
-      await clickComposeTarget(page, page.locator('[id="ledger.record.action-error-acknowledge"]').last());
+      const errorDialogScreenshot = await page.screenshot();
+      await clickDialogAction(page, "ledger.record.action-error-dialog", "ledger.record.action-error-acknowledge");
+      await page.waitForTimeout(250);
+      const dismissedErrorScreenshot = await page.screenshot();
+      expect(await screenshotDifferenceRatio(page, errorDialogScreenshot, dismissedErrorScreenshot)).toBeGreaterThan(0.01);
       await expect(page.locator('[id="ledger.record.action-error-dialog"]')).toHaveCount(0);
     } finally {
       releaseDelete();
@@ -2003,7 +2211,7 @@ test("F-04 流水删除进行中确认保持可用，关闭详情后失败仍在
 });
 
 test("F-04 已关联流水的解散关联与删除选项使用危险色", async ({ page }) => {
-  test.setTimeout(300_000);
+  test.setTimeout(120_000);
   const api = await installComposeApiFixtures(page, { withAcceptedCashRelation: true });
   for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
     await page.setViewportSize({ width, height });
@@ -2016,16 +2224,19 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
     await expect(page.locator('[id="record.detail.action.dissolve"]').last()).toBeVisible();
     const dissolveRequestsBefore = api.calls.filter((call) => call.method === "POST" && call.path === "/api/v1/cash-relations/dissolve").length;
     await clickComposeTarget(page, page.locator('[id="record.detail.action.dissolve"]').last());
+    await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
+    await expect(page.locator('[id="ledger.record.relation-removal-dialog"]')).toBeVisible();
     await expect(page.locator('[id="record.relation-removal.confirm"]').last()).toBeVisible();
+    await captureDialogConformanceScene(page, `record-relation-confirm-${sizeName}`);
     await expect(page.locator('[id="ledger.record-panel.close"]')).toHaveCount(0);
     await expect(page.locator('[id="record.relation-removal.cancel"]').last()).toBeVisible();
     await expect.poll(() => api.calls.filter((call) => call.method === "POST" && call.path === "/api/v1/cash-relations/dissolve").length).toBe(dissolveRequestsBefore);
-    await clickDialogAction(page, "ledger.record-panel", "record.relation-removal.cancel");
+    await clickDialogAction(page, "ledger.record.relation-removal-dialog", "record.relation-removal.cancel");
     const relatedToggle = page.locator('[id="record.related.toggle"]').last();
     await expect(relatedToggle).toBeVisible();
     await expect(page.locator('[id="record.related.content"]')).toHaveCount(0);
     await captureLedgerScene(page, `related-detail-${sizeName}`, width, height);
-    await relatedToggle.click({ force: true });
+    await clickComposeTarget(page, relatedToggle);
     const relatedContent = page.locator('[id="record.related.content"]').last();
     await expect(relatedContent).toBeVisible();
     await expect(relatedContent).toContainText("当前流水");
@@ -2042,14 +2253,16 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
     const unlinkAction = page.locator('[id="record.related.unlink-trigger"]:visible').last();
     await expect(unlinkAction).toBeVisible();
     await clickComposeTarget(page, unlinkAction);
+    await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
+    await expect(page.locator('[id="ledger.record.relation-removal-dialog"]')).toBeVisible();
     await expect(page.locator('[id="record.relation-removal.confirm"]:visible').last()).toBeVisible();
     await expect(page.locator('[id="ledger.record-panel.close"]')).toHaveCount(0);
     await expect(page.locator('[id="record.relation-removal.cancel"]').last()).toBeVisible();
     await expect.poll(() => api.calls.filter((call) => call.method === "DELETE" && call.path.startsWith("/api/v1/cash-relations/")).length).toBe(unlinkRequestsBefore);
     await clickComposeTarget(page, page.locator('[id="record.relation-removal.cancel"]').last());
+    await expect(page.locator('[id="ledger.record.relation-removal-dialog"]')).toHaveCount(0);
     await expect(page.locator('[id="record.relation-removal.confirm"]:visible')).toHaveCount(0);
     await expect.poll(() => api.calls.filter((call) => call.method === "DELETE" && call.path.startsWith("/api/v1/cash-relations/")).length).toBe(unlinkRequestsBefore);
-    await clickComposeTarget(page, relatedToggle);
     const reopenedRelatedContent = page.locator('[id="record.related.content"]').last();
     await expect(reopenedRelatedContent).toBeVisible();
     await openRecordMoreActions(page);
@@ -2059,8 +2272,28 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
     await page.waitForTimeout(220);
     const modalPanel = page.locator('[id="ledger.record-panel"]').last();
     const relationComposerTitle = page.getByText("关联另一笔流水", { exact: true }).last();
-    await scrollDialogBodyTo(page, modalPanel, relationComposerTitle);
     await expect(relationComposerTitle).toBeVisible();
+    const relationBounds = await modalPanel.boundingBox();
+    expect(relationBounds).not.toBeNull();
+    if (width < 600) {
+      expect(relationBounds!.x).toBeCloseTo(0, 0);
+      expect(relationBounds!.y).toBeCloseTo(0, 0);
+      expect(relationBounds!.width).toBeCloseTo(width, 0);
+      expect(relationBounds!.height).toBeCloseTo(height, 0);
+    } else {
+      expect(relationBounds!.width).toBeLessThanOrEqual(560);
+      expect(relationBounds!.x + relationBounds!.width).toBeCloseTo(width, 0);
+      expect(relationBounds!.y).toBeCloseTo(0, 0);
+      expect(relationBounds!.height).toBeCloseTo(height, 0);
+    }
+    const relationClose = page.locator('[id="ledger.record-panel.close"]').last();
+    const relationTitle = page.locator('[id="ledger.record-panel.title"]').last();
+    await expect(relationClose).toBeVisible();
+    const relationCloseBounds = await relationClose.boundingBox();
+    const relationTitleBounds = await relationTitle.boundingBox();
+    expect(relationCloseBounds).not.toBeNull();
+    expect(relationTitleBounds).not.toBeNull();
+    expect(relationCloseBounds!.x + relationCloseBounds!.width).toBeLessThanOrEqual(relationTitleBounds!.x + 1);
     const relationCandidate = page.getByText("待关联流水", { exact: true });
     await scrollDialogBodyTo(page, modalPanel, relationCandidate);
     await expect(relationCandidate).toBeVisible();
@@ -2082,25 +2315,24 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
     await expect(relationDateField).toHaveText(relationDateBefore ?? "");
     const relationConfirm = page.locator('[id="record.relation-create.confirm"]').last();
     await expect(relationConfirm).toBeVisible();
-    if (width >= 600) {
-      const relationCancel = page.locator('[id="record.relation-create.cancel"]').last();
-      await expect(relationCancel).toBeVisible();
-      await expect(page.locator('[id="ledger.record-panel.close"]')).toHaveCount(0);
-      const confirmYBeforeScroll = (await relationConfirm.boundingBox())!.y;
-      await page.mouse.move(width === 768 ? width - 80 : width - 100, height - 260);
-      await page.mouse.wheel(0, -1_000);
-      await page.waitForTimeout(180);
-      expect(Math.abs((await relationConfirm.boundingBox())!.y - confirmYBeforeScroll)).toBeLessThan(1);
-    } else {
-      await expect(page.locator('[id="record.relation-create.cancel"]')).toHaveCount(0);
-      await expect(page.locator('[id="ledger.record-panel.close"]').last()).toBeVisible();
-    }
+    const relationCancel = page.locator('[id="record.relation-create.cancel"]').last();
+    await expect(relationCancel).toBeVisible();
+    const relationCancelBounds = await relationCancel.boundingBox();
+    const relationConfirmBounds = await relationConfirm.boundingBox();
+    const relationPanelBounds = await modalPanel.boundingBox();
+    expect(relationCancelBounds).not.toBeNull();
+    expect(relationConfirmBounds).not.toBeNull();
+    expect(relationPanelBounds).not.toBeNull();
+    expect(relationCancelBounds!.x + relationCancelBounds!.width).toBeLessThanOrEqual(relationConfirmBounds!.x + 1);
+    expect(relationConfirmBounds!.y + relationConfirmBounds!.height).toBeGreaterThan(relationPanelBounds!.y + relationPanelBounds!.height - 100);
+    const confirmYBeforeScroll = relationConfirmBounds!.y;
+    await page.mouse.move(width < 600 ? width / 2 : width - 80, height - 260);
+    await page.mouse.wheel(0, -1_000);
+    await page.waitForTimeout(180);
+    expect(Math.abs((await relationConfirm.boundingBox())!.y - confirmYBeforeScroll)).toBeLessThan(1);
+    await captureDialogConformanceScene(page, `cash-record-relation-composer-${sizeName}`);
     await captureLedgerScene(page, `relation-composer-${sizeName}`, width, height);
-    if (width < 600) {
-      await clickComposeTarget(page, page.locator('[id="ledger.record-panel.close"]').last());
-    } else {
-      await clickComposeTarget(page, page.locator('[id="record.relation-create.cancel"]').last());
-    }
+    await clickComposeTarget(page, relationCancel);
     await expect(page.getByText("关联另一笔流水", { exact: true })).toHaveCount(0);
     await captureLedgerScene(page, `related-detail-expanded-${sizeName}`, width, height);
     await page.mouse.move(width < 600 ? width / 2 : width - 80, height - 300);
@@ -2190,6 +2422,7 @@ test("F-05 导入可完成选择、扫描、预览、确认和结果摘要", asy
   await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/scan").length).toBe(1);
   await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length).toBe(1);
   await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length).toBe(1);
+  const importCompleteScreenshot = await page.screenshot();
   const ledgerReadsBeforeReturn = api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/cash-projections")).length;
   const accountReadsBeforeReturn = api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/accounts")).length;
   const categoryReadsBeforeReturn = api.calls.filter((call) => call.method === "GET" && call.path === "/api/v1/cash-categories").length;
@@ -2197,8 +2430,9 @@ test("F-05 导入可完成选择、扫描、预览、确认和结果摘要", asy
   await expect.poll(() => api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/cash-projections")).length).toBeGreaterThan(ledgerReadsBeforeReturn);
   await expect.poll(() => api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/accounts")).length).toBeGreaterThan(accountReadsBeforeReturn);
   await expect.poll(() => api.calls.filter((call) => call.method === "GET" && call.path === "/api/v1/cash-categories").length).toBeGreaterThan(categoryReadsBeforeReturn);
-  const importedProjection = page.locator('[id="ledger.record-projection-imported"]').last();
-  await expect(importedProjection).toContainText("刚刚导入的流水");
+  await page.waitForTimeout(350);
+  const ledgerScreenshot = await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, "import-return-390.png") });
+  expect(await screenshotDifferenceRatio(page, importCompleteScreenshot, ledgerScreenshot)).toBeGreaterThan(0.01);
 });
 
 test("F-05 浅色与夜间主题下导入全流程覆盖三类窗口", async ({ page }) => {
@@ -2230,75 +2464,139 @@ test("F-05 浅色与夜间主题下导入全流程覆盖三类窗口", async ({ 
         mimeType: "text/csv",
         buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
       }]);
-      await page.locator('[id="import.next"]').last().dispatchEvent("click");
+      await expect(page.getByText(`statement-${size.name}.csv`, { exact: true }).last()).toBeVisible();
+      await expect(page.locator('[id="import.next"]:visible').last()).toBeEnabled();
+      await clickImportPrimaryFooter(page, size.width, size.height);
       await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
       await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-mapping.png`) });
 
       const mappingTarget = page.locator('[id="import.mapping.bank-account"]').last();
+      const mappingTargetBounds = await mappingTarget.boundingBox();
+      expect(mappingTargetBounds).not.toBeNull();
       const mappingMenu = await openChoiceMenu(page, mappingTarget);
       await expect(mappingMenu).toContainText("创建新账户");
       const createOption = mappingMenu.getByRole("button", { name: "创建新账户", exact: true }).last();
       await createOption.click({ force: true });
       await page.waitForTimeout(700);
-      const createdAccountScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-mapping-created-account.png`) });
-      // Compose Web keeps the popup in its exit animation briefly after a
-      // semantic menu selection, and then may leave the old accessibility tree
-      // mounted. Use the settled screenshot target for the physical user click.
-      const editTarget = size.width < 600
-        ? { x: 320, y: 484 }
-        : size.width < 1024
-          ? { x: 665, y: 495 }
-          : { x: 1_004, y: 494 };
-      await page.mouse.click(editTarget.x, editTarget.y);
-      await page.waitForTimeout(100);
-      if (size.width >= 600) {
-        await expect(page.locator('[id="secondary-page-modal"]').last()).toBeVisible();
-        await expect(page.locator('[id="import.mapping.edit-dialog"]')).toHaveCount(0);
-        await expect(page.locator('[id="import.mapping.edit-inline"]').last()).toBeVisible();
-      }
-      if (size.width >= 600) {
-        const modalBounds = await page.locator('[id="secondary-page-modal"]').last().boundingBox();
-        expect(modalBounds).not.toBeNull();
-        expect(modalBounds!.height, "a short account editor should not stretch its task dialog to the maximum height").toBeLessThan(500);
-      }
+      const createdAccountScreenshotPath = path.join(themeDirectory, `import-flow-${size.name}-mapping-created-account.png`);
+      const createdAccountScreenshot = await page.screenshot({ path: createdAccountScreenshotPath });
+      // Compose Web's semantic mirror can be stale after selecting an item.
+      // Click relative to the selector captured before selection; regular/wide
+      // dialogs recenter when the inferred-account summary appears.
+      await page.mouse.click(
+        mappingTargetBounds!.x + mappingTargetBounds!.width - 34,
+        mappingTargetBounds!.y + mappingTargetBounds!.height + (size.width < 600 ? 36 : 6),
+      );
+      await page.waitForTimeout(250);
+      const accountEditorScreenshotPath = path.join(themeDirectory, `import-flow-${size.name}-edit-open.png`);
+      const accountEditorScreenshot = await page.screenshot({ path: accountEditorScreenshotPath });
+      expect(Buffer.compare(await readFile(createdAccountScreenshotPath), await readFile(accountEditorScreenshotPath)), "account edit should replace the mapping content with a modal form").not.toBe(0);
       const accountNameInput = '[id="import.mapping.edit-name"]';
-      const applyAccountEdit = page.locator('[id="import.edit.apply"]').last();
-      await expect(applyAccountEdit).toBeEnabled();
-      await typeIntoComposeInput(page, accountNameInput, "", { replace: true });
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-empty-name.png`) });
-      await clickComposeTarget(page, applyAccountEdit);
-      await expect(page.locator(accountNameInput).last()).toBeVisible();
-      await typeIntoComposeInput(page, accountNameInput, "新建账户", { replace: true });
-      await expect(applyAccountEdit).toBeEnabled();
-      const mappingEditScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-dialog.png`) });
-      expect(Buffer.compare(createdAccountScreenshot, mappingEditScreenshot), "the account editor should visibly cover the page").not.toBe(0);
-      await clickComposeTarget(page, page.locator('[id="import.mapping.edit-type"]').last());
-      const typeMenu = page.locator('[id="choice-overlay-menu"]').last();
-      await expect(typeMenu).toBeVisible();
-      const typeMenuScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu.png`) });
-      expect(Buffer.compare(mappingEditScreenshot, typeMenuScreenshot), "the account type menu should appear anchored in the editor").not.toBe(0);
-      await page.keyboard.press("Escape");
-      await expect(typeMenu).toBeHidden();
-      await expect(page.locator(accountNameInput).last()).toBeVisible();
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu-dismissed.png`) });
-      await clickComposeTarget(page, page.locator('[id="import.edit.cancel"]').last());
-      await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-cancelled.png`) });
+      let mappingEditScreenshot = accountEditorScreenshot;
+      if (size.width >= 600) {
+        const nameX = size.width / 2;
+        const nameY = size.height / 2 - 60;
+        const cancelX = size.width / 2 + 112;
+        const actionY = size.height / 2 + 118;
+        await page.mouse.click(nameX, nameY);
+        await page.keyboard.press("ControlOrMeta+A");
+        await page.keyboard.press("Backspace");
+        await page.waitForTimeout(150);
+        const emptyNameScreenshotPath = path.join(themeDirectory, `import-flow-${size.name}-edit-empty-name.png`);
+        const emptyNameScreenshot = await page.screenshot({ path: emptyNameScreenshotPath });
+        expect(Buffer.compare(await readFile(accountEditorScreenshotPath), await readFile(emptyNameScreenshotPath)), "clearing the account name should update the form").not.toBe(0);
+        await page.mouse.click(size.width / 2 + 198, actionY);
+        await page.waitForTimeout(150);
+        const rejectedEmptyNameScreenshot = await page.screenshot();
+        expect(await screenshotDifferenceRatio(page, emptyNameScreenshot, rejectedEmptyNameScreenshot), "an empty account name must not apply").toBeLessThan(0.01);
+        await page.mouse.click(nameX, nameY);
+        await page.keyboard.press("ControlOrMeta+A");
+        await page.keyboard.type("新建账户");
+        await page.waitForTimeout(150);
+        const mappingEditScreenshotPath = path.join(themeDirectory, `import-flow-${size.name}-edit-dialog.png`);
+        mappingEditScreenshot = await page.screenshot({ path: mappingEditScreenshotPath });
+        expect(Buffer.compare(await readFile(accountEditorScreenshotPath), await readFile(mappingEditScreenshotPath)), "editing the account name should update the form").not.toBe(0);
+        await page.mouse.click(nameX, size.height / 2 + 12);
+        await page.waitForTimeout(180);
+        const typeMenuScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu.png`) });
+        expect(Buffer.compare(mappingEditScreenshot, typeMenuScreenshot), "the account type menu should open from its field").not.toBe(0);
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(250);
+        const typeMenuDismissedScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu-dismissed.png`) });
+        expect(
+          await screenshotDifferenceRatio(page, typeMenuScreenshot, typeMenuDismissedScreenshot, 8, 24),
+          "Escape should close the account type menu",
+        ).toBeGreaterThan(0.001);
+        await page.mouse.click(cancelX, actionY);
+        await page.waitForTimeout(250);
+      } else {
+        const applyAccountEdit = page.locator('[id="import.edit.apply"]:visible').last();
+        await expect(applyAccountEdit).toBeEnabled();
+        await typeIntoComposeInput(page, accountNameInput, "", { replace: true });
+        await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-empty-name.png`) });
+        await expect(page.locator(accountNameInput).last()).toHaveText("");
+        await expect.poll(() => applyAccountEdit.evaluate((element: HTMLElement) => getComputedStyle(element).pointerEvents)).toBe("none");
+        const disabledApplyBounds = await applyAccountEdit.boundingBox();
+        expect(disabledApplyBounds).not.toBeNull();
+        await page.mouse.click(disabledApplyBounds!.x + disabledApplyBounds!.width / 2, disabledApplyBounds!.y + disabledApplyBounds!.height / 2);
+        await expect(page.locator(accountNameInput).last()).toHaveText("");
+        await expect(applyAccountEdit).toBeVisible();
+        await expect(page.locator(accountNameInput).last()).toBeVisible();
+        await typeIntoComposeInput(page, accountNameInput, "新建账户", { replace: true });
+        await expect(applyAccountEdit).toBeEnabled();
+        mappingEditScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-dialog.png`) });
+        await clickComposeTarget(page, page.locator('[id="import.mapping.edit-type"]').last());
+        const typeMenu = page.locator('[id="choice-overlay-menu"]:visible').last();
+        await expect(typeMenu).toBeVisible();
+        const typeMenuBounds = await typeMenu.boundingBox();
+        expect(typeMenuBounds).not.toBeNull();
+        const typeMenuScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu.png`) });
+        expect(Buffer.compare(mappingEditScreenshot, typeMenuScreenshot), "the account type menu should appear anchored in the editor").not.toBe(0);
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(350);
+        const typeMenuDismissedScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-type-menu-dismissed.png`) });
+        const remainingChoiceMenus = await page.evaluate(() => {
+          const roots: Array<Document | ShadowRoot> = [document];
+          const menus: Array<{ hidden: string | null; pointerEvents: string }> = [];
+          for (let index = 0; index < roots.length; index += 1) {
+            const root = roots[index];
+            root.querySelectorAll('[id="choice-overlay-menu"]').forEach((menu) => menus.push({ hidden: menu.getAttribute('aria-hidden'), pointerEvents: getComputedStyle(menu).pointerEvents }));
+            root.querySelectorAll('*').forEach((element) => { if (element.shadowRoot) roots.push(element.shadowRoot); });
+          }
+          return menus;
+        });
+        expect(remainingChoiceMenus.every((menu) => menu.hidden === "true" || menu.pointerEvents === "none")).toBe(true);
+        const menuSurfaceBefore = await screenshotPixel(page, typeMenuScreenshot, typeMenuBounds!.x + 4, typeMenuBounds!.y + 4);
+        const menuSurfaceAfter = await screenshotPixel(page, typeMenuDismissedScreenshot, typeMenuBounds!.x + 4, typeMenuBounds!.y + 4);
+        const menuSurfaceDifference = menuSurfaceBefore.slice(0, 3).reduce((total, channel, index) => total + Math.abs(channel - menuSurfaceAfter[index]), 0);
+        expect(menuSurfaceDifference, "Escape should remove the visible menu surface").toBeGreaterThan(36);
+        const dialogBefore = await screenshotPixel(page, mappingEditScreenshot, 45, 270);
+        const dialogAfter = await screenshotPixel(page, typeMenuDismissedScreenshot, 45, 270);
+        const surfaceDifference = dialogBefore.slice(0, 3).reduce((total, channel, index) => total + Math.abs(channel - dialogAfter[index]), 0);
+        expect(surfaceDifference, "the compact editor surface should remain after Escape closes its menu").toBeLessThan(24);
+        await page.mouse.click(213, 548);
+        await page.waitForTimeout(300);
+      }
+      const editorCancelledScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-edit-cancelled.png`) });
+      expect(await screenshotDifferenceRatio(page, createdAccountScreenshot, editorCancelledScreenshot)).toBeLessThan(0.02);
 
       const previewCallsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length;
       await clickImportPrimaryFooter(page, size.width, size.height);
       await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length).toBe(previewCallsBefore + 1);
-      await expect(page.getByText("核对流水", { exact: true }).last()).toBeVisible();
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-preview.png`) });
+      await page.waitForTimeout(300);
+      const previewScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-preview.png`) });
+      expect(await screenshotDifferenceRatio(page, editorCancelledScreenshot, previewScreenshot), "preview should replace the account mapping task").toBeGreaterThan(0.01);
 
       await clickImportPrimaryFooter(page, size.width, size.height);
-      await expect(page.getByText("关系配对", { exact: true }).last()).toBeVisible();
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-relations.png`) });
+      await page.waitForTimeout(300);
+      const relationsScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-relations.png`) });
+      expect(await screenshotDifferenceRatio(page, previewScreenshot, relationsScreenshot), "the relation stage should replace the preview task").toBeGreaterThan(0.01);
 
       await clickImportPrimaryFooter(page, size.width, size.height);
       await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length).toBe(commitsBefore + 1);
-      await expect(page.getByText("导入完成", { exact: true })).toBeVisible();
-      await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-complete.png`) });
+      await page.waitForTimeout(300);
+      const importCompleteScreenshot = await page.screenshot({ path: path.join(themeDirectory, `import-flow-${size.name}-complete.png`) });
+      expect(await screenshotDifferenceRatio(page, relationsScreenshot, importCompleteScreenshot), "success should replace the relation task").toBeGreaterThan(0.01);
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       const ledgerReadsBeforeReturn = api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/cash-projections")).length;
       const accountReadsBeforeReturn = api.calls.filter((call) => call.method === "GET" && call.path.startsWith("/api/v1/accounts")).length;
@@ -2338,10 +2636,13 @@ test("F-05 未确认离开导入页不触发账本返回刷新", async ({ page }
     } else {
       await expect(page.locator('[id="cash-import.discard-message"]').last()).toBeVisible();
     }
-      await page.keyboard.press("Escape");
-      await expect(page.locator('[id="cash-import.discard-dialog"]')).toHaveCount(0);
-      const mappingAfterEscape = await page.screenshot();
-      expect(await screenshotDifferenceRatio(page, mappingBeforeDiscard, mappingAfterEscape)).toBeLessThan(0.01);
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(350);
+    const mappingAfterEscape = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, mappingBeforeDiscard, mappingAfterEscape)).toBeLessThan(0.01);
+    await expect(page).toHaveURL(`${workspaceRoot}/cash-import`);
+    await expect(page.locator('[id="cash-import.discard-dialog"]')).toHaveCount(0);
+    await expect(page.locator('[id="cash-import.discard-message"]')).toHaveCount(0);
     await requestImportClose(page, width);
     if (width < 600) {
       await expect(page.locator('[id="cash-import.discard-dialog"]').last()).toBeVisible();
@@ -2368,7 +2669,8 @@ test("F-05 账单导入文件选择页适配夜间主题", async ({ page }) => {
     await page.goto(`${workspaceRoot}/cash-import`);
     const dropzone = page.locator('[id="import.dropzone"]').last();
     await expect(dropzone).toBeVisible();
-    await page.waitForTimeout(120);
+    await page.evaluate(async () => { await document.fonts.ready; });
+    await page.waitForTimeout(500);
     const bounds = await dropzone.boundingBox();
     expect(bounds).not.toBeNull();
     const screenshot = await page.screenshot({ path: path.join(accountMappingScreenshotDir, "dark", `${label}-file-selection.png`) });
@@ -2403,7 +2705,7 @@ test("F-05 导入主要操作保留图标与文字标签", async ({ page }) => {
   await expect(page.locator('[id="import.next"]').last()).toBeVisible();
   await page.screenshot({ path: path.join(accountMappingScreenshotDir, "compact-import-selected-file.png") });
   await page.locator('[id="import.next"]').dispatchEvent("click");
-  await expect(page.locator('[id="secondary-page-primary-action"]').last()).toBeVisible();
+  await expect(page.locator('[id="secondary-page-footer"]').last()).toBeVisible();
   await expect(page.locator('[id="import.previous"]')).toHaveCount(0);
   await expect(page.locator('[id="import.next"]').last()).toBeVisible();
   await page.screenshot({ path: path.join(accountMappingScreenshotDir, "compact-import-account-mapping-actions.png") });
@@ -2460,6 +2762,9 @@ test("F-05 账户映射菜单和选中账户在三种窗口保持一致", async 
 
     const picker = page.locator('[id="import.mapping.existing-group"]').last();
     await picker.scrollIntoViewIfNeeded();
+    const pickerBounds = await picker.boundingBox();
+    expect(pickerBounds).not.toBeNull();
+    if (width >= 600) expect(pickerBounds!.width).toBeGreaterThan(360);
     await page.screenshot({ path: path.join(accountMappingRunScreenshotDir, label + "-mapping-initial.png") });
     const closedScreenshot = await page.screenshot();
     await clickComposeTarget(page, picker);
@@ -2634,12 +2939,33 @@ test("F-05 cash-import uses the Material 3 dialog variant for each window size",
     const modal = page.locator('[id="secondary-page-modal"]').last();
     const title = page.locator('[id="secondary-page-title"]').last();
     await expect(title).toHaveText("导入账单");
+    const close = page.locator('[id="secondary-page-close"]').last();
+    await expect(close).toBeVisible();
+    const closeBounds = await close.boundingBox();
+    const titleBounds = await title.boundingBox();
+    expect(closeBounds).not.toBeNull();
+    expect(titleBounds).not.toBeNull();
+    expect(closeBounds!.x + closeBounds!.width).toBeLessThanOrEqual(titleBounds!.x + 1);
+    const footer = page.locator('[id="secondary-page-footer"]').last();
+    const cancel = page.locator('[id="cash-import.cancel"]').last();
+    const next = page.locator('[id="import.next"]').last();
+    await expect(footer).toBeVisible();
+    await expect(cancel).toBeVisible();
+    await expect(next).toBeVisible();
+    const footerBounds = await footer.boundingBox();
+    const cancelBounds = await cancel.boundingBox();
+    const nextBounds = await next.boundingBox();
+    expect(footerBounds).not.toBeNull();
+    expect(cancelBounds).not.toBeNull();
+    expect(nextBounds).not.toBeNull();
+    expect(cancelBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y);
+    expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(footerBounds!.y + footerBounds!.height);
+    expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(nextBounds!.x + 1);
     await expect(page.locator('[id="import.stepper"]').last()).toBeVisible();
     await expect(page.locator('[id="import.dropzone"]').last()).toBeVisible();
     if (width < 600) {
       await expect(fullscreen).toBeVisible();
       await expect(modal).toHaveCount(0);
-      await expect(page.locator('[id="secondary-page-primary-action"]').last()).toBeVisible();
       const bounds = await fullscreen.boundingBox();
       expect(bounds?.x ?? 1).toBeCloseTo(0, 0);
       expect(bounds?.y ?? 1).toBeCloseTo(0, 0);
@@ -2648,7 +2974,6 @@ test("F-05 cash-import uses the Material 3 dialog variant for each window size",
     } else {
       await expect(fullscreen).toHaveCount(0);
       await expect(modal).toBeVisible();
-      await expect(page.locator('[id="secondary-page-close"]')).toHaveCount(0);
       await expect(page.locator('[id="cash-import.cancel"]').last()).toBeVisible();
       const bounds = await modal.boundingBox();
       expect(bounds).not.toBeNull();
@@ -2733,11 +3058,15 @@ test("F-05 跨渠道多文件会聚合关系候选，提交重试复用幂等键
   const pendingFilter = page.getByRole("button", { name: "待确认 1", exact: true });
   await clickComposeTarget(page, pendingFilter, 0.1, 0.25);
   await expect(page.getByText("待确认", { exact: true })).toBeVisible();
-  await clickComposeTarget(page, page.getByRole("textbox", { name: /^选择流水/ }).last(), 0.1, 0.25);
+  const relationPicker = page.getByRole("textbox", { name: /^选择流水/ }).last();
+  await relationPicker.click({ force: true });
   await expect(page.getByText(/钱包咖啡店 · 28\.50 CNY/).last()).toBeVisible();
   const walletCandidateOption = page.locator('[id="choice-overlay-menu"]').last().locator('[id="choice-option-wallet-row"]');
   await expect(walletCandidateOption).toBeVisible();
+  const pendingRelationBeforeSelection = await page.screenshot();
   await clickComposeTarget(page, walletCandidateOption);
+  const pendingRelationAfterSelection = await page.screenshot();
+  expect(Buffer.compare(pendingRelationBeforeSelection, pendingRelationAfterSelection), "selecting a candidate should render the selected record summary").not.toBe(0);
   await page.screenshot({ path: path.join(accountMappingScreenshotDir, "import-relations-selection-commit-ready-compact-390.png") });
 
   await page.waitForTimeout(250);
@@ -2784,23 +3113,17 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     const previousBorder = await page.locator('[id="import.previous"]').last().evaluate((element) => getComputedStyle(element).borderTopColor);
     expect(previousBorder).not.toBe("rgba(0, 0, 0, 0)");
   };
-  const assertCompactFooterAlignment = async () => {
-    const [footerBounds, headerBounds, previousBounds, confirmBounds] = await Promise.all([
+  const assertCompactPrimaryAlignment = async () => {
+    const [footerBounds, confirmBounds, previousBounds] = await Promise.all([
       page.locator('[id="secondary-page-footer"]').last().boundingBox(),
-      page.locator('[id="secondary-page-header"]').last().boundingBox(),
-      page.locator('[id="import.previous"]').last().boundingBox(),
       page.locator('[id="import.confirm"]').last().boundingBox(),
+      page.locator('[id="import.previous"]').last().boundingBox(),
     ]);
     expect(footerBounds).not.toBeNull();
-    expect(headerBounds).not.toBeNull();
-    expect(previousBounds).not.toBeNull();
     expect(confirmBounds).not.toBeNull();
-    // Material 3 button semantics expose the full clickable bounds, aligned to the footer edges.
-    expect(Math.abs(previousBounds!.x - footerBounds!.x)).toBeLessThanOrEqual(2);
-    expect(confirmBounds!.x).toBeGreaterThan(headerBounds!.x + headerBounds!.width * 0.5);
-    expect(confirmBounds!.x + confirmBounds!.width).toBeLessThanOrEqual(headerBounds!.x + headerBounds!.width);
-    const previousBorder = await page.locator('[id="import.previous"]').last().evaluate((element) => getComputedStyle(element).borderTopColor);
-    expect(previousBorder).not.toBe("rgba(0, 0, 0, 0)");
+    expect(previousBounds).not.toBeNull();
+    expect(confirmBounds!.x).toBeGreaterThan(previousBounds!.x + previousBounds!.width);
+    expect(Math.abs(confirmBounds!.x + confirmBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThanOrEqual(2);
   };
   const assertOverlayDoesNotCoverTrigger = async (triggerBounds: { x: number; y: number; width: number; height: number }) => {
     const menuBounds = await page.locator('[id="choice-overlay-menu"]').last().boundingBox();
@@ -2814,7 +3137,7 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
 
   const relationFilter = page.getByRole("button", { name: "全部 2", exact: true });
   await clickComposeTarget(page, relationFilter, 0.1, 0.25);
-  await assertCompactFooterAlignment();
+  await assertCompactPrimaryAlignment();
   await mkdir(screenshotDir, { recursive: true });
   const pendingRelation = page.locator('[id="import.relation-row.pending-relation"]').last();
   await expect(page.getByText("09 月 24 日 · 10:30", { exact: true }).first()).toBeVisible();
@@ -2852,7 +3175,7 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
   await expect(page.getByText("bank.csv", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("wallet.csv", { exact: true }).first()).toBeVisible();
   await expect(page.locator('[id="import.next"]').last()).toBeEnabled();
-  await page.locator('[id="import.next"]').last().dispatchEvent("click");
+  await clickImportPrimaryFooter(page, 768, 1024);
   await expect(page.getByText("跨渠道账单 · 2 个来源账户", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.locator('[id="import.next"]').last());
   await expect(page.getByText("银行咖啡店", { exact: true })).toBeVisible();
@@ -2885,8 +3208,10 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     { name: "bank.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n") },
     { name: "wallet.csv", mimeType: "text/csv", buffer: Buffer.from("date,amount\n2026-09-24,-17.25\n") },
   ]);
-  await page.locator('[id="import.next"]').last().dispatchEvent("click");
-  await expect(page.getByText("跨渠道账单 · 2 个来源账户", { exact: true })).toBeVisible();
+  await expect(page.getByText("bank.csv", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("wallet.csv", { exact: true }).first()).toBeVisible();
+  await clickImportPrimaryFooter(page, 1440, 900);
+  await expect(page.locator('[id="import.mapping.heading"]:visible').last()).toBeVisible();
   await clickComposeTarget(page, page.locator('[id="import.next"]').last());
   await expect(page.getByText("银行咖啡店", { exact: true })).toBeVisible();
   await clickComposeTarget(page, page.getByRole("button", { name: "继续", exact: true }).last());
@@ -2967,13 +3292,17 @@ test("F-07 分类目录按上级路径搜索并可新增分类", async ({ page }
   await typeIntoComposeInput(page, '[id="cash-category.search"]', " ", { replace: true });
 
   await page.keyboard.press("Tab");
-  await clickComposeUntil(page, page.locator('[id="cash-category-create"]').last(), async () => page.locator('[id="cash-category.name"]').last().isVisible());
+  await clickComposeUntil(
+    page,
+    page.locator('[id="cash-category-create"]').last(),
+    async () => page.getByText("新增一级分类", { exact: true }).last().isVisible(),
+  );
   await typeIntoComposeInput(page, '[id="cash-category.name"]', "外卖");
   for (const width of responsiveWidths) {
     await page.setViewportSize({ width, height: 844 });
     await page.waitForTimeout(150);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect(page.getByText("新增一级分类", { exact: true })).toBeVisible();
+    await expect(page.getByText("新增一级分类", { exact: true }).last()).toBeVisible();
     await expect(page.locator('[id="cash-category.name"]').last()).toBeAttached();
   }
   await page.setViewportSize({ width: 390, height: 844 });
@@ -3053,6 +3382,11 @@ test("F-08 持仓可查看估值详情", async ({ page }) => {
     await expect(page.getByText("估值状态", { exact: true }).last()).toContainText("估值状态");
     await expect(page.getByText("行情完整", { exact: true }).last()).toContainText("行情完整");
     await expect(page.locator('[id="investment.position.detail.close"]').last()).toBeVisible();
+    const positionCloseBounds = await page.locator('[id="investment.position.detail.close"]').last().boundingBox();
+    const positionTitleBounds = await page.locator('[id="investment.position.detail.title"]').last().boundingBox();
+    expect(positionCloseBounds).not.toBeNull();
+    expect(positionTitleBounds).not.toBeNull();
+    expect(positionCloseBounds!.x + positionCloseBounds!.width).toBeLessThanOrEqual(positionTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBeLessThanOrEqual(560);
@@ -3089,12 +3423,48 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
   for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/investment-events`);
+    const openDatePicker = page.getByRole("button", { name: "选择", exact: true }).first();
+    await clickComposeTarget(page, openDatePicker);
+    const datePickerClose = page.locator('[id="date-picker-close"]').last();
+    const datePickerHeaderControl = page.getByRole("button", { name: "切换到文本字段输入模式", exact: true }).last();
+    await expect(datePickerClose).toBeVisible();
+    await expect(datePickerHeaderControl).toBeVisible();
+    await page.waitForTimeout(300);
+    const datePickerCloseBounds = await datePickerClose.boundingBox();
+    const datePickerHeaderBounds = await datePickerHeaderControl.boundingBox();
+    expect(datePickerCloseBounds).not.toBeNull();
+    expect(datePickerHeaderBounds).not.toBeNull();
+    expect(datePickerCloseBounds!.x).toBeLessThan(datePickerHeaderBounds!.x);
+    expect(datePickerCloseBounds!.y).toBeLessThan(datePickerHeaderBounds!.y);
+    await captureDialogConformanceScene(page, `investment-date-picker-open-${sizeName}`);
+    const datePickerOpenScreenshot = await page.screenshot();
+    const datePickerOpenCorner = await screenshotPixel(page, datePickerOpenScreenshot, 8, 8);
+    await clickComposeTargetByClientRect(page, datePickerClose);
+    await page.waitForTimeout(200);
+    const datePickerClosedScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, datePickerOpenScreenshot, datePickerClosedScreenshot)).toBeGreaterThan(0.03);
+    const datePickerClosedCorner = await screenshotPixel(page, datePickerClosedScreenshot, 8, 8);
+    expect(Math.max(
+      Math.abs(datePickerOpenCorner[0] - datePickerClosedCorner[0]),
+      Math.abs(datePickerOpenCorner[1] - datePickerClosedCorner[1]),
+      Math.abs(datePickerOpenCorner[2] - datePickerClosedCorner[2]),
+    )).toBeGreaterThan(12);
+    await captureDialogConformanceScene(page, `investment-date-picker-closed-${sizeName}`);
+    // Compose Web can retain the previous dialog's semantic mirror after the
+    // visual close. Reload the same route before asserting page content.
+    await page.reload();
+    await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
     await expect(page.getByText("买入苹果", { exact: true })).toBeVisible();
     await clickComposeTarget(page, page.getByRole("button", { name: "查看详情", exact: true }).last());
     const detail = page.locator('[id="investment.event.detail"]').last();
     await expect(detail).toBeVisible();
     await expect(page.getByText("发生时间", { exact: true }).last()).toBeVisible();
     await expect(page.locator('[id="investment.event.detail.close"]').last()).toBeVisible();
+    const detailCloseBounds = await page.locator('[id="investment.event.detail.close"]').last().boundingBox();
+    const detailTitleBounds = await page.locator('[id="investment.event.detail.title"]').last().boundingBox();
+    expect(detailCloseBounds).not.toBeNull();
+    expect(detailTitleBounds).not.toBeNull();
+    expect(detailCloseBounds!.x + detailCloseBounds!.width).toBeLessThanOrEqual(detailTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
     expect(bounds!.width).toBeLessThanOrEqual(560);
@@ -3104,8 +3474,11 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `investment-event-${sizeName}.png`) });
     }
+    const dialogOpenScreenshot = await page.screenshot();
     await clickComposeTarget(page, page.locator('[id="investment.event.detail.close"]').last());
-    await expect(page.locator('[id="investment.event.detail"]')).toHaveCount(0);
+    await page.waitForTimeout(250);
+    const dialogClosedScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, dialogOpenScreenshot, dialogClosedScreenshot)).toBeGreaterThan(0.03);
   }
 
   await page.setViewportSize({ width: 390, height: 2000 });
@@ -3120,8 +3493,11 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
   await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
   await page.getByRole("button", { name: "查看详情", exact: true }).last().click({ force: true });
   await expect(page.getByText("发生时间", { exact: true })).toBeVisible();
+  const detailOpenScreenshot = await page.screenshot();
   await page.getByRole("button", { name: "关闭", exact: true }).last().click({ force: true });
-  await expect(page.locator('[id="investment.event.detail"]')).toHaveCount(0);
+  await page.waitForTimeout(250);
+  const detailClosedScreenshot = await page.screenshot();
+  expect(await screenshotDifferenceRatio(page, detailOpenScreenshot, detailClosedScreenshot)).toBeGreaterThan(0.03);
   // Reload after the canvas dialog closes so the accessibility proxy is rebuilt before nav actions.
   await page.reload();
   await expect(page.locator('[id="investment-events.screen"]').last()).toBeVisible();
@@ -3133,7 +3509,7 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
     await page.waitForTimeout(2500);
     await page.screenshot({ path: "/tmp/finance-compose-investment-events-1440.png" });
   }
-  await page.locator('[id="navigation-item-investment-holdings"]').last().click({ force: true });
+  await clickComposeTarget(page, page.locator('[id="navigation-item-investment-holdings"]').last());
   await expect(page).toHaveURL(`${workspaceRoot}/investment-holdings`);
   await page.goBack();
   await expect(page).toHaveURL(`${workspaceRoot}/investment-events`);

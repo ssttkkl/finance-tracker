@@ -308,15 +308,15 @@ test("account workspace access errors keep retry available", async ({ page }) =>
   });
   await page.setViewportSize({ width: 768, height: 900 });
   await page.goto("/");
-  await page.locator('[id="workspace.switcher"]').click({ force: true });
+  await page.locator('[id="workspace.switcher"]').last().click({ force: true });
   await expect(page.locator('[id="account.menu"]')).toBeVisible();
   await page.waitForTimeout(250);
 
   const targetWorkspace = page.getByRole("button", { name: /共享账本/ });
-  await targetWorkspace.click({ force: true });
+  await clickComposeTarget(page, targetWorkspace);
   await expect(page.getByText("正在切换工作区")).toBeVisible();
   await page.screenshot({ path: "/tmp/compose-app-shell-workspace-loading-768.png" });
-  await targetWorkspace.click({ force: true });
+  await clickComposeTarget(page, targetWorkspace);
   const selectionRequests = () => api.calls.filter((call) =>
     call.method === "POST" && call.path.endsWith("/auth/workspaces/workspace-2/select"),
   );
@@ -324,7 +324,7 @@ test("account workspace access errors keep retry available", async ({ page }) =>
 
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
   await expect(page.locator('[id="account.workspace.retry"]')).toBeVisible();
-  await page.locator('[id="account.workspace.retry"]').click({ force: true });
+  await clickComposeTarget(page, page.locator('[id="account.workspace.retry"]').last());
   await expect.poll(() => selectionRequests().length).toBe(2);
   await expect(page.getByText("无法打开该工作区，请检查权限后重试。")).toBeVisible();
 

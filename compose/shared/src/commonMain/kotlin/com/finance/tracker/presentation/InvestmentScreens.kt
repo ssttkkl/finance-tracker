@@ -2,6 +2,8 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_close
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
@@ -22,6 +24,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -30,11 +34,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import org.jetbrains.compose.resources.painterResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -298,22 +304,12 @@ internal fun InvestmentHoldingsScreen(
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
                     Column(Modifier.fillMaxWidth()) {
-                        InvestmentPositionDetailHeader(holding)
+                        InvestmentPositionDetailHeader(holding, viewModel::closePosition)
                         HorizontalDivider()
                         InvestmentPositionDetailBody(
                             Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
                             position,
                         )
-                        HorizontalDivider()
-                        Row(
-                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            TextButton(
-                                onClick = viewModel::closePosition,
-                                modifier = Modifier.testTag("investment.position.detail.close"),
-                            ) { Text(localizedText("copy_6c14bd7f6f")) }
-                        }
                     }
                 }
             }
@@ -322,14 +318,32 @@ internal fun InvestmentHoldingsScreen(
 }
 
 @Composable
-private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
-        Text(holding.position.displayName ?: holding.position.ticker, style = MaterialTheme.typography.headlineSmall)
-        Text(
-            "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow, onClose: () -> Unit) {
+    val closeLabel = localizedText("copy_6c14bd7f6f")
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+    ) {
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier
+                .semantics { contentDescription = closeLabel }
+                .testTag("investment.position.detail.close"),
+        ) {
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(
+                holding.position.displayName ?: holding.position.ticker,
+                modifier = Modifier.testTag("investment.position.detail.title"),
+                style = MaterialTheme.typography.headlineSmall,
+            )
+            Text(
+                "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 

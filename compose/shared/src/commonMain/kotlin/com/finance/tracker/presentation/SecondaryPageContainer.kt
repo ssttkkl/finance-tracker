@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -58,7 +57,6 @@ internal fun SecondaryPageContainer(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     footer: @Composable () -> Unit,
-    compactHeaderAction: @Composable RowScope.() -> Unit = {},
     showFooter: Boolean = true,
     escapeEnabled: Boolean = true,
     contentStateKey: Any? = null,
@@ -74,9 +72,9 @@ internal fun SecondaryPageContainer(
         ),
     ) {
         if (sizeClass == WindowSizeClass.COMPACT) {
-            SecondaryPageFullScreen(title, sizeClass, onClose, modifier, compactHeaderAction, showFooter, contentStateKey, content, footer)
+            SecondaryPageFullScreen(title, sizeClass, onClose, modifier, showFooter, contentStateKey, content, footer)
         } else {
-            SecondaryPageBasicDialog(title, sizeClass, modifier, showFooter, contentStateKey, content, footer)
+            SecondaryPageBasicDialog(title, sizeClass, onClose, modifier, showFooter, contentStateKey, content, footer)
         }
     }
 }
@@ -87,20 +85,21 @@ private fun SecondaryPageFullScreen(
     sizeClass: WindowSizeClass,
     onClose: () -> Unit,
     modifier: Modifier,
-    headerAction: @Composable RowScope.() -> Unit,
     showFooter: Boolean,
     contentStateKey: Any?,
     content: @Composable ColumnScope.() -> Unit,
     footer: @Composable () -> Unit,
 ) {
     Surface(
-        modifier = modifier.fillMaxSize().testTag("secondary-page-fullscreen"),
+        modifier = modifier.fillMaxSize()
+            .testTag("secondary-page-fullscreen")
+            .semantics { paneTitle = title },
         shape = RectangleShape,
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
         Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            SecondaryPageFullScreenHeader(title, onClose, headerAction)
+            SecondaryPageFullScreenHeader(title, onClose)
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             SecondaryPageBody(Modifier.weight(1f), MaterialTheme.colorScheme.surface, contentStateKey, content)
             if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surface, footer)
@@ -112,6 +111,7 @@ private fun SecondaryPageFullScreen(
 private fun SecondaryPageBasicDialog(
     title: String,
     sizeClass: WindowSizeClass,
+    onClose: () -> Unit,
     modifier: Modifier,
     showFooter: Boolean,
     contentStateKey: Any?,
@@ -131,7 +131,7 @@ private fun SecondaryPageBasicDialog(
             tonalElevation = AlertDialogDefaults.TonalElevation,
         ) {
             Column(Modifier.fillMaxWidth()) {
-                SecondaryPageBasicHeader(title)
+                SecondaryPageBasicHeader(title, onClose)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 SecondaryPageBody(Modifier, MaterialTheme.colorScheme.surfaceContainerHigh, contentStateKey, content)
                 if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surfaceContainerHigh, footer)
@@ -141,14 +141,21 @@ private fun SecondaryPageBasicDialog(
 }
 
 @Composable
-private fun SecondaryPageBasicHeader(title: String) {
+private fun SecondaryPageBasicHeader(title: String, onClose: () -> Unit) {
+    val closeLabel = localizedText("copy_6c14bd7f6f")
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        IconButton(
+            onClick = onClose,
+            modifier = Modifier.semantics { contentDescription = closeLabel }.testTag("secondary-page-close"),
+        ) {
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(20.dp))
+        }
         Text(
             title,
-            modifier = Modifier.testTag("secondary-page-title"),
+            modifier = Modifier.weight(1f).testTag("secondary-page-title"),
             style = MaterialTheme.typography.headlineSmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -161,7 +168,6 @@ private fun SecondaryPageBasicHeader(title: String) {
 private fun SecondaryPageFullScreenHeader(
     title: String,
     onClose: () -> Unit,
-    action: @Composable RowScope.() -> Unit,
 ) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
     TopAppBar(
@@ -182,7 +188,6 @@ private fun SecondaryPageFullScreenHeader(
                 Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(20.dp))
             }
         },
-        actions = action,
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface,
             titleContentColor = MaterialTheme.colorScheme.onSurface,
