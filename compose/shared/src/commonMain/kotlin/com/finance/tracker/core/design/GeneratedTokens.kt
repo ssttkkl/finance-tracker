@@ -31,6 +31,7 @@ object GeneratedTokens {
         object Radius {
             val Token1 = 3.dp
             val Token2 = 5.dp
+            val M3ExtraLarge = 28.dp
         }
         object Space {
             val Token1 = 4.dp

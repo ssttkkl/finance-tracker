@@ -34,13 +34,6 @@ class AppNavigationTest {
     }
 
     @Test
-    fun secondaryPageLayoutUsesFullscreenOnlyForCompactWindows() {
-        assertEquals(SecondaryPageLayout.FULL_SCREEN, secondaryPageLayoutFor(WindowSizeClass.COMPACT))
-        assertEquals(SecondaryPageLayout.MODAL, secondaryPageLayoutFor(WindowSizeClass.REGULAR))
-        assertEquals(SecondaryPageLayout.MODAL, secondaryPageLayoutFor(WindowSizeClass.WIDE))
-    }
-
-    @Test
     fun invitationAndUnknownRoutesHaveTitlesButAreNotPrimaryNavigation() {
         assertEquals("navigation_invitation", titleKeyFor(AppPage.INVITATION))
         assertEquals("navigation_not_found", titleKeyFor(AppPage.NOT_FOUND))

@@ -310,7 +310,8 @@ internal fun WorkspaceManagementScreen(
                 SectionCard {
                     Text(localizedText("copy_91b31b846d"), style = MaterialTheme.typography.titleLarge)
                     Button(
-                        onClick = viewModel::openDeleteDialog,
+                    onClick = viewModel::openDeleteDialog,
+                    modifier = Modifier.testTag("workspace.management.delete"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
                             contentColor = MaterialTheme.colorScheme.onError,
@@ -323,6 +324,25 @@ internal fun WorkspaceManagementScreen(
         feedback?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 
+    PlatformModalEscapeHandler(
+        enabled = isWebPlatform && deleteDialog,
+        onEscape = viewModel::dismissDeleteDialog,
+    )
+    if (!deleteDialog && deleteError != null) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDeleteDialog)
+        AlertDialog(
+            modifier = Modifier.testTag("workspace.management.delete-error-dialog"),
+            onDismissRequest = viewModel::dismissDeleteDialog,
+            title = { Text(localizedText("workspace_delete_error_title")) },
+            text = { Text(deleteError) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::dismissDeleteDialog,
+                    modifier = Modifier.testTag("workspace.management.delete-error-acknowledge"),
+                ) { Text(localizedText("dialog_error_acknowledge")) }
+            },
+        )
+    }
     if (deleteDialog) {
         AlertDialog(
             onDismissRequest = viewModel::dismissDeleteDialog,
@@ -333,8 +353,10 @@ internal fun WorkspaceManagementScreen(
                     OutlinedTextField(
                         value = deleteName,
                         onValueChange = viewModel::updateDeleteName,
-                        modifier = Modifier.accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
+                        modifier = Modifier.testTag("workspace.management.delete-name")
+                            .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
                         label = { Text(localizedText("copy_3a0522a8a9")) },
+                        enabled = !deleting,
                         singleLine = true,
                     )
                     InlineError(deleteError)
@@ -343,10 +365,12 @@ internal fun WorkspaceManagementScreen(
             confirmButton = {
                 TextButton(
                     onClick = { viewModel.deleteWorkspace(isAdmin) },
-                    enabled = !deleting && deleteName == details?.workspace?.name,
+                    enabled = isAdmin && deleteName == details?.workspace?.name,
+                    modifier = Modifier.testTag("workspace.management.delete-confirm"),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
                 ) { Text(if (deleting) localizedText("copy_91647936fd") else localizedText("copy_91b31b846d")) }
             },
-            dismissButton = { TextButton(onClick = viewModel::dismissDeleteDialog, enabled = !deleting) { Text(localizedText("copy_4d0b4688c7")) } },
+            dismissButton = { TextButton(onClick = viewModel::dismissDeleteDialog, modifier = Modifier.testTag("workspace.management.delete-cancel")) { Text(localizedText("copy_4d0b4688c7")) } },
         )
     }
 }

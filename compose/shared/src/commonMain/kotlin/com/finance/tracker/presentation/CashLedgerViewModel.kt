@@ -68,6 +68,7 @@ class CashLedgerViewModel(
     private var initialized = false
     private var detailRequestId = 0
     private var relationRequestId = 0
+    private var relationRemovalInFlight = false
     private var relationSearchJob: Job? = null
 
     fun initialize() {
@@ -157,6 +158,18 @@ class CashLedgerViewModel(
         mutableState.value = mutableState.value.copy(selectedCategory = categoryId, classifyErrorCode = null)
     }
 
+    fun dismissClassifyError() {
+        mutableState.value = mutableState.value.copy(classifyErrorCode = null)
+    }
+
+    fun dismissDeleteProjectionError() {
+        mutableState.value = mutableState.value.copy(deleteProjectionErrorCode = null)
+    }
+
+    fun dismissDetailActionError() {
+        mutableState.value = mutableState.value.copy(detailActionErrorCode = null)
+    }
+
     fun clearSelection() {
         mutableState.value = mutableState.value.copy(
             selectedIds = emptySet(),
@@ -231,6 +244,7 @@ class CashLedgerViewModel(
     }
 
     fun openRow(item: CashProjection) {
+        if (mutableState.value.recordBusy) return
         val requestId = ++detailRequestId
         relationRequestId++
         relationSearchJob?.cancel()
@@ -243,8 +257,12 @@ class CashLedgerViewModel(
             relationComposerOpen = false,
             relationCandidates = emptyList(),
             relationTarget = null,
+            relationBusy = relationRemovalInFlight,
+            pendingRelationRemovalId = null,
+            pendingRelationDissolveAll = false,
             detailActionErrorCode = null,
             deleteRecordConfirm = false,
+            deleteRecordMode = "delete_current_dissolve",
         )
         viewModelScope.launch { loadSelectedRow(item, requestId) }
     }
@@ -264,26 +282,59 @@ class CashLedgerViewModel(
             recordLoading = false,
             recordErrorCode = null,
             recordDraft = null,
+            recordDraftBaseline = null,
             recordSaveErrorCode = null,
+            confirmRecordDiscard = false,
             confirmRelationImpact = false,
             relationComposerOpen = false,
             relationCandidates = emptyList(),
             relationTarget = null,
-            relationBusy = false,
+            relationBusy = relationRemovalInFlight,
+            pendingRelationRemovalId = null,
+            pendingRelationDissolveAll = false,
             editingRelationId = null,
             editingRelationKind = null,
             detailActionErrorCode = null,
             deleteRecordConfirm = false,
+            deleteRecordMode = "delete_current_dissolve",
             deleteRecordBusy = false,
         )
     }
 
     fun dismissRecordPanel() {
         val current = mutableState.value
-        if (current.recordDraft != null) {
-            if (!current.recordBusy) cancelRecordEdit()
+        if (current.recordBusy) {
+            closeSelectedRow()
+        } else if (current.recordDraft != null && current.recordDraft != current.recordDraftBaseline) {
+            mutableState.value = current.copy(confirmRecordDiscard = true)
+        } else if (current.recordDraft != null) {
+            discardRecordEdit()
         } else {
             closeSelectedRow()
+        }
+    }
+
+    fun dismissRecordDiscardConfirmation() {
+        mutableState.value = mutableState.value.copy(confirmRecordDiscard = false)
+    }
+
+    fun confirmRecordDiscard() {
+        if (!mutableState.value.confirmRecordDiscard) return
+        discardRecordEdit()
+    }
+
+    private fun discardRecordEdit() {
+        val current = mutableState.value
+        if (current.selectedRow == null) {
+            closeSelectedRow()
+        } else {
+            mutableState.value = current.copy(
+                recordDraft = null,
+                recordDraftBaseline = null,
+                recordSaveErrorCode = null,
+                confirmRecordDiscard = false,
+                confirmRelationImpact = false,
+            )
         }
     }
 
@@ -407,7 +458,7 @@ class CashLedgerViewModel(
         val current = mutableState.value
         val relationId = current.editingRelationId ?: return
         val kind = current.editingRelationKind ?: return
-        if (!canWrite || current.relationBusy) return
+        if (!canWrite || current.relationBusy || relationRemovalInFlight) return
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(relationBusy = true, detailActionErrorCode = null)
             try {
@@ -431,13 +482,57 @@ class CashLedgerViewModel(
 
     fun cancelRelation(relationId: String, canWrite: Boolean) {
         val current = mutableState.value
+        if (!canWrite || current.relationBusy || relationRemovalInFlight) return
+        if (current.recordDetail?.relations?.none { it.id == relationId && it.status == "accepted" } != false) return
+        mutableState.value = current.copy(
+            pendingRelationRemovalId = relationId,
+            pendingRelationDissolveAll = false,
+            detailActionErrorCode = null,
+        )
+    }
+
+    fun dissolveRelations(canWrite: Boolean) {
+        val current = mutableState.value
+        if (!canWrite || current.relationBusy || relationRemovalInFlight) return
+        if (current.recordDetail?.relations?.none { it.status == "accepted" } != false) return
+        mutableState.value = current.copy(
+            pendingRelationRemovalId = null,
+            pendingRelationDissolveAll = true,
+            detailActionErrorCode = null,
+        )
+    }
+
+    fun dismissPendingRelationRemoval() {
+        mutableState.value = mutableState.value.copy(
+            pendingRelationRemovalId = null,
+            pendingRelationDissolveAll = false,
+            detailActionErrorCode = null,
+        )
+    }
+
+    fun confirmPendingRelationRemoval(canWrite: Boolean) {
+        val current = mutableState.value
         val recordId = current.recordDetail?.record?.id ?: return
-        if (!canWrite || current.relationBusy) return
+        val relationId = current.pendingRelationRemovalId
+        val dissolveAll = current.pendingRelationDissolveAll
+        if (!canWrite || current.relationBusy || relationRemovalInFlight || (relationId == null && !dissolveAll)) return
+        relationRemovalInFlight = true
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(relationBusy = true, detailActionErrorCode = null)
             try {
-                repository.cancelCashRelation(relationId)
-                mutableState.value = mutableState.value.copy(recordDetail = repository.fetchCashRecord(recordId))
+                val updated = if (dissolveAll) {
+                    repository.dissolveCashRelations(recordId)
+                } else {
+                    repository.cancelCashRelation(requireNotNull(relationId))
+                    repository.fetchCashRecord(recordId)
+                }
+                if (mutableState.value.selectedRow?.recordId == recordId) {
+                    mutableState.value = mutableState.value.copy(
+                        recordDetail = updated,
+                        pendingRelationRemovalId = null,
+                        pendingRelationDissolveAll = false,
+                    )
+                }
                 refreshSelectedEvidence()
             } catch (cause: CancellationException) {
                 throw cause
@@ -445,6 +540,7 @@ class CashLedgerViewModel(
                 cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.DELETE)
                 mutableState.value = mutableState.value.copy(detailActionErrorCode = cause.safeErrorCode())
             } finally {
+                relationRemovalInFlight = false
                 mutableState.value = mutableState.value.copy(relationBusy = false)
             }
         }
@@ -454,7 +550,7 @@ class CashLedgerViewModel(
         val current = mutableState.value
         val recordId = current.recordDetail?.record?.id ?: return
         val targetId = current.relationTarget ?: return
-        if (!canWrite || current.relationBusy) return
+        if (!canWrite || current.relationBusy || relationRemovalInFlight) return
         viewModelScope.launch {
             mutableState.value = mutableState.value.copy(relationBusy = true, detailActionErrorCode = null)
             try {
@@ -477,37 +573,30 @@ class CashLedgerViewModel(
         }
     }
 
-    fun dissolveRelations(canWrite: Boolean) {
-        val current = mutableState.value
-        val recordId = current.recordDetail?.record?.id ?: return
-        if (!canWrite || current.relationBusy) return
-        viewModelScope.launch {
-            mutableState.value = mutableState.value.copy(relationBusy = true, detailActionErrorCode = null)
-            try {
-                val updated = repository.dissolveCashRelations(recordId)
-                mutableState.value = mutableState.value.copy(recordDetail = updated)
-                refreshSelectedEvidence()
-            } catch (cause: CancellationException) {
-                throw cause
-            } catch (cause: Throwable) {
-                cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_LEDGER, DiagnosticAction.DELETE)
-                mutableState.value = mutableState.value.copy(detailActionErrorCode = cause.safeErrorCode())
-            } finally {
-                mutableState.value = mutableState.value.copy(relationBusy = false)
-            }
+    fun requestDeleteRecord(canWrite: Boolean) {
+        if (canWrite && mutableState.value.recordDetail != null) {
+            mutableState.value = mutableState.value.copy(
+                deleteRecordConfirm = true,
+                deleteRecordMode = "delete_current_dissolve",
+                detailActionErrorCode = null,
+            )
         }
     }
 
-    fun requestDeleteRecord(canWrite: Boolean) {
-        if (canWrite && mutableState.value.recordDetail != null) {
-            mutableState.value = mutableState.value.copy(deleteRecordConfirm = true, detailActionErrorCode = null)
-        }
+    fun selectDeleteRecordMode(mode: String) {
+        val current = mutableState.value
+        val hasAcceptedRelations = current.recordDetail?.relations?.any { it.status == "accepted" } == true
+        if (!current.deleteRecordConfirm || mode !in setOf("delete_current_dissolve", "delete_all")) return
+        if (mode == "delete_all" && !hasAcceptedRelations) return
+        mutableState.value = current.copy(deleteRecordMode = mode)
     }
 
     fun dismissDeleteRecord() {
-        if (!mutableState.value.deleteRecordBusy) {
-            mutableState.value = mutableState.value.copy(deleteRecordConfirm = false, detailActionErrorCode = null)
-        }
+        mutableState.value = mutableState.value.copy(
+            deleteRecordConfirm = false,
+            deleteRecordMode = "delete_current_dissolve",
+            detailActionErrorCode = null,
+        )
     }
 
     fun deleteRecord(mode: String, canWrite: Boolean) {
@@ -518,7 +607,10 @@ class CashLedgerViewModel(
             mutableState.value = mutableState.value.copy(deleteRecordBusy = true, detailActionErrorCode = null)
             try {
                 repository.deleteCashRecord(recordId, mode)
-                mutableState.value = mutableState.value.copy(deleteRecordConfirm = false)
+                mutableState.value = mutableState.value.copy(
+                    deleteRecordConfirm = false,
+                    deleteRecordMode = "delete_current_dissolve",
+                )
                 closeSelectedRow()
                 reload()
             } catch (cause: CancellationException) {
@@ -534,42 +626,50 @@ class CashLedgerViewModel(
 
     fun startNewRecord(occurredAt: String) {
         val current = mutableState.value
+        if (current.recordBusy) return
         val firstAccount = current.accounts.firstOrNull()
         val firstType = current.options.recordTypes.firstOrNull()
+        val draft = CashRecordDraft(
+            occurredAt = occurredAt,
+            accountName = firstAccount?.name.orEmpty(),
+            currency = firstAccount?.currencies?.firstOrNull() ?: "CNY",
+            recordType = firstType?.value.orEmpty(),
+            recordSubtype = firstType?.subtypes?.firstOrNull()?.value ?: "not_applicable",
+        )
         mutableState.value = current.copy(
-            recordDraft = CashRecordDraft(
-                occurredAt = occurredAt,
-                accountName = firstAccount?.name.orEmpty(),
-                currency = firstAccount?.currencies?.firstOrNull() ?: "CNY",
-                recordType = firstType?.value.orEmpty(),
-                recordSubtype = firstType?.subtypes?.firstOrNull()?.value ?: "not_applicable",
-            ),
+            recordDraft = draft,
+            recordDraftBaseline = draft,
             recordSaveErrorCode = null,
+            confirmRecordDiscard = false,
             confirmRelationImpact = false,
         )
     }
 
     fun editRecord(recordOverride: CashRecord? = null) {
         val current = mutableState.value
+        if (current.recordBusy) return
         val record = recordOverride ?: current.recordDetail?.record ?: return
         val categoryId = record.categoryId ?: record.category?.id
+        val draft = CashRecordDraft(
+            id = record.id,
+            originalCategoryId = categoryId,
+            occurredAt = record.occurredAt.take(16),
+            amount = record.amount,
+            currency = record.currency,
+            counterparty = record.counterparty,
+            counterpartyAccount = record.counterpartyAccount,
+            note = record.note,
+            accountName = record.accountName,
+            recordType = record.recordType,
+            recordSubtype = record.recordSubtype,
+            categoryId = categoryId,
+            projectionVersion = current.evidence?.projectionVersion,
+        )
         mutableState.value = current.copy(
-            recordDraft = CashRecordDraft(
-                id = record.id,
-                originalCategoryId = categoryId,
-                occurredAt = record.occurredAt.take(16),
-                amount = record.amount,
-                currency = record.currency,
-                counterparty = record.counterparty,
-                counterpartyAccount = record.counterpartyAccount,
-                note = record.note,
-                accountName = record.accountName,
-                recordType = record.recordType,
-                recordSubtype = record.recordSubtype,
-                categoryId = categoryId,
-                projectionVersion = current.evidence?.projectionVersion,
-            ),
+            recordDraft = draft,
+            recordDraftBaseline = draft,
             recordSaveErrorCode = null,
+            confirmRecordDiscard = false,
             confirmRelationImpact = false,
         )
     }
@@ -578,12 +678,12 @@ class CashLedgerViewModel(
         mutableState.value = mutableState.value.copy(recordDraft = draft, recordSaveErrorCode = null)
     }
 
+    fun dismissRecordSaveError() {
+        mutableState.value = mutableState.value.copy(recordSaveErrorCode = null)
+    }
+
     fun cancelRecordEdit() {
-        mutableState.value = mutableState.value.copy(
-            recordDraft = null,
-            recordSaveErrorCode = null,
-            confirmRelationImpact = false,
-        )
+        dismissRecordPanel()
     }
 
     fun dismissRelationImpactConfirmation() {
@@ -598,16 +698,17 @@ class CashLedgerViewModel(
             mutableState.value = mutableState.value.copy(
                 recordBusy = true,
                 recordSaveErrorCode = null,
-                confirmRelationImpact = false,
             )
             try {
                 val updated = saveCashRecord(draft.id, draft.toWrite(confirmImpact))
                 val selected = mutableState.value.selectedRow
                 mutableState.value = mutableState.value.copy(
                     recordDraft = null,
+                    recordDraftBaseline = null,
                     recordDetail = updated,
                     recordBusy = false,
                     recordSaveErrorCode = null,
+                    confirmRecordDiscard = false,
                     confirmRelationImpact = false,
                 )
                 reload()

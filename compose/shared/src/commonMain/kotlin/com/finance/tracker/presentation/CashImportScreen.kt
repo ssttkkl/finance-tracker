@@ -17,10 +17,8 @@ import com.finance.tracker.resources.ic_more_vert
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -29,18 +27,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Button
@@ -54,7 +50,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,10 +61,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
@@ -97,6 +88,21 @@ import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import org.jetbrains.compose.resources.painterResource
 
+private val inlineImportErrorCodes = setOf(
+    "import_password_required",
+    "import_password_invalid",
+    "import_file_unsupported_type",
+    "import_file_too_large",
+    "import_file_size_unavailable",
+    "import_file_too_many",
+    "import_file_read_failed",
+    "import_file_picker_failed",
+    "import_mapping_incomplete",
+    "import_composite_payment_unresolved",
+    "import_component_allocation_incomplete",
+    "import_component_amount_invalid",
+)
+
 private class PlatformImportFileSource(private val file: PlatformFile) : FileSource {
     override val name: String get() = file.name
     override val mediaType: String? get() = file.mimeType()?.toString()
@@ -120,8 +126,6 @@ internal fun CashImportScreen(
         factory = viewModelFactory { initializer { CashImportViewModel(repository, diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
-    LaunchedEffect(viewModel) { viewModel.reset() }
-    DisposableEffect(viewModel) { onDispose { viewModel.reset() } }
     LaunchedEffect(state.stage) { if (state.stage == ImportStage.SUCCESS) onDone() }
 
     val stage = state.stage
@@ -137,9 +141,104 @@ internal fun CashImportScreen(
     val passwords = state.passwords
     val busy = state.busy
     val error = state.errorCode?.let { importErrorText(it) }
+    var dismissedGeneralErrorCode by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(state.errorCode) { dismissedGeneralErrorCode = null }
+    val generalError = error.takeIf { state.errorCode?.let { code -> code !in inlineImportErrorCodes } == true }
+    val showGeneralError = generalError != null && state.errorCode != dismissedGeneralErrorCode
+    val dismissGeneralError = { dismissedGeneralErrorCode = state.errorCode }
+    val inlineError = error.takeIf { state.errorCode?.let { code -> code in inlineImportErrorCodes } == true }
     var editingAccountGroupId by remember { mutableStateOf<String?>(null) }
     var editingAccountName by remember { mutableStateOf("") }
     var editingAccountType by remember { mutableStateOf("cash") }
+    var editingAccountTypeMenuExpanded by remember { mutableStateOf(false) }
+    var discardConfirmOpen by remember { mutableStateOf(false) }
+    var busyCloseNotice by remember { mutableStateOf(false) }
+    val compact = sizeClass == WindowSizeClass.COMPACT
+    val editingDraft = editingAccountGroupId?.let { groupId -> accountDrafts[groupId]?.newAccount }
+    val hasUnsubmittedWork = stage != ImportStage.SUCCESS &&
+        (selectedFiles.isNotEmpty() || scan != null || stage != ImportStage.SELECT)
+    val closeImport = {
+        viewModel.reset()
+        onBack()
+    }
+    val requestClose = {
+        when {
+            showGeneralError -> dismissGeneralError()
+            editingAccountGroupId != null -> {
+                editingAccountGroupId = null
+                editingAccountTypeMenuExpanded = false
+            }
+            busyCloseNotice -> busyCloseNotice = false
+            discardConfirmOpen -> discardConfirmOpen = false
+            busy -> busyCloseNotice = true
+            hasUnsubmittedWork -> discardConfirmOpen = true
+            else -> closeImport()
+        }
+    }
+    LaunchedEffect(busy) {
+        if (!busy) busyCloseNotice = false
+    }
+
+    val canScan = selectedFiles.isNotEmpty() && scan?.files?.none {
+        it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank())
+    } != false
+    val canContinueFromPreview = preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true
+    val primaryActionLabel = when (stage) {
+        ImportStage.SELECT -> localizedText("cash_import_next")
+        ImportStage.MAPPING -> localizedText("copy_b8a3f85115")
+        ImportStage.PREVIEW -> localizedText("copy_1fc1afc5c5")
+        ImportStage.RELATIONS -> localizedText("copy_de6433b70d")
+        ImportStage.SUCCESS -> ""
+    }
+    val primaryActionEnabled = when (stage) {
+        ImportStage.SELECT -> canScan
+        ImportStage.MAPPING -> state.mappingComplete()
+        ImportStage.PREVIEW -> canContinueFromPreview
+        ImportStage.RELATIONS -> state.canCommitIgnoringBusy()
+        ImportStage.SUCCESS -> false
+    }
+    val runPrimaryAction = {
+        when (stage) {
+            ImportStage.SELECT -> viewModel.scanSelectedFiles()
+            ImportStage.MAPPING -> viewModel.loadPreview()
+            ImportStage.PREVIEW -> {
+                if (preview?.items?.any { it.components.orEmpty().size > 1 } == true) {
+                    viewModel.loadPreview(ImportStage.RELATIONS)
+                } else {
+                    viewModel.stage(ImportStage.RELATIONS)
+                }
+            }
+            ImportStage.RELATIONS, ImportStage.SUCCESS -> Unit
+        }
+    }
+    val modalEdit = !compact && editingDraft != null && stage == ImportStage.MAPPING
+    val modalDiscard = !compact && discardConfirmOpen
+    val modalBusyNotice = busyCloseNotice
+    val modalError = !compact && showGeneralError
+    val modalSubtaskActive = modalEdit || modalDiscard || modalBusyNotice || modalError
+    val modalTitle = when {
+        compact -> localizedText("cash_import_title")
+        modalError -> localizedText("cash_import_error_title")
+        modalEdit -> localizedText("cash_import_edit_new_account_title")
+        modalDiscard -> localizedText("cash_import_discard_title")
+        modalBusyNotice -> localizedText("cash_import_busy_close_title")
+        else -> localizedText("cash_import_title")
+    }
+    val dismissAccountEdit = {
+        editingAccountGroupId = null
+        editingAccountTypeMenuExpanded = false
+    }
+    val applyAccountEdit = {
+        if (editingAccountName.isNotBlank()) {
+            editingAccountGroupId?.let { groupId ->
+                viewModel.updateNewAccount(groupId) {
+                    it.copy(name = editingAccountName, type = editingAccountType)
+                }
+            }
+            editingAccountGroupId = null
+            editingAccountTypeMenuExpanded = false
+        }
+    }
     val footerButtonArrangement = if (sizeClass == WindowSizeClass.COMPACT) {
         Arrangement.SpaceBetween
     } else {
@@ -156,42 +255,93 @@ internal fun CashImportScreen(
     } else null
 
     SecondaryPageContainer(
-        title = localizedText("cash_import_title"),
+        title = modalTitle,
         sizeClass = sizeClass,
-        onClose = onBack,
-        footer = {
-            if (!canWrite) {
-                TextButton(onClick = onBack, modifier = Modifier.testTag("import.return")) {
-                    Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
-                    Spacer(Modifier.size(8.dp))
-                    Text(localizedText("copy_855fa817d2"))
+        onClose = requestClose,
+        contentStateKey = when {
+            compact && editingDraft != null && stage == ImportStage.MAPPING -> "account-edit"
+            compact && discardConfirmOpen -> "discard-confirm"
+            compact && showGeneralError -> "general-error"
+            else -> null
+        },
+        escapeEnabled = !editingAccountTypeMenuExpanded,
+        showFooter = sizeClass != WindowSizeClass.COMPACT || stage == ImportStage.SUCCESS || !canWrite,
+        compactHeaderAction = {
+            if (sizeClass == WindowSizeClass.COMPACT) {
+                when {
+                    modalDiscard -> TextButton(
+                        onClick = closeImport,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.testTag("cash-import.discard-confirm"),
+                    ) { Text(localizedText("cash_import_discard")) }
+                    modalEdit -> TextButton(
+                        onClick = applyAccountEdit,
+                        modifier = Modifier.testTag("import.edit.apply"),
+                    ) { Text(localizedText("cash_import_apply_account_changes")) }
+                    modalError -> TextButton(
+                        onClick = dismissGeneralError,
+                        modifier = Modifier.testTag("cash-import.error-acknowledge"),
+                    ) { Text(localizedText("cash_import_error_acknowledge")) }
+                    modalBusyNotice -> TextButton(
+                        onClick = { busyCloseNotice = false },
+                        modifier = Modifier.testTag("cash-import.busy-continue"),
+                    ) { Text(localizedText("cash_import_busy_continue")) }
+                    canWrite && stage != ImportStage.SUCCESS -> Box(Modifier.testTag("secondary-page-primary-action")) {
+                        TextButton(
+                            onClick = runPrimaryAction,
+                            enabled = primaryActionEnabled,
+                            modifier = Modifier.testTag(if (stage == ImportStage.RELATIONS) SemanticIds.importConfirm else SemanticIds.importNext),
+                        ) { Text(primaryActionLabel) }
+                    }
                 }
-            } else when (stage) {
+            }
+        },
+        footer = {
+            when {
+                modalError -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = dismissGeneralError, modifier = Modifier.testTag("cash-import.error-acknowledge")) {
+                        Text(localizedText("cash_import_error_acknowledge"))
+                    }
+                }
+                modalEdit -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = dismissAccountEdit, modifier = Modifier.testTag("import.edit.cancel")) {
+                        Text(localizedText("copy_4d0b4688c7"))
+                    }
+                    TextButton(
+                        onClick = applyAccountEdit,
+                        enabled = editingAccountName.isNotBlank(),
+                        modifier = Modifier.testTag("import.edit.apply"),
+                    ) {
+                        Text(localizedText("cash_import_apply_account_changes"))
+                    }
+                }
+                modalDiscard -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { discardConfirmOpen = false }, modifier = Modifier.testTag("cash-import.discard-cancel")) {
+                        Text(localizedText("cash_import_continue"))
+                    }
+                    TextButton(
+                        onClick = closeImport,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                        modifier = Modifier.testTag("cash-import.discard-confirm"),
+                    ) { Text(localizedText("cash_import_discard")) }
+                }
+                modalBusyNotice -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { busyCloseNotice = false }, modifier = Modifier.testTag("cash-import.busy-continue")) {
+                        Text(localizedText("cash_import_busy_continue"))
+                    }
+                }
+                !canWrite -> Unit
+                else -> when (stage) {
                 ImportStage.SELECT -> {
-                    val canScan = selectedFiles.isNotEmpty() && !busy && scan?.files?.none {
-                        it.status == "error" || (it.status == "password_required" && passwords[it.index.toString()].isNullOrBlank())
-                    } != false
-                    if (sizeClass == WindowSizeClass.COMPACT) {
-                        Column(
-                            Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            CashImportDiscardNote(Modifier.fillMaxWidth())
-                            ImportScanAction(
-                                enabled = canScan,
-                                busy = busy,
-                                modifier = Modifier.testTag(SemanticIds.importNext),
-                                onClick = { viewModel.scanSelectedFiles() },
-                            )
-                        }
-                    } else {
+                    if (sizeClass != WindowSizeClass.COMPACT) {
                         Row(
                             Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            CashImportDiscardNote()
+                            TextButton(onClick = requestClose, modifier = Modifier.testTag("cash-import.cancel")) {
+                                Text(localizedText("cash_import_cancel"))
+                            }
                             ImportScanAction(
                                 enabled = canScan,
                                 busy = busy,
@@ -201,79 +351,78 @@ internal fun CashImportScreen(
                         }
                     }
                 }
-                ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                ImportStage.MAPPING -> if (sizeClass != WindowSizeClass.COMPACT) Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
                     OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
                         Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
                         Spacer(Modifier.size(8.dp))
                         Text(localizedText("copy_75ef1241c0"))
                     }
-                    Button(onClick = { viewModel.loadPreview() }, enabled = state.mappingComplete() && !busy, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                    if (sizeClass != WindowSizeClass.COMPACT) Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
                         Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115"))
                         Spacer(Modifier.size(8.dp))
                         Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
                     }
                 }
-                ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                ImportStage.PREVIEW -> if (sizeClass != WindowSizeClass.COMPACT) Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
                     OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
                         Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
                         Spacer(Modifier.size(8.dp))
                         Text(localizedText("copy_75ef1241c0"))
                     }
-                    Button(onClick = {
-                        if (preview?.let { hasIncompleteAllocations(it, allocationDrafts) } == true) {
-                            viewModel.setErrorCode("import_component_allocation_incomplete")
-                        } else if (preview?.items?.any { it.components.orEmpty().size > 1 } == true) {
-                            viewModel.loadPreview(ImportStage.RELATIONS)
-                        } else {
-                            viewModel.stage(ImportStage.RELATIONS)
-                        }
-                    }, enabled = !busy && preview?.let { !hasIncompleteAllocations(it, allocationDrafts) } == true, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                    if (sizeClass != WindowSizeClass.COMPACT) Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
                         Text(localizedText("copy_1fc1afc5c5"))
                         Spacer(Modifier.size(8.dp))
                         Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
                     }
                 }
-                ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                ImportStage.RELATIONS -> if (sizeClass != WindowSizeClass.COMPACT) Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
                     OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
                         Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
                         Spacer(Modifier.size(8.dp))
                         Text(localizedText("copy_75ef1241c0"))
                     }
-                    Button(onClick = { viewModel.commitImport() }, enabled = state.canCommit(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
+                    if (sizeClass != WindowSizeClass.COMPACT) Button(onClick = { viewModel.commitImport() }, enabled = state.canCommitIgnoringBusy(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
                         Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.confirm.icon"))
                         Spacer(Modifier.size(8.dp))
                         Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d"))
                     }
                 }
-                ImportStage.SUCCESS -> Button(onClick = onBack, modifier = Modifier.fillMaxWidth().testTag("import.return")) {
+                ImportStage.SUCCESS -> Button(onClick = closeImport, modifier = Modifier.fillMaxWidth().testTag("import.return")) {
                     Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
                     Spacer(Modifier.size(8.dp))
                     Text(localizedText("copy_855fa817d2"))
                 }
-            }
-        },
-        overlayContent = {
-            val editingDraft = editingAccountGroupId?.let { groupId -> accountDrafts[groupId]?.newAccount }
-            if (editingAccountGroupId != null && editingDraft != null && stage == ImportStage.MAPPING) {
-                ImportNewAccountEditOverlay(
-                    name = editingAccountName,
-                    type = editingAccountType,
-                    currencies = editingDraft.currencies,
-                    onNameChanged = { editingAccountName = it.take(255) },
-                    onTypeChanged = { editingAccountType = it },
-                    onDismiss = { editingAccountGroupId = null },
-                    onApply = {
-                        editingAccountGroupId?.let { groupId ->
-                            viewModel.updateNewAccount(groupId) {
-                                it.copy(name = editingAccountName, type = editingAccountType)
-                            }
-                        }
-                        editingAccountGroupId = null
-                    },
-                )
+                }
             }
         },
     ) {
+        if (modalSubtaskActive) {
+            when {
+                modalError -> InlineError(generalError.orEmpty())
+                modalEdit -> {
+                    ImportNewAccountEditFields(
+                        name = editingAccountName,
+                        type = editingAccountType,
+                        currencies = editingDraft.currencies,
+                        onNameChanged = { editingAccountName = it.take(255) },
+                        onTypeChanged = { editingAccountType = it },
+                        onTypeMenuExpandedChange = { editingAccountTypeMenuExpanded = it },
+                        modifier = Modifier.fillMaxWidth()
+                            .testTag(if (sizeClass == WindowSizeClass.COMPACT) "import.mapping.edit-fullscreen" else "import.mapping.edit-inline"),
+                    )
+                }
+                modalDiscard -> Text(
+                    localizedText("cash_import_discard_message"),
+                    modifier = Modifier.fillMaxWidth().padding(24.dp).testTag("cash-import.discard-message"),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                modalBusyNotice -> Text(
+                    localizedText("cash_import_busy_close_message"),
+                    modifier = Modifier.fillMaxWidth().padding(24.dp).testTag("cash-import.busy-message"),
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        } else {
         if (canWrite && stage != ImportStage.SUCCESS) {
             Box(
                 Modifier.fillMaxWidth()
@@ -308,7 +457,7 @@ internal fun CashImportScreen(
                 if (!canWrite) {
                     StateMessage(localizedText("copy_459f937086"))
                 } else {
-                    InlineError(error)
+                    InlineError(inlineError)
                     when (stage) {
                         ImportStage.SELECT -> {
                             Column(
@@ -387,7 +536,7 @@ internal fun CashImportScreen(
                                     Text(current.files.joinToString(" · ") { it.filename.orEmpty() }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     if (current.unresolvedCount > 0) Text(localizedText("copy_40b67ad6b4", current.unresolvedCount), color = MaterialTheme.colorScheme.error)
                                 }
-                                Text(localizedText("cash_import_mapping_heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                                Text(localizedText("cash_import_mapping_heading"), Modifier.testTag("import.mapping.heading"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                                 current.groups.forEach { group ->
                                     val draft = accountDrafts[group.groupId]
                                     val ownDraftId = "draft-${group.groupId}"
@@ -634,103 +783,113 @@ internal fun CashImportScreen(
                 }
             }
         }
+        }
+    }
+    if (compact && editingDraft != null && stage == ImportStage.MAPPING) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = dismissAccountEdit)
+        AlertDialog(
+            modifier = Modifier.testTag("import.mapping.edit-dialog"),
+            onDismissRequest = dismissAccountEdit,
+            title = { Text(localizedText("cash_import_edit_new_account_title")) },
+            text = {
+                ImportNewAccountEditFields(
+                    name = editingAccountName,
+                    type = editingAccountType,
+                    currencies = editingDraft.currencies,
+                    onNameChanged = { editingAccountName = it.take(255) },
+                    onTypeChanged = { editingAccountType = it },
+                    onTypeMenuExpandedChange = { editingAccountTypeMenuExpanded = it },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = applyAccountEdit,
+                    enabled = editingAccountName.isNotBlank(),
+                    modifier = Modifier.testTag("import.edit.apply"),
+                ) { Text(localizedText("cash_import_apply_account_changes")) }
+            },
+            dismissButton = {
+                TextButton(onClick = dismissAccountEdit, modifier = Modifier.testTag("import.edit.cancel")) {
+                    Text(localizedText("copy_4d0b4688c7"))
+                }
+            },
+        )
+    } else if (compact && discardConfirmOpen) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = { discardConfirmOpen = false })
+        AlertDialog(
+            modifier = Modifier.testTag("cash-import.discard-dialog"),
+            onDismissRequest = { discardConfirmOpen = false },
+            title = { Text(localizedText("cash_import_discard_title")) },
+            text = { Text(localizedText("cash_import_discard_message")) },
+            confirmButton = {
+                TextButton(
+                    onClick = closeImport,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    modifier = Modifier.testTag("cash-import.discard-confirm"),
+                ) { Text(localizedText("cash_import_discard")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { discardConfirmOpen = false }, modifier = Modifier.testTag("cash-import.discard-cancel")) {
+                    Text(localizedText("cash_import_continue"))
+                }
+            },
+        )
+    } else if (compact && showGeneralError) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = dismissGeneralError)
+        AlertDialog(
+            modifier = Modifier.testTag("cash-import.error-dialog"),
+            onDismissRequest = dismissGeneralError,
+            title = { Text(localizedText("cash_import_error_title")) },
+            text = { Text(generalError.orEmpty()) },
+            confirmButton = {
+                TextButton(onClick = dismissGeneralError, modifier = Modifier.testTag("cash-import.error-acknowledge")) {
+                    Text(localizedText("cash_import_error_acknowledge"))
+                }
+            },
+        )
     }
 }
 
 @Composable
-private fun ImportNewAccountEditOverlay(
+private fun ImportNewAccountEditFields(
     name: String,
     type: String,
     currencies: List<String>,
     onNameChanged: (String) -> Unit,
     onTypeChanged: (String) -> Unit,
-    onDismiss: () -> Unit,
-    onApply: () -> Unit,
+    onTypeMenuExpandedChange: (Boolean) -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    val title = localizedText("cash_import_edit_new_account_title")
-    var typeMenuExpanded by remember { mutableStateOf(false) }
-    PlatformBackHandler(enabled = true, onBack = onDismiss)
-
-    BoxWithConstraints(
-        Modifier.fillMaxSize()
-            .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && !typeMenuExpanded) {
-                    onDismiss()
-                    true
-                } else false
-            }
-            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.fillMaxSize().clickable(onClick = onDismiss))
-        Surface(
-            modifier = Modifier.widthIn(max = 560.dp)
-                .fillMaxWidth(0.9f)
-                .heightIn(max = maxHeight * 0.9f)
-                .testTag("import.mapping.edit-dialog")
-                .semantics {
-                    paneTitle = title
-                },
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 6.dp,
-            shadowElevation = 8.dp,
-        ) {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
-                Text(title, style = MaterialTheme.typography.headlineSmall)
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = onNameChanged,
-                    modifier = Modifier.fillMaxWidth()
-                        .accessibleTextFieldLabel(localizedText("copy_238452a115"))
-                        .testTag("import.mapping.edit-name"),
-                    label = { Text(localizedText("copy_238452a115")) },
-                    singleLine = true,
-                )
-                ChoicePicker(
-                    label = localizedText("copy_082c31df2b"),
-                    value = type,
-                    options = listOf(
-                        "cash" to localizedText("copy_ca5bd21330"),
-                        "loan" to localizedText("copy_099f8b5c68"),
-                        "lend" to localizedText("copy_4a2637c23f"),
-                    ),
-                    onSelected = onTypeChanged,
-                    semanticId = "import.mapping.edit-type",
-                    onMenuExpandedChange = { typeMenuExpanded = it },
-                )
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        localizedText("copy_b241eb825a", currencies.joinToString(" / ")),
-                        modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                        TextButton(onClick = onDismiss) {
-                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.edit.cancel.icon"))
-                            Spacer(Modifier.size(8.dp))
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                        TextButton(onClick = onApply, modifier = Modifier.testTag("import.edit.apply")) {
-                            Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.edit.apply.icon"))
-                            Spacer(Modifier.size(8.dp))
-                            Text(localizedText("ledger_filter_done"))
-                        }
-                    }
-                }
-            }
-        }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        OutlinedTextField(
+            value = name,
+            onValueChange = onNameChanged,
+            modifier = Modifier.fillMaxWidth()
+                .accessibleTextFieldLabel(localizedText("copy_238452a115"))
+                .testTag("import.mapping.edit-name"),
+            label = { Text(localizedText("copy_238452a115")) },
+            singleLine = true,
+        )
+        ChoicePicker(
+            label = localizedText("copy_082c31df2b"),
+            value = type,
+            options = listOf(
+                "cash" to localizedText("copy_ca5bd21330"),
+                "loan" to localizedText("copy_099f8b5c68"),
+                "lend" to localizedText("copy_4a2637c23f"),
+            ),
+            onSelected = onTypeChanged,
+            semanticId = "import.mapping.edit-type",
+            onMenuExpandedChange = onTypeMenuExpandedChange,
+        )
+        Text(
+            localizedText("copy_b241eb825a", currencies.joinToString(" / ")),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -797,16 +956,6 @@ private fun ImportUploadSurface(
             )
         }
     }
-}
-
-@Composable
-private fun CashImportDiscardNote(modifier: Modifier = Modifier) {
-    Text(
-        localizedText("cash_import_discard_note"),
-        modifier = modifier,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
 }
 
 @Composable

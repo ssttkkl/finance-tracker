@@ -2,6 +2,8 @@ package com.finance.tracker.presentation
 
 import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
+import com.finance.tracker.resources.Res
+import com.finance.tracker.resources.ic_close
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -25,6 +27,8 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -36,7 +40,6 @@ import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,8 +57,8 @@ import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.flow.collect
 import com.finance.tracker.core.design.GeneratedTokens
+import org.jetbrains.compose.resources.painterResource
 
 internal fun Modifier.accessibleTextFieldLabel(label: String): Modifier =
     semantics { contentDescription = label }
@@ -128,22 +131,15 @@ internal fun DatePickerInput(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     semanticId: String? = null,
+    inlinePicker: Boolean = false,
+    inlinePickerActive: Boolean = false,
+    onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
     val pickerState = rememberDatePickerState(initialSelectedDateMillis = isoDateToUtcMillis(value))
-    LaunchedEffect(open) {
-        if (!open) return@LaunchedEffect
-        val initialSelection = pickerState.selectedDateMillis
-        var skipInitialValue = true
-        snapshotFlow { pickerState.selectedDateMillis }.collect { selectedMillis ->
-            if (skipInitialValue) {
-                skipInitialValue = false
-                return@collect
-            }
-            if (selectedMillis == null || selectedMillis == initialSelection) return@collect
-            onValueChange(isoDateFromUtcMillis(selectedMillis))
-            open = false
-        }
+    val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
+    val setOpen: (Boolean) -> Unit = { next ->
+        if (inlinePicker && onInlinePickerActiveChange != null) onInlinePickerActiveChange(next) else open = next
     }
 
     OutlinedTextField(
@@ -156,24 +152,74 @@ internal fun DatePickerInput(
         modifier = (if (semanticId == null) modifier else modifier.testTag(semanticId))
             .semantics(mergeDescendants = true) { contentDescription = label }
             .fillMaxWidth()
-            .clickable(enabled) { pickerState.selectedDateMillis = isoDateToUtcMillis(value); open = true },
-        trailingIcon = { TextButton(onClick = { pickerState.selectedDateMillis = isoDateToUtcMillis(value); open = true }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
+            .clickable(enabled) { pickerState.selectedDateMillis = isoDateToUtcMillis(value); setOpen(true) },
+        trailingIcon = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (value.isNotEmpty()) {
+                    IconButton(
+                        onClick = { onValueChange("") },
+                        enabled = enabled,
+                        modifier = if (semanticId == null) Modifier else Modifier.testTag("$semanticId-clear"),
+                    ) {
+                        Icon(
+                            painter = painterResource(Res.drawable.ic_close),
+                            contentDescription = localizedText("copy_7b15e5e8e7"),
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { pickerState.selectedDateMillis = isoDateToUtcMillis(value); setOpen(true) },
+                    enabled = enabled,
+                    modifier = semanticId?.let { Modifier.testTag("$it-open") } ?: Modifier,
+                ) {
+                    Text(localizedText("copy_70b208202c"))
+                }
+            }
+        },
         shape = MaterialTheme.shapes.small,
     )
-    if (open) {
-        DatePickerDialog(
-            onDismissRequest = { open = false },
-            confirmButton = {
-                TextButton(onClick = { open = false }) { Text(localizedText("copy_6c14bd7f6f")) }
-            },
-            dismissButton = {
-                Row {
-                    if (value.isNotEmpty()) TextButton(onClick = { onValueChange(""); open = false }) { Text(localizedText("copy_7b15e5e8e7")) }
-                    TextButton(onClick = { open = false }) { Text(localizedText("copy_4d0b4688c7")) }
+    if (open || inlineOpen) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = { setOpen(false) })
+        val confirmSelection = {
+            pickerState.selectedDateMillis?.let { onValueChange(isoDateFromUtcMillis(it)) }
+            setOpen(false)
+        }
+        if (inlineOpen) {
+            Column(Modifier.fillMaxWidth().testTag(semanticId?.let { "$it-picker" } ?: "date-picker-inline")) {
+                DatePicker(state = pickerState)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(
+                        onClick = { setOpen(false) },
+                        modifier = semanticId?.let { Modifier.testTag("$it-cancel") } ?: Modifier,
+                    ) { Text(localizedText("copy_4d0b4688c7")) }
+                    TextButton(
+                        onClick = confirmSelection,
+                        enabled = pickerState.selectedDateMillis != null,
+                        modifier = semanticId?.let { Modifier.testTag("$it-confirm") } ?: Modifier,
+                    ) { Text(localizedText("ledger_filter_done")) }
                 }
-            },
-        ) {
-            DatePicker(state = pickerState)
+            }
+        } else {
+            DatePickerDialog(
+                onDismissRequest = { open = false },
+                confirmButton = {
+                    TextButton(
+                        onClick = confirmSelection,
+                        enabled = pickerState.selectedDateMillis != null,
+                        modifier = semanticId?.let { Modifier.testTag("$it-confirm") } ?: Modifier,
+                    ) {
+                        Text(localizedText("ledger_filter_done"))
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { open = false },
+                        modifier = semanticId?.let { Modifier.testTag("$it-cancel") } ?: Modifier,
+                    ) { Text(localizedText("copy_4d0b4688c7")) }
+                },
+            ) {
+                DatePicker(state = pickerState, modifier = semanticId?.let { Modifier.testTag("$it-picker") } ?: Modifier)
+            }
         }
     }
 }
@@ -186,13 +232,20 @@ internal fun TimePickerInput(
     label: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
+    inlinePicker: Boolean = false,
+    inlinePickerActive: Boolean = false,
+    onInlinePickerActiveChange: ((Boolean) -> Unit)? = null,
 ) {
     var open by remember { mutableStateOf(false) }
+    val inlineOpen = inlinePicker && onInlinePickerActiveChange != null && inlinePickerActive
+    val setOpen: (Boolean) -> Unit = { next ->
+        if (inlinePicker && onInlinePickerActiveChange != null) onInlinePickerActiveChange(next) else open = next
+    }
     val parsedHour = value.substringBefore(':').toIntOrNull()?.takeIf { it in 0..23 } ?: 12
     val parsedMinute = value.substringAfter(':', "").toIntOrNull()?.takeIf { it in 0..59 } ?: 0
     val pickerState = rememberTimePickerState(initialHour = parsedHour, initialMinute = parsedMinute, is24Hour = true)
-    LaunchedEffect(open, value) {
-        if (open) {
+    LaunchedEffect(open, inlineOpen, value) {
+        if (open || inlineOpen) {
             pickerState.hour = parsedHour
             pickerState.minute = parsedMinute
         }
@@ -204,23 +257,35 @@ internal fun TimePickerInput(
         readOnly = true,
         enabled = enabled,
         singleLine = true,
-        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth().clickable(enabled) { open = true },
-        trailingIcon = { TextButton(onClick = { open = true }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label }.fillMaxWidth().clickable(enabled) { setOpen(true) },
+        trailingIcon = { TextButton(onClick = { setOpen(true) }, enabled = enabled) { Text(localizedText("copy_70b208202c")) } },
         shape = RoundedCornerShape(12.dp),
     )
-    if (open) {
-        AlertDialog(
-            onDismissRequest = { open = false },
-            title = { Text(label) },
-            text = { TimePicker(state = pickerState) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onValueChange("${pickerState.hour.toString().padStart(2, '0')}:${pickerState.minute.toString().padStart(2, '0')}")
-                    open = false
-                }) { Text(localizedText("copy_f526c89937")) }
-            },
-            dismissButton = { TextButton(onClick = { open = false }) { Text(localizedText("copy_4d0b4688c7")) } },
-        )
+    if (open || inlineOpen) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = { setOpen(false) })
+        val confirmSelection = {
+            onValueChange("${pickerState.hour.toString().padStart(2, '0')}:${pickerState.minute.toString().padStart(2, '0')}")
+            setOpen(false)
+        }
+        if (inlineOpen) {
+            Column(Modifier.fillMaxWidth().testTag("time-picker-inline")) {
+                TimePicker(state = pickerState)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = { setOpen(false) }) { Text(localizedText("copy_4d0b4688c7")) }
+                    TextButton(onClick = confirmSelection) { Text(localizedText("copy_f526c89937")) }
+                }
+            }
+        } else {
+            AlertDialog(
+                onDismissRequest = { open = false },
+                title = { Text(label) },
+                text = { TimePicker(state = pickerState) },
+                confirmButton = {
+                    TextButton(onClick = confirmSelection) { Text(localizedText("copy_f526c89937")) }
+                },
+                dismissButton = { TextButton(onClick = { open = false }) { Text(localizedText("copy_4d0b4688c7")) } },
+            )
+        }
     }
 }
 
@@ -239,6 +304,7 @@ internal fun DateTimePickerInput(
     }
     val date = value.take(10)
     val time = value.substringAfter('T', "").take(5)
+    var activeInlinePicker by remember { mutableStateOf<String?>(null) }
     val dateField: @Composable (Modifier) -> Unit = { fieldModifier ->
         DatePickerInput(
             value = date,
@@ -246,6 +312,9 @@ internal fun DateTimePickerInput(
             label = localizedText("copy_b6fed9af83"),
             modifier = fieldModifier,
             enabled = enabled,
+            inlinePicker = true,
+            inlinePickerActive = activeInlinePicker == "date",
+            onInlinePickerActiveChange = { activeInlinePicker = if (it) "date" else null },
         )
     }
     val timeField: @Composable (Modifier) -> Unit = { fieldModifier ->
@@ -255,11 +324,14 @@ internal fun DateTimePickerInput(
             label = localizedText("copy_89b4aa6364"),
             modifier = fieldModifier,
             enabled = enabled,
+            inlinePicker = true,
+            inlinePickerActive = activeInlinePicker == "time",
+            onInlinePickerActiveChange = { activeInlinePicker = if (it) "time" else null },
         )
     }
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (sizeClass == WindowSizeClass.COMPACT) {
+        if (sizeClass == WindowSizeClass.COMPACT || activeInlinePicker != null) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 dateField(Modifier)
                 timeField(Modifier)
@@ -286,6 +358,7 @@ internal fun ChoicePicker(
     semanticId: String? = null,
     autoScrollMenuIntoView: Boolean = false,
     onMenuExpandedChange: ((Boolean) -> Unit)? = null,
+    onMenuEscape: (() -> Unit)? = null,
 ) {
     var expanded by remember(label, semanticId) { mutableStateOf(false) }
     val menuBringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -298,7 +371,13 @@ internal fun ChoicePicker(
         expanded = nextExpanded
         onMenuExpandedChange?.invoke(nextExpanded)
     }
-    PlatformEscapeHandler(enabled = expanded) { updateExpanded(false) }
+    val dismissMenuFromEscape: () -> Unit = {
+        if (expanded) {
+            onMenuEscape?.invoke()
+            updateExpanded(false)
+        }
+    }
+    PlatformEscapeHandler(enabled = expanded, onEscape = dismissMenuFromEscape)
 
     ExposedDropdownMenuBox(
         expanded = expanded,
@@ -306,7 +385,7 @@ internal fun ChoicePicker(
         modifier = modifier.fillMaxWidth()
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Escape && expanded) {
-                    updateExpanded(false)
+                    dismissMenuFromEscape()
                     true
                 } else false
             }
@@ -389,8 +468,11 @@ internal fun ConfirmationDialog(
     busy: Boolean = false,
     confirmEnabled: Boolean = true,
     destructive: Boolean = false,
+    semanticId: String? = null,
 ) {
+    PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = onDismiss)
     AlertDialog(
+        modifier = semanticId?.let { Modifier.testTag("$it.dialog") } ?: Modifier,
         onDismissRequest = onDismiss,
         title = { Text(title) },
         text = {
@@ -402,11 +484,17 @@ internal fun ConfirmationDialog(
         confirmButton = {
             TextButton(
                 onClick = onConfirm,
-                enabled = !busy && confirmEnabled,
+                enabled = confirmEnabled,
                 colors = if (destructive) ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error) else ButtonDefaults.textButtonColors(),
+                modifier = semanticId?.let { Modifier.testTag("$it.confirm") } ?: Modifier,
             ) { Text(if (busy) localizedText("copy_1cac8ac7f5") else confirmLabel) }
         },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) } },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = semanticId?.let { Modifier.testTag("$it.cancel") } ?: Modifier,
+            ) { Text(localizedText("copy_4d0b4688c7")) }
+        },
     )
 }
 
@@ -420,7 +508,7 @@ internal fun FormActions(
     primaryEnabled: Boolean = true,
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        TextButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+        TextButton(onClick = onCancel) { Text(localizedText("copy_4d0b4688c7")) }
         Button(onClick = onPrimary, enabled = primaryEnabled && !busy) {
             Text(if (busy) localizedText("copy_1cac8ac7f5") else primaryLabel)
         }

@@ -114,21 +114,24 @@ private fun removePopStateListener(onPopState: () -> Unit) {
     js("window.removeEventListener('popstate', onPopState)")
 }
 
-private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape)
+private fun registerBrowserEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape, 2)
 
-private fun registerBrowserModalEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape)
+private fun registerBrowserModalEscapeListener(onEscape: () -> Unit): () -> Unit = registerBrowserEscapeHandler(onEscape, 1)
 
-private fun registerBrowserEscapeHandler(onEscape: () -> Unit): () -> Unit = js(
+private fun registerBrowserEscapeHandler(onEscape: () -> Unit, escapePriority: Int): () -> Unit = js(
     """(() => {
         const stackKey = '__financeTrackerEscapeHandlers';
         const listenerKey = '__financeTrackerEscapeListener';
         const handlers = window[stackKey] || (window[stackKey] = []);
-        const entry = { callback: onEscape };
+        const entry = { callback: onEscape, priority: escapePriority };
         handlers.push(entry);
         if (!window[listenerKey]) {
             window[listenerKey] = event => {
                 if (event.key !== 'Escape') return;
-                const active = window[stackKey]?.[window[stackKey].length - 1];
+                const active = (window[stackKey] || []).reduce((top, candidate) =>
+                    !top || candidate.priority >= top.priority ? candidate : top,
+                    null,
+                );
                 if (!active) return;
                 event.preventDefault();
                 event.stopImmediatePropagation();

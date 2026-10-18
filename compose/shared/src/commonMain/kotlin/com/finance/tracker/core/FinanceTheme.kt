@@ -136,7 +136,7 @@ fun FinanceTheme(
                 small = RoundedCornerShape(GeneratedTokens.Core.Radius.Token1),
                 medium = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
                 large = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
-                extraLarge = RoundedCornerShape(GeneratedTokens.Core.Radius.Token2),
+                extraLarge = RoundedCornerShape(GeneratedTokens.Core.Radius.M3ExtraLarge),
             ),
         ) {
             if (fontReady) {

@@ -44,43 +44,50 @@ class CashImportViewModel(
     }
 
     fun receiveFiles(files: List<FileSource>?) {
-        if (files.isNullOrEmpty() || mutableState.value.busy) return
+        if (files.isNullOrEmpty()) return
+        val beforeRead = mutableState.value
+        if (beforeRead.busy) return
+        mutableState.value = beforeRead.copy(busy = true, errorCode = null)
         viewModelScope.launch {
-            var selectionError: String? = null
-            val accepted = mutableListOf<PickedImportFile>()
-            for (file in files) {
-                try {
-                    val reportedSize = file.size
-                    val bytes = if (reportedSize == null || reportedSize < 0) file.read() else null
-                    val size = bytes?.size?.toLong() ?: reportedSize ?: -1L
-                    val validation = validateImportFile(file.name, size)
-                    if (validation != ImportFileValidation.Valid) {
-                        selectionError = selectionError ?: validation.errorCode()
-                        continue
+            try {
+                var selectionError: String? = null
+                val accepted = mutableListOf<PickedImportFile>()
+                for (file in files) {
+                    try {
+                        val reportedSize = file.size
+                        val bytes = if (reportedSize == null || reportedSize < 0) file.read() else null
+                        val size = bytes?.size?.toLong() ?: reportedSize ?: -1L
+                        val validation = validateImportFile(file.name, size)
+                        if (validation != ImportFileValidation.Valid) {
+                            selectionError = selectionError ?: validation.errorCode()
+                            continue
+                        }
+                        val digest = sha1Hex(bytes ?: file.read())
+                        accepted += PickedImportFile(file, ImportFileIdentity(file.name, digest, size))
+                    } catch (cause: CancellationException) {
+                        throw cause
+                    } catch (cause: Throwable) {
+                        cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_IMPORT, DiagnosticAction.PICK_FILES)
+                        selectionError = selectionError ?: "import_file_read_failed"
                     }
-                    val digest = sha1Hex(bytes ?: file.read())
-                    accepted += PickedImportFile(file, ImportFileIdentity(file.name, digest, size))
-                } catch (cause: CancellationException) {
-                    throw cause
-                } catch (cause: Throwable) {
-                    cause.recordDiagnosticFailure(diagnostics, DiagnosticFeature.CASH_IMPORT, DiagnosticAction.PICK_FILES)
-                    selectionError = selectionError ?: "import_file_read_failed"
                 }
-            }
-            val current = mutableState.value
-            val selection = addImportFiles(
-                existing = current.selectedFiles.map(PickedImportFile::identity),
-                selected = accepted.map(PickedImportFile::identity),
-            )
-            val newDigests = selection.files.drop(current.selectedFiles.size).map(ImportFileIdentity::digest).toSet()
-            val selectedFiles = (current.selectedFiles + accepted.filter { it.identity.digest in newDigests }.distinctBy { it.identity.digest })
-            val added = selectedFiles.size != current.selectedFiles.size
-            val errorCode = selectionError ?: selection.rejections.firstOrNull()?.errorCode()
-            if (errorCode != null) diagnostics.record(DiagnosticFeature.CASH_IMPORT, DiagnosticAction.PICK_FILES, errorCode, null, "ImportFileSelectionError")
-            mutableState.value = current.copy(selectedFiles = selectedFiles, errorCode = errorCode)
-            if (added) {
-                clearProgress()
-                mutableState.value = mutableState.value.copy(errorCode = errorCode)
+                val current = mutableState.value
+                val selection = addImportFiles(
+                    existing = current.selectedFiles.map(PickedImportFile::identity),
+                    selected = accepted.map(PickedImportFile::identity),
+                )
+                val newDigests = selection.files.drop(current.selectedFiles.size).map(ImportFileIdentity::digest).toSet()
+                val selectedFiles = (current.selectedFiles + accepted.filter { it.identity.digest in newDigests }.distinctBy { it.identity.digest })
+                val added = selectedFiles.size != current.selectedFiles.size
+                val errorCode = selectionError ?: selection.rejections.firstOrNull()?.errorCode()
+                if (errorCode != null) diagnostics.record(DiagnosticFeature.CASH_IMPORT, DiagnosticAction.PICK_FILES, errorCode, null, "ImportFileSelectionError")
+                mutableState.value = current.copy(selectedFiles = selectedFiles, errorCode = errorCode)
+                if (added) {
+                    clearProgress()
+                    mutableState.value = mutableState.value.copy(errorCode = errorCode)
+                }
+            } finally {
+                mutableState.value = mutableState.value.copy(busy = false)
             }
         }
     }
@@ -456,7 +463,9 @@ fun CashImportUiState.importUnsupportedCount(): Int = preview?.let { value ->
     (value.summary.unsupported - importUnresolvedCount()).coerceAtLeast(0)
 } ?: 0
 
-fun CashImportUiState.canCommit(): Boolean = !busy && !hasIncompleteAllocations() && importAllocationCount() == 0 && importUnsupportedCount() == 0
+fun CashImportUiState.canCommit(): Boolean = !busy && canCommitIgnoringBusy()
+
+fun CashImportUiState.canCommitIgnoringBusy(): Boolean = !hasIncompleteAllocations() && importAllocationCount() == 0 && importUnsupportedCount() == 0
 
 fun importItemKey(item: ImportPreviewItem): String = item.relationRef ?: item.recordId
 fun importItemKey(item: ImportRelationRecord): String = item.relationRef ?: item.recordId

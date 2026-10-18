@@ -171,9 +171,7 @@ class WorkspaceManagementViewModel(
     }
 
     fun dismissDeleteDialog() {
-        if (!mutableState.value.deleting) {
-            mutableState.value = mutableState.value.copy(deleteDialogOpen = false, deleteErrorCode = null)
-        }
+        mutableState.value = mutableState.value.copy(deleteDialogOpen = false, deleteErrorCode = null)
     }
 
     fun deleteWorkspace(canManage: Boolean) {

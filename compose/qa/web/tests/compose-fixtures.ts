@@ -131,7 +131,8 @@ export async function typeIntoComposeInput(
   value: string,
   options: { replace?: boolean } = {},
 ): Promise<void> {
-  const input = page.locator(selector).last();
+  const input = page.locator(`${selector}:visible`).last();
+  await input.scrollIntoViewIfNeeded();
   let box = await input.boundingBox();
   for (let attempt = 0; !box && attempt < 10; attempt += 1) {
     await page.waitForTimeout(100);
@@ -139,8 +140,9 @@ export async function typeIntoComposeInput(
   }
   if (!box) throw new Error(`Missing Compose input bounds: ${selector}`);
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await input.focus();
   if (options.replace) {
-    await page.keyboard.press("Meta+A");
+    await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.press("Backspace");
   }
   if (value) await page.keyboard.type(value, { delay: 100 });
@@ -569,6 +571,10 @@ export async function installComposeApiFixtures(
       const relationId = pathname.split("/").at(-1);
       cashRelations = cashRelations.filter((relation) => relation.id !== relationId);
       return json({ ok: true });
+    }
+    if (pathname === "/api/v1/cash-relations/dissolve" && method === "POST") {
+      cashRelations = [];
+      return json({ record: cashRecord, relations: cashRelations, options: {} });
     }
     if (pathname === "/api/v1/cash-records/record-1" && method === "PUT") {
       const values = JSON.parse(body ?? "{}");

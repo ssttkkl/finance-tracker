@@ -5,22 +5,32 @@ import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -29,7 +39,6 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 
 @Composable
@@ -173,30 +182,94 @@ internal fun InvestmentEventsScreen(
     }
 
     selected?.let { event ->
-        Dialog(onDismissRequest = viewModel::closeEvidence, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            SectionCard(Modifier.fillMaxWidth().padding(16.dp).widthIn(max = 720.dp).heightIn(max = 760.dp)) {
-                Text(eventTitle(event), style = MaterialTheme.typography.headlineSmall)
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (evidenceLoading) Text(localizedText("copy_1087df4607"))
-                    InlineError(evidenceError)
-                    PositionFact(localizedText("copy_51f85a78ca"), formatLocalDateTime(event.occurredAt))
-                    PositionFact(localizedText("copy_c3d92b20c8"), event.account.name)
-                    PositionFact(localizedText("copy_5b2d75aa54"), eventTitle(event))
-                    investmentAssetLines(event).forEach { (label, value) -> PositionFact(label, value) }
-                    if (event.commission.amount != null && displayDecimalSign(event.commission.amount) != 0) {
-                        PositionFact(localizedText("copy_307d666742"), "${formatInvestmentAmount(event.commission.amount)} ${event.commission.asset ?: event.currency}")
-                    }
-                    evidence?.let { evidenceValue ->
-                        investmentEvidenceFacts(evidenceValue.event, evidenceValue.relations).forEach { fact ->
-                            HorizontalDivider()
-                            PositionFact(localizedText(fact.labelResourceKey), fact.valueResourceKey?.let { localizedText(it) } ?: fact.value)
+        val dialogTitle = eventTitle(event)
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::closeEvidence)
+        Dialog(
+            onDismissRequest = viewModel::closeEvidence,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = !isWebPlatform,
+                dismissOnClickOutside = true,
+            ),
+        ) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                Surface(
+                    Modifier.widthIn(max = 560.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .testTag(SemanticIds.investmentEventDetail)
+                        .semantics { paneTitle = dialogTitle },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = AlertDialogDefaults.TonalElevation,
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        InvestmentEventDetailHeader(event)
+                        HorizontalDivider()
+                        InvestmentEventDetailBody(
+                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            event,
+                            evidence,
+                            evidenceLoading,
+                            evidenceError,
+                            viewModel::retryEvidence,
+                        )
+                        HorizontalDivider()
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(
+                                onClick = viewModel::closeEvidence,
+                                modifier = Modifier.testTag(SemanticIds.investmentEventDetailClose),
+                            ) { Text(localizedText("copy_6c14bd7f6f")) }
                         }
                     }
-                    if (evidenceError != null) TextButton(onClick = viewModel::retryEvidence) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
-                TextButton(onClick = viewModel::closeEvidence, modifier = Modifier.testTag(SemanticIds.investmentEventDetailClose)) { Text(localizedText("copy_6c14bd7f6f")) }
             }
         }
+    }
+}
+
+@Composable
+private fun InvestmentEventDetailHeader(event: InvestmentEvent) {
+    Text(
+        eventTitle(event),
+        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp),
+        style = MaterialTheme.typography.headlineSmall,
+    )
+}
+
+@Composable
+private fun InvestmentEventDetailBody(
+    modifier: Modifier,
+    event: InvestmentEvent,
+    evidence: InvestmentEvidence?,
+    evidenceLoading: Boolean,
+    evidenceError: String?,
+    onRetry: () -> Unit,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (evidenceLoading) Text(localizedText("copy_1087df4607"))
+        InlineError(evidenceError)
+        PositionFact(localizedText("copy_51f85a78ca"), formatLocalDateTime(event.occurredAt))
+        PositionFact(localizedText("copy_c3d92b20c8"), event.account.name)
+        PositionFact(localizedText("copy_5b2d75aa54"), eventTitle(event))
+        investmentAssetLines(event).forEach { (label, value) -> PositionFact(label, value) }
+        if (event.commission.amount != null && displayDecimalSign(event.commission.amount) != 0) {
+            PositionFact(localizedText("copy_307d666742"), "${formatInvestmentAmount(event.commission.amount)} ${event.commission.asset ?: event.currency}")
+        }
+        evidence?.let { evidenceValue ->
+            investmentEvidenceFacts(evidenceValue.event, evidenceValue.relations).forEach { fact ->
+                HorizontalDivider()
+                PositionFact(localizedText(fact.labelResourceKey), fact.valueResourceKey?.let { localizedText(it) } ?: fact.value)
+            }
+        }
+        if (evidenceError != null) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
     }
 }
 

@@ -5,24 +5,33 @@ import com.finance.tracker.domain.*
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -252,7 +261,10 @@ internal fun InvestmentHoldingsScreen(
                 PositionFacts(facts, sizeClass)
                 if (!position.isCash) Text("${quoteStatusLabel(position.quoteStatus)} · ${position.quoteSession?.let { quoteSessionLabel(it) } ?: localizedText("copy_9778909c7e")} · ${position.quoteObservedAt?.let { formatRelativeQuoteTime(it) } ?: localizedText("copy_ff06d0514f")}", style = MaterialTheme.typography.bodySmall)
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { viewModel.showPosition(holding) }) { Text(localizedText("copy_54d721fae2")) }
+                    TextButton(
+                        onClick = { viewModel.showPosition(holding) },
+                        modifier = Modifier.testTag("investment.position.detail.open"),
+                    ) { Text(localizedText("copy_54d721fae2")) }
                     Text(formatPortfolioMoney(marketValue, rowCurrency), style = MaterialTheme.typography.titleMedium)
                 }
             }
@@ -261,26 +273,81 @@ internal fun InvestmentHoldingsScreen(
 
     expandedPosition?.let { holding ->
         val position = holding.position
-        Dialog(onDismissRequest = viewModel::closePosition, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-            SectionCard(Modifier.fillMaxWidth().padding(16.dp).widthIn(max = 720.dp).heightIn(max = 760.dp)) {
-                Text(position.displayName ?: position.ticker, style = MaterialTheme.typography.headlineSmall)
-                Text("${position.ticker} · ${displayInvestmentAccountName(holding.accountName)}")
-                Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    HorizontalDivider()
-                    PositionFact(localizedText("copy_7988639007"), "${formatInvestmentAmount(position.shares)} ${position.ticker}")
-                    PositionFact(localizedText("copy_b87a0cfd10"), formatPortfolioMoney(position.totalCost, position.costCurrency))
-                    PositionFact(localizedText("copy_48b17a0d07"), formatPortfolioMoney(position.currentPrice, position.quoteCurrency))
-                    PositionFact(localizedText("copy_d722b16702"), formatPortfolioMoney(position.marketValue, position.quoteCurrency))
-                    PositionFact(localizedText("copy_187f1c3db4"), formatPortfolioMoney(position.displayMarketValue, position.displayCurrency))
-                    PositionFact(localizedText("copy_ab38f691a5"), quoteStatusLabel(position.quoteStatus))
-                    PositionFact(localizedText("copy_f3ccf8829e"), position.quoteObservedAt?.let(::formatLocalDateTime) ?: localizedText("copy_ff06d0514f"))
-                    position.quoteReason?.let { PositionFact(localizedText("copy_26670dda42"), readableValuationReason(it)) }
-                    PositionFact(localizedText("copy_e6c5aeb5ef"), fxStatusLabel(position.fxStatus))
-                    position.fxReason?.let { PositionFact(localizedText("copy_26670dda42"), readableValuationReason(it)) }
-                    position.periodBaselines.forEach { baseline -> PositionFact(localizedText("copy_5c8868c56c"), "${baseline.account} · ${baseline.ticker} · ${formatLocalDateTime(baseline.occurredAt)}") }
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::closePosition)
+        Dialog(
+            onDismissRequest = viewModel::closePosition,
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                dismissOnBackPress = !isWebPlatform,
+                dismissOnClickOutside = true,
+            ),
+        ) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                contentAlignment = androidx.compose.ui.Alignment.Center,
+            ) {
+                Surface(
+                    Modifier.widthIn(max = 560.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .testTag("investment.position.detail.panel")
+                        .semantics { paneTitle = position.displayName?.takeIf(String::isNotBlank) ?: position.ticker },
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    tonalElevation = AlertDialogDefaults.TonalElevation,
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        InvestmentPositionDetailHeader(holding)
+                        HorizontalDivider()
+                        InvestmentPositionDetailBody(
+                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            position,
+                        )
+                        HorizontalDivider()
+                        Row(
+                            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(
+                                onClick = viewModel::closePosition,
+                                modifier = Modifier.testTag("investment.position.detail.close"),
+                            ) { Text(localizedText("copy_6c14bd7f6f")) }
+                        }
+                    }
                 }
-                TextButton(onClick = viewModel::closePosition) { Text(localizedText("copy_6c14bd7f6f")) }
             }
+        }
+    }
+}
+
+@Composable
+private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 16.dp)) {
+        Text(holding.position.displayName ?: holding.position.ticker, style = MaterialTheme.typography.headlineSmall)
+        Text(
+            "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun InvestmentPositionDetailBody(modifier: Modifier, position: PortfolioPosition) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PositionFact(localizedText("copy_7988639007"), "${formatInvestmentAmount(position.shares)} ${position.ticker}")
+        PositionFact(localizedText("copy_b87a0cfd10"), formatPortfolioMoney(position.totalCost, position.costCurrency))
+        PositionFact(localizedText("copy_48b17a0d07"), formatPortfolioMoney(position.currentPrice, position.quoteCurrency))
+        PositionFact(localizedText("copy_d722b16702"), formatPortfolioMoney(position.marketValue, position.quoteCurrency))
+        PositionFact(localizedText("copy_187f1c3db4"), formatPortfolioMoney(position.displayMarketValue, position.displayCurrency))
+        PositionFact(localizedText("copy_ab38f691a5"), quoteStatusLabel(position.quoteStatus))
+        PositionFact(localizedText("copy_f3ccf8829e"), position.quoteObservedAt?.let(::formatLocalDateTime) ?: localizedText("copy_ff06d0514f"))
+        position.quoteReason?.let { PositionFact(localizedText("copy_26670dda42"), readableValuationReason(it)) }
+        PositionFact(localizedText("copy_e6c5aeb5ef"), fxStatusLabel(position.fxStatus))
+        position.fxReason?.let { PositionFact(localizedText("copy_26670dda42"), readableValuationReason(it)) }
+        position.periodBaselines.forEach { baseline ->
+            PositionFact(localizedText("copy_5c8868c56c"), "${baseline.account} · ${baseline.ticker} · ${formatLocalDateTime(baseline.occurredAt)}")
         }
     }
 }

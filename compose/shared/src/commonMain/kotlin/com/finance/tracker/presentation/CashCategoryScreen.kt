@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -137,7 +138,23 @@ internal fun CashCategoryScreen(
             onDismiss = viewModel::dismissDelete,
             error = deleteError,
             busy = busy,
+            destructive = true,
             confirmEnabled = canWrite && canDeleteCashCategory(impact),
+            semanticId = "cash-category.delete",
+        )
+    } else if (item == null && deleteError != null) {
+        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDelete)
+        AlertDialog(
+            modifier = Modifier.testTag("cash-category.delete-error-dialog"),
+            onDismissRequest = viewModel::dismissDelete,
+            title = { Text(localizedText("cash_category_delete_error_title")) },
+            text = { Text(deleteError) },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::dismissDelete,
+                    modifier = Modifier.testTag("cash-category.delete-error-acknowledge"),
+                ) { Text(localizedText("dialog_error_acknowledge")) }
+            },
         )
     }
 }
