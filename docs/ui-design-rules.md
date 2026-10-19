@@ -43,6 +43,17 @@
 - Web 与 Native QA 按 Compose `WindowSizeClass` 的 `COMPACT`、`REGULAR`、`WIDE` 三类窗口尺寸验证布局，并分别在 390 px、768 px、1440 px 代表视口截图审查。只有验证断点边界、最小支持宽度或复现具体响应式缺陷时，才额外检查其他宽度。
 - 页面内容区、侧边导航和移动顶栏的滚动边界必须明确；瀑布流内容不得带着固定导航或账户区一起滚动。
 
+### 3.1 弹窗与侧板的 Material 3 测量规则
+
+- 设计和实现弹窗、侧板前，先对照对应的 Material 3 组件规格，主要依据 [Dialog specs](https://m3.material.io/components/dialogs/specs) 和 [Side Sheet specs](https://m3.material.io/components/side-sheets/specs)。`Dialog`（对话框）、`Side Sheet`（侧板）、`AlertDialog`（提示对话框）和 `ModalBottomSheet`（底部弹出层）各自使用对应的内部结构与测量；当需求只涉及内部测量或对齐时，保留已有外框尺寸、位置、关闭与提交行为。
+- `AlertDialog` 使用 Material 3 提供的结构和默认测量，不额外添加关闭图标。需要呈现关闭按钮的其他模态容器，将关闭按钮放在标题区左侧；自定义模态容器的标题、关闭按钮和操作区须在内容滚动时保持可见。
+- 全屏 `Dialog` 的标题栏高 64 dp，左侧关闭图标为 24 dp，内容左右留白各 24 dp。
+- 非全屏且非 `AlertDialog` 的 `Dialog` 沿用同一组标题栏与内容测量，但保持既有非全屏外框的尺寸和位置；不得仅因应用这些内部测量而改为全屏或调整弹窗行为。
+- `Side Sheet` 内容左右留白各 24 dp；包含关闭按钮的标题区左侧留白 16 dp、顶部留白 24 dp，标题元素间距为 12 dp，关闭图标为 24 dp。底部操作区总高 72 dp，操作在区内垂直居中；所有操作左对齐，主要操作放在最左侧。
+- `Side Sheet` 的左对齐和主要操作最左规则不自动套用于其他弹窗。全屏 `Dialog` 保留其既有操作顺序；紧凑宽度的筛选 `ModalBottomSheet` 和 `AlertDialog` 保留各自的组件测量与行为。
+- 测量约束用于表达容器布局，不得借此写死按钮或文本输入控件的尺寸；控件继续使用 Material 3 的内容适配与触控区域默认值。
+- UI 回归须验证标题、内容边距、操作区尺寸、操作顺序及关闭和提交行为；同时确认外框尺寸与位置没有意外变化，并覆盖受影响的 `COMPACT`、`REGULAR`、`WIDE` 窗口等级。
+
 ## 4. Hallmark 方向与 Compose 实现门禁
 
 ### 4.1 Hallmark 设计方向
