@@ -13,9 +13,12 @@ import {
 
 const workspaceRoot = "/w/workspace-1";
 const responsiveWidths = [320, 375, 390, 414, 768, 1440];
+const cashImportWideMinWidth = 1024;
+const cashImportSideSheetWidthFraction = (width: number) => width < cashImportWideMinWidth ? 0.9 : 0.7;
 const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
 const accountMappingScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-import-account-mapping-redesign/screenshots");
 const dialogConformanceScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-material3-dialog-conformance/screenshots");
+const cashImportSideSheetScreenshotDir = path.resolve(process.cwd(), "../../../openspec/changes/compose-cash-import-side-sheet/screenshots");
 const cashLedgerScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261017");
 const accountMappingRunScreenshotDir = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
   ? path.join(accountMappingScreenshotDir, "dark")
@@ -703,9 +706,9 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
   test.setTimeout(150_000);
   await installComposeApiFixtures(page);
   await page.goto(`${workspaceRoot}/`);
-  await mkdir(screenshotDir, { recursive: true });
+  await mkdir(cashImportSideSheetScreenshotDir, { recursive: true });
 
-  for (const width of [320, 375, 390, 414, 768, 1440]) {
+  for (const width of [320, 375, 390, 414, 600, 768, 1440]) {
     const height = width === 390 ? 844 : width === 768 ? 1024 : 900;
     await page.setViewportSize({ width, height });
     // Resize before navigation so Compose Web builds its semantics tree for
@@ -732,8 +735,11 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
       await expect(page.locator('[id="secondary-page-close"]').last()).toBeVisible();
       await expect(page.locator('[id="cash-import.cancel"]').last()).toBeVisible();
       const modalBounds = await modal.boundingBox();
-      expect(modalBounds?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(560);
-      expect(modalBounds?.x ?? -1).toBeGreaterThan(0);
+      const widthFraction = cashImportSideSheetWidthFraction(width);
+      expect((modalBounds?.width ?? 0) / width).toBeCloseTo(widthFraction, 2);
+      expect((modalBounds?.x ?? 0) / width).toBeCloseTo(1 - widthFraction, 2);
+      expect((modalBounds?.x ?? 0) + (modalBounds?.width ?? 0)).toBeCloseTo(width, 0);
+      expect(modalBounds?.height ?? 0).toBeCloseTo(height, 0);
     }
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width < 600) {
@@ -743,7 +749,9 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
       expect(bounds?.width ?? 0).toBeCloseTo(width, 0);
       expect(bounds?.height ?? 0).toBeCloseTo(height, 0);
     }
-    await page.screenshot({ path: path.join(screenshotDir, `compose-secondary-page-${width}.png`) });
+    if ([390, 600, 768, 1440].includes(width)) {
+      await page.screenshot({ path: path.join(cashImportSideSheetScreenshotDir, `import-${width}x${height}.png`) });
+    }
     await requestImportClose(page, width);
 
     await expect(page).toHaveURL(`${workspaceRoot}/`);
@@ -2929,10 +2937,10 @@ async function openBatchRelationFilter(page: Page) {
   return commitAttempts;
 }
 
-test("F-05 cash-import uses the Material 3 dialog variant for each window size", async ({ page }) => {
+test("F-05 cash-import uses the Material 3 side-sheet variant for each horizontal window class", async ({ page }) => {
   await installComposeApiFixtures(page);
   await mkdir(screenshotDir, { recursive: true });
-  for (const [width, height] of [[390, 844], [768, 1024], [1440, 900]] as const) {
+  for (const [width, height] of [[390, 844], [600, 900], [768, 1024], [1023, 900], [1024, 900], [1440, 900]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/cash-import`);
     const fullscreen = page.locator('[id="secondary-page-fullscreen"]').last();
@@ -2977,12 +2985,72 @@ test("F-05 cash-import uses the Material 3 dialog variant for each window size",
       await expect(page.locator('[id="cash-import.cancel"]').last()).toBeVisible();
       const bounds = await modal.boundingBox();
       expect(bounds).not.toBeNull();
-      expect(bounds!.width).toBeLessThanOrEqual(560);
-      expect(bounds!.x).toBeGreaterThan(0);
-      expect(bounds!.x + bounds!.width).toBeLessThan(width);
+      const widthFraction = cashImportSideSheetWidthFraction(width);
+      expect(bounds!.width / width).toBeCloseTo(widthFraction, 2);
+      expect(bounds!.x / width).toBeCloseTo(1 - widthFraction, 2);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
+      expect(bounds!.height).toBeCloseTo(height, 0);
     }
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: path.join(screenshotDir, `compose-import-file-${width}.png`) });
+  }
+});
+
+test("F-05 Regular/Wide 侧板可以通过 Escape 关闭", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  for (const [width, height] of [[768, 1024], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await expect(page.locator('[id="ledger.screen"]').last()).toBeVisible();
+    await openLedgerActions(page);
+    await clickFabMenuItemFromBottom(page, 0);
+    await expect(page).toHaveURL(`${workspaceRoot}/cash-import`);
+    await expect(page.locator('[id="secondary-page-modal"]').last()).toBeVisible();
+    await page.waitForTimeout(300);
+    const sideSheetScreenshot = await page.screenshot();
+    await page.keyboard.press("Escape");
+    await expect(page).toHaveURL(`${workspaceRoot}/`);
+    await page.waitForTimeout(300);
+    const ledgerScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, sideSheetScreenshot, ledgerScreenshot, 24, 20)).toBeGreaterThan(0.03);
+  }
+});
+
+test("F-05 Regular/Wide 导入侧板可完成各步骤并提交", async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await installComposeApiFixtures(page);
+  for (const [width, height] of [[768, 1024], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/cash-import`);
+    const modal = page.locator('[id="secondary-page-modal"]').last();
+    await expect(modal).toBeVisible();
+    const bounds = await modal.boundingBox();
+    expect(bounds).not.toBeNull();
+    const widthFraction = cashImportSideSheetWidthFraction(width);
+    expect(bounds!.width / width).toBeCloseTo(widthFraction, 2);
+    expect(bounds!.x / width).toBeCloseTo(1 - widthFraction, 2);
+    expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
+
+    const fileName = `side-sheet-${width}.csv`;
+    await chooseComposeFiles(page, [{
+      name: fileName,
+      mimeType: "text/csv",
+      buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
+    }]);
+    await expect(page.getByText(fileName, { exact: true }).last()).toBeVisible();
+    const previewCallsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length;
+    await page.locator('[id="import.next"]').last().dispatchEvent("click");
+    await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
+    await page.locator('[id="import.next"]').last().dispatchEvent("click");
+    await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length).toBe(previewCallsBefore + 1);
+
+    await page.getByRole("button", { name: "继续", exact: true }).last().click({ force: true });
+    const importCommitsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length;
+    await expect(page.locator('[id="import.confirm"]').last()).toBeVisible();
+    await page.locator('[id="import.confirm"]').last().dispatchEvent("click");
+    await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length).toBe(importCommitsBefore + 1);
+    await expect(page.getByText("导入完成", { exact: true })).toBeVisible();
+    await clickComposeUntil(page, page.locator('[id="import.return"]').last(), async () => page.url().endsWith(`${workspaceRoot}/`));
   }
 });
 

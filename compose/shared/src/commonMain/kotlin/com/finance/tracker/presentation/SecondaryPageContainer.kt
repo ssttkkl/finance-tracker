@@ -14,17 +14,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -49,7 +47,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import org.jetbrains.compose.resources.painterResource
 
-/** Hosts a multi-step modal task using M3's compact full-screen and wider basic-dialog variants. */
+/** Hosts a multi-step modal task using M3's compact full-screen and wider side-sheet variants. */
 @Composable
 internal fun SecondaryPageContainer(
     title: String,
@@ -74,7 +72,7 @@ internal fun SecondaryPageContainer(
         if (sizeClass == WindowSizeClass.COMPACT) {
             SecondaryPageFullScreen(title, sizeClass, onClose, modifier, showFooter, contentStateKey, content, footer)
         } else {
-            SecondaryPageBasicDialog(title, sizeClass, onClose, modifier, showFooter, contentStateKey, content, footer)
+            SecondaryPageSideSheet(title, sizeClass, onClose, modifier, showFooter, contentStateKey, content, footer)
         }
     }
 }
@@ -108,7 +106,7 @@ private fun SecondaryPageFullScreen(
 }
 
 @Composable
-private fun SecondaryPageBasicDialog(
+private fun SecondaryPageSideSheet(
     title: String,
     sizeClass: WindowSizeClass,
     onClose: () -> Unit,
@@ -118,23 +116,27 @@ private fun SecondaryPageBasicDialog(
     content: @Composable ColumnScope.() -> Unit,
     footer: @Composable () -> Unit,
 ) {
-    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    val widthFraction = when (sizeClass) {
+        WindowSizeClass.REGULAR -> 0.9f
+        WindowSizeClass.WIDE -> 0.7f
+        WindowSizeClass.COMPACT -> 1f
+    }
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
         Surface(
-            modifier = modifier.widthIn(max = 560.dp)
-                .fillMaxWidth(0.92f)
-                .heightIn(max = minOf(maxHeight * 0.9f, 760.dp))
+            modifier = modifier.fillMaxWidth(widthFraction)
+                .fillMaxHeight()
                 .testTag("secondary-page-modal")
                 .semantics { paneTitle = title },
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            shape = MaterialTheme.shapes.large,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
             contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = AlertDialogDefaults.TonalElevation,
+            tonalElevation = 0.dp,
         ) {
-            Column(Modifier.fillMaxWidth()) {
+            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 SecondaryPageBasicHeader(title, onClose)
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SecondaryPageBody(Modifier, MaterialTheme.colorScheme.surfaceContainerHigh, contentStateKey, content)
-                if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surfaceContainerHigh, footer)
+                SecondaryPageBody(Modifier.weight(1f), MaterialTheme.colorScheme.surfaceContainerLow, contentStateKey, content)
+                if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surfaceContainerLow, footer)
             }
         }
     }
