@@ -114,7 +114,7 @@
 - [x] 6.1 按用户授权将本 change 直接提交并推送到 `main`。2026-10-18，开发工作分支 `enhanced-ape` 上的实现提交 `d0b15a947e4ec2ef215a38e15329fc3517c86c85`（`feat(compose): conform dialogs to Material 3`）通过 `git push origin HEAD:main` 快进推送成功（`70f0283..d0b15a9 HEAD -> main`）。提交前检查工作树、暂存范围、`git diff --check`、OpenSpec 严格校验、Node QA 3/3 与聚焦 Web 回归 9/9 均通过。重大 UI change 仍须等待用户复核 Compose 演示结果后才能标记完成。
 - [x] 6.2 用户于 2026-10-19 14:33 UTC 确认 Compose 演示复核完成；`COMPACT`、`REGULAR`、`WIDE` 变体均已供复核。此确认满足重大 UI change 的用户演示门禁。
 - [x] 6.3 无数据迁移；回滚通过还原本次提交完成。发布后重点观察 Compact 全屏详情与独立关联任务、Regular/Wide 全高面板，以及删除/关系移除确认和异步错误知悉路径。
-- [ ] 6.4 按用户授权提交本轮 M3 measurement 与 Side Sheet 左对齐微调、推送功能分支，并创建目标为 `main` 的 PR；完成后记录提交与 PR 链接。
+- [x] 6.4 按用户授权提交本轮 M3 measurement 与 Side Sheet 左对齐微调、推送功能分支，并创建目标为 `main` 的 PR。2026-10-19 14:34 UTC：提交 `fd9838b24def84c288ce7491e640a63092431639`（`fix(compose): align dialog internals with M3 measurements`）已推送至 `origin/wet-turkey`；PR [#92](https://github.com/ssttkkl/finance-tracker/pull/92) 已创建，base=`main`、head=`wet-turkey`，状态 OPEN，无冲突。
 
 ## 7. 反思
 
