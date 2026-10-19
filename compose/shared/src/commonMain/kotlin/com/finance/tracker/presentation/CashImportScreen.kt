@@ -241,10 +241,11 @@ internal fun CashImportScreen(
             editingAccountTypeMenuExpanded = false
         }
     }
-    val footerButtonArrangement = if (sizeClass == WindowSizeClass.COMPACT) {
-        Arrangement.SpaceBetween
+    val sideSheet = sizeClass != WindowSizeClass.COMPACT
+    val footerButtonArrangement = if (sideSheet) {
+        Arrangement.spacedBy(8.dp, Alignment.Start)
     } else {
-        Arrangement.spacedBy(8.dp, Alignment.End)
+        Arrangement.SpaceBetween
     }
 
     val filePicker = if (demoStatement == null) {
@@ -271,103 +272,178 @@ internal fun CashImportScreen(
         showFooter = canWrite || stage == ImportStage.SUCCESS || modalError || modalEdit || modalDiscard || modalBusyNotice,
         footer = {
             when {
-                modalError -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                modalError -> Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                ) {
                     TextButton(onClick = dismissGeneralError, modifier = Modifier.testTag("cash-import.error-acknowledge")) {
                         Text(localizedText("cash_import_error_acknowledge"))
                     }
                 }
-                modalEdit -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = dismissAccountEdit, modifier = Modifier.testTag("import.edit.cancel")) {
-                        Text(localizedText("copy_4d0b4688c7"))
-                    }
-                    TextButton(
-                        onClick = applyAccountEdit,
-                        enabled = editingAccountName.isNotBlank(),
-                        modifier = Modifier.semantics(mergeDescendants = true) {
-                            role = Role.Button
-                            if (editingAccountName.isBlank()) disabled()
-                        }.testTag("import.edit.apply"),
-                    ) {
-                        Text(localizedText("cash_import_apply_account_changes"))
+                modalEdit -> Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                ) {
+                    if (sideSheet) {
+                        TextButton(
+                            onClick = applyAccountEdit,
+                            enabled = editingAccountName.isNotBlank(),
+                            modifier = Modifier.semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                if (editingAccountName.isBlank()) disabled()
+                            }.testTag("import.edit.apply"),
+                        ) { Text(localizedText("cash_import_apply_account_changes")) }
+                        TextButton(onClick = dismissAccountEdit, modifier = Modifier.testTag("import.edit.cancel")) {
+                            Text(localizedText("copy_4d0b4688c7"))
+                        }
+                    } else {
+                        TextButton(onClick = dismissAccountEdit, modifier = Modifier.testTag("import.edit.cancel")) {
+                            Text(localizedText("copy_4d0b4688c7"))
+                        }
+                        TextButton(
+                            onClick = applyAccountEdit,
+                            enabled = editingAccountName.isNotBlank(),
+                            modifier = Modifier.semantics(mergeDescendants = true) {
+                                role = Role.Button
+                                if (editingAccountName.isBlank()) disabled()
+                            }.testTag("import.edit.apply"),
+                        ) { Text(localizedText("cash_import_apply_account_changes")) }
                     }
                 }
-                modalDiscard -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = { discardConfirmOpen = false }, modifier = Modifier.testTag("cash-import.discard-cancel")) {
-                        Text(localizedText("cash_import_continue"))
+                modalDiscard -> Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                ) {
+                    if (sideSheet) {
+                        TextButton(
+                            onClick = closeImport,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.testTag("cash-import.discard-confirm"),
+                        ) { Text(localizedText("cash_import_discard")) }
+                        TextButton(onClick = { discardConfirmOpen = false }, modifier = Modifier.testTag("cash-import.discard-cancel")) {
+                            Text(localizedText("cash_import_continue"))
+                        }
+                    } else {
+                        TextButton(onClick = { discardConfirmOpen = false }, modifier = Modifier.testTag("cash-import.discard-cancel")) {
+                            Text(localizedText("cash_import_continue"))
+                        }
+                        TextButton(
+                            onClick = closeImport,
+                            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                            modifier = Modifier.testTag("cash-import.discard-confirm"),
+                        ) { Text(localizedText("cash_import_discard")) }
                     }
-                    TextButton(
-                        onClick = closeImport,
-                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                        modifier = Modifier.testTag("cash-import.discard-confirm"),
-                    ) { Text(localizedText("cash_import_discard")) }
                 }
-                modalBusyNotice -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                modalBusyNotice -> Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                ) {
                     TextButton(onClick = { busyCloseNotice = false }, modifier = Modifier.testTag("cash-import.busy-continue")) {
                         Text(localizedText("cash_import_busy_continue"))
                     }
                 }
                 !canWrite -> Unit
                 else -> when (stage) {
-                ImportStage.SELECT -> {
-                    Row(
+                    ImportStage.SELECT -> Row(
                         Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        horizontalArrangement = if (sideSheet) Arrangement.spacedBy(8.dp, Alignment.Start) else Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        TextButton(onClick = requestClose, modifier = Modifier.testTag("cash-import.cancel")) {
-                            Text(localizedText("cash_import_cancel"))
+                        if (sideSheet) {
+                            ImportScanAction(
+                                enabled = canScan,
+                                busy = busy,
+                                modifier = Modifier.testTag(SemanticIds.importNext),
+                                onClick = { viewModel.scanSelectedFiles() },
+                            )
+                            TextButton(onClick = requestClose, modifier = Modifier.testTag("cash-import.cancel")) {
+                                Text(localizedText("cash_import_cancel"))
+                            }
+                        } else {
+                            TextButton(onClick = requestClose, modifier = Modifier.testTag("cash-import.cancel")) {
+                                Text(localizedText("cash_import_cancel"))
+                            }
+                            ImportScanAction(
+                                enabled = canScan,
+                                busy = busy,
+                                modifier = Modifier.testTag(SemanticIds.importNext),
+                                onClick = { viewModel.scanSelectedFiles() },
+                            )
                         }
-                        ImportScanAction(
-                            enabled = canScan,
-                            busy = busy,
-                            modifier = Modifier.testTag(SemanticIds.importNext),
-                            onClick = { viewModel.scanSelectedFiles() },
-                        )
                     }
-                }
-                ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                    OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
-                        Spacer(Modifier.size(8.dp))
-                        Text(localizedText("copy_75ef1241c0"))
+                    ImportStage.MAPPING -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        if (sideSheet) {
+                            Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                                Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115"))
+                                Spacer(Modifier.size(8.dp))
+                                Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                            }
+                        }
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.SELECT) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("copy_75ef1241c0"))
+                        }
+                        if (!sideSheet) {
+                            Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                                Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115"))
+                                Spacer(Modifier.size(8.dp))
+                                Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                            }
+                        }
                     }
-                    Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
-                        Text(if (busy) localizedText("copy_a99736a830") else localizedText("copy_b8a3f85115"))
-                        Spacer(Modifier.size(8.dp))
-                        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                    ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        if (sideSheet) {
+                            Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                                Text(localizedText("copy_1fc1afc5c5"))
+                                Spacer(Modifier.size(8.dp))
+                                Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                            }
+                        }
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("copy_75ef1241c0"))
+                        }
+                        if (!sideSheet) {
+                            Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
+                                Text(localizedText("copy_1fc1afc5c5"))
+                                Spacer(Modifier.size(8.dp))
+                                Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                            }
+                        }
                     }
-                }
-                ImportStage.PREVIEW -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                    OutlinedButton(onClick = { viewModel.stage(ImportStage.MAPPING) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
-                        Spacer(Modifier.size(8.dp))
-                        Text(localizedText("copy_75ef1241c0"))
+                    ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
+                        if (sideSheet) {
+                            Button(onClick = { viewModel.commitImport() }, enabled = state.canCommitIgnoringBusy(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
+                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.confirm.icon"))
+                                Spacer(Modifier.size(8.dp))
+                                Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d"))
+                            }
+                        }
+                        OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("copy_75ef1241c0"))
+                        }
+                        if (!sideSheet) {
+                            Button(onClick = { viewModel.commitImport() }, enabled = state.canCommitIgnoringBusy(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
+                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.confirm.icon"))
+                                Spacer(Modifier.size(8.dp))
+                                Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d"))
+                            }
+                        }
                     }
-                    Button(onClick = runPrimaryAction, enabled = primaryActionEnabled, modifier = Modifier.testTag(SemanticIds.importNext)) {
-                        Text(localizedText("copy_1fc1afc5c5"))
-                        Spacer(Modifier.size(8.dp))
-                        Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.next.icon"))
+                    ImportStage.SUCCESS -> Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                    ) {
+                        Button(onClick = closeImport, modifier = Modifier.testTag("import.return")) {
+                            Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
+                            Spacer(Modifier.size(8.dp))
+                            Text(localizedText("copy_855fa817d2"))
+                        }
                     }
-                }
-                ImportStage.RELATIONS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = footerButtonArrangement) {
-                    OutlinedButton(onClick = { viewModel.stage(ImportStage.PREVIEW) }, enabled = !busy, modifier = Modifier.testTag(SemanticIds.importPrevious)) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.previous.icon"))
-                        Spacer(Modifier.size(8.dp))
-                        Text(localizedText("copy_75ef1241c0"))
-                    }
-                    Button(onClick = { viewModel.commitImport() }, enabled = state.canCommitIgnoringBusy(), modifier = Modifier.testTag(SemanticIds.importConfirm)) {
-                        Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.confirm.icon"))
-                        Spacer(Modifier.size(8.dp))
-                        Text(if (busy) localizedText("copy_cd74f09629") else localizedText("copy_de6433b70d"))
-                    }
-                }
-                ImportStage.SUCCESS -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    Button(onClick = closeImport, modifier = Modifier.testTag("import.return")) {
-                        Icon(painterResource(Res.drawable.ic_arrow_back), contentDescription = null, modifier = Modifier.size(18.dp).testTag("import.return.icon"))
-                        Spacer(Modifier.size(8.dp))
-                        Text(localizedText("copy_855fa817d2"))
-                    }
-                }
                 }
             }
         },
@@ -418,18 +494,10 @@ internal fun CashImportScreen(
                 showTitle = false,
                 scrollable = false,
                 contentPadding = PaddingValues(
-                    start = when (sizeClass) {
-                        WindowSizeClass.COMPACT -> 16.dp
-                        WindowSizeClass.REGULAR -> 24.dp
-                        WindowSizeClass.WIDE -> 32.dp
-                    },
-                    end = when (sizeClass) {
-                        WindowSizeClass.COMPACT -> 16.dp
-                        WindowSizeClass.REGULAR -> 24.dp
-                        WindowSizeClass.WIDE -> 32.dp
-                    },
-                    top = if (sizeClass == WindowSizeClass.COMPACT) 8.dp else 12.dp,
-                    bottom = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 12.dp,
+                    start = 24.dp,
+                    end = 24.dp,
+                    top = 24.dp,
+                    bottom = 24.dp,
                 ),
             ) {
                 if (!canWrite) {

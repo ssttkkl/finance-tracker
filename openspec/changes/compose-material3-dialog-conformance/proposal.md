@@ -30,6 +30,13 @@ Compose 共享界面同时使用标准 Material 3 对话框和自行绘制的弹
 - 按 Material 3 Modal Side Sheet 复核账单详情/编辑/关联任务：Regular/Wide 面板贴合屏幕末端并全高显示，使用 `surfaceContainerLow`、Large shape、零 elevation 和单一 scrim；编辑与关系创建的操作固定在底部。
 - 对本 change 涉及的任务模态统一落实操作区和关闭入口合同：操作按钮位于底部，取消在左、主要操作在最右；所有非 `AlertDialog` 模态在左上提供关闭按钮；`AlertDialog` 操作不含图标。
 
+## 补充范围（2026-10-19）
+
+- 保留每种弹窗现有外框尺寸、位置、呈现方式和交互行为，只调整关闭按钮位置及内部 measurement。所有非 `AlertDialog` 弹窗的关闭按钮放在左侧；`AlertDialog` 不增加关闭图标。
+- 全屏弹窗采用 [Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 的标题栏与内容区 measurement。非全屏且非 `AlertDialog` 的弹窗，在原外框中采用同一标题栏与内容区 measurement，仍保持非全屏。
+- Side Sheet 采用 [Material 3 Side Sheet specs](https://m3.material.io/components/side-sheets/specs) 的内部 measurement；底部操作区左对齐，主操作放在最左。此 Side Sheet 按钮布局覆盖原先通用的“主操作最右”规则。
+- 不调整已确认的账单详情、筛选、导入及投资弹窗外框尺寸，不改变遮罩、拖动、Back/Escape、取消/确认、滚动或提交行为。
+
 ## Capabilities
 
 ### New Capabilities

@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +39,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -307,7 +310,8 @@ internal fun InvestmentHoldingsScreen(
                         InvestmentPositionDetailHeader(holding, viewModel::closePosition)
                         HorizontalDivider()
                         InvestmentPositionDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp)
+                                .testTag("investment.position.detail.content"),
                             position,
                         )
                     }
@@ -321,7 +325,8 @@ internal fun InvestmentHoldingsScreen(
 private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow, onClose: () -> Unit) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 24.dp)
+            .testTag("investment.position.detail.header"),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         IconButton(
@@ -330,18 +335,22 @@ private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow, onClos
                 .semantics { contentDescription = closeLabel }
                 .testTag("investment.position.detail.close"),
         ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
         }
         Column(Modifier.weight(1f)) {
             Text(
                 holding.position.displayName ?: holding.position.ticker,
                 modifier = Modifier.testTag("investment.position.detail.title"),
                 style = MaterialTheme.typography.headlineSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }

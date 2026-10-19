@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -214,10 +217,11 @@ internal fun InvestmentEventsScreen(
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
                     Column(Modifier.fillMaxWidth()) {
-                        InvestmentEventDetailHeader(event, viewModel::closeEvidence)
+        InvestmentEventDetailHeader(event, viewModel::closeEvidence)
                         HorizontalDivider()
                         InvestmentEventDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp)
+                                .testTag("investment.event.detail.content"),
                             event,
                             evidence,
                             evidenceLoading,
@@ -235,7 +239,8 @@ internal fun InvestmentEventsScreen(
 private fun InvestmentEventDetailHeader(event: InvestmentEvent, onClose: () -> Unit) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 24.dp)
+            .testTag("investment.event.detail.header"),
         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
     ) {
         IconButton(
@@ -244,9 +249,15 @@ private fun InvestmentEventDetailHeader(event: InvestmentEvent, onClose: () -> U
                 .semantics { contentDescription = closeLabel }
                 .testTag(SemanticIds.investmentEventDetailClose),
         ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
         }
-        Text(eventTitle(event), modifier = Modifier.testTag("investment.event.detail.title"), style = MaterialTheme.typography.headlineSmall)
+        Text(
+            eventTitle(event),
+            modifier = Modifier.weight(1f).testTag("investment.event.detail.title"),
+            style = MaterialTheme.typography.headlineSmall,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

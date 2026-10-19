@@ -106,3 +106,24 @@
 ## Open Questions
 
 None.
+
+## 2026-10-19 补充：弹窗内部 measurement
+
+### 约束
+
+- 保留现有弹窗外框、宽高上限、窗口定位、呈现类型及退出/提交行为；只调整关闭按钮所在侧与内部 measurement。
+- 所有非 `AlertDialog` 的关闭按钮放在左侧。M3 Side Sheet 图示将关闭按钮放在右侧；本 change 按用户确认将它放在左侧。
+- Side Sheet 的底部操作区遵循 M3 左对齐，主操作在最左；该规则只覆盖 Side Sheet，不改全屏或普通弹窗既有的操作顺序。
+
+### Measurement 实施值
+
+- Side Sheet：内容左右内边距 24 dp；带关闭图标的标题区起始内边距 16 dp、顶部内边距 24 dp；标题区相邻元素间距 12 dp；关闭图标 24 dp；底部操作区总高 72 dp，按钮在操作区内垂直居中；操作按钮整体左对齐，主操作最左。
+- 全屏 Dialog：标题栏高 64 dp；关闭图标 24 dp 并位于左侧；正文左右内边距 24 dp；可选分隔线 1 dp。
+- 非全屏、非 `AlertDialog` Dialog：在既有外框内采用全屏 Dialog 的标题栏、关闭图标、正文左右内边距和分隔线 measurement，不扩展外框或改成全屏。
+- Compact 筛选 `ModalBottomSheet` 与所有 `AlertDialog` 不套用 Dialog/Side Sheet 内部 measurement；其中已有的关闭入口仍保持左侧。
+
+### 受影响面与保持项
+
+- 账单详情/编辑/关联 Side Sheet 与现金导入 Regular/Wide Side Sheet 使用同一测量合同；现金流水 Regular/Wide 详细筛选 Dialog、投资事件详情和持仓详情使用非全屏 Dialog 合同；账单 Compact 详情/编辑/关联及现金导入 Compact 使用全屏 Dialog 合同。
+- 外框保持：账单 Side Sheet 最大 560 dp、起始侧留白、末端贴边；导入 Side Sheet 仍为 Regular 90% / Wide 70% 窗口宽度；投资和筛选弹窗继续保留既有 560 dp / 760 dp 上限及定位。
+- Header / body 的 measurement 改动不改变滚动区域、任务状态、草稿、操作回调、关闭路径、遮罩与拖动手势。Web、Android、iOS 共用 `commonMain`；本轮运行验证按既有项目决策只覆盖 Web。

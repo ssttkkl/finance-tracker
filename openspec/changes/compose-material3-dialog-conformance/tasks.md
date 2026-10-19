@@ -8,6 +8,7 @@
 
 - [x] 2.1 创建并修订 proposal、`shared/design-system` delta spec 与设计说明，记录视觉/行为验收、窗口变体、未提交工作丢弃、信息架构、移除的冗余入口、Hallmark 方向与实现边界。
 - [x] 2.2 运行 `openspec validate compose-material3-dialog-conformance --strict`，确认规格覆盖审查 finding、验收场景和跨端不变量。
+- [x] 2.3 本轮补充规格：保留弹窗外框与行为；关闭入口位于左侧；全屏 Dialog 标题栏 64 dp、关闭图标 24 dp、内容左右 24 dp；非全屏非 AlertDialog 在原外框内使用同一标题/内容 measurement；Side Sheet 按 24 dp 内容边距、16 dp 标题起始边距、24 dp 顶边距、12 dp 标题元素间距及 72 dp 操作区（按钮垂直居中）布局，所有操作左对齐且主操作最左。Cross-platform Impact Check：Web、Android、iOS 均受 `commonMain` 内部布局影响；Web 执行浏览器 QA，Native 本轮不做设备运行验证。`openspec validate compose-material3-dialog-conformance --strict` 通过。
 
 ## 3. 测试先行与实现
 
@@ -38,12 +39,14 @@
 - [x] 3.25 撤销第二轮把 Compact 只读流水详情改为基础对话框的产品结论；按用户确认恢复详情/编辑共用全屏合同，并确保 Regular/Wide 右侧面板从标题到页脚填满可用高度。所有 M3 确认/错误弹窗显示时，底层账单任务面板暂时不渲染。
 - [x] 3.26 为导入阶段和模态子任务切换更新可访问语义子树，确保视觉已进入新阶段时，辅助技术和 Web 语义层也只暴露当前阶段的标题与控件。
 - [x] 3.27 当账户名称为空时，在 Compact/Regular/Wide 编辑对话框中同时禁用应用操作并暴露 disabled 语义，恢复有效名称后再启用。
-- [x] 3.28 落实 M3 Side Sheet 与用户补充操作合同：Regular/Wide 账单模态面板使用 `surfaceContainerLow`、Large shape、零 elevation、末端贴边与可关闭 scrim；沿末端拖动时面板跟手移动，达阈值后滑出屏幕，未达阈值则回弹；Compact/Regular/Wide 编辑与关联操作固定在底部；详情编辑主操作最右；所有非 AlertDialog 模态左上提供关闭；AlertDialog 操作只显示文字。
+- [x] 3.28 落实 M3 Side Sheet 与用户补充操作合同：Regular/Wide 账单模态面板使用 `surfaceContainerLow`、Large shape、零 elevation、末端贴边与可关闭 scrim；沿末端拖动时面板跟手移动，达阈值后滑出屏幕，未达阈值则回弹；Compact/Regular/Wide 编辑与关联操作固定在底部；初始版本详情编辑主操作最右（本轮已由 3.29 覆盖为 Side Sheet 主操作最左）；所有非 AlertDialog 模态左侧提供关闭；AlertDialog 操作只显示文字。
+- [x] 3.29 仅调整弹窗内部 measurement 与明确确认的 Side Sheet 操作对齐：全屏标题栏/非全屏 Dialog 标题和内容按 M3 Dialog specs；账单与导入 Side Sheet 按 M3 Side Sheet specs、左侧关闭、所有操作左对齐且主操作最左；保留全部外框尺寸与交互行为。更新 F-03/F-04/F-05/F-08/F-09 功能地图。
 
 ## 4. 审查
 
 - [x] 4.1 第二遍人工复核用户任务、影响范围、跨端一致性、账单详情/编辑/关联创建的响应式合同、Regular/Wide 全高右侧面板、标题栏关闭与任务内取消是否重复、滚动正文与固定操作区、模态状态变化后的无障碍标题/控件、关闭/确认/错误路径、取消动作可用性、日期暂存语义、各任务至多一个活动模态、删除范围、关系移除影响确认、异步请求、权限变化和导入草稿处置以及最终 diff；finding 与处置回写本文件。
 - [x] 4.4 依据 [Material 3 Side Sheet specs](https://m3.material.io/components/side-sheets/specs)、[Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 与 Hallmark `audit` skill instructions 复核最终 Compose UI、390/768/1440 截图、层级与关闭/操作合同；按严重度记录的问题均已处置，最终无未解决 finding。
+- [x] 4.5 对本轮 measurement 实施做范围化 diff、M3 measurement、关闭入口、Side Sheet 主操作排序和外框不变复核；最终 UI 后再次运行 Hallmark `audit` 并记录 finding 与处置。审查范围：账本详情/编辑/关联、导入各步骤、筛选、投资事件与持仓详情的 Compose 实现及 390/768/1440 px 截图；对照本 change 验收、M3 measurements 与 `.agents/skills/hallmark/references/anti-patterns.md`。结果：0 critical、0 major、0 minor；关闭入口在左，Side Sheet 操作全左对齐且主操作最左，Compact 操作顺序不变；截图未见卡片套卡片、重复帮助文案、主题外颜色或层级冲突。无待修 finding。
 
 ### 审查发现与处置
 
@@ -97,17 +100,21 @@
 
 - [x] 5.6 当前离线演示复核（2026-10-18，Compose Wasm 生产包，`FT_COMPOSE_DEMO_MODE=true`）：`start-compose-offline-demo.mjs` 检测到旧产物后执行完整 Gradle 构建；本机预览 `http://127.0.0.1:5220/w/demo-workspace/`，内网预览 `http://192.168.1.11:52916/w/demo-workspace/`。用 Playwright Chromium、`zh-CN` locale 在 390×844、768×1024、1440×1000 依次打开流水详情、切换编辑、Escape 返回详情、打开独立关联任务，三尺寸全部通过。截图分别保存在 `screenshots/offline-demo-20261018/compose-demo-{compact,regular,wide}-{detail,edit,relation}.png`。直接访问 QA 专用 `workspace-1` 不属于离线演示种子；改用实际演示工作区 `demo-workspace` 后列表正常显示。内网代理与预览均返回 HTTP 200；页面正常渲染，Kotlin/Wasm 每次启动输出一次 `wasmExports.memory` 弃用提示，不影响交互。演示进程和内网代理保持运行供用户复核。
 - [x] 5.7 执行本轮 M3 Side Sheet / 操作区 / 关闭入口修正后的三尺寸真实浏览器 QA；覆盖详情/编辑/关联、scrim 与拖动关闭、导入关闭和底部操作、筛选与 DatePicker 左上关闭、投资详情左上关闭、AlertDialog 纯文字操作；更新截图及 console/network 结果。
-  - 2026-10-18 最终组回归（截至 14:56 UTC）：`cd compose/qa/web && FT_COMPOSE_PREVIEW_PORT=53186 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03 详细筛选按字段语义分组并适配窗口宽度|F-04 编辑流水在详情面板内切换|F-04 新增、详情和编辑面板适配|F-04 右侧详情面板点击遮罩后关闭|F-04 Regular/Wide 详情 Side Sheet 可沿末端方向拖动关闭|F-04 已关联流水的解散关联与删除选项使用危险色|F-05 cash-import uses the Material 3 dialog variant|F-08 持仓可查看估值详情|F-09 投资事件可加载下一页并查看证据'`，9/9 通过，约 2 分钟。Playwright Chromium 使用当前 Compose Web 生产预览 `http://127.0.0.1:53186/w/workspace-1`；覆盖 390×844、768×1024、1440×1000，导入页另覆盖 1440×900，筛选还覆盖 320/375/414 px。详情/编辑/关联在 3 尺寸检查，侧边面板在 768/1440 检查点击遮罩、低于阈值后回弹、超阈值拖动跟手并滑出关闭；DatePicker 与投资详情逐尺寸检查关闭按钮位置。导入检查全尺寸左上关闭和取消/继续固定底栏且主操作在右。最终 SideSheet、筛选、日期选择、关联确认截图位于 `compose/qa/openspec/changes/compose-material3-dialog-conformance/screenshots/`；导入首屏截图位于 `compose/qa/web/test-results/evidence/compose-import-file-{390,768,1440}.png`。
+  - 2026-10-18 最终组回归（截至 14:56 UTC）：`cd compose/qa/web && FT_COMPOSE_PREVIEW_PORT=53186 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03 详细筛选按字段语义分组并适配窗口宽度|F-04 编辑流水在详情面板内切换|F-04 新增、详情和编辑面板适配|F-04 右侧详情面板点击遮罩后关闭|F-04 Regular/Wide 详情 Side Sheet 可沿末端方向拖动关闭|F-04 已关联流水的解散关联与删除选项使用危险色|F-05 cash-import uses the Material 3 dialog variant|F-08 持仓可查看估值详情|F-09 投资事件可加载下一页并查看证据'`，9/9 通过，约 2 分钟。Playwright Chromium 使用当前 Compose Web 生产预览 `http://127.0.0.1:53186/w/workspace-1`；覆盖 390×844、768×1024、1440×1000，导入页另覆盖 1440×900，筛选还覆盖 320/375/414 px。详情/编辑/关联在 3 尺寸检查，侧边面板在 768/1440 检查点击遮罩、低于阈值后回弹、超阈值拖动跟手并滑出关闭；DatePicker 与投资详情逐尺寸检查关闭按钮位置。导入检查全尺寸左上关闭和取消/继续固定底栏，Side Sheet 主操作最左且全部操作左对齐，Compact 全屏操作顺序保持原样。最终 SideSheet、筛选、日期选择、关联确认截图位于 `compose/qa/openspec/changes/compose-material3-dialog-conformance/screenshots/`；导入首屏截图位于 `compose/qa/web/test-results/evidence/compose-import-file-{390,768,1440}.png`。
   - 过程处置：旧 `draggable` 的 Web 拖动回归未通过，换用 `detectHorizontalDragGestures` 与完整宽度滑出/阈值回弹动画后，Regular/Wide 单项及拖动中截图位移断言通过；后续整组运行暴露一处回归用例错误地假设取消关联确认会折叠已展开区域，改为验证取消后原展开状态恢复，最终九项整组通过。
   - 浏览器诊断：通过用例的 `afterEach` 对 console error 作零错误断言；未观察到意外控制台或网络失败。Node/WebServer 只提示 `NO_COLOR` 与 `FORCE_COLOR` 并存的环境警告。`npm run test:node` 3/3 通过；`openspec validate compose-material3-dialog-conformance --strict` 通过；最终 `git diff --check` 结果记录于此项更新后复跑。生产预览由 `start-compose-demo.mjs` 按当前输入指纹构建，没有复用旧 bundle。
   - 本轮 `HEAD`=`70f0283550e2c8e8925818bfec9143bad5905810`，比较基线 `origin/main` 相同；改动仍在工作树，未提交。按用户要求只验证 Web，Android/iOS 未运行；因 `commonMain` 共享实现，Native 运行表现仍未由本轮设备 QA 覆盖。
   - 2026-10-18 提交前复验（15:22 UTC，基准 `HEAD`=`70f0283550e2c8e8925818bfec9143bad5905810`）：`cd compose/qa/web && FT_COMPOSE_PREVIEW_PORT=53186 npm run test:e2e -- --grep 'F-03 详细筛选按字段语义分组并适配窗口宽度|F-04 编辑流水在详情面板内切换|F-04 新增、详情和编辑面板适配|F-04 右侧详情面板点击遮罩后关闭|F-04 Regular/Wide 详情 Side Sheet 可沿末端方向拖动关闭|F-04 已关联流水的解散关联与删除选项使用危险色|F-05 cash-import uses the Material 3 dialog variant|F-08 持仓可查看估值详情|F-09 投资事件可加载下一页并查看证据'` 最终 9/9 通过（约 1.8 分钟）。先前同组一次运行 8/9，唯一失败是取消关系确认后查找折叠按钮；该用例隔离重跑 1/1 通过，随后同组重跑 9/9，未复现，不需代码修复。`npm run test:node` 3/3、`openspec validate compose-material3-dialog-conformance --strict` 与 `git diff --check` 均通过；浏览器仅有 `NO_COLOR`/`FORCE_COLOR` 环境警告。此次复跑未启用截图捕获，既有三尺寸证据保留自上述最终截图回归。
+- [x] 5.8 本轮实施后重新执行 `openspec validate compose-material3-dialog-conformance --strict`、Compose Web 生产构建、`compose/qa/web` Node QA 与 `git diff --check`；记录当前 HEAD、基线和时间。2026-10-19 14:22–14:25 UTC：strict 校验通过；`cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache` 通过；`cd compose/qa/web && npm run test:node` 3/3 通过；`git diff --check` 通过。当前 `HEAD`=`5b41517bbac762d654b8b5782ab6d2d2f62e6e9f`，比较基线 `origin/main` 相同；实现留在未提交工作树。
+- [x] 5.9 使用真实 Chromium 浏览器验证受影响弹窗在 390/768/1440 px 的关闭入口、标题/内容间距、Side Sheet 左对齐与主操作最左，以及外框尺寸和现有关闭/提交行为；保存截图并记录 console/network 诊断。2026-10-19 最终组回归 9/9 通过（约 2.3 分钟）。命令：`cd compose/qa/web && FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03 详细筛选按字段语义分组并适配窗口宽度|F-04 新增、详情和编辑面板适配三类窗口|F-04 已关联流水的解散关联与删除选项使用危险色|F-05 cash-import uses the Material 3 side-sheet variant for each horizontal window class|F-05 Regular/Wide 侧板可以通过 Escape 关闭|F-05 Regular/Wide 导入侧板可完成各步骤并提交|F-05 关系筛选卡片覆盖 compact 和 wide 宽度|F-08 持仓可查看估值详情|F-09 投资事件可加载下一页并查看证据'`。Playwright Chromium 生产预览地址为 `http://127.0.0.1:<运行器分配端口>/w/workspace-1`；覆盖 390×844、768×1024、1440×1000；导入页另覆盖 1440×900，筛选覆盖 320/375/414 px，导入 Side Sheet 另覆盖 600/1023/1024 px 断点。检查标题关闭入口、内容 24 dp 边距、Side Sheet 72 dp 底栏高度与主操作左侧、外框和关闭/提交流程。截图：`compose/qa/openspec/changes/compose-material3-dialog-conformance/screenshots/record-detail-{compact,regular,wide}.png`、`investment-event-{compact,regular,wide}.png`、`investment-position-{compact,regular,wide}.png`；导入步骤见 `compose/qa/web/test-results/evidence/compose-import-{file,relations,relation-picker}-{390,768,1440}.png`。通过用例对浏览器 console error 作零错误断言，未见意外 console/network 错误；环境仅有 `NO_COLOR`/`FORCE_COLOR` 同时设置的 Node 警告。Native Android/iOS 设备未运行，保留 `commonMain` Native 表现风险。
+- [x] 5.10 为用户复核准备当前工作树的离线演示：`FT_COMPOSE_PREVIEW_PORT=5220 node compose/qa/web/scripts/start-compose-offline-demo.mjs` 于 2026-10-19 14:22 UTC 触发完整 Wasm 生产构建，14:24 UTC 构建成功并启动本机服务；`http://127.0.0.1:5220/health` 与 `http://127.0.0.1:5220/w/demo-workspace/` 均返回 HTTP 200。服务保持运行，供 `COMPACT`、`REGULAR`、`WIDE` 复核；用户确认仍由 6.2 门禁处理。
 
 ## 6. 发布准备
 
 - [x] 6.1 按用户授权将本 change 直接提交并推送到 `main`。2026-10-18，开发工作分支 `enhanced-ape` 上的实现提交 `d0b15a947e4ec2ef215a38e15329fc3517c86c85`（`feat(compose): conform dialogs to Material 3`）通过 `git push origin HEAD:main` 快进推送成功（`70f0283..d0b15a9 HEAD -> main`）。提交前检查工作树、暂存范围、`git diff --check`、OpenSpec 严格校验、Node QA 3/3 与聚焦 Web 回归 9/9 均通过。重大 UI change 仍须等待用户复核 Compose 演示结果后才能标记完成。
-- [ ] 6.2 等待用户复核 Compose 演示结果后再将 change 标记完成；演示需覆盖 `COMPACT`、`REGULAR`、`WIDE`。
+- [x] 6.2 用户于 2026-10-19 14:33 UTC 确认 Compose 演示复核完成；`COMPACT`、`REGULAR`、`WIDE` 变体均已供复核。此确认满足重大 UI change 的用户演示门禁。
 - [x] 6.3 无数据迁移；回滚通过还原本次提交完成。发布后重点观察 Compact 全屏详情与独立关联任务、Regular/Wide 全高面板，以及删除/关系移除确认和异步错误知悉路径。
+- [ ] 6.4 按用户授权提交本轮 M3 measurement 与 Side Sheet 左对齐微调、推送功能分支，并创建目标为 `main` 的 PR；完成后记录提交与 PR 链接。
 
 ## 7. 反思
 

@@ -1346,6 +1346,19 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
     expect(filterCloseBounds).not.toBeNull();
     expect(filterTitleBounds).not.toBeNull();
     expect(filterCloseBounds!.x + filterCloseBounds!.width).toBeLessThanOrEqual(filterTitleBounds!.x + 1);
+    if (!size.compact) {
+      const [detailsBounds, headerBounds, firstGroupBounds] = await Promise.all([
+        details.boundingBox(),
+        page.locator('[id="ledger.filter.header"]').last().boundingBox(),
+        page.locator('[id="ledger.filter.group.time"]').last().boundingBox(),
+      ]);
+      expect(detailsBounds).not.toBeNull();
+      expect(headerBounds).not.toBeNull();
+      expect(firstGroupBounds).not.toBeNull();
+      expect(headerBounds!.height).toBeCloseTo(64, 0);
+      expect(firstGroupBounds!.x).toBeCloseTo(detailsBounds!.x + 24, 0);
+      expect(firstGroupBounds!.width).toBeCloseTo(detailsBounds!.width - 48, 0);
+    }
 
     const groups = groupIds.map((id) => page.locator(`[id="ledger.filter.group.${id}"]`).last());
     for (const [index, group] of groups.entries()) {
@@ -1930,16 +1943,40 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await expectPanelBounds(width, height, true);
     await expect(page.locator('[id="ledger.record-panel.close"]').last()).toBeVisible();
     const detailActions = page.locator('[id="record.detail.actions"]').last();
+    const recordHeader = page.locator('[id="ledger.record-panel.header"]').last();
+    const recordContent = page.locator('[id="ledger.record-panel.content"]').last();
+    const recordFooter = page.locator('[id="ledger.record-panel.footer"]').last();
     await expect(detailActions).toBeVisible();
     const panelBounds = await panel.boundingBox();
+    const recordHeaderBounds = await recordHeader.boundingBox();
+    const recordContentBounds = await recordContent.boundingBox();
+    const recordFooterBounds = await recordFooter.boundingBox();
     const actionBounds = await detailActions.boundingBox();
     const moreActionBounds = await page.locator('[id="record.detail.more-actions"]').last().boundingBox();
     const editActionBounds = await page.locator('[id="record.detail.edit"]').last().boundingBox();
     expect(panelBounds).not.toBeNull();
+    expect(recordHeaderBounds).not.toBeNull();
+    expect(recordContentBounds).not.toBeNull();
+    expect(recordFooterBounds).not.toBeNull();
     expect(actionBounds).not.toBeNull();
     expect(moreActionBounds).not.toBeNull();
     expect(editActionBounds).not.toBeNull();
-    expect(moreActionBounds!.x + moreActionBounds!.width).toBeLessThanOrEqual(editActionBounds!.x + 1);
+    expect(recordContentBounds!.x).toBeCloseTo(panelBounds!.x + 24, 0);
+    expect(recordContentBounds!.width).toBeCloseTo(panelBounds!.width - 48, 0);
+    expect(recordFooterBounds!.height).toBeCloseTo(width < 600 ? 56 : 72, 0);
+    const recordContentStartBounds = await panel.getByText("-28.50 CNY", { exact: true }).last().boundingBox();
+    expect(recordContentStartBounds).not.toBeNull();
+    expect(recordContentStartBounds!.x).toBeCloseTo(panelBounds!.x + 24, 0);
+    if (width < 600) {
+      expect(recordHeaderBounds!.height).toBeCloseTo(64, 0);
+      expect(moreActionBounds!.x + moreActionBounds!.width).toBeLessThanOrEqual(editActionBounds!.x + 1);
+    } else {
+      const recordCloseBounds = await page.locator('[id="ledger.record-panel.close"]').last().boundingBox();
+      expect(recordCloseBounds).not.toBeNull();
+      expect(recordCloseBounds!.x).toBeCloseTo(panelBounds!.x + 20, 0);
+      expect(recordCloseBounds!.y).toBeCloseTo(panelBounds!.y + 28, 0);
+      expect(editActionBounds!.x + editActionBounds!.width).toBeLessThanOrEqual(moreActionBounds!.x + 1);
+    }
     expect(actionBounds!.y + actionBounds!.height).toBeGreaterThan(panelBounds!.y + panelBounds!.height - 110);
     await expect(page.locator('[id="record.related.toggle"]')).toHaveCount(0);
     await expect(page.getByText("来源：-", { exact: true })).toHaveCount(0);
@@ -1965,7 +2002,11 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     expect(saveBounds).not.toBeNull();
     expect(editorPanelBounds).not.toBeNull();
     expect(editCloseBounds!.x + editCloseBounds!.width).toBeLessThanOrEqual(editTitleBounds!.x + 1);
-    expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(saveBounds!.x + 1);
+    if (width < 600) {
+      expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(saveBounds!.x + 1);
+    } else {
+      expect(saveBounds!.x + saveBounds!.width).toBeLessThanOrEqual(cancelBounds!.x + 1);
+    }
     expect(saveBounds!.y + saveBounds!.height).toBeGreaterThan(editorPanelBounds!.y + editorPanelBounds!.height - 100);
     await expectPanelBounds(width, height, true);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
@@ -2331,7 +2372,11 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
     expect(relationCancelBounds).not.toBeNull();
     expect(relationConfirmBounds).not.toBeNull();
     expect(relationPanelBounds).not.toBeNull();
-    expect(relationCancelBounds!.x + relationCancelBounds!.width).toBeLessThanOrEqual(relationConfirmBounds!.x + 1);
+    if (width < 600) {
+      expect(relationCancelBounds!.x + relationCancelBounds!.width).toBeLessThanOrEqual(relationConfirmBounds!.x + 1);
+    } else {
+      expect(relationConfirmBounds!.x + relationConfirmBounds!.width).toBeLessThanOrEqual(relationCancelBounds!.x + 1);
+    }
     expect(relationConfirmBounds!.y + relationConfirmBounds!.height).toBeGreaterThan(relationPanelBounds!.y + relationPanelBounds!.height - 100);
     const confirmYBeforeScroll = relationConfirmBounds!.y;
     await page.mouse.move(width < 600 ? width / 2 : width - 80, height - 260);
@@ -2946,29 +2991,48 @@ test("F-05 cash-import uses the Material 3 side-sheet variant for each horizonta
     const fullscreen = page.locator('[id="secondary-page-fullscreen"]').last();
     const modal = page.locator('[id="secondary-page-modal"]').last();
     const title = page.locator('[id="secondary-page-title"]').last();
+    const header = page.locator('[id="secondary-page-header"]').last();
+    const footer = page.locator('[id="secondary-page-footer"]').last();
     await expect(title).toHaveText("导入账单");
     const close = page.locator('[id="secondary-page-close"]').last();
     await expect(close).toBeVisible();
+    await expect(header).toBeVisible();
     const closeBounds = await close.boundingBox();
     const titleBounds = await title.boundingBox();
+    const headerBounds = await header.boundingBox();
+    const footerBounds = await footer.boundingBox();
     expect(closeBounds).not.toBeNull();
     expect(titleBounds).not.toBeNull();
+    expect(headerBounds).not.toBeNull();
+    expect(footerBounds).not.toBeNull();
     expect(closeBounds!.x + closeBounds!.width).toBeLessThanOrEqual(titleBounds!.x + 1);
-    const footer = page.locator('[id="secondary-page-footer"]').last();
     const cancel = page.locator('[id="cash-import.cancel"]').last();
     const next = page.locator('[id="import.next"]').last();
     await expect(footer).toBeVisible();
     await expect(cancel).toBeVisible();
     await expect(next).toBeVisible();
-    const footerBounds = await footer.boundingBox();
     const cancelBounds = await cancel.boundingBox();
     const nextBounds = await next.boundingBox();
     expect(footerBounds).not.toBeNull();
+    expect(footerBounds!.height).toBeCloseTo(width < 600 ? 56 : 72, 0);
     expect(cancelBounds).not.toBeNull();
     expect(nextBounds).not.toBeNull();
     expect(cancelBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y);
     expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(footerBounds!.y + footerBounds!.height);
-    expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(nextBounds!.x + 1);
+    if (width < 600) {
+      expect(headerBounds!.height).toBeCloseTo(64, 0);
+      expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(nextBounds!.x + 1);
+    } else {
+      const modalBounds = await modal.boundingBox();
+      expect(modalBounds).not.toBeNull();
+      expect(closeBounds!.x).toBeCloseTo(modalBounds!.x + 20, 0);
+      expect(closeBounds!.y).toBeCloseTo(modalBounds!.y + 28, 0);
+      expect(nextBounds!.x + nextBounds!.width).toBeLessThanOrEqual(cancelBounds!.x + 1);
+      const importContentBounds = await page.getByText("选择账单文件", { exact: true }).last().boundingBox();
+      expect(importContentBounds).not.toBeNull();
+      const centeredPageWidth = Math.min(modalBounds!.width, 720);
+      expect(Math.abs(importContentBounds!.x - (modalBounds!.x + (modalBounds!.width - centeredPageWidth) / 2 + 24))).toBeLessThanOrEqual(1);
+    }
     await expect(page.locator('[id="import.stepper"]').last()).toBeVisible();
     await expect(page.locator('[id="import.dropzone"]').last()).toBeVisible();
     if (width < 600) {
@@ -3019,6 +3083,13 @@ test("F-05 Regular/Wide 侧板可以通过 Escape 关闭", async ({ page }) => {
 test("F-05 Regular/Wide 导入侧板可完成各步骤并提交", async ({ page }) => {
   test.setTimeout(120_000);
   const api = await installComposeApiFixtures(page);
+  const expectPrimaryFirst = async (primarySelector: string, secondarySelector: string) => {
+    const primaryBounds = await page.locator(primarySelector).last().boundingBox();
+    const secondaryBounds = await page.locator(secondarySelector).last().boundingBox();
+    expect(primaryBounds).not.toBeNull();
+    expect(secondaryBounds).not.toBeNull();
+    expect(primaryBounds!.x + primaryBounds!.width).toBeLessThanOrEqual(secondaryBounds!.x + 1);
+  };
   for (const [width, height] of [[768, 1024], [1440, 900]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/cash-import`);
@@ -3038,15 +3109,19 @@ test("F-05 Regular/Wide 导入侧板可完成各步骤并提交", async ({ page 
       buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
     }]);
     await expect(page.getByText(fileName, { exact: true }).last()).toBeVisible();
+    await expectPrimaryFirst('[id="import.next"]', '[id="cash-import.cancel"]');
     const previewCallsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length;
     await page.locator('[id="import.next"]').last().dispatchEvent("click");
     await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
+    await expectPrimaryFirst('[id="import.next"]', '[id="import.previous"]');
     await page.locator('[id="import.next"]').last().dispatchEvent("click");
     await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/preview").length).toBe(previewCallsBefore + 1);
+    await expectPrimaryFirst('[id="import.next"]', '[id="import.previous"]');
 
     await page.getByRole("button", { name: "继续", exact: true }).last().click({ force: true });
     const importCommitsBefore = api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length;
     await expect(page.locator('[id="import.confirm"]').last()).toBeVisible();
+    await expectPrimaryFirst('[id="import.confirm"]', '[id="import.previous"]');
     await page.locator('[id="import.confirm"]').last().dispatchEvent("click");
     await expect.poll(() => api.calls.filter((call) => call.path === "/api/v1/cash-import/commit").length).toBe(importCommitsBefore + 1);
     await expect(page.getByText("导入完成", { exact: true })).toBeVisible();
@@ -3173,10 +3248,10 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     expect(footerBounds).not.toBeNull();
     expect(previousBounds).not.toBeNull();
     expect(confirmBounds).not.toBeNull();
-    expect(modalBounds!.width).toBeLessThanOrEqual(560);
-    expect(confirmBounds!.x + confirmBounds!.width).toBeGreaterThan(modalBounds!.x + modalBounds!.width * 0.6);
-    expect(confirmBounds!.x).toBeGreaterThan(previousBounds!.x + previousBounds!.width);
-    expect(Math.abs(confirmBounds!.x + confirmBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThanOrEqual(2);
+    expect(footerBounds!.height).toBeCloseTo(72, 0);
+    expect(confirmBounds!.x).toBeGreaterThanOrEqual(modalBounds!.x + 24);
+    expect(confirmBounds!.x).toBeLessThanOrEqual(modalBounds!.x + 32);
+    expect(confirmBounds!.x + confirmBounds!.width).toBeLessThanOrEqual(previousBounds!.x + 1);
     expect(confirmBounds!.height).toBeLessThanOrEqual(48);
     const previousBorder = await page.locator('[id="import.previous"]').last().evaluate((element) => getComputedStyle(element).borderTopColor);
     expect(previousBorder).not.toBe("rgba(0, 0, 0, 0)");
@@ -3190,6 +3265,7 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     expect(footerBounds).not.toBeNull();
     expect(confirmBounds).not.toBeNull();
     expect(previousBounds).not.toBeNull();
+    expect(footerBounds!.height).toBeCloseTo(56, 0);
     expect(confirmBounds!.x).toBeGreaterThan(previousBounds!.x + previousBounds!.width);
     expect(Math.abs(confirmBounds!.x + confirmBounds!.width - footerBounds!.x - footerBounds!.width)).toBeLessThanOrEqual(2);
   };
@@ -3450,13 +3526,19 @@ test("F-08 持仓可查看估值详情", async ({ page }) => {
     await expect(page.getByText("估值状态", { exact: true }).last()).toContainText("估值状态");
     await expect(page.getByText("行情完整", { exact: true }).last()).toContainText("行情完整");
     await expect(page.locator('[id="investment.position.detail.close"]').last()).toBeVisible();
+    const positionHeaderBounds = await page.locator('[id="investment.position.detail.header"]').last().boundingBox();
+    const positionContentBounds = await detail.getByText("持有数量", { exact: true }).boundingBox();
     const positionCloseBounds = await page.locator('[id="investment.position.detail.close"]').last().boundingBox();
     const positionTitleBounds = await page.locator('[id="investment.position.detail.title"]').last().boundingBox();
     expect(positionCloseBounds).not.toBeNull();
     expect(positionTitleBounds).not.toBeNull();
+    expect(positionHeaderBounds).not.toBeNull();
+    expect(positionContentBounds).not.toBeNull();
     expect(positionCloseBounds!.x + positionCloseBounds!.width).toBeLessThanOrEqual(positionTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
+    expect(positionHeaderBounds!.height).toBeCloseTo(64, 0);
+    expect(positionContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
     expect(bounds!.x).toBeGreaterThanOrEqual(16);
     expect(bounds!.y).toBeGreaterThanOrEqual(16);
@@ -3528,13 +3610,19 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
     await expect(detail).toBeVisible();
     await expect(page.getByText("发生时间", { exact: true }).last()).toBeVisible();
     await expect(page.locator('[id="investment.event.detail.close"]').last()).toBeVisible();
+    const eventHeaderBounds = await page.locator('[id="investment.event.detail.header"]').last().boundingBox();
+    const eventContentBounds = await detail.getByText("发生时间", { exact: true }).boundingBox();
     const detailCloseBounds = await page.locator('[id="investment.event.detail.close"]').last().boundingBox();
     const detailTitleBounds = await page.locator('[id="investment.event.detail.title"]').last().boundingBox();
     expect(detailCloseBounds).not.toBeNull();
     expect(detailTitleBounds).not.toBeNull();
+    expect(eventHeaderBounds).not.toBeNull();
+    expect(eventContentBounds).not.toBeNull();
     expect(detailCloseBounds!.x + detailCloseBounds!.width).toBeLessThanOrEqual(detailTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
+    expect(eventHeaderBounds!.height).toBeCloseTo(64, 0);
+    expect(eventContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
     expect(bounds!.x).toBeGreaterThanOrEqual(16);
     expect(bounds!.y).toBeGreaterThanOrEqual(16);

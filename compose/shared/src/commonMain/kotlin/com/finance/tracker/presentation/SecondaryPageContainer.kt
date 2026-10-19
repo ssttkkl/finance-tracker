@@ -17,9 +17,12 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -146,15 +149,16 @@ private fun SecondaryPageSideSheet(
 private fun SecondaryPageBasicHeader(title: String, onClose: () -> Unit) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().padding(start = 16.dp, top = 24.dp, end = 24.dp).testTag("secondary-page-header"),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         IconButton(
             onClick = onClose,
             modifier = Modifier.semantics { contentDescription = closeLabel }.testTag("secondary-page-close"),
         ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(20.dp))
+            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
         }
+        Spacer(Modifier.width(12.dp))
         Text(
             title,
             modifier = Modifier.weight(1f).testTag("secondary-page-title"),
@@ -187,7 +191,7 @@ private fun SecondaryPageFullScreenHeader(
                 onClick = onClose,
                 modifier = Modifier.semantics { contentDescription = closeLabel }.testTag("secondary-page-close"),
             ) {
-                Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(20.dp))
+                Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
@@ -222,22 +226,15 @@ private fun SecondaryPageFooter(
 ) {
     Column(Modifier.fillMaxWidth().background(containerColor)) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.testTag("secondary-page-footer-divider"))
-        Box(
-            Modifier.fillMaxWidth()
-                .padding(
-                    horizontal = when (sizeClass) {
-                        WindowSizeClass.COMPACT -> 16.dp
-                        WindowSizeClass.REGULAR -> 24.dp
-                        WindowSizeClass.WIDE -> 24.dp
-                    },
-                )
-                .padding(
-                    top = if (sizeClass == WindowSizeClass.COMPACT) 8.dp else 16.dp,
-                    bottom = if (sizeClass == WindowSizeClass.COMPACT) 16.dp else 24.dp,
-                )
-                .testTag("secondary-page-footer"),
-        ) {
-            footer()
+        if (sizeClass == WindowSizeClass.COMPACT) {
+            Box(
+                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp).testTag("secondary-page-footer"),
+            ) { footer() }
+        } else {
+            Box(
+                Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 24.dp).testTag("secondary-page-footer"),
+                contentAlignment = Alignment.CenterStart,
+            ) { footer() }
         }
     }
 }
