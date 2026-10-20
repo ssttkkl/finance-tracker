@@ -108,6 +108,12 @@ def test_draft_can_be_completed_without_implicit_promotion():
     assert "state" not in result.values
 
 
+def test_reimport_of_equal_draft_financial_values_is_not_an_update():
+    from ft.domain.cash_record_policy import prepare_cash_record_update
+    current = _record(state="draft", amount="-20.00", occurred_at="2026-08-01T00:00:00Z")
+    assert prepare_cash_record_update(current, {"amount": "-20", "occurred_at": "2026-08-01T08:00:00+08:00"}).values == {}
+
+
 @pytest.mark.parametrize("bad", [0.1, True, "NaN", "1e-19"])
 def test_draft_amount_still_requires_exact_representable_decimal(bad):
     from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update

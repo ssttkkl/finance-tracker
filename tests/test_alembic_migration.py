@@ -49,6 +49,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260920_36_cash_transaction_components.py",
                 "20261018_37_remove_wealth_attribution.py",
                 "20261021_38_cash_record_drafts.py",
+                "20261021_39_cash_source_bindings.py",
             ]
 
 

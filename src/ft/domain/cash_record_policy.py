@@ -205,7 +205,14 @@ def prepare_cash_record_update(
             raise CashRecordPolicyError("invalid_record_type", ("record_type",))
         if subtype is not None and subtype not in VALID_CASH_RECORD_SUBTYPES:
             raise CashRecordPolicyError("invalid_record_type", ("record_subtype",))
-    changed = {field: value for field, value in effective.items() if current.get(field) != value}
+    changed = {}
+    for field, value in effective.items():
+        try:
+            unchanged = _normalize(field, current.get(field)) == value
+        except (ValueError, TypeError, ArithmeticError):
+            unchanged = False
+        if not unchanged:
+            changed[field] = value
     return CashRecordUpdate(
         values=changed,
         type_changed=any(field in changed for field in ("record_type", "record_subtype")),

@@ -22,6 +22,8 @@
 - [x] 4.1 为统一更新白名单、固定字段、人工清空保护、账号直接覆盖及类型兼容性写失败测试；实现共享领域策略。
 - [x] 4.2 为父子草稿空值、正式完整性、精度、工作区隔离和组成项归属写失败持久化测试；实现 ORM 与保留正式数据的迁移。
 - [ ] 4.3 为当前来源绑定、无编号多重集合、范围不足／名称交叉反例、删除重导及草稿别名写失败测试；实现来源对应。
+- [x] 4.3.1 完成单文件来源规划、同文件出现次数、认证证据、合成身份及事务内当前绑定／问题存储，验证两个后端。
+- [ ] 4.3.2 新解析元数据接入，多文件共同计划不相加重复次数；真实来源重叠和旧来源保守回填在 4.7–4.9 验收后关闭 4.3。
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
@@ -87,3 +89,12 @@
 - 4.2 独立工程复核：schema／迁移／运行时与共享转正式校验分别复核。运行期版本、组成项序号缺失／重复、汇总父账户三项发现均补失败测试并关闭；正式值求和采用 80 位 Decimal 上下文，避免合法 38 位值受默认上下文舍入。该步不暴露草稿 API 或页面，不声称统计过滤和后续维护已完成。
 - 完整 SQLite CI 回归 `PYTHONPATH=tests:.:src uv run pytest tests -q -m 'not performance' --disable-warnings --tb=short` → 1548 passed、178 skipped、50 deselected、3 failed（170.97 s）。两项旧 Expo CI 断言在 `bdcab8c` 独立提取基线复现为 2 failed／2 passed，因旧工作流已移除，不在本重构恢复 Expo。另一项文档断言揭示现有文档索引缺少运行失败边界，随 schema 文档更新补齐；随后定向重跑。未将 skip 或上述完整回归计为完整通过。日志在仓库外 `/tmp/ft-import-sqlite-regression.log` 与 `/tmp/ft-import-prechange-legacy-tests.log`。
 - 文档边界和旧子类型断言调整后的定向回归：`PYTHONPATH=tests:.:src uv run pytest tests/test_runtime_docs.py tests/test_cash_record_subtype.py tests/test_cash_record_policy.py -q --disable-warnings` → 63 passed；OpenSpec strict、`git diff --check` 通过。本步不含 UI，浏览器、Native 和 Hallmark 最终审查不适用，整体 UI 验收任务仍未完成。
+- 4.2 提交 `1d0b62e feat(cash): persist incomplete records as drafts` 已推送当前分支。4.3 勘查覆盖六种现金来源的编号、完整账户、范围和原始备注；在 design 补齐未知范围及混合旧编号风险，先实现来源对应规划和当前绑定／问题存储，再由 4.7 新解析边界提供元数据。未改变来源分类规则，故来源 taxonomy 无新增分类单元；真实样本仍只读且不入库内夹具。
+
+- 4.3.1 测试先行：模块／三表缺失先失败；范围筛选及边界、交叉名称、相同次数、等价更新、删除重导、别名保存点回滚和候选修订均有合成用例。可靠编号与认证证据按全部键及已知目标归并批内冲突，不能局部覆盖。无法确定来源账户时实际碰撞延后，不凭昵称猜账户，也不复制正式流水；正式固定字段冲突不消耗旧候选。
+- 4.3.1 独立复核覆盖来源匹配、schema／迁移、当前问题和来源往返：已关闭不同稳定证据误匹配、混合编号候选误去重、文件别名绕过账户、非法索引阻塞整文件、仅候选变化不增修订、缺表启动未拒绝、认证行证据重载丢失及只检查优先证据八类 finding。对应反例先失败再修复；来源证据新增 `stable_evidence_key` 同步跨层表合同，不把内容散列提升为身份。
+- 4.3.1 定向矩阵（HEAD `1d0b62e`，基线相同）：显式专用 PostgreSQL，`PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cash_source_storage.py tests/test_cash_source_matching.py tests/test_cash_record_policy.py tests/contract/test_cash_draft_storage.py tests/test_alembic_migration.py tests/contract/test_cash_import_dual_backend.py tests/test_runtime_docs.py -q --disable-warnings --maxfail=2 --tb=short` → 200 passed、无 skip。过程中 PostgreSQL 报字符串 ID／BIGINT 比较错误，已规范化 ID 后重跑通过，未用 SQLite 成功代替该后端证据。随后两个纯匹配保护增量及全部领域策略重跑 → 99 passed。
+- 性能：200 个来源出现查询上限为 12 次 SELECT，双后端通过；1,000 笔同秒同额且来源内容不同的完整重复集合初次 2.56 s 超过 2 s 预算，去掉重复范围校验并按来源快照预筛“无需修改”的边后，含该场景的 99 项纯测试合计约 0.1 s。快照预筛仅优化重复比较，不能用作业务身份。
+- 完整 SQLite 回归：`PYTHONPATH=tests:.:src uv run pytest tests -q -m 'not performance' --disable-warnings --tb=short --deselect=tests/test_mobile_ci_packaging.py::test_mobile_ci_builds_release_like_artifacts_with_embedded_js --deselect=tests/test_mobile_ci_packaging.py::test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts` → 1613 passed、196 skipped、53 deselected（181.47 s），仅显式排除已在旧基线复现的两项废弃 Expo CI 断言；未把其他 backend skip 算作双后端通过。后续规范化 ID 与纯匹配增量的受影响用例另跑；日志在 `/tmp/ft-import-source-regression.log`。最终 API、Compose 和草稿统计合同尚未切换，不勾选整体回归及 UI QA 完成。
+- 真实样本只读勘查：仓库外账单目录共 42 个文件（含辅助文件），其中 12 份平台表格可检查表头。6 份支付宝可结构化提取账户和时间范围；6 份微信有昵称、导出类型及范围，正文“微信号”是说明文字，不能当本人微信号提取。新解析必须区分实际身份字段与说明，未知身份沿文件局部定位及后续补充规则；尚未将真实账单写入专用测试库，6.3 保持未完成。
+- 4.3.1 提交前复验：上述同一双后端定向命令 → 202 passed、无 skip（26.79 s）；随后仅补未知账户已消耗候选分支的失败回归并修复，纯匹配／更新策略 → 100 passed（0.11 s）。OpenSpec strict 与 diff 空白检查通过。本步依然是未暴露的后端基础，无 Compose 文案或 UI 变化，不以其代替 4.7–4.13 入口及用户验收。

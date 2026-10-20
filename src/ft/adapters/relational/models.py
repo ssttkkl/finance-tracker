@@ -433,6 +433,82 @@ class CashTransactionComponentModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
+class CashSourceBindingModel(Base):
+    """当前来源定位及别名；来源变化不更换内部流水身份。"""
+
+    __tablename__ = "cash_source_bindings"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "source_type", "source_scope_kind", "source_scope_key", "identity_kind", "identity_key", name="uq_cash_source_binding_identity"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_source_binding_transaction"),
+        CheckConstraint("source_scope_kind IN ('account', 'file_local')", name="ck_cash_source_binding_scope"),
+        CheckConstraint("length(source_scope_key) > 0 AND length(identity_key) > 0", name="ck_cash_source_binding_keys"),
+        CheckConstraint("identity_kind IN ('provider_id', 'file_occurrence')", name="ck_cash_source_binding_identity"),
+        CheckConstraint("identity_strength IN ('provider', 'validated', 'manual', 'file_local')", name="ck_cash_source_binding_strength"),
+        CheckConstraint("revision >= 1", name="ck_cash_source_binding_revision"),
+        Index("ix_cash_source_binding_transaction", "workspace_id", "transaction_id"),
+        Index("ix_cash_source_binding_evidence", "workspace_id", "stable_evidence_key"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_scope_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_scope_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    identity_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    identity_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_strength: Mapped[str] = mapped_column(String(16), nullable=False)
+    stable_evidence_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    coverage: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", onupdate=text("revision + 1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
+class CashTransactionIssueModel(Base):
+    """尚需处理的当前信息，解决后移除，不保存状态历史。"""
+
+    __tablename__ = "cash_transaction_issues"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_issue_workspace_id"),
+        UniqueConstraint("workspace_id", "transaction_id", "issue_key", name="uq_cash_issue_transaction_key"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_issue_transaction"),
+        CheckConstraint("revision >= 1", name="ck_cash_issue_revision"),
+        Index("ix_cash_issue_transaction", "workspace_id", "transaction_id"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    issue_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    field_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pending_source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    pending_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    origin: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", onupdate=text("revision + 1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
+class CashIssueCandidateModel(Base):
+    __tablename__ = "cash_issue_candidates"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "issue_id", "candidate_transaction_id", name="uq_cash_issue_candidate"),
+        ForeignKeyConstraint(["workspace_id", "issue_id"], ["cash_transaction_issues.workspace_id", "cash_transaction_issues.id"], ondelete="CASCADE", name="fk_cash_issue_candidate_issue"),
+        ForeignKeyConstraint(["workspace_id", "candidate_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_issue_candidate_transaction"),
+        CheckConstraint("expected_row_revision >= 1", name="ck_cash_issue_candidate_revision"),
+        Index("ix_cash_issue_candidate_transaction", "workspace_id", "candidate_transaction_id"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    issue_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    candidate_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    expected_row_revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
 class CashProjectionStateModel(Base):
     """每个工作区的收支投影活动指针和构建诊断。"""
 

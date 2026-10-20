@@ -443,8 +443,9 @@ erDiagram
 | `id/workspace_id/transaction_id` | 主键及复合流水外键，非空 |
 | `source_type/source_scope_kind/source_scope_key` | 渠道、`account/file_local` 作用域种类及非空作用域键；本方账户未知时 `file_local` 用文件摘要及解析命名空间，只支持同文件幂等 |
 | `identity_kind` | `provider_id/file_occurrence` |
-| `identity_key` | 渠道稳定编号，或文件摘要＋表格位置＋行位置＋解析规则命名空间的规范编码 |
+| `identity_key` | 渠道稳定编号的规范编码（可用定长摘要，原编号保留在来源行），或文件摘要＋表格位置＋行位置＋解析规则命名空间的规范编码；不是可变内容摘要 |
 | `identity_strength` | `provider/validated/manual/file_local`，说明当前对应依据；不能把文件位置标为跨文件交易身份 |
+| `stable_evidence_key` | 可空，仅保存来源已认证的固定逐行证据规范键；包含来源账户作用域，不能由描述、类型或内容散列代替；用于同证据查找和不同证据排除 |
 | `strategy_version` | 当前对应策略标识，不参与“哪个账单更新”的优先级 |
 | `coverage` | JSON：来源声明的范围、边界、筛选及完整性；未知显式为未知 |
 | `revision` | 正整数，更新绑定目标时增加 |
