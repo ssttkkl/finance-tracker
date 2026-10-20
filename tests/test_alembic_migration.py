@@ -51,6 +51,7 @@ def test_repository_has_clean_linear_revisions():
                 "20261021_38_cash_record_drafts.py",
                 "20261021_39_cash_source_bindings.py",
                 "20261021_40_cash_mutation_receipts.py",
+                "20261021_41_account_revisions.py",
             ]
 
 

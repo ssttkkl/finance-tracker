@@ -138,6 +138,21 @@ def test_invalid_or_sensitive_result_is_rejected_before_any_receipt_write(mutati
         assert repo.by_key("fixture-user", "request-1") is None
 
 
+@pytest.mark.parametrize("changes", [
+    {"source_payload": {"private": "must not persist"}}, {"account_revision": 0},
+    {"account_id": "different-account"}, {"currencies": ["CNY", "CNY"]},
+])
+def test_account_receipt_only_accepts_matching_whitelisted_account_results(mutation_runtime, changes):
+    account = {"account_id": "101", "account_revision": 2, "name": "Ordinary account", "type": "cash", "active": True, "currencies": ["CNY"], "deleted": False}
+    account.update(changes)
+    with mutation_runtime.sessions.begin() as session:
+        repo = _repo(session, mutation_runtime)
+        with pytest.raises(ValueError, match="mutation_summary_invalid"):
+            _save(repo, operation_kind="account_update", session_digest=None, plan_id=None,
+                result_summary={"status": "completed", "account_id": "101", "account_revision": 2, "account": account})
+        assert repo.by_key("fixture-user", "request-1") is None
+
+
 def test_result_references_survive_later_deletion_without_blocking_it(mutation_runtime):
     from ft.adapters.relational.models import CashMutationResultModel
     runtime = mutation_runtime

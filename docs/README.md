@@ -2,7 +2,7 @@
 
 当前行为以 [`openspec/project-context.md`](../openspec/project-context.md)、`openspec/specs/` 和实现为准。本目录提供运行说明、架构梳理与 UI 约束，不维护平行的行为规格或历史路线。
 
-运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不得回退、不双写、不隐式迁移。迁移版本以 Alembic 当前 head 和 `SCHEMA_REVISION` 为准；当前仓库 schema 值为 `20261021_40`。SQLite 写入繁忙时应重试，目录或文件权限错误须先修正，不能改用另一数据库掩盖失败。
+运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不得回退、不双写、不隐式迁移。迁移版本以 Alembic 当前 head 和 `SCHEMA_REVISION` 为准；当前仓库 schema 值为 `20261021_41`。SQLite 写入繁忙时应重试，目录或文件权限错误须先修正，不能改用另一数据库掩盖失败。
 
 ## 当前能力基线
 

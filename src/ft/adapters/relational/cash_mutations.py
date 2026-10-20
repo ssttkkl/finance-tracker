@@ -35,11 +35,26 @@ def _digest(value, *, nullable=False):
     return value
 
 
+def _account_result(value):
+    from ft.domain.accounts import ACCOUNT_TYPES
+    expected = {"account_id", "name", "type", "active", "currencies", "account_revision", "deleted"}
+    if (not isinstance(value, dict) or set(value) != expected
+        or not isinstance(value["name"], str) or not 1 <= len(value["name"]) <= 255
+        or not isinstance(value["type"], str) or value["type"] not in ACCOUNT_TYPES
+        or type(value["active"]) is not bool or type(value["deleted"]) is not bool
+        or type(value["account_revision"]) is not int or not 1 <= value["account_revision"] < 2 ** 63
+        or not isinstance(value["currencies"], list) or len(value["currencies"]) > 100
+        or any(not isinstance(currency, str) or not re.fullmatch(r"[A-Z]{3}", currency) for currency in value["currencies"])
+        or len(set(value["currencies"])) != len(value["currencies"])):
+        raise ValueError("mutation_summary_invalid")
+    return dict(value, account_id=_text(value["account_id"], 128, code="mutation_summary_invalid"))
+
+
 def _summary(value):
     counters = {"needs_attention_count", "pending_item_count", "projection_version", "account_revision"}
     references = {"retry_context_id", "account_id", "retained_transaction_id"}
     reference_lists = {"affected_transaction_ids"}
-    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "projection_refs"}
+    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "projection_refs", "account"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("mutation_summary_invalid")
     value = deepcopy(value)
@@ -57,6 +72,8 @@ def _summary(value):
             if not isinstance(item, list) or any(not isinstance(reference, dict) or set(reference) != {"transaction_id", "projection_id"} for reference in item):
                 raise ValueError("mutation_summary_invalid")
             value[key] = [{field: _text(reference[field], 128, code="mutation_summary_invalid") for field in ("transaction_id", "projection_id")} for reference in item]
+        elif key == "account":
+            value[key] = _account_result(item)
         elif key == "status":
             if not isinstance(item, str) or item not in {"completed", "partial", "no_changes", "failed"}:
                 raise ValueError("mutation_summary_invalid")
@@ -73,6 +90,8 @@ def _summary(value):
             except ValueError:
                 raise ValueError("mutation_summary_invalid") from None
     try:
+        if "account" in value and (value.get("account_id") != value["account"]["account_id"] or value.get("account_revision") != value["account"]["account_revision"]):
+            raise ValueError
         if len(json.dumps(value, allow_nan=False).encode()) > 1024 * 1024:
             raise ValueError
     except (TypeError, ValueError, RecursionError):

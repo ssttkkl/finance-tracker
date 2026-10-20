@@ -175,6 +175,8 @@ class AccountModel(Base):
         UniqueConstraint("workspace_id", "id", name="uq_accounts_workspace_id"),
         UniqueConstraint("workspace_id", "name", name="uq_accounts_workspace_name"),
         Index("ix_accounts_workspace", "workspace_id"),
+        CheckConstraint("revision >= 1", name="ck_accounts_revision"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -184,6 +186,7 @@ class AccountModel(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", nullable=False)
     # Account-supported currencies are database configuration, not a user-facing
     # setting in the cash ledger.  Keep the collection normalized at write
     # boundaries and expose it as read-only data to the transaction form.
@@ -191,6 +194,7 @@ class AccountModel(Base):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+    __mapper_args__ = {"version_id_col": revision}
 
 
 
