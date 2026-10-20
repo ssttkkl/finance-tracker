@@ -28,3 +28,7 @@ None.
 - Affected clients: Compose Web and Native share the same batch import API; no client UI or route changes are intended. The cash-import-session delta states the batch token and password-retry behavior that was previously only implicit in the implementation flow.
 - Data: scanning and preview remain temporary; business database writes remain limited to explicit final confirmation. Confirmed source-account mappings apply to both the parent row and its atomic component while preserving the original source label, amount, and source row snapshot.
 - Migration/rollback: no schema or data migration. Reverting the dispatch change restores the current failure; existing sessions are short-lived and expire by TTL.
+
+## 后续现金导入重设计的同步边界
+
+`cash-import-lifecycle-redesign` 已声明本变更部分导入条款的后续取代，具体范围见 [取代清单](../cash-import-lifecycle-redesign/design.md#active-changes-取代与同步顺序)。新变更尚未实施时不改变当前行为；新合同生效后，本变更不得重新同步已经取代的旧流程或规则，须先清理或合并相应 delta。原未完成验证及用户演示仍按原记录保留，不因此自动完成。

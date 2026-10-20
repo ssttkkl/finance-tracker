@@ -36,3 +36,7 @@ None.
 - 功能盘点：`docs/feature-map.md`。
 - 不改变 API、领域规则、金额处理、持久化、数据库 schema、依赖或旧 React Web。
 - 可回滚方式：还原本次 Compose UI、QA、功能地图及 OpenSpec change 内文件；无数据迁移或运行时兼容步骤。
+
+## 后续现金导入重设计的同步边界
+
+`cash-import-lifecycle-redesign` 已声明本变更部分导入条款的后续取代，具体范围见 [取代清单](../cash-import-lifecycle-redesign/design.md#active-changes-取代与同步顺序)。新变更尚未实施时不改变当前行为；新合同生效后，本变更不得重新同步已经取代的旧流程或规则，须先清理或合并相应 delta。原未完成验证及用户演示仍按原记录保留，不因此自动完成。

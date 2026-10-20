@@ -25,3 +25,7 @@
 - 浏览器 QA：`compose/qa/web/tests/compose-pages.e2e.ts` 中的 F-05 尺寸与定位断言、截图证据。
 - 文档：`docs/feature-map.md` 和本变更 OpenSpec artifacts。
 - 不改变账单解析、账户映射、关系审查、导入会话、API、数据模型或持久化；恢复方式是还原侧边面板容器及对应 UI 合同。
+
+## 后续现金导入重设计的同步边界
+
+`cash-import-lifecycle-redesign` 已声明本变更部分导入条款的后续取代，具体范围见 [取代清单](../cash-import-lifecycle-redesign/design.md#active-changes-取代与同步顺序)。新变更尚未实施时不改变当前行为；新合同生效后，本变更不得重新同步已经取代的旧流程或规则，须先清理或合并相应 delta。原未完成验证及用户演示仍按原记录保留，不因此自动完成。
