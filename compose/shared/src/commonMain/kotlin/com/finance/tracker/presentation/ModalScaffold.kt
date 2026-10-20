@@ -29,7 +29,8 @@ import androidx.compose.ui.unit.dp
 import org.jetbrains.compose.resources.painterResource
 
 internal enum class ModalHeaderVariant {
-    Dialog,
+    BasicDialog,
+    FullScreenDialog,
     SideSheet,
 }
 
@@ -76,14 +77,18 @@ internal fun ModalHeader(
     title: @Composable () -> Unit,
 ) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
-    val spacing = titleSpacing ?: if (variant == ModalHeaderVariant.SideSheet) 12.dp else 0.dp
+    val spacing = titleSpacing ?: when (variant) {
+        ModalHeaderVariant.BasicDialog -> 16.dp
+        ModalHeaderVariant.FullScreenDialog -> 8.dp
+        ModalHeaderVariant.SideSheet -> 12.dp
+    }
     Row(
         modifier = modifier.fillMaxWidth()
             .then(
-                if (variant == ModalHeaderVariant.Dialog) {
-                    Modifier.height(64.dp).padding(start = 16.dp, end = 24.dp)
-                } else {
-                    Modifier.padding(start = 16.dp, top = 24.dp, end = 24.dp)
+                when (variant) {
+                    ModalHeaderVariant.BasicDialog -> Modifier.padding(start = 24.dp, top = 24.dp, end = 24.dp)
+                    ModalHeaderVariant.FullScreenDialog -> Modifier.height(56.dp).padding(horizontal = 24.dp)
+                    ModalHeaderVariant.SideSheet -> Modifier.padding(start = 16.dp, top = 24.dp, end = 24.dp)
                 },
             )
             .then(headerTestTag?.let { Modifier.testTag(it) } ?: Modifier),

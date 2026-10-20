@@ -7,7 +7,7 @@ Compose 共享界面同时使用标准 Material 3 对话框和自行绘制的弹
 - 审查 Compose 共享实现中的 `Dialog`、`AlertDialog`、`DatePickerDialog` 及承担同等模态职责的容器，按 Material 3 对话框类型、任务边界、关闭/确认语义和响应式容器规则复核视觉设计与业务行为。
 - 对话框按任务复杂度和产品合同选择 M3 呈现。账单详情/编辑在 Compact 使用全屏任务、Regular/Wide 使用右侧模态侧板；其他短确认和知悉状态使用 M3 AlertDialog。账单任务显示确认或错误时暂时隐藏原任务面板，使 AlertDialog 成为唯一活动模态，取消或知悉后恢复原状态。
 - 避免在较宽窗口的基础对话框中再打开日期/时间基础对话框；选择器在当前对话框内容内展开并保留确认/取消语义。
-- 标准 Material 3 对话框继承 `FinanceTheme` 的形状和表面角色；自定义基础对话框使用 Material 3 容器与不超过 560 dp 的宽度、单一遮罩，按短内容收缩，并在正文滚动时固定标题和操作区。
+- 标准 Material 3 对话框继承对应组件结构与表面角色；自定义 Basic Dialog 使用 28 dp 圆角、280–560 dp 宽度、随内容变化的高度和单一遮罩，并在正文滚动时固定标题与操作区。宽度上限 560 dp 遵循 M3 Basic Dialog 规格；不使用任意固定高度上限，内容仅在受视口约束时滚动。
 - 多步骤导入在 Compact 使用全屏对话框，在 Regular/Wide 使用基础对话框；退出含未提交内容的导入前，先用基础对话框确认是否丢弃。
 - 只读的投资事件与持仓详情在所有窗口尺寸使用基础对话框；Compact 不再把详情铺成全屏任务。
 - 账单详情与编辑共用一个模态任务容器：Compact 使用全屏任务，Regular/Wide 保留右侧模态侧板；进入编辑时在原容器内替换布局，不打开独立编辑弹窗。
@@ -30,12 +30,21 @@ Compose 共享界面同时使用标准 Material 3 对话框和自行绘制的弹
 - 按 Material 3 Modal Side Sheet 复核账单详情/编辑/关联任务：Regular/Wide 面板使用 `surfaceContainerLow`、Large shape、零 elevation 和单一 scrim；编辑与关系创建的操作固定在底部。
 - 对本 change 涉及的任务模态统一落实操作区和关闭入口合同：操作按钮位于底部，取消在左、主要操作在最右；所有非 `AlertDialog` 模态在左上提供关闭按钮；`AlertDialog` 操作不含图标。
 
-## 补充范围（2026-10-19）
+## 补充范围（2026-10-19，后续测量决定已撤回）
 
 - 保留每种弹窗现有外框尺寸、位置、呈现方式和交互行为，只调整关闭按钮位置及内部 measurement。所有非 `AlertDialog` 弹窗的关闭按钮放在左侧；`AlertDialog` 不增加关闭图标。
 - 全屏弹窗采用 [Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 的标题栏与内容区 measurement。非全屏且非 `AlertDialog` 的弹窗，在原外框中采用同一标题栏与内容区 measurement，仍保持非全屏。
 - Side Sheet 采用 [Material 3 Side Sheet specs](https://m3.material.io/components/side-sheets/specs) 的内部 measurement；底部操作区左对齐，主操作放在最左。此 Side Sheet 按钮布局覆盖原先通用的“主操作最右”规则。
 - 不调整已确认的账单详情、筛选、导入及投资弹窗外框尺寸，不改变遮罩、拖动、Back/Escape、取消/确认、滚动或提交行为。
+
+## 补充范围（2026-10-20）：Basic 与 Full-screen Dialog 原生测量
+
+- 撤回此前将非全屏自定义 Dialog 套用 Full-screen 标题/正文测量并保留现有外框尺寸的决定；Basic Dialog 与 Full-screen Dialog 分别按 [Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 的原生测量实现。
+- Basic Dialog 按 28 dp 圆角、动态高度、280–560 dp 宽度、24 dp 外侧留白、标题与正文间距 16 dp、正文与操作间距 24 dp、按钮间距 8 dp 和可选 1 dp 分隔线布局。保留 560 dp 最大宽度，遵循 M3 Basic Dialog 规格；不使用固定 760 dp 高度上限。超过可用视口时由视口约束并滚动正文。
+- 保留所有非 `AlertDialog` 模态容器的左侧关闭入口；Basic Dialog 的左侧关闭按钮作为产品例外，纳入 24 dp 内边距的自适应标题区，不套用 Full-screen 固定标题栏高度。Basic Dialog 操作组靠右排列。
+- Compact Full-screen Dialog 采用规格表的 56 dp 标题栏、24 dp 关闭图标、1 dp 分隔线、顶部和左右 24 dp 内容留白、56 dp 底部操作栏及 560 dp 容器最大宽度。规格页示意图标注 64 dp；本次按用户确认以表格 56 dp 为准。
+- 保持 Full-screen 外层任务、滚动、关闭和提交行为；不改动 `AlertDialog`、`DatePickerDialog`、紧凑筛选 `ModalBottomSheet` 或已按独立规格调整的 Side Sheet。
+- Cross-platform Impact Check：Basic 与 Full-screen 容器位于共享 `commonMain`，影响 Compose Web、Android 和 iOS；本次不新增页面级功能，更新 F-03、F-04、F-05、F-08、F-09 的实现测量说明。
 
 ## 补充范围（2026-10-20）
 

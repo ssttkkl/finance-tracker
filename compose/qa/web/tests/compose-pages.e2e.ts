@@ -1280,12 +1280,13 @@ test("F-03 桌面详细筛选弹窗按内容高度展开", async ({ page }) => {
   let bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds?.height ?? 1000).toBeLessThan(800);
+  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(560);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForTimeout(150);
   bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds?.height ?? 1000).toBeLessThan(800);
-  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(720);
+  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(560);
 });
 
 test("F-03 各尺寸账单行按交易对方、备注顺序显示", async ({ page }) => {
@@ -1355,9 +1356,11 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
       expect(detailsBounds).not.toBeNull();
       expect(headerBounds).not.toBeNull();
       expect(firstGroupBounds).not.toBeNull();
-      expect(headerBounds!.height).toBeCloseTo(64, 0);
+      expect(headerBounds!.height).toBeCloseTo(48, 0);
+      expect(headerBounds!.y).toBeCloseTo(detailsBounds!.y + 24, 0);
       expect(firstGroupBounds!.x).toBeCloseTo(detailsBounds!.x + 24, 0);
       expect(firstGroupBounds!.width).toBeCloseTo(detailsBounds!.width - 48, 0);
+      if (size.capture) await captureDialogConformanceScene(page, `basic-dialog-ledger-filter-${size.name}`);
     }
 
     const groups = groupIds.map((id) => page.locator(`[id="ledger.filter.group.${id}"]`).last());
@@ -1757,12 +1760,12 @@ test("F-04 编辑流水在详情面板内切换，不叠加第二个模态层", 
     await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
     await expect(panel).toHaveCount(1);
     await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(500);
     const detailScreenshot = await page.screenshot();
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(500);
     const listScreenshot = await page.screenshot();
-    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.04);
   }
 });
 
@@ -1899,9 +1902,9 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     const bounds = await panel.boundingBox();
     expect(bounds).not.toBeNull();
     if (width < 600 && compactFullscreen) {
-      expect(bounds!.x).toBeCloseTo(0, 0);
+      expect(bounds!.x).toBeCloseTo(Math.max(0, (width - 560) / 2), 0);
       expect(bounds!.y).toBeCloseTo(0, 0);
-      expect(bounds!.width).toBeCloseTo(width, 0);
+      expect(bounds!.width).toBeCloseTo(Math.min(width, 560), 0);
       expect(bounds!.height).toBeCloseTo(height, 0);
     } else if (width < 600) {
       expect(bounds!.width).toBeLessThanOrEqual(560);
@@ -1968,7 +1971,7 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     expect(recordContentStartBounds).not.toBeNull();
     expect(recordContentStartBounds!.x).toBeCloseTo(panelBounds!.x + 24, 0);
     if (width < 600) {
-      expect(recordHeaderBounds!.height).toBeCloseTo(64, 0);
+      expect(recordHeaderBounds!.height).toBeCloseTo(56, 0);
       expect(moreActionBounds!.x + moreActionBounds!.width).toBeLessThanOrEqual(editActionBounds!.x + 1);
     } else {
       const recordCloseBounds = await page.locator('[id="ledger.record-panel.close"]').last().boundingBox();
@@ -2017,12 +2020,12 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     await page.keyboard.press("Escape");
     await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
     await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(500);
     const detailScreenshot = await page.screenshot();
     await page.keyboard.press("Escape");
-    await page.waitForTimeout(250);
+    await page.waitForTimeout(500);
     const listScreenshot = await page.screenshot();
-    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.05);
+    expect(await screenshotDifferenceRatio(page, detailScreenshot, listScreenshot)).toBeGreaterThan(0.04);
   }
 });
 
@@ -3094,7 +3097,7 @@ test("F-05 cash-import uses the Material 3 side-sheet variant for each horizonta
     if (width < 600) {
       expect(cancelBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y);
       expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(footerBounds!.y + footerBounds!.height);
-      expect(headerBounds!.height).toBeCloseTo(64, 0);
+      expect(headerBounds!.height).toBeCloseTo(56, 0);
       expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(nextBounds!.x + 1);
     } else {
       const actionRowTop = footerBounds!.y + 16;
@@ -3618,11 +3621,11 @@ test("F-08 持仓可查看估值详情", async ({ page }) => {
     expect(positionCloseBounds!.x + positionCloseBounds!.width).toBeLessThanOrEqual(positionTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
-    expect(positionHeaderBounds!.height).toBeCloseTo(64, 0);
+    expect(positionHeaderBounds!.height).toBeCloseTo(72, 0);
     expect(positionContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
-    expect(bounds!.x).toBeGreaterThanOrEqual(16);
-    expect(bounds!.y).toBeGreaterThanOrEqual(16);
+    expect(bounds!.x).toBeGreaterThanOrEqual(24);
+    expect(bounds!.y).toBeGreaterThanOrEqual(24);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `investment-position-${sizeName}.png`) });
@@ -3702,11 +3705,11 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
     expect(detailCloseBounds!.x + detailCloseBounds!.width).toBeLessThanOrEqual(detailTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
-    expect(eventHeaderBounds!.height).toBeCloseTo(64, 0);
+    expect(eventHeaderBounds!.height).toBeCloseTo(72, 0);
     expect(eventContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
-    expect(bounds!.x).toBeGreaterThanOrEqual(16);
-    expect(bounds!.y).toBeGreaterThanOrEqual(16);
+    expect(bounds!.x).toBeGreaterThanOrEqual(24);
+    expect(bounds!.y).toBeGreaterThanOrEqual(24);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `investment-event-${sizeName}.png`) });

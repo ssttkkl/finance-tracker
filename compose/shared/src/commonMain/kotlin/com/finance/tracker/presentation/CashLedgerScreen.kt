@@ -19,12 +19,14 @@ import com.finance.tracker.resources.ic_visibility
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,8 +35,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -980,11 +984,14 @@ private fun CashFilterPanel(
                 dismissOnClickOutside = true,
             ),
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Surface(
-                    modifier = Modifier.widthIn(max = 560.dp)
-                    .fillMaxWidth(0.92f)
-                    .heightIn(max = 760.dp)
+                    modifier = Modifier.widthIn(min = 280.dp, max = 560.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight)
                         .semantics { paneTitle = detailedFiltersLabel },
                     shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1138,7 +1145,7 @@ private fun CashDetailedFilters(
             }
         } else {
             ModalHeader(
-                variant = ModalHeaderVariant.Dialog,
+                variant = ModalHeaderVariant.BasicDialog,
                 onClose = onClose,
                 headerTestTag = "ledger.filter.header",
                 closeTestTag = "ledger.filter.close",
@@ -1155,8 +1162,10 @@ private fun CashDetailedFilters(
             modifier = (if (compact) Modifier.weight(1f) else Modifier).fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(
-                    horizontal = if (compact) 20.dp else 24.dp,
-                    vertical = if (compact) 16.dp else 24.dp,
+                    start = if (compact) 20.dp else 24.dp,
+                    top = 16.dp,
+                    end = if (compact) 20.dp else 24.dp,
+                    bottom = if (compact) 16.dp else 24.dp,
                 ).testTag("ledger.filter.content"),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
@@ -1219,11 +1228,18 @@ private fun CashDetailedFilters(
         }
         HorizontalDivider()
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(
+                start = if (compact) 20.dp else 24.dp,
+                top = if (compact) 8.dp else 0.dp,
+                end = if (compact) 20.dp else 24.dp,
+                bottom = if (compact) 8.dp else 24.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
             Spacer(Modifier.weight(1f))
+            if (!compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (!compact) Spacer(Modifier.width(8.dp))
             TextButton(onClick = onClose) { Text(localizedText("ledger_filter_done")) }
         }
     }

@@ -46,13 +46,14 @@
 ### 3.1 弹窗与侧板的 Material 3 测量规则
 
 - 设计和实现弹窗、侧板前，先对照对应的 Material 3 组件规格，主要依据 [Dialog specs](https://m3.material.io/components/dialogs/specs) 和 [Side Sheet specs](https://m3.material.io/components/side-sheets/specs)。`Dialog`（对话框）、`Side Sheet`（侧板）、`AlertDialog`（提示对话框）和 `ModalBottomSheet`（底部弹出层）各自使用对应的内部结构与测量；当需求只涉及内部测量或对齐时，保留已有外框尺寸、位置、关闭与提交行为。
-- `AlertDialog` 使用 Material 3 提供的结构和默认测量，不额外添加关闭图标。需要呈现关闭按钮的其他模态容器，将关闭按钮放在标题区左侧；自定义模态容器的标题、关闭按钮和操作区须在内容滚动时保持可见。
-- 全屏 `Dialog` 的标题栏高 64 dp，左侧关闭图标为 24 dp，内容左右留白各 24 dp。
-- 非全屏且非 `AlertDialog` 的 `Dialog` 沿用同一组标题栏与内容测量，但保持既有非全屏外框的尺寸和位置；不得仅因应用这些内部测量而改为全屏或调整弹窗行为。
+- `AlertDialog`、`DatePickerDialog` 和 `ModalBottomSheet` 使用各自 Material 3 组件结构与测量，不额外添加关闭图标。其他模态容器的关闭按钮置于标题区左侧；自定义容器的标题、关闭入口和操作区须在正文滚动时保持可见。
+- Basic Dialog 遵循独立于 Full-screen Dialog 的原生测量：28 dp 圆角、视口允许时最小宽度 280 dp、最大宽度 560 dp、四周 24 dp 留白；标题区随内容自然增高，标题与正文间距 16 dp，正文与操作区间距 24 dp，操作按钮间距 8 dp 且整组靠右。高度随内容变化，不设任意固定上限；内容超过当前可用视口时只滚动正文。左侧关闭按钮是产品例外，放在自适应标题区中。
+- Compact 全屏 `Dialog` 的标题栏高 56 dp，关闭图标为 24 dp 且位于左侧；正文顶部和左右留白各 24 dp，可选分隔线为 1 dp，底部操作栏高 56 dp，容器最大宽度 560 dp。M3 规格示意图标注 64 dp，项目按用户确认采用规格表的 56 dp。
+- Basic Dialog 与 Full-screen Dialog 分别采用各自的内容和标题测量；不得把 Full-screen 标题栏尺寸套用于 Basic Dialog，也不得将 Basic Dialog 展开成全屏。只读投资详情和 Regular/Wide 详细筛选使用 Basic Dialog 的 280–560 dp 宽度与动态高度规则。
 - `Side Sheet` 内容左右留白各 24 dp；包含关闭按钮的标题区左侧留白 16 dp、顶部留白 24 dp，标题元素间距为 12 dp，关闭图标为 24 dp。侧板与窗口分离呈现时，顶部、底部和逻辑末端各留白 16 dp；既有批准宽度或窗口宽度比例保持不变。底部操作区在 16 dp 上留白和 24 dp 下留白之间包含高 72 dp 的操作行，操作在行内垂直居中；所有操作左对齐，主要操作放在最左侧。
 - `Side Sheet` 的左对齐和主要操作最左规则不自动套用于其他弹窗。全屏 `Dialog` 保留其既有操作顺序；紧凑宽度的筛选 `ModalBottomSheet` 和 `AlertDialog` 保留各自的组件测量与行为。
 - 测量约束用于表达容器布局，不得借此写死按钮或文本输入控件的尺寸；控件继续使用 Material 3 的内容适配与触控区域默认值。
-- UI 回归须验证标题、内容边距、分离侧板的 16 dp 窗口留白、操作区 112 dp 总高与 72 dp 操作行、操作顺序及关闭和提交行为；同时确认批准的侧板宽度与比例不变，并覆盖受影响的 `COMPACT`、`REGULAR`、`WIDE` 窗口等级。
+- UI 回归须分别验证 Basic Dialog 的宽度、28 dp 圆角、内容间距、右对齐操作与受限视口滚动；全屏 Dialog 的 56 dp 标题栏、24 dp 内容留白和 56 dp 底栏；Side Sheet 的 16 dp 分离留白、112 dp 操作区总高、72 dp 操作行、左对齐及原批准宽度。覆盖受影响的 `COMPACT`、`REGULAR`、`WIDE` 窗口等级。
 
 ## 4. Hallmark 方向与 Compose 实现门禁
 

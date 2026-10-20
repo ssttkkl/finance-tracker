@@ -107,7 +107,7 @@
 
 None.
 
-## 2026-10-19 补充：弹窗内部 measurement
+## 2026-10-19 补充：弹窗内部 measurement（后续 Basic / Full-screen 决定已撤回）
 
 ### 约束
 
@@ -150,3 +150,19 @@ None.
 - `SideSheetActionArea` 总高 112 dp：上留白 16 dp、按钮所在操作行 72 dp、下留白 24 dp。操作行内部水平留白 24 dp，按钮保持 Material 3 默认触控尺寸，垂直居中、左对齐且主操作最左。
 - 导入普通阶段已有 `FeaturePage` 的 24 dp 内容留白不重复叠加；Side Sheet 内联账户编辑和内联错误原先未留边距，单独补 24 dp 左右边距。丢弃和忙碌提示原有留白继续保留。
 - Cross-platform Impact Check：布局实现在 `commonMain`，Web、Android、iOS 共享变化；按既有产品决定，本轮只运行 Web 验证，Native 设备运行验证仍未覆盖。该项不新增页面级功能，功能地图无需修改。
+
+## 2026-10-20 补充：Basic Dialog 与 Full-screen Dialog 原生测量
+
+### 决策与边界
+
+- 本节覆盖并替代 2026-10-19 “全屏和非全屏弹窗共用标题/正文测量、保留外框尺寸”的测量决定；更早已经确认的 Side Sheet 规则不变。
+- Basic Dialog 保留 M3 的 280–560 dp 宽度范围和 28 dp 圆角。窗口留白按四周 24 dp 处理；标题区按内容自然增高，不设固定标题栏高度；标题与正文间距 16 dp、正文与操作区间距 24 dp、操作按钮间距 8 dp，操作组靠右。Basic 高度随内容变化，移除任意 760 dp 上限；当内容超过当前可用视口时，仅正文滚动，标题和操作区保持可见。
+- 所有非 `AlertDialog` 模态仍保留左侧关闭入口。Basic Dialog 将该入口作为产品例外放入自适应标题区；它不改变 28 dp 圆角、24 dp 内边距或 560 dp 最大宽度。
+- Compact Full-screen Dialog 按 Dialog 规格表采用 56 dp 标题栏，尽管配套示意图标注 64 dp；关闭图标为 24 dp 并在左侧。正文顶部和两侧各留白 24 dp；可选分隔线为 1 dp；固定底部操作栏高 56 dp。全屏容器宽度不超过 560 dp，视口不足时服从可用宽度。
+- `AlertDialog`、`DatePickerDialog`、Compact 筛选 `ModalBottomSheet` 和已单独符合规格的 Side Sheet 不纳入上述 Basic/Full-screen 调整。容器位置、任务流程、按钮顺序、提交/关闭行为继续按已确认产品合同处理。
+
+### Hallmark 方向与跨端影响
+
+- 方向：在共享 Compose scaffold 中明确区分 Basic、Full-screen 和 Side Sheet 三套测量；用自然内容高度和正文滚动保持任务标题及操作可见，保留现有表面色、内容语义和业务层级。
+- 自查：Basic 使用 M3 规定的 560 dp 宽度上限；不把 Basic 扩成全屏，也不保留旧 760 dp 人为高度帽；关闭图标仅作为已确认的产品例外；Full-screen 使用 56 dp 表格值，不跟随图示中的 64 dp。
+- Cross-platform Impact Check：`ModalScaffold` 位于 `commonMain`，受影响页面为 F-03、F-04、F-05、F-08、F-09；Compose Web、Android、iOS 共用布局测量。Web/Native 页面功能和业务交互不变；同步更新功能地图中的几何合同。

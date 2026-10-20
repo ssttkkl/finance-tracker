@@ -292,13 +292,13 @@ internal fun InvestmentHoldingsScreen(
             ),
         ) {
             BoxWithConstraints(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 Surface(
-                    Modifier.widthIn(max = 560.dp)
+                    Modifier.widthIn(min = 280.dp, max = 560.dp)
                         .fillMaxWidth()
-                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .heightIn(max = maxHeight)
                         .testTag("investment.position.detail.panel")
                         .semantics { paneTitle = position.displayName?.takeIf(String::isNotBlank) ?: position.ticker },
                     shape = MaterialTheme.shapes.extraLarge,
@@ -311,7 +311,7 @@ internal fun InvestmentHoldingsScreen(
                         contentFill = false,
                         header = {
                             ModalHeader(
-                                variant = ModalHeaderVariant.Dialog,
+                                variant = ModalHeaderVariant.BasicDialog,
                                 onClose = viewModel::closePosition,
                                 headerTestTag = "investment.position.detail.header",
                                 closeTestTag = "investment.position.detail.close",
@@ -336,7 +336,9 @@ internal fun InvestmentHoldingsScreen(
                         },
                     ) {
                         InvestmentPositionDetailBody(
-                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 16.dp, bottom = 24.dp)
                                 .testTag("investment.position.detail.content"),
                             position,
                         )

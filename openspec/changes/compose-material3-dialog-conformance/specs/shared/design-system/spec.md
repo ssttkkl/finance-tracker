@@ -229,20 +229,27 @@ A dialog action area MUST present at most one confirming action and one dismissi
 - **AND** changing modal task state MUST preserve the task's committed and staged business data
 
 ### Requirement: Dialog internal measurements follow the Material 3 variant
-Compose modal containers MUST apply the measurement contract for their presentation variant without changing approved outer widths or dismissal/commit behavior. Full-screen Dialog headers MUST measure 64 dp high, use a 24 dp close icon on the left, and keep the content's horizontal inset at 24 dp. Non-full-screen non-AlertDialog containers MUST use the same header and content measurements inside their existing outer frame. Side Sheets MUST use 24 dp content side insets, a 16 dp header start inset and 24 dp top inset when the header contains a close icon, 12 dp spacing between adjacent header elements, and a 24 dp close icon. When detached, Side Sheets MUST have 16 dp viewport margins at the top, bottom, and logical end edge without reducing their previously approved outer widths. A Side Sheet's bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs and compact filter ModalBottomSheets MUST retain their existing component-specific measurements.
+Compose modal containers MUST apply the measurement contract for their presentation variant while preserving approved product behavior. Basic Dialogs MUST use a 28 dp corner radius, 280 dp minimum width when the viewport allows it, 560 dp maximum width, and 24 dp outer padding. Their height MUST follow content and available viewport constraints without an arbitrary fixed height cap; when content exceeds available height, only the body MUST scroll while the title and actions remain visible. A Basic Dialog title area MUST use content-driven height, retain the approved top-left close affordance as a product exception, and keep 24 dp inset from its edges. The title/body gap MUST be 16 dp, body/actions gap MUST be 24 dp, and buttons MUST have 8 dp spacing with the action group aligned to the trailing edge. Compact Full-screen Dialogs MUST use a 56 dp header according to the spec table, a 24 dp left close icon, a 1 dp optional divider, 24 dp top and horizontal content insets, and a fixed 56 dp bottom action bar; their container MUST fill the available viewport and MUST NOT exceed 560 dp in width. A modal Side Sheet MUST retain its approved width, have 16 dp top, bottom, and logical-end margins when detached, and keep the 16 dp start inset, 24 dp top inset, and 12 dp spacing between header elements. Its content MUST use 24 dp side insets. Its bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs, DatePickerDialogs, and compact filter ModalBottomSheets MUST retain their component-specific measurements.
 
-#### Scenario: A full-screen dialog receives M3 internal measurements
-- **WHEN** a user opens a full-screen non-AlertDialog task
-- **THEN** its title header MUST be 64 dp high and its close icon MUST be 24 dp on the left
-- **AND** its content MUST keep 24 dp horizontal insets
-- **AND** applying the measurements MUST preserve the existing full-screen outer frame and task behavior
+#### Scenario: A Basic Dialog follows Basic measurements with the close-button exception
+- **WHEN** a user opens a non-full-screen custom Basic Dialog
+- **THEN** its width MUST be at least 280 dp when available space permits and MUST NOT exceed 560 dp
+- **AND** its container MUST use a 28 dp corner radius and 24 dp outer padding
+- **AND** its title area MUST grow with its contents and keep the product's close button at the top-left
+- **AND** the title/body and body/actions spacing MUST be 16 dp and 24 dp respectively
+- **AND** its action buttons MUST have 8 dp spacing and the group MUST align to the trailing edge
+- **AND** a long body MUST scroll independently when constrained by the viewport, without a fixed 760 dp height cap
+- **AND** its existing task, dismissal, and commit behavior MUST remain unchanged
 
-#### Scenario: A non-full-screen dialog receives full-screen dialog content measurements
-- **WHEN** a user opens a non-full-screen non-AlertDialog dialog
-- **THEN** its title header, left close icon, and content insets MUST use the full-screen Dialog measurements
-- **AND** the dialog MUST retain its existing non-full-screen outer frame, size, position, and behavior
+#### Scenario: A compact full-screen dialog follows Full-screen Dialog measurements
+- **WHEN** a user opens a Compact full-screen non-AlertDialog task
+- **THEN** its header MUST be 56 dp high according to the measurements table, with a 24 dp top-left close icon
+- **AND** its content MUST have 24 dp top and horizontal insets
+- **AND** its optional divider MUST be 1 dp and its fixed bottom action bar MUST be 56 dp high
+- **AND** the full-screen container width MUST fit the viewport and MUST NOT exceed 560 dp
+- **AND** its existing task, dismissal, and commit behavior MUST remain unchanged
 
-#### Scenario: A Side Sheet receives M3 internal measurements
+#### Scenario: A Side Sheet retains its approved measurements
 - **WHEN** a user opens a modal Side Sheet
 - **THEN** its header and content MUST use the Side Sheet insets and 12 dp element spacing
 - **AND** its detached container MUST have 16 dp margins at the viewport top, bottom, and logical end while preserving its previously approved width

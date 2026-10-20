@@ -181,7 +181,7 @@ private fun CashRecordModalOverlay(
         ) {
             Surface(
                 modifier = (if (fullScreen) {
-                    Modifier.fillMaxSize()
+                    Modifier.fillMaxHeight().widthIn(max = 560.dp).fillMaxWidth()
                 } else {
                     Modifier.widthIn(max = 560.dp)
                         .fillMaxWidth()
@@ -202,10 +202,12 @@ private fun CashRecordModalOverlay(
                         .then(if (fullScreen || !compact) Modifier.fillMaxHeight() else Modifier)
                         .then(if (fullScreen || !compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier),
                     contentFill = fullScreen || !compact,
-                    contentModifier = Modifier.padding(horizontal = 24.dp).testTag("ledger.record-panel.content"),
+                    contentModifier = Modifier.padding(horizontal = 24.dp)
+                        .then(if (fullScreen) Modifier.padding(top = 24.dp) else Modifier)
+                        .testTag("ledger.record-panel.content"),
                     header = {
                         ModalHeader(
-                            variant = if (sideSheet) ModalHeaderVariant.SideSheet else ModalHeaderVariant.Dialog,
+                            variant = if (sideSheet) ModalHeaderVariant.SideSheet else ModalHeaderVariant.FullScreenDialog,
                             onClose = onDismiss,
                             titleSpacing = when {
                                 sideSheet -> 12.dp

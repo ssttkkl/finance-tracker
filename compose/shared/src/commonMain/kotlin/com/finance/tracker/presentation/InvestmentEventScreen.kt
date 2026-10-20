@@ -202,13 +202,13 @@ internal fun InvestmentEventsScreen(
             ),
         ) {
             BoxWithConstraints(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 Surface(
-                    Modifier.widthIn(max = 560.dp)
+                    Modifier.widthIn(min = 280.dp, max = 560.dp)
                         .fillMaxWidth()
-                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .heightIn(max = maxHeight)
                         .testTag(SemanticIds.investmentEventDetail)
                         .semantics { paneTitle = dialogTitle },
                     shape = MaterialTheme.shapes.extraLarge,
@@ -221,7 +221,7 @@ internal fun InvestmentEventsScreen(
                         contentFill = false,
                         header = {
                             ModalHeader(
-                                variant = ModalHeaderVariant.Dialog,
+                                variant = ModalHeaderVariant.BasicDialog,
                                 onClose = viewModel::closeEvidence,
                                 headerTestTag = "investment.event.detail.header",
                                 closeTestTag = SemanticIds.investmentEventDetailClose,
@@ -237,7 +237,9 @@ internal fun InvestmentEventsScreen(
                         },
                     ) {
                         InvestmentEventDetailBody(
-                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 16.dp, bottom = 24.dp)
                                 .testTag("investment.event.detail.content"),
                             event,
                             evidence,

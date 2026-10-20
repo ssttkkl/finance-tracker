@@ -472,12 +472,16 @@ internal fun CashImportScreen(
                 }
                 modalDiscard -> Text(
                     localizedText("cash_import_discard_message"),
-                    modifier = Modifier.fillMaxWidth().padding(24.dp).testTag("cash-import.discard-message"),
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (compact) Modifier else Modifier.padding(24.dp))
+                        .testTag("cash-import.discard-message"),
                     style = MaterialTheme.typography.bodyLarge,
                 )
                 modalBusyNotice -> Text(
                     localizedText("cash_import_busy_close_message"),
-                    modifier = Modifier.fillMaxWidth().padding(24.dp).testTag("cash-import.busy-message"),
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (compact) Modifier else Modifier.padding(24.dp))
+                        .testTag("cash-import.busy-message"),
                     style = MaterialTheme.typography.bodyLarge,
                 )
             }
@@ -485,8 +489,8 @@ internal fun CashImportScreen(
         if (canWrite && stage != ImportStage.SUCCESS) {
             Box(
                 Modifier.fillMaxWidth()
-                    .padding(horizontal = if (sizeClass == WindowSizeClass.COMPACT) 12.dp else 36.dp)
-                    .padding(top = 24.dp, bottom = 4.dp),
+                    .padding(horizontal = if (compact) 0.dp else 36.dp)
+                    .padding(top = if (compact) 0.dp else 24.dp, bottom = 4.dp),
             ) {
                 ImportStepper(stage, sizeClass, busy, scan != null, preview != null) { target -> viewModel.stage(target) }
             }
@@ -498,7 +502,7 @@ internal fun CashImportScreen(
                 modifier = Modifier.widthIn(max = if (stage == ImportStage.RELATIONS) 1480.dp else 720.dp).fillMaxWidth(),
                 showTitle = false,
                 scrollable = false,
-                contentPadding = PaddingValues(
+                contentPadding = if (compact) PaddingValues(0.dp) else PaddingValues(
                     start = 24.dp,
                     end = 24.dp,
                     top = 24.dp,
