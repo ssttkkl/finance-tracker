@@ -16,6 +16,7 @@ type FixtureOptions = {
   cashPageFailures?: number;
   cashPageEmpty?: boolean;
   cashPaginatedPageCount?: number;
+  cashPageDelayMs?: number;
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
   cashTransferSubtypes?: string[];
@@ -197,7 +198,7 @@ const importedCashProjection = {
 };
 
 const cashRecord = {
-  id: "record-1",
+  id: 1001,
   occurred_at: "2026-09-24T10:30:00+08:00",
   amount: "28.50",
   currency: "CNY",
@@ -215,7 +216,7 @@ const cashRecord = {
 
 const relatedCashRecord = {
   ...cashRecord,
-  id: "record-2",
+  id: 1002,
   occurred_at: "2026-09-24T10:35:00+08:00",
   counterparty: "便利店",
   note: "矿泉水",
@@ -223,7 +224,7 @@ const relatedCashRecord = {
 
 const secondRelatedCashRecord = {
   ...cashRecord,
-  id: "record-3",
+  id: 1003,
   occurred_at: "2026-09-24T10:42:00+08:00",
   amount: "8.00",
   counterparty: "超市",
@@ -232,7 +233,7 @@ const secondRelatedCashRecord = {
 
 const candidateCashRecord = {
   ...cashRecord,
-  id: "record-candidate",
+  id: 1004,
   occurred_at: "2026-09-24T11:00:00+08:00",
   amount: "16.00",
   counterparty: "待关联流水",
@@ -458,45 +459,55 @@ export async function installComposeApiFixtures(
       if (cashPageRequests <= (options.cashPageFailures ?? 0)) {
         return json({ error: { code: "temporarily_unavailable" } }, 503);
       }
+      const startIndex = Math.max(0, Number(searchParams.get("start_index") ?? "0"));
+      const pageSize = Math.max(1, Number(searchParams.get("limit") ?? "20"));
+      const versionedPage = searchParams.has("projection_version");
       if (options.cashPaginatedPageCount) {
-        const cursor = searchParams.get("cursor");
-        const pageNumber = cursor ? Number(cursor.replace("cash-scroll-page-", "")) : 1;
-        if (pageNumber === 1) cashAppendFailuresRemaining = options.cashAppendFailures ?? 0;
-        if (pageNumber > 1 && cashAppendFailuresRemaining > 0) {
+        if (startIndex === 0) cashAppendFailuresRemaining = options.cashAppendFailures ?? 0;
+        if (startIndex > 0 && cashAppendFailuresRemaining > 0) {
           cashAppendFailuresRemaining--;
           return json({ error: { code: "temporarily_unavailable" } }, 503);
         }
         const economicType = searchParams.get("economic_type") === "income" ? "income" : "expense";
-        const items = Array.from({ length: 24 }, (_, index) => ({
+        const totalCount = options.cashPageEmpty ? 0 : options.cashPaginatedPageCount * 24;
+        const items = Array.from({ length: Math.min(pageSize, Math.max(0, totalCount - startIndex)) }, (_, offset) => {
+          const absoluteIndex = startIndex + offset;
+          const pageNumber = Math.floor(absoluteIndex / 24) + 1;
+          const index = absoluteIndex % 24;
+          return {
           ...cashProjection,
-          projection_id: pageNumber === 1 && index === 1
-            ? "cash-scroll-1-1"
-            : pageNumber > 1 && index === 0
-              ? "cash-scroll-1-24"
-              : `cash-scroll-${pageNumber}-${index + 1}`,
+          projection_id: `cash-scroll-${pageNumber}-${index + 1}`,
           occurred_at: options.cashCrossMonthBoundary && pageNumber === 1
-            ? `2026-10-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`
+            ? index === 0
+              ? "2026-10-24T10:30:00+08:00"
+              : `2026-09-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`
             : options.cashCrossMonthBoundary && pageNumber > 1
               ? `2026-09-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`
-              : pageNumber === 1 && index === 1
-            ? "2026-09-24T10:30:00+08:00"
-            : pageNumber > 1 && index === 0
-              ? "2026-09-01T10:30:00+08:00"
               : `2026-09-${String(24 - index).padStart(2, "0")}T10:30:00+08:00`,
-          counterparty: pageNumber === 1 && index === 1
-            ? "重复流水"
-            : pageNumber > 1 && index === 0
-              ? "第1页流水24"
-              : `第${pageNumber}页流水${String(index + 1).padStart(2, "0")}`,
+          counterparty: `第${pageNumber}页流水${String(index + 1).padStart(2, "0")}`,
           amount: economicType === "income" ? "28.50" : "-28.50",
           economic_type: economicType,
-        }));
+          };
+        });
         cashProjectionPageIds.push(items.map((item) => item.projection_id));
+        if (startIndex > 0 && options.cashPageDelayMs) {
+          await new Promise((resolve) => setTimeout(resolve, options.cashPageDelayMs));
+        }
+        const monthPositions = options.cashPageEmpty || versionedPage
+          ? []
+          : options.cashCrossMonthBoundary
+            ? [{ month: "2026-10", start_index: 0, end_index: 1 }, { month: "2026-09", start_index: 1, end_index: totalCount }]
+            : [{ month: "2026-09", start_index: 0, end_index: totalCount }];
         return json({
           projection_version: 1,
           items: options.cashPageEmpty ? [] : items,
-          next_cursor: pageNumber < options.cashPaginatedPageCount ? `cash-scroll-page-${pageNumber + 1}` : null,
-          page_size: items.length,
+          next_cursor: null,
+          page_size: pageSize,
+          start_index: startIndex,
+          total_count: totalCount,
+          items_before: startIndex,
+          items_after: Math.max(0, totalCount - startIndex - items.length),
+          month_positions: monthPositions,
           filter_options: {
             categories: state.categoryItems,
             currencies: ["CNY"],
@@ -508,7 +519,7 @@ export async function installComposeApiFixtures(
           },
           monthly_summaries: options.cashPageEmpty
             ? []
-            : options.cashCrossMonthBoundary && pageNumber === 1
+            : options.cashCrossMonthBoundary
               ? ["2026-10", "2026-09"].map((month) => ({
                 month,
                 currencies: [{ currency: "CNY", income: economicType === "income" ? "28.50" : "0", expense: economicType === "expense" ? "28.50" : "0" }],
@@ -519,11 +530,20 @@ export async function installComposeApiFixtures(
               }],
         });
       }
+      const totalItems = options.cashPageEmpty ? [] : [cashProjection, ...(cashImportCommitted ? [importedCashProjection] : [])];
+      const items = totalItems.slice(startIndex, startIndex + pageSize);
       return json({
         projection_version: 1,
-        items: options.cashPageEmpty ? [] : [cashProjection, ...(cashImportCommitted ? [importedCashProjection] : [])],
+        items,
         next_cursor: null,
-        page_size: 20,
+        page_size: pageSize,
+        start_index: startIndex,
+        total_count: totalItems.length,
+        items_before: startIndex,
+        items_after: Math.max(0, totalItems.length - startIndex - items.length),
+        month_positions: versionedPage || totalItems.length === 0
+          ? []
+          : [{ month: "2026-09", start_index: 0, end_index: totalItems.length }],
         filter_options: {
           categories: state.categoryItems,
           currencies: ["CNY"],
@@ -556,12 +576,12 @@ export async function installComposeApiFixtures(
     if (pathname === "/api/v1/cash-records" && method === "POST") {
       const values = JSON.parse(body ?? "{}");
       writes.push(values);
-      return json({ record: { ...cashRecord, ...values, id: "record-created" }, relations: [], options: {} });
+      return json({ record: { ...cashRecord, ...values, id: 1005 }, relations: [], options: {} });
     }
     if (pathname === "/api/v1/cash-records" && method === "GET") {
       return json({ items: [candidateCashRecord], next_cursor: null });
     }
-    if (pathname === "/api/v1/cash-records/record-1" && method === "GET") {
+    if (pathname === "/api/v1/cash-records/1001" && method === "GET") {
       return json({
         record: cashRecord,
         relations: cashRelations,
@@ -585,7 +605,7 @@ export async function installComposeApiFixtures(
       cashRelations = [];
       return json({ record: cashRecord, relations: cashRelations, options: {} });
     }
-    if (pathname === "/api/v1/cash-records/record-1" && method === "PUT") {
+    if (pathname === "/api/v1/cash-records/1001" && method === "PUT") {
       const values = JSON.parse(body ?? "{}");
       writes.push(values);
       return json({ record: { ...cashRecord, ...values }, relations: [], options: {} });
@@ -594,7 +614,7 @@ export async function installComposeApiFixtures(
       return json({
         projection_version: 1,
         projection: cashProjection,
-        root_record: { ...cashRecord, id: "record-1" },
+        root_record: { ...cashRecord, id: String(cashRecord.id) },
         members: [],
         accepted_relations: [],
         inactive_relation_hints: [],

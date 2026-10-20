@@ -11,8 +11,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
 fun CashComponentDetailDto.toDomain(): CashComponentDetail = CashComponentDetail(
-    id = id,
-    cashTransactionId = cashTransactionId,
+    id = id.toString(),
+    cashTransactionId = cashTransactionId?.toString(),
     account = account?.toDomain(),
     accountName = accountName,
     accountId = accountId,
@@ -24,8 +24,8 @@ fun CashComponentDetailDto.toDomain(): CashComponentDetail = CashComponentDetail
 )
 
 fun CashComponentDetail.toDto(): CashComponentDetailDto = CashComponentDetailDto(
-    id = id,
-    cashTransactionId = cashTransactionId,
+    id = requireNotNull(id.toLongOrNull()) { "Cash component identifiers must be numeric" },
+    cashTransactionId = cashTransactionId?.toLongOrNull(),
     account = account?.toDto(),
     accountName = accountName,
     accountId = accountId,
@@ -221,7 +221,7 @@ fun Evidence.toDto(): EvidenceDto = EvidenceDto(
 )
 
 fun CashRecordDto.toDomain(): CashRecord = CashRecord(
-    id = id,
+    id = id.toString(),
     occurredAt = occurredAt,
     amount = amount,
     currency = currency,
@@ -238,10 +238,12 @@ fun CashRecordDto.toDomain(): CashRecord = CashRecord(
     sourceType = sourceType,
     cashGranularity = cashGranularity,
     components = components?.map { it.toDomain() },
+    componentId = componentId,
 )
 
 fun CashRecord.toDto(): CashRecordDto = CashRecordDto(
-    id = id,
+    id = requireNotNull(id.toLongOrNull()) { "Cash record identifiers must be numeric" },
+    componentId = componentId,
     occurredAt = occurredAt,
     amount = amount,
     currency = currency,
@@ -268,6 +270,9 @@ fun CashRelationDto.toDomain(): CashRelation = CashRelation(
     status = status,
     primaryRecord = primaryRecord?.toDomain(),
     secondaryRecord = secondaryRecord?.toDomain(),
+    primaryComponentId = primaryComponentId?.toString(),
+    secondaryComponentId = secondaryComponentId?.toString(),
+    appliedAmount = appliedAmount,
 )
 
 fun CashRelation.toDto(): CashRelationDto = CashRelationDto(
@@ -278,6 +283,9 @@ fun CashRelation.toDto(): CashRelationDto = CashRelationDto(
     status = status,
     primaryRecord = primaryRecord?.toDto(),
     secondaryRecord = secondaryRecord?.toDto(),
+    primaryComponentId = primaryComponentId?.toLongOrNull(),
+    secondaryComponentId = secondaryComponentId?.toLongOrNull(),
+    appliedAmount = appliedAmount,
 )
 
 fun CashRecordDetailDto.toDomain(): CashRecordDetail = CashRecordDetail(

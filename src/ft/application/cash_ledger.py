@@ -919,7 +919,7 @@ class CashLedgerCommandService:
             }
 
     @staticmethod
-    def _record_wire(record: dict | None) -> dict | None:
+    def _record_wire(record: dict | None, categories: dict[str, dict] | None = None) -> dict | None:
         if record is None:
             return None
         fields = (
@@ -928,7 +928,42 @@ class CashLedgerCommandService:
             "record_subtype", "account_name", "account_type", "source_type",
             "cash_granularity", "components",
         )
-        return _wire({field: record.get(field) for field in fields if field in record})
+        result = _wire({field: record.get(field) for field in fields if field in record})
+        if categories is not None and record.get("category_id") not in (None, ""):
+            result["category"] = categories.get(str(record["category_id"]))
+        return result
+
+    def _record_category_wires(self, uow, records) -> dict[str, dict]:
+        category_ids = {
+            str(record.get("category_id"))
+            for record in records
+            if record.get("category_id") not in (None, "")
+        }
+        if not category_ids:
+            return {}
+        session = uow._state().session
+        rows = session.scalars(sa_select(CashCategoryModel).where(
+            CashCategoryModel.workspace_id == self._workspace_id,
+        )).all()
+        by_id = {str(row.id): row for row in rows}
+        result = {}
+        for category_id in category_ids:
+            leaf = by_id.get(category_id)
+            if leaf is None:
+                continue
+            path = []
+            seen = set()
+            current = leaf
+            while current is not None and str(current.id) not in seen:
+                seen.add(str(current.id))
+                path.append({"id": str(current.id), "name": current.name})
+                current = by_id.get(str(current.parent_id)) if current.parent_id else None
+            result[category_id] = {
+                "id": str(leaf.id),
+                "name": leaf.name,
+                "path": list(reversed(path)),
+            }
+        return result
 
     def _record_detail_in_uow(
         self,
@@ -958,6 +993,7 @@ class CashLedgerCommandService:
         record = records_by_id.get(target_id)
         if record is None or record.get("deleted"):
             raise ValueError("找不到这条流水记录")
+        category_wires = self._record_category_wires(uow, records_by_id.values())
         relation_wire = []
 
         def endpoint_wire(record_id, component_id):
@@ -967,7 +1003,7 @@ class CashLedgerCommandService:
             if parent is None:
                 return None
             if component_id in (None, ""):
-                return self._record_wire(parent)
+                return self._record_wire(parent, category_wires)
             component = next(
                 (
                     item for item in (parent.get("components") or [])
@@ -976,8 +1012,8 @@ class CashLedgerCommandService:
                 None,
             )
             if component is None:
-                return self._record_wire(parent)
-            wire = self._record_wire(parent) or {}
+                return self._record_wire(parent, category_wires)
+            wire = self._record_wire(parent, category_wires) or {}
             wire.update({
                 "component_id": str(component_id),
                 "amount": component.get("amount"),
@@ -1006,7 +1042,7 @@ class CashLedgerCommandService:
                 "applied_amount": relation.get("applied_amount"),
             })
         return {
-            "record": self._record_wire(record),
+            "record": self._record_wire(record, category_wires),
             "relations": relation_wire,
             "options": self.options(),
         }
@@ -1083,8 +1119,9 @@ class CashLedgerCommandService:
                 limit=page_size + 1,
             )
             page = rows[:page_size]
+            category_wires = self._record_category_wires(uow, page)
             result = {
-                "items": [self._record_wire(row) for row in page],
+                "items": [self._record_wire(row, category_wires) for row in page],
                 "next_cursor": self._encode_record_cursor(page[-1]) if len(rows) > page_size else None,
             }
             uow.commit()

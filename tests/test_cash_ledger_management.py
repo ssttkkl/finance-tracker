@@ -417,6 +417,82 @@ def test_cash_write_api_uses_fact_ids_and_keeps_internal_calibration_private(cas
     assert "暂不支持" in invalid.json()["error"]["message"]
 
 
+def test_cash_record_detail_wire_matches_compose_response_contract(cash_web_runtime):
+    from fastapi.testclient import TestClient
+    from ft.application.cash_categories import CashCategoryService
+    from ft.application.web_queries import CashLedgerQueryService
+    from ft.web.app import create_app
+
+    _enable_cny(cash_web_runtime, "日常账户")
+    categories = CashCategoryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id)
+    parent = categories.create(name="合同餐饮")
+    category = categories.create(
+        name="合同早餐",
+        parent_id=parent["id"],
+        expected_revision=parent["revision"],
+    )
+    mutation = _service(cash_web_runtime)
+    client = TestClient(create_app(
+        CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id),
+        mutation_service=mutation,
+    ))
+
+    created = client.post("/api/v1/cash-records", json=_payload(
+        amount="-12.345678",
+        category_id=category["id"],
+        counterparty="多渠道消费",
+    ))
+    mirrored = client.post("/api/v1/cash-records", json=_payload(
+        amount="-12.345678",
+        category_id=category["id"],
+        counterparty="银行卡消费",
+    ))
+    assert created.status_code == mirrored.status_code == 201
+    record = created.json()["record"]
+    other = mirrored.json()["record"]
+    assert isinstance(record["id"], int)
+    assert isinstance(record["components"][0]["id"], int)
+    assert isinstance(record["components"][0]["cash_transaction_id"], int)
+    assert [item["name"] for item in record["category"]["path"]] == ["合同餐饮", "合同早餐"]
+
+    detail_response = client.get(f"/api/v1/cash-records/{record['id']}")
+    candidates_response = client.get("/api/v1/cash-records", params={"query": "银行卡消费"})
+    update_response = client.put(
+        f"/api/v1/cash-records/{record['id']}",
+        json=_payload(amount="-12.345678", category_id=category["id"], counterparty="多渠道消费"),
+    )
+    assert detail_response.status_code == 200
+    assert candidates_response.status_code == 200
+    assert update_response.status_code == 200
+    assert detail_response.json()["record"]["id"] == record["id"]
+    assert candidates_response.json()["items"][0]["id"] == other["id"]
+    assert [item["name"] for item in candidates_response.json()["items"][0]["category"]["path"]] == ["合同餐饮", "合同早餐"]
+    assert update_response.json()["record"]["id"] == record["id"]
+    assert [item["name"] for item in update_response.json()["record"]["category"]["path"]] == ["合同餐饮", "合同早餐"]
+
+    relation_response = client.post("/api/v1/cash-relations", json={
+        "primary_fact_id": record["id"],
+        "secondary_fact_id": other["id"],
+        "primary_component_id": record["components"][0]["id"],
+        "secondary_component_id": other["components"][0]["id"],
+        "kind": "payment_mirror",
+        "applied_amount": "12.345678",
+    })
+    assert relation_response.status_code == 200
+    relation = relation_response.json()["relations"][0]
+    assert isinstance(relation["primary_component_id"], int)
+    assert isinstance(relation["secondary_component_id"], int)
+    assert relation["applied_amount"] == "12.345678"
+    assert isinstance(relation["primary_record"]["id"], int)
+    assert isinstance(relation["primary_record"]["component_id"], str)
+
+    final_detail_response = client.get(f"/api/v1/cash-records/{record['id']}")
+    assert final_detail_response.status_code == 200
+    detail = final_detail_response.json()
+    assert detail["record"]["category"] == record["category"]
+    assert detail["relations"][0]["applied_amount"] == "12.345678"
+
+
 def test_cash_web_routes_keep_relation_actions_user_safe(cash_web_runtime):
     from fastapi.testclient import TestClient
     from ft.application.web_queries import CashLedgerQueryService

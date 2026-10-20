@@ -12,6 +12,32 @@ import kotlin.test.assertNull
 
 class CashLedgerDisplayTest {
     @Test
+    fun scrollbarProgressMapsToClampedTransactionOrdinals() {
+        assertEquals(0, cashLedgerOrdinalForProgress(0f, 5))
+        assertEquals(2, cashLedgerOrdinalForProgress(0.5f, 5))
+        assertEquals(4, cashLedgerOrdinalForProgress(1f, 5))
+        assertEquals(0, cashLedgerOrdinalForProgress(-2f, 1))
+        assertEquals(null, cashLedgerOrdinalForProgress(0.5f, 0))
+        assertEquals(0, cashLedgerOrdinalForProgress(0.5f, 1))
+        assertEquals(5_000, cashLedgerOrdinalForProgress(0.5f, 10_000))
+    }
+
+    @Test
+    fun scrollbarOrdinalMapsToCachedMonthRangesWithoutLoadedRows() {
+        val positions = listOf(
+            CashMonthPosition("2026-07", 0, 3),
+            CashMonthPosition("2026-06", 3, 5),
+        )
+
+        assertEquals("2026-07", cashLedgerMonthForOrdinal(positions, 0))
+        assertEquals("2026-07", cashLedgerMonthForOrdinal(positions, 2))
+        assertEquals("2026-06", cashLedgerMonthForOrdinal(positions, 3))
+        assertEquals("2026-06", cashLedgerMonthForOrdinal(positions, 4))
+        assertEquals(null, cashLedgerMonthForOrdinal(positions, -1))
+        assertEquals(null, cashLedgerMonthForOrdinal(positions, 5))
+    }
+
+    @Test
     fun projectionRowsKeepFullCategoryPathAndBusinessLabels() {
         val category = CashCategory(
             id = "work-meal",

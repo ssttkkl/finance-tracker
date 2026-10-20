@@ -10,6 +10,21 @@ internal data class CashProjectionMonthGroup(
     val summary: CashMonthlySummary?,
 )
 
+internal fun cashLedgerMonthForOrdinal(positions: List<CashMonthPosition>, ordinal: Int): String? {
+    var low = 0
+    var high = positions.lastIndex
+    while (low <= high) {
+        val middle = (low + high) ushr 1
+        val position = positions[middle]
+        when {
+            ordinal < position.startIndex -> high = middle - 1
+            ordinal >= position.endIndex -> low = middle + 1
+            else -> return position.month
+        }
+    }
+    return null
+}
+
 internal fun cashProjectionMonthGroups(
     items: List<CashProjection>,
     monthlySummaries: List<CashMonthlySummary>,

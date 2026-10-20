@@ -1,5 +1,6 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.core.getLocalDateForInstant
 import com.finance.tracker.domain.*
 
 private const val DEMO_WORKSPACE_ID = "demo-workspace"
@@ -150,16 +151,30 @@ class DemoFinanceRepository : FinanceRepository {
     private var nextRelationNumber = 1
     private var importCommittedRows = 0
 
-    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
+    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage {
         if (listOfNotNull(filters.amountMin, filters.amountMax).any { !isExactDecimalString(it) }) {
             throw demoFailure("invalid_filter", 400)
         }
         val filtered = records.filter { recordMatches(it, filters) }
-        val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val page = filtered.drop(offset).take(DEMO_PAGE_SIZE)
-        val next = (offset + page.size).takeIf { it < filtered.size }?.toString()
+            .sortedWith(compareByDescending<CashRecord> { it.occurredAt }.thenByDescending { it.id })
+        if (projectionVersion != null && projectionVersion != this.projectionVersion) {
+            throw demoFailure("projection.updated", 409)
+        }
+        val offset = (startIndex ?: cursor?.toIntOrNull() ?: 0).coerceAtLeast(0)
+        val page = filtered.drop(offset).take(limit.coerceIn(1, DEMO_PAGE_SIZE))
+        val next = (offset + page.size).takeIf { cursor != null && it < filtered.size }?.toString()
+        val monthPositions = if (startIndex != null && projectionVersion == null) {
+            val countsByMonth = filtered.groupingBy { getLocalDateForInstant(it.occurredAt).take(7) }.eachCount()
+            var monthStart = 0
+            countsByMonth.keys.sortedDescending().map { month ->
+                val monthEnd = monthStart + countsByMonth.getValue(month)
+                CashMonthPosition(month, monthStart, monthEnd).also { monthStart = monthEnd }
+            }
+        } else {
+            emptyList()
+        }
         return CashPage(
-            projectionVersion = projectionVersion,
+            projectionVersion = this.projectionVersion,
             items = page.map(::projection),
             nextCursor = next,
             pageSize = page.size,
@@ -169,7 +184,16 @@ class DemoFinanceRepository : FinanceRepository {
                 currencies = listOf("CNY", "USD"),
                 economicTypes = listOf(CashEconomicTypeFilterOption("income"), CashEconomicTypeFilterOption("expense")),
             ),
-            monthlySummaries = listOf(CashMonthlySummary("2026-10", listOf(CashMonthlyCurrencySummary("CNY", "12000.00", "44.00")))),
+            monthlySummaries = if (startIndex == null || projectionVersion == null) {
+                listOf(CashMonthlySummary("2026-10", listOf(CashMonthlyCurrencySummary("CNY", "12000.00", "44.00"))))
+            } else {
+                emptyList()
+            },
+            monthPositions = monthPositions,
+            startIndex = startIndex,
+            totalCount = filtered.size.takeIf { startIndex != null },
+            itemsBefore = startIndex?.coerceAtMost(filtered.size),
+            itemsAfter = startIndex?.let { (filtered.size - it - page.size).coerceAtLeast(0) },
         )
     }
 

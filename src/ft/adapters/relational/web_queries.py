@@ -9,7 +9,7 @@ from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthPositionDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 
 def _amount(value):
     amount = Decimal(value).normalize()
@@ -98,8 +98,8 @@ def _record_summary(row, account, categories=None):
 
 def _component_detail(component, account):
     return {
-        "id": str(component.id),
-        "cash_transaction_id": str(component.cash_transaction_id),
+        "id": int(component.id),
+        "cash_transaction_id": int(component.cash_transaction_id),
         "account": {
             "id": account.id,
             "name": account.name,
@@ -396,18 +396,18 @@ class RelationalCashLedgerQueryRepository:
             self._filter_options_cache.pop(next(iter(self._filter_options_cache)))
         return result
     @staticmethod
-    def _monthly_summaries(rows, timezone_name):
+    def _monthly_summary_data(rows, timezone_name):
         from zoneinfo import ZoneInfo
 
         zone = ZoneInfo(timezone_name)
-        months = set()
+        month_counts = {}
         totals = {}
         for occurred_at, economic_type, amount, currency in rows:
             if occurred_at is None:
                 continue
             local_time = occurred_at.astimezone(zone) if occurred_at.tzinfo else occurred_at.replace(tzinfo=timezone.utc).astimezone(zone)
             month = local_time.strftime("%Y-%m")
-            months.add(month)
+            month_counts[month] = month_counts.get(month, 0) + 1
             if economic_type not in ("expense", "income") or not currency:
                 continue
             key = (month, str(currency).strip().upper())
@@ -417,7 +417,7 @@ class RelationalCashLedgerQueryRepository:
             else:
                 expense += Decimal(amount)
             totals[key] = (income, expense)
-        return tuple(
+        summaries = tuple(
             CashMonthlySummaryDTO(
                 month,
                 tuple(
@@ -425,15 +425,38 @@ class RelationalCashLedgerQueryRepository:
                     for _month, currency in sorted(totals) if _month == month
                 ),
             )
-            for month in sorted(months, reverse=True)
+            for month in sorted(month_counts, reverse=True)
         )
-    def list_projection_page(self, filters, cursor, limit):
+        month_positions = []
+        start_index = 0
+        for month in sorted(month_counts, reverse=True):
+            end_index = start_index + month_counts[month]
+            month_positions.append(CashMonthPositionDTO(month, start_index, end_index))
+            start_index = end_index
+        return summaries, tuple(month_positions)
+
+    @staticmethod
+    def _monthly_summaries(rows, timezone_name):
+        return RelationalCashLedgerQueryRepository._monthly_summary_data(rows, timezone_name)[0]
+    def list_projection_page(self, filters, cursor, limit, *, start_index=None, expected_version=None):
         from ft.application.web_queries import _decode
-        with self._session() as s:
+        indexed = start_index is not None
+        session_context = self._evidence_snapshot if indexed else self._session
+        with session_context() as s:
             cursor_version, position = (None, None)
             if cursor:
                 cursor_version, *position = _decode(cursor, self._workspace_id, filters)
                 position = tuple(position)
+            snapshot_state = None
+            total_count = None
+            if indexed:
+                snapshot_state = s.scalar(select(CashProjectionStateModel).where(
+                    CashProjectionStateModel.workspace_id == self._workspace_id,
+                ))
+                if snapshot_state is None or snapshot_state.availability != "ready" or not snapshot_state.active_dataset_id:
+                    raise ProjectionUnavailableError()
+                if expected_version is not None and expected_version != snapshot_state.projection_version:
+                    raise ProjectionUpdatedError()
             state=select(
                 CashProjectionStateModel.projection_version.label("projection_version"),
                 CashProjectionStateModel.active_dataset_id.label("active_dataset_id"),
@@ -502,14 +525,45 @@ class RelationalCashLedgerQueryRepository:
             conditions = [CashProjectionModel.dataset_id==state.c.active_dataset_id, *filter_conditions]
             if cursor_version is not None: conditions.append(state.c.projection_version==cursor_version)
             if position:conditions.append(or_(CashProjectionModel.occurred_at<position[0],and_(CashProjectionModel.occurred_at==position[0],CashProjectionModel.projection_id<position[1])))
-            page=select(
+
+            def monthly_data(dataset_id, version):
+                summary_key = (
+                    dataset_id,
+                    version,
+                    tuple(sorted(filters.as_cursor_data().items())),
+                )
+                cached = self._monthly_summary_cache.get(summary_key)
+                if cached is None:
+                    summary_rows = s.execute(
+                        select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
+                            CashProjectionModel.dataset_id == dataset_id,
+                            *filter_conditions,
+                        )
+                    ).all()
+                    cached = self._monthly_summary_data(summary_rows, filters.timezone)
+                    self._monthly_summary_cache[summary_key] = cached
+                    if len(self._monthly_summary_cache) > 16:
+                        self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
+                return cached
+
+            if indexed:
+                total_count = s.scalar(
+                    select(func.count(CashProjectionModel.id)).where(
+                        CashProjectionModel.dataset_id == snapshot_state.active_dataset_id,
+                        *filter_conditions,
+                    )
+                ) or 0
+            page_query = select(
                 state.c.projection_version,
                 state.c.active_dataset_id,
                 state.c.availability,
                 CashProjectionModel.id.label("projection_row_id"),
             ).select_from(
                 state.outerjoin(CashProjectionModel,and_(*conditions))
-            ).order_by(CashProjectionModel.occurred_at.desc(),CashProjectionModel.projection_id.desc()).limit(limit).cte("projection_page")
+            ).order_by(CashProjectionModel.occurred_at.desc(),CashProjectionModel.projection_id.desc())
+            if indexed:
+                page_query = page_query.offset(start_index)
+            page=page_query.limit(limit).cte("projection_page")
             q=select(
                 page.c.projection_version,
                 page.c.active_dataset_id,
@@ -535,7 +589,7 @@ class RelationalCashLedgerQueryRepository:
                 # The outer join has no row to carry the state in that case, so
                 # read the state explicitly instead of treating an empty
                 # workspace as an unavailable projection.
-                empty_state = s.scalar(
+                empty_state = snapshot_state or s.scalar(
                     select(CashProjectionStateModel).where(
                         CashProjectionStateModel.workspace_id == self._workspace_id,
                     )
@@ -544,6 +598,27 @@ class RelationalCashLedgerQueryRepository:
                     raise ProjectionUnavailableError()
                 if cursor_version is not None and cursor_version != empty_state.projection_version:
                     raise ProjectionUpdatedError()
+                if expected_version is not None and expected_version != empty_state.projection_version:
+                    raise ProjectionUpdatedError()
+                if indexed:
+                    if expected_version is None and total_count:
+                        monthly_summaries, month_positions = monthly_data(
+                            empty_state.active_dataset_id,
+                            empty_state.projection_version,
+                        )
+                    else:
+                        monthly_summaries, month_positions = (), ()
+                    return (
+                        empty_state.projection_version,
+                        [],
+                        self._filter_options(
+                            s, empty_state.active_dataset_id,
+                            version=empty_state.projection_version, categories=categories or {},
+                        ),
+                        monthly_summaries,
+                        total_count,
+                        month_positions,
+                    )
                 return (
                     empty_state.projection_version,
                     [],
@@ -552,27 +627,20 @@ class RelationalCashLedgerQueryRepository:
                         version=empty_state.projection_version, categories={},
                     ),
                     (),
+                    None,
+                    (),
                 )
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
-            summary_key = (
-                dataset_id,
-                version,
-                tuple(sorted(filters.as_cursor_data().items())),
-            )
-            monthly_summaries = self._monthly_summary_cache.get(summary_key)
-            if monthly_summaries is None:
-                summary_rows = s.execute(
-                    select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
-                        CashProjectionModel.dataset_id == dataset_id,
-                        *filter_conditions,
-                    )
-                ).all()
-                monthly_summaries = self._monthly_summaries(summary_rows, filters.timezone)
-                self._monthly_summary_cache[summary_key] = monthly_summaries
-                if len(self._monthly_summary_cache) > 16:
-                    self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
+            if expected_version is not None and expected_version != version: raise ProjectionUpdatedError()
+            if indexed and expected_version is not None:
+                monthly_summaries, month_positions = (), ()
+            elif indexed:
+                monthly_summaries, month_positions = monthly_data(dataset_id, version)
+            else:
+                monthly_summaries, _month_positions = monthly_data(dataset_id, version)
+                month_positions = ()
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue
@@ -595,7 +663,7 @@ class RelationalCashLedgerQueryRepository:
             if categories is None:
                 category_ids = {row.category_id for row, _account in rows if row.category_id}
                 categories = _category_rows(s, self._workspace_id) if category_ids else {}
-            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories) for row,account in rows], self._filter_options(s, dataset_id, version=version, categories=categories), monthly_summaries
+            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories) for row,account in rows], self._filter_options(s, dataset_id, version=version, categories=categories), monthly_summaries, total_count, month_positions
     def get_evidence(self, projection_id):
         with self._evidence_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))

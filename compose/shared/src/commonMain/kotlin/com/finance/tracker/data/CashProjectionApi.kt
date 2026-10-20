@@ -10,7 +10,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.put
 
-suspend fun FinanceApiClient.fetchCashPage(filters: CashFiltersDto, cursor: String? = null): CashPageDto = request(
+suspend fun FinanceApiClient.fetchCashPage(
+    filters: CashFiltersDto,
+    cursor: String? = null,
+    startIndex: Int? = null,
+    projectionVersion: Long? = null,
+    limit: Int = 20,
+): CashPageDto = request(
     HttpMethod.Get,
     appendQuery("/api/v1/cash-projections", listOf(
         "date_from" to filters.dateFrom,
@@ -27,6 +33,9 @@ suspend fun FinanceApiClient.fetchCashPage(filters: CashFiltersDto, cursor: Stri
         "composition" to filters.composition,
         "timezone" to getLocalTimeZoneId(),
         "cursor" to cursor,
+        "start_index" to startIndex?.toString(),
+        "projection_version" to projectionVersion?.toString(),
+        "limit" to limit.toString(),
     )),
 )
 

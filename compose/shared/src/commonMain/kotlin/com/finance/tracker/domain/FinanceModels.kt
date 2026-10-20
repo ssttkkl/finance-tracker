@@ -104,6 +104,12 @@ data class CashMonthlySummary(
     val currencies: List<CashMonthlyCurrencySummary> = emptyList(),
 )
 
+data class CashMonthPosition(
+    val month: String,
+    val startIndex: Int,
+    val endIndex: Int,
+)
+
 data class CashPage(
     val projectionVersion: Long,
     val items: List<CashProjection> = emptyList(),
@@ -112,6 +118,11 @@ data class CashPage(
     val filters: Map<String, String?> = emptyMap(),
     val filterOptions: CashFilterOptions = CashFilterOptions(),
     val monthlySummaries: List<CashMonthlySummary> = emptyList(),
+    val monthPositions: List<CashMonthPosition> = emptyList(),
+    val startIndex: Int? = null,
+    val totalCount: Int? = null,
+    val itemsBefore: Int? = null,
+    val itemsAfter: Int? = null,
 )
 
 data class CashProjectionDeleteImpact(
@@ -251,6 +262,7 @@ data class CashRecord(
     val sourceType: String? = null,
     val cashGranularity: String? = null,
     val components: List<CashComponentDetail>? = null,
+    val componentId: String? = null,
 )
 
 data class CashRelation(
@@ -261,6 +273,9 @@ data class CashRelation(
     val status: String,
     val primaryRecord: CashRecord? = null,
     val secondaryRecord: CashRecord? = null,
+    val primaryComponentId: String? = null,
+    val secondaryComponentId: String? = null,
+    val appliedAmount: String? = null,
 )
 
 data class CashRecordDetail(
