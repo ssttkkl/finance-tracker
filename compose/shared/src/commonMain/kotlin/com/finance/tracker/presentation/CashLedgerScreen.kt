@@ -19,12 +19,14 @@ import com.finance.tracker.resources.ic_visibility
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,8 +35,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
@@ -459,21 +463,40 @@ internal fun CashLedgerScreen(
             onBack = viewModel::dismissRecordPanel,
             footer = when {
                 draft == null && !state.recordLoading && state.recordDetail?.record != null -> ({
-                    CashRecordDetailActions(state, viewModel, canWrite, viewModel::editRecord)
+                    CashRecordDetailActions(state, viewModel, canWrite, sizeClass, viewModel::editRecord)
                 })
                 draft != null -> ({
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                        Button(
-                            onClick = { viewModel.saveRecord(canWrite) },
-                            enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
-                                draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
-                            modifier = Modifier.testTag(SemanticIds.recordSave),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                            Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
+                    val sideSheet = sizeClass != WindowSizeClass.COMPACT
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                    ) {
+                        if (sideSheet) {
+                            Button(
+                                onClick = { viewModel.saveRecord(canWrite) },
+                                enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
+                                    draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
+                                modifier = Modifier.testTag(SemanticIds.recordSave),
+                            ) {
+                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
+                                Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
+                            }
+                            TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
+                                Text(localizedText("copy_4d0b4688c7"))
+                            }
+                        } else {
+                            TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
+                                Text(localizedText("copy_4d0b4688c7"))
+                            }
+                            Button(
+                                onClick = { viewModel.saveRecord(canWrite) },
+                                enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
+                                    draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
+                                modifier = Modifier.testTag(SemanticIds.recordSave),
+                            ) {
+                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
+                                Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
+                            }
                         }
                     }
                 })
@@ -518,17 +541,36 @@ internal fun CashLedgerScreen(
             onDismiss = viewModel::closeRelationComposer,
             onBack = viewModel::closeRelationComposer,
             footer = {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
-                        Text(localizedText("copy_4d0b4688c7"))
-                    }
-                    Button(
-                        onClick = { viewModel.createRelation(canWrite) },
-                        enabled = canWrite && state.relationTarget != null,
-                        modifier = Modifier.testTag("record.relation-create.confirm"),
-                    ) {
-                        Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
-                        Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
+                val sideSheet = sizeClass != WindowSizeClass.COMPACT
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (sideSheet) {
+                        Button(
+                            onClick = { viewModel.createRelation(canWrite) },
+                            enabled = canWrite && state.relationTarget != null,
+                            modifier = Modifier.testTag("record.relation-create.confirm"),
+                        ) {
+                            Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
+                            Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
+                        }
+                        TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
+                            Text(localizedText("copy_4d0b4688c7"))
+                        }
+                    } else {
+                        TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
+                            Text(localizedText("copy_4d0b4688c7"))
+                        }
+                        Button(
+                            onClick = { viewModel.createRelation(canWrite) },
+                            enabled = canWrite && state.relationTarget != null,
+                            modifier = Modifier.testTag("record.relation-create.confirm"),
+                        ) {
+                            Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
+                            Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
+                        }
                     }
                 }
             },
@@ -942,11 +984,14 @@ private fun CashFilterPanel(
                 dismissOnClickOutside = true,
             ),
         ) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            BoxWithConstraints(
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 24.dp, vertical = 24.dp),
+                contentAlignment = Alignment.Center,
+            ) {
                 Surface(
-                    modifier = Modifier.widthIn(max = 560.dp)
-                    .fillMaxWidth(0.92f)
-                    .heightIn(max = 760.dp)
+                    modifier = Modifier.widthIn(min = 280.dp, max = 560.dp)
+                        .fillMaxWidth()
+                        .heightIn(max = maxHeight)
                         .semantics { paneTitle = detailedFiltersLabel },
                     shape = MaterialTheme.shapes.extraLarge,
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -1079,28 +1124,49 @@ private fun CashDetailedFilters(
             .then(if (compact) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
             .testTag(SemanticIds.ledgerFilterDetails),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier.testTag("ledger.filter.close")
-                    .semantics { contentDescription = closeLabel },
+        if (compact) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                    .testTag("ledger.filter.header"),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.testTag("ledger.filter.close")
+                        .semantics { contentDescription = closeLabel },
+                ) {
+                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
+                }
+                Text(
+                    localizedText("copy_dcce9a144a"),
+                    modifier = Modifier.testTag("ledger.filter.title"),
+                    style = MaterialTheme.typography.titleLarge,
+                )
             }
-            Text(
-                localizedText("copy_dcce9a144a"),
-                modifier = Modifier.testTag("ledger.filter.title"),
-                style = MaterialTheme.typography.titleLarge,
-            )
+        } else {
+            ModalHeader(
+                variant = ModalHeaderVariant.BasicDialog,
+                onClose = onClose,
+                headerTestTag = "ledger.filter.header",
+                closeTestTag = "ledger.filter.close",
+            ) {
+                Text(
+                    localizedText("copy_dcce9a144a"),
+                    modifier = Modifier.testTag("ledger.filter.title"),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
         }
         HorizontalDivider()
         Column(
             modifier = (if (compact) Modifier.weight(1f) else Modifier).fillMaxWidth()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(
+                    start = if (compact) 20.dp else 24.dp,
+                    top = 16.dp,
+                    end = if (compact) 20.dp else 24.dp,
+                    bottom = if (compact) 16.dp else 24.dp,
+                ).testTag("ledger.filter.content"),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             CashFilterGroup(
@@ -1162,11 +1228,18 @@ private fun CashDetailedFilters(
         }
         HorizontalDivider()
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxWidth().padding(
+                start = if (compact) 20.dp else 24.dp,
+                top = if (compact) 8.dp else 0.dp,
+                end = if (compact) 20.dp else 24.dp,
+                bottom = if (compact) 8.dp else 24.dp,
+            ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
             Spacer(Modifier.weight(1f))
+            if (!compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (!compact) Spacer(Modifier.width(8.dp))
             TextButton(onClick = onClose) { Text(localizedText("ledger_filter_done")) }
         }
     }

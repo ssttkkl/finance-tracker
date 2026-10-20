@@ -15,9 +15,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +39,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -289,13 +292,13 @@ internal fun InvestmentHoldingsScreen(
             ),
         ) {
             BoxWithConstraints(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 Surface(
-                    Modifier.widthIn(max = 560.dp)
+                    Modifier.widthIn(min = 280.dp, max = 560.dp)
                         .fillMaxWidth()
-                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .heightIn(max = maxHeight)
                         .testTag("investment.position.detail.panel")
                         .semantics { paneTitle = position.displayName?.takeIf(String::isNotBlank) ?: position.ticker },
                     shape = MaterialTheme.shapes.extraLarge,
@@ -303,46 +306,45 @@ internal fun InvestmentHoldingsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        InvestmentPositionDetailHeader(holding, viewModel::closePosition)
-                        HorizontalDivider()
+                    ModalScaffold(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentFill = false,
+                        header = {
+                            ModalHeader(
+                                variant = ModalHeaderVariant.BasicDialog,
+                                onClose = viewModel::closePosition,
+                                headerTestTag = "investment.position.detail.header",
+                                closeTestTag = "investment.position.detail.close",
+                            ) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Text(
+                                        holding.position.displayName ?: holding.position.ticker,
+                                        modifier = Modifier.testTag("investment.position.detail.title"),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        },
+                    ) {
                         InvestmentPositionDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 16.dp, bottom = 24.dp)
+                                .testTag("investment.position.detail.content"),
                             position,
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow, onClose: () -> Unit) {
-    val closeLabel = localizedText("copy_6c14bd7f6f")
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .semantics { contentDescription = closeLabel }
-                .testTag("investment.position.detail.close"),
-        ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                holding.position.displayName ?: holding.position.ticker,
-                modifier = Modifier.testTag("investment.position.detail.title"),
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Text(
-                "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }

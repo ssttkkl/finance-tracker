@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +38,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -199,13 +202,13 @@ internal fun InvestmentEventsScreen(
             ),
         ) {
             BoxWithConstraints(
-                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 16.dp, vertical = 24.dp),
+                Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp),
                 contentAlignment = androidx.compose.ui.Alignment.Center,
             ) {
                 Surface(
-                    Modifier.widthIn(max = 560.dp)
+                    Modifier.widthIn(min = 280.dp, max = 560.dp)
                         .fillMaxWidth()
-                        .heightIn(max = minOf(maxHeight, 760.dp))
+                        .heightIn(max = maxHeight)
                         .testTag(SemanticIds.investmentEventDetail)
                         .semantics { paneTitle = dialogTitle },
                     shape = MaterialTheme.shapes.extraLarge,
@@ -213,11 +216,31 @@ internal fun InvestmentEventsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        InvestmentEventDetailHeader(event, viewModel::closeEvidence)
-                        HorizontalDivider()
+                    ModalScaffold(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentFill = false,
+                        header = {
+                            ModalHeader(
+                                variant = ModalHeaderVariant.BasicDialog,
+                                onClose = viewModel::closeEvidence,
+                                headerTestTag = "investment.event.detail.header",
+                                closeTestTag = SemanticIds.investmentEventDetailClose,
+                            ) {
+                                Text(
+                                    eventTitle(event),
+                                    modifier = Modifier.testTag("investment.event.detail.title"),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                    ) {
                         InvestmentEventDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp),
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                                .padding(horizontal = 24.dp)
+                                .padding(top = 16.dp, bottom = 24.dp)
+                                .testTag("investment.event.detail.content"),
                             event,
                             evidence,
                             evidenceLoading,
@@ -228,25 +251,6 @@ internal fun InvestmentEventsScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun InvestmentEventDetailHeader(event: InvestmentEvent, onClose: () -> Unit) {
-    val closeLabel = localizedText("copy_6c14bd7f6f")
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .semantics { contentDescription = closeLabel }
-                .testTag(SemanticIds.investmentEventDetailClose),
-        ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
-        }
-        Text(eventTitle(event), modifier = Modifier.testTag("investment.event.detail.title"), style = MaterialTheme.typography.headlineSmall)
     }
 }
 

@@ -1,0 +1,76 @@
+## Why
+
+Compose 共享界面同时使用标准 Material 3 对话框和自行绘制的弹层，但它们的容器层级、响应式尺寸、任务边界和确认语义并不一致。审查发现日期选择会在确认前提交，流水删除确认也把多个结果并列成独立操作；进一步对照 Material 3 Dialog 指南，发现导入流程在宽窗口仍使用全屏容器，且未确认就会丢弃未完成的导入。继续审查业务行为后，还发现编辑流水离开时会直接丢弃修改、部分提交错误没有保持在模态任务中、只读投资详情在紧凑窗口使用全屏容器，以及模态内菜单的 Escape 可能越过菜单关闭底层对话框。账单详情的产品合同要求 Compact 使用全屏任务、Regular/Wide 使用右侧模态侧板；详情切换到编辑时应留在原模态容器中替换布局。删除与关系移除等确认仍使用 Material 3 确认弹窗，不应混入详情布局。
+
+## What Changes
+
+- 审查 Compose 共享实现中的 `Dialog`、`AlertDialog`、`DatePickerDialog` 及承担同等模态职责的容器，按 Material 3 对话框类型、任务边界、关闭/确认语义和响应式容器规则复核视觉设计与业务行为。
+- 对话框按任务复杂度和产品合同选择 M3 呈现。账单详情/编辑在 Compact 使用全屏任务、Regular/Wide 使用右侧模态侧板；其他短确认和知悉状态使用 M3 AlertDialog。账单任务显示确认或错误时暂时隐藏原任务面板，使 AlertDialog 成为唯一活动模态，取消或知悉后恢复原状态。
+- 避免在较宽窗口的基础对话框中再打开日期/时间基础对话框；选择器在当前对话框内容内展开并保留确认/取消语义。
+- 标准 Material 3 对话框继承对应组件结构与表面角色；自定义 Basic Dialog 使用 28 dp 圆角、280–560 dp 宽度、随内容变化的高度和单一遮罩，并在正文滚动时固定标题与操作区。宽度上限 560 dp 遵循 M3 Basic Dialog 规格；不使用任意固定高度上限，内容仅在受视口约束时滚动。
+- 多步骤导入在 Compact 使用全屏对话框，在 Regular/Wide 使用基础对话框；退出含未提交内容的导入前，先用基础对话框确认是否丢弃。
+- 只读的投资事件与持仓详情在所有窗口尺寸使用基础对话框；Compact 不再把详情铺成全屏任务。
+- 账单详情与编辑共用一个模态任务容器：Compact 使用全屏任务，Regular/Wide 保留右侧模态侧板；进入编辑时在原容器内替换布局，不打开独立编辑弹窗。
+- 新增关联作为独立 M3 模态任务：Compact 使用全屏任务，Regular/Wide 使用右侧模态侧板；退出或完成后返回原账单详情。
+- 删除、取消关联、解散关联、放弃编辑及错误反馈使用 Material 3 确认/知悉弹窗；取消或知悉后恢复原详情或编辑上下文，并保留未保存草稿。
+- 账单详情正文独立滚动，标题与可见关闭入口固定；编辑的保存/取消操作按现有任务布局固定显示。
+- 保留 Regular/Wide 账单详情右侧面板，并遵守 M3 大屏自定义定位时的边缘留白；面板固定标题和操作区，正文独立滚动。
+- 将账单详情的“编辑”和“更多操作”固定在模态容器底部，避免详情正文滚动后主要入口消失。
+- 编辑流水时，若草稿已改变，取消、Back 或关闭前先暂时收起原任务面板并显示 M3 基础确认对话框；取消恢复原编辑布局并保留草稿，确认只丢弃未保存内容。
+- “取消关联”与“解散关联”执行前先明确说明会移除关系、保留流水，并由用户确认；取消时不调用关系移除操作。
+- 提交中的确认按钮保持可用并显示进行中状态；现有 ViewModel 请求保护负责阻止重复提交。提交失败使用 M3 基础错误知悉弹窗，知悉后返回仍保留草稿的原任务。若使用者已关闭正在保存的面板，则在账本页显示错误知悉弹窗并保留原有数据结果。
+- 若用户在危险操作请求完成前关闭确认框，操作失败时以单操作基础对话框给出错误确认。
+- 导入请求处理中用户尝试关闭时，在当前全屏任务内显示等待提示并保留可操作的继续入口，不在全屏任务上叠加信息对话框。
+- 导入 Compact 全屏任务可以承载账户编辑、丢弃确认和错误知悉基础对话框。账单详情与编辑保持同一个任务容器；新增关联作为独立任务；账单删除、关系移除、放弃和错误弹窗单独显示，避免详情面板、关联任务与确认弹窗互相嵌套。
+- 当菜单或选择弹出层打开在对话框之上时，Escape 先关闭最上层菜单并保留对话框任务；再次 Escape 才按任务规则关闭对话框。
+- 日期选择只在确认后写入，取消不改变表单；清除日期移到日期字段；流水删除先选择影响范围，再用单个危险确认操作提交。
+- 保留紧凑窗口筛选底部弹窗、较宽窗口筛选对话框，以及账单编辑的紧凑全屏和较宽窗口右侧面板合同；筛选及投资详情基础对话框遵守 560 dp 宽度上限。
+- 更新账本功能地图与三尺寸 Web 截图/交互记录，明确详情/编辑共用容器、独立关联任务、确认弹窗及各自的尺寸合同。
+- 在 `tasks.md` 记录对话框行为审查、Hallmark 审计、功能地图、跨端影响和 Web 浏览器 QA。
+- 按 Material 3 Modal Side Sheet 复核账单详情/编辑/关联任务：Regular/Wide 面板使用 `surfaceContainerLow`、Large shape、零 elevation 和单一 scrim；编辑与关系创建的操作固定在底部。
+- 对本 change 涉及的任务模态统一落实操作区和关闭入口合同：操作按钮位于底部，取消在左、主要操作在最右；所有非 `AlertDialog` 模态在左上提供关闭按钮；`AlertDialog` 操作不含图标。
+
+## 补充范围（2026-10-19，后续测量决定已撤回）
+
+- 保留每种弹窗现有外框尺寸、位置、呈现方式和交互行为，只调整关闭按钮位置及内部 measurement。所有非 `AlertDialog` 弹窗的关闭按钮放在左侧；`AlertDialog` 不增加关闭图标。
+- 全屏弹窗采用 [Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 的标题栏与内容区 measurement。非全屏且非 `AlertDialog` 的弹窗，在原外框中采用同一标题栏与内容区 measurement，仍保持非全屏。
+- Side Sheet 采用 [Material 3 Side Sheet specs](https://m3.material.io/components/side-sheets/specs) 的内部 measurement；底部操作区左对齐，主操作放在最左。此 Side Sheet 按钮布局覆盖原先通用的“主操作最右”规则。
+- 不调整已确认的账单详情、筛选、导入及投资弹窗外框尺寸，不改变遮罩、拖动、Back/Escape、取消/确认、滚动或提交行为。
+
+## 补充范围（2026-10-20）：Basic 与 Full-screen Dialog 原生测量
+
+- 撤回此前将非全屏自定义 Dialog 套用 Full-screen 标题/正文测量并保留现有外框尺寸的决定；Basic Dialog 与 Full-screen Dialog 分别按 [Material 3 Dialog specs](https://m3.material.io/components/dialogs/specs) 的原生测量实现。
+- Basic Dialog 按 28 dp 圆角、动态高度、280–560 dp 宽度、24 dp 外侧留白、标题与正文间距 16 dp、正文与操作间距 24 dp、按钮间距 8 dp 和可选 1 dp 分隔线布局。保留 560 dp 最大宽度，遵循 M3 Basic Dialog 规格；不使用固定 760 dp 高度上限。超过可用视口时由视口约束并滚动正文。
+- 保留所有非 `AlertDialog` 模态容器的左侧关闭入口；Basic Dialog 的左侧关闭按钮作为产品例外，纳入 24 dp 内边距的自适应标题区，不套用 Full-screen 固定标题栏高度。Basic Dialog 操作组靠右排列。
+- Compact Full-screen Dialog 采用规格表的 56 dp 标题栏、24 dp 关闭图标、1 dp 分隔线、顶部和左右 24 dp 内容留白、56 dp 底部操作栏及 560 dp 容器最大宽度。规格页示意图标注 64 dp；本次按用户确认以表格 56 dp 为准。
+- 保持 Full-screen 外层任务、滚动、关闭和提交行为；不改动 `AlertDialog`、`DatePickerDialog`、紧凑筛选 `ModalBottomSheet` 或已按独立规格调整的 Side Sheet。
+- Cross-platform Impact Check：Basic 与 Full-screen 容器位于共享 `commonMain`，影响 Compose Web、Android 和 iOS；本次不新增页面级功能，更新 F-03、F-04、F-05、F-08、F-09 的实现测量说明。
+
+## 补充范围（2026-10-20）
+
+- 将自定义 `Dialog` 与 Side Sheet 的内部标题栏、内容区和可选底部操作区结构提取为共享 Compose scaffold，减少同一 M3 布局合同在账单、次级任务和投资详情中的重复实现。
+- 外层容器继续分别负责原有尺寸、定位、Surface 外观、遮罩、关闭与拖动行为；共享 scaffold 不改变内容滚动策略、按钮顺序或业务回调。`AlertDialog` 与紧凑筛选 `ModalBottomSheet` 保持独立。
+
+## Capabilities
+
+### New Capabilities
+
+None.
+
+### Modified Capabilities
+
+- `shared/design-system`: 增加 Compose 对话框的 Material 3 设计与行为合同。
+
+## Impact
+
+- 影响 `compose/shared/src/commonMain` 中共享 FinanceTheme、账单、导入、投资、工作区和确认弹层实现；Compose Web、Android 与 iOS 共用这些改动。
+- 更新 `docs/feature-map.md` 的相关实现证据和 `compose/qa/web` 现有浏览器用例。
+- 不改变账单、关系或投资领域规则；仅调整日期确认时点、导入放弃确认、响应式容器及删除确认的交互表达，最终保存/删除结果仍走现有业务操作。
+- 按用户此前指定，仅运行 Compose Web 验证；Android 和 iOS 不做运行验证。
+
+## 补充范围（2026-10-20）：Side Sheet 剩余测量
+
+- Side Sheet 按分离呈现适用的 16 dp 窗口留白调整：顶部、底部和逻辑末端各留 16 dp。账单侧板原 560 dp 最大宽度、导入侧板原 Regular 90% / Wide 70% 宽度保持不变。
+- Side Sheet 底部操作区按规格拆分为 16 dp 顶部留白、72 dp 操作行和 24 dp 底部留白，总高 112 dp；按钮在 72 dp 操作行内垂直居中，操作仍左对齐且主要操作最左。
+- 修补导入侧板内联账户编辑和错误提示缺少的 24 dp 内容边距；其他已有 24 dp 内容布局不重复增加边距。
+- 这些测量不改变全屏 Dialog、AlertDialog、侧板关闭/拖动/遮罩行为、滚动策略、业务回调或操作顺序。

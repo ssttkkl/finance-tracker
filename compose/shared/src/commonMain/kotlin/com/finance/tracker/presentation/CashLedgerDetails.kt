@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -125,6 +127,7 @@ private fun CashRecordModalOverlay(
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
     val fullScreen = compact && compactFullScreen
+    val sideSheet = !compact
     val horizontalMargin = when (sizeClass) {
         WindowSizeClass.COMPACT -> if (fullScreen) 0.dp else 16.dp
         WindowSizeClass.REGULAR -> 16.dp
@@ -173,16 +176,17 @@ private fun CashRecordModalOverlay(
             Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onBack))
         }
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(if (sideSheet) Modifier.padding(vertical = 16.dp) else Modifier),
             contentAlignment = if (compact) Alignment.Center else Alignment.CenterEnd,
         ) {
             Surface(
                 modifier = (if (fullScreen) {
-                    Modifier.fillMaxSize()
+                    Modifier.fillMaxHeight().widthIn(max = 560.dp).fillMaxWidth()
                 } else {
                     Modifier.widthIn(max = 560.dp)
                         .fillMaxWidth()
                         .fillMaxHeight()
+                        .then(if (sideSheet) Modifier.offset(x = -16.dp) else Modifier)
                         .onSizeChanged { sideSheetWidthPx = it.width.toFloat() }
                         .offset { IntOffset(sideSheetDragOffset.roundToInt(), 0) }
                         .then(sideSheetDragModifier)
@@ -193,43 +197,52 @@ private fun CashRecordModalOverlay(
                 color = if (fullScreen) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow,
                 tonalElevation = 0.dp,
             ) {
-                Column(
-                    Modifier.fillMaxWidth()
+                ModalScaffold(
+                    modifier = Modifier.fillMaxWidth()
                         .then(if (fullScreen || !compact) Modifier.fillMaxHeight() else Modifier)
-                        .then(if (fullScreen || !compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier)
-                        .padding(
-                        horizontal = if (fullScreen) 16.dp else 24.dp,
-                        vertical = if (fullScreen) 12.dp else 20.dp,
-                    ),
-                ) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        val closeLabel = localizedText("copy_6c14bd7f6f")
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.testTag("ledger.record-panel.close")
-                                .semantics { contentDescription = closeLabel },
+                        .then(if (fullScreen || !compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier),
+                    contentFill = fullScreen || !compact,
+                    contentModifier = Modifier.padding(horizontal = 24.dp)
+                        .then(if (fullScreen) Modifier.padding(top = 24.dp) else Modifier)
+                        .testTag("ledger.record-panel.content"),
+                    header = {
+                        ModalHeader(
+                            variant = if (sideSheet) ModalHeaderVariant.SideSheet else ModalHeaderVariant.FullScreenDialog,
+                            onClose = onDismiss,
+                            titleSpacing = when {
+                                sideSheet -> 12.dp
+                                fullScreen -> 8.dp
+                                else -> 12.dp
+                            },
+                            headerTestTag = "ledger.record-panel.header",
+                            closeTestTag = "ledger.record-panel.close",
                         ) {
-                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null)
+                            Text(
+                                title,
+                                modifier = Modifier.testTag("ledger.record-panel.title"),
+                                style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        Text(
-                            title,
-                            modifier = Modifier.weight(1f).testTag("ledger.record-panel.title"),
-                            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    HorizontalDivider()
-                    Box(
-                        Modifier.weight(1f, fill = fullScreen || !compact).fillMaxWidth(),
-                    ) { content() }
-                    footer?.let {
-                        HorizontalDivider()
-                        Box(
-                            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        ) { it() }
-                    }
-                }
+                    },
+                    footer = footer?.let { footerContent ->
+                        {
+                            if (sideSheet) {
+                                SideSheetActionArea(
+                                    content = footerContent,
+                                    testTag = "ledger.record-panel.footer",
+                                )
+                            } else {
+                                Box(
+                                    Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp)
+                                        .testTag("ledger.record-panel.footer"),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) { footerContent() }
+                            }
+                        }
+                    },
+                ) { content() }
             }
         }
     }
@@ -547,6 +560,7 @@ internal fun CashRecordDetailActions(
     state: CashLedgerUiState,
     viewModel: CashLedgerViewModel,
     canWrite: Boolean,
+    sizeClass: WindowSizeClass,
     onEdit: () -> Unit,
 ) {
     val record = state.recordDetail?.record ?: return
@@ -556,60 +570,92 @@ internal fun CashRecordDetailActions(
         enabled = isWebPlatform && moreActionsExpanded.value,
         onEscape = { moreActionsExpanded.value = false },
     )
+    val sideSheet = sizeClass != WindowSizeClass.COMPACT
     FlowRow(
         modifier = Modifier.fillMaxWidth().testTag("record.detail.actions"),
-        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        horizontalArrangement = Arrangement.spacedBy(8.dp, if (sideSheet) Alignment.Start else Alignment.End),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box {
-            TextButton(
-                onClick = { moreActionsExpanded.value = true },
-                modifier = Modifier.testTag("record.detail.more-actions"),
-            ) {
-                Icon(painterResource(Res.drawable.ic_more_vert), contentDescription = null)
-                Text(localizedText("ledger_detail_more_actions"))
+        if (sideSheet) {
+            Button(onClick = onEdit, modifier = Modifier.testTag("record.detail.edit")) {
+                Icon(painterResource(Res.drawable.ic_edit), contentDescription = null)
+                Text(localizedText("copy_a7f814c0a4"))
             }
-            DropdownMenu(
+            CashRecordMoreActions(
+                state = state,
+                viewModel = viewModel,
+                canWrite = canWrite,
                 expanded = moreActionsExpanded.value,
-                onDismissRequest = { moreActionsExpanded.value = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text(localizedText("copy_695c4cd2e6")) },
-                    leadingIcon = { Icon(painterResource(Res.drawable.ic_link), contentDescription = null) },
-                    onClick = {
-                        moreActionsExpanded.value = false
-                        viewModel.openRelationComposer()
-                    },
-                    enabled = !state.relationBusy,
-                    modifier = Modifier.testTag("record.detail.action.associate"),
-                )
-                if (state.recordDetail.relations.any { it.status == "accepted" }) {
-                    DropdownMenuItem(
-                        text = { Text(localizedText("copy_833237e41b"), color = MaterialTheme.colorScheme.error) },
-                        leadingIcon = { Icon(painterResource(Res.drawable.ic_link_off), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = {
-                            moreActionsExpanded.value = false
-                            viewModel.dissolveRelations(canWrite)
-                        },
-                        enabled = !state.relationBusy,
-                        modifier = Modifier.testTag("record.detail.action.dissolve"),
-                    )
-                }
-                DropdownMenuItem(
-                    text = { Text(localizedText("copy_3755f56f2f"), color = MaterialTheme.colorScheme.error) },
-                    leadingIcon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-                    onClick = {
-                        moreActionsExpanded.value = false
-                        viewModel.requestDeleteRecord(canWrite)
-                    },
-                    enabled = !state.deleteRecordBusy,
-                    modifier = Modifier.testTag("record.detail.action.delete"),
-                )
+                onExpandedChange = { moreActionsExpanded.value = it },
+            )
+        } else {
+            CashRecordMoreActions(
+                state = state,
+                viewModel = viewModel,
+                canWrite = canWrite,
+                expanded = moreActionsExpanded.value,
+                onExpandedChange = { moreActionsExpanded.value = it },
+            )
+            Button(onClick = onEdit, modifier = Modifier.testTag("record.detail.edit")) {
+                Icon(painterResource(Res.drawable.ic_edit), contentDescription = null)
+                Text(localizedText("copy_a7f814c0a4"))
             }
         }
-        Button(onClick = onEdit, modifier = Modifier.testTag("record.detail.edit")) {
-            Icon(painterResource(Res.drawable.ic_edit), contentDescription = null)
-            Text(localizedText("copy_a7f814c0a4"))
+    }
+}
+
+@Composable
+private fun CashRecordMoreActions(
+    state: CashLedgerUiState,
+    viewModel: CashLedgerViewModel,
+    canWrite: Boolean,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+) {
+    Box {
+        TextButton(
+            onClick = { onExpandedChange(true) },
+            modifier = Modifier.testTag("record.detail.more-actions"),
+        ) {
+            Icon(painterResource(Res.drawable.ic_more_vert), contentDescription = null)
+            Text(localizedText("ledger_detail_more_actions"))
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { onExpandedChange(false) },
+        ) {
+            DropdownMenuItem(
+                text = { Text(localizedText("copy_695c4cd2e6")) },
+                leadingIcon = { Icon(painterResource(Res.drawable.ic_link), contentDescription = null) },
+                onClick = {
+                    onExpandedChange(false)
+                    viewModel.openRelationComposer()
+                },
+                enabled = !state.relationBusy,
+                modifier = Modifier.testTag("record.detail.action.associate"),
+            )
+            if (state.recordDetail?.relations?.any { it.status == "accepted" } == true) {
+                DropdownMenuItem(
+                    text = { Text(localizedText("copy_833237e41b"), color = MaterialTheme.colorScheme.error) },
+                    leadingIcon = { Icon(painterResource(Res.drawable.ic_link_off), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                    onClick = {
+                        onExpandedChange(false)
+                        viewModel.dissolveRelations(canWrite)
+                    },
+                    enabled = !state.relationBusy,
+                    modifier = Modifier.testTag("record.detail.action.dissolve"),
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(localizedText("copy_3755f56f2f"), color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(painterResource(Res.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                onClick = {
+                    onExpandedChange(false)
+                    viewModel.requestDeleteRecord(canWrite)
+                },
+                enabled = !state.deleteRecordBusy,
+                modifier = Modifier.testTag("record.detail.action.delete"),
+            )
         }
     }
 }
