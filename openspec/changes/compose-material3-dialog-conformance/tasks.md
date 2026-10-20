@@ -158,5 +158,6 @@
   - 浏览器键盘输入与 Escape 流程通过。另行检查 Basic Dialog 的 Tab 焦点：Compose Web 画布语义节点没有 DOM 焦点目标，Tab 未产生可见焦点变化；该平台焦点导航限制不由本次仅调整 measurement 的范围修复，保留为后续无障碍工作项。Android 与 iOS Simulator 编译通过；未运行设备/模拟器视觉 QA。
   - 当前工作树 `git diff --check` 与 `openspec validate compose-material3-dialog-conformance --strict` 均通过；严格校验运行于本任务记录更新之后。
   - 验证记录完成时间：2026-10-20 16:33 Asia/Shanghai；OpenSpec CLI 版本为 1.7.0。
-- [ ] 10.6 发布准备：记录提交、推送和现有 PR 更新结果；提交前核对变更范围与 `git diff --check`，并按需要重跑受影响验证。
+- [x] 10.5a 提交后复验（2026-10-20 16:38 Asia/Shanghai，`HEAD`=`28f79f698722e0d74d9771982fb0ce7fa14a4d31`）：Web 生产构建、Android `compileAndroidMain`、iOS Simulator `compileKotlinIosSimulatorArm64` 均通过；`npm run test:node` 3/3 通过；OpenSpec CLI 1.7.0 严格校验与 `git diff --check` 通过；Chromium 生产预览定向 QA 10/10 通过，覆盖 320/375/390/414/600/768/1023/1024/1440 px、Basic Dialog 560 dp 上限及内部测量、全屏编辑和 Side Sheet。Playwright 未发现 console error、失败请求或静态 HTTP 错误，只有 `NO_COLOR`/`FORCE_COLOR` 环境提示；测试生成在其他 change 下的截图已恢复。
+- [x] 10.6 发布准备：提交 `28f79f698722e0d74d9771982fb0ce7fa14a4d31`（`fix(compose): align dialog measurements with M3`），提交前复核工作树范围、`git diff --cached --check`、OpenSpec strict 与 `git diff --check`；2026-10-20 08:38 UTC 推送至 `origin/wet-turkey`。既有 PR [#92](https://github.com/ssttkkl/finance-tracker/pull/92) 目标为 `main`、状态 OPEN，head 已更新至该提交；推送后确认远端跟踪分支与 PR head 一致。
 - [x] 10.7 反思：测试几何应分别断言带内边距的容器与标题行本身；像素差检查需等待转场稳定，并按真实测量校准阈值。浏览器截图 helper 会写入其他 change 的路径，QA 后须恢复与本次无关的截图。Tab 焦点导航限制已单独记录，没有扩展本次弹窗测量范围。
