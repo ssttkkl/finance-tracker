@@ -9,7 +9,7 @@
 - [x] 2.1 创建 proposal、八项能力 delta 与 design；引用主设计及跨层契约，不创建重复产品入口。
 - [x] 2.2 记录跨端影响、信息架构、删除的冗余信息、Hallmark 设计方向和自查。
 - [x] 2.3 独立复核产品范围、工程、API／数据一致性和安全；修复阻断发现并记录处置。
-- [ ] 2.4 `openspec validate cash-import-lifecycle-redesign --strict`、文档链接／JSON 与 `git diff --check` 通过后，先提交并推送计划到 `origin/average-snail`。
+- [x] 2.4 `openspec validate cash-import-lifecycle-redesign --strict`、文档链接／JSON 与 `git diff --check` 通过后，先提交并推送计划到 `origin/average-snail`。
 
 ## 3. 任务拆分与一致性
 
@@ -19,7 +19,7 @@
 
 ## 4. 构建：先失败测试再实现
 
-- [ ] 4.1 为统一更新白名单、固定字段、人工清空保护、账号直接覆盖及类型兼容性写失败测试；实现共享领域策略。
+- [x] 4.1 为统一更新白名单、固定字段、人工清空保护、账号直接覆盖及类型兼容性写失败测试；实现共享领域策略。
 - [ ] 4.2 为父子草稿空值、正式完整性、精度、工作区隔离和组成项归属写失败持久化测试；实现 ORM 与保留正式数据的迁移。
 - [ ] 4.3 为当前来源绑定、无编号多重集合、范围不足／名称交叉反例、删除重导及草稿别名写失败测试；实现来源对应。
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
@@ -72,3 +72,10 @@
 - 计划静态检查：`openspec validate cash-import-lifecycle-redesign --strict` 通过；15 份本次文档的本地链接、围栏、空白及 8 个 JSON 示例解析通过，检查包含未跟踪文件。
 
 - 独立计划复核（2026-10-21）：覆盖产品范围、工程、API／持久化、安全及 active changes；初次发现 P1 旧阻塞合同遗漏、P1 分类保护冲突、P1 旧 delta 回写风险、P2 来源身份与派生数据遗漏、P2 关系提交组不一致。全部采纳，修订八项 delta、design 和五项旧 proposal 回链；定向重新复核已逐项关闭，未遗留 P1/P2。该结论仅针对计划。
+
+- 4.1 范围：新增纯领域 `cash_record_policy.py`，未切换旧应用写入口；38 项单测覆盖固定值等价、整条拒绝、人工清空保护、类型组合、草稿补全、精度及协议结构。原地输入不被修改，错误只携稳定码与字段名。独立复核的三个 P2（嵌套 JSON、已填草稿结构、原始繁体备注）已逐项补失败回归并修复。
+- 本小步无数据库或 UI 修改，双后端和浏览器 QA 不适用于纯领域函数；前述现状双后端基线不作为本步新服务验收。所有应用入口接入在 4.2、4.9–4.11 完成，功能地图明确仍为重构中。
+
+- 计划提交：`ec5756b docs: plan cash import lifecycle redesign` 已推送 `origin/average-snail`，随后才新增实现测试和代码。首个领域策略测试先因模块缺失失败；实现后发现草稿金额接受浮点，已收紧协议边界，29 项通过。该策略尚待新服务接入，不宣称旧写入口已完成切换。
+
+- 4.1 提交前验证（HEAD `ec5756b`，基线相同）：`uv run pytest tests/test_cash_record_policy.py tests/test_record_type.py -q --disable-warnings --maxfail=1` → 72 passed；OpenSpec strict 和 diff 空白检查通过。独立定向复核三项发现均关闭。
