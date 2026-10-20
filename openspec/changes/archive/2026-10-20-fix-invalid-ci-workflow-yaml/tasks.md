@@ -29,9 +29,9 @@
 
 ## 7. 发布
 
-- [ ] 7.1 提交并推送至 PR #92 的 `wet-turkey` 分支。
-- [ ] 7.2 检查 GitHub Actions run 是否越过 YAML 加载阶段并创建实际 jobs；记录 run URL、HEAD 与结果。
+- [x] 7.1 提交 `cefa4a8` 并推送至 PR #92 的 `wet-turkey` 分支；远端 HEAD 为 `cefa4a8c2906b491eabd875dc0293bd369c10d6a`。
+- [x] 7.2 GitHub 已创建实际 jobs：[`PR Checks`](https://github.com/ssttkkl/finance-tracker/actions/runs/39399817022) 创建 Compose client、Backend SQLite、Backend PostgreSQL、Backend Performance 四个 job；[`Compose CI`](https://github.com/ssttkkl/finance-tracker/actions/runs/39399817004) 创建 Compose shared/native job。检查时两条 run 均为 `in_progress`，Compose shared tests 已开始；证明 YAML 加载成功并进入 job 执行。
 
 ## 8. 反思
 
-- [ ] 8.1 根据远端验证记录最终结论，并评估是否需要增加通用 workflow lint 规则。
+- [x] 8.1 已记录远端验证。无需为此局部错误引入新的 lint 依赖；Ruby YAML 解析与 GitHub 实际 job 执行均覆盖了本次故障，当前测试结果仍在运行中。
