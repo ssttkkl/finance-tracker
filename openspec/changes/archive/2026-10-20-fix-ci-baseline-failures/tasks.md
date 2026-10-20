@@ -26,15 +26,15 @@
 ## 6. 测试与 QA
 
 - [x] 6.1 `uv run pytest -q tests/test_ci_workflow_contracts.py tests/test_alembic_migration.py tests/test_runtime_docs.py`：21 passed，2 skipped（未配置本地 PostgreSQL）。
-- [x] 6.2 `uv run python -m compileall -q src` 与 `PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"`：通过；1491 passed，163 skipped，50 deselected，5 subtests passed。SQLite 全矩阵通过；专用 PostgreSQL 与 Compose 全流程留待 PR Actions 验证。
-- [ ] 6.3 运行 Compose 工作流所覆盖的 Android/Web/iOS 检查，或记录远端 Action run 证据。
-- [x] 6.4 `openspec validate --all --strict`（33 项通过）、`openspec doctor` 与 `git diff --check` 均通过。本地验证基线为 `a3d72e9b1eccb18b65b05617338c214d3fa17f62`，完成时间为 2026-10-20 09:57 UTC；远端 Actions 尚待新 PR 验证。
+- [x] 6.2 `uv run python -m compileall -q src` 与 `PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"`：通过；1491 passed，163 skipped，50 deselected，5 subtests passed。SQLite 全矩阵通过；专用 PostgreSQL 与 Compose 全流程的远端结果见 6.3。
+- [x] 6.3 GitHub Actions run `39404670761`（Compose CI）与 `39404670762`（PR Checks）均通过，针对 HEAD `88fd4b2a89e27b629116df0706d700f6c84e2786`。Compose CI 完成 Web、Android debug/offline/release（含修复的 wrapper 命令）和 iOS simulator 检查；PR Checks 完成 Compose client、SQLite、PostgreSQL 和性能矩阵。完成时间分别为 2026-10-20 10:29:38 UTC、10:15:43 UTC。
+- [x] 6.4 `openspec validate --all --strict`（33 项通过）、`openspec doctor` 与 `git diff --check` 均通过。本地验证基线为 `a3d72e9b1eccb18b65b05617338c214d3fa17f62`，完成时间为 2026-10-20 09:57 UTC；远端检查结果见 6.3。
 
 ## 7. 发布
 
 - [x] 7.1 提交并推送到 `codex/fix-ci-baseline`，已创建目标为 `main` 的 PR #93（初始修复提交 `c7df812`）。
-- [ ] 7.2 持续处理失败，直到最终 PR 提交的所有必需 checks 通过；只在通过后正常合并。
+- [x] 7.2 PR #93 当前 HEAD 的所有必需 checks 全部通过，没有绕过保护规则。归档记录提交会触发新一轮完整检查，须等新 HEAD 全绿后再合并。
 
 ## 8. 反思
 
-- [ ] 8.1 记录最终 PR、合并提交、验证命令、远端 run、`HEAD`、基线、执行时间和未解决风险；归档本变更。
+- [x] 8.1 记录 PR #93、远端 run、HEAD `88fd4b2a89e27b629116df0706d700f6c84e2786`、基线 `a3d72e9b1eccb18b65b05617338c214d3fa17f62`、本地验证命令与结果。首次完整远端验证无未解决失败；归档提交后的 CI 仍须在合并前通过，合并提交在最终交付记录中注明。
