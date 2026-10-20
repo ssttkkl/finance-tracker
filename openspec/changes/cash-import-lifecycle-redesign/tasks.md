@@ -25,6 +25,8 @@
 - [x] 4.3.1 完成单文件来源规划、同文件出现次数、认证证据、合成身份及事务内当前绑定／问题存储，验证两个后端。
 - [ ] 4.3.2 新解析元数据接入，多文件共同计划不相加重复次数；真实来源重叠和旧来源保守回填在 4.7–4.9 验收后关闭 4.3。
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
+- [x] 4.4.1 完成新建议证据／持久角色的共享校验、旧新确认图闭包及保守配对提交分组；保留既有特殊关系类型。
+- [ ] 4.4.2 完成父记录及组成项关系结构／候选迁移、类型更新调用、联合草稿成员完整性及最终财务图和组保存点接入。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [ ] 4.7 为一次解析、不保留原文件、部分文件／行错误、TTL 与权限写失败测试；实现解析会话及临时存储。
@@ -127,3 +129,7 @@
 
 - 4.7.2.2.1 文件会话服务（HEAD `9dbd6df`，基线相同）：新模块缺失先失败，再通过同一应用服务验证两个后端。覆盖逐文件失败、密码重传、锁外解析、权限撤销、解析中会话被消费、收据优先恢复、替换命名空间、单文件／总预算、取消及过期修订；重传不重读其他文件。自动来源识别复用同一次表头读取，歧义表头拒绝；超限文件大小截断的回归先失败再修复，失败元数据保留观测大小。
 - 本步独立工程／安全复核：授权、收据与 CAS、TTL、解析失败隔离、文件替换与自动识别，无阻断发现；独立 SQLite／纯测试 97 passed，未访问 PostgreSQL 或真实 R2。执行者显式专用 PostgreSQL 执行 `tests/contract/test_parsed_cash_import_context.py tests/test_parsed_import_staging.py tests/test_cash_statement_document.py tests/test_cash_statement_rows.py` → 136 passed、无 skip（7.56 s）；OpenSpec strict、diff 空白检查通过。后端内部服务尚未暴露 HTTP 或 Compose，Web、Native、共享 presentation 无行为变化，浏览器／Hallmark 最终审查不适用于本步。后台清扫、银行来源和完整计划／提交仍未完成，不勾选整体 4.7。
+
+- 4.4.1 角色与分组（HEAD `152ac1c`，基线相同）：新模块缺失先失败；33 项纯测试覆盖新建议逐端证据、既有角色与来源解耦、类型兼容、原有特殊关系、草稿端点拒绝、旧新闭包、退款钻石及联合草稿。独立工程复核重新检查既有发现器，33 passed、无阻断；确认完整联合成员加载和最终财务校验仍属后续接入，不以保守分组替代它们。
+- 本步定向 `tests/test_cash_relation_policy.py tests/test_transaction_relations_transfer.py tests/test_platform_refund_matchers.py tests/test_cash_projection.py tests/test_transaction_relations_projection.py tests/test_cash_record_policy.py` → 140 passed、2 项 PostgreSQL 参数因该次未配置连接而 skipped（1.25 s），OpenSpec strict 通过；随后显式配置专用 PostgreSQL 补跑同一组，不把 skip 计为通过。首次误指定不存在的 `test_platform_refund.py` 未收集测试，不计为验证。纯领域策略不写库、不改变 Web／Native／共享 presentation；浏览器及最终 UI audit 不适用于本步，4.4 整体与调用入口仍未完成。
+- 上述同一命令显式配置专用 PostgreSQL 后 → 142 passed、无 skip（2.08 s），补齐既有投影的两项后端参数；最终 diff 空白检查通过。

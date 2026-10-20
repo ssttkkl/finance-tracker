@@ -509,6 +509,18 @@ erDiagram
 
 关系类型角色矩阵沿用现有种类语义：消费镜像只连接兼容的消费角色，退款镜像连接退款入账角色；退款抵扣连接消费角色与退款入账角色；转账、换汇、提现、还款按既有 `transfer_pair` 子类型的两端角色和币种规则。负向 `refund` 表示原消费的既有来源情形必须作为明确角色处理，不能仅因类型名含退款判为入账。实施须把该矩阵落为可执行共享校验，不能仅调用没有类型字段的投影校验器。
 
+| 关系 | 可确认端点角色与类型 | 新建议的额外证据 |
+|---|---|---|
+| `payment_mirror` | 两端同为负向 `expense`（`consumption` 或原消费语义的 `refund`），或同为正向 `refund` | 新的负向 `refund` 必须分别有原消费证据，不能继承另一条关系的角色 |
+| 普通 `refund_offset` | 负向 `expense` → 正向 `refund`；两端账户和币种一致 | `investment_out` 作为支出端只沿用已有支付宝订单硬配对路径；普通候选不因此扩大 |
+| `refund_offset/p2p_return` | 负向、正向 `transfer_reversal` | 沿用明确原交易标识专用路径 |
+| `transfer_pair/ordinary_transfer` | `transfer_out` → `transfer_in`，或 `withdrawal_out` → `withdrawal_in`，同币种等额 | 流水子类型不必相等；跨境及内部转账沿用既有发现规则 |
+| `transfer_pair/credit_repayment` | 负向、正向 `repayment`，同币种等额 | 两端 `credit_repayment` |
+| `transfer_pair/currency_exchange` | `fx_out` → `fx_in`，或同账户的 `transfer_out` → `transfer_in`，币种不同 | 沿用明确换汇或内部账户转账路径 |
+| `transfer_pair/cross_currency_remittance` | `cross_border_remittance` 的 `transfer_out` → `transfer_in`，币种不同 | 沿用跨境汇款路径 |
+
+既有关系的 `expense` 角色在普通退款关系中兼容负向 `consumption/refund/investment_out`，镜像关系中只兼容前两者；该规则不重新读取后来修改的订单或原消费提示。类型更新只校验现有端点角色和上述结构，不将当前角色迁给新候选。金额、额度、镜像折叠、互斥和最终图继续由完整财务校验负责；角色通过不能替代图校验。现金关系与现金—投资资金关系保持不同端点合同。
+
 现金—投资关系继续使用 `cash_investment_funding_relations` 及明确的投资端点。现金类型更新或删除必须在本次闭包内校验其现金端兼容性并清理失效关联、刷新资金关系影响的读取结果；不扫描或改写投资事件、不重建投资历史。
 
 ### 4.7 投影及发布状态（调整）
