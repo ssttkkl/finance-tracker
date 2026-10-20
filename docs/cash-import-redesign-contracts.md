@@ -156,6 +156,8 @@ flowchart TD
 
 文件元素包含 `file_ref`、脱敏 `display_name`、`status`（`ready/partial/password_required/failed`）、已识别行数、安全问题与 `can_retry`。不能识别行数时为 `null`。需要密码的文件只有状态和显示信息；重试必须带文件内容，后端不能凭会话重新读取它。
 
+`client_file_ref` 标识客户端上传槽位，重传时保留；`file_ref` 标识当前解析结果，重传时更换，旧行引用及对应选择同时失效。其他文件的引用保持不变，新计划重新验证其余选择，避免将旧位置的决定应用到另一份内容。
+
 来源账户元素包含 `source_account_ref`、渠道、安全显示名称、建议 `account_id`、建议依据和是否已选择；内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
 
 `PreviewInput` 使用完整替换的选择集合，避免省略和撤销混淆：

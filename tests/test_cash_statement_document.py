@@ -293,3 +293,18 @@ def test_relationship_targets_cannot_bypass_xml_or_coordinate_checks(target):
             archive.writestr(name, body)
     with pytest.raises(StatementDocumentError, match="statement_unreadable"):
         _read(output.getvalue(), "wechat")
+
+
+@pytest.mark.parametrize("content,source", [(_csv([_alipay_row()], count=1), "alipay"), (_xlsx([_wechat_row()]), "wechat")], ids=["alipay-csv", "wechat-xlsx"])
+def test_source_can_be_identified_from_the_same_header_read(content, source):
+    document = _read(content, None)
+    assert document.source_type == source
+    assert document.observed_count == 1
+    assert document.coverage.complete
+
+
+def test_ambiguous_source_header_is_not_guessed():
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    content = _csv([_alipay_row()], count=1).replace("商家订单号".encode(), "金额(元)".encode())
+    with pytest.raises(StatementDocumentError, match="statement_header_invalid"):
+        _read(content, None)

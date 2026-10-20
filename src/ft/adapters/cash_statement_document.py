@@ -113,10 +113,15 @@ def _collect(records, source, table_key, *, pad_trailing=False):
         if header is None:
             if position > 50 or sum(len(line) for line in metadata) > 65_536:
                 raise StatementDocumentError("statement_header_not_found")
-            if _REQUIRED[source].issubset(cells):
+            matching_sources = [key for key, required in _REQUIRED.items() if required.issubset(cells)]
+            if source is None and len(matching_sources) > 1:
+                raise StatementDocumentError("statement_header_invalid")
+            detected_source = source or (matching_sources[0] if matching_sources else None)
+            if detected_source in matching_sources:
                 if len(cells) > _MAX_COLUMNS or len(set(cells)) != len(cells):
                     raise StatementDocumentError("statement_header_invalid")
                 header = cells
+                source = detected_source
             else:
                 last_value = max((index + 1 for index, value in enumerate(cells) if value), default=0)
                 metadata.append(",".join(cells[:last_value]))
@@ -218,8 +223,8 @@ def _preflight_workbook(archive):
             parser.Parse(b"", True)
 
 
-def read_platform_document(content: bytes, *, source: str) -> CashStatementDocument:
-    if source not in _REQUIRED:
+def read_platform_document(content: bytes, *, source: str | None = None) -> CashStatementDocument:
+    if source is not None and source not in _REQUIRED:
         raise StatementDocumentError("statement_source_unsupported")
     if not isinstance(content, bytes) or not content or len(content) > _MAX_INPUT_BYTES:
         raise StatementDocumentError("statement_input_invalid")

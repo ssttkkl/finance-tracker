@@ -80,7 +80,8 @@ def _valid_files(files):
         refs.add(item.file_ref); client_refs.add(item.client_file_ref)
         if (not isinstance(item.filename, str) or not item.filename or len(item.filename) > 255 or "/" in item.filename or "\\" in item.filename
             or not isinstance(item.digest, str) or not re.fullmatch(r"[0-9a-f]{64}", item.digest)
-            or type(item.size) is not int or not 0 <= item.size <= 100 * 1024 * 1024
+            or type(item.size) is not int or not 0 <= item.size < 2 ** 63
+            or item.status == "parsed" and item.size > 100 * 1024 * 1024
             or item.status not in {"parsed", "needs_password", "failed"}
             or item.source_type is not None and (not isinstance(item.source_type, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", item.source_type))
             or item.error_code is not None and (not isinstance(item.error_code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", item.error_code))
@@ -139,11 +140,33 @@ def _json_budget(value, budget, *, depth=0):
         raise ParsedImportDataError("import_session_draft_too_large")
 
 
+def _restore_file(item):
+    item = dict(item)
+    doc = item.get("document")
+    if doc is not None:
+        doc = dict(doc)
+        doc["rows"] = tuple(ParsedCashRow(**dict(row, issue_codes=tuple(row["issue_codes"]))) for row in doc["rows"])
+        doc["coverage"] = SourceCoverage(**doc["coverage"])
+        item["document"] = ParsedCashDocument(**doc)
+    return ParsedImportFile(**item)
+
+
 class _ParsedImportStore:
     def __init__(self, *, ttl_seconds=1800, clock=_now, max_bytes=25 * 1024 * 1024):
         if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 1800 or type(max_bytes) is not int or max_bytes < 1:
             raise ValueError("import_session_storage_config_invalid")
         self._ttl, self._clock, self._max_bytes = ttl_seconds, clock, max_bytes
+
+    def validate_file(self, item):
+        _valid_files((item,))
+        _json_budget(item, [self._max_bytes])
+        try:
+            content = json.dumps(asdict(item), ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+            if len(content) > self._max_bytes:
+                raise ParsedImportDataError("import_session_draft_too_large")
+            _valid_files((_restore_file(json.loads(content)),))
+        except (TypeError, KeyError, AttributeError, RecursionError):
+            raise ParsedImportDataError("import_session_document_invalid") from None
 
     def _encode(self, session):
         _valid_files(session.files)
@@ -168,17 +191,10 @@ class _ParsedImportStore:
             value = json.loads(content)
             if value.pop("session_digest") != _hash(session_id):
                 raise ValueError
-            files = []
-            for item in value.pop("files"):
-                doc = item.get("document")
-                if doc is not None:
-                    doc["rows"] = tuple(ParsedCashRow(**dict(row, issue_codes=tuple(row["issue_codes"]))) for row in doc["rows"])
-                    doc["coverage"] = SourceCoverage(**doc["coverage"])
-                    item["document"] = ParsedCashDocument(**doc)
-                files.append(ParsedImportFile(**item))
+            files = tuple(_restore_file(item) for item in value.pop("files"))
             value["created_at"] = datetime.fromisoformat(value["created_at"])
             value["expires_at"] = datetime.fromisoformat(value["expires_at"])
-            result = ParsedImportSession(session_id=session_id, files=tuple(files), **value)
+            result = ParsedImportSession(session_id=session_id, files=files, **value)
             if (type(result.revision) is not int or result.revision < 1 or type(result.cancelled) is not bool
                 or result.created_at.tzinfo is None or result.expires_at.tzinfo is None
                 or not 0 < (result.expires_at - result.created_at).total_seconds() <= 1800

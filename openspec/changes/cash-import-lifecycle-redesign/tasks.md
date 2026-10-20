@@ -32,6 +32,8 @@
 - [ ] 4.7.2 实现仅解析内容的暂存、会话修订、文件替换／密码重传及工作区同步边界，关闭旧原文件会话入口时一起验收。
 - [x] 4.7.2.1 完成解析 DTO 的单对象存储、内存／R2 条件替换、固定 TTL、取消清理和基础隔离验证。
 - [ ] 4.7.2.2 接入文件应用服务、工作区锁和消费收据校验；实现无人访问的过期对象有界清扫及部署运行条件，不能只依赖读取时清理。
+- [x] 4.7.2.2.1 完成逐文件应用服务、锁外解析／锁内权限及收据重验、替换命名空间和预算隔离。
+- [ ] 4.7.2.2.2 接入无人访问的过期对象有界清扫、运行配置及最终会话 API。
 - [ ] 4.7.3 银行来源迁入同一解析边界；验证原始出现、来源账户／范围、逐条失败和一次读取。
 - [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
@@ -122,3 +124,6 @@
 - 4.9.1 独立工程复核的两项 P2（投影引用对象与正式 JSON 合同不符、默认结果分页需要整份排序）均采纳，补失败回归并同步修正 ORM／迁移；另补畸形枚举、跨工作区 FK、旧收据往返保留和拒绝有损降级。复核增量 SQLite 24 passed，无遗留阻断。
 - 4.9.1 验证：显式专用 PostgreSQL、`PGOPTIONS='-c lock_timeout=2000 -c statement_timeout=15000'`，`tests/contract` 加 PostgreSQL 适配／运行时／导入及 Alembic → 317 passed、无 skip（85.14 s）。随后最终增量 `tests/contract/test_cash_mutation_receipts.py tests/test_alembic_migration.py tests/test_runtime_docs.py` → 68 passed、无 skip（17.96 s），包含两个后端；SQLite 查询计划证明默认分页不使用临时排序。
 - 同时完整 SQLite 回归（沿前述命令及两项已知 Expo 排除）→ 1741 passed、214 skipped、53 deselected（188.98 s），日志 `/tmp/ft-import-receipts-regression.log`；完整收集之后新增的合同与输入修复以上述最终矩阵另验。曾误指定不存在的 `test_postgres_repositories.py`，命令未收集测试，已改用实际 `test_postgres_adapter.py` 运行上述矩阵，不计前者为证据。仍未实现联合提交应用路径或未知结果 API，4.9 保持未完成；无 UI 修改，不适用浏览器／Native QA。
+
+- 4.7.2.2.1 文件会话服务（HEAD `9dbd6df`，基线相同）：新模块缺失先失败，再通过同一应用服务验证两个后端。覆盖逐文件失败、密码重传、锁外解析、权限撤销、解析中会话被消费、收据优先恢复、替换命名空间、单文件／总预算、取消及过期修订；重传不重读其他文件。自动来源识别复用同一次表头读取，歧义表头拒绝；超限文件大小截断的回归先失败再修复，失败元数据保留观测大小。
+- 本步独立工程／安全复核：授权、收据与 CAS、TTL、解析失败隔离、文件替换与自动识别，无阻断发现；独立 SQLite／纯测试 97 passed，未访问 PostgreSQL 或真实 R2。执行者显式专用 PostgreSQL 执行 `tests/contract/test_parsed_cash_import_context.py tests/test_parsed_import_staging.py tests/test_cash_statement_document.py tests/test_cash_statement_rows.py` → 136 passed、无 skip（7.56 s）；OpenSpec strict、diff 空白检查通过。后端内部服务尚未暴露 HTTP 或 Compose，Web、Native、共享 presentation 无行为变化，浏览器／Hallmark 最终审查不适用于本步。后台清扫、银行来源和完整计划／提交仍未完成，不勾选整体 4.7。
