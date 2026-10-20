@@ -86,7 +86,7 @@ jobs:
       - name: Verify Android demo and release boundaries
         run: |
           grep -Fq 'COMPOSE_DEMO_MODE: Boolean = true' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
-          FT_COMPOSE_DEMO_MODE=true ./gradlew -p compose :androidApp:assembleRelease --no-configuration-cache
+          FT_COMPOSE_DEMO_MODE=true ./compose/gradlew -p compose :androidApp:assembleRelease --no-configuration-cache
           grep -Fq 'DEBUG = false' compose/androidApp/build/generated/source/buildConfig/release/com/finance/tracker/BuildConfig.java
 
       - name: Run Compose iOS simulator checks

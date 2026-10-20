@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-20
+goal: 修复当前 Compose 和后端 CI 失败，不改变产品行为
+skip_specs: true
