@@ -25,13 +25,20 @@ class ConditionalS3:
         self.bodies = []
         self.writes = []
         self.fail_after_put = False
+        self.metadata = {}
+        self.modified = {}
+        self.clock = lambda: datetime.now(timezone.utc)
+        self.list_calls = []
+        self.head_calls = []
 
-    def put_object(self, *, Bucket, Key, Body, ContentType, IfMatch=None, IfNoneMatch=None):
+    def put_object(self, *, Bucket, Key, Body, ContentType, IfMatch=None, IfNoneMatch=None, Metadata=None):
         with self.lock:
             old = self.objects.get((Bucket, Key))
             if IfNoneMatch == "*" and old is not None or IfMatch is not None and (old is None or self.etag(old) != IfMatch):
                 raise ProviderError("PreconditionFailed")
             self.objects[Bucket, Key] = bytes(Body)
+            self.metadata[Bucket, Key] = dict(Metadata or {})
+            self.modified[Bucket, Key] = self.clock()
             self.writes.append((Key, IfMatch, IfNoneMatch, ContentType))
             if self.fail_after_put:
                 self.fail_after_put = False
@@ -51,6 +58,19 @@ class ConditionalS3:
         with self.lock:
             self.objects.pop((Bucket, Key), None)
 
+    def list_objects_v2(self, *, Bucket, Prefix, MaxKeys, ContinuationToken=None):
+        self.list_calls.append((Prefix, MaxKeys, ContinuationToken))
+        keys = sorted(key for bucket, key in self.objects if bucket == Bucket and key.startswith(Prefix)
+            and (ContinuationToken is None or key > ContinuationToken))
+        return {"Contents": [{"Key": key} for key in keys[:MaxKeys]], "IsTruncated": len(keys) > MaxKeys,
+            "NextContinuationToken": keys[MaxKeys - 1] if len(keys) > MaxKeys else None}
+
+    def head_object(self, *, Bucket, Key):
+        self.head_calls.append(Key)
+        if (Bucket, Key) not in self.objects:
+            raise ProviderError("NoSuchKey")
+        return {"Metadata": self.metadata.get((Bucket, Key), {}), "LastModified": self.modified[Bucket, Key]}
+
     @staticmethod
     def etag(content):
         return '"' + sha256(content).hexdigest() + '"'
@@ -61,6 +81,7 @@ def staging(request):
     from ft.application.parsed_import_staging import InMemoryParsedImportStore, R2ParsedImportStore
     now = [datetime(2026, 10, 21, 12, tzinfo=timezone.utc)]
     client = ConditionalS3()
+    client.clock = lambda: now[0]
     options = {"ttl_seconds": 60, "clock": lambda: now[0]}
     store = InMemoryParsedImportStore(**options) if request.param == "memory" else R2ParsedImportStore(client, bucket="private-imports", **options)
     return store, now, client
@@ -280,6 +301,77 @@ def test_publish_that_crosses_expiry_never_returns_a_successful_expired_session(
         _replace(store, first)
     with pytest.raises(ImportSessionNotFound):
         _get(store, first)
+
+
+def test_background_sweep_removes_unvisited_expired_sessions_in_bounded_pages(staging):
+    store, now, client = staging
+    expired = [_create(store) for _ in range(3)]
+    now[0] += timedelta(seconds=30)
+    live = _create(store)
+    now[0] += timedelta(seconds=30)
+    scanned = deleted = 0
+    cursor = None
+    while True:
+        result = store.sweep_expired(cursor=cursor, limit=2)
+        assert result.scanned <= 2
+        scanned += result.scanned; deleted += result.deleted
+        cursor = result.next_cursor
+        if cursor is None:
+            break
+    assert scanned == 4 and deleted == 3
+    if client.list_calls:
+        assert client.bodies == [] and len(client.head_calls) == 4
+        assert all(call[0] == "cash-import/parsed/" and call[1] == 2 for call in client.list_calls)
+        assert all(client.metadata["private-imports", store._key(item.session_id)]["expires-at"] == item.expires_at.isoformat() for item in expired)
+    else:
+        assert set(store._entries) == {live.session_id}
+    assert _get(store, live) == live
+
+
+def test_sweep_does_not_extend_expiry_after_a_late_edit(staging):
+    store, now, _client = staging
+    first = _create(store)
+    now[0] += timedelta(seconds=50)
+    _replace(store, first, preview_input={"changed": True})
+    now[0] += timedelta(seconds=10)
+    assert store.sweep_expired(limit=10).deleted == 1
+
+
+def test_r2_sweep_ignores_unrelated_keys_and_can_clean_pre_metadata_objects():
+    from ft.application.parsed_import_staging import R2ParsedImportStore
+    client = ConditionalS3()
+    now = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+    store = R2ParsedImportStore(client, bucket="bucket", clock=lambda: now)
+    for key in ("cash-import/files/original", "cash-import/parsed/unrelated", "elsewhere/parsed/" + "a" * 64 + "/session"):
+        client.objects["bucket", key] = b"must not read or delete"
+    old_key = "cash-import/parsed/" + "b" * 64 + "/session"
+    client.objects["bucket", old_key] = b"expired financial body must not be downloaded"
+    client.modified["bucket", old_key] = now - timedelta(seconds=1800)
+    result = store.sweep_expired(limit=100)
+    assert result.deleted == 1 and len(client.objects) == 3
+    assert client.bodies == [] and client.head_calls == [old_key]
+
+
+def test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects(staging, monkeypatch):
+    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    store, _now, client = staging
+    if not isinstance(store, __import__("ft.application.parsed_import_staging", fromlist=["R2ParsedImportStore"]).R2ParsedImportStore):
+        return
+    live = _create(store)
+    def failed_head(**_options):
+        raise RuntimeError("provider credentials and object body")
+    monkeypatch.setattr(client, "head_object", failed_head)
+    with pytest.raises(ImportSessionStorageUnavailable) as error:
+        store.sweep_expired()
+    assert "credentials" not in str(error.value) and len(client.objects) == 1
+    assert _get(store, live) == live
+
+
+@pytest.mark.parametrize("limit", [0, 201, True, "10"])
+def test_sweep_rejects_unbounded_or_malformed_page_size(staging, limit):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    with pytest.raises(ParsedImportDataError, match="import_session_sweep_invalid"):
+        staging[0].sweep_expired(limit=limit)
 
 
 def test_r2_body_close_failure_is_still_a_safe_storage_error():

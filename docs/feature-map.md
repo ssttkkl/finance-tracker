@@ -4,7 +4,7 @@
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
-现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台逐行解析、仅解析内容的会话存储、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py) 及 [关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py) 基础，尚未切换对外写入口；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
+现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台逐行解析、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py) 及 [关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py) 基础，尚未切换对外写入口；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
 ## 页面级功能
 

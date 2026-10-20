@@ -72,6 +72,32 @@ def build_import_staging_store(*, environ=None):
         raise StorageConfigurationError(str(exc)) from exc
 
 
+def build_parsed_import_store(*, environ=None):
+    """构造新解析存储及其必需清扫器；不连接或创建业务数据库。"""
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, R2ParsedImportStore
+    from ft.application.parsed_import_cleanup import ParsedImportCleanup
+
+    environment = dict(os.environ if environ is None else environ)
+    settings = ImportStagingSettings.load(environ=environment)
+    try:
+        interval = int(environment.get("FT_IMPORT_STAGING_SWEEP_SECONDS", "30"))
+        page_size = int(environment.get("FT_IMPORT_STAGING_SWEEP_PAGE_SIZE", "100"))
+        if settings.backend == "memory":
+            store = InMemoryParsedImportStore(ttl_seconds=settings.ttl_seconds)
+        else:
+            import boto3
+            from botocore.config import Config
+            client = boto3.client("s3", endpoint_url=environment["FT_R2_ENDPOINT"].strip(),
+                aws_access_key_id=environment["FT_R2_ACCESS_KEY_ID"].strip(),
+                aws_secret_access_key=environment["FT_R2_SECRET_ACCESS_KEY"].strip(),
+                region_name=environment.get("FT_R2_REGION", "auto"),
+                config=Config(connect_timeout=3, read_timeout=5, retries={"total_max_attempts": 2, "mode": "standard"}))
+            store = R2ParsedImportStore(client, bucket=environment["FT_R2_BUCKET"].strip(), prefix=settings.prefix, ttl_seconds=settings.ttl_seconds)
+        return store, ParsedImportCleanup(store, interval_seconds=interval, page_size=page_size)
+    except Exception:
+        raise StorageConfigurationError("import_session_storage_config_invalid") from None
+
+
 @dataclass(frozen=True)
 class StorageSettings:
     database_url: str

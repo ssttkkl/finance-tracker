@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 from contextvars import ContextVar
+from asyncio import to_thread
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -17,7 +18,7 @@ from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashLedgerQueryService
 from ft.application.cash_ledger import CashLedgerCommandService
-from ft.config import StorageSettings, build_import_staging_store
+from ft.config import StorageSettings, build_import_staging_store, build_parsed_import_store
 from ft.web.serialization import error_payload
 from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, bearer_token
 
@@ -64,11 +65,12 @@ def validate_web_origin(origin: str) -> str:
 
 class WorkspaceServices:
     """Resolve legacy workspace-bound services from an authenticated request context."""
-    def __init__(self, sessions, workspace_var, *, user_var=None, import_staging_store=None):
+    def __init__(self, sessions, workspace_var, *, user_var=None, import_staging_store=None, parsed_import_store=None):
         self._sessions = sessions
         self._workspace_var = workspace_var
         self._user_var = user_var
         self._import_staging_store = import_staging_store
+        self._parsed_import_store = parsed_import_store
     def _workspace(self):
         workspace_id = self._workspace_var.get()
         if workspace_id is None: raise AuthenticationRequired("authentication_required")
@@ -86,6 +88,13 @@ class WorkspaceServices:
         from ft.application.accounts import AccountService
 
         return AccountService(self._uow())
+
+    def parsed_import_context(self):
+        from ft.application.cash_import_context import CashImportContextService
+        from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+        if self._parsed_import_store is None:
+            raise ImportSessionStorageUnavailable
+        return CashImportContextService(self._uow(), self._parsed_import_store, user_id=self._user())
 
     def legacy_cashflow(self):
         from ft.application.cashflow import CashflowService
@@ -395,11 +404,13 @@ def create_runtime_app():
         workspace_var = ContextVar("web_workspace_id", default=None)
         user_var = ContextVar("web_user_id", default=None)
         import_staging_store = build_import_staging_store()
+        parsed_import_store, parsed_import_cleanup = build_parsed_import_store()
         service = WorkspaceServices(
             sessions,
             workspace_var,
             user_var=user_var,
             import_staging_store=import_staging_store,
+            parsed_import_store=parsed_import_store,
         )
         from ft.adapters.fx_rates import FxRateProvider
         from ft.adapters.market_data import CompositeQuoteProvider
@@ -416,14 +427,18 @@ def create_runtime_app():
 
         @asynccontextmanager
         async def release_engine(_app):
-            if portfolio_refresh is not None:
-                portfolio_refresh.start()
             try:
+                await to_thread(parsed_import_cleanup.start)
+                if portfolio_refresh is not None:
+                    portfolio_refresh.start()
                 yield
             finally:
-                if portfolio_refresh is not None:
-                    portfolio_refresh.stop()
-                engine.dispose()
+                try:
+                    await to_thread(parsed_import_cleanup.stop)
+                finally:
+                    if portfolio_refresh is not None:
+                        portfolio_refresh.stop()
+                    engine.dispose()
 
         app = create_app(
             service, origin, lifespan=release_engine, mutation_service=mutation_service,
@@ -436,6 +451,8 @@ def create_runtime_app():
             user_context=user_var,
             operations_service=service,
         )
+        app.state.parsed_import_store = parsed_import_store
+        app.state.parsed_import_cleanup = parsed_import_cleanup
     except StorageConfigurationError as exc:
         raise StorageError("storage.config") from exc
     except RelationalEngineError as exc:

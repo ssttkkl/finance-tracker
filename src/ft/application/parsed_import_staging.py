@@ -60,6 +60,13 @@ class ParsedImportSession:
     cancelled: bool = False
 
 
+@dataclass(frozen=True)
+class ParsedImportSweep:
+    scanned: int
+    deleted: int
+    next_cursor: str | None
+
+
 def _now():
     return datetime.now(timezone.utc)
 
@@ -250,7 +257,7 @@ class _ParsedImportStore:
     def _publish(self, session, content, *, expected):
         if self._clock() >= session.expires_at:
             raise ImportSessionExpired
-        self._write_raw(session.session_id, content, expected=expected)
+        self._write_raw(session.session_id, content, expected=expected, expires_at=session.expires_at)
         if self._clock() >= session.expires_at:
             self._delete_raw(session.session_id)
             raise ImportSessionExpired
@@ -279,6 +286,12 @@ class _ParsedImportStore:
         self._publish(updated, content, expected=etag)
         return self._decode(session_id, content)
 
+    @staticmethod
+    def _sweep_args(cursor, limit):
+        if (type(limit) is not int or not 1 <= limit <= 200
+            or cursor is not None and (not isinstance(cursor, str) or not 1 <= len(cursor) <= 4096)):
+            raise ParsedImportDataError("import_session_sweep_invalid")
+
 
 class InMemoryParsedImportStore(_ParsedImportStore):
     def __init__(self, *, max_sessions=256, max_total_bytes=100 * 1024 * 1024, **options):
@@ -296,7 +309,7 @@ class InMemoryParsedImportStore(_ParsedImportStore):
             content = self._entries[session_id]
             return content, sha256(content).hexdigest()
 
-    def _write_raw(self, session_id, content, *, expected):
+    def _write_raw(self, session_id, content, *, expected, expires_at):
         with self._lock:
             old = self._entries.get(session_id)
             if (expected is None and old is not None) or (expected is not None and (old is None or sha256(old).hexdigest() != expected)):
@@ -314,6 +327,23 @@ class InMemoryParsedImportStore(_ParsedImportStore):
     def _delete_raw(self, session_id):
         with self._lock:
             self._entries.pop(session_id, None)
+
+    def sweep_expired(self, *, cursor=None, limit=100, should_stop=lambda: False):
+        self._sweep_args(cursor, limit)
+        with self._lock:
+            keys = sorted(token for token in self._entries if cursor is None or token > cursor)
+            scanned = deleted = 0
+            try:
+                for token in keys[:limit]:
+                    if should_stop():
+                        return ParsedImportSweep(scanned, deleted, cursor)
+                    expiry = datetime.fromisoformat(json.loads(self._entries[token])["expires_at"])
+                    if self._clock() >= expiry:
+                        del self._entries[token]; deleted += 1
+                    scanned += 1; cursor = token
+            except (TypeError, ValueError, KeyError):
+                raise ImportSessionStorageUnavailable from None
+            return ParsedImportSweep(scanned, deleted, cursor if len(keys) > limit else None)
 
 
 class R2ParsedImportStore(_ParsedImportStore):
@@ -355,10 +385,11 @@ class R2ParsedImportStore(_ParsedImportStore):
                 except Exception:
                     raise ImportSessionStorageUnavailable from None
 
-    def _write_raw(self, session_id, content, *, expected):
+    def _write_raw(self, session_id, content, *, expected, expires_at):
         try:
             condition = {"IfNoneMatch": "*"} if expected is None else {"IfMatch": expected}
-            self._client.put_object(Bucket=self._bucket, Key=self._key(session_id), Body=content, ContentType="application/json", **condition)
+            self._client.put_object(Bucket=self._bucket, Key=self._key(session_id), Body=content, ContentType="application/json",
+                Metadata={"expires-at": expires_at.isoformat()}, **condition)
         except Exception as error:
             if self._provider_code(error) in {"412", "PreconditionFailed", "ConditionalRequestConflict"}:
                 raise ImportSessionRevisionConflict from None
@@ -367,5 +398,50 @@ class R2ParsedImportStore(_ParsedImportStore):
     def _delete_raw(self, session_id):
         try:
             self._client.delete_object(Bucket=self._bucket, Key=self._key(session_id))
+        except Exception:
+            raise ImportSessionStorageUnavailable from None
+
+    def sweep_expired(self, *, cursor=None, limit=100, should_stop=lambda: False):
+        self._sweep_args(cursor, limit)
+        scanned = deleted = 0
+        try:
+            continuation = {"ContinuationToken": cursor} if cursor is not None else {}
+            page = self._client.list_objects_v2(Bucket=self._bucket, Prefix=f"{self._prefix}/parsed/", MaxKeys=limit, **continuation)
+            entries = page.get("Contents", [])
+            next_cursor = page.get("NextContinuationToken") if page.get("IsTruncated") else None
+            if (not isinstance(entries, list) or len(entries) > limit
+                or page.get("IsTruncated") and (not isinstance(next_cursor, str) or not next_cursor or next_cursor == cursor)):
+                raise ImportSessionStorageUnavailable
+            for entry in entries:
+                if should_stop():
+                    return ParsedImportSweep(scanned, deleted, cursor)
+                scanned += 1
+                key = entry.get("Key")
+                if not isinstance(key, str) or not re.fullmatch(re.escape(self._prefix) + r"/parsed/[0-9a-f]{64}/session", key):
+                    continue
+                try:
+                    head = self._client.head_object(Bucket=self._bucket, Key=key)
+                except Exception as error:
+                    if self._provider_code(error) in {"404", "NoSuchKey", "NotFound"}:
+                        continue
+                    raise
+                expiry = None
+                try:
+                    value = (head.get("Metadata") or {}).get("expires-at")
+                    expiry = datetime.fromisoformat(value) if isinstance(value, str) else None
+                    if expiry is not None and expiry.tzinfo is None:
+                        expiry = None
+                except ValueError:
+                    pass
+                modified = head.get("LastModified")
+                if isinstance(modified, datetime) and modified.tzinfo is not None:
+                    fallback = modified + timedelta(seconds=1800)
+                    expiry = min(expiry, fallback) if expiry is not None else fallback
+                if expiry is None:
+                    raise ImportSessionStorageUnavailable
+                if self._clock() >= expiry and not should_stop():
+                    self._client.delete_object(Bucket=self._bucket, Key=key)
+                    deleted += 1
+            return ParsedImportSweep(scanned, deleted, next_cursor)
         except Exception:
             raise ImportSessionStorageUnavailable from None
