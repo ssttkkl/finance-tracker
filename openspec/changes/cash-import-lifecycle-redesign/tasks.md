@@ -28,6 +28,8 @@
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [ ] 4.7 为一次解析、不保留原文件、部分文件／行错误、TTL 与权限写失败测试；实现解析会话及临时存储。
+- [ ] 4.7.1 保留平台原始出现、文件声明及逐行错误，校准真实平台表头；随后迁入银行来源。
+- [ ] 4.7.2 实现仅解析内容的暂存、会话修订、文件替换／密码重传及工作区同步边界，关闭旧原文件会话入口时一起验收。
 - [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
 - [ ] 4.10 为失败项限时派生、子集范围安全、草稿补全／转正式、问题处理与维护重预览写失败测试；实现后续维护 API。
@@ -98,3 +100,7 @@
 - 完整 SQLite 回归：`PYTHONPATH=tests:.:src uv run pytest tests -q -m 'not performance' --disable-warnings --tb=short --deselect=tests/test_mobile_ci_packaging.py::test_mobile_ci_builds_release_like_artifacts_with_embedded_js --deselect=tests/test_mobile_ci_packaging.py::test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts` → 1613 passed、196 skipped、53 deselected（181.47 s），仅显式排除已在旧基线复现的两项废弃 Expo CI 断言；未把其他 backend skip 算作双后端通过。后续规范化 ID 与纯匹配增量的受影响用例另跑；日志在 `/tmp/ft-import-source-regression.log`。最终 API、Compose 和草稿统计合同尚未切换，不勾选整体回归及 UI QA 完成。
 - 真实样本只读勘查：仓库外账单目录共 42 个文件（含辅助文件），其中 12 份平台表格可检查表头。6 份支付宝可结构化提取账户和时间范围；6 份微信有昵称、导出类型及范围，正文“微信号”是说明文字，不能当本人微信号提取。新解析必须区分实际身份字段与说明，未知身份沿文件局部定位及后续补充规则；尚未将真实账单写入专用测试库，6.3 保持未完成。
 - 4.3.1 提交前复验：上述同一双后端定向命令 → 202 passed、无 skip（26.79 s）；随后仅补未知账户已消耗候选分支的失败回归并修复，纯匹配／更新策略 → 100 passed（0.11 s）。OpenSpec strict 与 diff 空白检查通过。本步依然是未暴露的后端基础，无 Compose 文案或 UI 变化，不以其代替 4.7–4.13 入口及用户验收。
+
+- 4.7 平台原始读取小步（HEAD `d275c6d`，基线相同）：新增不去重的 CSV／XLSX 文档对象，精确保留文本、编号前导零、多行字段及重复出现，提取本人账号与显式覆盖声明；结构坏行单独留安全原因。新模块缺失及逐项边界回归先失败，再实现；`uv run pytest tests/test_cash_statement_document.py tests/test_cash_source_matching.py tests/test_cash_record_policy.py -q --disable-warnings --tb=short` → 136 passed（0.22 s），OpenSpec strict、diff 空白检查通过。
+- 本小步独立工程／安全复核：坏行误授完整范围、矛盾声明取首项、稀疏索引绕过预算、维度缩小藏行及关系目标改名绕过 XML 预检均采纳，补失败回归后关闭。XML 部件、非空目录项和真实坐标限制已写回 design；独立再跑 36 项读取测试通过，范围内无遗留阻断。尚未接入原生分类、银行解析、会话或提交，4.7 保持未完成。
+- 真实账单只读校准（未入库）：6 份微信共 3,974 次、6 份支付宝共 3,813 次原始出现，12 份声明笔数均与观测一致，结构错误为 0，范围／筛选可解析；微信没有可靠本人账号，支付宝 6 份可提取。过程只输出汇总，不保存文件正文或标识。纯读取不涉及持久化，本步双后端不适用；会话、应用服务、真实入库、Compose 和客户端 QA 均仍待对应任务。

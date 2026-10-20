@@ -4,7 +4,7 @@
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
-现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入统一字段约束、草稿表结构、正式完整性校验、来源对应规划及当前绑定／问题存储，尚未切换应用写入口；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
+现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入统一字段约束、草稿表结构、正式完整性校验、来源对应规划、当前绑定／问题存储及保留原始出现的平台表格读取器，尚未切换应用写入口；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
 ## 页面级功能
 
