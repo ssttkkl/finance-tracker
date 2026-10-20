@@ -306,52 +306,43 @@ internal fun InvestmentHoldingsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        InvestmentPositionDetailHeader(holding, viewModel::closePosition)
-                        HorizontalDivider()
+                    ModalScaffold(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentFill = false,
+                        header = {
+                            ModalHeader(
+                                variant = ModalHeaderVariant.Dialog,
+                                onClose = viewModel::closePosition,
+                                headerTestTag = "investment.position.detail.header",
+                                closeTestTag = "investment.position.detail.close",
+                            ) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Text(
+                                        holding.position.displayName ?: holding.position.ticker,
+                                        modifier = Modifier.testTag("investment.position.detail.title"),
+                                        style = MaterialTheme.typography.headlineSmall,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        },
+                    ) {
                         InvestmentPositionDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp)
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)
                                 .testTag("investment.position.detail.content"),
                             position,
                         )
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun InvestmentPositionDetailHeader(holding: InvestmentHoldingRow, onClose: () -> Unit) {
-    val closeLabel = localizedText("copy_6c14bd7f6f")
-    Row(
-        Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 24.dp)
-            .testTag("investment.position.detail.header"),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .semantics { contentDescription = closeLabel }
-                .testTag("investment.position.detail.close"),
-        ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
-        }
-        Column(Modifier.weight(1f)) {
-            Text(
-                holding.position.displayName ?: holding.position.ticker,
-                modifier = Modifier.testTag("investment.position.detail.title"),
-                style = MaterialTheme.typography.headlineSmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                "${holding.position.ticker} · ${displayInvestmentAccountName(holding.accountName)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
     }
 }

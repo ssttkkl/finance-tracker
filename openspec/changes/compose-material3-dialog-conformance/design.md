@@ -127,3 +127,19 @@ None.
 - 账单详情/编辑/关联 Side Sheet 与现金导入 Regular/Wide Side Sheet 使用同一测量合同；现金流水 Regular/Wide 详细筛选 Dialog、投资事件详情和持仓详情使用非全屏 Dialog 合同；账单 Compact 详情/编辑/关联及现金导入 Compact 使用全屏 Dialog 合同。
 - 外框保持：账单 Side Sheet 最大 560 dp、起始侧留白、末端贴边；导入 Side Sheet 仍为 Regular 90% / Wide 70% 窗口宽度；投资和筛选弹窗继续保留既有 560 dp / 760 dp 上限及定位。
 - Header / body 的 measurement 改动不改变滚动区域、任务状态、草稿、操作回调、关闭路径、遮罩与拖动手势。Web、Android、iOS 共用 `commonMain`；本轮运行验证按既有项目决策只覆盖 Web。
+
+## 2026-10-20 补充：共享弹窗内部 scaffold
+
+### 组件边界
+
+- 在 `commonMain` 增加内部 `ModalScaffold`，统一自定义模态内容的纵向区域结构：标题栏、分隔线、占用剩余空间的内容视口，以及可选的底部分隔线和操作区。正文仍由调用方决定滚动容器与内部排列。
+- 提供共享 `ModalHeader`，用 `Dialog` 与 `SideSheet` 两种测量变体处理关闭按钮、标题槽、无障碍关闭名称及调用方测试标签。标题使用内容槽，以支持纯标题和标题/副标题组合；需要保持既有标题间距差异时由调用点显式传入。账本详细筛选只在宽窗口 Dialog 中使用通用标题栏，紧凑 Bottom Sheet 保留原生布局。
+- 提供 `SideSheetActionArea`，集中表达 72 dp 高、水平 24 dp 留白、垂直居中和左对齐。按钮内容与顺序仍由业务调用点提供，侧板的主要操作继续放在最左。
+- `SecondaryPageContainer` 与账单详情的 `Dialog` host 复用 scaffold；投资事件和持仓详情复用同一 scaffold 与 Dialog 标题栏。账本详细筛选复用宽窗口 Dialog 标题栏。全屏任务标题继续使用 Material 3 `TopAppBar`。
+
+### 保持项
+
+- `Dialog`/Side Sheet 的外层 host 继续各自管理 Surface 尺寸、形状、颜色、定位、遮罩、Back/Escape、点击关闭及拖动关闭。共享 scaffold 不创建 `Dialog`，也不持有业务状态或回调之外的操作规则。
+- scaffold 提供内容区的布局槽与 modifier；调用方保留当前有效内容留白和滚动设置，避免对已有内层 `FeaturePage`、表单或滚动列重复增加 padding。
+- `AlertDialog`、紧凑筛选 `ModalBottomSheet`、导入流程按钮组合及全屏 Dialog 既有操作顺序保持原实现。
+- Cross-platform Impact Check：改动位于 `commonMain`，Web、Android、iOS 共用同一 scaffold 与 M3 测量；本次仅复用结构，不引入平台分支。外层窗口布局与既有产品合同保持不变。

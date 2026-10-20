@@ -37,6 +37,11 @@ Compose 共享界面同时使用标准 Material 3 对话框和自行绘制的弹
 - Side Sheet 采用 [Material 3 Side Sheet specs](https://m3.material.io/components/side-sheets/specs) 的内部 measurement；底部操作区左对齐，主操作放在最左。此 Side Sheet 按钮布局覆盖原先通用的“主操作最右”规则。
 - 不调整已确认的账单详情、筛选、导入及投资弹窗外框尺寸，不改变遮罩、拖动、Back/Escape、取消/确认、滚动或提交行为。
 
+## 补充范围（2026-10-20）
+
+- 将自定义 `Dialog` 与 Side Sheet 的内部标题栏、内容区和可选底部操作区结构提取为共享 Compose scaffold，减少同一 M3 布局合同在账单、次级任务和投资详情中的重复实现。
+- 外层容器继续分别负责原有尺寸、定位、Surface 外观、遮罩、关闭与拖动行为；共享 scaffold 不改变内容滚动策略、按钮顺序或业务回调。`AlertDialog` 与紧凑筛选 `ModalBottomSheet` 保持独立。
+
 ## Capabilities
 
 ### New Capabilities

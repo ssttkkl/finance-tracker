@@ -196,63 +196,50 @@ private fun CashRecordModalOverlay(
                 color = if (fullScreen) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.surfaceContainerLow,
                 tonalElevation = 0.dp,
             ) {
-                Column(
-                    Modifier.fillMaxWidth()
+                ModalScaffold(
+                    modifier = Modifier.fillMaxWidth()
                         .then(if (fullScreen || !compact) Modifier.fillMaxHeight() else Modifier)
                         .then(if (fullScreen || !compact) Modifier.windowInsetsPadding(WindowInsets.safeDrawing) else Modifier),
-                ) {
-                    Row(
-                        Modifier.fillMaxWidth()
-                            .then(
-                                if (fullScreen || !sideSheet) {
-                                    Modifier.height(64.dp).padding(start = 16.dp, end = 24.dp)
-                                } else {
-                                    Modifier.padding(start = 16.dp, top = 24.dp, end = 24.dp)
-                                },
-                            )
-                            .testTag("ledger.record-panel.header"),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        val closeLabel = localizedText("copy_6c14bd7f6f")
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.testTag("ledger.record-panel.close")
-                                .semantics { contentDescription = closeLabel },
+                    contentFill = fullScreen || !compact,
+                    contentModifier = Modifier.padding(horizontal = 24.dp).testTag("ledger.record-panel.content"),
+                    header = {
+                        ModalHeader(
+                            variant = if (sideSheet) ModalHeaderVariant.SideSheet else ModalHeaderVariant.Dialog,
+                            onClose = onDismiss,
+                            titleSpacing = when {
+                                sideSheet -> 12.dp
+                                fullScreen -> 8.dp
+                                else -> 12.dp
+                            },
+                            headerTestTag = "ledger.record-panel.header",
+                            closeTestTag = "ledger.record-panel.close",
                         ) {
-                            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
+                            Text(
+                                title,
+                                modifier = Modifier.testTag("ledger.record-panel.title"),
+                                style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
                         }
-                        Text(
-                            title,
-                            modifier = Modifier.weight(1f)
-                                .padding(start = if (fullScreen) 8.dp else 12.dp)
-                                .testTag("ledger.record-panel.title"),
-                            style = if (compact) MaterialTheme.typography.titleLarge else MaterialTheme.typography.headlineSmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    HorizontalDivider()
-                    Box(
-                        Modifier.weight(1f, fill = fullScreen || !compact).fillMaxWidth().padding(horizontal = 24.dp)
-                            .testTag("ledger.record-panel.content"),
-                    ) { content() }
-                    footer?.let {
-                        HorizontalDivider()
-                        if (sideSheet) {
-                            Box(
-                                Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 24.dp)
-                                    .testTag("ledger.record-panel.footer"),
-                                contentAlignment = Alignment.CenterStart,
-                            ) { it() }
-                        } else {
-                            Box(
-                                Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp)
-                                    .testTag("ledger.record-panel.footer"),
-                                contentAlignment = Alignment.CenterEnd,
-                            ) { it() }
+                    },
+                    footer = footer?.let { footerContent ->
+                        {
+                            if (sideSheet) {
+                                SideSheetActionArea(
+                                    content = footerContent,
+                                    testTag = "ledger.record-panel.footer",
+                                )
+                            } else {
+                                Box(
+                                    Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp)
+                                        .testTag("ledger.record-panel.footer"),
+                                    contentAlignment = Alignment.CenterEnd,
+                                ) { footerContent() }
+                            }
                         }
-                    }
-                }
+                    },
+                ) { content() }
             }
         }
     }

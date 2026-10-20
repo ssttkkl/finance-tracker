@@ -216,11 +216,28 @@ internal fun InvestmentEventsScreen(
                     contentColor = MaterialTheme.colorScheme.onSurface,
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
-                    Column(Modifier.fillMaxWidth()) {
-        InvestmentEventDetailHeader(event, viewModel::closeEvidence)
-                        HorizontalDivider()
+                    ModalScaffold(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentFill = false,
+                        header = {
+                            ModalHeader(
+                                variant = ModalHeaderVariant.Dialog,
+                                onClose = viewModel::closeEvidence,
+                                headerTestTag = "investment.event.detail.header",
+                                closeTestTag = SemanticIds.investmentEventDetailClose,
+                            ) {
+                                Text(
+                                    eventTitle(event),
+                                    modifier = Modifier.testTag("investment.event.detail.title"),
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        },
+                    ) {
                         InvestmentEventDetailBody(
-                            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(24.dp)
+                            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp)
                                 .testTag("investment.event.detail.content"),
                             event,
                             evidence,
@@ -232,32 +249,6 @@ internal fun InvestmentEventsScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun InvestmentEventDetailHeader(event: InvestmentEvent, onClose: () -> Unit) {
-    val closeLabel = localizedText("copy_6c14bd7f6f")
-    Row(
-        Modifier.fillMaxWidth().height(64.dp).padding(start = 16.dp, end = 24.dp)
-            .testTag("investment.event.detail.header"),
-        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier
-                .semantics { contentDescription = closeLabel }
-                .testTag(SemanticIds.investmentEventDetailClose),
-        ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
-        }
-        Text(
-            eventTitle(event),
-            modifier = Modifier.weight(1f).testTag("investment.event.detail.title"),
-            style = MaterialTheme.typography.headlineSmall,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 

@@ -119,3 +119,13 @@
 ## 7. 反思
 
 - [x] 7.1 共性缺陷包括自定义容器重复 scrim、全屏留空、重复退出入口；Compose Web 语义镜像可能落后于实际画面，固定坐标会因响应式重排失准。后续优先使用 Material 3 标准组件、明确任务/确认层级、视觉截图断言，并使用构建输入指纹防止陈旧演示产物。
+
+## 8. 共享弹窗 scaffold 提取（2026-10-20）
+
+- [x] 8.1 将本次容器提取范围与保留边界写入 proposal/design：共用内部标题栏、内容视口、分隔线和可选操作区结构；外层尺寸、表面样式、关闭/拖动行为、滚动策略及业务按钮顺序由现有调用方保留。Cross-platform Impact Check：Web、Android、iOS 共用 `commonMain`；无页面功能或用户可观察流程变化，不更新功能地图。
+- [x] 8.2 新增 `ModalScaffold`、`ModalHeader` 与 `SideSheetActionArea`，并在账单详情、次级任务、投资详情容器和宽窗口账本筛选 Dialog 中复用；保持现有语义标签与关闭回调。实现位于 `compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ModalScaffold.kt`；Compact 筛选 `ModalBottomSheet`、`AlertDialog` 和全屏 `TopAppBar` 保留原有实现。
+- [x] 8.3 对重构后的 Compose 页面执行相称的编译与 Web 浏览器 QA，覆盖 `COMPACT`、`REGULAR`、`WIDE` 下标题/内容/操作区，以及账单详情拖动关闭和导入侧板操作顺序；记录截图、console/network 结果与当前 HEAD。Android/iOS 设备验证不属于本 change 的既有用户授权范围。
+  - 2026-10-20（本轮，`HEAD`=`027a0e6ed28b1e3b5aa36d6c0bc45d8c077585a1`，基线 `origin/main`=`5b41517bbac762d654b8b5782ab6d2d2f62e6e9f`）：`openspec validate compose-material3-dialog-conformance --strict` 通过；`cd compose/qa/web && npm run test:node` 3/3 通过；`cd compose && ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache` 通过；`git diff --check` 通过。
+  - Chromium 生产预览 QA：`cd compose/qa/web && FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03 桌面详细筛选弹窗按内容高度展开|F-03 详细筛选按字段语义分组并适配窗口宽度|F-03 详细筛选在三类窗口展开并可用 Escape 关闭|F-04 新增、详情和编辑面板适配三类窗口|F-04 Regular/Wide 详情 Side Sheet 可沿末端方向拖动关闭|F-05 cash-import uses the Material 3 side-sheet variant for each horizontal window class|F-05 Regular/Wide 侧板可以通过 Escape 关闭|F-05 Regular/Wide 导入侧板可完成各步骤并提交|F-08 持仓可查看估值详情|F-09 投资事件可加载下一页并查看证据'`，10/10 通过；之后单独重跑 `FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-08 持仓可查看估值详情'`，1/1 通过。覆盖 390×844、768×1024、1440×1000；详情关闭、Side Sheet 拖动、导入 Escape/操作顺序、筛选与投资详情均走真实 Chromium 页面。
+  - Playwright `afterEach` 检查 console error、失败请求和静态 HTTP 错误；通过用例均无意外错误。Node/WebServer 仅输出 `NO_COLOR` 与 `FORCE_COLOR` 并存警告。截图已更新到 `compose/qa/openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261017/` 与 `compose/qa/openspec/changes/compose-material3-dialog-conformance/screenshots/`。比较改前改后持仓 Compact/Regular、投资事件 Wide、流水详情 Regular 截图并人工查看：布局、外框和内容位置一致；首轮捕获中持仓 Compact 的透字是动画瞬态，隔离重跑后的截图恢复为与改前逐像素一致。Native 设备未运行，保留共享 `commonMain` 在 Android/iOS 上的运行时验证风险。
+- [x] 8.4 完成最终 diff 复核及 Hallmark audit。覆盖 `ModalScaffold.kt` 与所有调用点、M3 measurement、语义标签、标题关闭、侧板页脚主操作顺序和外框/关闭/拖动合同；抽查 `COMPACT`、`REGULAR`、`WIDE` 截图并对照改前基线。未发现视觉变化或范围偏离，0 critical、0 major、0 minor finding。当前运行环境没有可调用的 Hallmark skill 接口；按 `.agents/skills/hallmark/references/verbs/audit.md` 规则完成替代人工审查，没有声称执行 Hallmark 工具。审查结果与本 change 验收一致：容器只共享内部布局，现有内容滚动、尺寸、行为和动作顺序保持不变。

@@ -99,11 +99,16 @@ private fun SecondaryPageFullScreen(
         color = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
     ) {
-        Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-            SecondaryPageFullScreenHeader(title, onClose)
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            SecondaryPageBody(Modifier.weight(1f), MaterialTheme.colorScheme.surface, contentStateKey, content)
-            if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surface, footer)
+        ModalScaffold(
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            dividerColor = MaterialTheme.colorScheme.outlineVariant,
+            footerDividerTestTag = if (showFooter) "secondary-page-footer-divider" else null,
+            header = { SecondaryPageFullScreenHeader(title, onClose) },
+            footer = if (showFooter) {
+                { SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surface, footer) }
+            } else null,
+        ) {
+            SecondaryPageBody(Modifier.fillMaxSize(), MaterialTheme.colorScheme.surface, contentStateKey, content)
         }
     }
 }
@@ -135,37 +140,33 @@ private fun SecondaryPageSideSheet(
             contentColor = MaterialTheme.colorScheme.onSurface,
             tonalElevation = 0.dp,
         ) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
-                SecondaryPageBasicHeader(title, onClose)
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                SecondaryPageBody(Modifier.weight(1f), MaterialTheme.colorScheme.surfaceContainerLow, contentStateKey, content)
-                if (showFooter) SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surfaceContainerLow, footer)
+            ModalScaffold(
+                modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                dividerColor = MaterialTheme.colorScheme.outlineVariant,
+                footerDividerTestTag = if (showFooter) "secondary-page-footer-divider" else null,
+                header = {
+                    ModalHeader(
+                        variant = ModalHeaderVariant.SideSheet,
+                        onClose = onClose,
+                        headerTestTag = "secondary-page-header",
+                        closeTestTag = "secondary-page-close",
+                    ) {
+                        Text(
+                            title,
+                            modifier = Modifier.testTag("secondary-page-title"),
+                            style = MaterialTheme.typography.headlineSmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                },
+                footer = if (showFooter) {
+                    { SecondaryPageFooter(sizeClass, MaterialTheme.colorScheme.surfaceContainerLow, footer) }
+                } else null,
+            ) {
+                SecondaryPageBody(Modifier.fillMaxSize(), MaterialTheme.colorScheme.surfaceContainerLow, contentStateKey, content)
             }
         }
-    }
-}
-
-@Composable
-private fun SecondaryPageBasicHeader(title: String, onClose: () -> Unit) {
-    val closeLabel = localizedText("copy_6c14bd7f6f")
-    Row(
-        Modifier.fillMaxWidth().padding(start = 16.dp, top = 24.dp, end = 24.dp).testTag("secondary-page-header"),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(
-            onClick = onClose,
-            modifier = Modifier.semantics { contentDescription = closeLabel }.testTag("secondary-page-close"),
-        ) {
-            Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
-        }
-        Spacer(Modifier.width(12.dp))
-        Text(
-            title,
-            modifier = Modifier.weight(1f).testTag("secondary-page-title"),
-            style = MaterialTheme.typography.headlineSmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -225,16 +226,12 @@ private fun SecondaryPageFooter(
     footer: @Composable () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().background(containerColor)) {
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.testTag("secondary-page-footer-divider"))
         if (sizeClass == WindowSizeClass.COMPACT) {
             Box(
                 Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp).testTag("secondary-page-footer"),
             ) { footer() }
         } else {
-            Box(
-                Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 24.dp).testTag("secondary-page-footer"),
-                contentAlignment = Alignment.CenterStart,
-            ) { footer() }
+            SideSheetActionArea(content = footer, testTag = "secondary-page-footer")
         }
     }
 }

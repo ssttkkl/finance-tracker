@@ -1117,25 +1117,38 @@ private fun CashDetailedFilters(
             .then(if (compact) Modifier.fillMaxHeight() else Modifier.wrapContentHeight())
             .testTag(SemanticIds.ledgerFilterDetails),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().then(
-                if (compact) Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
-                else Modifier.height(64.dp).padding(start = 16.dp, end = 24.dp),
-            ).testTag("ledger.filter.header"),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            IconButton(
-                onClick = onClose,
-                modifier = Modifier.testTag("ledger.filter.close")
-                    .semantics { contentDescription = closeLabel },
+        if (compact) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)
+                    .testTag("ledger.filter.header"),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
+                IconButton(
+                    onClick = onClose,
+                    modifier = Modifier.testTag("ledger.filter.close")
+                        .semantics { contentDescription = closeLabel },
+                ) {
+                    Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(24.dp))
+                }
+                Text(
+                    localizedText("copy_dcce9a144a"),
+                    modifier = Modifier.testTag("ledger.filter.title"),
+                    style = MaterialTheme.typography.titleLarge,
+                )
             }
-            Text(
-                localizedText("copy_dcce9a144a"),
-                modifier = Modifier.testTag("ledger.filter.title"),
-                style = MaterialTheme.typography.titleLarge,
-            )
+        } else {
+            ModalHeader(
+                variant = ModalHeaderVariant.Dialog,
+                onClose = onClose,
+                headerTestTag = "ledger.filter.header",
+                closeTestTag = "ledger.filter.close",
+            ) {
+                Text(
+                    localizedText("copy_dcce9a144a"),
+                    modifier = Modifier.testTag("ledger.filter.title"),
+                    style = MaterialTheme.typography.titleLarge,
+                )
+            }
         }
         HorizontalDivider()
         Column(
