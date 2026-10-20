@@ -10,47 +10,72 @@ import com.finance.tracker.domain.CashFilters
 import com.finance.tracker.domain.CashLedgerRepository
 import com.finance.tracker.domain.CashPage
 import com.finance.tracker.domain.CashProjection
+import com.finance.tracker.domain.DomainFailure
 import kotlinx.coroutines.CancellationException
+import kotlin.math.max
 
 internal class CashProjectionPagingSource(
     private val repository: CashLedgerRepository,
     private val filters: CashFilters,
     private val diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
     private val onPageLoaded: (CashPage, firstPage: Boolean) -> Unit,
-) : PagingSource<String, CashProjection>() {
+) : PagingSource<Int, CashProjection>() {
     private var projectionVersion: Long? = null
-    private val loadedProjectionIds = mutableSetOf<String>()
 
-    override fun getRefreshKey(state: PagingState<String, CashProjection>): String? = null
+    override val jumpingSupported: Boolean = true
 
-    override suspend fun load(params: LoadParams<String>): LoadResult<String, CashProjection> {
-        val cursor = params.key
+    override fun getRefreshKey(state: PagingState<Int, CashProjection>): Int? =
+        state.anchorPosition?.let { max(0, it - state.config.initialLoadSize / 2) }
+
+    override suspend fun load(params: LoadParams<Int>): LoadResult<Int, CashProjection> {
+        val startIndex = params.key?.coerceAtLeast(0) ?: 0
+        val expectedVersion = projectionVersion
         return try {
-            val page = repository.fetchCashPage(filters, cursor)
-            if (cursor != null) {
-                val expectedVersion = projectionVersion
-                if (expectedVersion == null || page.projectionVersion != expectedVersion) {
+            val page = repository.fetchCashPage(
+                filters = filters,
+                startIndex = startIndex,
+                projectionVersion = expectedVersion,
+                limit = params.loadSize.coerceIn(1, MAX_CASH_PAGE_SIZE),
+            )
+            if (page.startIndex != startIndex || page.totalCount == null) {
+                return LoadResult.Error(IllegalStateException("Indexed cash page omitted its absolute position or total count"))
+            }
+            if (expectedVersion != null) {
+                if (page.projectionVersion != expectedVersion) {
                     return LoadResult.Invalid()
                 }
             } else {
                 projectionVersion = page.projectionVersion
             }
 
-            onPageLoaded(page, cursor == null)
+            val itemCount = page.totalCount.coerceAtLeast(0)
+            val itemsBefore = page.itemsBefore ?: startIndex.coerceAtMost(itemCount)
+            val itemsAfter = page.itemsAfter ?: (itemCount - itemsBefore - page.items.size).coerceAtLeast(0)
+            val endIndex = startIndex + page.items.size
+            onPageLoaded(page, expectedVersion == null)
             LoadResult.Page(
-                data = page.items.filter { loadedProjectionIds.add(it.projectionId) },
-                prevKey = null,
-                nextKey = page.nextCursor,
+                data = page.items,
+                prevKey = startIndex.takeIf { it > 0 }?.let { (it - params.loadSize).coerceAtLeast(0) },
+                nextKey = endIndex.takeIf { it < itemCount },
+                itemsBefore = itemsBefore,
+                itemsAfter = itemsAfter,
             )
         } catch (cause: CancellationException) {
             throw cause
         } catch (cause: Throwable) {
+            if (cause is DomainFailure && cause.code == "projection.updated") {
+                return LoadResult.Invalid()
+            }
             cause.recordDiagnosticFailure(
                 diagnostics,
                 DiagnosticFeature.CASH_LEDGER,
-                if (cursor == null) DiagnosticAction.LOAD else DiagnosticAction.LOAD_NEXT_PAGE,
+                if (expectedVersion == null) DiagnosticAction.LOAD else DiagnosticAction.LOAD_NEXT_PAGE,
             )
             LoadResult.Error(cause)
         }
+    }
+
+    private companion object {
+        const val MAX_CASH_PAGE_SIZE = 50
     }
 }

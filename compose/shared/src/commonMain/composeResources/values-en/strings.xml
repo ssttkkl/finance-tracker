@@ -583,6 +583,7 @@
     <string name="ledger_action_delete">Delete</string>
     <string name="ledger_action_cancel_selection">Cancel selection</string>
     <string name="ledger_selection_count">%1$s selected</string>
+    <string name="ledger_scrollbar_description">Jump to a transaction position</string>
     <string name="ledger_category_dialog_title">Set category</string>
     <string name="ledger_category_label">Category</string>
     <string name="ledger_category_cancel">Cancel</string>

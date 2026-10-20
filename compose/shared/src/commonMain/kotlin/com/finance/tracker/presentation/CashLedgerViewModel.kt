@@ -50,7 +50,13 @@ class CashLedgerViewModel(
         .distinctUntilChanged()
         .flatMapLatest { (filters, revision) ->
             Pager(
-                config = PagingConfig(pageSize = 20, prefetchDistance = 5, enablePlaceholders = false),
+                config = PagingConfig(
+                    pageSize = 20,
+                    initialLoadSize = 20,
+                    prefetchDistance = 5,
+                    enablePlaceholders = true,
+                    jumpThreshold = 20,
+                ),
                 pagingSourceFactory = {
                     CashProjectionPagingSource(repository, filters, diagnostics) { page, firstPage ->
                         if (firstPage && mutableState.value.filters == filters && mutableState.value.listRevision == revision) {

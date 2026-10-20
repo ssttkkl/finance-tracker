@@ -40,6 +40,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.lazy.LazyColumn
@@ -137,6 +138,8 @@ internal fun CashLedgerScreen(
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
     val refreshError = (pagedRows.loadState.refresh as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val appendError = (pagedRows.loadState.append as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
+    val prependError = (pagedRows.loadState.prepend as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
+    val pageLoadError = refreshError ?: prependError ?: appendError
     val classifyError = state.classifyErrorCode?.let { ledgerErrorText(it) }
     val deleteProjectionError = state.deleteProjectionErrorCode?.let { ledgerErrorText(it) }
     val recordSaveError = state.recordSaveErrorCode?.let { ledgerErrorText(it) }
@@ -184,13 +187,25 @@ internal fun CashLedgerScreen(
             }
         }
         val summariesByMonth = state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month)
+        val totalCount = state.page?.totalCount ?: pagedRows.itemCount
         val appendReachedEnd = (pagedRows.loadState.append as? LoadState.NotLoading)?.endOfPaginationReached == true
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.fillMaxWidth().weight(1f).testTag(SemanticIds.ledgerList),
-            contentPadding = PaddingValues(bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp),
-        ) {
+        Column(Modifier.fillMaxWidth().weight(1f)) {
+            if (pageLoadError != null && pagedRows.itemCount > 0) {
+                StateMessage(pageLoadError, isError = true) {
+                    TextButton(onClick = { pagedRows.retry() }, modifier = Modifier.testTag(SemanticIds.ledgerRetry)) {
+                        Text(localizedText("copy_e2d53a6d3a"))
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize()
+                    .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 40.dp))
+                    .testTag(SemanticIds.ledgerList),
+                contentPadding = PaddingValues(bottom = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
             when {
                 pagedRows.loadState.refresh is LoadState.Loading && pagedRows.itemCount == 0 ->
                     item(key = "cash-ledger-loading") { StateMessage(localizedText("copy_ced64cb470")) }
@@ -258,6 +273,8 @@ internal fun CashLedgerScreen(
                             )
                         }
                     }
+                } else {
+                    CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
                 }
             }
             if (pagedRows.loadState.append is LoadState.Loading) {
@@ -267,15 +284,15 @@ internal fun CashLedgerScreen(
                     }
                 }
             }
-            if (appendError != null) {
-                item(key = "cash-ledger-append-error") {
-                    StateMessage(appendError, isError = true) {
-                        TextButton(
-                            onClick = { pagedRows.retry() },
-                            modifier = Modifier.testTag(SemanticIds.ledgerAppendRetry),
-                        ) { Text(localizedText("copy_b647ee0bdc")) }
-                    }
-                }
+            }
+            CashLedgerScrollbar(
+                listState = listState,
+                totalCount = totalCount,
+                monthPositions = state.page?.monthPositions.orEmpty(),
+                isOrdinalLoaded = { ordinal -> pagedRows.peek(ordinal) != null },
+                compact = sizeClass == WindowSizeClass.COMPACT,
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
             }
         }
         }
@@ -791,6 +808,43 @@ internal fun CashLedgerScreen(
             destructive = true,
             semanticId = "ledger.delete-projection",
         )
+    }
+}
+
+@Composable
+private fun CashProjectionPlaceholderRow(compact: Boolean) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(bottom = GeneratedTokens.Core.Space.Token2),
+        shape = MaterialTheme.shapes.medium,
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (compact) 18.dp else 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Spacer(
+                    Modifier.fillMaxWidth(if (compact) 0.74f else 0.58f)
+                        .height(18.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
+                )
+                Spacer(
+                    Modifier.fillMaxWidth(0.34f)
+                        .height(12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
+                )
+            }
+            Spacer(Modifier.width(16.dp))
+            Spacer(
+                Modifier.width(64.dp)
+                    .height(18.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
+            )
+        }
     }
 }
 

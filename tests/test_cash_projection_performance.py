@@ -687,10 +687,29 @@ def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> Non
 
     first = query.list_cash_projections(limit=50)
     assert first.next_cursor
+    indexed_filter = {"counterparty": "去标识化交易对方"}
+    indexed_first = query.list_cash_projections(
+        limit=50,
+        start_index=0,
+        **indexed_filter,
+    )
+    assert indexed_first.total_count == 8_500
+    indexed_positions = {
+        "ledger_index_shallow": 0,
+        "ledger_index_middle": indexed_first.total_count // 2,
+        "ledger_index_deep": indexed_first.total_count - 50,
+    }
 
     def warmup() -> None:
         query.list_cash_projections(limit=50)
         query.list_cash_projections(limit=50, cursor=first.next_cursor)
+        for start_index in indexed_positions.values():
+            query.list_cash_projections(
+                limit=50,
+                start_index=start_index,
+                projection_version=indexed_first.projection_version,
+                **indexed_filter,
+            )
         query.list_cash_projections(
             counterparty="去标识化",
             date_from="2025-07-01",
@@ -707,6 +726,7 @@ def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> Non
         "ledger_first": [],
         "ledger_cursor": [],
         "ledger_filtered": [],
+        **{operation: [] for operation in indexed_positions},
         "candidate_search": [],
         "candidate_cursor": [],
         "evidence": [],
@@ -717,6 +737,22 @@ def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> Non
         page = query.list_cash_projections(limit=50)
         samples["ledger_first"].append(time.perf_counter_ns() - started)
         assert page.items
+
+        for operation, start_index in indexed_positions.items():
+            started = time.perf_counter_ns()
+            indexed_page = query.list_cash_projections(
+                limit=50,
+                start_index=start_index,
+                projection_version=indexed_first.projection_version,
+                **indexed_filter,
+            )
+            samples[operation].append(time.perf_counter_ns() - started)
+            expected_items = min(50, indexed_first.total_count - start_index)
+            assert indexed_page.total_count == indexed_first.total_count == 8_500
+            assert indexed_page.start_index == start_index
+            assert len(indexed_page.items) == expected_items
+            assert indexed_page.items_before == start_index
+            assert indexed_page.items_after == indexed_first.total_count - start_index - expected_items
 
         started = time.perf_counter_ns()
         page = query.list_cash_projections(limit=50, cursor=first.next_cursor)

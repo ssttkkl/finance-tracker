@@ -1,6 +1,7 @@
 """收支账本投影 API 路由。"""
 import base64
 import json
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -13,6 +14,32 @@ from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredE
 from ft.application.cash_import_staging import ImportSessionPasswordRequired
 
 _IMPORT_PASSWORD_ERRORS = (PDFPasswordRequiredError, PDFPasswordInvalidError)
+
+
+def _cash_json_value(value):
+    """Serialize cash API payloads while keeping relation amounts decimal-safe."""
+    payload = json_value(value)
+
+    def normalize(item):
+        if isinstance(item, dict):
+            return {
+                key: _cash_amount_text(child) if key == "applied_amount" else normalize(child)
+                for key, child in item.items()
+            }
+        if isinstance(item, list):
+            return [normalize(child) for child in item]
+        return item
+
+    return normalize(payload)
+
+
+def _cash_amount_text(value):
+    if value is None or isinstance(value, str):
+        return value
+    try:
+        return format(Decimal(str(value)), "f")
+    except (InvalidOperation, TypeError, ValueError):
+        return str(value)
 
 
 def _import_password_code(exc: Exception) -> str:
@@ -170,9 +197,9 @@ def cash_router(
             return {"items":json_value(investment_service.list_accounts())}
         return JSONResponse(error_payload("invalid_filter","不支持该账本视图。"),400)
     @router.get("/cash-projections")
-    def projections(date_from:str|None=None,date_to:str|None=None,account_id:str|None=None,counterparty:str|None=None,category_id:str|None=None,uncategorized:bool=False,currency:str|None=None,amount_min:str|None=None,amount_max:str|None=None,economic_type:str|None=None,transfer_subtype:str|None=None,composition:str|None=None,timezone:str|None=None,cursor:str|None=None,limit:str|None=None):
+    def projections(date_from:str|None=None,date_to:str|None=None,account_id:str|None=None,counterparty:str|None=None,category_id:str|None=None,uncategorized:bool=False,currency:str|None=None,amount_min:str|None=None,amount_max:str|None=None,economic_type:str|None=None,transfer_subtype:str|None=None,composition:str|None=None,timezone:str|None=None,cursor:str|None=None,limit:str|None=None,start_index:str|None=None,projection_version:str|None=None):
         try:
-            page=service.list_cash_projections(date_from=date_from,date_to=date_to,account_id=account_id,counterparty=counterparty,category_id=category_id,uncategorized=uncategorized,currency=currency,amount_min=amount_min,amount_max=amount_max,economic_type=economic_type,transfer_subtype=transfer_subtype,composition=composition,timezone=timezone,cursor=cursor,limit=int(limit) if limit is not None else 50)
+            page=service.list_cash_projections(date_from=date_from,date_to=date_to,account_id=account_id,counterparty=counterparty,category_id=category_id,uncategorized=uncategorized,currency=currency,amount_min=amount_min,amount_max=amount_max,economic_type=economic_type,transfer_subtype=transfer_subtype,composition=composition,timezone=timezone,cursor=cursor,limit=int(limit) if limit is not None else 50,start_index=int(start_index) if start_index is not None else None,projection_version=int(projection_version) if projection_version is not None else None)
             return json_value(page)
         except ValueError as exc:return JSONResponse(error_payload(str(exc) if str(exc) in {"invalid_filter","invalid_cursor"} else "invalid_filter","筛选条件或分页位置无效，请返回第一页重试。"),400)
         except ProjectionUpdatedError:return JSONResponse(error_payload("projection.updated","账本已更新，请刷新列表。"),409)
@@ -331,7 +358,7 @@ def cash_router(
         @router.get("/cash-records/{fact_id}")
         def cash_record(fact_id: str):
             try:
-                return json_value(mutation_service.get_record(fact_id))
+                return _cash_json_value(mutation_service.get_record(fact_id))
             except ValueError:
                 return JSONResponse(error_payload("not_found", "当前工作区中找不到这条流水记录。"), 404)
 
@@ -354,14 +381,14 @@ def cash_router(
         @router.post("/cash-records")
         async def create_cash_record(request: Request):
             try:
-                return JSONResponse(json_value(mutation_service.create_record(await request.json())), 201)
+                return JSONResponse(_cash_json_value(mutation_service.create_record(await request.json())), 201)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_record", str(exc)), 400)
 
         @router.put("/cash-records/{fact_id}")
         async def update_cash_record(fact_id: str, request: Request):
             try:
-                return json_value(mutation_service.update_record(fact_id, await request.json()))
+                return _cash_json_value(mutation_service.update_record(fact_id, await request.json()))
             except RelationImpactRequired as exc:
                 return JSONResponse(error_payload(exc.code, str(exc)), 409)
             except ValueError as exc:
@@ -417,7 +444,7 @@ def cash_router(
             try:
                 payload = await request.json()
                 payload["status"] = "accepted"
-                return json_value(mutation_service.add_relation(payload))
+                return _cash_json_value(mutation_service.add_relation(payload))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
 
@@ -425,7 +452,7 @@ def cash_router(
         async def dissolve_cash_relations(request: Request):
             try:
                 payload = await request.json()
-                return json_value(mutation_service.dissolve_relations(str(payload.get("fact_id") or "")))
+                return _cash_json_value(mutation_service.dissolve_relations(str(payload.get("fact_id") or "")))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
 
@@ -439,7 +466,7 @@ def cash_router(
         @router.put("/cash-relations/{relation_id}")
         async def update_cash_relation(relation_id: str, request: Request):
             try:
-                return json_value(mutation_service.update_relation(relation_id, await request.json()))
+                return _cash_json_value(mutation_service.update_relation(relation_id, await request.json()))
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_relation", str(exc)), 400)
 

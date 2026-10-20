@@ -73,6 +73,14 @@ async function clickComposeUntil(page: Page, locator: Locator, isDone: () => Pro
   throw new Error("Compose target did not produce the expected state");
 }
 
+function indexedLedgerPageCallCount(api: Awaited<ReturnType<typeof installComposeApiFixtures>>): number {
+  return api.calls.filter((call) => {
+    if (call.method !== "GET" || !call.path.startsWith("/api/v1/cash-projections?")) return false;
+    const startIndex = Number(new URL(call.path, "http://compose.test").searchParams.get("start_index"));
+    return Number.isFinite(startIndex) && startIndex > 0;
+  }).length;
+}
+
 async function scrollDialogBodyTo(page: Page, panel: Locator, target: Locator): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Missing Playwright viewport");
@@ -1040,16 +1048,117 @@ test("F-03 筛选卡片固定，列表独立滚动并触发分页", async ({ pag
     expect(initialFilterBounds).not.toBeNull();
     expect(listBounds).not.toBeNull();
 
-    const nextPageCallsBefore = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const nextPageCallsBefore = indexedLedgerPageCallCount(api);
     await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.75);
     await page.mouse.wheel(0, 6_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBeGreaterThan(nextPageCallsBefore);
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(nextPageCallsBefore);
     const finalFilterBounds = await filters.boundingBox();
     expect(finalFilterBounds).not.toBeNull();
     expect(Math.abs(finalFilterBounds!.y - initialFilterBounds!.y)).toBeLessThanOrEqual(2);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await captureLedgerScene(page, `ledger-sticky-filter-${width}`, width, height);
   }
+});
+
+test("F-03 可拖动账本滚动条定位未加载流水并支持键盘跳转", async ({ page }) => {
+  test.setTimeout(120_000);
+  const api = await installComposeApiFixtures(page, {
+    cashPaginatedPageCount: 4,
+    cashCrossMonthBoundary: true,
+    cashPageDelayMs: 1_000,
+  });
+  const browserErrors: string[] = [];
+  const knownRuntimeWarnings: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      const text = message.text();
+      if (text.startsWith("Accessing `memory` via `wasmExports` is deprecated.")) {
+        knownRuntimeWarnings.push(text);
+      } else {
+        browserErrors.push(`console: ${text}`);
+      }
+    }
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) browserErrors.push(`HTTP ${response.status()}: ${response.url()}`);
+  });
+  const screenshotDirectory = path.resolve(process.cwd(), "../../../openspec/changes/cash-ledger-indexed-scrollbar-detail-contract/screenshots");
+  await mkdir(screenshotDirectory, { recursive: true });
+
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await expect.poll(() => browserErrors).toEqual([]);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+    const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+    if (sizeName === "compact") {
+      await expect(scrollbar).toBeHidden();
+    } else {
+      await expect(scrollbar).toBeVisible();
+    }
+    await page.screenshot({ path: path.join(screenshotDirectory, `scrollbar-${sizeName}-initial.png`) });
+
+    if (sizeName === "compact") {
+      const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(listBounds).not.toBeNull();
+      await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height / 2);
+      await page.mouse.wheel(0, 360);
+      await expect(scrollbar).toBeVisible();
+      const heldRail = await scrollbar.boundingBox();
+      expect(heldRail).not.toBeNull();
+      const heldRailX = heldRail!.x + heldRail!.width / 2;
+      const heldRailY = heldRail!.y + heldRail!.height * 0.5;
+      await page.mouse.move(heldRailX, heldRailY);
+      await page.mouse.down();
+      await page.mouse.move(heldRailX, heldRailY + 8, { steps: 2 });
+      await page.waitForTimeout(2_200);
+      await expect(scrollbar).toBeVisible();
+      await page.mouse.up();
+    }
+    const rail = await scrollbar.boundingBox();
+    expect(rail).not.toBeNull();
+    expect(rail!.width).toBeGreaterThanOrEqual(36);
+
+    await page.mouse.click(rail!.x + rail!.width / 2, rail!.y + rail!.height * 0.5);
+    await scrollbar.focus();
+    await page.keyboard.press("End");
+    await expect(page.locator('[id="ledger.record-cash-scroll-4-24"]').last()).toBeVisible({ timeout: 20_000 });
+    expect(indexedLedgerPageCallCount(api)).toBeGreaterThan(0);
+    await page.screenshot({ path: path.join(screenshotDirectory, `scrollbar-${sizeName}-keyboard.png`) });
+
+    if (sizeName === "compact") {
+      await page.locator('[id="ledger.filters"]').getByRole("textbox").last().focus();
+      await expect(scrollbar).toBeHidden({ timeout: 5_000 });
+      await page.mouse.move(180, 30);
+      await page.screenshot({ path: path.join(screenshotDirectory, "scrollbar-compact-hidden-after-idle.png") });
+      const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(listBounds).not.toBeNull();
+      await page.mouse.move(listBounds!.x + listBounds!.width - 4, listBounds!.y + listBounds!.height / 2);
+      await page.mouse.wheel(0, -180);
+      await expect(scrollbar).toBeVisible();
+      await page.locator('[id="ledger.filters"]').getByRole("textbox").last().evaluate((element) => (element as HTMLElement).blur());
+      await page.mouse.move(180, 30);
+      await page.screenshot({ path: path.join(screenshotDirectory, "scrollbar-compact-reshown-after-scroll.png") });
+    }
+
+    const dragRail = await scrollbar.boundingBox();
+    expect(dragRail).not.toBeNull();
+    const x = dragRail!.x + dragRail!.width / 2;
+    await page.mouse.move(x, dragRail!.y + dragRail!.height * 0.96);
+    await page.mouse.down();
+    await page.mouse.move(x, dragRail!.y + dragRail!.height * 0.48, { steps: 12 });
+    await expect.poll(() => api.state.cashProjectionPageIds.some((ids) => ids.some((id) => id.startsWith("cash-scroll-2-")))).toBe(true);
+    await expect(page.locator('[id="ledger.scrollbar.month-bubble"]')).toContainText("2026年9月");
+    await expect(page.locator('[id^="ledger.record-cash-scroll-2-"]')).toHaveCount(0);
+    await page.screenshot({ path: path.join(screenshotDirectory, `scrollbar-${sizeName}-dragging.png`) });
+    await page.mouse.up();
+    await expect(page.locator('[id="ledger.record-cash-scroll-2-22"]').last()).toBeVisible({ timeout: 20_000 });
+    await page.screenshot({ path: path.join(screenshotDirectory, `scrollbar-${sizeName}-dragged.png`) });
+    expect(api.state.cashProjectionPageIds.every((ids) => new Set(ids).size === ids.length)).toBe(true);
+  }
+  expect(browserErrors).toEqual([]);
+  expect(new Set(knownRuntimeWarnings).size).toBeLessThanOrEqual(1);
 });
 
 test("F-03 批量分类取消不写入", async ({ page }) => {
@@ -1207,12 +1316,12 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
     await page.goto(`${workspaceRoot}/`);
     const firstPageRecord = page.locator('[id="ledger.record-cash-scroll-1-1"]').last();
     await expect(firstPageRecord).toBeVisible();
-    expect(api.state.cashProjectionPageIds[0]?.filter((id) => id === "cash-scroll-1-1")).toHaveLength(2);
+    expect(new Set(api.state.cashProjectionPageIds[0] ?? []).size).toBe(api.state.cashProjectionPageIds[0]?.length);
     await expect(page.getByText("重复流水", { exact: true })).toHaveCount(0);
-    const cursorPageCallsBeforeScroll = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const indexedPageCallsBeforeScroll = indexedLedgerPageCallCount(api);
     await page.mouse.move(width / 2, height / 2);
     await page.mouse.wheel(0, 6_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBeGreaterThan(cursorPageCallsBeforeScroll);
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(indexedPageCallsBeforeScroll);
     await page.mouse.wheel(0, 6_000);
     const lastPageTwoRecord = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
     await expect(lastPageTwoRecord).toBeVisible();
@@ -1232,31 +1341,31 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
 
 test("F-03 收支账本追加失败时保留流水并可重试，切换筛选后回到首项", async ({ page }) => {
   test.setTimeout(90_000);
-  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2, cashAppendFailures: 1 });
+  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 1, cashAppendFailures: 1 });
   for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 900, "wide"]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/`);
     await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
-    const pageTwoCallsBeforeScroll = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const pageTwoCallsBeforeScroll = indexedLedgerPageCallCount(api);
     await page.mouse.move(width / 2, height / 2);
     await page.mouse.wheel(0, 12_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBe(pageTwoCallsBeforeScroll + 1);
-    await page.mouse.wheel(0, 12_000);
-    const retryButton = page.locator('[id="ledger.append-retry"]').last();
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(pageTwoCallsBeforeScroll);
+    const retryButton = page.locator('[id="ledger.retry"]').last();
     await expect(retryButton).toBeAttached();
     await retryButton.scrollIntoViewIfNeeded();
-    await expect(retryButton).toContainText("重试加载");
-    await expect(page.locator('[id="ledger.record-cash-scroll-1-24"]').last()).toBeVisible();
+    await expect(retryButton).toContainText("重试");
+    await page.mouse.wheel(0, -12_000);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") await captureLedgerScene(page, `ledger-append-error-${sizeName}`, width, height);
 
-    const pageTwoCallsBeforeRetry = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const pageTwoCallsBeforeRetry = indexedLedgerPageCallCount(api);
     await clickComposeUntil(page, retryButton, async () =>
-      api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length === pageTwoCallsBeforeRetry + 1,
+      indexedLedgerPageCallCount(api) > pageTwoCallsBeforeRetry,
     );
     await page.mouse.wheel(0, 12_000);
-    const lastPageTwoRecord = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
-    await expect(lastPageTwoRecord).toBeVisible();
-    await expect(lastPageTwoRecord).toContainText("第2页流水24");
+    const lastRecord = page.locator('[id="ledger.record-cash-scroll-1-24"]').last();
+    await expect(lastRecord).toBeVisible();
+    await expect(lastRecord).toContainText("第1页流水24");
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") await captureLedgerScene(page, `ledger-append-recovered-${sizeName}`, width, height);
 
     await page.mouse.move(width / 2, height / 2);
@@ -1713,7 +1822,7 @@ test("F-04 可新建并编辑流水，保留账户和金额字段", async ({ pag
 
   await expect.poll(() => api.state.recordWrites.length).toBe(2);
   expect(api.state.recordWrites[1]).toMatchObject({ amount: "30.00", note: "已修改" });
-  expect(api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/cash-records/record-1")).toBe(true);
+  expect(api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/cash-records/1001")).toBe(true);
 });
 
 test("F-04 编辑流水在详情面板内切换，不叠加第二个模态层", async ({ page }) => {
@@ -1811,7 +1920,7 @@ test("F-04 Compact 与较宽窗口丢弃流水编辑前会确认，继续编辑�
     await clickComposeTarget(page, page.locator('[id="ledger.record.discard-confirm"]').last());
     await expect(page.locator('[id="record.amount"]')).toHaveCount(0);
     await expect(page.getByText("流水详情", { exact: true }).last()).toBeVisible();
-    expect(api.calls.filter((call) => call.method === "PUT" && call.path === "/api/v1/cash-records/record-1")).toHaveLength(0);
+    expect(api.calls.filter((call) => call.method === "PUT" && call.path === "/api/v1/cash-records/1001")).toHaveLength(0);
     const detailBeforeClose = await page.screenshot();
     if (width < 600) {
       await clickComposeTarget(page, page.locator('[id="ledger.record-panel.close"]').last());
@@ -1842,7 +1951,7 @@ test("F-04 保存处理中保留可用操作，失败在当前或返回后的模
       await saveGate;
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "network_unavailable" } }) });
     };
-    await page.route("**/api/v1/cash-records/record-1", failedSave);
+    await page.route("**/api/v1/cash-records/1001", failedSave);
     try {
       await page.setViewportSize({ width, height });
       await page.goto(`${workspaceRoot}/`);
@@ -1875,7 +1984,7 @@ test("F-04 保存处理中保留可用操作，失败在当前或返回后的模
       } else {
         await expect(page.locator('[id="ledger.record.save-error-dialog"]')).toBeVisible();
       }
-      await page.unroute("**/api/v1/cash-records/record-1", failedSave);
+      await page.unroute("**/api/v1/cash-records/1001", failedSave);
       if (width === 1440) {
         const errorDialogScreenshot = await page.screenshot();
         await clickDialogAction(page, "ledger.record.save-error-dialog", "ledger.record.save-error-acknowledge");
@@ -1889,7 +1998,7 @@ test("F-04 保存处理中保留可用操作，失败在当前或返回后的模
       }
     } finally {
       releaseSave();
-      await page.unroute("**/api/v1/cash-records/record-1", failedSave).catch(() => {});
+      await page.unroute("**/api/v1/cash-records/1001", failedSave).catch(() => {});
     }
   }
 });
@@ -2121,7 +2230,7 @@ test("F-04 关联影响确认在请求中保持当前任务并阻止重复保存
       await saveGate;
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "network_unavailable" } }) });
     };
-    await page.route("**/api/v1/cash-records/record-1", relationImpactSave);
+    await page.route("**/api/v1/cash-records/1001", relationImpactSave);
     try {
       await page.setViewportSize({ width, height });
       await page.goto(`${workspaceRoot}/`);
@@ -2158,13 +2267,13 @@ test("F-04 关联影响确认在请求中保持当前任务并阻止重复保存
       await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(0);
       await clickDialogAction(page, "ledger.record.save-error-dialog", "ledger.record.save-error-acknowledge");
       await expect(page.getByRole("textbox", { name: "金额" }).last()).toBeVisible();
-      await page.unroute("**/api/v1/cash-records/record-1", relationImpactSave);
+      await page.unroute("**/api/v1/cash-records/1001", relationImpactSave);
       await clickComposeTarget(page, page.locator('[id="record.save"]').last());
       await expect.poll(() => api.state.recordWrites.length).toBe(writesBefore + 1);
       expect(api.state.recordWrites.at(-1)).toMatchObject({ amount: "31.00" });
     } finally {
       releaseSave();
-      await page.unroute("**/api/v1/cash-records/record-1", relationImpactSave).catch(() => {});
+      await page.unroute("**/api/v1/cash-records/1001", relationImpactSave).catch(() => {});
     }
   }
 });
@@ -2223,7 +2332,7 @@ test("F-04 流水删除进行中确认保持可用，关闭详情后失败仍在
       await deleteGate;
       await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: { code: "network_unavailable" } }) });
     };
-    await page.route("**/api/v1/cash-records/record-1*", delayedDelete);
+    await page.route("**/api/v1/cash-records/1001*", delayedDelete);
     try {
       await page.setViewportSize({ width, height });
       await page.goto(`${workspaceRoot}/`);
@@ -2258,7 +2367,7 @@ test("F-04 流水删除进行中确认保持可用，关闭详情后失败仍在
       await expect(page.locator('[id="ledger.record.action-error-dialog"]')).toHaveCount(0);
     } finally {
       releaseDelete();
-      await page.unroute("**/api/v1/cash-records/record-1*", delayedDelete).catch(() => {});
+      await page.unroute("**/api/v1/cash-records/1001*", delayedDelete).catch(() => {});
     }
   }
 });

@@ -84,22 +84,36 @@ class CashLedgerViewModelTest {
     }
 
     @Test
-    fun pagingSourceAppendsOnlyUnseenRowsAndInvalidatesOnVersionChange() = runTest {
+    fun pagingSourceLoadsAbsoluteOrdinalsAndInvalidatesOnVersionChange() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         try {
             val repository = FakeCashLedgerRepository()
             val source = CashProjectionPagingSource(repository, CashFilters()) { _, _ -> }
-            val first = source.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 20, placeholdersEnabled = false)) as PagingSource.LoadResult.Page<String, CashProjection>
-            val append = source.load(PagingSource.LoadParams.Append(key = "next", loadSize = 20, placeholdersEnabled = false)) as PagingSource.LoadResult.Page<String, CashProjection>
+            val first = source.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 2, placeholdersEnabled = true)) as PagingSource.LoadResult.Page<Int, CashProjection>
+            val seek = source.load(PagingSource.LoadParams.Refresh(key = 3, loadSize = 2, placeholdersEnabled = true)) as PagingSource.LoadResult.Page<Int, CashProjection>
 
-            assertEquals(listOf("first"), first.data.map { it.projectionId })
-            assertEquals(listOf("second"), append.data.map { it.projectionId })
-            assertEquals(listOf(null, "next"), repository.pageCursors)
+            assertEquals(listOf("row-0", "row-1"), first.data.map { it.projectionId })
+            assertEquals(0, first.itemsBefore)
+            assertEquals(3, first.itemsAfter)
+            assertEquals(2, first.nextKey)
+            assertEquals(listOf("row-3", "row-4"), seek.data.map { it.projectionId })
+            assertEquals(3, seek.itemsBefore)
+            assertEquals(0, seek.itemsAfter)
+            assertEquals(1, seek.prevKey)
+            assertEquals(listOf(0, 3), repository.pageIndexes)
+            assertEquals(listOf<Long?>(null, 3L), repository.pageVersions)
+
+            repository.totalRows = 96
+            val lastPartialPage = source.load(
+                PagingSource.LoadParams.Refresh(key = 85, loadSize = 20, placeholdersEnabled = true),
+            ) as PagingSource.LoadResult.Page<Int, CashProjection>
+            assertEquals(listOf("row-85", "row-86", "row-87", "row-88", "row-89", "row-90", "row-91", "row-92", "row-93", "row-94", "row-95"), lastPartialPage.data.map { it.projectionId })
+            assertEquals(65, lastPartialPage.prevKey)
 
             repository.nextPageProjectionVersion = 4L
             val invalidatedSource = CashProjectionPagingSource(repository, CashFilters()) { _, _ -> }
-            invalidatedSource.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 20, placeholdersEnabled = false))
-            val invalidated = invalidatedSource.load(PagingSource.LoadParams.Append(key = "next", loadSize = 20, placeholdersEnabled = false))
+            invalidatedSource.load(PagingSource.LoadParams.Refresh(key = null, loadSize = 2, placeholdersEnabled = true))
+            val invalidated = invalidatedSource.load(PagingSource.LoadParams.Refresh(key = 2, loadSize = 2, placeholdersEnabled = true))
             assertTrue(invalidated is PagingSource.LoadResult.Invalid)
         } finally {
             Dispatchers.resetMain()
@@ -124,6 +138,7 @@ class CashLedgerViewModelTest {
             advanceUntilIdle()
 
             assertEquals(filters, viewModel.state.value.filters)
+            assertNull(viewModel.state.value.page)
             assertEquals(1, viewModel.state.value.listRevision)
             assertEquals(0, repository.classificationCalls)
             assertFalse(viewModel.state.value.classifyBusy)
@@ -186,29 +201,32 @@ private class FakeCashLedgerRepository(
     private val delayedAccounts: CompletableDeferred<List<Account>>? = null,
 ) : CashLedgerRepository, CashCategoryRepository {
     val pageCursors = mutableListOf<String?>()
+    val pageIndexes = mutableListOf<Int>()
+    val pageVersions = mutableListOf<Long?>()
     val pageFilters = mutableListOf<CashFilters>()
     val relationPageCursors = mutableListOf<String?>()
     var classificationCalls = 0
     var createdWrite: CashRecordWrite? = null
     var nextPageProjectionVersion = 3L
+    var totalRows = 5
 
-    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
+    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage {
         pageCursors += cursor
         pageFilters += filters
-        return when (cursor) {
-            null -> CashPage(
-                projectionVersion = 3,
-                items = listOf(projection("first")),
-                nextCursor = "next",
-                pageSize = 1,
-            )
-            else -> CashPage(
-                projectionVersion = nextPageProjectionVersion,
-                items = listOf(projection("first"), projection("second")),
-                nextCursor = null,
-                pageSize = 2,
-            )
-        }
+        val index = startIndex ?: 0
+        pageIndexes += index
+        pageVersions += projectionVersion
+        val version = if (projectionVersion == null) 3L else nextPageProjectionVersion
+        val rows = (0 until totalRows).map { projection("row-$it") }.drop(index).take(limit)
+        return CashPage(
+            projectionVersion = version,
+            items = rows,
+            pageSize = rows.size,
+            startIndex = index,
+            totalCount = totalRows,
+            itemsBefore = index,
+            itemsAfter = totalRows - index - rows.size,
+        )
     }
 
     override suspend fun fetchCashAccounts() = delayedAccounts?.await() ?: listOf(Account(1, "Cash", "cash"))

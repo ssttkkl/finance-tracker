@@ -88,6 +88,8 @@ object SemanticIds {
     const val ledgerCategoryApply = "ledger.category.apply"
     const val ledgerCategoryCancel = "ledger.category.cancel"
     const val ledgerEmpty = "ledger.empty"
+    const val ledgerScrollbar = "ledger.scrollbar"
+    const val ledgerScrollbarMonthBubble = "ledger.scrollbar.month-bubble"
     const val ledgerRetry = "ledger.retry"
     const val ledgerAppendRetry = "ledger.append-retry"
     const val recordScreen = "record.screen"

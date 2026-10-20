@@ -583,6 +583,7 @@
     <string name="ledger_action_delete">删除</string>
     <string name="ledger_action_cancel_selection">取消选择</string>
     <string name="ledger_selection_count">已选 %1$s 项</string>
+    <string name="ledger_scrollbar_description">按流水位置快速跳转</string>
     <string name="ledger_category_dialog_title">设置分类</string>
     <string name="ledger_category_label">分类</string>
     <string name="ledger_category_cancel">取消</string>
