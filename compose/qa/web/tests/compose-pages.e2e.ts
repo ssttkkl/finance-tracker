@@ -16,10 +16,10 @@ const responsiveWidths = [320, 375, 390, 414, 768, 1440];
 const cashImportWideMinWidth = 1024;
 const cashImportSideSheetWidthFraction = (width: number) => width < cashImportWideMinWidth ? 0.9 : 0.7;
 const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
-const accountMappingScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-import-account-mapping-redesign/screenshots");
-const dialogConformanceScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-material3-dialog-conformance/screenshots");
-const cashImportSideSheetScreenshotDir = path.resolve(process.cwd(), "../../../openspec/changes/compose-cash-import-side-sheet/screenshots");
-const cashLedgerScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261017");
+const accountMappingScreenshotDir = path.join(screenshotDir, "cash-import-account-mapping");
+const dialogConformanceScreenshotDir = path.join(screenshotDir, "dialog-conformance");
+const cashImportSideSheetScreenshotDir = path.join(screenshotDir, "cash-import-side-sheet");
+const cashLedgerScreenshotDir = path.join(screenshotDir, "cash-ledger-redesign", "current-review-20261017");
 const accountMappingRunScreenshotDir = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
   ? path.join(accountMappingScreenshotDir, "dark")
   : accountMappingScreenshotDir;
