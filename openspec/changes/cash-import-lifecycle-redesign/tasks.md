@@ -20,7 +20,7 @@
 ## 4. 构建：先失败测试再实现
 
 - [x] 4.1 为统一更新白名单、固定字段、人工清空保护、账号直接覆盖及类型兼容性写失败测试；实现共享领域策略。
-- [ ] 4.2 为父子草稿空值、正式完整性、精度、工作区隔离和组成项归属写失败持久化测试；实现 ORM 与保留正式数据的迁移。
+- [x] 4.2 为父子草稿空值、正式完整性、精度、工作区隔离和组成项归属写失败持久化测试；实现 ORM 与保留正式数据的迁移。
 - [ ] 4.3 为当前来源绑定、无编号多重集合、范围不足／名称交叉反例、删除重导及草稿别名写失败测试；实现来源对应。
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
@@ -79,3 +79,11 @@
 - 计划提交：`ec5756b docs: plan cash import lifecycle redesign` 已推送 `origin/average-snail`，随后才新增实现测试和代码。首个领域策略测试先因模块缺失失败；实现后发现草稿金额接受浮点，已收紧协议边界，29 项通过。该策略尚待新服务接入，不宣称旧写入口已完成切换。
 
 - 4.1 提交前验证（HEAD `ec5756b`，基线相同）：`uv run pytest tests/test_cash_record_policy.py tests/test_record_type.py -q --disable-warnings --maxfail=1` → 72 passed；OpenSpec strict 和 diff 空白检查通过。独立定向复核三项发现均关闭。
+
+- 4.2 开发中补计划：旧链漏掉流水到工作区账户的复合外键，新增迁移重申；SQLite 有数据 batch 重建先失败，补显式事务及外键恢复边界，往返比较保留父记录、组成项、关系、投影和账户，故意违反外键时迁移整体回滚且版本不前进。SQLite 部分唯一索引不依赖反射，显式重建删除过滤条件。
+- 迁移复核发现运行期 schema 常量未推进，已补失败启动测试并更新为 `20261021_38`。当前双后端草稿／迁移／旧导入矩阵 107 passed、无 skip；完整回归按仓库 README 的 `PYTHONPATH=tests:.:src` 方式执行中（普通启动会使现有 conftest 辅助导入收集失败）。
+
+- 4.2 最终定向验证（HEAD `bdcab8c`，基线相同）：显式配置专用 PostgreSQL 后执行 `PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cash_draft_storage.py tests/test_alembic_migration.py tests/test_fact_field_unify.py tests/test_cash_record_policy.py tests/contract/test_cash_import_dual_backend.py -q --disable-warnings --maxfail=2 --tb=short` → 115 passed、无 skip。两个后端都覆盖升级后启动、草稿空值、正式父记录约束、行修订、跨工作区引用、已填数据迁移往返及拒绝有损降级；SQLite 额外验证外键错误整体回滚和不提交调用方写入。
+- 4.2 独立工程复核：schema／迁移／运行时与共享转正式校验分别复核。运行期版本、组成项序号缺失／重复、汇总父账户三项发现均补失败测试并关闭；正式值求和采用 80 位 Decimal 上下文，避免合法 38 位值受默认上下文舍入。该步不暴露草稿 API 或页面，不声称统计过滤和后续维护已完成。
+- 完整 SQLite CI 回归 `PYTHONPATH=tests:.:src uv run pytest tests -q -m 'not performance' --disable-warnings --tb=short` → 1548 passed、178 skipped、50 deselected、3 failed（170.97 s）。两项旧 Expo CI 断言在 `bdcab8c` 独立提取基线复现为 2 failed／2 passed，因旧工作流已移除，不在本重构恢复 Expo。另一项文档断言揭示现有文档索引缺少运行失败边界，随 schema 文档更新补齐；随后定向重跑。未将 skip 或上述完整回归计为完整通过。日志在仓库外 `/tmp/ft-import-sqlite-regression.log` 与 `/tmp/ft-import-prechange-legacy-tests.log`。
+- 文档边界和旧子类型断言调整后的定向回归：`PYTHONPATH=tests:.:src uv run pytest tests/test_runtime_docs.py tests/test_cash_record_subtype.py tests/test_cash_record_policy.py -q --disable-warnings` → 63 passed；OpenSpec strict、`git diff --check` 通过。本步不含 UI，浏览器、Native 和 Hallmark 最终审查不适用，整体 UI 验收任务仍未完成。

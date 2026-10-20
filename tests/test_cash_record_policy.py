@@ -150,3 +150,70 @@ def test_incomplete_draft_still_validates_supplied_structure(patch):
     from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
     with pytest.raises(CashRecordPolicyError, match="invalid_field"):
         prepare_cash_record_update(_record(state="draft"), patch)
+
+
+def test_posting_requires_complete_parent_and_balanced_components():
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    validate_cash_record_for_posting(_record())
+    for missing in ("amount", "occurred_at", "currency", "record_type", "record_subtype", "account_id"):
+        with pytest.raises(CashRecordPolicyError, match="incomplete_record"):
+            validate_cash_record_for_posting(_record(**{missing: None}))
+    combined = _record(account_id=None, cash_granularity="aggregate", amount="-100", components=[
+        {"account_id": "41", "amount": "-30", "currency": "CNY", "ordinal": 0},
+        {"account_id": "42", "amount": "-70", "currency": "CNY", "ordinal": 1},
+    ])
+    validate_cash_record_for_posting(combined)
+    combined["components"][1]["amount"] = "-69"
+    with pytest.raises(CashRecordPolicyError, match="component_total_mismatch"):
+        validate_cash_record_for_posting(combined)
+
+
+@pytest.mark.parametrize("change", [
+    {"components": []},
+    {"components": [{"account_id": None, "amount": "-20", "currency": "CNY", "ordinal": 0}]},
+    {"components": [{"account_id": "41", "amount": None, "currency": "CNY", "ordinal": 0}]},
+    {"components": [{"account_id": "41", "amount": "-20", "currency": "USD", "ordinal": 0}]},
+    {"components": [{"account_id": "42", "amount": "-20", "currency": "CNY", "ordinal": 0}]},
+])
+def test_posting_rejects_missing_or_inconsistent_component_fields(change):
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    with pytest.raises(CashRecordPolicyError):
+        validate_cash_record_for_posting(_record(**change))
+
+
+def test_validation_does_not_implicitly_promote_draft():
+    from ft.domain.cash_record_policy import validate_cash_record_for_posting
+    record = _record(state="draft")
+    validate_cash_record_for_posting(record)
+    assert record["state"] == "draft"
+
+
+def test_component_total_uses_full_supported_decimal_precision():
+    from ft.domain.cash_record_policy import validate_cash_record_for_posting
+    validate_cash_record_for_posting(_record(
+        account_id=None, cash_granularity="aggregate", amount="-12345678901234567890.123456789012345678",
+        components=[
+            {"account_id": "41", "amount": "-10000000000000000000", "currency": "CNY", "ordinal": 0},
+            {"account_id": "42", "amount": "-2345678901234567890.123456789012345678", "currency": "CNY", "ordinal": 1},
+        ],
+    ))
+
+
+@pytest.mark.parametrize("ordinals", [[None, 1], [0, 0]])
+def test_posting_requires_unique_present_component_ordinals(ordinals):
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    with pytest.raises(CashRecordPolicyError):
+        validate_cash_record_for_posting(_record(account_id=None, cash_granularity="aggregate", amount="-20", components=[
+            {"account_id": "41", "amount": "-10", "currency": "CNY", **({"ordinal": ordinals[0]} if ordinals[0] is not None else {})},
+            {"account_id": "42", "amount": "-10", "currency": "CNY", "ordinal": ordinals[1]},
+        ]))
+
+
+@pytest.mark.parametrize("account_id", ["41", []])
+def test_posting_aggregate_requires_empty_parent_account(account_id):
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    with pytest.raises(CashRecordPolicyError):
+        validate_cash_record_for_posting(_record(account_id=account_id, cash_granularity="aggregate", amount="-20", components=[
+            {"account_id": "41", "amount": "-10", "currency": "CNY", "ordinal": 0},
+            {"account_id": "42", "amount": "-10", "currency": "CNY", "ordinal": 1},
+        ]))

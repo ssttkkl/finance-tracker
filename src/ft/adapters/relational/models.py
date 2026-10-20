@@ -292,6 +292,19 @@ class CashCategoryStateModel(Base):
 class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
+        CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_transactions_state"),
+        CheckConstraint("row_revision >= 1", name="ck_cash_transactions_row_revision"),
+        CheckConstraint(
+            "state <> 'posted' OR (amount IS NOT NULL AND occurred_at IS NOT NULL "
+            "AND currency IS NOT NULL AND record_type IS NOT NULL AND record_subtype IS NOT NULL "
+            "AND ((cash_granularity = 'aggregate' AND account_id IS NULL) "
+            "OR (cash_granularity = 'atomic' AND account_id IS NOT NULL)))",
+            name="ck_cash_transactions_posted_complete",
+        ),
+        CheckConstraint(
+            "currency IS NULL OR (length(currency) = 3 AND currency = upper(currency))",
+            name="ck_cash_transactions_currency",
+        ),
         CheckConstraint(
             "record_type IN ('consumption', 'refund', 'reversal', 'transfer_reversal', 'withdrawal_in', 'withdrawal_out', 'transfer_in', 'transfer_out', 'repayment', 'income', 'investment_in', 'investment_out', 'interest', 'fee', 'fx_in', 'fx_out', 'other')",
             name="ck_cash_transactions_record_type",
@@ -323,6 +336,7 @@ class CashTransactionModel(Base):
         Index("ix_cash_transactions_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
         Index("ix_cash_transactions_workspace_category", "workspace_id", "category_id"),
+        Index("ix_cash_transactions_workspace_state", "workspace_id", "state", "occurred_at", "id"),
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
         Index(
             "uq_cash_transactions_active_source_record",
@@ -348,6 +362,10 @@ class CashTransactionModel(Base):
     # Aggregate parents intentionally have no single account; the component
     # rows are the authoritative account-level ledger entries.
     account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)
+    row_revision: Mapped[int] = mapped_column(
+        BigInteger, default=1, server_default="1", onupdate=text("row_revision + 1"), nullable=False,
+    )
     cash_granularity: Mapped[str] = mapped_column(String(16), default="atomic", nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
@@ -355,9 +373,9 @@ class CashTransactionModel(Base):
     relation_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     manual_overrides: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    occurred_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     counterparty_account: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     counterparty_account_attrs: Mapped[list[str]] = mapped_column(
@@ -365,8 +383,8 @@ class CashTransactionModel(Base):
     )
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
-    record_subtype: Mapped[str] = mapped_column(String(32), default="not_applicable", nullable=False)
+    record_type: Mapped[str | None] = mapped_column(String(32).evaluates_none(), default="other", nullable=True)
+    record_subtype: Mapped[str | None] = mapped_column(String(32).evaluates_none(), default="not_applicable", nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
@@ -379,6 +397,7 @@ class CashTransactionComponentModel(Base):
     __tablename__ = "cash_transaction_components"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_cash_transaction_components_workspace_id"),
+        UniqueConstraint("workspace_id", "cash_transaction_id", "id", name="uq_cash_components_workspace_parent_id"),
         UniqueConstraint(
             "workspace_id", "cash_transaction_id", "ordinal",
             name="uq_cash_transaction_components_workspace_transaction_ordinal",
@@ -404,9 +423,9 @@ class CashTransactionComponentModel(Base):
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     source_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)

@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import localcontext
 import math
 from typing import Any
 
@@ -222,3 +223,42 @@ def source_note(source_payload: Mapping[str, Any] | None) -> str:
         if isinstance(value, str) and value.strip():
             return value
     return ""
+
+
+def validate_cash_record_for_posting(record: Mapping[str, Any]) -> None:
+    """校验转正式所需的父记录和分摊；不改变草稿状态或查询账户。"""
+    required = {"amount", "currency", "occurred_at", "record_type", "record_subtype"}
+    if record.get("cash_granularity", "atomic") == "atomic":
+        required.add("account_id")
+    missing = tuple(sorted(field for field in required if record.get(field) in (None, "")))
+    if missing:
+        raise CashRecordPolicyError("incomplete_record", missing)
+    if record.get("cash_granularity") == "aggregate" and record.get("account_id") is not None:
+        raise CashRecordPolicyError("component_account_mismatch", ("account_id",))
+    normalized = {}
+    for field in required | {"components", "cash_granularity"}:
+        try:
+            normalized[field] = _normalize(field, record.get(field, "atomic") if field == "cash_granularity" else record.get(field))
+        except (ValueError, TypeError, ArithmeticError):
+            raise CashRecordPolicyError("invalid_field", (field,)) from None
+    try:
+        validate_cash_record_subtype(normalized["record_type"], normalized["record_subtype"])
+    except ValueError:
+        raise CashRecordPolicyError("invalid_record_type", ("record_type", "record_subtype")) from None
+    components = normalized["components"]
+    if not components or any(any(item.get(field) is None for field in ("account_id", "amount", "currency")) for item in components):
+        raise CashRecordPolicyError("incomplete_record", ("components",))
+    if any(item.get("ordinal") is None for item in components):
+        raise CashRecordPolicyError("incomplete_record", ("components",))
+    if len({item["ordinal"] for item in components}) != len(components):
+        raise CashRecordPolicyError("duplicate_component_ordinal", ("components",))
+    if any(item["currency"] != normalized["currency"] for item in components):
+        raise CashRecordPolicyError("component_currency_mismatch", ("components",))
+    if normalized["cash_granularity"] == "atomic":
+        if len(components) != 1 or components[0]["account_id"] != normalized["account_id"]:
+            raise CashRecordPolicyError("component_account_mismatch", ("components",))
+    with localcontext() as arithmetic:
+        arithmetic.prec = 80
+        total = sum((item["amount"] for item in components), exact_decimal("0"))
+    if total != normalized["amount"]:
+        raise CashRecordPolicyError("component_total_mismatch", ("components",))

@@ -48,6 +48,7 @@ def test_repository_has_clean_linear_revisions():
                 "20260917_35_wealth_source_revision.py",
                 "20260920_36_cash_transaction_components.py",
                 "20261018_37_remove_wealth_attribution.py",
+                "20261021_38_cash_record_drafts.py",
             ]
 
 
@@ -344,7 +345,7 @@ def test_counterparty_account_attrs_migration_round_trips_dedicated_postgresql()
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect, text
-    import conftest as test_conftest
+    from tests import conftest as test_conftest
 
     test_conftest._validate_test_postgres_url(url)
     root = Path(__file__).parents[1]
@@ -563,7 +564,7 @@ def test_icbc_asia_source_type_migration_renames_active_business_identity(tmp_pa
             )).one()
         assert values == ("icbc_asia", "icbc_asia_abc")
 
-        with pytest.raises(NotImplementedError, match="one-shot"):
+        with pytest.raises(NotImplementedError, match="restore from backup"):
             command.downgrade(config, "20260804_19")
     finally:
         engine.dispose()
@@ -707,7 +708,7 @@ def test_initial_revision_upgrades_dedicated_postgresql():
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect
-    import conftest as test_conftest
+    from tests import conftest as test_conftest
 
     root = Path(__file__).parents[1]
     config = Config(str(root / "alembic.ini"))
@@ -758,9 +759,8 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             }.isdisjoint(rel_cols)
             assert "candidate_fact_ids" in rel_cols
             assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(rel_cols)
-            # Multi-currency (20260720_04) and fact-field unify (20260724_07) are one-shot.
-            # Only walk back through unpaired-relation removal to preserve reversible history.
-            with pytest.raises(NotImplementedError, match="one-shot"):
+            # Wealth retirement is the first irreversible revision from head.
+            with pytest.raises(NotImplementedError, match="restore from backup"):
                 command.downgrade(config, "20260722_06")
             # Reset and re-upgrade proves head is re-applicable on a clean schema.
             test_conftest.reset_postgres_schema(url)
