@@ -87,6 +87,24 @@ def test_file_parser_failure_and_password_request_are_isolated(context_runtime):
     assert created.files[-1].document is None
 
 
+def test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows(context_runtime):
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.cash_import_context import CashImportContextService
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore
+    from test_bank_statement_rows import _asia_bytes, _asia_row, _ccb_bytes, _ccb_row
+    service = CashImportContextService(RelationalUnitOfWork(context_runtime.sessions, context_runtime.workspace_id),
+        InMemoryParsedImportStore(), user_id=USER)
+    created = service.create((_upload("ccb", filename="misleading.csv", content=_ccb_bytes(_ccb_row(), _ccb_row(序号="2", 交易金额="bad"))),
+        _upload("asia", filename="misleading.xls", content=_asia_bytes(_asia_row())),
+        _upload("bad", content=b"unrecognized")))
+    assert [file.status for file in created.files] == ["parsed", "parsed", "failed"]
+    assert created.files[0].document.rows[1].issue_codes == ("amount_unreadable",)
+    assert created.files[1].document.rows[0].fields["amount"] == "-100.50"
+    restored = service.get(created.session_id).session
+    assert restored == created
+    assert restored.files[0].document.declared_count is None
+
+
 def test_bad_document_from_one_importer_does_not_block_the_other_file(context_runtime):
     def parser(upload):
         return replace(_document(), rows=({"wrong": "shape"},)) if upload.client_file_ref == "bad" else _document()

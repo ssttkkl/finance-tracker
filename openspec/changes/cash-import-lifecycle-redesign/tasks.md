@@ -40,6 +40,8 @@
 - [x] 4.7.2.2.1 完成逐文件应用服务、锁外解析／锁内权限及收据重验、替换命名空间和预算隔离。
 - [x] 4.7.2.2.2 接入无人访问的过期对象有界清扫、启动／关闭生命周期和运行配置；最终会话 API 与旧原文件入口切换仍在 4.7.2／4.11。
 - [ ] 4.7.3 银行来源迁入同一解析边界；验证原始出现、来源账户／范围、逐条失败和一次读取。
+- [x] 4.7.3.1 迁入建行 XLS 与工银亚洲 UTF-16 表格，复用逐行原生归一并保留重复出现、来源声明和安全失败结果。
+- [ ] 4.7.3.2 迁入工行信用卡／借记卡 PDF，包含密码重传、一次提取及逐条隔离。
 - [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
 - [x] 4.9.1 实现同事务收据／逐项结果、用户幂等与会话／编辑上下文消费唯一性；将 PostgreSQL 工作区锁提前到 UoW 入口。
@@ -150,3 +152,9 @@
 - 4.6.2.1 HTTP 切换（HEAD `7cb4ca1`，比较基线相同）：新路由缺失先失败，再覆盖稳定 ID、严格 JSON／64 KB 上限、实际登录与工作区成员、CAS、重复请求并发和删除后收据重放。另模拟应用服务已提交后响应丢失，返回安全结果未知，原键重试恢复相同结果；读取故障不泄漏技术细节。旧按名称写路径和服务工厂移除，现有 API 合同测试同步切换。
 - 独立工程／API／安全复核覆盖输入、OpenAPI、权限、线程池上下文、并发及未知结果，无阻断 finding；独立 SQLite HTTP／旧 API 合同 24 passed。执行者显式专用 PostgreSQL 执行 `tests/contract/test_account_command_api.py tests/contract/test_cli_replacement_api.py tests/contract/test_account_commands.py tests/test_user_workspace_access.py -q --disable-warnings --maxfail=2 --tb=short` → 121 passed、无 skip（39.12 s）；测试环境沿前述 `PYTHONPATH` 和 `PGOPTIONS`。
 - 本步完整 SQLite 回归沿前述命令及两项已知 Expo 排除 → 1877 passed、282 skipped、53 deselected（215.77 s），日志 `/tmp/ft-import-account-api-regression.log`；OpenSpec strict 和 diff 空白检查通过。Cross-platform Impact Check：账户后端合同变化会影响 Web／Native 的后续表单消费；本步没有修改 Compose 页面、共享 presentation 或客户端文案，真实浏览器、Native 与最终 Hallmark 验收留在 4.12／6.4–6.6，不能据本步 HTTP 测试宣称通过。CLI／Agent 消费与连续退出补偿仍未实现，4.6／4.6.2 保持未完成。
+
+- 4.7.3.1 银行表格（HEAD `fbce37d`，比较基线相同）：先由缺模块、默认会话不接受银行文件的失败测试驱动实现；签名与同一次表头读取确定渠道，原始重复行、完整文本和逐行错误均保留，复用两个旧转换器抽出的原生业务函数。缺金额／日期／币种保存未知；零额开户行保留明确跳过原因，不把内容散列／序号／凭证号当可靠 ID。默认内部会话已接入，工行 PDF 及最终 HTTP 提交仍未切换。
+- 独立来源／财务／安全复核采纳两项 P1：遮蔽账号不能证明完整本方身份，CSV 连续序号不能证明尾部完整。四项账号、无总笔数和严格字节前缀截断反例分别先失败再修复；身份仅接受完整账号，展示标签保留，工银亚洲无独立笔数时覆盖 unknown。额外复现 XLS 缺尾部字节被 xlrd 警告后接受，补完整扇区和私有诊断保护；同列其他银行和“非全部”标题反例也补失败测试并关闭。两项 P1 定向重新复核关闭，独立纯矩阵 143 passed，未运行 PostgreSQL。
+- 执行者最终显式专用 PostgreSQL 矩阵 `tests/test_bank_statement_rows.py tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_ccb_debit.py tests/test_icbc_asia_current_account.py tests/contract/test_parsed_cash_import_context.py tests/test_parsed_import_staging.py -q --disable-warnings --maxfail=2 --tb=short` → 242 passed、无 skip（9.16 s）。完整 SQLite 回归沿前述命令及两项已知 Expo 排除 → 1914 passed、283 skipped、53 deselected（213.46 s），日志 `/tmp/ft-import-bank-tables-regression.log`；收集后的预算及来源识别增量由上述最终 242 项另验。OpenSpec strict、diff 空白检查通过。
+- 真实来源只读校准：两份建行 XLS 共 953 次出现，0 行问题；金额／币种／时间／类型／资金提示与旧原生转换的多重集合完全一致（0 mismatch），两份均提取到完整本方身份及范围。没有可用的真实工银亚洲表格，该来源以去标识合成数据验证；未将真实数据写入账本或 Git，不据此关闭 6.3。没有新增来源分类单元或改变原生分类。Cross-platform Impact Check：Web、Native、共享 presentation 没有页面或文案变化，此内部解析小步不适用浏览器及最终 Hallmark 验收；对外切换与客户端验证仍待后续任务，4.7 整体保持未完成。
+- 银行最终增量独立复核：来源声明、精确全量标题和元数据／出现预算，43 passed、无阻断 finding；没有访问 PostgreSQL。

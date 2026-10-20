@@ -37,6 +37,7 @@ class CashStatementDocument:
     coverage: SourceCoverage
     declared_count: int | None
     observed_count: int
+    source_currency: str | None = None
 
 
 _REQUIRED = {

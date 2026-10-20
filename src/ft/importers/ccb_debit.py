@@ -123,6 +123,58 @@ def _infer_ccb_refund_signal(summary: str, amount: Decimal) -> str:
     return ""
 
 
+def _parse_ccb_source_row(source_payload, *, amount, date, currency, card_last4):
+    """共享单条来源业务语义；金额和时间由调用边界先行解析。"""
+    summary = source_payload.get("摘要", "").strip()
+    location = source_payload.get("交易地点/附言", "").strip()
+    acct_name_raw = source_payload.get("对方账号与户名", "").strip()
+    balance = source_payload.get("账户余额", "").replace(",", "").strip()
+    # counterparty：优先从交易地点提取，失败则回退对方户名
+    location_cp = _extract_ccb_counterparty(location)
+    acct_cp = _extract_ccb_acct_name_counterparty(acct_name_raw)
+    cpy = location_cp if location_cp is not None else acct_cp
+
+    category = "expense" if amount < 0 else "income"
+
+    # payment_method：从交易地点推断
+    pm = _infer_ccb_payment_source(location, card_last4)
+    refund_signal = _infer_ccb_refund_signal(summary, amount)
+
+    normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary, "ccb")
+    fact_hash = _stable_short_hash(
+        date,
+        f"{amount:.2f}",
+        currency,
+        normalized_cp,
+        enriched_desc,
+        card_last4,
+        balance,
+    )
+    record = {
+        "date": date,
+        "amount": amount,
+        "currency": currency,
+        "card_number": card_last4,
+        "counterparty": normalized_cp,
+        "counterparty_account": _extract_ccb_counterparty_account(acct_name_raw),
+        "note": enriched_desc,
+        "category": category,
+        "payment_method": pm,
+        "summary": summary,
+        "location": location,
+        "acct_name_raw": acct_name_raw,
+        "_raw_cp": acct_cp or cpy,
+        "_ccb_location_cp": location_cp or "",
+        "_ccb_acct_cp": acct_cp,
+        "_ccb_refund_signal": refund_signal,
+        "_fact_id": f"ccb_debit_{fact_hash}",
+        "_source_payload": source_payload,
+    }
+    if refund_signal:
+        record["_refund_signal"] = refund_signal
+    return record
+
+
 def read_ccb_debit(path: str):
     """解析建行个人活期账户交易明细 XLS，返回 (records, tracking_pairs)
 
@@ -162,7 +214,6 @@ def read_ccb_debit(path: str):
         if not seq:
             continue
 
-        summary = str(row_vals[1] or "").strip()
         cur_str = str(row_vals[2] or "").strip()
         currency = cur_map.get(cur_str, "CNY")
 
@@ -176,62 +227,13 @@ def read_ccb_debit(path: str):
             amount = Decimal(amt_str)
         except (InvalidOperation, ValueError):
             continue
-        balance = str(row_vals[6] or "").replace(",", "").strip()
-
-        # 交易地点（列 7）
-        location = str(row_vals[7] or "").strip() if len(row_vals) > 7 else ""
-
-        # 对方账号与户名（列 8）
-        acct_name_raw = str(row_vals[8] or "").strip() if len(row_vals) > 8 else ""
         source_payload = {
             header: _cell_text(value)
             for header, value in zip(headers, row_vals, strict=True)
         }
 
-        # counterparty：优先从交易地点提取，失败则回退对方户名
-        location_cp = _extract_ccb_counterparty(location)
-        acct_cp = _extract_ccb_acct_name_counterparty(acct_name_raw)
-        cpy = location_cp if location_cp is not None else acct_cp
-
-        category = "expense" if amount < 0 else "income"
-
-        # payment_method：从交易地点推断
-        pm = _infer_ccb_payment_source(location, card_last4)
-        refund_signal = _infer_ccb_refund_signal(summary, amount)
-
-        normalized_cp, enriched_desc = _normalize_counterparty(cpy, summary, "ccb")
-        fact_hash = _stable_short_hash(
-            date,
-            f"{amount:.2f}",
-            currency,
-            normalized_cp,
-            enriched_desc,
-            card_last4,
-            balance,
-        )
-        record = {
-            "date": date,
-            "amount": amount,
-            "currency": currency,
-            "card_number": card_last4,
-            "counterparty": normalized_cp,
-            "counterparty_account": _extract_ccb_counterparty_account(acct_name_raw),
-            "note": enriched_desc,
-            "category": category,
-            "payment_method": pm,
-            "summary": summary,
-            "location": location,
-            "acct_name_raw": acct_name_raw,
-            "_raw_cp": acct_cp or cpy,
-            "_ccb_location_cp": location_cp or "",
-            "_ccb_acct_cp": acct_cp,
-            "_ccb_refund_signal": refund_signal,
-            "_fact_id": f"ccb_debit_{fact_hash}",
-            "_source_payload": source_payload,
-        }
-        if refund_signal:
-            record["_refund_signal"] = refund_signal
-        records.append(record)
+        records.append(_parse_ccb_source_row(source_payload, amount=amount, date=date,
+            currency=currency, card_last4=card_last4))
 
     wb.release_resources()
     return records, []

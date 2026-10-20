@@ -9,8 +9,8 @@ from uuid import uuid4
 
 from sqlalchemy import select
 
-from ft.adapters.cash_statement_document import StatementDocumentError, read_platform_document
-from ft.adapters.cash_statement_rows import ParsedCashDocument, normalize_platform_document
+from ft.adapters.cash_statement_document import StatementDocumentError
+from ft.adapters.cash_statement_rows import ParsedCashDocument, parse_cash_statement
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.models import WorkspaceMembershipModel
 from ft.application.cash_import_staging import ImportSessionNotFound
@@ -51,12 +51,12 @@ class CashImportContext:
     receipt: dict | None = None
 
 
-def _parse_platform(upload):
-    return normalize_platform_document(read_platform_document(upload.content, source=upload.source_hint))
+def _parse_statement(upload):
+    return parse_cash_statement(upload.content, source=upload.source_hint)
 
 
 class CashImportContextService:
-    def __init__(self, uow, staging_store, *, user_id, parser=_parse_platform):
+    def __init__(self, uow, staging_store, *, user_id, parser=_parse_statement):
         self._uow, self._staging, self._user_id, self._parser = uow, staging_store, user_id, parser
         self._workspace_id = uow.workspace_id
 
