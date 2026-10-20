@@ -105,52 +105,8 @@ def _connector(provider: str):
 
 def operation_router(services) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
-
-    @router.post("/accounts")
-    async def create_account(request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("account_payload_invalid")
-            result = services.legacy_accounts().create_account(
-                _text(payload, "name"),
-                _text(payload, "type"),
-                _text(payload, "currency", required=False),
-            )
-            return _application_result(result, success_status=201)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.put("/accounts/{account_name}")
-    async def rename_account(account_name: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("account_payload_invalid")
-            result = services.legacy_accounts().rename_account(
-                account_name, _text(payload, "new_name"),
-            )
-            return _application_result(result)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.patch("/accounts/{account_name}/active")
-    async def set_account_active(account_name: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict) or not isinstance(payload.get("active"), bool):
-                raise ValueError("account_active_required")
-            result = services.legacy_accounts().set_active(account_name, payload["active"])
-            return _application_result(result)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.delete("/accounts/{account_name}")
-    def delete_account(account_name: str, request: Request):
-        try:
-            return _application_result(services.legacy_accounts().delete_account(account_name))
-        except ValueError as exc:
-            return _json_body_error(exc)
+    from ft.web.account_routes import account_router
+    router.include_router(account_router(services))
 
     @router.post("/cashflow/add", status_code=201)
     async def add_cashflow(request: Request):

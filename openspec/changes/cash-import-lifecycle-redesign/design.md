@@ -66,6 +66,8 @@
 
 删除能力查询与实际删除共用旧快照归属规则：`security/crypto` 均读取 `accounts.security`，不能因账户类型名与存储桶不同就误判无余额。该保护不改变投资功能或金额语义。
 
+账户 HTTP 接口先独立切换：`POST /accounts` 强制幂等键，GET／PATCH／DELETE 使用 `by-id` 路径；移除旧按名称写路径及服务工厂。写正文使用严格模型及 64 KB 流上限，修订号拒绝数值强制转换，重复 JSON 键拒绝。错误仅返回业务原因及有权访问的收据引用；写入存储故障保守返回结果未知，客户端只能用原目标、正文及幂等键恢复，不假定回滚或先执行退出补偿。同步命令在线程池运行，避免等待工作区锁阻塞事件循环。Compose 接口消费和退出补偿仍属于后续跨端步骤，不能因 HTTP 切换就关闭 UI 验收。
+
 ### 6. Hallmark 方向及 Cross-platform Impact Check
 
 本轮显式调用 `$hallmark`，按仓库 `docs/ui-design-rules.md` 和既有 FinanceTheme、Material 3、token JSON 预检；继承现有视觉系统，不另建 palette 或网页原型。用户任务：准备文件及账户后看一个流水列表、确认导入、主页继续处理。`COMPACT` 单列全屏，`REGULAR/WIDE` 沿既有全高任务容器，信息顺序为文件账户准备、预计列表、固定最终操作。列表按需展开差异与组成流水；状态文字有语义标签，不只靠颜色。

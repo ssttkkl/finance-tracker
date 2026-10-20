@@ -84,10 +84,9 @@ class WorkspaceServices:
 
         return RelationalUnitOfWork(self._sessions, self._workspace())
 
-    def legacy_accounts(self):
-        from ft.application.accounts import AccountService
-
-        return AccountService(self._uow())
+    def account_commands(self):
+        from ft.application.account_commands import AccountCommandService
+        return AccountCommandService(self._uow(), user_id=self._user())
 
     def parsed_import_context(self):
         from ft.application.cash_import_context import CashImportContextService

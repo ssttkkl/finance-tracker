@@ -31,6 +31,7 @@
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
 - [ ] 4.6.2 接入按 ID 的账户 API、CLI／Agent 及 Compose 普通账户表单和连续补偿链，关闭过渡期旧名称写入口。
+- [x] 4.6.2.1 切换按稳定 ID 的账户 HTTP 命令，校验严格正文与幂等键，关闭按名称写路径，覆盖权限、并发重试及未知结果恢复。
 - [ ] 4.7 为一次解析、不保留原文件、部分文件／行错误、TTL 与权限写失败测试；实现解析会话及临时存储。
 - [x] 4.7.1 保留平台原始出现、文件声明及逐行错误，复用既有原生转换语义，校准真实平台表头。
 - [ ] 4.7.2 实现仅解析内容的暂存、会话修订、文件替换／密码重传及工作区同步边界，关闭旧原文件会话入口时一起验收。
@@ -145,3 +146,7 @@
 - 账户及迁移／收据初次显式双后端矩阵 → 117 passed、无 skip（31.80 s）；扩展 `tests/contract`、PostgreSQL 导入／适配／运行时及 Alembic → 404 passed、无 skip（117.34 s）。随后新增边界用例及修复单独重验，不把前一矩阵当成最终增量验收。
 - 完整 SQLite 回归沿前述命令及两项既有 Expo 排除 → 1851 passed、256 skipped、53 deselected（215.33 s），日志 `/tmp/ft-import-account-cas-regression.log`；收集之后的加密账户／异常结构修复由账户与收据增量另验。当前仍是后端内部能力，对外账户 API、CLI 和 Compose 尚未切换，不勾选 4.6 整体；没有 UI／用户文案修改，Web、Native、共享 presentation 无行为变化，浏览器与最终 Hallmark audit 不适用于本步。
 - 最终账户／收据／迁移／运行文档矩阵显式配置同一专用 PostgreSQL → 134 passed、无 skip（38.55 s），覆盖全部上述增量和双后端；OpenSpec strict、`git diff --check` 通过。
+
+- 4.6.2.1 HTTP 切换（HEAD `7cb4ca1`，比较基线相同）：新路由缺失先失败，再覆盖稳定 ID、严格 JSON／64 KB 上限、实际登录与工作区成员、CAS、重复请求并发和删除后收据重放。另模拟应用服务已提交后响应丢失，返回安全结果未知，原键重试恢复相同结果；读取故障不泄漏技术细节。旧按名称写路径和服务工厂移除，现有 API 合同测试同步切换。
+- 独立工程／API／安全复核覆盖输入、OpenAPI、权限、线程池上下文、并发及未知结果，无阻断 finding；独立 SQLite HTTP／旧 API 合同 24 passed。执行者显式专用 PostgreSQL 执行 `tests/contract/test_account_command_api.py tests/contract/test_cli_replacement_api.py tests/contract/test_account_commands.py tests/test_user_workspace_access.py -q --disable-warnings --maxfail=2 --tb=short` → 121 passed、无 skip（39.12 s）；测试环境沿前述 `PYTHONPATH` 和 `PGOPTIONS`。
+- 本步完整 SQLite 回归沿前述命令及两项已知 Expo 排除 → 1877 passed、282 skipped、53 deselected（215.77 s），日志 `/tmp/ft-import-account-api-regression.log`；OpenSpec strict 和 diff 空白检查通过。Cross-platform Impact Check：账户后端合同变化会影响 Web／Native 的后续表单消费；本步没有修改 Compose 页面、共享 presentation 或客户端文案，真实浏览器、Native 与最终 Hallmark 验收留在 4.12／6.4–6.6，不能据本步 HTTP 测试宣称通过。CLI／Agent 消费与连续退出补偿仍未实现，4.6／4.6.2 保持未完成。

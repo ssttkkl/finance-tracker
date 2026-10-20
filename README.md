@@ -72,7 +72,7 @@ Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-
 | 能力 | API 入口 | 客户端承载 |
 |---|---|---|
 | 登录、注册、workspace、成员 | `/api/v1/auth/*` | Compose Multiplatform |
-| 账户管理 | `/api/v1/accounts`、`/api/v1/accounts/{name}` | Compose Multiplatform |
+| 账户管理 | `POST /api/v1/accounts`、`/api/v1/accounts/by-id/{account_id}`；写请求携带幂等键和所需修订 | Compose 查询已接入，独立编辑及导入退出补偿待接入 |
 | 收支浏览与证据 | `/api/v1/cash-projections`、`/api/v1/evidence/*` | Compose Multiplatform |
 | 手工流水、余额校准、转账 | `/api/v1/cashflow/*` 或 `/api/v1/cash-records` | Compose Multiplatform |
 | 账单扫描、映射、预览、确认 | `/api/v1/cash-import/*` | Compose Multiplatform |
