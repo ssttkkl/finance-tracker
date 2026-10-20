@@ -223,7 +223,7 @@ def prepare_cash_record_update(
 def source_note(source_payload: Mapping[str, Any] | None) -> str:
     """直接读取来源的注释／描述／备注，不拼接、截断或生成替代文案。"""
     for field in (
-        "备注", "備註", "注释", "描述", "商品说明", "交易描述", "附言", "摘要",
+        "备注", "備註", "注释", "描述", "商品说明", "商品", "交易描述", "附言", "摘要",
         "remark", "remarks", "comment", "comments", "description", "note",
     ):
         value = (source_payload or {}).get(field)
