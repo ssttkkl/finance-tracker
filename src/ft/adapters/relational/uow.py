@@ -113,7 +113,10 @@ class RelationalUnitOfWork:
         try:
             if session.bind.dialect.name == "sqlite" and session.bind.url.database != ":memory:":
                 session.connection().exec_driver_sql("BEGIN IMMEDIATE")
-            workspace = session.scalar(select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id))
+            workspace_query = select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id)
+            if session.bind.dialect.name == "postgresql":
+                workspace_query = workspace_query.with_for_update()
+            workspace = session.scalar(workspace_query)
         except (DBAPIError, OperationalError) as exc:
             session.rollback(); session.close()
             from .runtime import storage_error

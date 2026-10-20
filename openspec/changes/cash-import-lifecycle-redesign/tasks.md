@@ -35,6 +35,8 @@
 - [ ] 4.7.3 银行来源迁入同一解析边界；验证原始出现、来源账户／范围、逐条失败和一次读取。
 - [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
+- [x] 4.9.1 实现同事务收据／逐项结果、用户幂等与会话／编辑上下文消费唯一性；将 PostgreSQL 工作区锁提前到 UoW 入口。
+- [ ] 4.9.2 接入完整应用命令、逐行与关系组保存点、结果恢复和收据分页 API；最终切换时迁入并移除旧导入收据。
 - [ ] 4.10 为失败项限时派生、子集范围安全、草稿补全／转正式、问题处理与维护重预览写失败测试；实现后续维护 API。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
@@ -115,3 +117,8 @@
 - 4.7.2.1 基础暂存（HEAD `9749cfa`，基线相同）：新接口只接收解析文件 DTO；单一 JSON 原子携带文件、输入和当前计划，创建与替换分别使用不存在条件及 ETag 条件。内存／模拟 R2 共用并发、所有者隔离、固定 TTL、取消防复活、大小／文件数、未知写结果与不续期合同。初始模块缺失先失败，随后分别补跨 TTL、循环 JSON、坏嵌套文档、关闭流及 Unicode 安全错误回归。
 - 4.7.2.1 独立工程／安全复核采纳四类 finding：写前不完整校验会破坏旧会话、递归校验晚于复制、关闭流异常泄漏、代理字符编码异常；均补失败回归并关闭。最终独立 46 passed；执行者 `PYTHONPATH=tests:.:src uv run pytest tests/test_parsed_import_staging.py tests/test_cash_import_staging.py tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_cash_import_session_service.py tests/test_cash_source_matching.py tests/test_cash_record_policy.py -q --disable-warnings --tb=short` → 223 passed（0.37 s）。R2 条件能力查询官方合同，当前 botocore 模型确认支持 `IfMatch/IfNoneMatch`；没有连接或写入真实 R2，不将模拟证据声称为 live QA。
 - 本步不写业务数据库，双后端不适用；没有用户可见入口修改，跨端及浏览器 QA 不适用。工作区同步、收据判断、文件应用服务、后台过期清扫和旧原文件路径关闭均尚未完成，4.7.2 保持未完成；对象 CAS 不作为联合提交并发正确性的证据。
+
+- 4.9.1 收据／同步基础（HEAD `64c599d`，基线相同）：新增用户范围的命令收据和分页逐项结果，事务归调用方；当前会话和维护上下文只能消费一次，目标对象删除不会被永久结果引用阻塞。新模块缺失先失败；PostgreSQL 独立复现第二写者提前进入（1 failed／SQLite 1 passed），将工作区锁移至 UoW 入口后双后端通过。迁移 40 只增加新表并保留旧结果，已有正式数据无重写；有收据时拒绝有损降级，运行期同步要求 schema `20261021_40`。
+- 4.9.1 独立工程复核的两项 P2（投影引用对象与正式 JSON 合同不符、默认结果分页需要整份排序）均采纳，补失败回归并同步修正 ORM／迁移；另补畸形枚举、跨工作区 FK、旧收据往返保留和拒绝有损降级。复核增量 SQLite 24 passed，无遗留阻断。
+- 4.9.1 验证：显式专用 PostgreSQL、`PGOPTIONS='-c lock_timeout=2000 -c statement_timeout=15000'`，`tests/contract` 加 PostgreSQL 适配／运行时／导入及 Alembic → 317 passed、无 skip（85.14 s）。随后最终增量 `tests/contract/test_cash_mutation_receipts.py tests/test_alembic_migration.py tests/test_runtime_docs.py` → 68 passed、无 skip（17.96 s），包含两个后端；SQLite 查询计划证明默认分页不使用临时排序。
+- 同时完整 SQLite 回归（沿前述命令及两项已知 Expo 排除）→ 1741 passed、214 skipped、53 deselected（188.98 s），日志 `/tmp/ft-import-receipts-regression.log`；完整收集之后新增的合同与输入修复以上述最终矩阵另验。曾误指定不存在的 `test_postgres_repositories.py`，命令未收集测试，已改用实际 `test_postgres_adapter.py` 运行上述矩阵，不计前者为证据。仍未实现联合提交应用路径或未知结果 API，4.9 保持未完成；无 UI 修改，不适用浏览器／Native QA。

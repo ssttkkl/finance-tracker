@@ -250,6 +250,57 @@ class CashImportCommitModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
+class CashMutationReceiptModel(Base):
+    __tablename__ = "cash_mutation_receipts"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_mutation_receipt_workspace_id"),
+        UniqueConstraint("workspace_id", "user_id", "idempotency_key", name="uq_cash_mutation_receipt_user_key"),
+        Index("uq_cash_mutation_receipt_session", "workspace_id", "user_id", "session_digest", unique=True,
+            sqlite_where=text("session_digest IS NOT NULL"), postgresql_where=text("session_digest IS NOT NULL")),
+        Index("uq_cash_mutation_receipt_edit_context", "workspace_id", "user_id", "edit_context_digest", unique=True,
+            sqlite_where=text("edit_context_digest IS NOT NULL"), postgresql_where=text("edit_context_digest IS NOT NULL")),
+        CheckConstraint("length(idempotency_key) > 0 AND length(request_digest) = 64", name="ck_cash_mutation_receipt_request"),
+        CheckConstraint("session_digest IS NULL OR length(session_digest) = 64", name="ck_cash_mutation_receipt_session"),
+        CheckConstraint("edit_context_digest IS NULL OR length(edit_context_digest) = 64", name="ck_cash_mutation_receipt_edit_context"),
+        CheckConstraint("session_digest IS NULL OR edit_context_digest IS NULL", name="ck_cash_mutation_receipt_one_context"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    operation_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    plan_id: Mapped[str | None] = mapped_column(String(128))
+    session_digest: Mapped[str | None] = mapped_column(String(64))
+    edit_context_digest: Mapped[str | None] = mapped_column(String(64))
+    result_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+
+
+class CashMutationResultModel(Base):
+    __tablename__ = "cash_mutation_results"
+    __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "receipt_id"], ["cash_mutation_receipts.workspace_id", "cash_mutation_receipts.id"],
+            ondelete="CASCADE", name="fk_cash_mutation_result_receipt"),
+        UniqueConstraint("workspace_id", "receipt_id", "result_kind", "item_ref", name="uq_cash_mutation_result_item"),
+        Index("ix_cash_mutation_result_page", "workspace_id", "receipt_id", "result_kind", "id"),
+        Index("ix_cash_mutation_result_all_page", "workspace_id", "receipt_id", "id"),
+        CheckConstraint("result_kind IN ('row', 'relation', 'file', 'account')", name="ck_cash_mutation_result_kind"),
+    )
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    receipt_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    result_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    item_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(64))
+    operation_ref: Mapped[str | None] = mapped_column(String(128))
+    # 永久结果可引用后来已删除的对象，不能成为账户删除的引用占用。
+    transaction_id: Mapped[str | None] = mapped_column(String(128))
+    relation_id: Mapped[str | None] = mapped_column(String(128))
+    account_id: Mapped[str | None] = mapped_column(String(128))
+
+
 class CashCategoryModel(Base):
     __tablename__ = "cash_categories"
     __table_args__ = (
