@@ -418,6 +418,7 @@ def test_cash_write_api_uses_fact_ids_and_keeps_internal_calibration_private(cas
 
 
 def test_cash_record_detail_wire_matches_compose_response_contract(cash_web_runtime):
+    from sqlalchemy import event
     from fastapi.testclient import TestClient
     from ft.application.cash_categories import CashCategoryService
     from ft.application.web_queries import CashLedgerQueryService
@@ -455,7 +456,18 @@ def test_cash_record_detail_wire_matches_compose_response_contract(cash_web_runt
     assert isinstance(record["components"][0]["cash_transaction_id"], int)
     assert [item["name"] for item in record["category"]["path"]] == ["合同餐饮", "合同早餐"]
 
-    detail_response = client.get(f"/api/v1/cash-records/{record['id']}")
+    category_queries = []
+
+    def capture_category_query(_conn, _cursor, statement, _parameters, _context, _executemany):
+        if "cash_categories" in statement.lower():
+            category_queries.append(statement.lower())
+
+    engine = cash_web_runtime.sessions.kw["bind"]
+    event.listen(engine, "before_cursor_execute", capture_category_query)
+    try:
+        detail_response = client.get(f"/api/v1/cash-records/{record['id']}")
+    finally:
+        event.remove(engine, "before_cursor_execute", capture_category_query)
     candidates_response = client.get("/api/v1/cash-records", params={"query": "银行卡消费"})
     update_response = client.put(
         f"/api/v1/cash-records/{record['id']}",
@@ -464,6 +476,9 @@ def test_cash_record_detail_wire_matches_compose_response_contract(cash_web_runt
     assert detail_response.status_code == 200
     assert candidates_response.status_code == 200
     assert update_response.status_code == 200
+    assert len(category_queries) == 1
+    assert " join " in f" {category_queries[0]} "
+    assert "category_path" in category_queries[0]
     assert detail_response.json()["record"]["id"] == record["id"]
     assert candidates_response.json()["items"][0]["id"] == other["id"]
     assert [item["name"] for item in candidates_response.json()["items"][0]["category"]["path"]] == ["合同餐饮", "合同早餐"]

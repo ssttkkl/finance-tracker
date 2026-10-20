@@ -13,7 +13,7 @@ import json
 import tempfile
 from types import SimpleNamespace
 
-from sqlalchemy import delete as sa_delete, select as sa_select, update as sa_update
+from sqlalchemy import and_, delete as sa_delete, select as sa_select, update as sa_update
 
 from ft.adapters.relational.models import (
     AccountModel,
@@ -942,28 +942,41 @@ class CashLedgerCommandService:
         if not category_ids:
             return {}
         session = uow._state().session
-        rows = session.scalars(sa_select(CashCategoryModel).where(
-            CashCategoryModel.workspace_id == self._workspace_id,
-        )).all()
-        by_id = {str(row.id): row for row in rows}
-        result = {}
-        for category_id in category_ids:
-            leaf = by_id.get(category_id)
-            if leaf is None:
-                continue
-            path = []
-            seen = set()
-            current = leaf
-            while current is not None and str(current.id) not in seen:
-                seen.add(str(current.id))
-                path.append({"id": str(current.id), "name": current.name})
-                current = by_id.get(str(current.parent_id)) if current.parent_id else None
-            result[category_id] = {
-                "id": str(leaf.id),
-                "name": leaf.name,
-                "path": list(reversed(path)),
+        leaf = CashCategoryModel.__table__.alias("cash_category_leaf")
+        ancestor = CashCategoryModel.__table__.alias("cash_category_ancestor")
+        category_rows = session.execute(
+            sa_select(
+                leaf.c.id,
+                ancestor.c.id,
+                ancestor.c.name,
+            )
+            .select_from(leaf.join(
+                ancestor,
+                and_(
+                    ancestor.c.workspace_id == leaf.c.workspace_id,
+                    leaf.c.category_path.like(ancestor.c.category_path + "%"),
+                ),
+            ))
+            .where(
+                leaf.c.workspace_id == self._workspace_id,
+                leaf.c.id.in_(category_ids),
+            )
+            .order_by(leaf.c.id, ancestor.c.depth)
+        ).all()
+        paths: dict[str, list[dict[str, str]]] = {}
+        for category_id, ancestor_id, ancestor_name in category_rows:
+            paths.setdefault(str(category_id), []).append({
+                "id": str(ancestor_id),
+                "name": ancestor_name,
+            })
+        return {
+            category_id: {
+                "id": category_id,
+                "name": path[-1]["name"],
+                "path": path,
             }
-        return result
+            for category_id, path in paths.items()
+        }
 
     def _record_detail_in_uow(
         self,
