@@ -1,0 +1,328 @@
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
+from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+from io import BytesIO
+import json
+from threading import Lock
+
+import pytest
+
+from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
+from ft.domain.cash_source_matching import SourceCoverage
+
+
+class ProviderError(Exception):
+    def __init__(self, code):
+        self.response = {"Error": {"Code": code}}
+        super().__init__("provider details must stay private")
+
+
+class ConditionalS3:
+    def __init__(self):
+        self.objects = {}
+        self.lock = Lock()
+        self.bodies = []
+        self.writes = []
+        self.fail_after_put = False
+
+    def put_object(self, *, Bucket, Key, Body, ContentType, IfMatch=None, IfNoneMatch=None):
+        with self.lock:
+            old = self.objects.get((Bucket, Key))
+            if IfNoneMatch == "*" and old is not None or IfMatch is not None and (old is None or self.etag(old) != IfMatch):
+                raise ProviderError("PreconditionFailed")
+            self.objects[Bucket, Key] = bytes(Body)
+            self.writes.append((Key, IfMatch, IfNoneMatch, ContentType))
+            if self.fail_after_put:
+                self.fail_after_put = False
+                raise RuntimeError("connection lost after storage committed")
+            return {"ETag": self.etag(Body)}
+
+    def get_object(self, *, Bucket, Key):
+        with self.lock:
+            if (Bucket, Key) not in self.objects:
+                raise ProviderError("NoSuchKey")
+            content = self.objects[Bucket, Key]
+            body = BytesIO(content)
+            self.bodies.append(body)
+            return {"Body": body, "ETag": self.etag(content), "ContentLength": len(content)}
+
+    def delete_object(self, *, Bucket, Key):
+        with self.lock:
+            self.objects.pop((Bucket, Key), None)
+
+    @staticmethod
+    def etag(content):
+        return '"' + sha256(content).hexdigest() + '"'
+
+
+@pytest.fixture(params=["memory", "r2"])
+def staging(request):
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, R2ParsedImportStore
+    now = [datetime(2026, 10, 21, 12, tzinfo=timezone.utc)]
+    client = ConditionalS3()
+    options = {"ttl_seconds": 60, "clock": lambda: now[0]}
+    store = InMemoryParsedImportStore(**options) if request.param == "memory" else R2ParsedImportStore(client, bucket="private-imports", **options)
+    return store, now, client
+
+
+def _file(*, ref="f1", client_ref="client-f1"):
+    from ft.application.parsed_import_staging import ParsedImportFile
+    return ParsedImportFile(ref, client_ref, "synthetic.csv", "a" * 64, 100,
+        "alipay", "parsed", ParsedCashDocument("alipay", "csv:0", "native-v1",
+            (ParsedCashRow(8, {"amount": "-20.00", "note": "原始说明", "source_payload": {"金额": "20.00"}}, "fixture-bank", "001"),),
+            "fixture-owner", "fixture-owner", SourceCoverage(), 1, 1))
+
+
+def _create(store, **changes):
+    return store.create(workspace_id="workspace-a", user_id="user-a", files=changes.get("files", (_file(),)))
+
+
+def _get(store, session, **changes):
+    return store.get(session.session_id, workspace_id=changes.get("workspace_id", "workspace-a"), user_id=changes.get("user_id", "user-a"))
+
+
+def _replace(store, session, **changes):
+    return store.replace(session.session_id, workspace_id="workspace-a", user_id="user-a", expected_revision=session.revision,
+        files=changes.get("files", session.files), preview_input=changes.get("preview_input", session.preview_input), plan=changes.get("plan", session.plan))
+
+
+def test_parsed_session_roundtrip_is_detached_and_never_contains_upload_bytes(staging):
+    store, _now, client = staging
+    session = _create(store)
+    assert session.revision == 1
+    assert len(session.session_id) == 43
+    assert _get(store, session) == session
+    session.files[0].document.rows[0].fields["note"] = "caller mutation"
+    assert _get(store, session).files[0].document.rows[0].fields["note"] == "原始说明"
+    for body in client.objects.values():
+        value = json.loads(body)
+        assert value["files"][0]["document"]["rows"][0]["fields"]["amount"] == "-20.00"
+        assert "content" not in value["files"][0]
+        assert "password" not in value["files"][0]
+        assert session.session_id.encode() not in body
+    assert all(body.closed for body in client.bodies)
+
+
+@pytest.mark.parametrize("changes", [{"workspace_id": "workspace-b"}, {"user_id": "user-b"}])
+def test_parsed_session_is_bound_to_workspace_and_user(staging, changes):
+    from ft.application.cash_import_staging import ImportSessionForbidden
+    store, _now, _client = staging
+    session = _create(store)
+    with pytest.raises(ImportSessionForbidden):
+        _get(store, session, **changes)
+
+
+def test_replacement_atomically_changes_files_input_and_plan_and_rejects_stale_revision(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, _now, client = staging
+    first = _create(store)
+    second = _replace(store, first, files=(_file(ref="replacement"),), preview_input={"rows": []}, plan={"plan_id": "plan-1", "items": []})
+    assert second.revision == 2
+    assert second.files[0].file_ref == "replacement"
+    assert second.plan["plan_id"] == "plan-1"
+    with pytest.raises(ImportSessionRevisionConflict):
+        _replace(store, first)
+    assert _get(store, first) == second
+    if client.writes:
+        assert client.writes[0][2] == "*"
+        assert client.writes[-1][1] is not None
+
+
+def test_only_one_concurrent_replacement_can_publish(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, _now, _client = staging
+    first = _create(store)
+    def publish(index):
+        try:
+            return _replace(store, first, plan={"plan_id": f"p-{index}"}).revision
+        except ImportSessionRevisionConflict:
+            return "conflict"
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        outcomes = list(executor.map(publish, range(8)))
+    assert outcomes.count(2) == 1
+    assert outcomes.count("conflict") == 7
+    assert _get(store, first).revision == 2
+
+
+def test_cancel_clears_financial_body_and_cannot_be_reopened_by_stale_publish(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict, ImportSessionClosed
+    store, _now, _client = staging
+    first = _create(store)
+    cancelled = store.cancel(first.session_id, workspace_id="workspace-a", user_id="user-a", expected_revision=1)
+    assert cancelled.cancelled and cancelled.revision == 2
+    assert cancelled.files == () and cancelled.plan is None and cancelled.preview_input == {}
+    with pytest.raises(ImportSessionRevisionConflict):
+        _replace(store, first)
+    with pytest.raises(ImportSessionClosed):
+        _replace(store, cancelled, files=(_file(),))
+    assert _get(store, first).cancelled
+
+
+def test_revision_changes_never_extend_ttl_and_expiry_deletes_body(staging):
+    from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+    store, now, client = staging
+    first = _create(store)
+    now[0] += timedelta(seconds=59)
+    second = _replace(store, first)
+    assert second.expires_at == first.expires_at
+    now[0] += timedelta(seconds=1)
+    with pytest.raises(ImportSessionExpired):
+        _get(store, first)
+    with pytest.raises(ImportSessionNotFound):
+        _get(store, first)
+    assert not client.objects
+
+
+def test_foreign_user_cannot_delete_expired_body(staging):
+    from ft.application.cash_import_staging import ImportSessionForbidden, ImportSessionExpired
+    store, now, _client = staging
+    first = _create(store)
+    now[0] += timedelta(seconds=60)
+    with pytest.raises(ImportSessionForbidden):
+        _get(store, first, user_id="user-b")
+    with pytest.raises(ImportSessionExpired):
+        _get(store, first)
+
+
+def test_payload_overflow_leaves_previous_state_untouched(staging):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    store._max_bytes = 2500
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        _replace(store, first, plan={"large": "x" * 3000})
+    assert _get(store, first) == first
+
+
+@pytest.mark.parametrize("bad", [b"original upload bytes", {"amount": float("nan")}, {"nested": b"password"}])
+def test_only_json_business_values_can_be_staged(staging, bad):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    with pytest.raises(ParsedImportDataError):
+        _replace(store, first, plan={"payload": bad})
+    assert _get(store, first) == first
+
+
+@pytest.mark.parametrize("files", [(), tuple(_file(ref=f"f-{index}", client_ref=f"c-{index}") for index in range(21)), (_file(), _file())])
+def test_file_limits_and_unique_references_are_checked_before_write(staging, files):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, client = staging
+    with pytest.raises(ParsedImportDataError):
+        _create(store, files=files)
+    assert not client.objects
+
+
+def test_r2_uncertain_write_is_never_retried_as_unconditional_put():
+    from ft.application.parsed_import_staging import R2ParsedImportStore, ImportSessionRevisionConflict
+    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    client = ConditionalS3()
+    store = R2ParsedImportStore(client, bucket="private-imports")
+    first = _create(store)
+    client.fail_after_put = True
+    with pytest.raises(ImportSessionStorageUnavailable) as error:
+        _replace(store, first, plan={"plan_id": "current"})
+    assert "provider" not in str(error.value)
+    assert _get(store, first).revision == 2
+    with pytest.raises(ImportSessionRevisionConflict):
+        _replace(store, first)
+    assert len(client.writes) == 2
+
+
+def test_r2_corrupt_or_oversized_response_never_returns_partial_state():
+    from ft.application.parsed_import_staging import R2ParsedImportStore
+    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    client = ConditionalS3()
+    store = R2ParsedImportStore(client, bucket="private-imports")
+    first = _create(store)
+    key = next(iter(client.objects))
+    for body in [b'{"corrupt":true}', b"x" * 4000]:
+        client.objects[key] = body
+        store._max_bytes = 2500
+        with pytest.raises(ImportSessionStorageUnavailable):
+            _get(store, first)
+        assert client.bodies[-1].closed
+
+
+def test_memory_session_capacity_is_reclaimed_after_expiry():
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, ParsedImportDataError
+    now = [datetime(2026, 10, 21, 12, tzinfo=timezone.utc)]
+    store = InMemoryParsedImportStore(clock=lambda: now[0], ttl_seconds=1, max_sessions=1)
+    _create(store)
+    with pytest.raises(ParsedImportDataError, match="import_session_capacity_exceeded"):
+        _create(store)
+    now[0] += timedelta(seconds=1)
+    assert _create(store).revision == 1
+
+
+def test_nested_invalid_json_is_rejected_without_leaking_a_recursion_error(staging):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    session = _create(store)
+    cycle = {}
+    cycle["cycle"] = cycle
+    with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
+        _replace(store, session, plan=cycle)
+    assert _get(store, session) == session
+
+
+def test_publish_that_crosses_expiry_never_returns_a_successful_expired_session(staging, monkeypatch):
+    from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+    store, now, _client = staging
+    first = _create(store)
+    original = store._write_raw
+    def delayed_write(*args, **kwargs):
+        now[0] += timedelta(seconds=60)
+        return original(*args, **kwargs)
+    monkeypatch.setattr(store, "_write_raw", delayed_write)
+    with pytest.raises(ImportSessionExpired):
+        _replace(store, first)
+    with pytest.raises(ImportSessionNotFound):
+        _get(store, first)
+
+
+def test_r2_body_close_failure_is_still_a_safe_storage_error():
+    from ft.application.parsed_import_staging import R2ParsedImportStore
+    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    class FailingBody(BytesIO):
+        def close(self):
+            super().close()
+            raise RuntimeError("provider secret while closing")
+    class ClosingS3(ConditionalS3):
+        def get_object(self, **kwargs):
+            response = super().get_object(**kwargs)
+            response["Body"] = FailingBody(response["Body"].getvalue())
+            return response
+    store = R2ParsedImportStore(ClosingS3(), bucket="private-imports")
+    first = _create(store)
+    with pytest.raises(ImportSessionStorageUnavailable) as error:
+        _get(store, first)
+    assert "provider secret" not in str(error.value)
+
+
+@pytest.mark.parametrize("rows", [({"wrong": "row structure"},), (ParsedCashRow(1, "invalid fields"),)])
+def test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session(staging, rows):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    broken = replace(first.files[0], document=replace(first.files[0].document, rows=rows))
+    with pytest.raises(ParsedImportDataError):
+        _replace(store, first, files=(broken,))
+    assert _get(store, first) == first
+
+
+def test_non_financial_json_numbers_can_roundtrip_in_source_evidence(staging):
+    store, _now, _client = staging
+    first = _create(store)
+    second = _replace(store, first, plan={"evidence": {"score": 0.95}})
+    assert _get(store, first) == second
+
+
+def test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision(staging):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
+        _replace(store, first, plan=json.loads('{"note":"\\ud800"}'))
+    assert _get(store, first) == first
