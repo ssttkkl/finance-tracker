@@ -450,7 +450,11 @@ internal fun CashImportScreen(
     ) {
         if (modalSubtaskActive) {
             when {
-                modalError -> InlineError(generalError.orEmpty())
+                modalError -> Box(
+                    Modifier.fillMaxWidth().then(if (sideSheet) Modifier.padding(horizontal = 24.dp) else Modifier),
+                ) {
+                    InlineError(generalError.orEmpty())
+                }
                 modalEdit -> {
                     ImportNewAccountEditFields(
                         name = editingAccountName,
@@ -462,6 +466,7 @@ internal fun CashImportScreen(
                         typeMenuExpanded = editingAccountTypeMenuExpanded,
                         onTypeMenuEscape = { editingAccountTypeMenuExpanded = false },
                         modifier = Modifier.fillMaxWidth()
+                            .then(if (sideSheet) Modifier.padding(horizontal = 24.dp) else Modifier)
                             .testTag(if (sizeClass == WindowSizeClass.COMPACT) "import.mapping.edit-fullscreen" else "import.mapping.edit-inline"),
                     )
                 }

@@ -102,19 +102,25 @@ internal fun ModalHeader(
     }
 }
 
-/** The fixed M3 Side Sheet action area; callers provide actions in primary-first order. */
+/** The M3 Side Sheet footer: 16 dp top padding, a 72 dp action row, and 24 dp bottom padding. */
 @Composable
 internal fun SideSheetActionArea(
     content: @Composable () -> Unit,
     modifier: Modifier = Modifier,
     testTag: String? = null,
 ) {
-    Box(
-        modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 24.dp)
+    Column(
+        modifier = Modifier.fillMaxWidth()
             .then(modifier)
             .then(testTag?.let { Modifier.testTag(it) } ?: Modifier),
-        contentAlignment = Alignment.CenterStart,
     ) {
-        content()
+        Spacer(Modifier.height(16.dp))
+        Box(
+            modifier = Modifier.fillMaxWidth().height(72.dp).padding(horizontal = 24.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            content()
+        }
+        Spacer(Modifier.height(24.dp))
     }
 }

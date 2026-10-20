@@ -737,9 +737,9 @@ test("F-05 账单导入从账本以响应式二级页面打开并可关闭", asy
       const modalBounds = await modal.boundingBox();
       const widthFraction = cashImportSideSheetWidthFraction(width);
       expect((modalBounds?.width ?? 0) / width).toBeCloseTo(widthFraction, 2);
-      expect((modalBounds?.x ?? 0) / width).toBeCloseTo(1 - widthFraction, 2);
-      expect((modalBounds?.x ?? 0) + (modalBounds?.width ?? 0)).toBeCloseTo(width, 0);
-      expect(modalBounds?.height ?? 0).toBeCloseTo(height, 0);
+      expect((modalBounds?.x ?? 0) + (modalBounds?.width ?? 0)).toBeCloseTo(width - 16, 0);
+      expect(modalBounds?.y ?? 0).toBeCloseTo(16, 0);
+      expect(modalBounds?.height ?? 0).toBeCloseTo(height - 32, 0);
     }
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     if (width < 600) {
@@ -1734,9 +1734,9 @@ test("F-04 编辑流水在详情面板内切换，不叠加第二个模态层", 
       expect(detailBounds!.x).toBeLessThan(1);
       expect(detailBounds!.height).toBeGreaterThan(height - 80);
     } else {
-      expect(detailBounds!.y).toBeCloseTo(0, 0);
-      expect(detailBounds!.height).toBeCloseTo(height, 0);
-      expect(Math.abs(detailBounds!.x + detailBounds!.width - width)).toBeLessThan(1);
+      expect(detailBounds!.y).toBeCloseTo(16, 0);
+      expect(detailBounds!.height).toBeCloseTo(height - 32, 0);
+      expect(Math.abs(detailBounds!.x + detailBounds!.width - (width - 16))).toBeLessThan(1);
     }
     const closeBounds = await page.locator('[id="ledger.record-panel.close"]').last().boundingBox();
     const titleBounds = await page.locator('[id="ledger.record-panel.title"]').last().boundingBox();
@@ -1913,9 +1913,9 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     } else {
       expect(bounds!.width).toBeLessThanOrEqual(560);
       expect(bounds!.x).toBeGreaterThanOrEqual(width < 900 ? 16 : 56);
-      expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
-      expect(bounds!.y).toBeCloseTo(0, 0);
-      expect(bounds!.height).toBeCloseTo(height, 0);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width - 16, 0);
+      expect(bounds!.y).toBeCloseTo(16, 0);
+      expect(bounds!.height).toBeCloseTo(height - 32, 0);
     }
   };
 
@@ -1963,7 +1963,7 @@ test("F-04 新增、详情和编辑面板适配三类窗口", async ({ page }) =
     expect(editActionBounds).not.toBeNull();
     expect(recordContentBounds!.x).toBeCloseTo(panelBounds!.x + 24, 0);
     expect(recordContentBounds!.width).toBeCloseTo(panelBounds!.width - 48, 0);
-    expect(recordFooterBounds!.height).toBeCloseTo(width < 600 ? 56 : 72, 0);
+    expect(recordFooterBounds!.height).toBeCloseTo(width < 600 ? 56 : 112, 0);
     const recordContentStartBounds = await panel.getByText("-28.50 CNY", { exact: true }).last().boundingBox();
     expect(recordContentStartBounds).not.toBeNull();
     expect(recordContentStartBounds!.x).toBeCloseTo(panelBounds!.x + 24, 0);
@@ -2186,9 +2186,10 @@ test("F-04 流水删除确认在三类窗口保留危险操作样式", async ({ 
     } else {
       const detailBounds = await page.locator('[id="ledger.record-panel"]').last().boundingBox();
       expect(detailBounds).not.toBeNull();
-      expect(Math.abs(detailBounds!.x + detailBounds!.width - width)).toBeLessThan(1);
+      expect(Math.abs(detailBounds!.x + detailBounds!.width - (width - 16))).toBeLessThan(1);
+      expect(detailBounds!.y).toBeCloseTo(16, 0);
       expect(detailBounds!.x).toBeGreaterThanOrEqual(width < 900 ? 16 : 56);
-      expect(detailBounds!.height).toBeGreaterThan(height - (width < 900 ? 64 : 144));
+      expect(detailBounds!.height).toBeCloseTo(height - 32, 0);
     }
     await openRecordMoreActions(page);
     await clickComposeTarget(page, page.locator('[id="record.detail.action.delete"]').last());
@@ -2331,9 +2332,9 @@ test("F-04 已关联流水的解散关联与删除选项使用危险色", async 
       expect(relationBounds!.height).toBeCloseTo(height, 0);
     } else {
       expect(relationBounds!.width).toBeLessThanOrEqual(560);
-      expect(relationBounds!.x + relationBounds!.width).toBeCloseTo(width, 0);
-      expect(relationBounds!.y).toBeCloseTo(0, 0);
-      expect(relationBounds!.height).toBeCloseTo(height, 0);
+      expect(relationBounds!.x + relationBounds!.width).toBeCloseTo(width - 16, 0);
+      expect(relationBounds!.y).toBeCloseTo(16, 0);
+      expect(relationBounds!.height).toBeCloseTo(height - 32, 0);
     }
     const relationClose = page.locator('[id="ledger.record-panel.close"]').last();
     const relationTitle = page.locator('[id="ledger.record-panel.title"]').last();
@@ -2982,6 +2983,79 @@ async function openBatchRelationFilter(page: Page) {
   return commitAttempts;
 }
 
+test("F-05 Regular/Wide account editor remains inside the Side Sheet", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  for (const [width, height] of [[768, 1024], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/cash-import`);
+    await expect(page.locator('[id="import.choose-file"]')).toBeVisible();
+    await page.evaluate(async () => { await document.fonts.ready; });
+    await page.waitForTimeout(500);
+    await chooseComposeFiles(page, [{
+      name: `editor-inset-${width}.csv`,
+      mimeType: "text/csv",
+      buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
+    }]);
+    await expect(page.locator('[id="import.next"]:visible').last()).toBeEnabled();
+    await clickImportPrimaryFooter(page, width, height);
+    await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
+
+    const mappingTarget = page.locator('[id="import.mapping.bank-account"]').last();
+    const mappingTargetBounds = await mappingTarget.boundingBox();
+    expect(mappingTargetBounds).not.toBeNull();
+    const mappingMenu = await openChoiceMenu(page, mappingTarget);
+    const createOption = mappingMenu.getByRole("button", { name: "创建新账户", exact: true }).last();
+    await createOption.click({ force: true });
+    await page.waitForTimeout(700);
+    const createdAccountScreenshot = await page.screenshot();
+    // The account summary appears below the picker; its Side Sheet starts 16 dp lower.
+    await page.mouse.click(
+      mappingTargetBounds!.x + mappingTargetBounds!.width - 34,
+      mappingTargetBounds!.y + mappingTargetBounds!.height + 36,
+    );
+    await page.waitForTimeout(250);
+    const accountEditorScreenshot = await page.screenshot();
+    expect(Buffer.compare(createdAccountScreenshot, accountEditorScreenshot)).not.toBe(0);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `side-sheet-account-editor-${width}.png`) });
+    }
+  }
+});
+
+test("F-05 Regular/Wide import error remains inside the Side Sheet", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  let previewCalls = 0;
+  await page.route("**/api/v1/cash-import/preview", async (route) => {
+    previewCalls += 1;
+    await route.fulfill({
+      status: 503,
+      contentType: "application/json",
+      body: JSON.stringify({ error: { code: "temporarily_unavailable" } }),
+    });
+  });
+  for (const [width, height] of [[768, 1024], [1440, 900]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/cash-import`);
+    await chooseComposeFiles(page, [{
+      name: `error-inset-${width}.csv`,
+      mimeType: "text/csv",
+      buffer: Buffer.from("date,amount\n2026-09-24,-28.50\n"),
+    }]);
+    await clickImportPrimaryFooter(page, width, height);
+    await expect(page.locator('[id="import.mapping.heading"]').last()).toBeVisible();
+    const mappingScreenshot = await page.screenshot();
+    const previewCallsBefore = previewCalls;
+    await page.locator('[id="import.next"]').last().dispatchEvent("click");
+    await expect.poll(() => previewCalls).toBe(previewCallsBefore + 1);
+    await expect(page.locator('[id="cash-import.error-acknowledge"]').last()).toBeVisible();
+    const errorScreenshot = await page.screenshot();
+    expect(await screenshotDifferenceRatio(page, mappingScreenshot, errorScreenshot)).toBeGreaterThan(0.001);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `side-sheet-import-error-${width}.png`) });
+    }
+  }
+});
+
 test("F-05 cash-import uses the Material 3 side-sheet variant for each horizontal window class", async ({ page }) => {
   await installComposeApiFixtures(page);
   await mkdir(screenshotDir, { recursive: true });
@@ -3014,15 +3088,19 @@ test("F-05 cash-import uses the Material 3 side-sheet variant for each horizonta
     const cancelBounds = await cancel.boundingBox();
     const nextBounds = await next.boundingBox();
     expect(footerBounds).not.toBeNull();
-    expect(footerBounds!.height).toBeCloseTo(width < 600 ? 56 : 72, 0);
+    expect(footerBounds!.height).toBeCloseTo(width < 600 ? 56 : 112, 0);
     expect(cancelBounds).not.toBeNull();
     expect(nextBounds).not.toBeNull();
-    expect(cancelBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y);
-    expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(footerBounds!.y + footerBounds!.height);
     if (width < 600) {
+      expect(cancelBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y);
+      expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(footerBounds!.y + footerBounds!.height);
       expect(headerBounds!.height).toBeCloseTo(64, 0);
       expect(cancelBounds!.x + cancelBounds!.width).toBeLessThanOrEqual(nextBounds!.x + 1);
     } else {
+      const actionRowTop = footerBounds!.y + 16;
+      const actionRowBottom = actionRowTop + 72;
+      expect(cancelBounds!.y).toBeGreaterThanOrEqual(actionRowTop);
+      expect(nextBounds!.y + nextBounds!.height).toBeLessThanOrEqual(actionRowBottom);
       const modalBounds = await modal.boundingBox();
       expect(modalBounds).not.toBeNull();
       expect(closeBounds!.x).toBeCloseTo(modalBounds!.x + 20, 0);
@@ -3051,9 +3129,9 @@ test("F-05 cash-import uses the Material 3 side-sheet variant for each horizonta
       expect(bounds).not.toBeNull();
       const widthFraction = cashImportSideSheetWidthFraction(width);
       expect(bounds!.width / width).toBeCloseTo(widthFraction, 2);
-      expect(bounds!.x / width).toBeCloseTo(1 - widthFraction, 2);
-      expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
-      expect(bounds!.height).toBeCloseTo(height, 0);
+      expect(bounds!.x + bounds!.width).toBeCloseTo(width - 16, 0);
+      expect(bounds!.y).toBeCloseTo(16, 0);
+      expect(bounds!.height).toBeCloseTo(height - 32, 0);
     }
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: path.join(screenshotDir, `compose-import-file-${width}.png`) });
@@ -3099,8 +3177,9 @@ test("F-05 Regular/Wide 导入侧板可完成各步骤并提交", async ({ page 
     expect(bounds).not.toBeNull();
     const widthFraction = cashImportSideSheetWidthFraction(width);
     expect(bounds!.width / width).toBeCloseTo(widthFraction, 2);
-    expect(bounds!.x / width).toBeCloseTo(1 - widthFraction, 2);
-    expect(bounds!.x + bounds!.width).toBeCloseTo(width, 0);
+    expect(bounds!.x + bounds!.width).toBeCloseTo(width - 16, 0);
+    expect(bounds!.y).toBeCloseTo(16, 0);
+    expect(bounds!.height).toBeCloseTo(height - 32, 0);
 
     const fileName = `side-sheet-${width}.csv`;
     await chooseComposeFiles(page, [{
@@ -3248,7 +3327,9 @@ test("F-05 关系筛选卡片覆盖 compact 和 wide 宽度", async ({ page }) =
     expect(footerBounds).not.toBeNull();
     expect(previousBounds).not.toBeNull();
     expect(confirmBounds).not.toBeNull();
-    expect(footerBounds!.height).toBeCloseTo(72, 0);
+    expect(footerBounds!.height).toBeCloseTo(112, 0);
+    expect(confirmBounds!.y).toBeGreaterThanOrEqual(footerBounds!.y + 16);
+    expect(previousBounds!.y + previousBounds!.height).toBeLessThanOrEqual(footerBounds!.y + 88);
     expect(confirmBounds!.x).toBeGreaterThanOrEqual(modalBounds!.x + 24);
     expect(confirmBounds!.x).toBeLessThanOrEqual(modalBounds!.x + 32);
     expect(confirmBounds!.x + confirmBounds!.width).toBeLessThanOrEqual(previousBounds!.x + 1);

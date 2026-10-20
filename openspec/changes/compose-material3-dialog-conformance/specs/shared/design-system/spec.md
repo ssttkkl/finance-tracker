@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Compose dialogs follow Material 3 task and interaction guidance
-Compose modal dialogs MUST open in response to a user action and stay focused on one task. Short decisions and focused input MUST use a basic dialog; workflows with a sequence of steps MUST use a full-screen dialog at compact breakpoints and a basic dialog at regular or wide breakpoints, except where a more specific product contract below requires a different presentation. Cash record detail and editing MUST share a full-screen task at compact breakpoints and a right-side full-height modal panel at regular and wide breakpoints. Basic dialogs MUST not exceed 560 dp in width. Dialog titles and actions MUST communicate the task and its outcome. Custom dialog containers MUST expose their task title as an accessible pane title. A dialog MUST preserve staged values when dismissed or cancelled, except that live query controls such as ledger filters apply their selections immediately and closing their container does not roll back those filters. Dialogs MUST keep the background unavailable while open and MUST offer a clear way to leave when the task permits dismissal. All task operation buttons MUST remain in a bottom action area. Full-screen and basic dialogs MUST keep their existing action order; a modal Side Sheet MUST align its bottom actions to the left and place its primary action first (leftmost), as specified by the approved product contract. Every non-AlertDialog modal MUST expose a close button on the left side of its header; AlertDialog MUST retain its component-provided actions without action icons. A full-screen task's body MAY scroll while its title and close affordance remain fixed. A compact full-screen dialog MAY present a basic dialog above it for a nested focused task such as editing, discard confirmation, or acknowledgement of a failed submission; a basic dialog MUST NOT present another basic dialog above itself.
+Compose modal dialogs MUST open in response to a user action and stay focused on one task. Short decisions and focused input MUST use a basic dialog; workflows with a sequence of steps MUST use a full-screen dialog at compact breakpoints and a basic dialog at regular or wide breakpoints, except where a more specific product contract below requires a different presentation. Cash record detail and editing MUST share a full-screen task at compact breakpoints and a right-side detached modal Side Sheet at regular and wide breakpoints. Side Sheets MUST retain their previously approved outer width bounds; when detached, they MUST have 16 dp margins at the viewport top, bottom, and logical end. Basic dialogs MUST not exceed 560 dp in width. Dialog titles and actions MUST communicate the task and its outcome. Custom dialog containers MUST expose their task title as an accessible pane title. A dialog MUST preserve staged values when dismissed or cancelled, except that live query controls such as ledger filters apply their selections immediately and closing their container does not roll back those filters. Dialogs MUST keep the background unavailable while open and MUST offer a clear way to leave when the task permits dismissal. All task operation buttons MUST remain in a bottom action area. Full-screen and basic dialogs MUST keep their existing action order; a modal Side Sheet MUST align its bottom actions to the left and place its primary action first (leftmost), as specified by the approved product contract. Every non-AlertDialog modal MUST expose a close button on the left side of its header; AlertDialog MUST retain its component-provided actions without action icons. A full-screen task's body MAY scroll while its title and close affordance remain fixed. A compact full-screen dialog MAY present a basic dialog above it for a nested focused task such as editing, discard confirmation, or acknowledgement of a failed submission; a basic dialog MUST NOT present another basic dialog above itself.
 
 #### Scenario: A user cancels a staged value selection
 - **WHEN** a user changes a staged value in a dialog and chooses cancel, presses Back/Escape, or dismisses the dialog without confirming
@@ -40,11 +40,11 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 
 #### Scenario: A cash record detail and edit share a responsive modal container
 - **WHEN** a user opens a read-only cash record detail
-- **THEN** compact presentation MUST use a full-screen task and regular or wide presentation MUST keep the right-side full-height modal panel
+- **THEN** compact presentation MUST use a full-screen task and regular or wide presentation MUST keep the right-side detached modal Side Sheet
 - **AND** switching from detail to edit MUST replace the layout inside the same modal container without opening a separate edit dialog
 - **AND** the detail body MUST scroll independently while its title, top-left close action, and bottom detail actions remain visible
-- **AND** the regular and wide panels MUST fill the viewport height
-- **AND** the regular and wide panels MUST align their logical end edge to the viewport edge and retain only a 16 dp / 56 dp logical start gutter
+- **AND** the regular and wide panels MUST have 16 dp top, bottom, and logical end margins while retaining the existing logical start gutter
+- **AND** applying the detached margins MUST preserve the previously approved panel widths
 - **AND** the regular and wide panels MUST use `surfaceContainerLow`, the theme's Large shape, and zero tonal elevation
 - **AND** tapping the modal scrim MUST dismiss the panel using the current task's exit behavior
 - **AND** dragging the panel toward its logical end edge MUST dismiss it using the current task's exit behavior
@@ -53,7 +53,7 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 
 #### Scenario: A modal cash record panel follows the Material 3 Side Sheet contract
 - **WHEN** a user opens cash record detail, edit, or relation creation at regular or wide size
-- **THEN** the task MUST be displayed as a modal side sheet anchored to the logical end edge and filling the viewport height
+- **THEN** the task MUST be displayed as a modal Side Sheet detached 16 dp from the viewport's top, bottom, and logical end edges
 - **AND** the sheet MUST use `surfaceContainerLow`, the theme's Large shape, and zero tonal elevation
 - **AND** the scrim MUST block interaction with the ledger and support dismissal
 - **AND** dragging the sheet toward its logical end edge MUST dismiss it
@@ -62,7 +62,7 @@ Compose modal dialogs MUST open in response to a user action and stay focused on
 
 #### Scenario: A relationship composer is an independent modal task
 - **WHEN** a user opens the relationship composer from cash record detail
-- **THEN** the composer MUST be presented as its own M3 modal task, with compact full-screen presentation and a right-side full-height modal panel at regular and wide breakpoints
+- **THEN** the composer MUST be presented as its own M3 modal task, with compact full-screen presentation and a detached right-side modal Side Sheet at regular and wide breakpoints
 - **AND** only the composer task MUST be the active modal while it is open
 - **AND** canceling or completing the composer MUST return to the previous cash record detail without losing its committed data
 
@@ -229,7 +229,7 @@ A dialog action area MUST present at most one confirming action and one dismissi
 - **AND** changing modal task state MUST preserve the task's committed and staged business data
 
 ### Requirement: Dialog internal measurements follow the Material 3 variant
-Compose modal containers MUST apply the measurement contract for their presentation variant without changing an approved outer frame or dismissal/commit behavior. Full-screen Dialog headers MUST measure 64 dp high, use a 24 dp close icon on the left, and keep the content's horizontal inset at 24 dp. Non-full-screen non-AlertDialog containers MUST use the same header and content measurements inside their existing outer frame. Side Sheets MUST use 24 dp content side insets, a 16 dp header start inset and 24 dp top inset when the header contains a close icon, 12 dp spacing between adjacent header elements, and a 24 dp close icon. A Side Sheet's bottom action area MUST measure 72 dp overall and center its actions vertically; its actions MUST align left with the primary action first. AlertDialogs and compact filter ModalBottomSheets MUST retain their existing component-specific measurements.
+Compose modal containers MUST apply the measurement contract for their presentation variant without changing approved outer widths or dismissal/commit behavior. Full-screen Dialog headers MUST measure 64 dp high, use a 24 dp close icon on the left, and keep the content's horizontal inset at 24 dp. Non-full-screen non-AlertDialog containers MUST use the same header and content measurements inside their existing outer frame. Side Sheets MUST use 24 dp content side insets, a 16 dp header start inset and 24 dp top inset when the header contains a close icon, 12 dp spacing between adjacent header elements, and a 24 dp close icon. When detached, Side Sheets MUST have 16 dp viewport margins at the top, bottom, and logical end edge without reducing their previously approved outer widths. A Side Sheet's bottom action area MUST use 16 dp top padding, a 72 dp action row, and 24 dp bottom padding, for 112 dp total; actions MUST be vertically centered within the action row, align left, and place the primary action first. AlertDialogs and compact filter ModalBottomSheets MUST retain their existing component-specific measurements.
 
 #### Scenario: A full-screen dialog receives M3 internal measurements
 - **WHEN** a user opens a full-screen non-AlertDialog task
@@ -245,7 +245,9 @@ Compose modal containers MUST apply the measurement contract for their presentat
 #### Scenario: A Side Sheet receives M3 internal measurements
 - **WHEN** a user opens a modal Side Sheet
 - **THEN** its header and content MUST use the Side Sheet insets and 12 dp element spacing
-- **AND** its bottom action area MUST measure 72 dp overall and vertically center its actions
+- **AND** its detached container MUST have 16 dp margins at the viewport top, bottom, and logical end while preserving its previously approved width
+- **AND** its bottom action area MUST measure 112 dp overall, comprising 16 dp top padding, a 72 dp action row, and 24 dp bottom padding
+- **AND** its actions MUST be vertically centered within the 72 dp row
 - **AND** its actions MUST align left with the primary action first
 - **AND** its close icon MUST remain on the left per the approved product contract
-- **AND** its existing outer frame and dismissal/commit behavior MUST remain unchanged
+- **AND** its dismissal/commit behavior MUST remain unchanged

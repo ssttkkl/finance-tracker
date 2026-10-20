@@ -176,7 +176,7 @@ private fun CashRecordModalOverlay(
             Box(Modifier.fillMaxSize().clickable(interactionSource = null, indication = null, onClick = onBack))
         }
         Box(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(if (sideSheet) Modifier.padding(vertical = 16.dp) else Modifier),
             contentAlignment = if (compact) Alignment.Center else Alignment.CenterEnd,
         ) {
             Surface(
@@ -186,6 +186,7 @@ private fun CashRecordModalOverlay(
                     Modifier.widthIn(max = 560.dp)
                         .fillMaxWidth()
                         .fillMaxHeight()
+                        .then(if (sideSheet) Modifier.offset(x = -16.dp) else Modifier)
                         .onSizeChanged { sideSheetWidthPx = it.width.toFloat() }
                         .offset { IntOffset(sideSheetDragOffset.roundToInt(), 0) }
                         .then(sideSheetDragModifier)

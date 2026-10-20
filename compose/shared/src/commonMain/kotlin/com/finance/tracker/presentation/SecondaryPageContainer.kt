@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -132,7 +134,9 @@ private fun SecondaryPageSideSheet(
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.CenterEnd) {
         Surface(
             modifier = modifier.fillMaxWidth(widthFraction)
+                .heightIn(max = maxHeight - 32.dp)
                 .fillMaxHeight()
+                .offset(x = -16.dp)
                 .testTag("secondary-page-modal")
                 .semantics { paneTitle = title },
             shape = MaterialTheme.shapes.large,
