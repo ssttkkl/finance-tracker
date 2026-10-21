@@ -1521,6 +1521,42 @@ def _read_wechat_raw(path: str):
     return records, tracking_pairs
 
 
+def _parse_icbc_credit_source_row(
+    source_payload: dict, *, date: str, amount: Decimal, currency: str,
+    source_account_identifier: str | None, counterparty: str,
+    counterparty_account_candidates=(), summary: str = "", description: str = "",
+):
+    """共用信用卡单行语义；调用方提供已提取字段，不执行退款配对。"""
+    offset_type = _classify_icbc_credit_offset_type(counterparty, description, summary)
+    normalization_description = description
+    if not normalization_description and _infer_payment_source("icbc", counterparty, "") != "银行卡":
+        normalization_description = counterparty
+    normalized_cp, enriched_desc = _normalize_counterparty(counterparty, normalization_description[:80], "icbc")
+    owner = _normalize_icbc_account_identifier(source_account_identifier)
+    rec = {
+        "date": date, "amount": amount, "currency": currency, "counterparty": normalized_cp,
+        "counterparty_account": next(iter(dict.fromkeys(counterparty_account_candidates)), "")
+        if summary in {"转账", "转帐"} and len(set(counterparty_account_candidates)) == 1 else "",
+        "note": enriched_desc[:80], "category": "expense" if amount < 0 else "income",
+        "payment_method": _infer_payment_source("icbc", normalized_cp, enriched_desc[:80]),
+        "card_number": owner[-4:] if owner else "", "_source_account_identifier": owner,
+        "file_account_key": owner, "source_display_name": "工商银行信用卡", "_raw_cp": counterparty,
+        "summary": summary, "refund_signal": "", "_refund_signal": "",
+        "_fact_id": "icbc_credit_" + _stable_short_hash(date, f"{amount:.2f}", currency, normalized_cp, enriched_desc[:80], owner),
+        "_source_payload": source_payload,
+    }
+    if offset_type:
+        rec["offset_type"] = offset_type
+    if offset_type == "merchant_refund":
+        merchant_text = description if counterparty == "退货" and description else counterparty
+        rec.update(_is_refund=True, _refund_signal="icbc_credit_return",
+            refund_signal="icbc_credit_return" if summary == "退货" else "",
+            _icbc_refund_merchant_trusted=not _is_icbc_credit_untrusted_merchant_text(merchant_text))
+    elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
+        rec = _build_icbc_credit_offset_income(rec, offset_type)
+    return rec
+
+
 def _parse_icbc_lines(
     lines: list[str],
     is_credit: bool,
@@ -1645,66 +1681,12 @@ def _parse_icbc_lines(
                         break
                     counterparty = s
 
-                offset_type = _classify_icbc_credit_offset_type(counterparty, description, summary)
-                is_refund = offset_type == "merchant_refund"
-                normalization_description = description
-                if not normalization_description and (
-                    _infer_payment_source("icbc", counterparty, "") != "银行卡"
-                ):
-                    normalization_description = counterparty
-                normalized_cp, enriched_desc = _normalize_counterparty(
-                    counterparty, normalization_description[:80], "icbc"
+                rec = _parse_icbc_credit_source_row(
+                    {"原始文本单元": lines[record_start:min(len(lines), i + 12)]},
+                    date=f"{current_date} {current_time}", amount=amount, currency=currency,
+                    source_account_identifier=current_card, counterparty=counterparty,
+                    counterparty_account_candidates=counterparty_account_candidates, summary=summary, description=description,
                 )
-                payment_method = _infer_payment_source("icbc", normalized_cp, enriched_desc[:80])
-                source_account_identifier = _normalize_icbc_account_identifier(current_card)
-                card_number = source_account_identifier[-4:] if source_account_identifier else ""
-                fact_hash = _stable_short_hash(
-                    f"{current_date} {current_time}",
-                    f"{amount:.2f}",
-                    currency,
-                    normalized_cp,
-                    enriched_desc[:80],
-                    source_account_identifier,
-                )
-                rec = {
-                    "date": f"{current_date} {current_time}",
-                    "amount": amount,
-                    "currency": currency,
-                    "counterparty": normalized_cp,
-                    "counterparty_account": (
-                        next(iter(dict.fromkeys(counterparty_account_candidates)), "")
-                        if (
-                            summary in {"转账", "转帐"}
-                            and len(set(counterparty_account_candidates)) == 1
-                        )
-                        else ""
-                    ),
-                    "note": enriched_desc[:80],
-                    "category": category,
-                    "payment_method": payment_method,
-                    "card_number": card_number,
-                    "_source_account_identifier": source_account_identifier,
-                    "file_account_key": source_account_identifier,
-                    "source_display_name": "工商银行信用卡",
-                    "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
-                    "summary": summary,
-                    "refund_signal": "",
-                    "_refund_signal": "",
-                    "_fact_id": f"icbc_credit_{fact_hash}",
-                    "_source_payload": {
-                        "原始文本单元": lines[record_start:min(len(lines), i + 12)],
-                    },
-                }
-                if offset_type:
-                    rec["offset_type"] = offset_type
-                if is_refund:
-                    merchant_text = description if counterparty == "退货" and description else counterparty
-                    rec["_is_refund"] = True
-                    rec["_refund_signal"] = "icbc_credit_return"
-                    rec["refund_signal"] = "icbc_credit_return" if summary == "退货" else ""
-                    rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
-                elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
-                    rec = _build_icbc_credit_offset_income(rec, offset_type)
                 records.append(rec)
                 current_date = None
             i += 1
@@ -1986,6 +1968,8 @@ def _parse_icbc_debit_row(
     *,
     source_account_identifier: str | None = None,
     source_payload: dict | None = None,
+    allow_missing_source_account: bool = False,
+    parsed_amount: Decimal | None = None,
 ) -> dict | None:
     """解析储蓄卡PDF的一行表格数据"""
     import re as _re
@@ -2013,15 +1997,19 @@ def _parse_icbc_debit_row(
 
     # 金额 — 水印已过滤，干净的数字
     amt_str = (row[8] or "").replace("\n", "").strip()
-    amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
-    if not amt_m:
-        raise ValueError(
-            "❌ 工行借记卡行金额无法解析\n"
-            f"   可能是PDF格式变更或水印干扰"
-        )
-    sign = amt_m.group(1) or ""
-    num = Decimal(amt_m.group(2).replace(",", ""))
-    amount = -num if sign == "-" else num
+    if parsed_amount is None:
+        amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
+        if not amt_m:
+            raise ValueError(
+                "❌ 工行借记卡行金额无法解析\n"
+                f"   可能是PDF格式变更或水印干扰"
+            )
+        sign = amt_m.group(1) or ""
+        num = Decimal(amt_m.group(2).replace(",", ""))
+        amount = -num if sign == "-" else num
+    else:
+        from ft.domain.decimal import exact_decimal
+        amount = exact_decimal(parsed_amount)
 
     # 摘要 — 匹配已知关键词（水印噪声可能把关键词拆散）
     summary = _match_debit_summary((row[6] or "").replace("\n", "").strip())
@@ -2044,7 +2032,7 @@ def _parse_icbc_debit_row(
     # raw business-row field and must distinguish otherwise identical rows.
     source_row_account = (row[1] or "").replace("\n", "").strip()
     source_account_identifier = _normalize_icbc_account_identifier(source_account_identifier)
-    if not source_account_identifier:
+    if not source_account_identifier and not allow_missing_source_account:
         raise ValueError("❌ 工行借记卡缺少文件级卡号，不能使用表格账号作为来源账户身份")
 
     category = "expense" if amount < 0 else "income"

@@ -54,7 +54,22 @@ class CashImportContext:
 
 
 def _parse_statement(upload):
-    return parse_cash_statement(upload.content, source=upload.source_hint)
+    from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
+    try:
+        return parse_cash_statement(upload.content, source=upload.source_hint, password=upload.password)
+    except (PDFPasswordInvalidError, PDFPasswordRequiredError) as error:
+        raise CashImportPasswordRequired(incorrect=isinstance(error, PDFPasswordInvalidError)) from None
+
+
+def _display_filename(filename, password):
+    filename = (filename.replace("\\", "/").rsplit("/", 1)[-1] or "账单").encode("utf-8", errors="replace").decode()
+    if password:
+        filename = filename.replace(password, "")
+    stem, dot, extension = filename.rpartition(".")
+    stem = stem if dot else filename
+    stem = re.sub(r"(?:密码|password|pwd)\s*[:：=_-]?\s*(?:[（(\[【]\s*[^)）\]】]*[)）\]】]?|[^\s()（）\[\]【】]+)", "", stem, flags=re.I)
+    stem = re.sub(r"\(\s*\)|（\s*）|\[\s*\]|【\s*】", "", stem).strip() or "账单"
+    return (stem + ("." + extension if dot else ""))[:255]
 
 
 class CashImportContextService:
@@ -106,7 +121,7 @@ class CashImportContextService:
 
     def _parse(self, upload, *, previous_scope_label=None):
         raw = upload.content if isinstance(upload.content, bytes) else b""
-        filename = (upload.filename.replace("\\", "/").rsplit("/", 1)[-1] or "账单").encode("utf-8", errors="replace").decode()[:255]
+        filename = _display_filename(upload.filename, upload.password)
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
         file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(raw).hexdigest(),
             len(raw), hint, "failed", error_code="statement_input_invalid")

@@ -24,6 +24,7 @@ class ParsedCashRow:
     issue_codes: tuple[str, ...] = ()
     error_code: str | None = None
     disposition: str = "candidate"
+    source_account_identifier: str | None = None
 
 
 @dataclass(frozen=True)
@@ -192,12 +193,16 @@ def normalize_bank_document(document: CashStatementDocument) -> ParsedCashDocume
         document.source_account_identifier, document.source_account_label, coverage, document.declared_count, document.observed_count)
 
 
-def parse_cash_statement(content: bytes, *, source: str | None = None) -> ParsedCashDocument:
+def parse_cash_statement(content: bytes, *, source: str | None = None, password: str | None = None) -> ParsedCashDocument:
     from ft.adapters.bank_statement_document import read_bank_document
     from ft.adapters.cash_statement_document import StatementDocumentError, read_platform_document
     if not isinstance(content, bytes) or not content:
         raise StatementDocumentError("statement_input_invalid")
     source = source.replace("-", "_") if isinstance(source, str) else source
+    if content.startswith(b"%PDF-") or source in {"icbc", "icbc_credit", "icbc_debit"}:
+        from ft.adapters.icbc_pdf_document import read_icbc_document
+        from ft.adapters.icbc_pdf_rows import normalize_icbc_document
+        return normalize_icbc_document(read_icbc_document(content, source=source, password=password))
     if source in {"ccb_debit", "icbc_asia"} or source is None and content.startswith((b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1", b"\xff\xfe", b"\xfe\xff")):
         return normalize_bank_document(read_bank_document(content, source=source))
     return normalize_platform_document(read_platform_document(content, source=source))

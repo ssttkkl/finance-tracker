@@ -105,6 +105,52 @@ def test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows(contex
     assert restored.files[0].document.declared_count is None
 
 
+def test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_display_name(context_runtime, monkeypatch):
+    from pdfminer.pdfdocument import PDFPasswordIncorrect
+    from ft.application.cash_import_context import CashImportContextService
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from test_icbc_pdf_statement import PDF, Page, _credit, _install
+    import pdfplumber
+    page = Page(_credit())
+    document, _calls = _install(monkeypatch, [page])
+    passwords, streams = [], []
+    def open_(stream, *, password=None):
+        passwords.append(password)
+        streams.append(stream)
+        if password != "fixture-secret":
+            raise PDFPasswordIncorrect("private details")
+        return document
+    monkeypatch.setattr(pdfplumber, "open", open_)
+    store = InMemoryParsedImportStore()
+    service = CashImportContextService(RelationalUnitOfWork(context_runtime.sessions, context_runtime.workspace_id), store, user_id=USER)
+    created = service.create((_upload(filename="工行（密码fixture-secret）.pdf", content=PDF),))
+    first = created.files[0]
+    assert first.status == "needs_password" and first.error_code == "password_required"
+    assert "fixture-secret" not in first.filename
+    wrong = service.replace_file(created.session_id, first.file_ref,
+        _upload(filename="工行（密码fixture-secret）.pdf", content=PDF, password="wrong"), expected_revision=1)
+    assert wrong.files[0].status == "needs_password" and wrong.files[0].error_code == "password_incorrect"
+    finished = service.replace_file(created.session_id, wrong.files[0].file_ref,
+        _upload(filename="工行（密码fixture-secret）.pdf", content=PDF, password="fixture-secret"), expected_revision=2)
+    assert finished.files[0].status == "parsed" and finished.revision == 3
+    assert finished.expires_at == created.expires_at
+    assert passwords == [None, "wrong", "fixture-secret"] and all(stream.closed for stream in streams)
+    restored = service.get(created.session_id).session
+    assert restored == finished and "fixture-secret" not in repr(restored)
+
+
+@pytest.mark.parametrize("filename,password", [
+    ("工行流水密码（fixture-secret）.pdf", None),
+    ("工行流水（密码：fixture-secret）.pdf", None),
+    ("账" * 250 + "fixture-secret.pdf", "fixture-secret"),
+])
+def test_password_is_scrubbed_from_filename_before_truncation(context_runtime, filename, password):
+    created = _service(context_runtime).create((_upload(filename=filename, password=password),))
+    name = created.files[0].filename
+    assert "fixture-secret" not in name and "fixtu" not in name and len(name) <= 255
+
+
 def test_bad_document_from_one_importer_does_not_block_the_other_file(context_runtime):
     def parser(upload):
         return replace(_document(), rows=({"wrong": "shape"},)) if upload.client_file_ref == "bad" else _document()

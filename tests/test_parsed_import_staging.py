@@ -125,6 +125,27 @@ def test_parsed_session_roundtrip_is_detached_and_never_contains_upload_bytes(st
     assert all(body.closed for body in client.bodies)
 
 
+def test_row_level_source_scope_survives_both_parsed_stores(staging):
+    store, _now, _client = staging
+    file = _file()
+    row = replace(file.document.rows[0], source_account_identifier="6222000000001234")
+    file = replace(file, source_type="icbc_credit", document=replace(file.document, source_type="icbc_credit", source_account_identifier=None, rows=(row,)))
+    session = _create(store, files=(file,))
+    assert _get(store, session).files[0].document.rows[0].source_account_identifier == "6222000000001234"
+
+
+@pytest.mark.parametrize("owner", ["", "x" * 257, 123, []])
+def test_invalid_row_level_scope_is_rejected_without_corrupting_session(staging, owner):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    session = _create(store)
+    file = session.files[0]
+    changed = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], source_account_identifier=owner),)))
+    with pytest.raises(ParsedImportDataError):
+        _replace(store, session, files=(changed,))
+    assert _get(store, session) == session
+
+
 @pytest.mark.parametrize("changes", [{"workspace_id": "workspace-b"}, {"user_id": "user-b"}])
 def test_parsed_session_is_bound_to_workspace_and_user(staging, changes):
     from ft.application.cash_import_staging import ImportSessionForbidden
