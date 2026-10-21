@@ -94,6 +94,9 @@
 - [x] 4.10.3.1 提取共享流水写入器并接入无文件的详情／草稿保存服务；验证同身份、幂等、当前详情读取失败、人工保护、问题所有权、组成项归属／清理、关系修订、输入边界、相关投影和事务回滚。
 - [x] 4.10.3.2 实现有类型的无文件编辑上下文、严格维护输入、计划 CAS／分页详情和消费先验；普通导入入口不能读取或消费该种上下文。
 - [ ] 4.10.3.3 实现正式编辑及草稿转正式的同类不可变计划和联合提交，复用统一写入器、账户资格、类型影响及余额／旧新闭包；完整但尚未确认的草稿不自动转正式。
+- [x] 4.10.3.3.1 补齐导入人工补丁与无文件维护共用的来源行派生：无人工保护且未明确填备注时同步原文；替换或清空当前来源解释，保留可信本方身份，不改固定字段、绑定或已确认关系。
+- [ ] 4.10.3.3.2 接入正式编辑及草稿转正式的真实只读业务构建器，复用当前操作、完整关系组、最终图和预计列表；正式编辑不寻找新配对，转正式参与新建议。
+- [ ] 4.10.3.3.3 接入真实维护联合提交及恢复，验证流水／关系保存点、类型影响、当前依赖、余额、投影与消费收据原子性。
 - [ ] 4.10.4 为当前问题应用／保留、身份草稿合并／独立、来源绑定转移和候选失效写失败测试；实现维护计划及当前闭包发布。
 - [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
@@ -108,6 +111,13 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.10.3.3.1 来源派生（2026-10-22，HEAD／比较基线 `71b8b0f`）：补齐已确认主设计第 2.2／9.2 节的实现缺口；拆分来源派生、真实维护规划、联合命令三个可验证小步。缺共享模块的纯回归先 6 failed（0.74 s，`/tmp/ft-cash-source-effects-red.log`）。独立静态复核发现草稿金额补齐未刷新方向提示、解释单独变化被误作重复两项 P2；增量先 6 failed、2 PostgreSQL cases 明确跳过（5.71 s，`/tmp/ft-cash-source-effects-review-red.log`），随后修复。首次归一金额未知丢失可信身份的 4 项回归先失败（0.37 s，`/tmp/ft-cash-source-effects-partial-red.log`），与后续补充统一派生。
+- 来源步最终 SQLite：纯规则／平台／银行／PDF／白名单及两项应用合同共 219 passed、65 PostgreSQL cases 明确跳过（155.06 s，`/tmp/ft-cash-source-effects-final-sqlite.log`）。中间矩阵因空解释 `None/{}` 被误判更新有 1 failed／64 passed；按空对象等价修复后完整重跑，不将中间失败写成通过。独立最终静态复核覆盖原文、清空保护、PDF 列名、一般 JSON、可信身份、金额依赖、解释写入与既有关系，原两项 P2 已关闭，无新增 P1/P2；审查者没有运行测试、数据库、构建或私人账单。
+- 来源步最终双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-source-effects-final-dual.log tests/test_cash_statement_effects.py tests/test_cash_statement_rows.py tests/test_bank_statement_rows.py tests/test_icbc_pdf_statement.py tests/test_cash_statement_evidence.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_commit.py -q --disable-warnings --tb=short --maxfail=4` → 436 passed、无 skip（534.47 s）。同一应用服务在显式专用 `_test` PostgreSQL 与 SQLite 覆盖字段派生、落库修订、原始事项保留、真实业务计划、联合提交与故障隔离。`uv build --out-dir /tmp/ft-cash-source-effects-dist`、`uv run python -m compileall -q src`、OpenSpec strict、8 项合同 JSON 示例及 `git diff --check` 通过；成本验证另行独占。
+- 来源步真实账单探针：`PYTHONPATH=src uv run python /tmp/ft_cash_joint_real_probe.py` → 19 份、15,198 个原始出现全部解析，首次 12,706 正式＋6 草稿、2,408 重复、78 安全跳过，441 确认组、27 待确认组、0 关系失败。再次 0 新增／更新／新关系，15,120 重复及相同 78 跳过；12,712 条流水与 477 条关系不增长，每个出现都有结果、两次同键收据重放正确。去标识日志 `/tmp/ft-cash-source-effects-real-probe.log`；仅仓库外临时 SQLite 与合成账户，退出已清理。与功能矩阵并行，耗时不作为成本证据；原文件、密码、名称、账户编号和来源正文没有进 Git／日志。
+- 来源步独占成本：`uv run python /tmp/ft_cash_source_effects_cost.py` → 6 passed（168.10 s，`/tmp/ft-cash-source-effects-performance.log`）。SQLite／PostgreSQL 千行普通预览 2.6103／2.8658 s、首次提交 3.7005／8.1177 s、重复往返 4.4750／8.6044 s；失败内容准备 1.4425／1.4261 s、派生 0.5853／0.5147 s、重试预览 2.5835／3.7351 s、重试提交 3.8292／9.8794 s，均通过原 5／15 s 门槛。派生加预览合计仍单列 3.1689／4.2498 s；进程 RSS 高水位增量最大 13.78 MiB，低于 256 MiB，0 仅表示未超过已见高水位。一万笔账本的普通草稿备注保存连同当前详情读取，3 次预热／20 次测量 P95 为 17.73／67.91 ms，低于 100 ms；不声称覆盖最大来源正文或大关系组清理。测量时未并发本任务测试、构建或运行时代码修改；复用上步已核对的两枚孤立崩溃上报进程作临时资源隔离，结束两枚均已恢复并核对状态，未暂停模拟器网络进程。
+- 来源步 Cross-platform Impact Check：只补内部归一、导入人工补充及草稿维护共享规则，Web、Native、共享 presentation 无页面、公开入口、文案或操作改动；功能地图更新内部证据，页面数、跨端覆盖及 TODO 不变。无 schema／依赖变化，无真实业务库写入。回退应用不改来源绑定及正式固定字段；最终接口切换仍按既定计划作废旧临时计划。反思：派生依赖不只原文，金额未知到补齐、只有解释变化和空值等价均须独立回归；待展示的问题与本操作负责写入的问题仍保持分离。
 
 - 4.10.3.2 无文件计划发布（2026-10-22，HEAD／比较基线 `e56e5d5`）：存储 kind 反例先 3 failed（0.80 s，`/tmp/ft-cash-mutation-publication-red.log`）；维护服务缺失另 1 failed、1 PostgreSQL case 明确跳过（2.81 s，`/tmp/ft-cash-mutation-service-red.log`）。先回写 design、跨层合同及 ledger delta，再接 `mutation` 空文件上下文、按意图的有界输入、固定目标、父 CAS、独立计划修订、冻结分页、消费先验及当前计划恢复。预览不调用 UoW commit，实际 flush 业务修改的回归证明退出会回滚；不使用伪账单或将临时上下文当作持久草稿。
 - 独立静态复核发现摘要可透传私有正文的 P2，先以未知键、布尔、负数、字符串四组反例 4 failed／4 PostgreSQL cases 明确跳过（9.44 s，`/tmp/ft-cash-mutation-summary-red.log`），再在首次发布、替换前及响应读取校验明确计数键和非负整数。计划 `update_posted` 与永久结果 `updated_posted` 分开；首次失败不建上下文，重预览失败保留旧计划。补同工作区其他编辑者不可读取／恢复／取消，以及构建器 flush 后回滚的证据，独立最终静态复核确认该 P2 关闭、无新 P1／P2。

@@ -54,6 +54,39 @@ def test_new_record_has_fields_without_fabricated_update_differences(draft_runti
         assert operation["field_diffs"] == []
 
 
+@pytest.mark.parametrize("protected,explicit,expected", [(False, None, "人工修改的来源原文"), (True, None, "人工旧备注"), (False, "", "")])
+def test_import_manual_source_patch_rederives_note_and_explanation(draft_runtime, protected, explicit, expected):
+    runtime, file = draft_runtime, _file()
+    with runtime.sessions.begin() as session:
+        _bind_existing(session, runtime, file, note="人工旧备注" if protected else None)
+    patch = {"source_payload": {"备注": "人工修改的来源原文", "交易状态": "交易成功", "交易订单号": "raw-new"}}
+    if explicit is not None:
+        patch["note"] = explicit
+    with runtime.sessions() as session:
+        prepared = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
+        operation, = prepared.operations
+        assert operation["values"]["note"] == expected
+        assert operation["source_explanation"]["txn_id"] == "raw-new"
+        assert operation["manual_fields"] == (["note"] if explicit is not None else [])
+        assert session.get(CashTransactionModel, 1003).source_payload != patch["source_payload"]
+
+
+def test_metadata_only_manual_source_patch_is_an_update(draft_runtime):
+    runtime, file = draft_runtime, _file()
+    payload = {"备注": "原始备注", "交易订单号": "current-source-id", "交易状态": "交易成功"}
+    file = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0],
+        fields={**file.document.rows[0].fields, "source_payload": payload}),)))
+    with runtime.sessions.begin() as session:
+        _bind_existing(session, runtime, file)
+        session.get(CashTransactionModel, 1003).relation_metadata = {}
+    with runtime.sessions() as session:
+        operation, = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+            "patch": {"source_payload": payload}}]).operations
+        assert operation["values"] == operation["current"]
+        assert operation["planned_action"] == "update_posted"
+        assert operation["source_explanation"]["txn_id"] == "current-source-id"
+
+
 def _bind_existing(session, runtime, file, *, note=None):
     parent = session.get(CashTransactionModel, 1003)
     row = next(iter(source_batch_rows((file,)).values()))

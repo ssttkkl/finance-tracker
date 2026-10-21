@@ -8,8 +8,8 @@ import re
 
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.cash_statement_evidence import extract_source_explanation
+from ft.adapters.cash_statement_effects import cash_source_note, derive_cash_source_explanation
 from ft.adapters.icbc_pdf_document import DEBIT_HEADERS, full_card
-from ft.domain.cash_record_policy import source_note
 from ft.domain.decimal import exact_decimal
 from ft.domain.import_time import normalize_statement_timestamp
 from ft.domain.record_type import classify_cash_record, normalize_counterparty_account
@@ -29,7 +29,7 @@ def _row(row, document):
     fields = {"amount": None, "currency": None, "occurred_at": None, "record_type": None, "record_subtype": None,
         "counterparty": cells.get("对方户名", "").replace("\n", "").strip(),
         "counterparty_account": "" if credit else cells.get("对方账号", "").replace("\n", "").strip(),
-        "counterparty_account_attrs": [], "note": source_note(cells), "source_payload": deepcopy(payload)}
+        "counterparty_account_attrs": [], "note": cash_source_note(document.source_type, payload), "source_payload": deepcopy(payload)}
     date = cells.get("入账日期" if credit else "交易日期", "").replace("\n", " ").strip()
     try:
         if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}", date):
@@ -82,6 +82,9 @@ def _row(row, document):
         fields["record_type"], fields["record_subtype"] = classify_cash_record(document.source_type, native)
         method = native["payment_method"]
         explanation = extract_source_explanation(native)
+    explanation = derive_cash_source_explanation(document.source_type, payload, amount=amount,
+        source_explanation={**explanation, "_source_account_identifier": owner or "", "file_account_key": owner or "",
+            "card_number": owner[-4:] if owner else "", "source_display_name": "工商银行信用卡" if credit else "工商银行借记卡"})
     account = normalize_counterparty_account(fields["counterparty_account"], source=document.source_type,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"], fields["counterparty_account_attrs"] = account.value, list(account.attrs)

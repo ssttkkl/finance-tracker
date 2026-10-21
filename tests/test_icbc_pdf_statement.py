@@ -78,6 +78,16 @@ def _parse(monkeypatch, pages, **kwargs):
     return parsed
 
 
+@pytest.mark.parametrize("kind", ["credit", "debit"])
+def test_unreadable_amount_retains_trusted_owner_and_raw_summary(monkeypatch, kind):
+    page = Page(_credit(交易金额="bad", 摘要="退货") if kind == "credit" else _debit(**{"收入/支出金额": "bad", "摘要": "退款"}), kind=kind)
+    parsed = _parse(monkeypatch, [page])
+    row, = parsed.rows
+    assert row.fields["amount"] is None and row.error_code is None
+    assert row.source_explanation["_source_account_identifier"] == (row.source_account_identifier or parsed.source_account_identifier)
+    assert row.source_explanation["summary"] in {"退货", "退款"}
+
+
 def test_credit_uses_transaction_columns_preserves_occurrences_and_exact_raw_note(monkeypatch):
     note = "  原始摘要" + "详" * 120 + "  "
     page = Page(_credit(摘要=note), _credit(摘要=note))

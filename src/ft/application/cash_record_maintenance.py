@@ -3,6 +3,7 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
+from ft.adapters.cash_statement_effects import prepare_cash_source_effects
 from ft.adapters.relational.cash_attention import read_cash_attention
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
@@ -142,6 +143,8 @@ class CashRecordMaintenanceService:
         current = self._fields(session, row)
         prepared = prepare_cash_record_update(current, patch)
         values = {**deepcopy(current), **prepared.values, "state": "draft"}
+        values, explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
+            source_explanation=row.relation_metadata, protected_fields={key for key, value in (row.manual_overrides or {}).items() if value})
         if "components" in patch:
             _validate_component_ids(current["components"], values["components"])
         if any("ordinal" not in part for part in values["components"]):
@@ -170,8 +173,10 @@ class CashRecordMaintenanceService:
         remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, patch))
         issues.extend(cash_import_issue(issue.code, field_path=issue.field_path) for issue in parsed if issue.code in remaining)
         manual = sorted(set(patch) & {"note", "category_id"})
-        action = "update_draft" if values != current or manual else "duplicate"
-        return {"transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
+        explanation_changed = explanation is not None and explanation != (row.relation_metadata or {})
+        action = "update_draft" if values != current or manual or explanation_changed else "duplicate"
+        return {**({"source_explanation": explanation} if explanation is not None else {}),
+            "transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
             "current": _wire(current), "values": _wire(values), "manual_fields": manual, "type_changed": prepared.type_changed,
             "source_updates": [], "pending_fields": {}, "candidate_ids": [], "expected_accounts": dependencies,
             "issues": list({(issue["code"], issue["field_path"]): issue for issue in issues}.values()),

@@ -9,6 +9,7 @@ from typing import Any
 
 from ft.adapters.cash_statement_document import CashStatementDocument
 from ft.adapters.cash_statement_evidence import extract_source_explanation
+from ft.adapters.cash_statement_effects import derive_cash_source_explanation
 from ft.domain.cash_record_policy import source_note
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.decimal import exact_decimal
@@ -87,6 +88,8 @@ def _normalize_row(payload, source, position):
             explanation = extract_source_explanation(native)
     identifier = payload.get("交易订单号" if source == "alipay" else "交易单号", "").strip()
     provider_id = identifier if identifier not in {"", "/", "-", "--"} and len(identifier) <= 512 else None
+    explanation = derive_cash_source_explanation(source, payload, amount=exact_decimal(fields["amount"]) if fields["amount"] is not None else None,
+        source_explanation=explanation)
     return ParsedCashRow(position, fields, method, provider_id, tuple(issues), source_explanation=explanation)
 
 
@@ -172,6 +175,8 @@ def _bank_row(payload, document, position):
         explanation = extract_source_explanation(native)
         if not is_ccb and amount == 0 and payload.get("業務類型", "").strip() in {"新開戶", "新开户"} and not issues:
             return ParsedCashRow(position, None, error_code="account_opening", disposition="skipped")
+    explanation = derive_cash_source_explanation(source, payload, amount=amount,
+        source_explanation={**explanation, "_source_account_identifier": owner or "", "card_number": card or ""})
     counterparty_account = normalize_counterparty_account(fields["counterparty_account"], source=source,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"] = counterparty_account.value

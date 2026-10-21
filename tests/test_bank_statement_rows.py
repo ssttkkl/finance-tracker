@@ -60,6 +60,15 @@ def _parse(content, source=None):
     return normalize_bank_document(_raw(content, source))
 
 
+@pytest.mark.parametrize("builder,row", [(_ccb_bytes, _ccb_row(交易金额="bad")), (_asia_bytes, _asia_row(支出金額="bad"))])
+def test_draft_retains_declared_owner_before_amount_can_be_read(builder, row):
+    parsed = _parse(builder(row))
+    draft, = parsed.rows
+    assert draft.fields["amount"] is None and draft.error_code is None
+    assert draft.source_explanation["_source_account_identifier"] == parsed.source_account_identifier
+    assert draft.source_explanation["card_number"]
+
+
 @pytest.mark.parametrize("source,builder,row,sequence,position", [
     ("ccb_debit", _ccb_bytes, _ccb_row, "序号", 5),
     ("icbc_asia", _asia_bytes, _asia_row, "序號", 9),

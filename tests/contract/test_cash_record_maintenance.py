@@ -31,6 +31,48 @@ def _complete(detail, *, note="人工草稿备注"):
         "component_id": part["component_id"], "ordinal": 0, "account_id": "101", "amount": "-12.5", "currency": "CNY"}]}
 
 
+@pytest.mark.parametrize("protected,explicit,expected", [(False, None, "来源新原文"), (True, None, ""), (False, "", "")])
+def test_draft_source_edits_share_note_derivation_without_changing_binding(context_runtime, protected, explicit, expected):
+    runtime, identifier = context_runtime, _draft(context_runtime)
+    with runtime.sessions.begin() as session:
+        row = session.get(CashTransactionModel, int(identifier))
+        row.note, row.manual_overrides = "" if protected else "旧原文", {"note": True} if protected else {}
+        row.relation_metadata = {"_source_account_identifier": "trusted-owner", "_refund_signal": "alipay_status"}
+        bindings = [(item.id, item.transaction_id, item.identity_key) for item in session.scalars(select(CashSourceBindingModel))]
+    service = _service(runtime)
+    before = service.read(identifier)
+    patch = {"source_payload": {"备注": "来源新原文", "交易订单号": "different-explanation-only", "交易状态": "交易成功"}}
+    if explicit is not None:
+        patch["note"] = explicit
+    final = service.save_draft(identifier, expected_revision=before["row_revision"], patch=patch,
+        idempotency_key="synthetic-draft-source-edit")["current_record"]
+    assert final["fields"]["note"] == expected and final["state"] == "draft"
+    with runtime.sessions() as session:
+        row = session.get(CashTransactionModel, int(identifier))
+        assert row.relation_metadata["txn_id"] == "different-explanation-only"
+        assert row.relation_metadata["_source_account_identifier"] == "trusted-owner"
+        assert "_refund_signal" not in row.relation_metadata
+        assert bool(row.manual_overrides.get("note")) == (protected or explicit is not None)
+        assert [(item.id, item.transaction_id, item.identity_key) for item in session.scalars(select(CashSourceBindingModel))] == bindings
+
+
+def test_same_source_payload_repairs_current_explanation_and_advances_parent_revision(context_runtime):
+    runtime, identifier = context_runtime, _draft(context_runtime)
+    payload = {"交易状态": "交易成功", "交易订单号": "current-source-id", "备注": "来源原文"}
+    with runtime.sessions.begin() as session:
+        row = session.get(CashTransactionModel, int(identifier))
+        row.source_payload, row.relation_metadata = payload, {"_refund_signal": "alipay_status"}
+        row.note, row.manual_overrides = "", {"note": True}
+    service = _service(runtime)
+    before = service.read(identifier)
+    final = service.save_draft(identifier, expected_revision=before["row_revision"], patch={"source_payload": payload},
+        idempotency_key="synthetic-current-explanation")["current_record"]
+    assert final["row_revision"] > before["row_revision"] and final["fields"]["note"] == ""
+    with runtime.sessions() as session:
+        evidence = session.get(CashTransactionModel, int(identifier)).relation_metadata
+        assert evidence["txn_id"] == "current-source-id" and "_refund_signal" not in evidence
+
+
 def test_complete_draft_save_keeps_identity_bindings_and_excludes_balances(context_runtime):
     runtime, identifier = context_runtime, _draft(context_runtime)
     service = _service(runtime)

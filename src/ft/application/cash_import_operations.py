@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from sqlalchemy import select
 
+from ft.adapters.cash_statement_effects import prepare_cash_source_effects
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashTransactionIssueModel, CashTransactionModel
 from ft.application.cash_import_funding import resolve_cash_funding, scan_cash_funding
 from ft.application.cash_import_issues import cash_import_issue
@@ -267,6 +268,10 @@ class CashImportOperationPlanner:
         if manual.get("category_id") is not None and manual["category_id"] not in categories:
             raise CashRecordPolicyError("category_unavailable", ("category_id",))
         values = {**source_values, **manual_update.values}
+        values, manual_explanation = prepare_cash_source_effects(values, manual, source_type=occurrence.source_type,
+            source_explanation=explanation, protected_fields=record.protected_fields if record else frozenset())
+        if manual_explanation is not None:
+            explanation = manual_explanation
         if any("ordinal" not in part for part in values["components"]):
             raise CashRecordPolicyError("invalid_field", ("components",))
         protected = sorted(set(manual) & {"note", "category_id"})
@@ -302,7 +307,7 @@ class CashImportOperationPlanner:
             action = "create_" + values["state"]
         elif current["state"] == "draft" and values["state"] == "posted":
             action = "finalize_draft"
-        elif values != current or protected or pending:
+        elif values != current or protected or pending or (choice["action"] != "defer" and explanation != (target.relation_metadata or {})):
             action = "update_" + current["state"]
         else:
             action = "duplicate"
