@@ -24,6 +24,89 @@ def _repository(session, runtime):
     return CashSourceRepository(session, runtime.workspace_id)
 
 
+def _document_row(session, **changes):
+    from ft.domain.cash_source_matching import SourceCoverage
+    row = _row_for_parent(session)
+    return replace(row, coverage=SourceCoverage(document_key="f" * 64, page_total=3,
+        page_fingerprints={"2": "d" * 64, "3": "e" * 64}), document_position="p2:t0:r1", **changes)
+
+
+def test_document_aliases_survive_repartitioning_and_exclude_other_pages(source_runtime):
+    from ft.domain.cash_source_matching import resolve_source_file
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        original = _document_row(session)
+        repo.save_occurrence(1001, original)
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        incoming = replace(original, file_digest="b" * 64, position=9)
+        following = replace(incoming, position=10, document_position="p3:t0:r1")
+        records = repo.records_for_file([incoming, following])
+        old = next(record for record in records if record.transaction_id == "1001")
+        assert old.file_occurrences[original.document_scope_key] == frozenset({original.document_occurrence_key})
+        results = resolve_source_file([incoming, following], records)
+        assert [(result.action, result.transaction_id) for result in results] == [("duplicate", "1001"), ("new", None)]
+        assert repo.find(incoming) == 1001 and repo.find(following) is None
+
+
+def test_distinct_pages_cannot_be_bound_or_merged_as_the_same_record(source_runtime):
+    from ft.adapters.relational.cash_sources import SourceBindingConflict
+    from ft.adapters.relational.models import CashTransactionModel
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        original = _document_row(session)
+        following = replace(original, file_digest="b" * 64, document_position="p3:t0:r1")
+        repo.save_occurrence(1001, original)
+        with pytest.raises(SourceBindingConflict, match="source_identity_conflict"):
+            repo.save_occurrence(1001, following)
+        session.get(CashTransactionModel, 1002).state = "draft"
+        session.flush()
+        repo.save_occurrence(1002, following)
+        with pytest.raises(SourceBindingConflict, match="source_identity_conflict"):
+            repo.transfer_draft_bindings(1002, 1001)
+        assert repo.find(original) == 1001 and repo.find(following) == 1002
+
+
+def test_page_evidence_is_compact_and_unbound_conflicting_page_is_rejected(source_runtime):
+    from ft.adapters.relational.cash_sources import SourceBindingConflict
+    from ft.domain.cash_source_batch import resolve_source_batch
+    from ft.domain.cash_source_matching import SourceCoverage
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        row = _document_row(session)
+        repo.save_occurrence(1001, row)
+        assert all(set(binding.coverage["page_fingerprints"]) == {"2"} for binding in repo.bindings_for(1001))
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        incoming = replace(row, file_digest="b" * 64, position=5, document_position="p2:t0:r2",
+            fields={**row.fields, "occurred_at": "2030-01-01T10:00:00+00:00"},
+            coverage=SourceCoverage(document_key="f" * 64, page_total=3, page_fingerprints={"2": "c" * 64}))
+        assert repo.records_for_file([incoming]) == []
+        evidence = repo.document_coverages_for_rows([incoming])
+        plan = resolve_source_batch({"new:r5": incoming}, [], known_document_coverages=evidence)
+        assert plan.rows[0].action == "conflict" and plan.rows[0].reason == "batch_identity_conflict"
+        with pytest.raises(SourceBindingConflict, match="source_document_conflict"):
+            repo.save_occurrence(1002, incoming)
+
+
+def test_deleted_record_does_not_keep_a_page_conflict_tombstone(source_runtime):
+    from datetime import datetime, timezone
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.domain.cash_source_matching import SourceCoverage
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        row = _document_row(session)
+        repo.save_occurrence(1001, row)
+        session.get(CashTransactionModel, 1001).deleted_at = datetime.now(timezone.utc)
+    incoming = replace(row, file_digest="b" * 64,
+        coverage=SourceCoverage(document_key="f" * 64, page_total=3, page_fingerprints={"2": "c" * 64}))
+    with source_runtime.sessions.begin() as session:
+        repo = _repository(session, source_runtime)
+        assert repo.document_coverages_for_rows([incoming]) == ()
+        repo.save_occurrence(1002, incoming)
+        assert repo.find(incoming) == 1002
+
+
 def test_occurrence_bindings_are_transactional_and_same_file_idempotent(source_runtime):
     from ft.adapters.relational.models import CashSourceBindingModel
     runtime = source_runtime

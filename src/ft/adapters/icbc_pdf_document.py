@@ -9,7 +9,7 @@ from ft.adapters.cash_statement_document import (
     CashStatementDocument, RawCashRow, StatementDocumentError,
     _MAX_COLUMNS, _MAX_INPUT_BYTES, _MAX_PARSED_BYTES, _MAX_PHYSICAL_ROWS, _MAX_ROWS,
 )
-from ft.domain.cash_source_matching import SourceCoverage
+from ft.domain.cash_source_matching import SourceCoverage, _digest
 from ft.domain.import_time import normalize_statement_timestamp
 from ft.importers.pdf_tools import _raise_pdf_password_error
 
@@ -49,10 +49,23 @@ def _pdf_pages(pdf):
         yield page
 
 
-def _coverage(texts, page_counts, page_numbers, rows, *, source, complete):
-    ranges, counts, totals, orders, filters = [], [], [], [], []
+def _header_owner(text, source):
+    from ft.convert import _extract_icbc_debit_card_identifier
+    label = r"入\s*账\s*日\s*期" if source == "icbc_credit" else r"交\s*易\s*日\s*期"
+    boundary = re.search(label, text)
+    if boundary:
+        try:
+            return full_card(_extract_icbc_debit_card_identifier(text[:boundary.start()].splitlines()))
+        except ValueError:
+            pass
+    return None
+
+
+def _coverage(texts, page_counts, page_numbers, rows, fingerprints, *, source, complete):
+    ranges, counts, totals, orders, filters, owners, stamps = [], [], [], [], [], [], []
     date = r"(?:[0-9]{4}-[0-9]{2}-[0-9]{2}|[0-9]{8})"
     for text in texts:
+        owners.append(_header_owner(text, source))
         text = _compact(text)
         ranges.append(_one(re.findall(r"起止(?:交易)?日期[:：]?(" + date + r")[至—–~～-]+(" + date + r")", text)))
         counts.append(_one(int(value.replace(",", "")) for value in re.findall(r"本页交易笔数[:：]([0-9][0-9,]{0,11})", text)))
@@ -60,6 +73,7 @@ def _coverage(texts, page_counts, page_numbers, rows, *, source, complete):
         totals.append(_one(int(value[0]) for value in pages))
         orders.append(_one(int(value[1]) for value in pages))
         filters.extend(re.findall(r"(?:交易类型|收支类型|交易筛选)[:：]([^，,;；\n]+)", text))
+        stamps.append(_one(re.findall(r"下单时间[:：]?([0-9]{4}-[0-9]{2}-[0-9]{2}[0-9]{2}:[0-9]{2}:[0-9]{2})(?![0-9])", text)))
     interval = _one(ranges)
     start = end = None
     if interval:
@@ -69,14 +83,27 @@ def _coverage(texts, page_counts, page_numbers, rows, *, source, complete):
         except (ValueError, OverflowError):
             start = end = None
     declared = sum(counts) if counts and all(count is not None for count in counts) else None
-    complete = bool(complete and start and end and start < end and counts == page_counts
-        and orders == page_numbers and all(total == len(texts) for total in totals)
+    verified = bool(complete and start and end and start < end and counts == page_counts
         and declared == len(rows) and all(value in {"全部", "全部交易", "全部类型", "所有"} for value in filters))
+    complete = verified and orders == page_numbers and all(total == len(texts) for total in totals)
+    key, total, page_fingerprints = None, _one(totals), {}
+    stamp, owner = _one(stamps), _one(owners)
+    if stamp:
+        try:
+            datetime.strptime(stamp, "%Y-%m-%d%H:%M:%S")
+        except ValueError:
+            stamp = None
+    if (verified and owner and stamp and total is not None and 1 <= total <= _MAX_PDF_PAGES
+        and all(order is not None and 1 <= order <= total for order in orders)
+        and orders == list(range(orders[0], orders[0] + len(orders)))):
+        key = _digest("icbc-export-v1", source, owner, interval, stamp, total, "all")
+        page_fingerprints = {str(order): fingerprint for order, fingerprint in zip(orders, fingerprints, strict=True)}
     return declared, SourceCoverage(
         start=normalize_statement_timestamp(start, source=source) if start else None,
         end=normalize_statement_timestamp(end, source=source) if end else None,
         complete=complete, evidence="icbc-pdf-range-pages-count-v1" if complete else "",
         filters={"export_type": "all"}, strategy_version="icbc-pdf-coverage-v1",
+        document_key=key, page_total=total if key else None, page_fingerprints=page_fingerprints,
     )
 
 
@@ -86,7 +113,7 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
     if source not in {None, "icbc", "icbc_credit", "icbc_debit"}:
         raise StatementDocumentError("statement_source_unsupported")
     import pdfplumber
-    rows, texts, page_counts, page_numbers = [], [], [], []
+    rows, texts, page_counts, page_numbers, fingerprints = [], [], [], [], []
     detected, physical, parsed_bytes, chars, complete = None, 0, 0, 0, True
     with BytesIO(content) as stream:
         pdf = None
@@ -111,13 +138,15 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
                         raise StatementDocumentError("statement_rows_too_large")
                     texts.append(text)
                     page_numbers.append(page_number)
+                    declared_page = _one(int(value) for value in re.findall(r"共[0-9]{1,6}页第([0-9]{1,6})页", _compact(text)))
                     tables = filtered.extract_tables()
                     if not tables:
                         raise StatementDocumentError("statement_header_not_found")
                     if len(tables) > _MAX_TABLES_PER_PAGE:
                         raise StatementDocumentError("statement_rows_too_large")
                     before = len(rows)
-                    for table in tables:
+                    fingerprints.append(_digest(tables))
+                    for table_index, table in enumerate(tables):
                         if not table or not table[0] or len(table[0]) > _MAX_COLUMNS:
                             raise StatementDocumentError("statement_header_invalid")
                         header = tuple(str(cell or "") for cell in table[0])
@@ -129,7 +158,7 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
                             raise StatementDocumentError("statement_source_unsupported")
                         detected = kind
                         physical += 1
-                        for values in table[1:]:
+                        for row_index, values in enumerate(table[1:], 1):
                             physical += 1
                             if physical > _MAX_PHYSICAL_ROWS:
                                 raise StatementDocumentError("statement_rows_too_large")
@@ -142,7 +171,8 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
                             parsed_bytes += sum(len(value.encode("utf-8")) for value in values)
                             if parsed_bytes > _MAX_PARSED_BYTES:
                                 raise StatementDocumentError("statement_rows_too_large")
-                            rows.append(RawCashRow(physical, payload, None if payload is not None else "row_shape_invalid"))
+                            location = f"p{declared_page}:t{table_index}:r{row_index}" if declared_page is not None and 1 <= declared_page <= _MAX_PDF_PAGES else None
+                            rows.append(RawCashRow(physical, payload, None if payload is not None else "row_shape_invalid", location))
                             complete = complete and payload is not None
                     page_counts.append(len(rows) - before)
                 finally:
@@ -161,16 +191,7 @@ def read_icbc_document(content: bytes, *, source: str | None = None, password: s
                 pdf.close()
     owner = None
     if detected == "icbc_debit":
-        from ft.convert import _extract_icbc_debit_card_identifier
-        headers = []
-        for text in texts:
-            boundary = re.search(r"交\s*易\s*日\s*期", text)
-            if boundary:
-                headers.extend(text[:boundary.start()].splitlines())
-        try:
-            owner = full_card(_extract_icbc_debit_card_identifier(headers))
-        except ValueError:
-            pass
+        owner = _one(_header_owner(text, detected) for text in texts)
     complete = complete and bool(re.search(rb"startxref\s+[0-9]+\s*%%EOF\s*$", content))
-    declared, coverage = _coverage(texts, page_counts, page_numbers, rows, source=detected, complete=complete)
+    declared, coverage = _coverage(texts, page_counts, page_numbers, rows, fingerprints, source=detected, complete=complete)
     return CashStatementDocument(detected, "pdf:0", "icbc-pdf-tables-v1", tuple(rows), owner, owner, coverage, declared, len(rows))

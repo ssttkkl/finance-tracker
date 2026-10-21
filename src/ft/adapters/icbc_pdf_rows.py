@@ -82,7 +82,7 @@ def _row(row, document):
     account = normalize_counterparty_account(fields["counterparty_account"], source=document.source_type,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"], fields["counterparty_account_attrs"] = account.value, list(account.attrs)
-    return ParsedCashRow(row.position, fields, method, issue_codes=tuple(issues), source_account_identifier=owner if credit else None)
+    return ParsedCashRow(row.position, fields, method, issue_codes=tuple(issues), source_account_identifier=owner if credit else None, document_position=row.document_position)
 
 
 def normalize_icbc_document(document):
@@ -95,7 +95,8 @@ def normalize_icbc_document(document):
             rows.append(_row(row, document))
         except Exception:
             rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
-    usable = all(not row.issue_codes and not row.error_code and document.coverage.contains(row.fields.get("occurred_at")) for row in rows)
-    coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="")
+    declared_range = replace(document.coverage, complete=True, evidence="declared-range")
+    usable = all(not row.issue_codes and not row.error_code and declared_range.contains(row.fields.get("occurred_at")) for row in rows)
+    coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="", document_key=None, page_total=None, page_fingerprints={})
     return ParsedCashDocument(document.source_type, document.table_key, document.parser_version + "+native-v1", tuple(rows),
         document.source_account_identifier, document.source_account_label, coverage, document.declared_count, document.observed_count)

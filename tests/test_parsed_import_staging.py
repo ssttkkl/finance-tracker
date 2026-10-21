@@ -103,6 +103,17 @@ def _get(store, session, **changes):
     return store.get(session.session_id, workspace_id=changes.get("workspace_id", "workspace-a"), user_id=changes.get("user_id", "user-a"))
 
 
+def test_document_page_proof_and_locator_roundtrip_without_original_file(staging):
+    store, _, _ = staging
+    file = _file()
+    coverage = SourceCoverage(document_key="f" * 64, page_total=3, page_fingerprints={"2": "e" * 64})
+    row = replace(file.document.rows[0], document_position="p2:t0:r1")
+    file = replace(file, document=replace(file.document, rows=(row,), coverage=coverage))
+    session = _create(store, files=(file,))
+    restored = _get(store, session).files[0].document
+    assert restored.coverage == coverage and restored.rows[0].document_position == "p2:t0:r1"
+
+
 def _replace(store, session, **changes):
     return store.replace(session.session_id, workspace_id="workspace-a", user_id="user-a", expected_revision=session.revision,
         files=changes.get("files", session.files), preview_input=changes.get("preview_input", session.preview_input), plan=changes.get("plan", session.plan))

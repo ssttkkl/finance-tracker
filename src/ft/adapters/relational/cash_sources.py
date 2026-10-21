@@ -1,14 +1,15 @@
 """来源绑定和当前问题存储；调用方持有工作区写锁并管理保存点。"""
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from collections import defaultdict
+import json
 import re
 
-from sqlalchemy import and_, delete, func, or_, select, tuple_
+from sqlalchemy import Text, and_, cast, delete, func, or_, select, tuple_
 
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
-from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceOccurrence, SourceRecord, provider_identity_key
+from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceOccurrence, SourceRecord, provider_identity_key, _digest, conflicting_document_pages
 from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
 from .models import (
     CashIssueCandidateModel, CashSourceBindingModel,
@@ -55,6 +56,16 @@ def _identity_parts(target, bindings):
         scopes.add(WECHAT_DEFAULT_SCOPE)
         providers.add(provider_identity_key(legacy))
     return scopes, providers, evidence
+
+
+def _document_positions(bindings):
+    positions = defaultdict(set)
+    for binding in bindings:
+        document = (binding.coverage or {}).get("document_key")
+        if (document and binding.source_scope_kind == "file_local" and binding.identity_kind == "file_occurrence"
+            and binding.source_scope_key == _digest("source-document-v1", binding.source_type, binding.strategy_version, document)):
+            positions[binding.source_scope_key].add(binding.identity_key)
+    return positions
 
 
 # 与 Python str.strip 使用同一空白集合，兼容旧读取器保留的原始交易号。
@@ -121,6 +132,9 @@ class CashSourceRepository:
         incoming_provider = next((spec.identity_key for spec in row.binding_specs if spec.identity_kind == "provider_id"), None)
         if target.source_type != row.source_type or row.source_account_key and scopes and scopes != {row.source_account_key} or incoming_provider and providers and incoming_provider not in providers or row.stable_evidence_binding_key and evidence and row.stable_evidence_binding_key not in evidence:
             raise SourceBindingConflict("source_identity_conflict")
+        positions = _document_positions(bindings).get(row.document_scope_key, set())
+        if row.document_occurrence_key and positions and positions != {row.document_occurrence_key}:
+            raise SourceBindingConflict("source_identity_conflict")
 
     def records_for_file(self, rows):
         """只读直接绑定及同时间候选；不以内容散列或内部账户建立来源身份。"""
@@ -185,6 +199,7 @@ class CashSourceRepository:
                 provider_id=legacy_provider,
                 coverages=tuple(SourceCoverage(**binding.coverage) for binding in aliases),
                 binding_keys=frozenset(key.key for key in keys),
+                file_occurrences={scope: frozenset(positions) for scope, positions in _document_positions(aliases).items()},
                 provider_binding_key=next((key.key for key in keys if key.identity_kind == "provider_id"), None),
                 stable_evidence_binding_key=next((binding.stable_evidence_key for binding in aliases if binding.stable_evidence_key), None),
                 row_revision=parent.row_revision,
@@ -192,11 +207,45 @@ class CashSourceRepository:
             ))
         return result
 
+    def document_coverages_for_rows(self, rows):
+        """按认证导出命名空间批量核对，不依赖当前时间索引命中旧流水。"""
+        scopes = sorted({(row.source_type, row.document_scope_key) for row in rows if row.document_occurrence_key})
+        result = []
+        for offset in range(0, len(scopes), 250):
+            values = self.session.scalars(select(cast(CashSourceBindingModel.coverage, Text)).join(CashTransactionModel, and_(
+                CashTransactionModel.workspace_id == CashSourceBindingModel.workspace_id,
+                CashTransactionModel.id == CashSourceBindingModel.transaction_id,
+            )).where(
+                CashSourceBindingModel.workspace_id == self.workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+                CashSourceBindingModel.source_scope_kind == "file_local",
+                CashSourceBindingModel.identity_kind == "file_occurrence",
+                tuple_(CashSourceBindingModel.source_type, CashSourceBindingModel.source_scope_key).in_(scopes[offset:offset + 250]),
+            ).distinct())
+            result.extend(SourceCoverage(**json.loads(value)) for value in values)
+        return tuple(result)
+
     def save_occurrence(self, transaction_id, row: SourceOccurrence, *, uncertain=False):
         target = self._target(transaction_id)
         if target.source_type != row.source_type or uncertain and target.state != "draft":
             raise SourceBindingConflict("source_target_incompatible")
         self._validate_scope(target, row)
+        if row.document_page:
+            page = row.document_page[1]
+            fingerprint = CashSourceBindingModel.coverage["page_fingerprints"][page].as_string()
+            conflict = self.session.scalar(select(CashSourceBindingModel.id).join(CashTransactionModel, and_(
+                CashTransactionModel.workspace_id == CashSourceBindingModel.workspace_id,
+                CashTransactionModel.id == CashSourceBindingModel.transaction_id,
+            )).where(
+                CashSourceBindingModel.workspace_id == self.workspace_id,
+                CashTransactionModel.deleted_at.is_(None),
+                CashSourceBindingModel.source_type == row.source_type,
+                CashSourceBindingModel.source_scope_kind == "file_local",
+                CashSourceBindingModel.source_scope_key == row.document_page_scope_key,
+                fingerprint.is_not(None), fingerprint != row.coverage.page_fingerprints[page],
+            ).limit(1))
+            if conflict is not None:
+                raise SourceBindingConflict("source_document_conflict")
         specs = [spec for spec in row.binding_specs if not uncertain or spec.scope_kind == "file_local"]
         existing = {
             (binding.source_type, binding.source_scope_kind, binding.source_scope_key, binding.identity_kind, binding.identity_key): binding
@@ -209,7 +258,11 @@ class CashSourceRepository:
                 if previous is not None and previous.deleted_at is None:
                     raise SourceBindingConflict("active_source_binding")
         try:
-            coverage = _json_object(asdict(row.coverage))
+            row_coverage = row.coverage
+            if row.document_page:
+                page = row.document_page[1]
+                row_coverage = replace(row_coverage, page_fingerprints={page: row.coverage.page_fingerprints[page]})
+            coverage = _json_object(asdict(row_coverage))
         except (CashRecordPolicyError, TypeError, ValueError):
             raise SourceBindingConflict("invalid_source_coverage") from None
         for spec in specs:
@@ -310,6 +363,10 @@ class CashSourceRepository:
         scopes, providers, evidence = (left | right for left, right in zip(draft_identity, target_identity))
         if len(scopes) > 1 or len(providers) > 1 or len(evidence) > 1:
             raise SourceBindingConflict("source_identity_conflict")
+        if any(len(positions) > 1 for positions in _document_positions([*draft_bindings, *target_bindings]).values()):
+            raise SourceBindingConflict("source_identity_conflict")
+        if conflicting_document_pages([SourceCoverage(**binding.coverage) for binding in [*draft_bindings, *target_bindings]]):
+            raise SourceBindingConflict("source_document_conflict")
         for binding in draft_bindings:
             binding.transaction_id = target.id
         self.session.flush()

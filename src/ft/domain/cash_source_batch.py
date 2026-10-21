@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 from ft.domain.cash_record_policy import CashRecordPolicyError, _normalize, prepare_cash_record_update
 from ft.domain.cash_source_matching import (
     SourceOccurrence, SourceRecord, SourceResolution, _compatible, _digest, _index, _patch,
-    _record_binding_keys, _resolve_source_rows,
+    _record_binding_keys, _resolve_source_rows, conflicting_document_pages,
 )
 
 
@@ -37,6 +37,14 @@ class SourceBatchGroup:
 class SourceBatchPlan:
     rows: tuple[SourceBatchResolution, ...]
     groups: tuple[SourceBatchGroup, ...] = ()
+
+
+class SourceBatchInput(dict[str, SourceOccurrence]):
+    """所有文件证据独立于行集合，空页也必须参与本批身份校验。"""
+
+    def __init__(self, *args, document_coverages=(), **kwargs):
+        super().__init__(*args, **kwargs)
+        self.document_coverages = tuple(document_coverages)
 
 
 @dataclass(frozen=True)
@@ -69,7 +77,7 @@ def _content_value(value):
 
 
 def resolve_source_batch(
-    rows: Mapping[str, SourceOccurrence], records: Sequence[SourceRecord],
+    rows: Mapping[str, SourceOccurrence], records: Sequence[SourceRecord], *, known_document_coverages=(),
 ) -> SourceBatchPlan:
     """保留每个会话行引用；只把确定身份或等价结果归并为共同写入。"""
     if any(not isinstance(ref, str) or not ref for ref in rows):
@@ -87,6 +95,11 @@ def resolve_source_batch(
     result_groups: dict[str, SourceBatchGroup] = {}
     group_cache = {}
     roots, proof_owner, contents, targets = {}, {}, {}, {}
+    conflicting_pages = conflicting_document_pages([
+        *(rows.document_coverages if isinstance(rows, SourceBatchInput) else ()),
+        *(row.coverage for row in rows.values()), *known_document_coverages,
+        *(coverage for record in active for coverage in record.coverages),
+    ])
 
     def shared_group(refs=(), ids=()):
         # 调用者复用集合元组；不为每条行重新散列、复制大集合。
@@ -121,6 +134,8 @@ def resolve_source_batch(
         keys = (*row.binding_keys, row.stable_evidence_binding_key)
         targets[ref] = {target for key in keys if key for target in by_binding[key]}
         proofs = ["occurrence:" + row.occurrence_key]
+        if row.document_binding_key:
+            proofs.append(row.document_binding_key)
         proofs.extend(key for key in (row.provider_binding_key, row.stable_evidence_binding_key) if key)
         proofs.extend("target:" + target for target in targets[ref])
         for proof in proofs:
@@ -141,6 +156,7 @@ def resolve_source_batch(
         sorted_ids = tuple(sorted(ids))
         failed = False
         if (len({contents[ref] for ref in refs}) > 1 or len(providers) > 1 or len(evidence) > 1
+            or any(rows[ref].document_page in conflicting_pages for ref in refs)
             or len({(rows[ref].source_type, rows[ref].source_account_key) for ref in refs}) > 1):
             group = shared_group(ids=sorted_ids) if len(sorted_ids) > 1 else None
             for ref in refs:
@@ -154,10 +170,10 @@ def resolve_source_batch(
             combined = replace(first, provider_id=next(iter(providers), None), stable_evidence=next(iter(evidence), None))
             certain = bool(ids or combined.provider_binding_key or combined.stable_evidence_binding_key)
             unit = _Unit(refs[0], tuple(refs), combined, contents[refs[0]], certain, ids,
-                         frozenset(rows[ref].file_scope_key for ref in refs))
+                         frozenset(rows[ref].observation_scope_key for ref in refs))
             units[unit.ref] = unit
         if failed:
-            locations = frozenset(rows[ref].file_scope_key for ref in refs)
+            locations = frozenset(rows[ref].observation_scope_key for ref in refs)
             references = tuple(refs)
             for ref in refs:
                 row = rows[ref]

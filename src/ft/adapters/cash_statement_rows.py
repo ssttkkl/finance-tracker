@@ -25,6 +25,7 @@ class ParsedCashRow:
     error_code: str | None = None
     disposition: str = "candidate"
     source_account_identifier: str | None = None
+    document_position: str | None = None
 
 
 @dataclass(frozen=True)

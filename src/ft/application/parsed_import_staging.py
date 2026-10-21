@@ -110,6 +110,7 @@ def _valid_files(files):
                     or not isinstance(row.payment_method, str)
                     or row.provider_id is not None and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
                     or row.source_account_identifier is not None and (not isinstance(row.source_account_identifier, str) or not 1 <= len(row.source_account_identifier) <= 256)
+                    or row.document_position is not None and (not isinstance(row.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", row.document_position))
                     or not isinstance(row.issue_codes, tuple)
                     or any(not isinstance(code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", code) for code in (*row.issue_codes, *((row.error_code,) if row.error_code is not None else ())))):
                     raise ParsedImportDataError("import_session_document_invalid")

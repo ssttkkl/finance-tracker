@@ -24,6 +24,7 @@ class RawCashRow:
     position: int
     payload: dict[str, str] | None
     error_code: str | None = None
+    document_position: str | None = None
 
 
 @dataclass(frozen=True)

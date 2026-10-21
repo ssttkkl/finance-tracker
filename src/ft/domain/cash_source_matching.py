@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import re
 from typing import Any, Mapping, Sequence
 from uuid import uuid4
 
@@ -42,6 +43,20 @@ class SourceCoverage:
     end_inclusive: bool = False
     time_precision: str = "second"
     strategy_version: str = "source-coverage-v1"
+    document_key: str | None = None
+    page_total: int | None = None
+    page_fingerprints: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self):
+        if self.document_key is None and self.page_total is None and self.page_fingerprints == {}:
+            return
+        if (not isinstance(self.document_key, str) or not re.fullmatch(r"[0-9a-f]{64}", self.document_key)
+            or type(self.page_total) is not int or not 1 <= self.page_total <= 2000
+            or not isinstance(self.page_fingerprints, Mapping) or not 1 <= len(self.page_fingerprints) <= self.page_total
+            or any(not isinstance(key, str) or not re.fullmatch(r"[1-9][0-9]{0,3}", key)
+                or int(key) > self.page_total or not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+                for key, value in self.page_fingerprints.items())):
+            raise ValueError("invalid_source_document_evidence")
 
     def contains(self, value: Any) -> bool:
         if not self.complete or not self.evidence or self.start is None or self.end is None:
@@ -85,12 +100,45 @@ class SourceOccurrence:
     coverage: SourceCoverage = field(default_factory=SourceCoverage)
     provider_id: str | None = None
     stable_evidence: str | None = None
+    document_position: str | None = None
 
     def __post_init__(self):
         required = ((self.source_type, 64), (self.file_digest, 64), (self.parser_version, 64), (self.table_key, 255))
         optional = ((self.source_account_key, 256), (self.provider_id, 512), (self.stable_evidence, 512))
         if any(not isinstance(value, str) or not value or len(value) > maximum for value, maximum in required) or any(value is not None and (not isinstance(value, str) or not value or len(value) > maximum) for value, maximum in optional) or type(self.position) is not int or self.position < 0 or not isinstance(self.fields, Mapping):
             raise ValueError("invalid_source_locator")
+        if self.document_position is not None and (not isinstance(self.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", self.document_position)):
+            raise ValueError("invalid_source_locator")
+
+    @property
+    def document_scope_key(self) -> str | None:
+        return _digest("source-document-v1", self.source_type, self.parser_version, self.coverage.document_key) if self.coverage.document_key else None
+
+    @property
+    def document_occurrence_key(self) -> str | None:
+        if self.document_scope_key and self.document_position and self.document_position.split(":", 1)[0][1:] in self.coverage.page_fingerprints:
+            return _digest(self.document_scope_key, self.table_key, self.document_position)
+        return None
+
+    @property
+    def observation_scope_key(self) -> str:
+        return self.document_scope_key if self.document_occurrence_key else self.file_scope_key
+
+    @property
+    def document_binding_key(self) -> str | None:
+        if self.document_occurrence_key:
+            return SourceBindingKey(self.source_type, "file_local", self.document_scope_key, "file_occurrence", self.document_occurrence_key).key
+        return None
+
+    @property
+    def document_page(self) -> tuple[str, str] | None:
+        if self.document_occurrence_key:
+            return self.coverage.document_key, self.document_position.split(":", 1)[0][1:]
+        return None
+
+    @property
+    def document_page_scope_key(self) -> str | None:
+        return _digest("source-document-page-v1", self.document_scope_key, self.document_page[1]) if self.document_page else None
 
     @property
     def occurrence_key(self) -> str:
@@ -136,6 +184,9 @@ class SourceOccurrence:
                 specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id)))
             specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "file_occurrence", self.occurrence_key))
         specs.append(SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key))
+        if self.document_occurrence_key:
+            specs.append(SourceBindingKey(self.source_type, "file_local", self.document_scope_key, "file_occurrence", self.document_occurrence_key))
+            specs.append(SourceBindingKey(self.source_type, "file_local", self.document_page_scope_key, "file_occurrence", self.document_occurrence_key))
         return tuple(specs)
 
 
@@ -154,6 +205,7 @@ class SourceRecord:
     stable_evidence_binding_key: str | None = None
     row_revision: int = 1
     deleted: bool = False
+    file_occurrences: Mapping[str, frozenset[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -202,9 +254,32 @@ def _matched(row: SourceOccurrence, old: SourceRecord) -> SourceResolution:
     )
 
 
-def _compatible(row: SourceOccurrence, old: SourceRecord) -> bool:
+def _distinct_document_positions(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
+    if not row.document_occurrence_key:
+        return False
+    if isinstance(old, SourceOccurrence):
+        return bool(row.document_scope_key == old.document_scope_key and old.document_occurrence_key
+            and row.document_occurrence_key != old.document_occurrence_key)
+    return bool(row.document_scope_key in old.file_occurrences
+        and row.document_occurrence_key not in old.file_occurrences[row.document_scope_key])
+
+
+def conflicting_document_pages(coverages: Sequence[SourceCoverage]) -> set[tuple[str, str]]:
+    pages, conflicting, seen = {}, set(), set()
+    for coverage in coverages:
+        if coverage.document_key and id(coverage) not in seen:
+            seen.add(id(coverage))
+            for page, fingerprint in coverage.page_fingerprints.items():
+                key = (coverage.document_key, page)
+                if pages.setdefault(key, fingerprint) != fingerprint:
+                    conflicting.add(key)
+    return conflicting
+
+
+def _compatible(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
     return not (
-        row.provider_id and old.provider_id and row.provider_id != old.provider_id
+        _distinct_document_positions(row, old)
+        or row.provider_id and old.provider_id and row.provider_id != old.provider_id
         or row.provider_binding_key and old.provider_binding_key and row.provider_binding_key != old.provider_binding_key
         or row.stable_evidence and old.stable_evidence and row.stable_evidence != old.stable_evidence
         or row.stable_evidence_binding_key and old.stable_evidence_binding_key and row.stable_evidence_binding_key != old.stable_evidence_binding_key
@@ -281,6 +356,8 @@ def _resolve_source_rows(
     active = [record for record in records if not record.deleted]
     by_id = {record.transaction_id: record for record in active}
     targets_by_occurrence = targets_by_occurrence or {}
+    conflicting_pages = conflicting_document_pages([*(row.coverage for row in rows),
+        *(coverage for record in active for coverage in record.coverages)])
     by_binding: dict[str, list[SourceRecord]] = defaultdict(list)
     by_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
     by_unscoped_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
@@ -308,6 +385,9 @@ def _resolve_source_rows(
         return key
 
     for row in rows:
+        if row.document_page in conflicting_pages:
+            results[row.occurrence_key] = SourceResolution(row.occurrence_key, "conflict", reason="batch_identity_conflict")
+            continue
         try:
             prepare_cash_record_update({"state": "draft"}, _patch(row))
         except CashRecordPolicyError as error:
