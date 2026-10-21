@@ -539,6 +539,7 @@ class CashTransactionIssueModel(Base):
         ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_issue_transaction"),
         CheckConstraint("revision >= 1", name="ck_cash_issue_revision"),
         Index("ix_cash_issue_transaction", "workspace_id", "transaction_id"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)

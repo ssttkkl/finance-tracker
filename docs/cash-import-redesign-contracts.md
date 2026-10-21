@@ -476,6 +476,8 @@ erDiagram
 
 `cash_transaction_issues`：
 
+问题 ID 标识当前实例，删除后再次出现不得复用。SQLite 使用 `AUTOINCREMENT` 并在表重建时保留序列高水位，PostgreSQL 沿用序列；问题 ID、所属流水及修订共同参与当前上下文校验，不依赖创建时间的精度。
+
 | 字段 | 合同 |
 |---|---|
 | `id/workspace_id/transaction_id` | 当前问题所属流水，复合外键 |

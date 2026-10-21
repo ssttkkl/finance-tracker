@@ -38,6 +38,9 @@
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [x] 4.5.1 增加草稿单例及可空财务展示、统计资格、待处理计数和稳定排序的领域／存储合同；迁移保留正式派生值及引用，旧缓存标记待重建。
 - [ ] 4.5.2 从当前问题及草稿关系派生待确认，接入局部读写、列表筛选／分页及全部统计排除草稿；未知日期仍可定位，待确认不越过显式筛选。
+- [x] 4.5.2.1 有界读取当前问题及活动草稿关系，按不同成员汇总；问题实例删除后不复用，局部上下文覆盖独立问题修订。
+- [ ] 4.5.2.2 接入父流水种子、草稿来源输入、待处理发布及生命周期摘要，验证没有组成项的草稿及待处理变化。
+- [ ] 4.5.2.3 接入可空列表合同、状态筛选、稳定游标和同快照汇总；排除草稿统计，验证未知金额、日期和显式筛选。
 - [ ] 4.5.3 校验唯一当前成员及跨工作区归属，移除旧退休副本依赖；保留组成项分配身份、保护人工分类及清空值，并完成余额及局部成本验证。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
@@ -95,6 +98,11 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.5.2.1 当前待处理输入（2026-10-21，HEAD／比较基线 `a041637`）：缺少有界读取和问题令牌先失败，再实现只读问题 ID／父流水／修订与活动草稿明确端点；按不同成员计数，不扩张候选、不读取正文。新增／修改／清除问题不需要修改父流水也会使局部上下文失效。独立预审 P1 删除重建可复用问题 ID，采用 SQLite `AUTOINCREMENT`、PostgreSQL 原序列关闭；44 迁移保留已有问题、候选及外键，空表重建也恢复高水位，降级保留这个兼容的安全属性。
+- 独立实施复核发现 P2 确认或忽略后仍使用旧待处理标记，新增 4 组反例先红，再按最终活动草稿边及独立问题重算预计结果。最终独立 SQLite attention/context 33 passed、33 PostgreSQL cases 明确排除，无新增阻断；另独立验证真正 43→44 升级、问题／候选内容与引用保持及 ID 不复用。未访问真实账单，未把该复核当双后端证据。
+- 执行者显式专用 PostgreSQL，以 `FT_REQUIRE_TEST_POSTGRES=1`、`PGOPTIONS='-c lock_timeout=2000 -c statement_timeout=15000'` 执行 `tests/contract/test_cash_attention.py tests/contract/test_cash_relation_context.py tests/contract/test_cash_relation_type_updates.py tests/contract/test_cash_source_storage.py tests/contract/test_cash_draft_projection_storage.py tests/contract/test_account_commands.py tests/contract/test_cash_relation_storage.py tests/test_alembic_migration.py tests/test_runtime_docs.py -q --disable-warnings --maxfail=3 --tb=short` → 341 passed、无 skip（129.11 s），日志 `/tmp/ft-cash-attention-dual.log`。`uv build --out-dir /tmp/ft-cash-attention-dist`、OpenSpec strict、最终范围 diff 及 `git diff --check` 通过；完整回归及性能在后续读取接入后统一补跑，未计为本步已完成。
+- Cross-platform Impact Check：本步是共享后端当前上下文和存储身份修正，没有改 Web、Native 或共享 presentation 的页面、公共 DTO、文案或操作；功能地图保留 F-03／F-04／F-05 未切换状态。浏览器及最终 Hallmark 不适用于这个内部小步，来源发布和实际列表仍在 4.5.2.2–4.5.2.3，导入／维护／三端验收仍待后续任务。没有操作真实数据库或执行部署。
 
 - 4.5.1 草稿投影形状（2026-10-21，HEAD／比较基线 `7fd42d2`）：缺少草稿状态及可空展示的纯领域／存储合同先失败，再实现单例、未知值保留、正式统计资格、待处理成员计数及派生确认状态。确认边拒绝草稿端点；正式财务必填由数据库条件约束保留，草稿必须单例、无确认边且无统计资格。发生时间为空时 `sort_at` 使用父创建时间，不把重建时间写作账单日期。统一投影算术使用 80 位上下文，避免 38 位退款在直接父级构建时被调用方精度截断。
 - 43 迁移只改变派生形状，保留正式投影主键、金额、分类、成员／关系引用及原始流水，旧缓存标记 `uninitialized` 等发布前显式重建；有草稿或待处理状态拒绝有损降级。旧迁移往返合同继续逐值比较来源及引用，只将该明确的缓存失效状态作为预期差异；升级失败仍须整体回滚并恢复 SQLite 外键。

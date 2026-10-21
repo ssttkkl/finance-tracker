@@ -7,6 +7,7 @@ from ft.domain.cash_projection import CashProjectionError, CashProjectionFact
 from ft.domain.cash_relation_graph import CashRelationGraphEdge, JointRelationMember
 from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint
 from .cash_relations import CurrentCashRelationRepository, _batches, _id
+from .cash_attention import read_cash_attention
 from .models import CashInvestmentFundingRelationModel, CashTransactionComponentModel, CashTransactionModel
 
 
@@ -50,6 +51,7 @@ class RelationalCashRelationContextRepository:
         rows = {row["id"]: row for row in self._relations.graph_rows_for_transactions(closure)}
         rows.update((row["id"], row) for row in members)
         ordered = tuple(rows[key] for key in sorted(rows))
+        attention = read_cash_attention(self._session, self._workspace_id, parents, relation_rows=ordered)
         formal = {identifier: parent for identifier, parent in parents.items() if parent["state"] == "posted" and parent["deleted_at"] is None}
         component_rows = {}
         for batch in _batches(sorted(parents)):
@@ -73,7 +75,8 @@ class RelationalCashRelationContextRepository:
         try:
             facts = tuple(CashProjectionFact(parent["id"], parent["account_id"], parent["occurred_at"], parent["amount"], parent["currency"],
                 parent["counterparty"], parent["category_id"], parent["note"], parent["source_type"], parent["record_id"],
-                funding_relation_id=funding_by_parent.get(parent["id"]), cash_granularity=parent["cash_granularity"])
+                funding_relation_id=funding_by_parent.get(parent["id"]), cash_granularity=parent["cash_granularity"],
+                needs_attention=parent["id"] in attention.transaction_ids)
                 for parent in sorted(formal.values(), key=lambda value: value["id"]))
         except (CashProjectionError, TypeError, ValueError, AttributeError):
             raise CashRelationError("relation_endpoint_incompatible") from None
@@ -96,6 +99,7 @@ class RelationalCashRelationContextRepository:
                 format(row["amount"], "f") if row["amount"] is not None else None, row["currency"], row["ordinal"])
                 for row in sorted(component_rows.values(), key=lambda value: value["id"])),
             relation_revisions=tuple((row["id"], row["row_revision"]) for row in ordered),
+            issue_versions=attention.issue_versions,
             relation_groups=tuple((row["id"], row["decision_group_id"]) for row in ordered if row["decision_group_id"] is not None),
             funding_versions=tuple((row["id"], row["cash_transaction_component_id"], row["investment_event_id"], row["direction"]) for row in sorted(funding.values(), key=lambda value: value["id"])),
             funding_component_ids=frozenset(str(row["cash_transaction_component_id"]) for row in funding.values()

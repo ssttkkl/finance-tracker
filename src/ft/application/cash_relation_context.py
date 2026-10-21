@@ -25,10 +25,11 @@ class CurrentCashRelationContext:
     relation_groups: tuple
     funding_versions: tuple
     funding_component_ids: frozenset[str]
+    issue_versions: tuple = ()
 
     @property
     def token(self):
-        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions,
+        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions, self.issue_versions,
             tuple((member.id, member.decision_group_id, member.row_revision, member.state, member.active) for member in self.joint_members))
         return sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
@@ -109,7 +110,11 @@ class CashRelationGraphService:
         final = dict(previous)
         final.update((edge.id, edge) for edge in changes)
         edges = tuple(final[key] for key in sorted(final))
-        build = build_cash_relation_graph(current.facts, current.components, edges, funding_component_ids=current.funding_component_ids)
+        pending = {str(parent_id) for _identifier, parent_id, _revision in current.issue_versions}
+        pending.update(identifier for edge in edges if edge.active and edge.state == "draft"
+            for identifier in (edge.primary_transaction_id, edge.secondary_transaction_id) if identifier is not None)
+        facts = tuple(replace(fact, needs_attention=str(fact.id) in pending) for fact in current.facts)
+        build = build_cash_relation_graph(facts, current.components, edges, funding_component_ids=current.funding_component_ids)
         resolved = {relation.id: relation.applied_amount for projection in build.projections for relation in projection.relations}
         edges = tuple(replace(edge, applied_amount=resolved[edge.id]) if edge.id in resolved else edge for edge in edges)
         return PreparedCashRelationGraph(current.transaction_ids, edges, build)
