@@ -44,10 +44,20 @@ def _prepare(session, runtime, files, *, selections=None, choices=None):
         account_selections=selections or [], row_choices=choices or [])
 
 
+def test_new_record_has_fields_without_fabricated_update_differences(draft_runtime):
+    file = _file()
+    with draft_runtime.sessions() as session:
+        result = _prepare(session, draft_runtime, (file,), selections=_selections((file,)))
+        operation, = result.operations
+        assert operation["planned_action"] == "create_posted"
+        assert operation["values"]["amount"] == "-12.5" and operation["current"] is None
+        assert operation["field_diffs"] == []
+
+
 def _bind_existing(session, runtime, file, *, note=None):
     parent = session.get(CashTransactionModel, 1003)
     row = next(iter(source_batch_rows((file,)).values()))
-    parent.source_type, parent.record_id = "alipay", "synthetic-existing"
+    parent.source_type, parent.record_id = row.source_type, "synthetic-existing"
     for field in ("amount", "currency", "occurred_at", "record_type", "record_subtype", "counterparty",
         "counterparty_account", "counterparty_account_attrs", "note", "source_payload"):
         value = row.fields[field]

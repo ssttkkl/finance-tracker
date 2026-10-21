@@ -171,17 +171,19 @@ def _restore_file(item):
 
 
 class _ParsedImportStore:
-    def __init__(self, *, ttl_seconds=1800, clock=_now, max_bytes=25 * 1024 * 1024):
-        if type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 1800 or type(max_bytes) is not int or max_bytes < 1:
+    def __init__(self, *, ttl_seconds=1800, clock=_now, max_bytes=64 * 1024 * 1024, max_parsed_bytes=25 * 1024 * 1024):
+        if (type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 1800
+            or type(max_bytes) is not int or max_bytes < 1 or type(max_parsed_bytes) is not int or max_parsed_bytes < 1):
             raise ValueError("import_session_storage_config_invalid")
-        self._ttl, self._clock, self._max_bytes = ttl_seconds, clock, max_bytes
+        self._ttl, self._clock, self._max_bytes, self._max_parsed_bytes = ttl_seconds, clock, max_bytes, max_parsed_bytes
 
     def validate_file(self, item):
         _valid_files((item,))
-        _json_budget(item, [self._max_bytes])
+        maximum = min(self._max_bytes, self._max_parsed_bytes)
+        _json_budget(item, [maximum])
         try:
             content = json.dumps(asdict(item), ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
-            if len(content) > self._max_bytes:
+            if len(content) > maximum:
                 raise ParsedImportDataError("import_session_draft_too_large")
             _valid_files((_restore_file(json.loads(content)),))
         except (TypeError, KeyError, AttributeError, RecursionError):
@@ -191,6 +193,15 @@ class _ParsedImportStore:
         _valid_files(session.files)
         if not isinstance(session.preview_input, dict) or session.plan is not None and not isinstance(session.plan, dict):
             raise ParsedImportDataError("import_session_json_invalid")
+        parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
+        _json_budget(session.files, [parsed_maximum])
+        try:
+            parsed = json.dumps([asdict(file) for file in session.files], ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+        except (TypeError, ValueError, RecursionError):
+            raise ParsedImportDataError("import_session_json_invalid") from None
+        if len(parsed) > parsed_maximum:
+            raise ParsedImportDataError("import_session_draft_too_large")
+        del parsed
         _json_budget(session, [self._max_bytes])
         value = asdict(session)
         value["session_digest"] = _hash(value.pop("session_id"))

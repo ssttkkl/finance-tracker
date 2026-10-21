@@ -114,6 +114,48 @@ def test_document_page_proof_and_locator_roundtrip_without_original_file(staging
     assert restored.coverage == coverage and restored.rows[0].document_position == "p2:t0:r1"
 
 
+def test_parsed_content_budget_is_independent_of_complete_plan_budget(staging):
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, ParsedImportDataError, R2ParsedImportStore
+    original, now, client = staging
+    options = dict(max_bytes=12000, max_parsed_bytes=3000, clock=lambda: now[0])
+    store = InMemoryParsedImportStore(**options) if isinstance(original, InMemoryParsedImportStore) else R2ParsedImportStore(
+        client, bucket="separate-budgets", **options)
+    session = _create(store)
+    plan = {"synthetic": "x" * 5000}
+    updated = store.replace(session.session_id, workspace_id=session.workspace_id, user_id=session.user_id,
+        expected_revision=1, files=session.files, preview_input={}, plan=plan)
+    assert updated.plan == plan
+    large = replace(session.files[0], document=replace(session.files[0].document,
+        rows=(replace(session.files[0].document.rows[0], fields={"note": "x" * 4000}),)))
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        store.replace(session.session_id, workspace_id=session.workspace_id, user_id=session.user_id,
+            expected_revision=2, files=(large,), preview_input={}, plan=None)
+    assert _get(store, session).revision == 2 and _get(store, session).plan == plan
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        store.replace(session.session_id, workspace_id=session.workspace_id, user_id=session.user_id,
+            expected_revision=2, files=session.files, preview_input={}, plan={"synthetic": "x" * 13000})
+    assert _get(store, session).revision == 2 and _get(store, session).plan == plan
+    one = replace(session.files[0], document=replace(session.files[0].document,
+        rows=(replace(session.files[0].document.rows[0], fields={"note": "x" * 1700}),)))
+    two = replace(one, file_ref="file_two", client_file_ref="client_two")
+    store.validate_file(one)
+    store.validate_file(two)
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        store.replace(session.session_id, workspace_id=session.workspace_id, user_id=session.user_id,
+            expected_revision=2, files=(one, two), preview_input={}, plan=None)
+    assert _get(store, session).revision == 2 and _get(store, session).plan == plan
+
+
+def test_datetime_in_source_fields_keeps_safe_invalid_json_failure(staging):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, now, _client = staging
+    file = _file()
+    file = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0],
+        fields={"occurred_at": now[0]}),)))
+    with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
+        _create(store, files=(file,))
+
+
 def _replace(store, session, **changes):
     return store.replace(session.session_id, workspace_id="workspace-a", user_id="user-a", expected_revision=session.revision,
         files=changes.get("files", session.files), preview_input=changes.get("preview_input", session.preview_input), plan=changes.get("plan", session.plan))

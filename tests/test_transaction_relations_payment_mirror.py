@@ -1,6 +1,7 @@
 """US1 payment_mirror tests."""
 from __future__ import annotations
 
+from dataclasses import replace
 from decimal import Decimal
 
 from ft.domain.relations import (
@@ -48,6 +49,38 @@ def _fv(**kwargs):
 def test_source_group_platform_bank():
     assert source_group(_fv(id="1", amount=Decimal("-1"), account_id="a", bill_source="alipay", source="alipay")) == "platform"
     assert source_group(_fv(id="2", amount=Decimal("-1"), account_id="b", bill_source="icbc", source="icbc")) == "bank"
+
+
+def _scope_competing_mirrors(platforms, banks):
+    return [_fv(id=f"p{index}", amount=Decimal("-10"), account_id="card", occurred_at="2026-07-05T00:00:00Z",
+        bill_source="wechat", source="wechat", counterparty=name, record_id=f"platform-{index}")
+        for index, name in enumerate(platforms)] + [
+        _fv(id=f"b{index}", amount=Decimal("-10"), account_id="card", occurred_at="2026-07-05T00:00:00Z",
+            bill_source="ccb_debit", source="ccb_debit", counterparty=name, record_id=f"bank-{index}")
+        for index, name in enumerate(banks)]
+
+
+def test_strict_mirror_group_cannot_hide_an_equal_candidate_in_another_counterparty_group():
+    facts = _scope_competing_mirrors(["Shop"], ["Shop", "Other"])
+    assert evaluate_payment_mirror(facts[0], facts[1:], require_unique_mirrors=True).status == "pending_review"
+    proposals = match_payment_mirrors_greedy(facts, require_unique_mirrors=True)
+    assert proposals and all(proposal.status == "pending_review" for proposal in proposals)
+
+
+def test_strict_mirror_checks_reverse_competition_before_accepting_a_unique_forward_candidate():
+    facts = _scope_competing_mirrors(["ShopA", "ShopB"], ["Other"])
+    assert evaluate_payment_mirror(facts[-1], facts[:-1], require_unique_mirrors=True).status == "pending_review"
+    proposals = match_payment_mirrors_greedy(facts, require_unique_mirrors=True)
+    assert proposals and all(proposal.status == "pending_review" for proposal in proposals)
+
+
+def test_strict_mirror_keeps_explicit_anchor_when_selected_seed_is_outside_top_candidates():
+    facts = _scope_competing_mirrors(["Shop"] * 21, ["Other"])
+    facts = [replace(fact, record_id=f"candidate-{index:03d}")
+        for index, fact in enumerate(facts)]
+    proposal, = match_payment_mirrors_greedy(facts, seed_ids=["p20"], require_unique_mirrors=True)
+    assert proposal.status == "pending_review" and proposal.evidence.candidate_count == 21
+    assert proposal.anchor_fact_id == "b0"
 
 
 def test_payment_mirror_auto_accept_strong_unique():

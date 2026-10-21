@@ -156,6 +156,58 @@ def _public_detail(value):
     return result
 
 
+def _operation_index(plan):
+    operations = plan.get("operations", [])
+    if not isinstance(operations, list) or not isinstance(plan.get("detail_values", {}), dict):
+        raise CashImportPlanError("plan_build_failed")
+    result = {}
+    for operation in operations:
+        if (not isinstance(operation, dict) or not _reference(operation.get("operation_ref"), 128)
+            or operation["operation_ref"] in result):
+            raise CashImportPlanError("plan_build_failed")
+        result[operation["operation_ref"]] = operation
+    return result
+
+
+def _resolve_detail(plan, value, *, operations=None):
+    """只恢复当前计划的一项冻结详情；引用不越过本计划，也不访问实时库。"""
+    operations = _operation_index(plan) if operations is None else operations
+    result = deepcopy(value)
+    if not isinstance(result, dict) or not isinstance(result.get("members", []), list):
+        raise CashImportPlanError("plan_build_failed")
+    for member in result.get("members", []):
+        if not isinstance(member, dict):
+            raise CashImportPlanError("plan_build_failed")
+        if "fields_ref" not in member:
+            continue
+        reference = member.pop("fields_ref")
+        if not isinstance(reference, dict) or set(reference) not in ({"operation_ref"}, {"transaction_id"}) or "fields" in member:
+            raise CashImportPlanError("plan_build_failed")
+        if "operation_ref" in reference:
+            key = reference["operation_ref"]
+            if not isinstance(key, str) or key not in operations:
+                raise CashImportPlanError("plan_build_failed")
+            operation = operations[key]
+            if not (member.get("row_ref") is not None and member["row_ref"] in operation.get("row_refs", [])
+                or member.get("transaction_id") is not None and member["transaction_id"] == operation.get("transaction_id")):
+                raise CashImportPlanError("plan_build_failed")
+            fields = operation.get("values")
+        else:
+            key = reference["transaction_id"]
+            if not isinstance(key, str) or key not in plan.get("detail_values", {}) or member.get("transaction_id") != key:
+                raise CashImportPlanError("plan_build_failed")
+            fields = plan["detail_values"][key]
+        member["fields"] = _only(fields, MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"})
+        components = member["fields"].get("components", [])
+        if not isinstance(components, list) or any(not isinstance(part, dict) for part in components):
+            raise CashImportPlanError("plan_build_failed")
+        for part in components:
+            identifier = part.get("component_id")
+            if identifier is not None and str(identifier).isdigit() and int(identifier) >= 2 ** 63:
+                part.pop("component_id")
+    return result
+
+
 def _file_results(value):
     files = _objects(value, {"file_ref", "display_name", "status", "recognized_row_count", "issues", "code", "can_retry"})
     for file in files:
@@ -173,8 +225,9 @@ def _validate_readable(plan):
     for item in plan["items"]:
         if item.get("detail_available") and item["preview_item_id"] not in details:
             raise CashImportPlanError("plan_build_failed")
+    operations = _operation_index(plan)
     for detail in details.values():
-        _public_detail(detail)
+        _public_detail(_resolve_detail(plan, detail, operations=operations))
     _processing(plan.get("processing_details", []))
     _file_results(plan.get("file_results", []))
     _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"})
@@ -298,7 +351,7 @@ class CashImportPlanService(CashImportContextService):
         detail = plan.get("item_details", {}).get(preview_item_id) if isinstance(preview_item_id, str) else None
         if detail is None:
             raise CashImportPlanError("plan_item_not_found")
-        return _public_detail(detail) | {"preview_item_id": preview_item_id}
+        return _public_detail(_resolve_detail(plan, detail)) | {"preview_item_id": preview_item_id}
 
     def current_for_commit(self, uow, plan_id, *, expected_session_revision):
         """仅供已经持有工作区写锁的联合提交调用。"""

@@ -539,6 +539,7 @@ def run_relation_phases(
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
     merchant_refund_seed_ids: Sequence[str] | None = None,
+    require_unique_mirrors: bool = False,
 ) -> list[RelationProposal]:
     """Run Phase B → C → D0 diamond → D merchant/open refund matching.
 
@@ -595,6 +596,7 @@ def run_relation_phases(
         seed_ids=seed_ids,
         index=index,
         occupied_fact_ids=occupied_mirror_fact_ids,
+        require_unique_mirrors=require_unique_mirrors,
     )
     for p in mirror_props:
         out.append(p)

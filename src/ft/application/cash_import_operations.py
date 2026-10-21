@@ -54,7 +54,7 @@ class CashImportOperationPlanner:
     def __init__(self, session, workspace_id):
         self.session, self.workspace_id = session, workspace_id
 
-    def prepare(self, files, *, account_selections=None, row_choices=None):
+    def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None):
         files = tuple(files)
         inputs = _preview_input([] if account_selections is None else account_selections,
             [] if row_choices is None else row_choices, [])
@@ -124,6 +124,10 @@ class CashImportOperationPlanner:
                     operation = self._operation(ref, record, targets.get(resolution.transaction_id),
                         saved_issues.get(resolution.transaction_id, ()), source.rows[ref], resolution,
                         funding[ref], selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts)
+                occurrence_key = source.rows[ref].occurrence_key
+                operation["occurrence_key"] = occurrence_key
+                if record is None and occurrence_key in (record_ids or {}):
+                    operation["values"]["record_id"] = record_ids[occurrence_key]
                 operation["operation_ref"] = f"op_{len(operations) + 1}"
                 operation["source_updates"] = [{"row_ref": item, "bind": source_results[item].bind or resolution.action == "pending",
                     "uncertain": any(issue["code"] == "source_identity_ambiguous" for issue in operation["issues"])} for item in related]
@@ -292,7 +296,7 @@ class CashImportOperationPlanner:
             action = "duplicate"
         diffs = []
         for field, incoming in patch.items():
-            if incoming != current.get(field) or field in source_update.protected_fields:
+            if record is not None and (incoming != current.get(field) or field in source_update.protected_fields):
                 diffs.append({"field": field, "current": current.get(field), "incoming": incoming,
                     "effective": values.get(field), "resolution": "keep_existing" if pending else
                     "protected" if field in source_update.protected_fields and field not in manual else "apply"})

@@ -73,10 +73,10 @@
 - [ ] 4.8.1.2 联合提交在锁内重验并保存认证空页；证据冲突或保存点失败时跳过相关依赖决定，不让依赖旧证明的写入继续。
 - [x] 4.8.2 实现已解析行的来源账户组及支付组成项桥接：来源范围隔离、稳定组引用、已有账户修订与币种、同账户合并、未知分摊及逐行错误；不创建账户、不提前写流水。
 - [x] 4.8.3 实现不可变计划发布／替换和只读分页详情，验证同一会话 CAS、到期、权限、消费先验及失败保持；不把内部发布层当作已完成业务预览。
-- [ ] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
+- [x] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
 - [x] 4.8.4.1 将实际来源共同操作、资金映射、字段规则及明确补丁组合为逐流水决定；重算补齐结果，保留人工保护及组成项身份，验证固定冲突、等价重复、暂缓更新及逐行安全失败。
-- [ ] 4.8.4.2 接入当前关系与新建议、完整组决定及虚拟最终图，将逐流水操作组成唯一预计列表和详情；验证选择失效、关系错误隔离及当前闭包依赖。
-- [ ] 4.8.4.3 去除新增伪差异、共享冻结详情字段，分别约束 25 MiB 解析内容及 64 MiB 完整会话；验证不可变详情及真实 19 份账单的完整预览／暂存，不截断数据。
+- [x] 4.8.4.2 接入当前关系与新建议、完整组决定及虚拟最终图，将逐流水操作组成唯一预计列表和详情；验证选择失效、关系错误隔离及当前闭包依赖。
+- [x] 4.8.4.3 去除新增伪差异、共享冻结详情字段，分别约束 25 MiB 解析内容及 64 MiB 完整会话；验证不可变详情及真实 19 份账单的完整预览／暂存，不截断数据。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
 - [x] 4.9.1 实现同事务收据／逐项结果、用户幂等与会话／编辑上下文消费唯一性；将 PostgreSQL 工作区锁提前到 UoW 入口。
 - [ ] 4.9.2 接入完整应用命令、逐行与关系组保存点、结果恢复和收据分页 API；最终切换时迁入并移除旧导入收据。
@@ -93,6 +93,12 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.8.4.2–4.8.4.3（2026-10-21，HEAD／比较基线 `02773ed`）：真实只读构建组合逐流水、旧确认闭包、新建议、选择及完整最终图；局部类型变更不启动发现，关系错误只生成该组安全结果。新增不构造差异，详情单跳引用同一冻结计划值，公开读取恢复独立副本并应用白名单。解析集合 25 MiB／完整会话 64 MiB 分别检查，超限／非法 JSON 在 CAS 前失败，原计划及修订保持。
+- 独立工程复核采纳并关闭来源范围 P1、镜像任意排序 P1、反向竞争 P1 和候选截断锚点 P2；同平台编号按来源账户隔离，自动镜像须双方完整候选池均唯一。2×2 有效正式夹具旧行为 2 failed；反向竞争纯测试 2 failed；21×1 有效完整来源夹具移除显式锚点时 2 failed（`/tmp/ft-cash-mirror-anchor-valid-red.log`），修复后通过。早期锚点夹具缺正式类型／来源绑定时进入身份草稿，已修正，不能以其零关系结果证明业务修复。冻结字段边界 3 failed → 10 passed；非法 JSON、两级预算及原子性有独立回归。独立最终复核 103 passed 及镜像定向 4 passed，无新增阻断；未跑 PostgreSQL 或真实数据。
+- 执行者显式双后端十文件矩阵：`test_cash_import_business_plan.py test_cash_import_operations.py test_cash_import_plan_publication.py test_cash_import_plan_values.py test_parsed_import_staging.py test_parsed_cash_import_context.py test_transaction_relations_refund.py test_transaction_relations_payment_mirror.py test_relations_pipeline_order.py test_import_relation_planning.py -q --disable-warnings --tb=short` → 430 passed、无 skip（97.20 s，`/tmp/ft-cash-business-plan-complete-matrix.log`）。旧导入及关系成本独占矩阵 `test_cash_projection_performance.py -q -m performance -k 'import_preview or relation_mutations or group_mutations' --disable-warnings --tb=short` → 8 passed、15 deselected（65.28 s，`/tmp/ft-cash-business-plan-legacy-performance.log`），没有并发测试、构建或运行时代码修改，原门槛保持。
+- 真实只读规模探针 `PYTHONPATH=tests:.:src uv run python /tmp/ft_cash_business_real_probe.py` → 19 份全部解析、15,198 行，解析 18.39 s、业务计划 9.61 s；12,706 个新增正式、6 个草稿、2,408 个重复出现、78 个安全跳过，441 个拟确认及 27 个待确认关系组。JSON 观测约 42.14 MB，真实存储编码在 64 MiB 内且 CAS 暂存成功（`/tmp/ft-cash-business-real-probe-mutual-final.log`）。仅在仓库外临时库建合成账户，真实流水未写业务表，原文件／密码／来源正文未入仓库或日志；这不是进程峰值内存预算证明，也不是新联合提交验收。
+- `uv build --out-dir /tmp/ft-cash-business-plan-dist`、OpenSpec strict、独立范围 diff 与 `git diff --check` 通过。Cross-platform Impact Check：本步仅内部只读计划及限时存储，Web、Native、共享 presentation 的实际页面、操作、路由和文案未切换。功能地图登记构建器证据，页面数及客户端 TODO 不变；HTTP、联合提交、后续维护、Compose、浏览器、最终 Hallmark 与演示仍按 4.9–4.13／6.5–6.7 验收。完整回归在 6.1 随新写入口补跑，不能把这一步当作整体导入完成。
 
 - 4.5.4.1 全额退款后端（2026-10-21，比较基线 `b458cdb`，验证时 HEAD `b270ab6`）：原隐藏行为先 4 failed（`/tmp/ft-full-refund-visibility-red.log`），缓存迁移缺失先 3 failed（`/tmp/ft-full-refund-migration-red.log`）。48 迁移同步活动／暂存显示标志、规则元数据及数据库默认值；只推进受影响的当前发布版本，不改原流水、关系、金额、统计资格或就绪状态。降级识别新规则创建的结果，版本仍递增；故障注入验证事务回滚。
 - 显式 SQLite／PostgreSQL 16 文件最终矩阵 476 passed、无 skip、1 warning（208.92 s，`/tmp/ft-full-refund-final-matrix.log`）。完整 SQLite 首轮 2,583 passed、636 skipped、53 deselected、1 failed（603.61 s，`/tmp/ft-full-refund-sqlite-regression.log`），失败是归属迁移测试把后续规则元数据变更错误算作源数据变化；把该测试精确限定到 45 迁移后，完整归属双后端 56 passed、无 skip（26.79 s，`/tmp/ft-full-refund-ownership-final.log`）。保留全部财务值／引用不变断言，未把该首轮写成全绿；后续整体回归仍在 6.1。

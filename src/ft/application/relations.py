@@ -988,6 +988,7 @@ def plan_relation_proposals(
     account_identifiers_by_value: dict[str, list[str]] | None = None,
     remaining_by_expense: dict[str, Decimal] | None = None,
     workspace_id: str = "",
+    require_unique_mirrors: bool = False,
 ) -> RelationPlan:
     """Build the complete Phase A → B-D plan without persistence side effects."""
     normalized_facts = tuple(sorted(
@@ -1098,6 +1099,7 @@ def plan_relation_proposals(
             transfer_blocked_ids=transfer_blocked,
             refund_blocked_ids=refund_blocked,
             merchant_refund_seed_ids=seeds,
+            require_unique_mirrors=require_unique_mirrors,
         )
     )
     phase_a = _demote_overlapping_phase_a_refunds(

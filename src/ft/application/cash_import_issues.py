@@ -41,12 +41,17 @@ _REASONS = {
     "row_save_failed": ("这条流水未能保存，请稍后重试", "retry"),
     "relation_save_failed": ("本次未能合并，可稍后处理", "review_relation"),
     "relation_context_changed": ("相关流水已变化，请重新确认", "review_relation"),
+    "relation_pending": ("待确认合并，可回主页处理", "review_relation"),
+    "relation_discovery_failed": ("这笔流水暂未完成配对，可稍后处理", "review_relation"),
     "relation_endpoint_incompatible": ("这些流水暂不能合并", "review_relation"),
     "statement_source_unsupported": ("暂不支持这种账单", "reselect_file"),
     "statement_unreadable": ("这份账单无法读取，请重新选择", "reselect_file"),
     "statement_rows_too_large": ("账单内容过多，请缩小导出范围", "reselect_file"),
     "password_required": ("请填写账单密码并重新选择文件", "reselect_file"),
     "password_incorrect": ("账单密码不正确", "reselect_file"),
+    "unpaid_closed": ("交易未付款，已跳过", "none"),
+    "failed_repay": ("还款未成功，已跳过", "none"),
+    "account_opening": ("这行是开户信息，已跳过", "none"),
 }
 _SCOPES = {"row", "relation_group", "file", "request"}
 _ACTIONS = {"edit", "reselect_file", "open_record", "review_relation", "retry", "none"}
