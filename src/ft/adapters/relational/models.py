@@ -418,6 +418,7 @@ class CashTransactionModel(Base):
                 "AND deleted_at IS NULL"
             ),
         ),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -483,6 +484,7 @@ class CashTransactionComponentModel(Base):
         CheckConstraint("length(currency) = 3", name="ck_cash_transaction_components_currency"),
         Index("ix_cash_transaction_components_workspace_account", "workspace_id", "account_id"),
         Index("ix_cash_transaction_components_workspace_transaction", "workspace_id", "cash_transaction_id"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -930,6 +932,7 @@ class TransactionRelationModel(Base):
         CheckConstraint("state <> 'confirmed' OR (secondary_transaction_id IS NOT NULL AND primary_component_id IS NOT NULL AND secondary_component_id IS NOT NULL AND anchor_component_id IS NOT NULL AND primary_role IS NOT NULL AND secondary_role IS NOT NULL)", name="ck_cash_relation_confirmed_shape"),
         CheckConstraint("primary_role IS NULL OR primary_role IN ('expense','refund','p2p_out','p2p_in','outgoing','incoming')", name="ck_cash_relation_primary_role"),
         CheckConstraint("secondary_role IS NULL OR secondary_role IN ('expense','refund','p2p_out','p2p_in','outgoing','incoming')", name="ck_cash_relation_secondary_role"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)

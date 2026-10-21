@@ -12,6 +12,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 [45 迁移](../migrations/versions/20261021_45_cash_projection_ownership.py) 限制派生结果的工作区归属及唯一活动集合；全量修复发布成功后清理旧派生副本，正式源记录保持。相关 [归属和回滚合同](../tests/contract/test_cash_projection_ownership.py) 覆盖跨工作区写入、异常迁移与旧会话缓存，不新增页面或改变客户端覆盖状态。
 
+[46 迁移](../migrations/versions/20261021_46_cash_instance_identity.py) 保持流水、支付组成项及当前关系删除后新建的实例身份不复用；[身份合同](../tests/contract/test_cash_instance_identity.py) 及 [迁移合同](../tests/contract/test_cash_instance_migration.py) 验证旧确认失效、当前引用与唯一约束保留及异常回滚。该存储保护没有新增客户端入口，统一导入及草稿维护的三端缺口保持。
+
 F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清空，自动分类同步保留成员已有人工选择，F-07 删除分类同步保护空值。业务隐藏但仍待处理的项可按当前列表范围维护，已删除来源仍被排除；[分类保护合同](../tests/contract/test_cash_manual_classification.py) 覆盖传播、候选失效及事务回滚。Web、Native、共享 presentation 本步没有页面、文案或操作结构改动，页面数与跨端覆盖 TODO 保持；新导入及完整草稿维护仍待上述统一流程切换。
 
 [现金余额增量](../src/ft/application/cash_balances.py) 已统一排除草稿和删除项，内部行映射保留未知值；[双后端余额合同](../tests/contract/test_cash_draft_balances.py) 覆盖删除、转正式增量、回滚及合法金额精度。旧管理报表的收支和资金流复用当前正式投影及同一读取快照，[报表合同](../tests/contract/test_cash_current_finance_report.py) 覆盖两个生产组合入口、根月份、删除边界及未就绪错误。当前 Compose 没有调用该旧报表接口，三端页面数和入口状态不变；新草稿补全及关系维护仍待统一接口接入。
