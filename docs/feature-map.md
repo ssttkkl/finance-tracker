@@ -27,6 +27,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 跨会话的 [来源规划](../src/ft/application/cash_import_source_plan.py) 已组合当前活动绑定及 [认证空页](../src/ft/adapters/relational/cash_source_documents.py)，包含本次命中的旧候选导出；[合同测试](../tests/contract/test_cash_source_document_storage.py) 覆盖零行、命名空间、双向冲突与降级保护。预览不写业务数据；联合提交、统一客户端列表与三端 QA 仍待后续切换，不增加页面或独立关系入口。
 
+内部 [计划发布层](../src/ft/application/cash_import_plans.py) 已支持会话修订比较、不可变替换、投影项与明细分页、详情公开字段及安全问题；[发布合同](../tests/contract/test_cash_import_plan_publication.py) 使用合成业务结果验证边界。真实业务构建器、联合提交和 HTTP／Compose 尚未切换，不据此声明 F-05 新流程可用或提高三端覆盖。
+
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|
 | F-01 | 登录与注册 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | 登录、注册与认证状态恢复 |

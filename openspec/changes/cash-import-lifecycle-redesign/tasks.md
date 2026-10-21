@@ -69,6 +69,8 @@
 - [x] 4.8.1.1 统一文件及候选旧导出的认证空间、当前活动绑定与独立空页证据；只在本次内存规划提升完整性，覆盖零行、命名空间、冲突、删除与迁移回滚。
 - [ ] 4.8.1.2 联合提交在锁内重验并保存认证空页；证据冲突或保存点失败时跳过相关依赖决定，不让依赖旧证明的写入继续。
 - [x] 4.8.2 实现已解析行的来源账户组及支付组成项桥接：来源范围隔离、稳定组引用、已有账户修订与币种、同账户合并、未知分摊及逐行错误；不创建账户、不提前写流水。
+- [x] 4.8.3 实现不可变计划发布／替换和只读分页详情，验证同一会话 CAS、到期、权限、消费先验及失败保持；不把内部发布层当作已完成业务预览。
+- [ ] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
 - [x] 4.9.1 实现同事务收据／逐项结果、用户幂等与会话／编辑上下文消费唯一性；将 PostgreSQL 工作区锁提前到 UoW 入口。
 - [ ] 4.9.2 接入完整应用命令、逐行与关系组保存点、结果恢复和收据分页 API；最终切换时迁入并移除旧导入收据。
@@ -106,10 +108,16 @@
 
 ## 执行证据
 
+- 4.8.3 不可变计划发布（2026-10-21，HEAD／比较基线 `626b374`）：新发布／替换／分页／到期／消费及权限合同先 8 failed，再 8 passed（`/tmp/ft-cash-import-plan-publication-red.log`、`-green.log`）。服务端构建器为显式依赖，当前测试使用合成预计结果；真实业务构建器仍在 4.8.4，未开放新 HTTP 或替换实际导入。计划及选择与会话修订在同一 CAS 对象更新，TTL 保持，公开响应与构建器输入隔离，完整操作只存服务端，分页不截断提交范围。
+- 独立复核发现三个 P2：异常明细在 CAS 后才报错导致原计划丢失、未交付明细第一页却返回续页游标、详情及嵌套字段透传。新增 6 个 SQLite 反例先失败（`/tmp/ft-cash-import-plan-publication-review-red.log`）后，全部公开读取结构及摘要先于 CAS 校验；明细从空游标起读，详情／列表／候选等使用公开字段投影。范围复跑 21 passed；补充问题字段丢失 P2，以 2 个反例先失败后保留并校验 `blocking_scope/next_action/message`，文案仅从稳定原因生成，不能转发技术异常正文。
+- 清扫后到期计划先 1 failed，再将有效格式但临时对象已清理的访问统一为 `plan_expired`，现存跨用户／工作区对象保护保持；已有收据仍先于临时读取。最后独立复核指出无原因码明细仍可转发问题文本，新增无 code／null code 两例先失败后移除问题扩展字段；独立静态确认全部 P2 关闭，没有扩大到未接入业务构建器。相关红日志 `/tmp/ft-cash-import-plan-issues-red.log`、`/tmp/ft-cash-import-plan-cleanup-red.log`、`/tmp/ft-cash-import-plan-no-code-red.log`。
+- 最终五文件显式双后端 `test_cash_import_plan_publication.py`、`test_parsed_cash_import_context.py`、`test_parsed_import_staging.py`、`test_cash_mutation_receipts.py`、`test_parsed_import_cleanup.py` → 260 passed、无 skip、1 warning（67.83 s，`/tmp/ft-cash-import-plan-publication-final.log`）。此前 224／236／240／256 项矩阵是各轮中间证据，不替代最终结果。`uv build --out-dir /tmp/ft-cash-import-plan-publication-dist`、OpenSpec strict、范围 diff 和 `git diff --check` 通过。本步不改 schema／既有财务入口或查询，未重复跑旧财务性能；实际业务计划成本仍须在 4.8.4／6.7 测量。
+- Cross-platform Impact Check：本步新增内部计划发布层及未来公开问题格式，没有改 Web、Native、共享 presentation 的现有页面、路由、用户操作或已生效文案；统一 DTO、客户端消费、真实浏览器、最终 Hallmark 和演示仍待 4.11–4.13。功能地图只补后端证据，三端覆盖与页面数不变；完整联合提交、保存点隔离、未知结果恢复仍在 4.9，不能以发布层测试勾选总体 4.8 或实际用户导入完成。
+
 - 4.8.1.1 当前来源页认证（2026-10-21，HEAD／比较基线 `3c3575e`）：新能力先有 20 failed／1 passed（`/tmp/ft-cash-source-documents-red.log`），命名空间断言改为真正检查冲突结果后单独 1 failed（`/tmp/ft-cash-source-document-namespace-red.log`），避免仅比错原因码的空洞断言。47 迁移新增最小认证空页表，页码有界、工作区级联，已有来源表与财务值不变；有已保存证据拒绝有损降级。空页与活动来源绑定共同按渠道／解析空间／导出声明读取，批量按 150 个作用域查询；跳过行和无位置行不产生空页证明，预览只读。
 - 独立预审的 P2 “遗漏候选旧导出”与“扁平混用解析空间”均采纳并回写 design：候选 A 的业务页与空页在导入 B 时同样可组合认证；完整性按当前证据重新计算，不信任单行旧标志，不回写旧流水。领域初轮 103 passed（0.86 s），新 SQLite 范围 21 passed／9 deselected（4.69 s）。首次显式双后端 13 文件来源、资金、暂存、账户／关系／草稿及迁移矩阵 528 passed、无 skip（124.33 s，`/tmp/ft-cash-source-documents-dual.log`）。
 - 独立实施复核的 P2 草稿绑定迁移仍扁平比较旧页证据已采纳：新增实际迁移合并反例 SQLite 先 1 failed，再使用同一带命名空间冲突函数；两个来源存储合同文件最终显式双后端 98 passed、无 skip（39.92 s，`/tmp/ft-cash-source-document-merge-final.log`）。独立复核另有 25 passed／13 deselected，并以空内存库 EXPLAIN 确认两种读取使用作用域索引，没有把它算成 PostgreSQL 或数据规模性能证据。
-- `uv build --out-dir /tmp/ft-cash-source-documents-dist`、OpenSpec strict、范围 diff 和 `git diff --check` 通过；完整 SQLite `/tmp/ft-cash-source-documents-regression.log` 在最后 P2 修复后启动，仍在运行，尚不计入通过。Cross-platform Impact Check：本步只新增内部规划／证据存储，没有修改 Web、Native、共享 presentation 的页面、文案或操作，功能地图补证据而保留三端流程缺口。完整不可变计划、证据保存失败的依赖处理及实际新写入口仍分别在 4.8、4.9、4.11，未因此开放或宣称完成统一导入；浏览器、最终 Hallmark 与演示确认仍未完成。
+- `uv build --out-dir /tmp/ft-cash-source-documents-dist`、OpenSpec strict、范围 diff 和 `git diff --check` 通过；完整 SQLite `/tmp/ft-cash-source-documents-regression.log` 在最后 P2 修复后启动 → 2,497 passed、549 skipped、53 deselected、1 warning（479.20 s），仍沿两项旧 Expo 排除，skip 不算 PG 证据；该轮不包含后来新增的计划发布层。Cross-platform Impact Check：本步只新增内部规划／证据存储，没有修改 Web、Native、共享 presentation 的页面、文案或操作，功能地图补证据而保留三端流程缺口。完整不可变计划、证据保存失败的依赖处理及实际新写入口仍分别在 4.8、4.9、4.11，未因此开放或宣称完成统一导入；浏览器、最终 Hallmark 与演示确认仍未完成。
 
 - 4.5.3.5 当前实例身份（2026-10-21，HEAD／比较基线 `cf9fa6c`）：流水、组成项和关系同字段同修订删除重建的上下文反例先有 SQLite 6 failed／PostgreSQL 6 passed（`/tmp/ft-cash-instance-identity-red.log`）；真正新建 45 版库的迁移反例先有 5 failed／1 passed（`/tmp/ft-cash-instance-migration-red.log`）。46 迁移只在 SQLite 重建三个源表并恢复现存最大 ID 与可用序列的较大值，包含空表；PostgreSQL 沿用原序列。两项关系表达式唯一索引按原定义显式恢复，端点方向、当前引用和来源值不变，降级到 45 保留兼容安全属性。
 - 最终独立静态复核无阻断，采纳低序列及活动来源唯一索引行为测试；真正完成首表复制或最后关系索引 DDL 后注入失败，均验证数据、结构、序列、版本与外键状态整体恢复。旧上下文在删除重建前已先通过验证，重建后必须拒绝，避免无效初始令牌的空洞测试。SQLite 严格警告范围 12 passed／7 deselected（6.11 s，`/tmp/ft-cash-instance-identity-green.log`）；追加两项边界后最终显式双后端 16 文件矩阵 498 passed、无 skip、1 warning（239.31 s，`/tmp/ft-cash-instance-identity-dual-final.log`）。此前 432 passed／6 failed 均为旧 HEAD 45 常量断言，修正并复跑，不计作成功证据。
