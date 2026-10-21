@@ -95,7 +95,7 @@
 - [x] 4.10.3.2 实现有类型的无文件编辑上下文、严格维护输入、计划 CAS／分页详情和消费先验；普通导入入口不能读取或消费该种上下文。
 - [ ] 4.10.3.3 实现正式编辑及草稿转正式的同类不可变计划和联合提交，复用统一写入器、账户资格、类型影响及余额／旧新闭包；完整但尚未确认的草稿不自动转正式。
 - [x] 4.10.3.3.1 补齐导入人工补丁与无文件维护共用的来源行派生：无人工保护且未明确填备注时同步原文；替换或清空当前来源解释，保留可信本方身份，不改固定字段、绑定或已确认关系。
-- [ ] 4.10.3.3.2 接入正式编辑及草稿转正式的真实只读业务构建器，复用当前操作、完整关系组、最终图和预计列表；正式编辑不寻找新配对，转正式参与新建议。
+- [x] 4.10.3.3.2 接入正式编辑及草稿转正式的真实只读业务构建器，复用当前操作、完整关系组、最终图和预计列表；正式编辑不寻找新配对，转正式参与新建议。
 - [ ] 4.10.3.3.3 接入真实维护联合提交及恢复，验证流水／关系保存点、类型影响、当前依赖、余额、投影与消费收据原子性。
 - [ ] 4.10.4 为当前问题应用／保留、身份草稿合并／独立、来源绑定转移和候选失效写失败测试；实现维护计划及当前闭包发布。
 - [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
@@ -111,6 +111,14 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.10.3.3.2 实际维护规划（2026-10-22，HEAD／比较基线 `bd243e4`）：真实默认构建器缺失先 2 failed、1 PostgreSQL case 明确跳过（5.36 s，`/tmp/ft-cash-mutation-business-red.log`）。按独立预审提取当前字段／问题／输入与操作准备，复用导入后段最终图及预计列表；保留问题分开保存 ID 与展示，不传入 writer 重写，整笔分类显式覆盖原投影全体成员且仅目标备注变化。正式编辑不检查旧账户新资金资格、不发现新关系；转正式验证账户、组成项及来源问题，只有转正式组成项成为发现种子。当前来源范围来自可信绑定，微信沿用默认范围，文件局部范围和其他无绑定记录保守隔离。
+- 维护规划 SQLite：四项应用合同最终 95 passed、95 PostgreSQL cases 明确跳过（226.53 s，`/tmp/ft-cash-mutation-business-final-sqlite.log`）；额外零退款／忽略决定及无绑定内部编号均已验证。中间矩阵 3 failed／40 passed，分别是微信合成退款编号关系不符合既有原生规则，以及两个输入预算故障注入仍指向提取前模块；修正夹具及注入位置后重跑，不放宽业务规则。新增无绑定夹具最初因正常去重命中正式记录而误当草稿，改用真正独立来源后验证通过。原文配对另有 PDF 换行列名回归先 1 failed／2 passed，统一映射后 3 passed；配对仍不读取人工备注（`/tmp/ft-cash-matching-source-note-red.log`）。
+- 维护规划独立静态复核覆盖固定财务约束、停用账户、整笔分类与类型拆分、问题正文所有权、作用域、只读预览和阶段边界，未发现新 P1/P2。追加零退款／既有忽略决定、无绑定内部业务编号不能作为退款证明的执行回归。审查者未运行数据库、测试、构建或私人探针；实际联合提交仍须重验完整分类成员、全部流水／问题／关系令牌，不能把本步当作维护写入完成。
+- 维护规划最终双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-mutation-business-final-dual.log tests/test_cash_matching_source_notes.py tests/contract/test_cash_mutation_business_plan.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_mutation_plan_publication.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_operations.py -q --disable-warnings --tb=short --maxfail=4` → 355 passed、无 skip（656.52 s）。同一应用服务在显式专用 `_test` PostgreSQL 与 SQLite 重验实际预览、保存、导入及提交回归。`uv build --out-dir /tmp/ft-cash-mutation-business-dist`、源码编译和 OpenSpec strict 通过；新增文件已暂存后执行 `git diff --cached --check`，无空白问题。
+- 维护规划真实探针：`PYTHONPATH=src uv run python /tmp/ft_cash_mutation_business_real_probe.py` 在仓库外临时 SQLite 解析并提交 19 份、15,198 次出现，结果仍为 12,706 正式、6 草稿、2,408 重复、78 安全跳过，441 确认组、27 延后组、0 关系失败；每次出现都有结果、同键重放正确。随后实际选中净额 0 的合并流水执行默认无文件维护预览，仍显示 1 项已确认结果，账本字段与修订不变。去标识日志 `/tmp/ft-cash-mutation-business-real-probe.log`，临时数据库已清理，未记录原文、密码及真实标识；并行功能验证的耗时不作成本证据。
+- 维护规划独占成本：`uv run python /tmp/ft_cash_mutation_business_cost.py` → 8 passed（201.50 s，`/tmp/ft-cash-mutation-business-performance.log`）。SQLite／PostgreSQL 千行预览 2.6261／2.9440 s、提交 4.0427／8.2594 s、重复往返 4.7613／8.7054 s；失败重试派生加预览 3.2445／4.4672 s、提交 4.0802／6.0667 s，均通过原 5／15 s 门槛。RSS 高水位增量最大 22.92 MiB，小于 256 MiB。一万笔背景、3 次预热／20 次测量，草稿保存及当前详情读取 P95 25.89／71.76 ms，正式普通维护首次预览 P95 10.95／31.05 ms，均小于 100 ms；不声称覆盖实际维护提交或大关系组。测量未并发本任务其他测试、构建或运行时代码修改；临时隔离的两枚已核对孤立崩溃上报进程已全部恢复并核对为运行态，未暂停模拟器网络进程。
+- 本步 Cross-platform Impact Check：只接内部维护规划与共享读取，Web、Native、共享 presentation 无页面、公开接口、用户文案或操作变化；功能地图补内部证据，页面数与跨端 TODO 不变。无 schema、新依赖或真实业务库写入。回退应用仅作废未提交临时维护计划，已有流水、关系、来源问题及永久收据不变。反思：共用边界应从已准备操作开始，不能伪造文件；保留问题的展示和写入必须分开，整笔分类不能依赖跳过人工值的自动同步。
 
 - 4.10.3.3.1 来源派生（2026-10-22，HEAD／比较基线 `71b8b0f`）：补齐已确认主设计第 2.2／9.2 节的实现缺口；拆分来源派生、真实维护规划、联合命令三个可验证小步。缺共享模块的纯回归先 6 failed（0.74 s，`/tmp/ft-cash-source-effects-red.log`）。独立静态复核发现草稿金额补齐未刷新方向提示、解释单独变化被误作重复两项 P2；增量先 6 failed、2 PostgreSQL cases 明确跳过（5.71 s，`/tmp/ft-cash-source-effects-review-red.log`），随后修复。首次归一金额未知丢失可信身份的 4 项回归先失败（0.37 s，`/tmp/ft-cash-source-effects-partial-red.log`），与后续补充统一派生。
 - 来源步最终 SQLite：纯规则／平台／银行／PDF／白名单及两项应用合同共 219 passed、65 PostgreSQL cases 明确跳过（155.06 s，`/tmp/ft-cash-source-effects-final-sqlite.log`）。中间矩阵因空解释 `None/{}` 被误判更新有 1 failed／64 passed；按空对象等价修复后完整重跑，不将中间失败写成通过。独立最终静态复核覆盖原文、清空保护、PDF 列名、一般 JSON、可信身份、金额依赖、解释写入与既有关系，原两项 P2 已关闭，无新增 P1/P2；审查者没有运行测试、数据库、构建或私人账单。

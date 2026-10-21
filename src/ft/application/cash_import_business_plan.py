@@ -11,6 +11,7 @@ from itertools import islice, product
 from sqlalchemy import and_, exists, func, or_, select
 
 from ft.adapters.cash_statement_evidence import extract_source_explanation
+from ft.adapters.cash_statement_effects import cash_source_note
 from ft.adapters.relational.models import (AccountAliasModel, AccountModel, CashSourceBindingModel,
     CashTransactionComponentModel, CashTransactionModel)
 from ft.application.cash_import_issues import cash_import_issue
@@ -19,7 +20,7 @@ from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.application.relations import plan_relation_proposals
 from ft.domain.cash_projection import CashProjectionBuild, CashProjectionFact, build_cash_projections
-from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, _normalize, source_note
+from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, _normalize
 from ft.domain.cash_relation_graph import CashRelationGraphEdge, build_cash_relation_graph
 from ft.domain.cash_relation_policy import (CashRelationError, RelationEndpoint, RelationLink, RelationRoleEvidence,
     cash_funding_role_compatible, discover_relation_roles, relation_commit_groups, validate_relation_roles)
@@ -132,9 +133,16 @@ class CashImportBusinessPlanBuilder:
             operation["source_scope_key"] = source.account_scope_key or "file:" + source.file_scope_key
             operation["matching_record_id"] = operation["values"]["record_id"] if source.provider_id else "occurrence:" + source.occurrence_key
         rows = deepcopy(list(prepared.rows))
+        return self.build_operations(session=session, files=files, operations=operations, rows=rows,
+            source_rows=prepared.source_plan.rows, relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
+            source_candidate_sets=prepared.candidate_sets)
+
+    def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
+        files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False):
+        """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
         accounts = self._accounts(session)
         new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
-        candidates = self._candidate_ids(session, new, prepared.source_plan.rows)
+        candidates = self._candidate_ids(session, new, source_rows or {})
         existing = {int(op["transaction_id"]) for op in operations if op.get("transaction_id")}
         context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates)
         snapshot = self._snapshot(session, context, operations, accounts, rows)
@@ -143,7 +151,7 @@ class CashImportBusinessPlanBuilder:
         proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])
         groups, conversion_failures = self._groups(snapshot, proposals)
         failures.extend(conversion_failures)
-        invalidated = self._apply_choices(groups, preview_input["relation_choices"], previous_plan)
+        invalidated = self._apply_choices(groups, relation_choices, previous_plan)
         relation_failures = self._apply_groups(snapshot, groups)
         failures.extend(relation_failures)
         for failure in failures:
@@ -151,9 +159,10 @@ class CashImportBusinessPlanBuilder:
                 if parent in snapshot.facts:
                     snapshot.facts[parent] = replace(snapshot.facts[parent], needs_attention=True)
         build = snapshot.build()
-        result = self._present(files, operations, rows, snapshot, build, groups, failures, accounts)
+        result = self._present(files, operations, rows, snapshot, build, groups, failures, accounts,
+            include_unchanged=include_unchanged)
         result.update(invalidated_choices=invalidated, operations=operations, row_decisions=rows,
-            source_candidate_sets=prepared.candidate_sets,
+            source_candidate_sets=source_candidate_sets or {},
             relation_groups=_wire(groups), relation_failures=failures, dependencies={"seed_ids": sorted(context.seed_ids), "token": context.token,
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
             type_effects={"removed_relation_ids": sorted(snapshot.removed_relations),
@@ -190,12 +199,14 @@ class CashImportBusinessPlanBuilder:
             source = operation["values"]["source_type"]
             if source not in {"alipay", "wechat"}:
                 continue
-            occurrence = source_rows[operation["row_refs"][0]]
+            references = operation.get("row_refs", [])
+            occurrence = source_rows.get(references[0]) if references else None
+            scope = occurrence.account_scope_key if occurrence is not None else operation.get("source_scope_key")
             accounts = tuple(sorted({int(part["account_id"]) for part in operation["values"]["components"]}))
-            metadata = operation.get("source_explanation", {})
-            request = requests[(source, occurrence.account_scope_key, accounts)]
+            metadata = operation.get("source_explanation", operation.get("matching_source_explanation", {}))
+            request = requests[(source, scope, accounts)]
             for key, field in (("txn", "txn_id"), ("merchant", "merchant_order_id")):
-                value = metadata.get(field, occurrence.provider_id if key == "txn" else None)
+                value = metadata.get(field, occurrence.provider_id if occurrence is not None and key == "txn" else None)
                 if isinstance(value, str) and value.strip():
                     request[key].add(value.strip())
         result = set()
@@ -240,23 +251,37 @@ class CashImportBusinessPlanBuilder:
                     CashTransactionModel.deleted_at.is_(None), *scope_terms, or_(*terms))))
         return result
 
+    @staticmethod
+    def _fallback_scope(source, identifier):
+        return WECHAT_DEFAULT_SCOPE if source == "wechat" else "unbound:" + str(identifier)
+
+    def _source_scopes(self, session, identifiers):
+        scopes = defaultdict(lambda: defaultdict(set))
+        for batch in _batches(identifiers):
+            for parent, source, kind, scope in session.execute(select(CashSourceBindingModel.transaction_id,
+                CashSourceBindingModel.source_type, CashSourceBindingModel.source_scope_kind, CashSourceBindingModel.source_scope_key).where(
+                    CashSourceBindingModel.workspace_id == self.workspace_id, CashSourceBindingModel.transaction_id.in_(batch))):
+                scopes[(str(parent), source)][kind].add(scope)
+        result = {}
+        for key, kinds in scopes.items():
+            known = kinds["account"]
+            local = kinds["file_local"]
+            result[key] = (next(iter(known)) if len(known) == 1 else "ambiguous:" + key[0] if known else
+                WECHAT_DEFAULT_SCOPE if key[1] == "wechat" else "file:" + next(iter(local)) if len(local) == 1 else "ambiguous:" + key[0])
+        return result
+
     def _snapshot(self, session, context, operations, accounts, rows):
-        values, scopes = {}, defaultdict(set)
+        values, scopes = {}, self._source_scopes(session, context.transaction_ids)
         for batch in _batches(context.transaction_ids):
-            for parent, source, scope in session.execute(select(CashSourceBindingModel.transaction_id,
-                CashSourceBindingModel.source_type, CashSourceBindingModel.source_scope_key).where(
-                    CashSourceBindingModel.workspace_id == self.workspace_id, CashSourceBindingModel.transaction_id.in_(batch),
-                    CashSourceBindingModel.source_scope_kind == "account")):
-                scopes[(str(parent), source)].add(scope)
             for parent in session.scalars(select(CashTransactionModel).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.id.in_(batch))):
                 values[str(parent.id)] = {field: _normalize(field, getattr(parent, field)) for field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
                     if hasattr(parent, field)} | {"source_type": parent.source_type, "record_id": parent.record_id,
                     "state": parent.state, "created_at": parent.created_at,
                     "source_explanation": extract_source_explanation(parent.relation_metadata)}
-                known = scopes[(str(parent.id), parent.source_type)]
-                values[str(parent.id)]["source_scope_key"] = (next(iter(known)) if len(known) == 1 else
-                    "ambiguous:" + str(parent.id) if known else WECHAT_DEFAULT_SCOPE if parent.source_type == "wechat" else "")
+                values[str(parent.id)]["source_scope_key"] = scopes.get((str(parent.id), parent.source_type),
+                    self._fallback_scope(parent.source_type, parent.id))
+                values[str(parent.id)]["matching_record_id"] = "occurrence:" + str(parent.id)
         by_parent = defaultdict(list)
         for identifier, parent, account, amount, currency, ordinal in context.component_versions:
             by_parent[str(parent)].append({"component_id": str(identifier), "account_id": str(account) if account is not None else None,
@@ -288,7 +313,7 @@ class CashImportBusinessPlanBuilder:
             for part in snapshot.values.get(identifier, {}).get("components", []):
                 snapshot.components.pop(part["component_id"], None)
             snapshot.values[identifier] = value
-            snapshot.facts[identifier] = self._fact(identifier, value, needs_attention=bool(op["issues"]))
+            snapshot.facts[identifier] = self._fact(identifier, value, needs_attention=bool(op["issues"] or op.get("retained_issue_ids")))
             if value["state"] == "posted":
                 for part in value["components"]:
                     snapshot.components[part["component_id"]] = self._endpoint(identifier, value, part)
@@ -367,7 +392,7 @@ class CashImportBusinessPlanBuilder:
                 account_name=account["name"], account_type=account["type"], occurred_at=value["occurred_at"],
                 counterparty=value["counterparty"], counterparty_account=value["counterparty_account"],
                 counterparty_account_attrs=value["counterparty_account_attrs"], payment_method=metadata.get("payment_method", ""),
-                note=source_note(value.get("source_payload")), record_type=part.record_type, record_subtype=part.record_subtype,
+                note=cash_source_note(value["source_type"], value.get("source_payload")), record_type=part.record_type, record_subtype=part.record_subtype,
                 bill_source=value["source_type"], source=value["source_type"], record_id=value.get("matching_record_id", value["record_id"]),
                 source_identity=value.get("source_scope_key", ""),
                 raw_payload=metadata, relation_metadata=metadata, parent_id=part.transaction_id,
@@ -644,23 +669,26 @@ class CashImportBusinessPlanBuilder:
         operation = snapshot.parent_ops.get(identifier)
         return {"row_ref": operation["row_refs"][0]} if operation else {"transaction_id": identifier}
 
-    def _present(self, files, operations, rows, snapshot, build, groups, failures, accounts):
+    def _present(self, files, operations, rows, snapshot, build, groups, failures, accounts, *, include_unchanged=False):
         changed = {parent for parent, operation in snapshot.parent_ops.items() if operation["planned_action"] != "duplicate"}
         touched = set(changed)
+        if include_unchanged:
+            touched.update(snapshot.parent_ops)
         touched.update(parent for group in groups for parent in group["parent_ids"])
         # 类型解除后同一旧组的其余成员也属于此次预计结果。
         old_links = [_link(edge) for edge in snapshot.context.relations]
         from ft.domain.cash_relation_policy import affected_relation_closure
         touched.update(affected_relation_closure(changed, old_links, [_link(edge) for edge in snapshot.edges.values()]))
         projections = [item for item in build.projections if any(str(identifier) in touched for identifier in item.member_ids)
-            and (item.visible or item.confirmation_status == "pending")]
+            and (include_unchanged or item.visible or item.confirmation_status == "pending")]
         projections.sort(key=lambda item: (item.sort_at, item.primary_record.id), reverse=True)
         items, details, detail_values = [], {}, {}
         for index, projection in enumerate(projections):
             identifier = f"pi_{index + 1}"
             parents = {str(parent) for parent in projection.member_ids}
             relevant = [group for group in groups if parents.intersection(group["parent_ids"])]
-            issues = [issue for parent in parents for issue in snapshot.parent_ops.get(parent, {}).get("issues", [])]
+            issues = [issue for parent in parents for key in ("issues", "display_retained_issues")
+                for issue in snapshot.parent_ops.get(parent, {}).get(key, [])]
             if any(group["action"] == "defer" for group in relevant):
                 issues.append(_pending("relation_pending", relation=True))
             issues.extend(_pending(failure["code"], relation=True) for failure in failures if parents.intersection(failure["parent_ids"]))

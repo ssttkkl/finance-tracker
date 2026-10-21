@@ -96,8 +96,11 @@ def _validate_build(result):
 
 
 class CashMutationPlanService(CashRecordMaintenanceService):
-    def __init__(self, uow, staging_store, *, user_id, builder):
+    def __init__(self, uow, staging_store, *, user_id, builder=None):
         super().__init__(uow, user_id=user_id)
+        if builder is None:
+            from ft.application.cash_mutation_business_plan import CashMutationBusinessPlanBuilder
+            builder = CashMutationBusinessPlanBuilder(self._workspace_id)
         self._staging, self._builder = staging_store, builder
 
     def _context(self, session, identifier):

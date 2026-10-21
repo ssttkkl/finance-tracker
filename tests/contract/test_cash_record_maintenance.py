@@ -300,6 +300,7 @@ def test_invalid_json_patch_has_safe_error_and_no_persistent_changes(context_run
 @pytest.mark.parametrize("kind", ["depth", "budget", "escaped_budget"])
 def test_draft_input_budget_is_checked_before_digest_and_database_write(context_runtime, monkeypatch, kind):
     import ft.application.cash_record_maintenance as maintenance
+    import ft.application.cash_record_operations as record_inputs
     runtime, identifier = context_runtime, _draft(context_runtime)
     service = _service(runtime)
     before = service.read(identifier)
@@ -309,7 +310,7 @@ def test_draft_input_budget_is_checked_before_digest_and_database_write(context_
             nested = [nested]
         patch = {"source_payload": {"nested": nested}}
     else:
-        monkeypatch.setattr(maintenance, "_MAX_MUTATION_INPUT_BYTES", 256)
+        monkeypatch.setattr(record_inputs, "_MAX_MUTATION_INPUT_BYTES", 256)
         patch = {"note": "x" * 300 if kind == "budget" else "\u0001" * 100}
     with pytest.raises(maintenance.CashRecordMaintenanceError, match="record_input_invalid"):
         service.save_draft(identifier, expected_revision=before["row_revision"], patch=patch,

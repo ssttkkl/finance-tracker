@@ -3,64 +3,24 @@ from copy import deepcopy
 
 from sqlalchemy import select
 
-from ft.adapters.cash_statement_effects import prepare_cash_source_effects
 from ft.adapters.relational.cash_attention import read_cash_attention
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
-from ft.adapters.relational.models import (AccountModel, CashCategoryModel, CashTransactionComponentModel,
-    CashTransactionIssueModel, CashTransactionModel, WorkspaceMembershipModel)
+from ft.adapters.relational.models import WorkspaceMembershipModel
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.access import PermissionDenied
 from ft.application.cash_import_issues import cash_import_issue
-from ft.application.cash_import_operations import _batches, _draft_accounts, _remaining_funding_issues, _validate_component_ids, _wire
+from ft.application.cash_import_operations import _wire
 from ft.application.cash_projections import CashProjectionService
 from ft.application.cash_record_writer import CashRecordWriter
-from ft.application.parsed_import_staging import ParsedImportDataError, _json_budget, _json_bytes
-from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS,
-    CashRecordPolicyError, prepare_cash_record_update, validate_cash_record_for_posting)
-from ft.domain.cash_source_matching import _digest
-
-
-class CashRecordMaintenanceError(ValueError):
-    def __init__(self, code):
-        self.code = code
-        super().__init__(code)
-
-
-def _identifier(value, *, code="record_not_found"):
-    if type(value) is int:
-        identifier = value
-    elif type(value) is str and 1 <= len(value) <= 19 and value.isascii() and value.isdecimal():
-        identifier = int(value)
-    else:
-        raise CashRecordMaintenanceError(code)
-    if not 0 < identifier < 2 ** 63:
-        raise CashRecordMaintenanceError(code)
-    return identifier
+from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
+    _EDITABLE, _identifier, _request_digest)
+from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS
 
 
 def _receipt(value):
     return {key: deepcopy(item) for key, item in value.items()
         if key not in {"request_digest", "session_digest", "edit_context_digest"}}
-
-
-_EDITABLE = (MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS) - {"account_name"}
-_RECOMPUTED = {"account_missing", "account_unavailable", "account_changed", "account_currency_missing",
-    "posting_incomplete", "incomplete_record", "component_total_mismatch", "component_account_mismatch",
-    "component_currency_mismatch", "component_direction_mismatch", "duplicate_component_ordinal"}
-_PARSED_FIELD_ISSUES = {"allocation_missing", "amount_unreadable", "time_unreadable", "currency_unrecognized",
-    "direction_unrecognized", "funding_unrecognized", "allocation_amount_invalid"}
-_MAX_MUTATION_INPUT_BYTES = 64 * 1024 * 1024
-
-
-def _request_digest(*values):
-    try:
-        _json_budget(values, [_MAX_MUTATION_INPUT_BYTES])
-        if len(_json_bytes(values)) > _MAX_MUTATION_INPUT_BYTES:
-            raise CashRecordMaintenanceError("record_input_invalid")
-        return _digest(*values)
-    except (ParsedImportDataError, TypeError, ValueError, RecursionError, OverflowError):
-        raise CashRecordMaintenanceError("record_input_invalid") from None
 
 
 class CashRecordMaintenanceService:
@@ -78,28 +38,13 @@ class CashRecordMaintenanceService:
         return member.role in {"admin", "editor"}
 
     def _record(self, session, identifier):
-        row = session.scalar(select(CashTransactionModel).where(CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.id == identifier, CashTransactionModel.deleted_at.is_(None)))
-        if row is None:
-            raise CashRecordMaintenanceError("record_not_found")
-        return row
+        return CashRecordOperationPlanner(session, self._workspace_id).record(identifier)
 
     def _fields(self, session, row):
-        fields = {key: deepcopy(getattr(row, key)) for key in _EDITABLE - {"components"}}
-        fields.update(state=row.state, source_type=row.source_type, record_id=row.record_id)
-        fields["components"] = [{"component_id": str(part.id), "ordinal": part.ordinal,
-            "account_id": str(part.account_id) if part.account_id is not None else None,
-            "amount": part.amount, "currency": part.currency} for part in session.scalars(select(CashTransactionComponentModel).where(
-                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                CashTransactionComponentModel.cash_transaction_id == row.id).order_by(CashTransactionComponentModel.ordinal))]
-        if fields["account_id"] is not None:
-            fields["account_id"] = str(fields["account_id"])
-        return fields
+        return CashRecordOperationPlanner(session, self._workspace_id).fields(row)
 
     def _issues(self, session, identifier):
-        return list(session.scalars(select(CashTransactionIssueModel).where(
-            CashTransactionIssueModel.workspace_id == self._workspace_id,
-            CashTransactionIssueModel.transaction_id == identifier).order_by(CashTransactionIssueModel.id)))
+        return CashRecordOperationPlanner(session, self._workspace_id).issues(identifier)
 
     @staticmethod
     def _safe_issue(row):
@@ -136,55 +81,7 @@ class CashRecordMaintenanceService:
                 "projection_ref": {**location, "projection_version": state.projection_version} if location else None}
 
     def _prepare_draft(self, session, row, patch):
-        if row.state != "draft":
-            raise CashRecordMaintenanceError("draft_required")
-        if not isinstance(patch, dict) or set(patch) - _EDITABLE:
-            raise CashRecordPolicyError("field_not_editable", ())
-        current = self._fields(session, row)
-        prepared = prepare_cash_record_update(current, patch)
-        values = {**deepcopy(current), **prepared.values, "state": "draft"}
-        values, explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
-            source_explanation=row.relation_metadata, protected_fields={key for key, value in (row.manual_overrides or {}).items() if value})
-        if "components" in patch:
-            _validate_component_ids(current["components"], values["components"])
-        if any("ordinal" not in part for part in values["components"]):
-            raise CashRecordPolicyError("invalid_field", ("components",))
-        if len({part["ordinal"] for part in values["components"]}) != len(values["components"]):
-            raise CashRecordPolicyError("invalid_field", ("components",))
-        if values.get("category_id") is not None and session.scalar(select(CashCategoryModel.id).where(
-            CashCategoryModel.workspace_id == self._workspace_id, CashCategoryModel.id == values["category_id"])) is None:
-            raise CashRecordPolicyError("category_unavailable", ("category_id",))
-        references = {part.get("account_id") for part in values["components"]} | {values.get("account_id")}
-        identifiers = {_identifier(value, code="record_input_invalid") for value in references if value is not None}
-        accounts = {}
-        for batch in _batches(identifiers):
-            accounts.update((str(account.id), {"active": account.active, "type": account.type, "currencies": account.currencies})
-                for account in session.scalars(select(AccountModel).where(AccountModel.workspace_id == self._workspace_id,
-                    AccountModel.id.in_(batch))))
-        issues, dependencies = _draft_accounts(values, accounts)
-        try:
-            validate_cash_record_for_posting(values)
-        except CashRecordPolicyError as error:
-            issues.append(cash_import_issue(error.code, field_path=error.fields[0] if error.fields else None))
-        existing = self._issues(session, row.id)
-        external = [issue for issue in existing if issue.code not in _RECOMPUTED | _PARSED_FIELD_ISSUES
-            or issue.issue_key.startswith("relation:")]
-        parsed = [issue for issue in existing if issue.code in _PARSED_FIELD_ISSUES and issue not in external]
-        remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, patch))
-        issues.extend(cash_import_issue(issue.code, field_path=issue.field_path) for issue in parsed if issue.code in remaining)
-        manual = sorted(set(patch) & {"note", "category_id"})
-        explanation_changed = explanation is not None and explanation != (row.relation_metadata or {})
-        action = "update_draft" if values != current or manual or explanation_changed else "duplicate"
-        return {**({"source_explanation": explanation} if explanation is not None else {}),
-            "transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
-            "current": _wire(current), "values": _wire(values), "manual_fields": manual, "type_changed": prepared.type_changed,
-            "source_updates": [], "pending_fields": {}, "candidate_ids": [], "expected_accounts": dependencies,
-            "issues": list({(issue["code"], issue["field_path"]): issue for issue in issues}.values()),
-            "expected_issues": [{"issue_id": str(issue.id), "revision": issue.revision, "code": issue.code,
-                "field_path": issue.field_path, "issue_key": issue.issue_key} for issue in existing],
-            "retained_issue_ids": [str(issue.id) for issue in external],
-            "preview_components": [{"component_id": part.get("component_id") or f"new_{part['ordinal']}",
-                "ordinal": part["ordinal"]} for part in values["components"]]}
+        return CashRecordOperationPlanner(session, self._workspace_id).prepare_draft(row, patch)
 
     def _outcome(self, receipt, identifier):
         try:
