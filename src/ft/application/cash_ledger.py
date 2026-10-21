@@ -815,10 +815,7 @@ class CashLedgerCommandService:
         relation_group_projection_ids = {
             member_projection_ids[int(endpoint)]
             for row, primary_parent_id, secondary_parent_id in relation_rows
-            if row.status in {
-                RelationStatus.ACCEPTED.value,
-                RelationStatus.PENDING_REVIEW.value,
-            }
+            if row.active and row.state in {"confirmed", "draft"}
             for endpoint in (primary_parent_id, secondary_parent_id)
             if endpoint is not None and int(endpoint) in member_projection_ids
         }
@@ -1290,15 +1287,8 @@ class CashLedgerCommandService:
             )
             if conflict is not None:
                 raise ValueError("这两条流水已经存在同类型关联")
-            model = session.get(TransactionRelationModel, int(relation_id))
-            model.kind = kind
-            model.subtype = subtype
-            model.rule_id = "manual.web.v1"
-            model.created_by = "web"
-            model.decided_by = "web"
-            model.decided_at = datetime.now(timezone.utc)
-            model.decision_reason = "user_updated"
-            session.flush()
+            relation = uow.relations.update_kind(relation_id, kind=kind, subtype=subtype,
+                actor="web", reason="user_updated")
             if relation.get("status") == RelationStatus.ACCEPTED.value:
                 if self._relation_service is not None:
                     self._relation_service._validate_transfer_endpoint_availability(

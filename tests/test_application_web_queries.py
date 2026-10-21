@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -349,19 +351,15 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
                 currency="CNY",
                 ordinal=0,
             ))
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="refund_offset",
-                subtype="",
-                primary_fact_id=1003,
-                secondary_fact_id=1004,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=1003,
-                ordered_fact_b=1004,
-                anchor_fact_id=1004,
-                status="accepted",
-            ))
+            session.add(cash_relation_fixture(session,
+                            workspace_id=runtime.workspace_id,
+                            kind="refund_offset",
+                            subtype="",
+                            primary_component_id=1003,
+                            secondary_component_id=1004,
+                            anchor_component_id=1004,
+                            state='confirmed'
+                        ))
         CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
     def rebuild_between_state_and_page(_connection, _cursor, statement, _parameters, _context, _executemany):

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 
 def _service(runtime):
     from ft.application.cash_projections import CashProjectionService
@@ -33,12 +35,16 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
 
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="payment_mirror", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1002, primary_fact_type="cash", secondary_fact_type="cash",
-            ordered_fact_a=1002, ordered_fact_b=1003, anchor_fact_id=1003, status="accepted",
-            rule_id="mirror.fixture.v1",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="payment_mirror",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1002,
+                        anchor_component_id=1003,
+                        state='confirmed',
+                        rule_id="mirror.fixture.v1"
+                    ))
     CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
     statements = []
     engine = cash_web_runtime.sessions.kw["bind"]

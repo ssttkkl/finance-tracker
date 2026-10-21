@@ -1,3 +1,5 @@
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import base64
 
 from fastapi.testclient import TestClient
@@ -344,11 +346,15 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
             id=1004, workspace_id=runtime.workspace_id, cash_transaction_id=1004,
             account_id=101, amount=Decimal("3"), currency="CNY", ordinal=0,
         ))
-        session.add(TransactionRelationModel(
-            workspace_id=runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1004, primary_fact_type="cash", secondary_fact_type="cash",
-            ordered_fact_a=1003, ordered_fact_b=1004, anchor_fact_id=1004, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1004,
+                        anchor_component_id=1004,
+                        state='confirmed'
+                    ))
 
     payload = _client(runtime).get("/api/v1/cash-projections", params={"limit": 50}).json()
     projection = next(item for item in payload["items"] if item["projection_id"] == "cash:1003")

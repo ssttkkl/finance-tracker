@@ -186,7 +186,8 @@ class CashInvestmentFundingRelationService:
 
         return session.scalar(select(TransactionRelationModel.id).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.status == "accepted",
+            TransactionRelationModel.state == "confirmed",
+            TransactionRelationModel.active.is_(True),
             or_(
                 TransactionRelationModel.primary_component_id == cash_component_id,
                 TransactionRelationModel.secondary_component_id == cash_component_id,

@@ -336,7 +336,7 @@ def test_reverse_order_platform_refund_supersedes_prior_system_bank_refund(
         row for row in active_refunds
         if int(row["secondary_fact_id"] or 0) == int(ids["reverse-platform-order_refund"])
     )
-    assert int(old_bank_refund["superseded_by_id"]) == int(replacement["id"])
+    assert old_bank_refund["superseded_by_id"] is None
     assert int(old_bank_refund["secondary_fact_id"] or 0) == int(ids["reverse-system-bank-refund"])
 
 
@@ -414,7 +414,7 @@ def test_platform_refund_replacement_retires_bank_edge_before_persisting(relatio
         (str(ids["capacity-platform-order"]), str(ids["capacity-bank-refund"])),
     }
     assert old_after["status"] == RelationStatus.SUPERSEDED.value
-    assert str(old_after["superseded_by_id"]) == str(replacement["id"])
+    assert old_after["superseded_by_id"] is None
 
 
 def test_platform_refund_does_not_replace_multiple_equally_matching_bank_refunds(

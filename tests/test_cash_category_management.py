@@ -1,6 +1,8 @@
 """收支分类目录的 Application Service 合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from pathlib import Path
 
 import pytest
@@ -280,14 +282,17 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
                     id=2102, workspace_id="category-workspace", cash_transaction_id=2102,
                     account_id=2001, amount=Decimal("-10"), currency="CNY", ordinal=0,
                 ),
-                TransactionRelationModel(
-                    workspace_id="category-workspace", kind="payment_mirror", subtype="",
-                    primary_fact_id=2101, secondary_fact_id=2102,
-                    primary_fact_type="cash", secondary_fact_type="cash",
-                    ordered_fact_a=2101, ordered_fact_b=2102, anchor_fact_id=2101,
-                    status="accepted", created_by="fixture",
-                ),
             ))
+            session.add(cash_relation_fixture(session,
+                    workspace_id="category-workspace",
+                    kind="payment_mirror",
+                    subtype="",
+                    primary_component_id=2101,
+                    secondary_component_id=2102,
+                    anchor_component_id=2101,
+                    state='confirmed',
+                    created_by="fixture"
+                ))
         CashProjectionService(sessions, "category-workspace").rebuild()
         statements: list[str] = []
 

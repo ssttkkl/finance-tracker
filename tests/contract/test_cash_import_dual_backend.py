@@ -128,7 +128,7 @@ def test_cached_preview_plan_import_is_idempotent_without_replanning_on_both_bac
             TransactionRelationModel.kind == "refund_offset",
         ))
         assert relation is not None
-        assert relation.status == "accepted"
+        assert relation.state == "confirmed" and relation.active
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
@@ -240,7 +240,7 @@ def test_cached_preview_plan_rejects_tampered_candidate_and_keeps_auditable_reje
             TransactionRelationModel.workspace_id == workspace_id,
         ))
         assert relation_model is not None
-        assert relation_model.status == "rejected"
+        assert relation_model.state == "ignored" and relation_model.active
         assert relation_model.decided_by == "web"
 
 
@@ -464,7 +464,7 @@ def test_refund_relation_metadata_survives_import_on_both_backends(request, runt
         relations = list(session.scalars(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == workspace_id,
             TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-            TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+            (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
         )))
         assert len(facts) == 3
         assert len(relations) == 1

@@ -796,7 +796,7 @@ def test_cash_import_rejected_planned_relation_is_auditable(tmp_path):
         persisted = session.query(TransactionRelationModel).filter(
             TransactionRelationModel.workspace_id == "wizard-workspace",
         ).one()
-        assert persisted.status == "rejected"
+        assert persisted.state == "ignored" and persisted.active
         assert persisted.decided_by == "web"
         assert persisted.decision_reason == "import_rejected"
 
@@ -900,7 +900,7 @@ def test_session_commit_applies_cached_preview_plan_without_replanning(tmp_path,
         relation = session.query(TransactionRelationModel).filter_by(
             workspace_id="wizard-workspace", kind="refund_offset",
         ).one()
-        assert relation.status == "accepted"
+        assert relation.state == "confirmed" and relation.active
 
 
 def test_session_relation_context_change_requires_reconfirmation_without_writes(tmp_path):
@@ -1073,7 +1073,7 @@ def test_cash_import_confirm_persists_selected_relation_in_same_transaction(tmp_
     assert result["new_rows"] == 1
     with service._sessions() as session:
         relation = session.query(TransactionRelationModel).one()
-        assert relation.status == "accepted"
+        assert relation.state == "confirmed" and relation.active
         assert relation.created_by == "web"
 
 
@@ -1176,7 +1176,7 @@ def test_cash_import_mapping_and_relations_rebuild_ready_projection_once(tmp_pat
         )) == 2
         assert session.scalar(select(func.count()).select_from(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == workspace_id,
-            TransactionRelationModel.status == "accepted",
+            (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
         )) == 1
 
 
@@ -1822,7 +1822,7 @@ def test_cash_import_replaces_direct_bank_refund_before_persisting_platform_refu
         old_refund_relation_id = session.query(TransactionRelationModel.id).filter_by(
             workspace_id="wizard-workspace",
             kind="refund_offset",
-            status="accepted",
+            state="confirmed", active=True,
         ).scalar()
     assert old_refund_relation_id is not None
 
@@ -1872,13 +1872,12 @@ def test_cash_import_replaces_direct_bank_refund_before_persisting_platform_refu
     assert result["new_rows"] == 1
     with sessions() as session:
         old_bank_refund = session.get(TransactionRelationModel, old_refund_relation_id)
-        assert old_bank_refund.status == "superseded"
-        assert old_bank_refund.superseded_by_id is not None
+        assert old_bank_refund.active is False
         assert session.query(CashTransactionModel).count() == 4
         assert session.query(TransactionRelationModel).filter_by(
             workspace_id="wizard-workspace",
             kind="refund_offset",
-            status="accepted",
+            state="confirmed", active=True,
         ).count() == 1
 
 

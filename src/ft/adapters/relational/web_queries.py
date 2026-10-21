@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import timezone
 from decimal import Decimal
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
@@ -663,14 +663,13 @@ class RelationalCashLedgerQueryRepository:
             inactive = s.scalars(
                 select(TransactionRelationModel).where(
                     TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.status.in_(("pending_review", "rejected", "superseded")),
-                    TransactionRelationModel.primary_fact_type == "cash",
-                    or_(TransactionRelationModel.secondary_fact_id.is_(None), TransactionRelationModel.secondary_fact_type == "cash"),
-                    or_(TransactionRelationModel.primary_fact_id.in_(member_component_ids), TransactionRelationModel.secondary_fact_id.in_(member_component_ids)),
-                ).order_by(TransactionRelationModel.status, TransactionRelationModel.id)
+                    or_(TransactionRelationModel.state != "confirmed", TransactionRelationModel.active.is_(False)),
+                    or_(TransactionRelationModel.primary_transaction_id.in_(member_ids), TransactionRelationModel.secondary_transaction_id.in_(member_ids)),
+                ).order_by(case((TransactionRelationModel.active.is_(False), "superseded"),
+                    (TransactionRelationModel.state == "draft", "pending_review"), else_="rejected"), TransactionRelationModel.id)
             ).all()
             endpoint_ids = sorted({
-                endpoint for relation in (*inactive, *accepted_by_id.values()) for endpoint in (relation.primary_fact_id, relation.secondary_fact_id)
+                endpoint for relation in (*inactive, *accepted_by_id.values()) for endpoint in (relation.primary_component_id, relation.secondary_component_id)
                 if endpoint is not None
             })
             endpoints = s.execute(
@@ -750,9 +749,9 @@ class RelationalCashLedgerQueryRepository:
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_fact_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
                         "primary_component_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
-                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_fact_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id is not None else None,
+                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
                         "secondary_component_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
                         "applied_amount": _amount(accepted_by_id[relation.transaction_relation_id].applied_amount) if relation.transaction_relation_id in accepted_by_id else "0",
                         "primary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_component_id in endpoint_rows else None,
@@ -762,10 +761,11 @@ class RelationalCashLedgerQueryRepository:
                 ],
                 "inactive_relation_hints": [
                     {
-                        "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype, "status": relation.status,
-                        "primary_fact_id": str(relation.primary_fact_id),
-                        "primary_component_id": str(relation.primary_component_id),
-                        "secondary_fact_id": str(relation.secondary_fact_id) if relation.secondary_fact_id is not None else None,
+                        "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype,
+                        "status": {"draft": "pending_review", "confirmed": "accepted", "ignored": "rejected"}[relation.state] if relation.active else "superseded",
+                        "primary_fact_id": str(relation.primary_component_id) if relation.primary_component_id is not None else None,
+                        "primary_component_id": str(relation.primary_component_id) if relation.primary_component_id is not None else None,
+                        "secondary_fact_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
                         "secondary_component_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
                         "applied_amount": _amount(relation.applied_amount),
                         "primary_record": _component_summary(*endpoint_rows[relation.primary_component_id], categories) if relation.primary_component_id in endpoint_rows else None,

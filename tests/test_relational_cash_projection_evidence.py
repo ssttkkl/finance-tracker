@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from datetime import datetime
 
 import pytest
@@ -25,11 +27,15 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
             id=1004, workspace_id=cash_web_runtime.workspace_id, cash_transaction_id=1004,
             account_id=101, amount=Decimal("12.50"), currency="CNY", ordinal=0,
         ))
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1004, primary_fact_type="cash", secondary_fact_type="cash",
-            ordered_fact_a=1003, ordered_fact_b=1004, anchor_fact_id=1004, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1004,
+                        anchor_component_id=1004,
+                        state='confirmed'
+                    ))
     CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
 
     evidence = CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).get_projection_evidence("cash:1003")
@@ -51,10 +57,14 @@ def test_evidence_only_exposes_cash_inactive_relation_hints(cash_web_runtime):
 
     with cash_web_runtime.sessions.begin() as session:
         session.add_all((
-            TransactionRelationModel(
-                workspace_id=cash_web_runtime.workspace_id, kind="transfer_pair", subtype="",
-                primary_fact_id=1003, secondary_fact_id=1002, primary_fact_type="cash", secondary_fact_type="cash",
-                ordered_fact_a=1002, ordered_fact_b=1003, anchor_fact_id=1003, status="pending_review",
+            cash_relation_fixture(session,
+                workspace_id=cash_web_runtime.workspace_id,
+                kind="transfer_pair",
+                subtype="",
+                primary_component_id=1003,
+                secondary_component_id=1002,
+                anchor_component_id=1003,
+                state='draft'
             ),
         ))
     evidence = _query_evidence(cash_web_runtime)

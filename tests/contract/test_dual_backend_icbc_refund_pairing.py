@@ -143,7 +143,7 @@ def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
                 select(TransactionRelationModel).where(
                     TransactionRelationModel.workspace_id == "icbc-refund-parity",
                     TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-                    TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                    (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
                 )
             ))
             assert len(relations) == 1

@@ -212,12 +212,12 @@ def test_scan_phase_a_allows_multiple_alipay_partial_refunds():
             select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == "ws",
                 TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             )
         ))
         assert len(relations) == 2
-        assert {relation.primary_fact_id for relation in relations} == {expense_id}
-        assert {relation.secondary_fact_id for relation in relations} == set(refund_ids)
+        assert {relation.primary_component_id for relation in relations} == {expense_id}
+        assert {relation.secondary_component_id for relation in relations} == set(refund_ids)
 
 
 def test_scan_phase_a_pairs_alipay_investment_out_refund():
@@ -267,11 +267,11 @@ def test_scan_phase_a_pairs_alipay_investment_out_refund():
             select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == "ws",
                 TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             )
         ))
         assert len(relations) == 1
-        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
+        assert {relations[0].primary_component_id, relations[0].secondary_component_id} == {expense_id, refund_id}
 
 
 def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
@@ -334,12 +334,12 @@ def test_scan_phase_a_pairs_wechat_transfer_return_without_reclassifying_it():
             select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == "ws",
                 TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             )
         ))
         assert len(relations) == 1
         assert relations[0].subtype == "p2p_return"
-        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
+        assert {relations[0].primary_component_id, relations[0].secondary_component_id} == {expense_id, refund_id}
         types = dict(session.execute(
             select(CashTransactionModel.id, CashTransactionModel.record_type).where(
                 CashTransactionModel.id.in_([expense_id, refund_id])
@@ -457,10 +457,10 @@ def test_icbc_credit_refund_scan_pairs_only_matching_consumption():
             select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == "ws",
                 TransactionRelationModel.kind == RelationKind.REFUND_OFFSET.value,
-                TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             )
         ))
         assert len(relations) == 1
-        assert {relations[0].primary_fact_id, relations[0].secondary_fact_id} == {expense_id, refund_id}
-        assert other_id not in {relations[0].primary_fact_id, relations[0].secondary_fact_id}
+        assert {relations[0].primary_component_id, relations[0].secondary_component_id} == {expense_id, refund_id}
+        assert other_id not in {relations[0].primary_component_id, relations[0].secondary_component_id}
         assert not hasattr(relations[0], "confidence")

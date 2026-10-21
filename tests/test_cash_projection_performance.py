@@ -241,15 +241,15 @@ def _seed_cash_projection_workload(sessions) -> None:
             "subtype": subtype,
             "primary_component_id": primary_fact_id,
             "secondary_component_id": secondary_fact_id,
-            "primary_fact_type": "cash",
-            "secondary_fact_type": "cash",
-            "ordered_component_a": min(primary_fact_id, secondary_fact_id),
-            "ordered_component_b": max(primary_fact_id, secondary_fact_id),
+            "primary_transaction_id": primary_fact_id,
+            "secondary_transaction_id": secondary_fact_id,
+            "anchor_transaction_id": secondary_fact_id,
+            "primary_role": "outgoing" if kind == "transfer_pair" else "expense",
+            "secondary_role": "incoming" if kind == "transfer_pair" else "refund" if kind == "refund_offset" else "expense",
             "anchor_component_id": secondary_fact_id,
-            "status": "accepted",
+            "state": "confirmed", "active": True,
             "rule_id": "performance_fixture",
-            "confidence": "strong",
-            "evidence_json": {},
+            "evidence": {},
         })
 
     for identifier in range(1, SINGLE_FACT_COUNT + 1):
@@ -825,10 +825,10 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
             "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
             "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
             "SELECT id FROM transaction_relations "
-                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "WHERE workspace_id = :workspace_id AND state = 'confirmed' AND active = TRUE "
                 "AND primary_component_id IN (7001, 7003, 7005)",
             "SELECT id FROM transaction_relations "
-                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "WHERE workspace_id = :workspace_id AND state = 'confirmed' AND active = TRUE "
                 "AND secondary_component_id IN (7002, 7004, 7006)",
         ):
             result = session.execute(text(explain + statement), params)
@@ -853,8 +853,8 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
             "ix_cash_projection_relations_page_lookup" in plan_text
             or "uq_cash_projection_relations_ordinal" in plan_text
         )
-    assert "ix_transaction_relations_component_primary" in plan_text
-    assert "ix_transaction_relations_component_secondary" in plan_text
+    assert "ix_cash_relation_primary_component" in plan_text
+    assert "ix_cash_relation_secondary_component" in plan_text
 
 
 @pytest.mark.performance
@@ -908,13 +908,12 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
                 "subtype": "",
                 "primary_component_id": base + offset,
                 "secondary_component_id": base + offset + 1,
-                "primary_fact_type": "cash",
-                "secondary_fact_type": "cash",
-                "ordered_component_a": base + offset,
-                "ordered_component_b": base + offset + 1,
-                "status": "accepted",
+                "primary_transaction_id": base + offset,
+                "secondary_transaction_id": base + offset + 1,
+                "anchor_transaction_id": base + offset,
+                "primary_role": "expense", "secondary_role": "expense",
+                "state": "confirmed", "active": True,
                 "rule_id": "relation_group_performance",
-                "candidate_fact_ids": [],
                 "created_by": "performance",
                 "decided_by": "performance",
                 "decision_reason": "",
@@ -934,9 +933,9 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
         with sessions.begin() as session:
             cancel_relation_id = session.scalar(select(TransactionRelationModel.id).where(
                 TransactionRelationModel.workspace_id == WORKSPACE,
-                TransactionRelationModel.primary_fact_id == cancel_base,
-                TransactionRelationModel.secondary_fact_id == cancel_base + 1,
-                TransactionRelationModel.status == "accepted",
+                TransactionRelationModel.primary_component_id == cancel_base,
+                TransactionRelationModel.secondary_component_id == cancel_base + 1,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
         assert cancel_relation_id
         started = time.perf_counter_ns()

@@ -30,6 +30,9 @@
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
 - [x] 4.4.1 完成新建议证据／持久角色的共享校验、旧新确认图闭包及保守配对提交分组；保留既有特殊关系类型。
 - [ ] 4.4.2 完成父记录及组成项关系结构／候选迁移、类型更新调用、联合草稿成员完整性及最终财务图和组保存点接入。
+- [x] 4.4.2.1 用唯一当前关系结构替换旧状态／代理列／JSON 候选；增加父锚点、可空组成项、持久角色、决定组及修订和规范候选，验证已有关系／投影引用保留及双后端迁移。
+- [ ] 4.4.2.2 接入联合草稿完整性和最终图校验；旧服务过渡 DTO 只映射同一事实源，不成为新接口合同。
+- [ ] 4.4.2.3 接入类型更新后的角色校验、失效解除及旧新闭包，验证不重新搜索和不重读可变文本。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
@@ -87,6 +90,12 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.4.2.1 当前关系存储（2026-10-21，HEAD／比较基线 `d0c79b8`）：缺少目标列和候选表的合同先失败，再迁移同一张关系表及所有存储消费者。移除旧状态、排序副本、活动槽、代理列、JSON 候选和取代链；父锚点及端点归属、可空组成项、持久角色、决定组、单调修订和规范候选落库。迁移保留正式财务值、关系 ID、主次展示基准及投影引用；旧非现金端点拒绝并整体回滚，非法候选仅保留当前缺失提示，有损降级拒绝。旧应用 DTO 只是同一事实源的过渡映射，不是新 API。
+- 独立复核采纳 P1 主次排序改变投影基准，以及未绑定对侧残留角色、候选指向自己、当前决定来源错误、降级漏验角色四类边界 finding，均补失败回归后关闭。SQLite 实际查询计划又发现闭包及直接关系读取会走工作区状态索引；分别改为两向索引递归和端点／候选 ID 分支，补索引、环、多种子、分片、活动过滤回归。最终独立复核 33 passed、31 项 PostgreSQL 明确排除，另 6 组拓扑探针通过，无范围内阻断；PostgreSQL 索引表达式离线编译及实际建表均已验证。
+- 显式专用 PostgreSQL 运行 `tests/contract/test_cash_relation_storage.py tests/contract/test_cash_draft_storage.py tests/contract/test_cash_projection_parity.py tests/contract/test_cash_import_dual_backend.py tests/contract/test_dual_backend_icbc_refund_pairing.py tests/contract/test_dual_backend_counterparty_account_transfer_matching.py tests/test_alembic_migration.py tests/integration/test_web_postgres.py tests/integration/test_web_sqlite.py -q --disable-warnings --maxfail=3 --tb=short` → 164 passed、无 skip、1 warning（57.78 s）。完整 SQLite 沿前述两项旧 Expo 排除 → 2,205 passed、341 skipped、53 deselected、1 warning（271.02 s），日志 `/tmp/ft-current-relations-final-regression.log`。完整回归后只改直接关系查询的局部定位和新增反例，最终显式双后端增量 `tests/contract/test_cash_relation_storage.py tests/test_application_web_queries.py tests/test_application_cash_projection_evidence.py tests/test_cash_projection_performance.py -q -m 'not performance' --disable-warnings --maxfail=2 --tb=short` → 101 passed、无 skip、20 deselected（33.53 s），日志 `/tmp/ft-current-relations-final-functional.log`。
+- 性能夹具迁入明确父端点和当前状态后，SQLite 10 项预算全部通过（79.82 s）；随后显式双后端增量中的 20 项性能均通过，覆盖一万笔重建／读取／编辑、关系操作、查询计划及导入成本。该次增量整体为 118 passed、1 failed（240.49 s），唯一失败是修复前的直接关系查询计划，已由前述最终功能矩阵及独立复核关闭，不能把整次失败命令写成通过。日志 `/tmp/ft-current-relations-performance-sqlite.log`、`/tmp/ft-current-relations-final-incremental.log`。`uv build --out-dir /tmp/ft-current-relations-dist`、OpenSpec strict 和最终 diff 空白检查通过。
+- Cross-platform Impact Check：本步替换内部存储、查询及旧维护适配，没有改 Web、Native 或共享 presentation 的页面、文案或公共 DTO；功能地图保留 F-03／F-04／F-05 的未切换状态。浏览器及最终 Hallmark 不适用于此内部小步，客户端验收仍待 4.11–4.13。独立事实复核发现父投影会把同额真实分摊误当镜像、角色边界漏掉既有零退款，已先写回 design、表合同及 delta，实施留在 4.4.2.2；联合草稿成员完整性、最终财务图和普通类型更新仍未完成，不据此关闭父任务。
 
 - 4.7.1.1 单行来源解释（2026-10-21，HEAD／比较基线 `4eb1c35`）：白名单模块缺失先失败，再在平台、银行表格及 PDF 的同次原生调用中提取字符串／布尔提示。排除生成备注、金额、分类、散列身份、原始行及跨行配对决定，错误类型提示忽略；暂存拒绝非法白名单对象，旧 JSON 缺字段按空对象兼容。没有新增数据库列或改写原有来源正文。
 - 定向纯边界 `tests/test_cash_statement_evidence.py tests/test_cash_statement_rows.py tests/test_bank_statement_rows.py tests/test_icbc_pdf_statement.py tests/test_parsed_import_staging.py tests/test_cash_import_funding.py tests/test_parsed_import_cleanup.py -q --disable-warnings --tb=short` → 279 passed、1 warning。显式专用 PostgreSQL 矩阵含 `tests/contract/test_parsed_cash_import_context.py` 及上述前六项 → 315 passed、无 skip（15.09 s）。完整 SQLite 沿前述两项旧 Expo 排除 → 2,174 passed、311 skipped、53 deselected、1 warning（221.99 s），日志 `/tmp/ft-import-source-explanation-regression.log`。独立只读复核另跑 218 项测试通过，未发现阻断问题；未访问真实账单或 PostgreSQL。

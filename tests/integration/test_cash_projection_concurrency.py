@@ -1,6 +1,8 @@
 """收支投影在正式关系型后端上的并发合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -116,20 +118,16 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
     with postgres_cash_web_runtime.sessions.begin() as session:
         repository = RelationalCashProjectionRepository(session, postgres_cash_web_runtime.workspace_id)
         before = repository.source_digest()
-        session.add(TransactionRelationModel(
-            workspace_id=postgres_cash_web_runtime.workspace_id,
-            kind="refund_offset",
-            subtype="",
-            primary_fact_id=1003,
-            secondary_fact_id=1002,
-            primary_fact_type="cash",
-            secondary_fact_type="cash",
-            ordered_fact_a=1002,
-            ordered_fact_b=1003,
-            anchor_fact_id=1002,
-            status="accepted",
-            rule_id="refund.fixture.v1",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=postgres_cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1002,
+                        anchor_component_id=1002,
+                        state='confirmed',
+                        rule_id="refund.fixture.v1"
+                    ))
         session.flush()
         assert repository.source_digest() != before
 

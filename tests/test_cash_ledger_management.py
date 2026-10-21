@@ -360,6 +360,11 @@ def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_
         uow.commit()
     assert current["kind"] == "refund_offset"
     assert current["status"] == "pending_review"
+    from ft.adapters.relational.models import TransactionRelationModel
+    with cash_web_runtime.sessions() as session:
+        stored = session.get(TransactionRelationModel, int(relation_id))
+        assert (stored.primary_role, stored.secondary_role) == ("expense", "refund")
+        assert stored.row_revision == 2 and stored.decision_source == "manual"
 
 
 def test_open_relation_cannot_be_changed_to_bilateral_payment_mirror(cash_web_runtime):

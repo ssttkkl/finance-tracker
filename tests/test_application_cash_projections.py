@@ -1,6 +1,8 @@
 """收支投影全量构建编排。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -97,7 +99,15 @@ def test_failed_rebuild_keeps_the_previous_active_dataset(cash_web_runtime):
     service = _service(cash_web_runtime)
     first = service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="", primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash", secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003, anchor_fact_id=1001, status="accepted"))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
     with pytest.raises(CashProjectionError):
         service.rebuild()
     with cash_web_runtime.sessions() as session:
@@ -147,12 +157,15 @@ def test_failed_rebuild_persists_redacted_diagnostic_in_independent_transaction(
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003,
-            anchor_fact_id=1001, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
 
     with pytest.raises(CashProjectionError):
         service.rebuild()
@@ -193,12 +206,15 @@ def test_diagnostic_write_failure_does_not_replace_build_error(cash_web_runtime,
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003,
-            anchor_fact_id=1001, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
     monkeypatch.setattr(
         RelationalCashProjectionRepository,
         "record_failed_build",
@@ -310,12 +326,15 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
     _service(cash_web_runtime).rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        relation = TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="payment_mirror", subtype="",
-            primary_fact_id=1002, secondary_fact_id=1003, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1002, ordered_fact_b=1003,
-            anchor_fact_id=1002, status="pending_review",
-        )
+        relation = cash_relation_fixture(session,
+                       workspace_id=cash_web_runtime.workspace_id,
+                       kind="payment_mirror",
+                       subtype="",
+                       primary_component_id=1002,
+                       secondary_component_id=1003,
+                       anchor_component_id=1002,
+                       state='draft'
+                   )
         session.add(relation)
         session.flush()
         relation_id = str(relation.id)

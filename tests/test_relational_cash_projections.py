@@ -1,6 +1,8 @@
 """收支投影关系型数据集写入合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -78,20 +80,16 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             currency="CNY",
             ordinal=0,
         ))
-        session.add(TransactionRelationModel(
-            id=501,
-            workspace_id=cash_web_runtime.workspace_id,
-            kind="payment_mirror",
-            subtype="",
-            primary_fact_id=1003,
-            secondary_fact_id=1004,
-            primary_fact_type="cash",
-            secondary_fact_type="cash",
-            ordered_fact_a=1003,
-            ordered_fact_b=1004,
-            status="accepted",
-            anchor_fact_id=1003,
-        ))
+        session.add(cash_relation_fixture(session,
+                        id=501,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="payment_mirror",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1004,
+                        state='confirmed',
+                        anchor_component_id=1003
+                    ))
         facts, _ = repository.read_sources()
         relation = ProjectionRelation(501, "payment_mirror", 1003, 1004)
         build = build_cash_projections(facts, (relation,))

@@ -114,18 +114,17 @@ class RelationalCashProjectionRepository:
             return set()
         relation_filters = (
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.status == "accepted",
-            TransactionRelationModel.primary_fact_type == "cash",
-            TransactionRelationModel.secondary_fact_type == "cash",
-            TransactionRelationModel.secondary_fact_id.is_not(None),
+            TransactionRelationModel.state == "confirmed",
+            TransactionRelationModel.active.is_(True),
+            TransactionRelationModel.secondary_component_id.is_not(None),
         )
         edges = select(
-            TransactionRelationModel.primary_fact_id.label("source"),
-            TransactionRelationModel.secondary_fact_id.label("target"),
+            TransactionRelationModel.primary_component_id.label("source"),
+            TransactionRelationModel.secondary_component_id.label("target"),
         ).where(*relation_filters).union_all(
             select(
-                TransactionRelationModel.secondary_fact_id.label("source"),
-                TransactionRelationModel.primary_fact_id.label("target"),
+                TransactionRelationModel.secondary_component_id.label("source"),
+                TransactionRelationModel.primary_component_id.label("target"),
             ).where(*relation_filters)
         ).cte("cash_relation_edges")
         # SQLAlchemy's recursive CTE reference must be made against the CTE
@@ -160,10 +159,9 @@ class RelationalCashProjectionRepository:
         ]
         relation_filter = [
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.status == "accepted",
-            TransactionRelationModel.primary_fact_type == "cash",
-            TransactionRelationModel.secondary_fact_type == "cash",
-            TransactionRelationModel.secondary_fact_id.is_not(None),
+            TransactionRelationModel.state == "confirmed",
+            TransactionRelationModel.active.is_(True),
+            TransactionRelationModel.secondary_component_id.is_not(None),
         ]
         if requested_ids is not None:
             if not requested_ids:
@@ -180,8 +178,8 @@ class RelationalCashProjectionRepository:
                 CashTransactionComponentModel.cash_transaction_id.in_(requested_parents),
             )
             relation_filter.append(and_(
-                TransactionRelationModel.primary_fact_id.in_(requested_components),
-                TransactionRelationModel.secondary_fact_id.in_(requested_components),
+                TransactionRelationModel.primary_component_id.in_(requested_components),
+                TransactionRelationModel.secondary_component_id.in_(requested_components),
             ))
         funding_component = aliased(CashTransactionComponentModel)
         funding_relation_id = select(CashInvestmentFundingRelationModel.id).join(
@@ -222,14 +220,14 @@ class RelationalCashProjectionRepository:
                 CashTransactionComponentModel,
                 and_(
                     CashTransactionComponentModel.workspace_id == TransactionRelationModel.workspace_id,
-                    CashTransactionComponentModel.id == TransactionRelationModel.primary_fact_id,
+                    CashTransactionComponentModel.id == TransactionRelationModel.primary_component_id,
                 ),
             )
             .join(
                 secondary_component,
                 and_(
                     secondary_component.workspace_id == TransactionRelationModel.workspace_id,
-                    secondary_component.id == TransactionRelationModel.secondary_fact_id,
+                    secondary_component.id == TransactionRelationModel.secondary_component_id,
                 ),
             )
             .where(*relation_filter)
@@ -238,7 +236,7 @@ class RelationalCashProjectionRepository:
         relations = tuple(
             ProjectionRelation(
                 id=row.id, kind=row.kind, primary_fact_id=primary_parent_id,
-                secondary_fact_id=secondary_parent_id, status=row.status, subtype=row.subtype,
+                secondary_fact_id=secondary_parent_id, status="accepted", subtype=row.subtype,
                 applied_amount=row.applied_amount,
             )
             for row, primary_parent_id, secondary_parent_id in relation_rows
@@ -298,11 +296,11 @@ class RelationalCashProjectionRepository:
                 {
                     "id": item.id,
                     "kind": item.kind,
-                    "primary_fact_id": item.primary_fact_id,
-                    "secondary_fact_id": item.secondary_fact_id,
-                    "primary_fact_type": item.primary_fact_type,
-                    "secondary_fact_type": item.secondary_fact_type,
-                    "status": item.status,
+                    "primary_fact_id": item.primary_component_id,
+                    "secondary_fact_id": item.secondary_component_id,
+                    "primary_fact_type": "cash",
+                    "secondary_fact_type": "cash",
+                    "status": "accepted",
                     "subtype": item.subtype,
                     "rule_id": item.rule_id,
                     "applied_amount": item.applied_amount,
@@ -310,10 +308,9 @@ class RelationalCashProjectionRepository:
                 for item in self._session.scalars(
                     select(TransactionRelationModel).where(
                         TransactionRelationModel.workspace_id == self._workspace_id,
-                        TransactionRelationModel.status == "accepted",
-                        TransactionRelationModel.primary_fact_type == "cash",
-                        TransactionRelationModel.secondary_fact_type == "cash",
-                        TransactionRelationModel.secondary_fact_id.is_not(None),
+                        TransactionRelationModel.state == "confirmed",
+                        TransactionRelationModel.active.is_(True),
+                        TransactionRelationModel.secondary_component_id.is_not(None),
                     ).order_by(TransactionRelationModel.id).execution_options(populate_existing=True)
                 )
             ],

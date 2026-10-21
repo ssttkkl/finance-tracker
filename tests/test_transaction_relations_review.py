@@ -123,5 +123,5 @@ def test_supersede_preserves_history(relation_runtime):
         old = uow.relations.get(old_id)
         new = uow.relations.get(result.details["new_id"])
     assert old["status"] == "superseded"
-    assert old["superseded_by_id"] == new["id"]
+    assert old["superseded_by_id"] is None
     assert new["rule_id"].endswith("v2")

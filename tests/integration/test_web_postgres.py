@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from fastapi.testclient import TestClient
 from sqlalchemy import event, select
 from sqlalchemy.exc import OperationalError
@@ -16,11 +18,14 @@ def test_postgres_cash_web_contract_uses_same_response_matrix(postgres_cash_web_
     assert_cash_response_contract(client, postgres_cash_web_runtime, create_app)
 
 
-def test_postgres_cash_contract_ignores_investment_relation_endpoint_id_collisions(postgres_cash_web_runtime):
+def test_postgres_cash_contract_rejects_untyped_investment_endpoints(postgres_cash_web_runtime):
     from datetime import datetime
     from zoneinfo import ZoneInfo
 
-    from ft.adapters.relational.models import InvestmentEventModel, TransactionRelationModel
+    import pytest
+    from ft.adapters.relational.models import InvestmentEventModel
+    from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+    from ft.domain.cash_relation_policy import CashRelationError
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
     from ft.web.app import create_app
@@ -32,12 +37,11 @@ def test_postgres_cash_contract_ignores_investment_relation_endpoint_id_collisio
             record_type="trade", record_subtype="security", currency="CNY", payload={}, record_id="investment-1003",
         ))
 
-        session.add(TransactionRelationModel(
-            workspace_id=postgres_cash_web_runtime.workspace_id, kind="transfer_pair", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1002, primary_fact_type="investment",
-            secondary_fact_type="investment", ordered_fact_a=1002, ordered_fact_b=1003,
-            status="accepted", anchor_fact_id=1003,
-        ))
+        repo = CurrentCashRelationRepository(session, postgres_cash_web_runtime.workspace_id)
+        with pytest.raises(CashRelationError, match="relation_data_invalid"):
+            repo.add({"kind": "transfer_pair", "primary_transaction_id": 1003,
+                "secondary_transaction_id": 1002, "primary_fact_type": "investment",
+                "secondary_fact_type": "investment", "state": "confirmed", "anchor_transaction_id": 1003})
 
     CashProjectionService(
         postgres_cash_web_runtime.sessions,
@@ -123,18 +127,14 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             currency="CNY",
             ordinal=0,
         ))
-        session.add(TransactionRelationModel(
+        session.add(cash_relation_fixture(session,
             workspace_id=runtime.workspace_id,
             kind="refund_offset",
             subtype="",
-            primary_fact_id=1003,
-            secondary_fact_id=1004,
-            primary_fact_type="cash",
-            secondary_fact_type="cash",
-            ordered_fact_a=1003,
-            ordered_fact_b=1004,
-            anchor_fact_id=1004,
-            status="accepted",
+            primary_component_id=1003,
+            secondary_component_id=1004,
+            anchor_component_id=1004,
+            state="confirmed",
             rule_id="refund.fixture.v1",
         ))
     baseline = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
@@ -152,21 +152,17 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             root.counterparty = "并发商户"
             accepted = session.scalar(select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == runtime.workspace_id,
-                TransactionRelationModel.status == "accepted",
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
             accepted.rule_id = "refund.fixture.v2"
-            session.add(TransactionRelationModel(
+            session.add(cash_relation_fixture(session,
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
                 subtype="",
-                primary_fact_id=1003,
-                secondary_fact_id=1002,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=1002,
-                ordered_fact_b=1003,
-                anchor_fact_id=1003,
-                status="pending_review",
+                primary_component_id=1003,
+                secondary_component_id=1002,
+                anchor_component_id=1003,
+                state="draft",
             ))
         CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 

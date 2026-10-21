@@ -1,3 +1,5 @@
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -143,11 +145,14 @@ def test_draft_migration_round_trip_preserves_populated_ledger(draft_runtime):
     from ft.application.cash_projections import CashProjectionService
     runtime = draft_runtime
     with runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(
-            workspace_id=runtime.workspace_id, kind="refund_offset", status="pending_review",
-            primary_component_id=1002, secondary_component_id=1003, anchor_component_id=1002,
-            ordered_component_a=1002, ordered_component_b=1003,
-        ))
+        session.add(cash_relation_fixture(session,
+                        workspace_id=runtime.workspace_id,
+                        kind="refund_offset",
+                        state='draft',
+                        primary_component_id=1002,
+                        secondary_component_id=1003,
+                        anchor_component_id=1002
+                    ))
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     tables = ["cash_transactions", "cash_transaction_components", "transaction_relations",
               "cash_projections", "cash_projection_members", "cash_projection_states",
