@@ -7,6 +7,8 @@ from types import SimpleNamespace
 
 from sqlalchemy import or_, select
 
+from ft.domain.cash_relation_policy import CASH_FUNDING_TYPES
+
 
 _RULE_ID = "cash-investment-funding-v1"
 _AUTO_CASH_TYPES = {
@@ -14,8 +16,8 @@ _AUTO_CASH_TYPES = {
     False: "investment_in",
 }
 _CANDIDATE_CASH_TYPES = {
-    True: frozenset({"investment_out", "transfer_out"}),
-    False: frozenset({"investment_in", "transfer_in"}),
+    True: CASH_FUNDING_TYPES["cash_to_investment"],
+    False: CASH_FUNDING_TYPES["investment_to_cash"],
 }
 _INSTITUTION_NAME_MARKERS = {
     "dfzq_pdf": ("银行转证券", "证券转银行"),

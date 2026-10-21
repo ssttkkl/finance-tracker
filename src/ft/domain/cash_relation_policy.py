@@ -16,6 +16,22 @@ class CashRelationError(ValueError):
         super().__init__(code)
 
 
+CASH_FUNDING_TYPES = {
+    "cash_to_investment": frozenset({"investment_out", "transfer_out"}),
+    "investment_to_cash": frozenset({"investment_in", "transfer_in"}),
+}
+
+
+def cash_funding_role_compatible(direction, amount, record_type):
+    """既有资金角色仅依赖现金类型及固定方向，不重读机构描述。"""
+    try:
+        value = exact_decimal(amount)
+        return (record_type in CASH_FUNDING_TYPES.get(direction, ())
+            and (value < 0 if direction == "cash_to_investment" else value > 0))
+    except (TypeError, ValueError, ArithmeticError):
+        return False
+
+
 @dataclass(frozen=True)
 class RelationEndpoint:
     component_id: str

@@ -492,8 +492,8 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
 
 
 @pytest.mark.performance
-def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
-    """新建、关键字段保存和无关联删除都必须完成事务与返回结果。"""
+def test_fixed_10k_cash_create_type_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
+    """新建、类型保存和无关联删除都必须完成事务与返回结果。"""
     from ft.application.cash_projections import CashProjectionService
 
     backend, sessions = performance_runtime
@@ -516,14 +516,12 @@ def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(p
         service.delete_record(created["record"]["id"])
         service.update_record("1", {
             "account_name": "性能现金账户 A",
-            "amount": f"-{11 + sample}.00",
             "currency": "CNY",
-            "occurred_at": "2025-07-01T00:00:00+00:00",
-            "record_type": "consumption",
+            "record_type": "consumption" if sample % 2 == 0 else "refund",
             "record_subtype": "not_applicable",
         })
 
-    samples: dict[str, list[int]] = {"create": [], "key_edit": [], "delete": []}
+    samples: dict[str, list[int]] = {"create": [], "type_edit": [], "delete": []}
     for sample in range(WRITE_SAMPLES):
         started = time.perf_counter_ns()
         created = service.create_record({
@@ -543,19 +541,18 @@ def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(p
         started = time.perf_counter_ns()
         edited = service.update_record("1", {
             "account_name": "性能现金账户 A",
-            "amount": f"-{20 + sample}.00",
             "currency": "CNY",
-            "occurred_at": "2025-07-01T00:00:00+00:00",
-            "record_type": "consumption",
+            "record_type": "consumption" if (WRITE_WARMUPS + sample) % 2 == 0 else "refund",
             "record_subtype": "not_applicable",
         })
-        samples["key_edit"].append(time.perf_counter_ns() - started)
+        samples["type_edit"].append(time.perf_counter_ns() - started)
 
         started = time.perf_counter_ns()
         deleted = service.delete_record(created_id)
         samples["delete"].append(time.perf_counter_ns() - started)
         assert deleted["deleted"] is True
-        assert Decimal(str(edited["record"]["amount"])) == Decimal(f"-{20 + sample}.00")
+        assert Decimal(str(edited["record"]["amount"])) == Decimal("-10.00")
+        assert edited["record"]["record_type"] == ("consumption" if (WRITE_WARMUPS + sample) % 2 == 0 else "refund")
 
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({

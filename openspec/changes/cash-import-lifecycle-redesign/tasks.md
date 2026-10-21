@@ -34,7 +34,7 @@
 - [ ] 4.4.2.2 接入联合草稿完整性和最终图校验；旧服务过渡 DTO 只映射同一事实源，不成为新接口合同。
 - [x] 4.4.2.2.1 实现共享最终图及联合成员快照校验；组成项退款归并保留实际身份，补等额真实分摊、完整钻石、占用、精度、非根资金关联和窄零退款反例。
 - [x] 4.4.2.2.2 从相关父流水及完整决定组加载当前上下文，提供计划／提交／维护共用的无写入校验边界；各业务入口接入及组保存点仍在 4.8–4.10 验收。
-- [ ] 4.4.2.3 接入类型更新后的角色校验、失效解除及旧新闭包，验证不重新搜索和不重读可变文本。
+- [x] 4.4.2.3 接入类型更新后的角色校验、失效解除及旧新闭包，验证不重新搜索和不重读可变文本；补资金关联现金侧、失效候选及剩余图失败的整条回滚。新导入／维护计划在 4.8–4.10 复用，旧固定字段入口统一关闭仍在 4.11。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
@@ -92,6 +92,13 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.4.2.3 类型变更维护（2026-10-21，HEAD／比较基线 `b817c7b`）：模块缺失先失败，再从更新前局部上下文核对当前固定财务结构与关系修订，按持久角色保留兼容确认边、系统解除失效边；先验证完整剩余图，再在同一事务发布原组全部成员。不调用发现器，不重读来源提示作为角色证据；现金—投资只校验现金类型及固定方向，不读取或修改投资事件。剩余图非法或投影保存失败时，由调用方事务回滚整条更新，避免任意牺牲其他已有决定。普通编辑已接入，新导入／维护计划复用留在 4.8–4.10。
+- 独立工程／财务复核发现 P1 聚合父流水空账户名使类型维护被绕过，及 P2 锚点变化未使候选失效；先以合成 SQLite 反例失败，再改为所有类型变化检查真实父／组成项财务结构，以及分别按候选修订与关系端点／锚点索引标记失效。草稿保留且不重新选配，所属关系修订推进。最终独立 SQLite 功能复核 114 passed、33 deselected，无新增阻断；未运行 PostgreSQL 或性能测试。
+- 执行者显式专用双后端矩阵 `tests/contract/test_cash_relation_type_updates.py tests/contract/test_cash_relation_context.py tests/contract/test_cash_relation_storage.py tests/test_cash_ledger_management.py tests/test_cash_investment_funding_relations.py tests/test_cash_relation_graph.py tests/test_cash_relation_policy.py tests/test_cash_projection.py -q --disable-warnings --maxfail=3 --tb=short` → 290 passed、无 skip、1 warning（64.06 s），日志 `/tmp/ft-cash-relation-types-dual.log`。功能地图记录已接入的普通编辑及尚未切换的新导入入口，没有增加页面数或移除跨端 TODO。
+- 完整 SQLite 沿前述两项旧 Expo 排除 → 2,288 passed、375 skipped、53 deselected、1 warning（284.65 s），日志 `/tmp/ft-cash-relation-types-regression.log`。随后仅增加普通入口安全业务错误转换、该错误的回滚反例及性能场景调整；最终显式双后端增量 `tests/contract/test_cash_relation_type_updates.py tests/test_cash_ledger_management.py tests/integration/test_web_sqlite.py tests/integration/test_web_postgres.py` 加下述两项性能 → 76 passed、无 skip、1 warning（41.08 s），日志 `/tmp/ft-cash-relation-types-final-incremental.log`。
+- 一万笔普通编辑与新建／类型编辑／删除的两项性能在 SQLite、PostgreSQL 共 4 项通过，仍要求各操作 P95 ≤ 100 ms。最初旧性能场景同时修改金额、时间和类型，因新固定字段边界两后端均拒绝，不能记为通过；已将其改为实际交替的类型更新并断言金额保持 −10，保留同一预算。独立复核认可场景，采纳首个正式样本也必须发生类型变化的建议；最终增量包含此修订。`uv build --out-dir /tmp/ft-cash-relation-types-dist`、OpenSpec strict、最终 diff 复核和 `git diff --check` 通过。
+- Cross-platform Impact Check：Web 与 Native 的普通编辑通过同一后端取得类型保存结果，共享 presentation 未改页面、导航、控件或文案；类型影响预览、统一新接口、演示及相关三端浏览器／客户端验收仍在 4.10–4.13，不据此声明最终产品流程或 UI QA 完成。本步无 schema／真实数据迁移，最终 Hallmark 随实际 Compose 切换执行。
 
 - 4.4.2.2.2 当前关系上下文（2026-10-21，HEAD／比较基线 `96476fd`）：缺少加载及校验边界先失败，再实现明确父流水、旧确认闭包、完整指定决定组及资金占用的有界读取。不读取来源正文或配对元数据，不沿无关草稿扩张；校验只返回准备结果，不修改 ORM、写关系或发布投影。确认的新边重新发现角色，既有确认边仅重验持久角色；确认后的分配金额由最终图回填。父／关系／组成员／资金占用变化要求刷新，无关流水变化不使局部上下文失效。
 - 独立工程／财务复核发现 P1 组成项变更未推进父修订会漏检、P1 联合组可用原样草稿或混合忽略凑齐成员，以及 P2 新草稿端点归属未提前校验；均先补失败回归，再以完整组成项结构令牌、一致的组内最终决定及工作区／归属检查关闭。最终独立 SQLite 功能矩阵 133 passed、50 deselected，无新阻断，未运行 PostgreSQL 或性能测试。执行者显式专用双后端矩阵 `tests/contract/test_cash_relation_context.py tests/contract/test_cash_relation_storage.py tests/contract/test_cash_projection_parity.py tests/contract/test_cash_draft_storage.py tests/test_cash_relation_graph.py tests/test_cash_relation_policy.py tests/test_cash_projection.py -q --disable-warnings --maxfail=3 --tb=short` → 258 passed、无 skip（60.94 s），日志 `/tmp/ft-cash-relation-context-dual.log`。

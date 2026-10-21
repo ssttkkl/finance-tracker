@@ -6,6 +6,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py)、[当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py) 及 [局部上下文校验服务](../src/ft/application/cash_relation_context.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，完整组加载及无写入校验已具备，实际计划／提交／维护入口尚待接入。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。导入的对外写入口尚未切换；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
+普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单的全部旧写路径关闭、维护预览及 Compose 演示仍属上述未完成变更。
+
 ## 页面级功能
 
 微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。

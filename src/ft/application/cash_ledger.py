@@ -486,9 +486,24 @@ class CashLedgerCommandService:
                 field in values and not self._same_edit_value(field, current.get(field), values[field])
                 for field in key_fields
             )
+            type_changed = any(
+                field in values and not self._same_edit_value(field, current.get(field), values[field])
+                for field in ("record_type", "record_subtype")
+            )
+            type_context = None
+            previous_row_revision = current_model.row_revision
             component_ids: set[int] = {int(fact_id)}
             component_relations: list[dict] = []
-            if key_changed or category_changed:
+            if type_changed:
+                from ft.application.cash_relation_context import CashRelationGraphService
+                from ft.domain.cash_relation_policy import CashRelationError
+
+                try:
+                    type_context = CashRelationGraphService(uow._state().session, self._workspace_id).load({int(fact_id)})
+                except CashRelationError:
+                    raise ValueError("相关流水已变化，请重新打开后保存。") from None
+                component_ids = set(type_context.transaction_ids)
+            elif key_changed or category_changed:
                 component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
             updated = uow.cashflows.update(
                 int(fact_id),
@@ -502,7 +517,7 @@ class CashLedgerCommandService:
                     CashTransactionModel.id.in_(component_ids),
                     CashTransactionModel.deleted_at.is_(None),
                 ).values(category_id=category_id))
-            if component_relations and key_changed:
+            if component_relations and key_changed and type_context is None:
                 try:
                     self._validate_projection_graph(uow, component_ids)
                 except RelationImpactRequired:
@@ -514,7 +529,26 @@ class CashLedgerCommandService:
                         reason="user_unlinked_by_edit",
                     )
             self._snapshot_delta(uow, updated.pop("previous"), updated)
-            if (key_changed or category_changed) and not component_relations:
+            if type_context is None:
+                from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+
+                if category_changed or current_model.row_revision != previous_row_revision:
+                    CurrentCashRelationRepository(uow._state().session, self._workspace_id).mark_candidates_stale(
+                        component_ids if category_changed else {int(fact_id)},
+                    )
+            if type_context is not None:
+                from ft.application.cash_relation_type_updates import CashRelationTypeUpdateService
+                from ft.domain.cash_relation_policy import CashRelationError
+
+                try:
+                    CashRelationTypeUpdateService(uow._state().session, self._workspace_id).maintain(
+                        type_context, {int(fact_id)},
+                        updated_transaction_ids=component_ids if category_changed else {int(fact_id)},
+                    )
+                except CashRelationError as exc:
+                    message = "相关流水已变化，请重新打开后保存。" if exc.code == "relation_context_changed" else "本次修改与已有配对冲突，请先调整配对。"
+                    raise ValueError(message) from None
+            elif (key_changed or category_changed) and not component_relations:
                 CashProjectionService.replace_standalone_fact_if_ready_in_session(
                     uow._state().session, uow.workspace_id, current_model,
                 )
