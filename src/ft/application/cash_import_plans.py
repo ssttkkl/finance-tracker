@@ -320,7 +320,7 @@ class CashImportPlanService(CashImportContextService):
                 if receipt:
                     from ft.adapters.relational.cash_mutations import CashMutationConflict
                     raise CashMutationConflict("session_committed", receipt["receipt_id"])
-                current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+                current = self._read_context(uow, session_id)
                 if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
                     raise CashImportPlanError("plan_changed")
                 return deepcopy(current.plan)

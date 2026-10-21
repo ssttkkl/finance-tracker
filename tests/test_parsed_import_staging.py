@@ -114,6 +114,55 @@ def test_document_page_proof_and_locator_roundtrip_without_original_file(staging
     assert restored.coverage == coverage and restored.rows[0].document_position == "p2:t0:r1"
 
 
+def test_retry_context_inherits_original_lifetime_and_clears_private_data_on_cancel(staging):
+    store, now, _ = staging
+    original = _create(store)
+    now[0] += timedelta(seconds=30)
+    child = store.create(workspace_id=original.workspace_id, user_id=original.user_id,
+        files=original.files, workflow_kind="retry", context_data={"synthetic_proof": "a" * 64},
+        created_at=original.created_at, expires_at=original.expires_at)
+    assert child.created_at == original.created_at and child.expires_at == original.expires_at
+    assert _get(store, child).workflow_kind == "retry"
+    child.context_data["synthetic_proof"] = "caller mutation"
+    assert _get(store, child).context_data == {"synthetic_proof": "a" * 64}
+    changed = _replace(store, child, preview_input={"synthetic": True})
+    assert changed.expires_at == original.expires_at and changed.workflow_kind == "retry"
+    closed = store.cancel(child.session_id, workspace_id=child.workspace_id,
+        user_id=child.user_id, expected_revision=changed.revision)
+    assert closed.context_data == {} and closed.files == () and closed.cancelled
+    now[0] = original.expires_at
+    from ft.application.cash_import_staging import ImportSessionExpired
+    with pytest.raises(ImportSessionExpired):
+        _get(store, closed)
+
+
+@pytest.mark.parametrize("kind,created_offset,expires_offset", [
+    ("arbitrary", 0, 60), ("retry", 0, 1900), ("retry", 10, 60), ("retry", -60, -1),
+])
+def test_invalid_context_kind_or_lifetime_cannot_be_written(staging, kind, created_offset, expires_offset):
+    store, now, _ = staging
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    with pytest.raises(ParsedImportDataError):
+        store.create(workspace_id="workspace-a", user_id="user-a", files=(_file(),),
+            workflow_kind=kind, created_at=now[0] + timedelta(seconds=created_offset),
+            expires_at=now[0] + timedelta(seconds=expires_offset))
+
+
+def test_legacy_context_without_kind_is_plain_import(staging):
+    store, _, client = staging
+    session = _create(store)
+    entries = client.objects if client.objects else store._entries
+    key = next(iter(entries))
+    value = json.loads(entries[key])
+    value.pop("workflow_kind", None)
+    value.pop("context_data", None)
+    value["files"][0].pop("is_subset", None)
+    entries[key] = json.dumps(value).encode()
+    restored = _get(store, session)
+    assert restored.workflow_kind == "import" and restored.context_data == {}
+    assert not restored.files[0].is_subset
+
+
 def test_parsed_content_budget_is_independent_of_complete_plan_budget(staging):
     from ft.application.parsed_import_staging import InMemoryParsedImportStore, ParsedImportDataError, R2ParsedImportStore
     original, now, client = staging

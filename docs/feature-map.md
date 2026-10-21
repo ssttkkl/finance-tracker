@@ -37,6 +37,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 内部结果核实命令使用两后端的非阻塞工作区锁：在途写入返回仍待核实，锁释放后以持久收据和计划状态确定结果，连接故障不误报未提交。普通写入等待规则保持；公共核实 API 及 Web／Native 的恢复操作仍随统一流程交付，没有新增页面。
 
+解析暂存已区分普通导入和私有重试资料，并支持继承原到期时间；[来源子集合同](../tests/contract/test_cash_source_document_storage.py) 防止省略行被认作空页或完整导出。普通文件／计划入口拒绝私有及未授权重试上下文；收据授权派生、次数证明和客户端重试操作仍未接入，三端状态及页面数保持。
+
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|
 | F-01 | 登录与注册 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | 登录、注册与认证状态恢复 |

@@ -1,7 +1,7 @@
 """仅保存解析内容的短期会话；对象 CAS 不能代替应用层工作区锁。"""
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, fields, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import json
@@ -47,6 +47,7 @@ class ParsedImportFile:
     document: ParsedCashDocument | None = None
     error_code: str | None = None
     source_scope_label: str | None = None
+    is_subset: bool = False
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,8 @@ class ParsedImportSession:
     preview_input: dict[str, Any]
     plan: dict[str, Any] | None
     cancelled: bool = False
+    workflow_kind: str = "import"
+    context_data: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,7 @@ def _valid_files(files):
             raise ParsedImportDataError("import_session_file_reference_conflict")
         refs.add(item.file_ref); client_refs.add(item.client_file_ref)
         if (not isinstance(item.filename, str) or not item.filename or len(item.filename) > 255 or "/" in item.filename or "\\" in item.filename
+            or type(item.is_subset) is not bool
             or not isinstance(item.digest, str) or not re.fullmatch(r"[0-9a-f]{64}", item.digest)
             or type(item.size) is not int or not 0 <= item.size < 2 ** 63
             or item.status == "parsed" and item.size > 100 * 1024 * 1024
@@ -202,7 +206,9 @@ class _ParsedImportStore:
 
     def _encode(self, session):
         _valid_files(session.files)
-        if not isinstance(session.preview_input, dict) or session.plan is not None and not isinstance(session.plan, dict):
+        if (not isinstance(session.preview_input, dict) or session.plan is not None and not isinstance(session.plan, dict)
+            or not isinstance(session.workflow_kind, str) or session.workflow_kind not in {"import", "retry", "retry_capsule"}
+            or not isinstance(session.context_data, dict)):
             raise ParsedImportDataError("import_session_json_invalid")
         parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
         _json_budget(session.files, [parsed_maximum])
@@ -243,6 +249,8 @@ class _ParsedImportStore:
             if (type(result.revision) is not int or result.revision < 1 or type(result.cancelled) is not bool
                 or result.created_at.tzinfo is None or result.expires_at.tzinfo is None
                 or not 0 < (result.expires_at - result.created_at).total_seconds() <= 1800
+                or not isinstance(result.workflow_kind, str) or result.workflow_kind not in {"import", "retry", "retry_capsule"}
+                or not isinstance(result.context_data, dict)
                 or any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (result.workspace_id, result.user_id))):
                 raise ValueError
             _valid_files(result.files)
@@ -252,7 +260,8 @@ class _ParsedImportStore:
         except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
             raise ImportSessionStorageUnavailable from None
 
-    def create(self, *, workspace_id, user_id, files):
+    def create(self, *, workspace_id, user_id, files, workflow_kind="import", context_data=None,
+               created_at=None, expires_at=None, preview_input=None):
         if any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (workspace_id, user_id)):
             raise ParsedImportDataError("import_session_owner_invalid")
         if not files:
@@ -260,8 +269,18 @@ class _ParsedImportStore:
         now = self._clock()
         if not isinstance(now, datetime) or now.tzinfo is None:
             raise ValueError("import_session_clock_invalid")
+        if (created_at is None) != (expires_at is None):
+            raise ParsedImportDataError("import_session_lifetime_invalid")
+        created_at = now if created_at is None else created_at
+        expires_at = now + timedelta(seconds=self._ttl) if expires_at is None else expires_at
+        if (not isinstance(created_at, datetime) or not isinstance(expires_at, datetime)
+            or created_at.tzinfo is None or expires_at.tzinfo is None or created_at > now or expires_at <= now
+            or not 0 < (expires_at - created_at).total_seconds() <= 1800):
+            raise ParsedImportDataError("import_session_lifetime_invalid")
         for _attempt in range(3):
-            session = ParsedImportSession(token_urlsafe(32), workspace_id, user_id, now, now + timedelta(seconds=self._ttl), 1, files, {}, None)
+            session = ParsedImportSession(token_urlsafe(32), workspace_id, user_id, created_at, expires_at, 1, files,
+                {} if preview_input is None else preview_input, None, workflow_kind=workflow_kind,
+                context_data={} if context_data is None else context_data)
             content = self._encode(session)
             decoded = self._validate_roundtrip(session.session_id, content)
             try:
@@ -302,13 +321,14 @@ class _ParsedImportStore:
             self._delete_raw(session.session_id)
             raise ImportSessionExpired
 
-    def replace(self, session_id, *, workspace_id, user_id, expected_revision, files, preview_input, plan):
+    def replace(self, session_id, *, workspace_id, user_id, expected_revision, files, preview_input, plan, context_data=None):
         current, etag = self._read(session_id, workspace_id=workspace_id, user_id=user_id)
         if type(expected_revision) is not int or expected_revision != current.revision:
             raise ImportSessionRevisionConflict
         if current.cancelled:
             raise ImportSessionClosed
-        updated = replace(current, revision=current.revision + 1, files=files, preview_input=preview_input, plan=plan)
+        updated = replace(current, revision=current.revision + 1, files=files, preview_input=preview_input, plan=plan,
+            context_data=current.context_data if context_data is None else context_data)
         content = self._encode(updated)
         decoded = self._validate_roundtrip(session_id, content)
         self._publish(updated, content, expected=etag)
@@ -320,7 +340,7 @@ class _ParsedImportStore:
             raise ImportSessionRevisionConflict
         if current.cancelled:
             return current
-        updated = replace(current, revision=current.revision + 1, files=(), preview_input={}, plan=None, cancelled=True)
+        updated = replace(current, revision=current.revision + 1, files=(), preview_input={}, plan=None, cancelled=True, context_data={})
         content = self._encode(updated)
         decoded = self._validate_roundtrip(session_id, content)
         self._publish(updated, content, expected=etag)

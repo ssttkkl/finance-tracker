@@ -64,7 +64,7 @@ class CashSourceDocumentRepository:
         existing = self.validate_evidence(file_document_evidence(files))
         known = {(*item.namespace, page) for item in existing for page in item.coverage.page_fingerprints}
         for file in files:
-            if file.status != "parsed" or file.document is None:
+            if file.status != "parsed" or file.document is None or file.is_subset:
                 continue
             document, coverage = file.document, file.document.coverage
             if (not coverage.document_key or document.observed_count != len(document.rows)

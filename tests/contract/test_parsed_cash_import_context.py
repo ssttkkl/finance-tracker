@@ -72,6 +72,37 @@ def test_each_file_parsed_once_and_only_parsed_rows_survive(context_runtime):
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
 
 
+@pytest.mark.parametrize("kind", ["retry_capsule", "retry"])
+def test_private_or_unregistered_retry_context_is_not_a_public_import(context_runtime, kind):
+    from ft.application.cash_import_staging import ImportSessionNotFound
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore
+    from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    store = InMemoryParsedImportStore()
+    service = _service(context_runtime, store=store)
+    file = service.create((_upload(),)).files[0]
+    private = store.create(workspace_id=context_runtime.workspace_id, user_id=USER,
+        files=(file,), workflow_kind=kind)
+    plan_id = f"ip_{private.session_id}.{'p' * 16}"
+    store.replace(private.session_id, workspace_id=context_runtime.workspace_id, user_id=USER,
+        expected_revision=1, files=(file,), preview_input={}, plan={"plan_id": plan_id})
+    plans = CashImportPlanService(RelationalUnitOfWork(context_runtime.sessions, context_runtime.workspace_id),
+        store, user_id=USER, builder=lambda **_kwargs: pytest.fail("private context reached builder"))
+    for action in (lambda: service.get(private.session_id), lambda: service.cancel(private.session_id),
+        lambda: service.add_files(private.session_id, (_upload("extra"),), expected_revision=2)):
+        with pytest.raises(ImportSessionNotFound):
+            action()
+    for action in (lambda: plans.preview(private.session_id, expected_session_revision=2), lambda: plans._read_plan(plan_id)):
+        with pytest.raises(CashImportPlanError, match="plan_expired"):
+            action()
+    from ft.application.cash_import_commit import CashImportCommandService
+    commands = CashImportCommandService(RelationalUnitOfWork(context_runtime.sessions, context_runtime.workspace_id),
+        store, user_id=USER)
+    with pytest.raises(CashImportPlanError, match="plan_expired"):
+        commands.commit(plan_id, expected_session_revision=2, idempotency_key="synthetic-private-context")
+    assert commands.resolve(plan_id, idempotency_key="synthetic-private-context") == {"status": "not_committed"}
+
+
 def test_file_parser_failure_and_password_request_are_isolated(context_runtime):
     from ft.application.cash_import_context import CashImportPasswordRequired
     def parser(upload):

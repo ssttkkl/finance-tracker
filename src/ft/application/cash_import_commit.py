@@ -697,7 +697,7 @@ class CashImportCommandService(CashImportPlanService):
             if receipt is not None:
                 return {"status": "committed", "receipt": _receipt_view(receipt)}
             try:
-                current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+                current = self._read_context(uow, session_id)
             except (ImportSessionExpired, ImportSessionNotFound):
                 return {"status": "not_committed"}
             if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:

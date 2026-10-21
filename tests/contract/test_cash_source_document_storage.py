@@ -53,6 +53,33 @@ def test_business_skipped_or_unlocated_rows_do_not_become_empty_page_proofs(draf
         assert repository.read((file,)) == ()
 
 
+def test_retry_subset_never_certifies_missing_rows_as_empty_pages_or_complete(draft_runtime):
+    from ft.adapters.relational.models import CashSourceEmptyPageModel
+    from ft.application.cash_import_source_plan import CashImportSourcePlanner
+    runtime = draft_runtime
+    file = replace(document_file(document_coverage({"1": "a" * 64, "2": "b" * 64, "3": "c" * 64}),
+        rows=(document_row(2),)), is_subset=True)
+    with runtime.sessions.begin() as session:
+        prepared = CashImportSourcePlanner(session, runtime.workspace_id).prepare((file,))
+        row, = prepared.rows.values()
+        assert row.document_occurrence_key and not row.coverage.complete and not row.coverage.evidence
+        _documents(session, runtime).save_empty_pages((file,))
+        assert session.scalars(select(CashSourceEmptyPageModel)).all() == []
+
+
+def test_retry_subset_stays_incomplete_when_saved_pages_cover_the_full_export(draft_runtime):
+    from ft.application.cash_import_source_plan import CashImportSourcePlanner
+    runtime = draft_runtime
+    with runtime.sessions.begin() as session:
+        _existing_page(session, runtime)
+        _documents(session, runtime).save_empty_pages((document_file(document_coverage({"1": "a" * 64, "3": "c" * 64})),))
+    subset = replace(document_file(document_coverage({"2": "b" * 64}), rows=(document_row(),)), is_subset=True)
+    with runtime.sessions() as session:
+        prepared = CashImportSourcePlanner(session, runtime.workspace_id).prepare((subset,))
+        assert prepared.evidence and any(coverage.complete for record in prepared.records for coverage in record.coverages)
+        assert all(not row.coverage.complete and not row.coverage.evidence for row in prepared.rows.values())
+
+
 def test_candidate_old_export_includes_its_empty_pages_when_current_export_is_different(draft_runtime):
     from ft.application.cash_import_source_plan import CashImportSourcePlanner
     runtime = draft_runtime

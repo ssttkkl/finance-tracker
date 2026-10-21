@@ -30,14 +30,14 @@ def source_batch_rows(files, *, resolved_fields=None, known_document_evidence=()
 
 def file_document_evidence(files):
     return tuple(SourceDocumentEvidence(file.document.source_type, file.document.parser_version, file.document.coverage)
-        for file in files if file.status == "parsed" and file.document is not None)
+        for file in files if file.status == "parsed" and file.document is not None and not file.is_subset)
 
 
 def _combined_coverages(files, evidence):
     """只组合认证解析证据；单文件暂存保持原样，不重读原文件。"""
     completeness, result = document_completeness(evidence), {}
     for file in files:
-        if file.status == "parsed" and file.document is not None and file.document.coverage.document_key:
+        if file.status == "parsed" and file.document is not None and file.document.coverage.document_key and not file.is_subset:
             result[file.file_ref] = current_document_coverage(SourceDocumentEvidence(
                 file.document.source_type, file.document.parser_version, file.document.coverage), completeness)
     return result
@@ -47,6 +47,8 @@ def source_rows(file, *, resolved_fields=None):
     if file.status != "parsed" or file.document is None:
         return {}
     document = file.document
+    if file.is_subset:
+        document = replace(document, coverage=replace(document.coverage, complete=False, evidence=""))
     result = {}
     for row in document.rows:
         if row.disposition == "skipped" or row.fields is None:

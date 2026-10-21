@@ -98,11 +98,18 @@ class CashImportContextService:
         receipt = self._receipt(uow, session_id)
         if receipt:
             raise CashMutationConflict("session_committed", receipt["receipt_id"])
-        current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+        current = self._read_context(uow, session_id)
         if type(expected_revision) is not int or expected_revision != current.revision:
             raise ImportSessionRevisionConflict
         if current.cancelled:
             raise ImportSessionClosed
+        return current
+
+    def _read_context(self, uow, session_id):
+        current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+        if current.workflow_kind != "import":
+            # 重试上下文只能经持久收据和派生登记授权，不能冒充普通文件会话。
+            raise ImportSessionNotFound
         return current
 
     @staticmethod
@@ -199,7 +206,7 @@ class CashImportContextService:
             receipt = self._receipt(uow, session_id)
             if receipt:
                 return CashImportContext(None, receipt)
-            return CashImportContext(self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id))
+            return CashImportContext(self._read_context(uow, session_id))
 
     def add_files(self, session_id, uploads, *, expected_revision):
         self._uploads(uploads)
@@ -265,7 +272,7 @@ class CashImportContextService:
             receipt = self._receipt(uow, session_id)
             if receipt:
                 raise CashMutationConflict("session_committed", receipt["receipt_id"])
-            current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+            current = self._read_context(uow, session_id)
             result = self._staging.cancel(session_id, workspace_id=self._workspace_id, user_id=self._user_id, expected_revision=current.revision)
             uow.commit()
             return result

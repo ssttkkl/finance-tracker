@@ -85,6 +85,12 @@
 - [ ] 4.9.2.2 实现用户范围收据读取／分页与未知结果核实；失败子集派生随 4.10、HTTP 切换及旧收据迁入／移除随 4.11 完成。
 - [x] 4.9.2.2.1 为原生锁忙映射及内部核实命令写失败测试；实际独立连接验证 SQLite／PostgreSQL 锁忙只返回 `pending`，锁释放后恢复权威状态，其他存储异常不被吞掉。
 - [ ] 4.10 为失败项限时派生、子集范围安全、草稿补全／转正式、问题处理与维护重预览写失败测试；实现后续维护 API。
+- [ ] 4.10.1 为独立失败正文、私有访问、原 TTL、清理／回滚孤儿及失败存储安全降级写失败测试；替换保留完整原会话的过渡实现。
+- [x] 4.10.1.1 完成有类型的私有暂存、继承 TTL、来源子集标记和公开入口失败关闭；不据此开放尚未实现的派生授权及正文消费。
+- [ ] 4.10.2 为无编号剩余次数、未验证决定无信用、子集不能认证完整／空页、必要别名、重复派生及幂等范围写失败测试；实现收据授权的新会话及计划，双后端重验。
+- [ ] 4.10.3 为同身份草稿 PATCH／转正式、统一字段及账户约束、原始备注／分类保护写失败测试；实现无文件的维护上下文和共享保存边界。
+- [ ] 4.10.4 为当前问题应用／保留、身份草稿合并／独立、来源绑定转移和候选失效写失败测试；实现维护计划及当前闭包发布。
+- [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
@@ -97,6 +103,10 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.10.1.1 私有重试基础（2026-10-22，验证时 HEAD／比较基线 `11bd695`）：内存／R2 的继承寿命、旧对象、取消清理和来源子集先 13 failed；普通入口读取／改写私有对象先 2 failed。新增上下文种类及内部资料受原 JSON、深度、字节及 CAS 边界约束，普通入口当前只开放 `import`，完整重试授权尚未接入。独立静态复核无阻断，补已有完整页仍不能认证子集，以及提交／核实不可进入私有上下文两个反例。
+- 六文件双后端矩阵 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-context-final-matrix.log tests/test_parsed_import_staging.py tests/contract/test_parsed_cash_import_context.py tests/test_cash_source_documents.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_import_plan_publication.py tests/contract/test_cash_import_commit.py -q --disable-warnings --tb=short` → 345 passed、4 failed（376.75 s）；失败均为新增私有计划夹具后缀超过合同固定 16 字符，未进入目标拒绝路径。修正夹具并补独立复核反例后，最终两文件 `-k 'retry_subset or private_or_unregistered'` → 8 passed、78 deselected、无 skip（13.10 s，`/tmp/ft-cash-retry-context-final-incremental.log`）。未把首轮写成全绿。`uv build --out-dir /tmp/ft-cash-retry-context-dist`、OpenSpec strict 和 `git diff --check` 通过。
+- 重试设计独立复核采纳两项 P2：移除“复用完整原会话”的过渡表述；子会话成功后按根收据及根逻辑操作撤销祖先／兄弟正文访问，以持久成功结果而非清理成功判断消费。正式设计最终无新增阻断；成功白名单、登记失败／孤儿、根不可读及兄弟旧计划仍须在 4.10.1–4.10.2 实现验证，未因设计闭合标记完成。Cross-platform Impact Check：本步仅内部暂存和拒绝边界，Web、Native、共享 presentation 未切换，功能地图不新增页面或移除缺口。1,000 行成本和完整回归随完整重试链路及最终门禁补跑，当前不声明重试可用。
 
 - 4.9.2.2.1 结果核实（2026-10-22，HEAD／比较基线 `6e6a986`）：原生错误码优先反例及真实独立 SQLite 持锁先 7 failed；补 `55P03`、SQLite 扩展码和明确未知码不按文本误判。独立静态复核发现 PG 默认锁等待无界 P2，采纳核实专用 NOWAIT／SQLite 临时零等待及独立 UoW，不改变普通写等待；最终静态复核确认关闭、无新增阻断，未代运行测试。中间两文件双后端 118 passed（174.97 s）加载早于 NOWAIT，不当最终证据。最终 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-resolve-nowait-final.log tests/test_relational_runtime.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_mutation_receipts.py -q -k 'native_codes or resolve or lock or uow' --disable-warnings --tb=short` → 26 passed、147 deselected、无 skip（35.02 s）；PG 明确关闭 `lock_timeout` 并用独立持锁连接，SQLite 验证连接池等待值恢复。随后只读原生码 `25006` 回归先 1 failed，修复后完整 `tests/test_relational_runtime.py` → 25 passed（7.84 s，`/tmp/ft-cash-resolve-runtime-final.log`）；该纯映射不影响已验证 NOWAIT 代码。`uv build --out-dir /tmp/ft-cash-resolve-dist`、OpenSpec strict 和 `git diff --check` 通过。公共核实 HTTP 及跨端客户端尚未切换，页面数、三端覆盖与功能地图缺口不变。
 
