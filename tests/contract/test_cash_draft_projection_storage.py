@@ -119,4 +119,4 @@ def test_projection_migration_refuses_loss_of_pending_state(draft_runtime):
     with engine.connect() as connection:
         with pytest.raises(ValueError, match="refusing a lossy"):
             command.downgrade(_migration_config(connection), "20261021_42")
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_47"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_48"

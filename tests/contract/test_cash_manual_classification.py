@@ -150,17 +150,34 @@ def _pending_full_refund(runtime):
     return CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
 
-def test_business_hidden_pending_projection_can_be_classified_and_deleted(draft_runtime):
+def test_full_refund_projection_can_be_classified_and_deleted(draft_runtime):
     runtime = draft_runtime
     status = _pending_full_refund(runtime)
     with runtime.sessions() as session:
         row = session.scalar(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id == 1003))
-        assert not row.visible and row.attention_count == 1
+        assert row.visible and row.attention_count == 1
     classified = CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
         projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
     removed = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
         ["cash:1003"], projection_version=classified["projection_version"])
     assert set(removed["deleted_fact_ids"]) == {"1003", "2001"}
+
+
+def test_other_business_hidden_pending_projection_can_be_classified_and_deleted(draft_runtime):
+    runtime = draft_runtime
+    with runtime.sessions.begin() as session:
+        session.get(CashTransactionModel, 1003).amount = Decimal("0")
+        session.get(CashTransactionComponentModel, 1003).amount = Decimal("0")
+        CashSourceRepository(session, runtime.workspace_id).save_issue(1003, "pending", code="source_update_conflict")
+    status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions() as session:
+        row = session.scalar(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id == 1003))
+        assert not row.visible and row.hidden_reason == "balance_adjustment" and row.attention_count == 1
+    classified = CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
+        projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
+    removed = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
+        ["cash:1003"], projection_version=classified["projection_version"])
+    assert set(removed["deleted_fact_ids"]) == {"1003"}
 
 
 @pytest.mark.parametrize("operation", ["classify", "delete"])

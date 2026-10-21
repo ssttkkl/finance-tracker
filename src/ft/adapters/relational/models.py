@@ -24,6 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, synonym
 from sqlalchemy.types import TypeDecorator
 from ft.domain.decimal import exact_decimal as _domain_exact_decimal
+from ft.domain.cash_projection import RULES_VERSION as _cash_projection_rules_version
 
 
 def _uuid() -> str:
@@ -606,7 +607,8 @@ class CashProjectionStateModel(Base):
     active_dataset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     projection_version: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     source_revision: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    rules_version: Mapped[str] = mapped_column(String(64), default="cash-projection-v1", nullable=False)
+    rules_version: Mapped[str] = mapped_column(String(64), default=_cash_projection_rules_version,
+        server_default=_cash_projection_rules_version, nullable=False)
     availability: Mapped[str] = mapped_column(String(16), default="uninitialized", nullable=False)
     last_build_status: Mapped[str] = mapped_column(String(16), default="never", nullable=False)
     last_build_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

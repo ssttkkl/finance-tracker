@@ -13,12 +13,12 @@ from tests.contract.test_cash_draft_storage import draft_runtime
 from tests.contract.test_cash_manual_classification import _mirror
 
 
-def _report_fixture(runtime):
+def _report_fixture(runtime, refund="5"):
     _mirror(runtime)
     with runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1001).record_type = "income"
         for identifier, values in (
-            (2001, dict(amount="5", record_type="refund", occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc))),
+            (2001, dict(amount=refund, record_type="refund", occurred_at=datetime(2026, 8, 1, tzinfo=timezone.utc))),
             (2002, dict(amount="-99", record_type="consumption")),
             (2003, dict(amount="999", record_type="income", state="draft")),
             (2004, dict(amount="-999", record_type="transfer_out", state="draft", note="草稿流向")),
@@ -39,7 +39,7 @@ def _report_fixture(runtime):
         session.flush()
         CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="refund_offset", state="confirmed",
             primary_transaction_id=1003, secondary_transaction_id=2001, primary_component_id=1003, secondary_component_id=2001,
-            anchor_transaction_id=1003, anchor_component_id=1003, primary_role="expense", secondary_role="refund", applied_amount="5"))
+            anchor_transaction_id=1003, anchor_component_id=1003, primary_role="expense", secondary_role="refund", applied_amount=refund))
         CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="transfer_pair", subtype="ordinary_transfer", state="confirmed",
             primary_transaction_id=2006, secondary_transaction_id=2008, primary_component_id=2006, secondary_component_id=2008,
             anchor_transaction_id=2006, anchor_component_id=2006, primary_role="outgoing", secondary_role="incoming"))
@@ -52,9 +52,10 @@ def _report_fixture(runtime):
 
 @pytest.mark.parametrize("composition", ["runtime", "web"])
 @pytest.mark.parametrize("month", [None, "2026-07", "2026-08"])
-def test_production_reports_use_current_posted_projection_totals(draft_runtime, composition, month):
+@pytest.mark.parametrize("refund,expense", [("5", "7.5"), ("12.5", "0")])
+def test_production_reports_use_current_posted_projection_totals(draft_runtime, composition, month, refund, expense):
     runtime = draft_runtime
-    _report_fixture(runtime)
+    _report_fixture(runtime, refund=refund)
     if composition == "runtime":
         from ft.adapters.relational.runtime import build_relational_services
         bundle = build_relational_services(SimpleNamespace(database_url=runtime.database_url, workspace_id=runtime.workspace_id))
@@ -65,7 +66,7 @@ def test_production_reports_use_current_posted_projection_totals(draft_runtime, 
         service = WorkspaceServices(runtime.sessions, workspace).legacy_queries()
     try:
         result = service.report(month=month)
-        assert result.expenses == ({} if month == "2026-08" else {"CNY": Decimal("7.5")})
+        assert result.expenses == ({} if month == "2026-08" else {"CNY": Decimal(expense)})
         assert result.income == ({} if month == "2026-08" else {"CNY": Decimal("2000")})
         assert [(flow.note, flow.currency, flow.amount) for flow in result.flows] == [("投资", "CNY", Decimal("10"))]
     finally:

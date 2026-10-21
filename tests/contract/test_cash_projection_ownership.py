@@ -277,10 +277,11 @@ def test_ownership_migration_preserves_current_ids_and_removes_only_retired_copi
         repository.replace_dataset("old-derived", build_cash_projections(*repository.read_sources()), projection_version=1)
         session.get(CashProjectionDatasetModel, "old-derived").state = "retired"
     before = _snapshot(runtime, current_only=True)
-    _migrate(runtime, "head")
+    # 只核对本次归属迁移；后续显示规则迁移可以合法推进规则元数据。
+    _migrate(runtime, "20261021_45")
     assert _snapshot(runtime) == before
     _migrate(runtime, "20261021_44", downgrade=True)
-    _migrate(runtime, "head")
+    _migrate(runtime, "20261021_45")
     assert _snapshot(runtime) == before
 
 

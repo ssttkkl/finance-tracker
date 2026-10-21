@@ -369,7 +369,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             len(member_ids),
             len(relation_ids),
         ))
-        assert projections[-1] == ("expense", Decimal("0"), False, "full_refund", 2, 1)
+        assert projections[-1] == ("expense", Decimal("0"), True, None, 2, 1)
     if expected_ready:
         assert projections[0] == projections[1]
 

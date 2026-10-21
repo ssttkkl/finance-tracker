@@ -109,10 +109,10 @@ def test_refunds_reduce_expense_without_moving_its_date_or_creating_income():
     assert partial.visible
     assert full.net_amount == Decimal("0")
     assert full.economic_type.value == "expense"
-    assert not full.visible and full.hidden_reason == "full_refund"
+    assert full.visible and full.hidden_reason is None
 
 
-def test_zero_amount_refund_is_a_hidden_full_refund_with_its_evidence():
+def test_zero_amount_refund_stays_visible_with_its_evidence():
     from datetime import datetime, timezone
 
     from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
@@ -127,7 +127,7 @@ def test_zero_amount_refund_is_a_hidden_full_refund_with_its_evidence():
 
     assert item.economic_type.value == "expense"
     assert item.net_amount == Decimal("0")
-    assert not item.visible and item.hidden_reason == "full_refund"
+    assert item.visible and item.hidden_reason is None
     assert item.member_ids == (1, 2)
     assert item.relations == (relation,)
 

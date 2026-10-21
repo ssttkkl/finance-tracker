@@ -180,13 +180,14 @@ def test_explicit_filters_do_not_guess_unknown_draft_values(relation_context_run
     assert page.pending_item_count == len(expected) and not page.monthly_summaries
 
 
-def test_full_refund_pending_visibility_does_not_override_explicit_filters_or_deletion(relation_context_runtime):
+def test_full_refund_stays_visible_without_overriding_explicit_filters_or_deletion(relation_context_runtime):
     runtime = relation_context_runtime
     with runtime.sessions.begin() as session:
         _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1103, kind="refund_offset", state="confirmed")
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
-    assert "cash:1101" not in {item.projection_id for item in service.list_cash_projections().items}
+    confirmed = next(item for item in service.list_cash_projections().items if item.projection_id == "cash:1101")
+    assert confirmed.amount == "0" and confirmed.confirmation_status == "confirmed" and confirmed.statistics_eligible
     with runtime.sessions.begin() as session:
         sources = CashSourceRepository(session, runtime.workspace_id)
         sources.save_issue(1101, "one", code="source_update_conflict")
@@ -202,7 +203,7 @@ def test_full_refund_pending_visibility_does_not_override_explicit_filters_or_de
     assert not service.list_cash_projections(confirmation_status="pending").items
 
 
-def test_clearing_last_issue_restores_normal_refund_hiding(relation_context_runtime):
+def test_clearing_last_issue_keeps_full_refund_visible_and_confirmed(relation_context_runtime):
     runtime = relation_context_runtime
     with runtime.sessions.begin() as session:
         _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1103, kind="refund_offset", state="confirmed")
@@ -214,7 +215,29 @@ def test_clearing_last_issue_restores_normal_refund_hiding(relation_context_runt
         CashSourceRepository(session, runtime.workspace_id).clear_issue(1101, "one")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1101})
     page = service.list_cash_projections()
-    assert page.pending_item_count == 0 and "cash:1101" not in {item.projection_id for item in page.items}
+    assert page.pending_item_count == 0
+    item = next(item for item in page.items if item.projection_id == "cash:1101")
+    assert item.amount == "0" and item.confirmation_status == "confirmed" and item.attention_count == 0
+
+
+def test_other_hidden_zero_records_still_require_attention_to_be_visible(relation_context_runtime):
+    runtime = relation_context_runtime
+    from ft.adapters.relational.models import CashTransactionComponentModel
+    with runtime.sessions.begin() as session:
+        session.get(CashTransactionModel, 1105).amount = Decimal("0")
+        session.get(CashTransactionComponentModel, 6105).amount = Decimal("0")
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    query = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
+    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
+    with runtime.sessions.begin() as session:
+        CashSourceRepository(session, runtime.workspace_id).save_issue(1105, "pending", code="source_update_conflict")
+        CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
+    item = next(item for item in query.list_cash_projections().items if item.projection_id == "cash:1105")
+    assert item.amount == "0" and item.confirmation_status == "pending"
+    with runtime.sessions.begin() as session:
+        CashSourceRepository(session, runtime.workspace_id).clear_issue(1105, "pending")
+        CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
+    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
 
 
 def test_list_metadata_and_month_summaries_share_the_page_snapshot(relation_context_runtime):

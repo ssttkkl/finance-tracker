@@ -8,7 +8,7 @@ import pytest
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
-def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(request, runtime_name):
+def test_evidence_whitelists_snapshot_and_keeps_full_refund_readable(request, runtime_name):
     from decimal import Decimal
     from zoneinfo import ZoneInfo
     from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel
@@ -40,8 +40,8 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
 
     evidence = CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).get_projection_evidence("cash:1003")
 
-    assert evidence["projection"].visible is False
-    assert evidence["projection"].hidden_reason == "full_refund"
+    assert evidence["projection"].visible is True
+    assert evidence["projection"].hidden_reason is None
     assert "source_snapshot" not in evidence["root_record"]
     assert evidence["root_record"]["record_type"] == "consumption"
     assert evidence["root_record"]["record_subtype"] == "not_applicable"

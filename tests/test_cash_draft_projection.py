@@ -66,16 +66,17 @@ def test_confirmed_relation_cannot_consume_even_a_financially_complete_draft():
         build_cash_projections((draft, _posted()), (ProjectionRelation(1, "payment_mirror", 1, 2),))
 
 
-def test_attention_counts_unique_members_and_does_not_change_full_refund_amount_or_hiding():
+def test_attention_counts_unique_members_and_keeps_full_refund_visible():
     expense = _posted(needs_attention=True)
     refund = _posted(3, amount=Decimal("10"), needs_attention=True)
     projection = build_cash_projections((expense, refund), (ProjectionRelation(1, "refund_offset", 2, 3),)).projections[0]
     assert projection.state == "posted" and projection.statistics_eligible is True
     assert projection.attention_count == 2 and projection.confirmation_status == "pending"
-    assert projection.net_amount == 0 and projection.visible is False and projection.hidden_reason == "full_refund"
+    assert projection.net_amount == 0 and projection.visible is True and projection.hidden_reason is None
     cleared = build_cash_projections((replace(expense, needs_attention=False), replace(refund, needs_attention=False)),
         (ProjectionRelation(1, "refund_offset", 2, 3),)).projections[0]
     assert cleared.confirmation_status == "confirmed" and cleared.attention_count == 0
+    assert cleared.visible and cleared.hidden_reason is None
 
 
 @pytest.mark.parametrize("changes", [
@@ -92,4 +93,4 @@ def test_large_formal_refund_arithmetic_keeps_exact_precision():
     expense = _posted(amount=amount.copy_negate())
     refund = _posted(3, amount=amount)
     projection = build_cash_projections((expense, refund), (ProjectionRelation(1, "refund_offset", 2, 3, applied_amount=amount),)).projections[0]
-    assert projection.net_amount == 0 and projection.visible is False
+    assert projection.net_amount == 0 and projection.visible is True and projection.hidden_reason is None

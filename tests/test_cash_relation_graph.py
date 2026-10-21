@@ -37,7 +37,7 @@ def test_refund_graph_sums_independent_refunds_exactly():
     facts, components = _refund_rows()
     build = build_cash_relation_graph(facts, components, (_edge(1, "refund_offset", 1, 2), _edge(2, "refund_offset", 1, 3)))
     assert len(build.projections) == 1
-    assert build.projections[0].net_amount == 0 and build.projections[0].hidden_reason == "full_refund"
+    assert build.projections[0].net_amount == 0 and build.projections[0].visible and build.projections[0].hidden_reason is None
 
 
 def test_equal_real_component_allocations_are_added_not_deduplicated():
@@ -146,7 +146,7 @@ def test_refund_cannot_exceed_a_component_even_when_parent_has_capacity():
 def test_zero_refund_preserves_its_evidence_without_opening_zero_transfers():
     facts, components = _refund_rows(("0", "0"))
     build = build_cash_relation_graph(facts, components, (_edge(1, "refund_offset", 1, 2),))
-    assert build.projections[0].net_amount == 0 and build.projections[0].hidden_reason == "full_refund"
+    assert build.projections[0].net_amount == 0 and build.projections[0].visible and build.projections[0].hidden_reason is None
     transfer = tuple(replace(item, record_type="transfer_out" if i == 0 else "transfer_in", record_subtype=default_cash_record_subtype("transfer_out")) for i, item in enumerate(components))
     with pytest.raises(CashRelationError):
         build_cash_relation_graph(facts, transfer, (_edge(1, "transfer_pair", 1, 2, subtype="ordinary_transfer"),))
@@ -204,7 +204,7 @@ def test_large_exact_values_are_not_rounded_by_default_decimal_context():
     amount = "12345678901234567890.123456789012345678"
     facts, components = _refund_rows(("-" + amount, amount))
     build = build_cash_relation_graph(facts, components, (_edge(1, "refund_offset", 1, 2, amount=amount),))
-    assert build.projections[0].net_amount == 0 and build.projections[0].hidden_reason == "full_refund"
+    assert build.projections[0].net_amount == 0 and build.projections[0].visible and build.projections[0].hidden_reason is None
 
 
 @pytest.mark.parametrize("changes", [{"primary_component_id": []}, {"kind": []}, {"state": []},

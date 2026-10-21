@@ -10,7 +10,7 @@ from typing import Iterable
 from ft.domain.decimal import exact_decimal
 
 
-RULES_VERSION = "cash-projection-v1"
+RULES_VERSION = "cash-projection-v2"
 _RELATION_KINDS = frozenset({"payment_mirror", "refund_offset", "transfer_pair"})
 _TRANSFER_SUBTYPES = frozenset({
     "", "ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer", "balance_adjustment",
@@ -380,8 +380,7 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
             raise CashProjectionError("projection.invalid_relation")
         amount = root.amount + refunded
         economic_type = EconomicType.EXPENSE
-        visible = amount != 0
-        hidden_reason = None if visible else "full_refund"
+        visible, hidden_reason = True, None
         subtype = None
     elif root.amount < 0:
         economic_type, amount, visible, hidden_reason, subtype = EconomicType.EXPENSE, root.amount, True, None, None

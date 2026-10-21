@@ -173,7 +173,7 @@ def test_empty_page_migration_roundtrip_preserves_sources_and_rejects_losing_evi
         with pytest.raises(ValueError, match="refusing a lossy downgrade"):
             command.downgrade(_migration_config(connection), "20261021_46")
         connection.rollback()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_47"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_48"
 
 
 def test_draft_binding_transfer_keeps_page_conflicts_scoped_to_parser(draft_runtime):

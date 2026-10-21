@@ -58,6 +58,7 @@ def test_repository_has_clean_linear_revisions():
                 "20261021_45_cash_projection_ownership.py",
                 "20261021_46_cash_instance_identity.py",
                 "20261021_47_cash_source_empty_pages.py",
+                "20261021_48_cash_full_refund_visibility.py",
             ]
 
 
