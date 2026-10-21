@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -66,6 +67,7 @@ private const val DRAG_SEEK_INTERVAL_MS = 72L
 private const val FINAL_SEEK_TIMEOUT_MS = 2_000L
 private const val COMPACT_SCROLLBAR_IDLE_MS = 2_000L
 private const val SCROLLBAR_FADE_DURATION_MS = 200
+private const val SCROLLBAR_HIT_WIDTH_DP = 40
 
 internal fun cashLedgerOrdinalForProgress(progress: Float, totalCount: Int): Int? {
     if (totalCount <= 0) return null
@@ -231,16 +233,24 @@ internal fun CashLedgerScrollbar(
         val thumbHeightPx = with(density) {
             maxOf(scrollbarStyle.minimalHeight.toPx(), trackHeightPx / totalCount.coerceAtLeast(1))
         }
+        val scrollbarHitWidth = SCROLLBAR_HIT_WIDTH_DP
+        val scrollbarVisualOffsetX = if (compact) {
+            (scrollbarHitWidth.dp - scrollbarStyle.thickness) / 2
+        } else {
+            2.dp
+        }
+        val scrollbarTrackOffsetFromContainerEnd =
+            -((scrollbarHitWidth.dp - scrollbarStyle.thickness) / 2) + scrollbarVisualOffsetX
+        val monthBubbleOffsetX = if (compact) -scrollbarStyle.thickness else (-scrollbarHitWidth / 2).dp
         val bubbleHeightPx = with(density) { 56.dp.toPx() }
         val scrollbarModifier = Modifier
             .align(Alignment.CenterEnd)
-            .width(40.dp)
+            .width(scrollbarHitWidth.dp)
             .fillMaxHeight()
             .onFocusChanged {
                 compactScrollbarFocused.value = it.isFocused
                 if (it.isFocused) markCompactControlActivity()
             }
-            .focusable(enabled = canSeek, interactionSource = interactionSource)
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown || !canSeek) return@onKeyEvent false
                 val first = offsetState.value
@@ -257,6 +267,7 @@ internal fun CashLedgerScrollbar(
                 currentRequestTarget.value(target, true)
                 true
             }
+            .focusable(enabled = canSeek, interactionSource = interactionSource)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
@@ -288,13 +299,32 @@ internal fun CashLedgerScrollbar(
             exit = fadeOut(animationSpec = tween(SCROLLBAR_FADE_DURATION_MS)),
         ) {
             Box(Modifier.fillMaxSize()) {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterEnd)
+                        .width(scrollbarStyle.thickness)
+                        .fillMaxHeight()
+                        .offset(x = scrollbarTrackOffsetFromContainerEnd)
+                        .testTag(SemanticIds.ledgerScrollbarTrack),
+                )
                 VerticalScrollbar(
                     adapter = adapter,
                     style = scrollbarStyle,
                     modifier = scrollbarModifier,
                     interactionSource = interactionSource,
                     enablePressToScroll = false,
+                    visualOffsetX = scrollbarVisualOffsetX,
                     indicator = { position, isVisible ->
+                        if (isVisible && trackHeightPx > 0f) {
+                            Box(
+                                Modifier
+                                    .align(Alignment.CenterEnd)
+                                    .width(scrollbarStyle.thickness)
+                                    .height(with(density) { thumbHeightPx.toDp() })
+                                    .offset(x = scrollbarTrackOffsetFromContainerEnd)
+                                    .testTag(SemanticIds.ledgerScrollbarThumb),
+                            )
+                        }
                         val month = cashLedgerMonthForOrdinal(currentMonthPositions.value, offsetState.value)
                         if (isDragged && isVisible && month != null && trackHeightPx > 0f) {
                             val thumbCenter = (position + thumbHeightPx / 2f).coerceIn(
@@ -305,7 +335,7 @@ internal fun CashLedgerScrollbar(
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.CenterEnd)
-                                    .offset(x = (-20).dp, y = verticalOffset)
+                                    .offset(x = monthBubbleOffsetX, y = verticalOffset)
                                     .graphicsLayer { clip = false },
                             ) {
                                 Surface(

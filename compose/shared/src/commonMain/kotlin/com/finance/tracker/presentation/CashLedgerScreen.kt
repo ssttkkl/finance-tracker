@@ -17,6 +17,8 @@ import com.finance.tracker.resources.ic_search
 import com.finance.tracker.resources.ic_visibility
 
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -70,6 +72,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -80,11 +83,17 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
@@ -94,6 +103,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -136,10 +146,9 @@ internal fun CashLedgerScreen(
 
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
-    val refreshError = (pagedRows.loadState.refresh as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val appendError = (pagedRows.loadState.append as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
     val prependError = (pagedRows.loadState.prepend as? LoadState.Error)?.error?.let { ledgerErrorText(ledgerPagingErrorCode(it)) }
-    val pageLoadError = refreshError ?: prependError ?: appendError
+    val fullRefreshError = state.listLoadErrorCode?.let { ledgerErrorText(it) }
     val classifyError = state.classifyErrorCode?.let { ledgerErrorText(it) }
     val deleteProjectionError = state.deleteProjectionErrorCode?.let { ledgerErrorText(it) }
     val recordSaveError = state.recordSaveErrorCode?.let { ledgerErrorText(it) }
@@ -147,7 +156,26 @@ internal fun CashLedgerScreen(
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
     var batchCategoryDraft by remember(batchCategoryDialogOpen) { mutableStateOf(state.selectedCategory) }
+    val monthHeaderHeightsPx = remember { mutableStateMapOf<String, Int>() }
     val selectionMode = state.selectedIds.isNotEmpty()
+    val listReady = state.page != null && fullRefreshError == null
+    val fullRefreshPending = !listReady && fullRefreshError == null
+    val pageLoadError = (prependError ?: appendError).takeIf { listReady }
+    var pullRefreshRevision by remember { mutableStateOf<Int?>(null) }
+    val isPullRefreshing = pullRefreshRevision == state.listRevision && fullRefreshPending
+    val pullRefreshThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
+    val requestListRefresh = {
+        if (listReady && !selectionMode && pullRefreshRevision == null) {
+            pullRefreshRevision = state.listRevision + 1
+            viewModel.reload()
+        }
+    }
+    LaunchedEffect(pullRefreshRevision, state.listRevision, listReady, fullRefreshError) {
+        val targetRevision = pullRefreshRevision ?: return@LaunchedEffect
+        if (targetRevision != state.listRevision || listReady || fullRefreshError != null) {
+            pullRefreshRevision = null
+        }
+    }
     LaunchedEffect(selectionMode) {
         actionsMenuExpanded = selectionMode
     }
@@ -163,7 +191,7 @@ internal fun CashLedgerScreen(
                 start = GeneratedTokens.Core.Space.Token4,
                 top = GeneratedTokens.Core.Space.Token3,
                 end = GeneratedTokens.Core.Space.Token4,
-                bottom = 104.dp,
+                bottom = 0.dp,
             ),
         ) {
         if (referencesError != null) StateMessage(referencesError, isError = true) {
@@ -186,9 +214,10 @@ internal fun CashLedgerScreen(
                 )
             }
         }
-        val summariesByMonth = state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month)
-        val totalCount = state.page?.totalCount ?: pagedRows.itemCount
-        val appendReachedEnd = (pagedRows.loadState.append as? LoadState.NotLoading)?.endOfPaginationReached == true
+        val summariesByMonth = if (listReady) state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month) else emptyMap()
+        val monthPositions = if (listReady) state.page?.monthPositions.orEmpty() else emptyList()
+        val totalCount = if (listReady) state.page?.totalCount ?: pagedRows.itemCount else 0
+        val appendReachedEnd = listReady && (pagedRows.loadState.append as? LoadState.NotLoading)?.endOfPaginationReached == true
         Column(Modifier.fillMaxWidth().weight(1f)) {
             if (pageLoadError != null && pagedRows.itemCount > 0) {
                 StateMessage(pageLoadError, isError = true) {
@@ -197,31 +226,67 @@ internal fun CashLedgerScreen(
                     }
                 }
             }
-            Box(Modifier.fillMaxWidth().weight(1f)) {
+            PullToRefreshBox(
+                isRefreshing = isPullRefreshing,
+                onRefresh = requestListRefresh,
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                enabled = listReady && !selectionMode,
+            ) {
+                Box(
+                    Modifier.fillMaxSize().pointerInput(state.listRevision, listReady, selectionMode) {
+                        if (!listReady || selectionMode) return@pointerInput
+                        awaitEachGesture {
+                            val down = awaitFirstDown(
+                                requireUnconsumed = false,
+                                pass = PointerEventPass.Initial,
+                            )
+                            val startedAtTop = !listState.canScrollBackward
+                            var dragDistance = 0f
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                dragDistance += change.positionChangeIgnoreConsumed().y
+                            }
+                            if (startedAtTop && dragDistance >= pullRefreshThresholdPx) {
+                                requestListRefresh()
+                            }
+                        }
+                    },
+                ) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
-                    .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 40.dp))
+                    .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 16.dp))
                     .testTag(SemanticIds.ledgerList),
-                contentPadding = PaddingValues(bottom = 12.dp),
+                contentPadding = PaddingValues(bottom = 104.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
             when {
-                pagedRows.loadState.refresh is LoadState.Loading && pagedRows.itemCount == 0 ->
-                    item(key = "cash-ledger-loading") { StateMessage(localizedText("copy_ced64cb470")) }
-                refreshError != null && pagedRows.itemCount == 0 ->
+                fullRefreshError != null ->
                     item(key = "cash-ledger-refresh-error") {
-                        StateMessage(refreshError, isError = true) {
-                            TextButton(onClick = { pagedRows.retry() }, modifier = Modifier.testTag(SemanticIds.ledgerRetry)) {
+                        StateMessage(fullRefreshError, isError = true) {
+                            TextButton(
+                                onClick = {
+                                    viewModel.clearListLoadError()
+                                    pagedRows.retry()
+                                },
+                                modifier = Modifier.testTag(SemanticIds.ledgerRetry),
+                            ) {
                                 Text(localizedText("copy_e2d53a6d3a"))
                             }
                         }
                     }
-                pagedRows.loadState.refresh is LoadState.NotLoading && pagedRows.itemCount == 0 ->
+                !listReady ->
+                    items(count = 5, key = { index -> "cash-ledger-loading-$index" }) {
+                        CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
+                    }
+                pagedRows.itemCount == 0 ->
                     item(key = "cash-ledger-empty") {
                         StateMessage(localizedText("copy_8eb3d2788b"), modifier = Modifier.testTag(SemanticIds.ledgerEmpty))
                     }
             }
+            if (listReady) {
             items(
                 count = pagedRows.itemCount,
                 key = pagedRows.itemKey { it.projectionId },
@@ -252,13 +317,21 @@ internal fun CashLedgerScreen(
                     ) {
                         Column(Modifier.fillMaxWidth().testTag("${SemanticIds.ledgerTable}-$month")) {
                             if (monthStart) {
-                                CashProjectionMonthHeader(
-                                    group = CashProjectionMonthGroup(month, emptyList(), summariesByMonth[month]),
-                                    compact = sizeClass == WindowSizeClass.COMPACT,
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                )
-                                if (sizeClass != WindowSizeClass.COMPACT) {
-                                    CashLedgerTableHeader(modifier = Modifier.padding(horizontal = 16.dp))
+                                Column(
+                                    Modifier.fillMaxWidth().onSizeChanged { measuredSize ->
+                                        if (monthHeaderHeightsPx[month] != measuredSize.height) {
+                                            monthHeaderHeightsPx[month] = measuredSize.height
+                                        }
+                                    },
+                                ) {
+                                    CashProjectionMonthHeader(
+                                        group = CashProjectionMonthGroup(month, emptyList(), summariesByMonth[month]),
+                                        compact = sizeClass == WindowSizeClass.COMPACT,
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                                    )
+                                    if (sizeClass != WindowSizeClass.COMPACT) {
+                                        CashLedgerTableHeader(modifier = Modifier.padding(horizontal = 16.dp))
+                                    }
                                 }
                             }
                             CashProjectionRow(
@@ -285,15 +358,78 @@ internal fun CashLedgerScreen(
                 }
             }
             }
+            }
+            if (listReady) {
             CashLedgerScrollbar(
                 listState = listState,
                 totalCount = totalCount,
-                monthPositions = state.page?.monthPositions.orEmpty(),
+                monthPositions = monthPositions,
                 isOrdinalLoaded = { ordinal -> pagedRows.peek(ordinal) != null },
                 compact = sizeClass == WindowSizeClass.COMPACT,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
             }
+            val firstVisibleRecord = if (listReady) listState.layoutInfo.visibleItemsInfo
+                .firstNotNullOfOrNull { visibleItem ->
+                    if (visibleItem.index in 0 until pagedRows.itemCount) {
+                        pagedRows.peek(visibleItem.index)?.let { visibleItem to it }
+                    } else {
+                        null
+                    }
+                }
+            else null
+            val stickyMonthGroup = if (!listReady || !listState.canScrollBackward) null else firstVisibleRecord?.let { (visibleItem, row) ->
+                val month = localMonthKey(row.occurredAt)
+                val monthStartIndex = monthPositions.firstOrNull { it.month == month }?.startIndex ?: 0
+                val measuredHeaderHeight = monthHeaderHeightsPx[month] ?: 0
+                val monthStartItem = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == monthStartIndex }
+                val monthHeaderTopInset = with(LocalDensity.current) {
+                    ((if (monthStartIndex > 0) GeneratedTokens.Core.Space.Token3 else 0.dp) + 8.dp).toPx().roundToInt()
+                }
+                val nextMonthHeaderStillBelowTop = monthStartIndex > 0 && monthStartItem != null &&
+                    monthStartItem.offset + monthHeaderTopInset > 0
+                val hasScrolledPastHeader = visibleItem.offset + measuredHeaderHeight <= 0
+                when {
+                    nextMonthHeaderStillBelowTop ->
+                        monthPositions.lastOrNull { it.startIndex < monthStartIndex }?.month
+                    visibleItem.index > monthStartIndex -> month
+                    visibleItem.index == monthStartIndex && monthStartIndex == 0 && measuredHeaderHeight > 0 && hasScrolledPastHeader -> month
+                    visibleItem.index == monthStartIndex -> month
+                    else -> null
+                }
+            }
+            if (stickyMonthGroup != null) {
+                val stickyTableHeaderTag = if (sizeClass == WindowSizeClass.COMPACT) {
+                    null
+                } else {
+                    Modifier.testTag(SemanticIds.ledgerStickyTableHeader)
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxWidth()
+                        .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 16.dp))
+                        .testTag(SemanticIds.ledgerStickySummary),
+                    shape = MaterialTheme.shapes.medium,
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    tonalElevation = 0.dp,
+                ) {
+                    Column(Modifier.fillMaxWidth()) {
+                        CashProjectionMonthHeader(
+                            group = CashProjectionMonthGroup(stickyMonthGroup, emptyList(), summariesByMonth[stickyMonthGroup]),
+                            compact = sizeClass == WindowSizeClass.COMPACT,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                        )
+                        if (stickyTableHeaderTag != null) {
+                            CashLedgerTableHeader(
+                                modifier = Modifier.padding(horizontal = 16.dp).then(stickyTableHeaderTag),
+                            )
+                        }
+                    }
+                }
+            }
+            }
+        }
         }
         }
 
@@ -813,35 +949,74 @@ internal fun CashLedgerScreen(
 
 @Composable
 private fun CashProjectionPlaceholderRow(compact: Boolean) {
-    Surface(
-        modifier = Modifier.fillMaxWidth().padding(bottom = GeneratedTokens.Core.Space.Token2),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceContainerLow,
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = if (compact) 18.dp else 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
+    if (compact) {
+        Surface(
+            modifier = Modifier.fillMaxWidth()
+                .padding(bottom = GeneratedTokens.Core.Space.Token2)
+                .testTag(SemanticIds.ledgerLoadingSkeletonCard),
+            shape = MaterialTheme.shapes.medium,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
         ) {
-            Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
+                CashLedgerSkeletonLines(Modifier.weight(1f), firstFraction = 0.74f, secondFraction = 0.34f, prominent = true)
+                Spacer(Modifier.width(16.dp))
                 Spacer(
-                    Modifier.fillMaxWidth(if (compact) 0.74f else 0.58f)
+                    Modifier.width(64.dp)
                         .height(18.dp)
                         .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
                 )
-                Spacer(
-                    Modifier.fillMaxWidth(0.34f)
-                        .height(12.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
-                )
             }
-            Spacer(Modifier.width(16.dp))
+        }
+    } else {
+        Column(Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+                    .testTag(SemanticIds.ledgerLoadingSkeletonTableRow),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                        Spacer(Modifier.size(18.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
+                    }
+                }
+                CashLedgerSkeletonLines(Modifier.weight(0.12f).padding(horizontal = 8.dp), 0.82f, 0.54f)
+                CashLedgerSkeletonLines(Modifier.weight(0.15f).padding(horizontal = 8.dp), 0.76f, 0.48f)
+                CashLedgerSkeletonLines(Modifier.weight(0.24f).padding(horizontal = 8.dp), 0.78f, 0.6f, prominent = true)
+                CashLedgerSkeletonLines(Modifier.weight(0.12f).padding(horizontal = 8.dp), 0.74f)
+                CashLedgerSkeletonLines(Modifier.weight(0.11f).padding(horizontal = 8.dp), 0.7f, 0.5f)
+                Box(Modifier.weight(0.13f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                    Spacer(Modifier.fillMaxWidth(0.76f).height(18.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
+                }
+                Box(Modifier.weight(0.08f), contentAlignment = Alignment.CenterEnd) {
+                    Spacer(Modifier.size(20.dp).background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small))
+                }
+            }
+            HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-skeleton"))
+        }
+    }
+}
+
+@Composable
+private fun CashLedgerSkeletonLines(
+    modifier: Modifier,
+    firstFraction: Float,
+    secondFraction: Float? = null,
+    prominent: Boolean = false,
+) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Spacer(
+            Modifier.fillMaxWidth(firstFraction)
+                .height(if (prominent) 16.dp else 13.dp)
+                .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
+        )
+        if (secondFraction != null) {
             Spacer(
-                Modifier.width(64.dp)
-                    .height(18.dp)
+                Modifier.fillMaxWidth(secondFraction)
+                    .height(11.dp)
                     .background(MaterialTheme.colorScheme.surfaceVariant, MaterialTheme.shapes.small),
             )
         }
@@ -1355,7 +1530,8 @@ private fun CashProjectionRow(
     } else {
         Column(recordModifier.fillMaxWidth()) {
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(vertical = 8.dp)
+                    .testTag("${SemanticIds.ledgerTableRowContent}-${item.projectionId}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
@@ -1411,7 +1587,7 @@ private fun CashProjectionRow(
                     }
                 }
             }
-            if (!lastInMonth) HorizontalDivider()
+            if (!lastInMonth) HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-${item.projectionId}"))
         }
     }
 }

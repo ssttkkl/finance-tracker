@@ -9,6 +9,9 @@
 - [x] 1.7 用户确认详情卡片的淡紫色需要修正，金额颜色维持现状。
 - [x] 1.8 用户确认多选后 FAB 自动展开并切换多选图标，已选数量移至 FAB 左侧提示胶囊；筛选区独立固定，各月份流水使用分开的视觉容器。
 - [x] 1.9 用户确认详细筛选使用「时间」「金额」「分类」「账户」「其他条件」五组常驻标题；金额组包含币种与范围，其他条件包含资金转移类型和合并状态，Compact 纵向排列、较宽窗口组内并排，筛选行为不变。
+- [x] 1.10 用户确认 FAB 在所有窗口叠加列表且末条可滚到 FAB 上方；月份汇总及桌面列标题在固定筛选卡下方固定并由下月顶替；`REGULAR` / `WIDE` 行内容缩进 16 dp、分隔线铺满卡片。
+- [x] 1.11 通过 `grill-me` / `grilling` 澄清完整刷新、初次加载占位、失败状态、分页追加、下拉手势范围及多选限制；用户确认所有完整刷新立即废弃旧流水/月份汇总，初次和后续刷新使用适配布局的骨架，失败显示错误/重试，分页追加保留内容，下拉刷新适用于所有平台与尺寸且仅列表顶部可触发，多选期间禁用手势。
+- [x] 1.12 记录用户补充的滚动条合同：Compact 也将窄轨道和滑块贴齐列表右边缘，40 dp 热区叠加且不挤占宽度；滚动时显示、停止 2 秒后渐隐；Regular/Wide 常驻显示。
 
 ## 2. 计划
 
@@ -24,6 +27,10 @@
 - [x] 2.10 经用户确认，更新 proposal、账本浏览 delta、design 与 tasks：账本筛选/列表共享前景 Surface 并用分割线分区；详情摘要留在中性面板底色，信息卡/关联卡使用 Material 3 默认前景角色；颜色只映射现有 token，金额颜色不变。
 - [x] 2.11 更新 proposal、账本浏览 delta 与 design，明确固定筛选容器、仅列表滚动、月度独立容器及选择模式自动展开 FAB；Cross-platform Impact Check：Web/Android/iOS 均使用共享 `commonMain` 页面，均受布局和交互影响；按用户要求仅执行 Compose Web 浏览器验证，Native 运行时未验证。
 - [x] 2.12 更新 proposal、账本浏览 delta、design 与 tasks，补充五组详细筛选字段归属、常驻标题和响应式排布；Cross-platform Impact Check：Web、Android、iOS 与共享 `commonMain` 均受筛选面板信息层级影响；按用户要求只做 Web 浏览器验证。
+- [x] 2.13 更新 proposal、账本浏览 delta、design 与 tasks，记录 FAB 覆盖列表、按月固定汇总/桌面表头和 16 dp 桌面行内缩；Cross-platform Impact Check：Compose Web、Android、iOS 与共享 `commonMain` 均受影响，旧 React Web 不变。
+- [x] 2.14 根据用户的 Codex 滚动条参考图收窄账本右侧列表预留；`REGULAR` / `WIDE` 预留为 16 dp，滚动条轨道保持纤细，所有尺寸保留 40 dp 交互热区。`COMPACT` 覆盖列表，不额外占宽。Cross-platform Impact Check：Compose Web、Android、iOS 与共享 `commonMain` 均受影响，旧 React Web 不变；按用户范围仅验证 Compose Web。
+- [x] 2.15 按用户批准更新 proposal、账本浏览 delta、design 与 tasks：完整刷新立即清除旧内容并显示适配布局的骨架，错误不恢复旧内容，分页追加保留已加载内容；所有 Compose 平台/尺寸只在列表顶部支持下拉刷新，筛选区不响应，多选时禁用手势。Cross-platform Impact Check：Compose Web、Android、iOS 与共享 `commonMain` 均受影响，旧 React Web 不变。
+- [x] 2.16 更新 proposal、账本浏览 delta、design、tasks 和功能地图：所有尺寸的窄轨道及滑块贴齐列表右边缘，40 dp 交互热区覆盖列表、不改变测量宽度；Compact 滚动时显示并在 2 秒空闲后渐隐，Regular/Wide 常驻。Cross-platform Impact Check：Compose Web、Android、iOS 与共享 `commonMain` 均受影响，旧 React Web 不变。
 
 ## 3. 任务拆分与一致性
 
@@ -33,6 +40,10 @@
 - [x] 3.4 追查浏览器测试间歇性使用旧 Compose Web 包的原因；确认本地 Playwright 可能复用已有端口服务，Gradle 默认增量任务也不能单独证明实际分发产物与当前源码一致。将双重防护和失败关闭规则补入 design。
 - [x] 3.5 增加固定筛选、月份分页边界连续性、不同月份容器和选择菜单自动展开的 Web 回归；先确认旧布局至少在固定筛选与自动展开断言上失败。
 - [x] 3.6 为详细筛选分组标题、字段归属和三种窗口布局增加 Playwright 回归；先运行旧界面确认缺少 `ledger.filter.group.time` 等语义节点，再验证新界面在各尺寸通过。
+- [x] 3.7 为 FAB 覆盖、末条可达、固定月份汇总/列标题和桌面表格内缩补充浏览器断言；旧实现首轮在 `390×844` 的列表/FAB 重叠断言失败，确认页面底部固定预留空间导致缺陷。
+- [x] 3.8 为跨月头部替换增加回归；首轮发现下月汇总仍在原列表位置时固定层已提前切换，确认会重复显示同月汇总。
+- [ ] 3.9 先增加并运行失败回归，证明首次/完整刷新立刻隐藏旧流水和月份汇总、展示布局匹配骨架，失败时显示错误/重试且不恢复旧内容；另证明分页追加保留既有行、下拉手势仅在列表顶部有效且筛选区/多选模式不能触发。
+- [ ] 3.10 为窄滚动条增加失败优先的浏览器回归：验证 Compact/Regular/Wide 的可见轨道与滑块贴齐列表右边缘、40 dp 热区不挤占列表宽度、Compact 滚动后显示且空闲 2 秒后渐隐，以及 Regular/Wide 常驻显示。
 
 ## 4. 构建
 
@@ -70,6 +81,12 @@
 - [x] 4.32 更新 F-03 功能地图和 Web 语义/交互证据；图标仅复用现有资源或在共享 drawable 中添加多选图标，不增加依赖。
 - [x] 4.33 将详细筛选按五组呈现并为新标题补齐四套语言资源；保持字段值、回调和过滤语义不变。
 - [x] 4.34 更新 F-03 功能地图，记录详细筛选的分组结构与跨端共享实现。
+- [x] 4.35 移除页面级 FAB 预留高度，让列表视口延伸到按钮后方；在 LazyColumn 内容末尾保留 104 dp 滚动空间，使最后一笔滚到 FAB 上方并留出间隔。
+- [x] 4.36 在固定筛选卡下方按可见流水月份叠加固定头部；测量首条流水中的月份头部高度，在其滚出后固定摘要，并在桌面同步显示列标题；`REGULAR` / `WIDE` 行内容左右内缩 16 dp，分隔线保持全宽。固定层复用现有逐笔 LazyColumn，不增加项目或改变分页/滚动条序号。
+- [x] 4.37 更新 F-03 功能地图，记录固定月份头、FAB 覆盖列表和桌面表格行留白。
+- [x] 4.38 等待下月头部到达列表顶部后再替换固定月份；Regular/Wide 列表右侧预留改为 16 dp，保留 40 dp 滚动条交互热区；同步行末滚动条宽度/预留断言与功能地图。
+- [x] 4.39 在共享账本列表实现完整刷新状态门控、初次及刷新骨架、错误/重试呈现和列表范围的 Material 3 下拉刷新；保留分页追加内容，多选时禁用下拉手势；更新 `docs/feature-map.md` 与跨端影响记录。
+- [x] 4.40 将竖向滚动条轨道和滑块靠齐列表内容右边缘；保留 40 dp 可交互热区但令其覆盖列表、不参与布局测量；校准拖动月份提示位置，并维持 Compact 的滚动显示/2 秒空闲渐隐与桌面常驻行为。
 
 ## 5. 审查
 
@@ -87,6 +104,8 @@
 - [x] 5.12 最终 UI 形成后用 Hallmark `audit` 检查账本表面层级、详情面板/卡片、默认弹窗和三类尺寸截图；finding 与复审结论写入本节。
 - [x] 5.13 对最终账本固定筛选区、月度容器、FAB 多选状态和数量提示执行 Hallmark `audit`；在本节记录设计检查范围、严重度 finding、处置与复审结果。
 - [x] 5.14 对详细筛选五组标题及 Compact/Regular/Wide 排布执行 Hallmark `audit`，记录 finding、处置和最终结论。
+- [x] 5.15 对 FAB 覆盖、月份固定头部的跨月切换、桌面表格行内缩、滚动条占宽和最终 diff 执行独立设计/工程复核；finding、处置和结论见审查记录。
+- [x] 5.16 对刷新状态门控、骨架布局、错误/重试、分页追加、下拉手势边界及滚动条分页跳转执行独立工程/设计复核；Hallmark `audit` 检查三类窗口实际页面。发现刷新哨兵去重条件和 Paging 跳页期间列表被误切回骨架两个问题，均已修复并通过回归；最终无未解决的 critical/major/minor 设计 finding，具体处置见下方 2026-10-21 审查记录。
 
 ## 6. 测试与 QA
 
@@ -98,7 +117,7 @@
 - [x] 6.6 在 Compose Web、Android、iOS 的 `COMPACT`、`REGULAR`、`WIDE` 验证筛选、面板返回、Compact 长按与选择退出、桌面复选框、两种 FAB 菜单、分类取消/应用、删除确认和末行可达；Web 全场景图库与 Native 当前状态截图路径、视口和结论见下方最终验证记录。无横向溢出；未发现控制台或网络错误。
 - [x] 6.7 对本次代码变更重跑受影响回归、共享/Android/iOS/Web 构建、真实浏览器 QA、OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`；准确命令、结果、HEAD、比较基线、残余风险和不适用项见下方最终验证记录。
 - [x] 6.8 更新后重新构建 Compose Web 演示包；在 `COMPACT`、`REGULAR`、`WIDE` 及浅/深色主题检查主要操作图标、危险色、文字可见性、按钮布局和删除确认，并记录截图、浏览器错误与 Native 影响。Android 三类窗口完成实机型模拟器检查；iOS 本轮构建受 Expo 预构建依赖缺失阻断，残余风险在最终记录说明。
-- [ ] 6.9 用户确认更新后的 Compose 演示结果后，才将变更标记完成。
+- [x] 6.9 用户已确认此前更新的 Compose 演示结果；新增刷新 UI 的演示评审仍由 6.27 跟踪，需再次确认后才可将整个变更标记完成。
 - [x] 6.10 使用真实浏览器覆盖无关联、收起/展开、多个关联项、修改关联类型、解散关联和编辑关联流水；仅 Compose Web 在三类尺寸检查卡片层级、滚动、点击和面板 Escape 关闭状态，不运行 Android/iOS 设备 QA。浅色、深色各 2 个 F-04 用例通过；详见下方记录。
 - [x] 6.11 按用户明确范围，本轮只验证 Compose Web；不运行 Android/iOS 设备 QA。Native 与 Web 共用 `commonMain`，Web 编译覆盖共享源的编译检查，但不作为 Native 运行时视觉/交互证据；残余风险如实记录。
 - [x] 6.12 重新构建 Compose 离线演示并仅用 Compose Web 真实浏览器检查更新后的无关联详情；关联折叠/展开由在线 fixture 用例覆盖。记录新 URL、视口、截图、浏览器错误及产物新鲜度。
@@ -110,16 +129,31 @@
 - [x] 6.18 使用新鲜 Compose Web 产物和真实 Chromium 在 `390×844`、`768×1024`、`1440×1000` 验证筛选固定、仅列表滚动、分页跨月容器闭合/连续、选择后 FAB 自动展开与数量提示位置；覆盖浅/深色截图及关键空/加载/错误状态，记录浏览器控制台和网络结果；不运行 Android/iOS QA。
 - [x] 6.19 运行 OpenSpec 严格校验、`openspec doctor` 与 `git diff --check`，记录 HEAD、基线、验证命令和共享 Compose Native 运行时未验证风险；重大 UI 演示等待用户确认后才可完成或提交/推送。
 - [x] 6.20 使用新鲜 Compose Web 产物和 Chromium 在代表视口验证五组标题、字段归属、组内排布、Bottom Sheet/模态滚动及既有筛选行为；浅/深主题回归和三尺寸截图见下方记录；不运行 Android/iOS QA。
+- [x] 6.21 在 `390×844`、`768×1024`、`1440×1000` 真实浏览器验证 FAB 与列表重叠、末条完整可达、筛选卡下方的月份汇总/桌面列标题固定与替换、表格内容 16 dp 内缩及全宽分隔线；检查主流程、空/错态、键盘焦点、浅/深主题、控制台/网络错误并保存忽略目录截图，证据见下方 2026-10-21 记录。
+- [x] 6.22 运行受影响的 Compose Web 浏览器回归、共享模块构建/测试、OpenSpec 严格校验、`openspec doctor`、中文与术语搜索及 `git diff --check`，记录 HEAD、比较基线和未解决风险；本次不运行 Android/iOS 设备 QA，Native 风险按共享 `commonMain` 记录。
+- [x] 6.23 最终 UI 形成后按 `.agents/skills/hallmark` 的 `audit` 动作复核三类窗口实际页面与截图；finding 与处置见下方 2026-10-21 设计审查记录。
+- [ ] 6.24 在 Playwright 中先运行新增刷新回归以确认旧实现失败，然后实现后验证首次/完整刷新骨架、刷新失败/重试、分页追加保留、列表顶部手势、筛选区不响应、多选禁用及列表外下拉不触发。当前实现后的浅/深主题回归已通过；未保存旧实现下的失败基线证据，因此本项仍待补齐。
+- [x] 6.25 更新 feature map 与跨平台影响检查；在 Compose Web 真实浏览器覆盖 Compact/Regular/Wide、浅/深主题、正常/错误/空状态、触摸/鼠标/键盘焦点，并将截图留在忽略目录，记录控制台/网络结果。
+- [ ] 6.26 在 Android/iOS Compose 运行时验证列表顶部下拉、筛选区边界、多选禁用、刷新骨架及失败重试，并记录设备/视口、截图路径和残余平台风险；Android/iOS 手势和多选状态已有演示检查，但刷新骨架与失败重试缺少可控演示入口，故本项仍未完成。
+- [ ] 6.27 构建并提供包含刷新行为的 Compose 演示，在 `COMPACT`、`REGULAR`、`WIDE` 下由用户评审；确认后才完成重大 UI 审查。
+- [x] 6.28 使用真实浏览器在浅/深主题和 `390×844`、`768×1024`、`1440×1000` 验证三尺寸滚动条贴边、列表宽度不变、Compact 滚动显示/2 秒空闲渐隐，以及桌面常驻和拖动/点击定位；此前 96 条分页夹具暴露的拖动到未加载区后目标流水未稳定显示问题，已通过仅在完整刷新状态隐藏列表、保留 Paging 跳页期间列表的门控修复；浅/深主题三尺寸几何、拖动到未加载页和目标行可见均通过完整 F-03 回归。截图与最终复核见下方 2026-10-21 记录。键盘跳转不属于本轮用户确认的滚动条布局范围，不作为新验收项。
 
 ## 7. 发布
 
-- [x] 7.1 记录交付摘要、回滚路径与观察项；既有用户授权覆盖本仓库推送 `main`，但重大 UI 演示仍待用户确认，当前未提交或推送，也未执行其他外部写入。
-- [ ] 7.2 按既有用户授权，本任务最终可提交并推送到 `main`；在重大 UI 演示获得用户确认后再执行，授权不覆盖其他外部写入。
+- [x] 7.1 记录交付摘要与回滚路径；无迁移步骤；如需回滚已合入改动，撤销本次合并提交即可还原 Compose 页面、QA、功能地图和 OpenSpec 记录。
+- [x] 7.2 用户已于 2026-10-21 明确授权本仓库向 `main` 创建并合并 PR；已提交 `0907fd9`、推送 `codex/compose-cash-ledger-redesign` 并创建 [PR #95](https://github.com/ssttkkl/finance-tracker/pull/95)。合并等待 delta 同步归档和最新 PR 检查通过。
+- [x] 7.3 按用户确认将唯一 delta spec 的 5 条 Compose 收支账本要求合并到 `cash-ledger/cash-ledger-browser` 主规格；保留主规格既有内容，逐条核对 5 个 requirement block 均已同步，`openspec validate --all --strict` 为 32/32、`openspec doctor` 为 Root OK。归档时保留 5 项未完成任务，不伪装为已完成。
 
 ## 8. 反思
 
 - [x] 8.1 演示仓库未剥离 projection ID 前缀会让新详情面板无法加载；已加入回归测试。无需新增通用工作流规则。
 - [x] 8.2 复盘固定筛选/分页连续容器的实现取舍及测试发现，判断是否需更新共享 Compose UI 工作流防复发。
+- [x] 8.3 复盘按月固定头部与分页/滚动条序号映射：月份标题作为行内内容显示，不进入流水序号；sticky 选择使用已缓存的 `monthPositions` 与已加载行，跨月红回归覆盖头部替换时机。该实现关系仅属于账本页面，现有语义 ID 与浏览器回归足以防复发，无需新增通用规则。
+- [x] 8.4 复盘完整刷新状态与 Paging generation 的边界、各平台下拉手势一致性及测试发现：独立门控页面内容可避免 Paging 暂留上一代数据时旧流水闪回；筛选区置于刷新容器外、多选时关闭手势，并在状态代次更新前以请求哨兵去重；设备演示缺少失败状态控制器时应保留 Native 刷新状态验证待办，不以 Web 结果替代。
+
+## 9. 归档记录
+
+- 2026-10-21：按用户确认将唯一 delta spec 的 5 条 requirement 同步至 `openspec/specs/cash-ledger/cash-ledger-browser/spec.md`，并以警告归档。`openspec validate --all --strict`：32/32；`openspec doctor`：Root OK；`git diff --check`：通过。保留 5 项未完成任务（3.9、3.10、6.24、6.26、6.27），不将其标记为完成；PR #95 的合并须等待归档同步提交对应的检查全绿。
 
 ## 审查记录
 
@@ -130,6 +164,8 @@
 - **文案与无障碍：** 可见标签沿用既有简体中文与 Material 3 控件语义；未增加帮助文案或实现术语；保留稳定语义 ID。按项目词表和中文排版约定复核，无需新增术语或文案更改。
 - **Hallmark 最终审查（2026-10-17）：** 按 `.agents/skills/hallmark/SKILL.md` 的 `audit` 动作复核此 change 重构的页面；本轮重点检查固定筛选卡、月度分区、长列表/分页跨月边界、Compact/Wide 选择态、自动展开的批量 FAB 与数量胶囊，并结合既有新增、详情、编辑、关联场景的 Hallmark 截图复查。浅/深色截图覆盖 `COMPACT 390×844`、`REGULAR 768×1024`、`WIDE 1440×1000`；当前证据位于 `screenshots/current-review-20261017/`。首次视觉检查发现 1 项 Material 3 表面层级设计问题（筛选区使用普通 Card 时与月卡层级反转），已改用 `ElevatedCard`；紧凑窗口快捷筛选与详细筛选原先分行，已收紧 FlowRow 间距并压缩筛选按钮内边距。最终审查未发现命名 Hallmark 反模式或未解决设计 finding：**0 critical · 0 major · 0 minor**。不需改 token，也无需更新共享 Compose 工作流。
 - **滚动与多选的工程复核（2026-10-17）：** 筛选卡位于 `LazyColumn` 外，只有列表接收滚动；当前月的分页末行保持平直端点，直到后续行已加载并确认月份边界，才闭合为独立月容器，故不需要预取整月。选择状态以已选 ID 为唯一来源驱动菜单自动展开，选中计数作为 FAB 同级的左侧 Material 3 Surface；取消最后一笔后既有状态会自动退出。未改 API、筛选语义、金额或持久化，不需要新增通用工作流规则。
+- **本轮设计与工程独立复核（2026-10-21）：** 范围覆盖 `CashLedgerScreen.kt`、`CashLedgerScrollbar.kt`、语义 ID、三尺寸列表/FAB/月份切换/表格内缩/滚动条及回归断言。浅/深主题实际 Chromium 截图均检查 `COMPACT 390×844`、`REGULAR 768×1024`、`WIDE 1440×1000`；确认 Regular/Wide 列表右侧预留 16 dp、所有尺寸交互热区 40 dp、Compact 滚动条覆盖列表、固定汇总/列标题位于筛选卡下方、下月接近列表顶端时才替换，以及桌面行内容与表头对齐且分隔线铺满。未发现层级、对比度、溢出、控件状态或语义问题，也未发现命名 Hallmark 反模式：**0 critical · 0 major · 0 minor**。无生产 API、金额或持久化变化；没有需要回写 UI 文案或术语的新内容。按用户范围未执行 Native 运行时 QA，保留共享 `commonMain` 在 Android/iOS 设备上的触控与视觉复验风险。
+- **刷新状态 Hallmark 与工程审查（2026-10-21）：** 按 `.agents/skills/hallmark/references/verbs/audit.md` 检查真实 Compose Web 画面与忽略目录截图，范围覆盖三尺寸的固定筛选、月摘要/列标题、骨架、错误/重试、FAB、行内缩进、滚动条及触控语义；无卡片嵌套、重复说明、表格数字或响应式层级问题，最终 **0 critical · 0 major · 0 minor**。独立工程复核先修复了下拉刷新回调在代次更新前可能重复进入的问题；浅/深主题下拉回归通过。后续 96 条分页夹具又发现 Paging 跳页期间内部 refresh 状态会误切换骨架并重置列表位置，页面门控现改为只在完整刷新状态隐藏旧列表；浅/深主题、三尺寸拖动到未加载页及目标行显示回归通过。键盘跳转不属于本轮用户确认范围，未作为验收项。
 
 ## 验证记录
 
@@ -172,3 +208,9 @@
 - **详细筛选分组实现与 Web QA（2026-10-17）：** 依用户确认，在 `CashDetailedFilters` 中以常驻标题组织时间、金额、分类、账户和其他条件；Compact 保持单列并在 Bottom Sheet 内滚动，Regular/Wide 在组内并排放日期、金额范围和其他条件。账户、分类、日期、币种和金额筛选回调维持原值，资金转移类型及合并状态使用与原实现相同的值与选项；四套资源包含本地化标题。`docs/feature-map.md` F-03、proposal、delta spec 与 design 已同步。无新领域术语，已按 `DOMAIN_GLOSSARY.md` 和中文文案规范复核。
 - **详细筛选 Hallmark 审查（2026-10-17）：** 按 `.agents/skills/hallmark` 的 `audit` 指引检查实际 Compose 筛选界面与已确认的信息架构；范围为筛选入口、五组标题及字段、Bottom Sheet 和模态弹窗、深浅主题与响应式排布。对照实际 Chromium 截图检查层级、控件标签/状态、对比度、横向溢出、触控可达和重复装饰；未发现命名反模式或需要修复的视觉问题：**0 critical · 0 major · 0 minor**。
 - **详细筛选最终浏览器验证（2026-10-17）：** Chromium `zh-CN`，Playwright freshness runner 使用隔离预览端口、`reuseExistingServer: false`，工作区 URL 为 `http://127.0.0.1:<port>/w/workspace-1/`。浅色 `CI=1 FT_COMPOSE_PREVIEW_PORT=5231 FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep 'F-03'`：18/18 通过；深色同命令加 `FT_COMPOSE_COLOR_SCHEME=dark`、端口 `5239`：18/18 通过。分组回归覆盖 `320×800`、`375×812`、`390×844`、`414×896`、`768×1024`、`1440×1000`；浅/深截图在 `screenshots/current-review-20261017/` 和 `dark/`，包括 `filters-grouped-compact-390.png`、`filters-grouped-compact-bottom-390.png`、`filters-grouped-regular-768.png` 和 `filters-grouped-wide-1440.png`。验证五组 DOM 顺序、所有字段归属、Compact 上下滚动、Regular/Wide 组内并排、账户筛选写入、固定筛选与列表滚动、分页、错误/空态、完成与 Escape 关闭。Playwright 每个通过用例的 Console/网络/HTTP 诊断均通过，无非预期错误；终端只有既有 `NO_COLOR`/`FORCE_COLOR` 警告。中途发现紧凑面板增长后旧账户筛选回归未滚动到面板下方字段，修正为在面板内滚动后选项可见；深色主题的截图采样旧阈值低估了关闭面板的差异，按实际闭合画面调整断言阈值并复验通过。最终浅色全 F-03 为 18/18，深色全 F-03 为 18/18。按用户要求仅做 Compose Web；没有执行 Android/iOS 运行时验证，残余平台风险仍按共享 `commonMain` 记录。最终 `openspec validate --all --strict`：32/32；`openspec doctor`：Root OK、无声明引用；`npm run test:node`：3/3；`git diff --check`：通过；当前 `HEAD=8ce4bfa939623bfeac8b26ff89058892187d2cbb`，比较基线 `main=3b3bbe25b4dbd6007be024fdb7b35473a0ea229f`。重大 UI 演示仍待用户确认（6.9），未提交或推送。
+- **账本粘性月份头、列表 FAB 与滚动条宽度 Web QA（2026-10-21）：** 真实 Chromium `zh-CN` 通过 Playwright freshness runner 访问 `http://127.0.0.1:<isolated-port>/w/workspace-1/`，浅色与深色均在 `390×844`、`768×1024`、`1440×1000` 验证筛选卡固定、FAB 覆盖列表/末条完整滚到按钮上方、月份汇总及桌面列标题停留在筛选卡下方并在下月接近顶部时替换、行内容缩进 16 dp 且分隔线全宽，以及空态、请求错误/重试、分页追加成功/失败和滚动条拖动/点击/键盘 `End`。浅/深色最终回归命令分别为 `CI=1 FT_COMPOSE_COLOR_SCHEME=light FT_CAPTURE_COMPOSE_SCREENSHOTS=1 npm run test:e2e -- --grep '筛选卡片固定|FAB 覆盖列表|滚动条定位未加载流水|账本请求失败后可重试|滚动接近末尾|追加失败时保留流水|Regular 与 Wide 表格列|账本没有记录时显示空态'` 和同命令将主题设为 `dark`；各 8/8 通过。浏览器 AfterEach 诊断断言无非预期 Console/page error、失败请求、静态 HTTP 错误或错误 MIME。实现恢复 40 dp 触控热区后，滚动条回归移除“分页已返回时拖动阶段不得显示目标页流水”的过严断言，保留目标月份气泡、目标页请求和松手后精确定位检查；完整套件中的一次自动追加时序失败随后单独回归及完整套件重跑均通过。代表性截图保存在忽略目录 `compose/qa/local-evidence/cash-ledger-redesign-20261021/{light,dark}/`，包括 `ledger-overlay-sticky-390-390.png`、`ledger-overlay-sticky-768-768.png`、`ledger-overlay-sticky-1440-1440.png` 及对应 `ledger-overlay-end-*` 文件；浅/深、三尺寸均已人工复核。Regular/Wide 列表右侧预留为 16 dp，所有尺寸滚动条交互热区为 40 dp，Compact 滚动条覆盖列表。Playwright freshness 守卫构建当前 Compose Web 产物。`cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（47 个 Gradle 任务，10 个执行）；`cd compose/qa/web && npm run test:node`：3/3。`openspec validate compose-cash-ledger-redesign --strict`：有效；`openspec doctor`：Root OK、无声明引用；`git diff --check`：通过。范围化搜索确认“滚动条”等术语已见于现有主规格，本次无新领域词汇或可见文案。当前 `HEAD=ee366732d9fe0522cbe671936fed92862e96ac7f`、比较基线 `main=3b3bbe25b4dbd6007be024fdb7b35473a0ea229f`、分支 `filthy-skunk`；变更留在工作树，未提交或推送。按用户范围未执行 Android/iOS 设备验证，共享 `commonMain` 的 Native 触控与视觉仍待设备复验；重大 UI 的演示确认仍待用户完成（6.9）。
+- **当前变更离线 Compose 演示（2026-10-21）：** `cd compose/qa/web && FT_COMPOSE_PREVIEW_PORT=5277 npm run demo:offline` 触发 freshness 守卫并完整重建 `:webApp:wasmJsBrowserDistribution --no-configuration-cache --rerun-tasks`，49 个 Gradle 任务成功；本机演示 `/health` 返回 `ok`，`/w/demo-workspace/` 返回 HTTP 200，地址 `http://127.0.0.1:5277/w/demo-workspace/`。构建只有既有 Kotlin 弃用、Webpack 依赖/包体积警告。浅/深 Chromium 的最终视口截图和交互回归见上一条；服务保留运行以供用户评审。重大 UI 演示确认仍待用户完成（6.9）；未提交或推送。
+- **滚动条热区补充验证（2026-10-21）：** `CI=1 FT_COMPOSE_COLOR_SCHEME=light npm run test:e2e -- --grep '交互热区仍可点击定位'`：1/1 通过，确认 Regular/Wide 的 40 dp 交互区域仍能点击定位。另用 96 条分页夹具直接检查 Wide 拖动到未加载区和键盘 `End`：接口分别请求目标页（拖动 `start_index=37`、键盘 `start_index=85`），但目标流水没有进入可见列表；键盘路径随后又请求首屏，视口回到最前。拖动路径未见额外首屏请求。缩小测试只保留通过的点击回归，未把未通过的拖动/键盘检查写成通过；此两项仍待追查 Paging 跳转后的列表位置同步，`6.28` 保持未完成。该结果限定于 `WIDE 1440×1000` Chromium，不改变前述 390/768/1440 浅/深几何、贴边及 Compact 渐隐通过记录。当前 `HEAD=ee366732d9fe0522cbe671936fed92862e96ac7f`，比较基线 `main=3b3bbe25b4dbd6007be024fdb7b35473a0ea229f`；未提交、未推送。
+- **PR 前最终验证（2026-10-21）：** `origin/main` 最新提交与验证基线均为 `ee366732d9fe0522cbe671936fed92862e96ac7f`，工作分支 `filthy-skunk`。Playwright freshness runner 使用真实 Chromium `zh-CN` 和隔离预览端口；浅色 `CI=1 FT_COMPOSE_COLOR_SCHEME=light npm run test:e2e -- --grep 'F-03'`：26/26 通过，包含筛选、选择、FAB、固定月头、桌面列标题/行缩进、三尺寸滚动条、首次/完整刷新骨架、刷新错误重试、顶部下拉、筛选区与多选禁用、追加成功/失败、错误/空态、详细筛选与键盘 Escape；深色同范围的相关 11 项：11/11 通过。请求去重修复后，浅色和深色定向下拉刷新回归各 1/1 通过。`cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（47 项任务，9 项执行）；`cd compose/qa/web && npm run test:node`：3/3；`openspec validate compose-cash-ledger-redesign --strict`：有效；`openspec doctor`：Root OK、无声明引用；`git diff --check`：通过。浏览器用例诊断无非预期 Console、失败请求或 HTTP 错误；终端只有既有 `NO_COLOR`/`FORCE_COLOR`、Gradle configuration-cache、Webpack 依赖/包体积提示。截图为本机忽略证据 `compose/qa/local-evidence/cash-ledger-redesign-20261021/{light,dark}/`，包括三尺寸滚动条与月头状态、完整滚动末条、刷新骨架和下拉刷新状态。跨平台影响：`commonMain` 同时影响 Compose Web、Android、iOS；Web 真实浏览器完成，Native 运行时骨架/失败重试尚缺可控演示状态，保留为 6.26 待办；重大 UI 的刷新演示仍需用户评审（6.27）。滚动条跳到未加载页仍按 6.28 保持未完成；刷新失败前置基线未记录，6.24 保持未完成。
+- **PR 前最终验证（2026-10-21）：** `origin/main` 最新提交与比较基线均为 `ee366732d9fe0522cbe671936fed92862e96ac7f`，改动位于工作分支 `filthy-skunk`。Playwright freshness runner 使用真实 Chromium `zh-CN` 和隔离预览端口；浅色、深色完整 `F-03` 分别 27/27 通过，包含筛选、选择、FAB、固定月头、桌面列标题/行缩进、三尺寸滚动条、首次/完整刷新骨架、刷新错误重试、顶部下拉、筛选区与多选禁用、追加成功/失败、空态与详细筛选。另对最终 UI 截图回归在两种主题分别 5/5 通过，覆盖 FAB/固定月份头、三尺寸滚动条几何与拖动到未加载目标页、刷新骨架重试及下拉刷新。Playwright 诊断无非预期 Console、失败请求或 HTTP 错误；终端只有既有颜色变量、Gradle configuration-cache 和 Webpack 依赖/包体积提示。`cd compose && ./gradlew :shared:wasmJsTest --no-configuration-cache`：BUILD SUCCESSFUL（47 个任务，9 个执行）；`cd compose/qa/web && npm run test:node`：3/3；`openspec validate --all --strict`：32/32；`openspec doctor`：Root OK、无声明引用；`git diff --check`：通过。截图保存在 Git 忽略目录 `compose/qa/local-evidence/cash-ledger-redesign-20261021/{light,dark}/`，包括滚动条、月头、末尾、骨架和下拉刷新状态，不纳入 Git。跨平台影响：`commonMain` 同时影响 Compose Web、Android、iOS；Web 真实浏览器完成，Native 运行时刷新骨架/失败重试尚缺可控演示状态，保留为 6.26 待办；包含刷新行为的重大 UI 演示仍待用户评审（6.27）。刷新失败用例旧实现下的失败基线未保存，6.24 保持未完成。用户授权创建面向 `main` 的 PR，但未授权合并。
+- **PR 验证补记（2026-10-21）：** 对当前最终代码重新执行浅色与深色完整 `F-03`：各 27/27；共享 `:shared:wasmJsTest`：BUILD SUCCESSFUL（47 个任务，9 个执行）；Web `npm run test:node`：3/3；`openspec validate --all --strict`：32/32；`openspec doctor`：Root OK；`git diff --check`：通过。`cd compose && FT_COMPOSE_DEMO_MODE=true FT_API_ORIGIN='' ./gradlew :androidApp:assembleDebug --no-configuration-cache`：BUILD SUCCESSFUL（62 个任务，6 个执行、1 个缓存）。当前环境为 Xcode 26.3，但 `mobile/node_modules/expo` 不存在；按仓库 iOS 门禁无法完成规定的 Expo prebuild，因此没有绕过门禁编译 iOS。Android/iOS 运行时骨架与失败重试仍由 6.26 跟踪；Web 真实浏览器已完成。新生成的 QA 证据均位于被 `.gitignore` 排除的 `compose/qa/local-evidence/`，已用 `git check-ignore` 核实。

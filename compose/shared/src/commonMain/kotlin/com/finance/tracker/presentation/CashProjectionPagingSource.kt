@@ -18,6 +18,7 @@ internal class CashProjectionPagingSource(
     private val repository: CashLedgerRepository,
     private val filters: CashFilters,
     private val diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
+    private val onFirstPageError: (Throwable) -> Unit = {},
     private val onPageLoaded: (CashPage, firstPage: Boolean) -> Unit,
 ) : PagingSource<Int, CashProjection>() {
     private var projectionVersion: Long? = null
@@ -38,7 +39,9 @@ internal class CashProjectionPagingSource(
                 limit = params.loadSize.coerceIn(1, MAX_CASH_PAGE_SIZE),
             )
             if (page.startIndex != startIndex || page.totalCount == null) {
-                return LoadResult.Error(IllegalStateException("Indexed cash page omitted its absolute position or total count"))
+                val cause = IllegalStateException("Indexed cash page omitted its absolute position or total count")
+                if (expectedVersion == null) onFirstPageError(cause)
+                return LoadResult.Error(cause)
             }
             if (expectedVersion != null) {
                 if (page.projectionVersion != expectedVersion) {
@@ -71,6 +74,7 @@ internal class CashProjectionPagingSource(
                 DiagnosticFeature.CASH_LEDGER,
                 if (expectedVersion == null) DiagnosticAction.LOAD else DiagnosticAction.LOAD_NEXT_PAGE,
             )
+            if (expectedVersion == null) onFirstPageError(cause)
             LoadResult.Error(cause)
         }
     }
