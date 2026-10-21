@@ -76,6 +76,17 @@ class SourceCoverage:
 
 
 @dataclass(frozen=True)
+class SourceDocumentEvidence:
+    source_type: str
+    parser_version: str
+    coverage: SourceCoverage
+
+    @property
+    def namespace(self):
+        return self.source_type, self.parser_version, self.coverage.document_key
+
+
+@dataclass(frozen=True)
 class SourceBindingKey:
     source_type: str
     scope_kind: str
@@ -206,6 +217,7 @@ class SourceRecord:
     row_revision: int = 1
     deleted: bool = False
     file_occurrences: Mapping[str, frozenset[str]] = field(default_factory=dict)
+    document_evidence: tuple[SourceDocumentEvidence, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -274,6 +286,39 @@ def conflicting_document_pages(coverages: Sequence[SourceCoverage]) -> set[tuple
                 if pages.setdefault(key, fingerprint) != fingerprint:
                     conflicting.add(key)
     return conflicting
+
+
+def conflicting_source_document_pages(rows, records=(), *, evidence=()):
+    """冲突只发生于同渠道、解析命名空间和认证导出的同页。"""
+    rows = tuple(rows)
+    proofs = [SourceDocumentEvidence(row.source_type, row.parser_version, row.coverage) for row in rows]
+    namespaces = defaultdict(set)
+    for proof in proofs:
+        if proof.coverage.document_key:
+            namespaces[(proof.source_type, proof.coverage.document_key)].add(proof.parser_version)
+    for record in records:
+        if record.document_evidence:
+            proofs.extend(record.document_evidence)
+        else:
+            # 仅兼容旧纯领域调用。生产读取始终提供明确命名空间。
+            for coverage in record.coverages:
+                versions = namespaces[(record.source_type, coverage.document_key)]
+                if len(versions) == 1:
+                    proofs.append(SourceDocumentEvidence(record.source_type, next(iter(versions)), coverage))
+    for proof in evidence:
+        if isinstance(proof, SourceDocumentEvidence):
+            proofs.append(proof)
+        else:
+            # 旧内部调用只提供范围时，不能猜测多个解析空间的归属。
+            for (source, document), versions in namespaces.items():
+                if document == proof.document_key and len(versions) == 1:
+                    proofs.append(SourceDocumentEvidence(source, next(iter(versions)), proof))
+    groups = defaultdict(list)
+    for proof in proofs:
+        if proof.coverage.document_key:
+            groups[proof.namespace].append(proof.coverage)
+    return {(source, parser, document, page) for (source, parser, _document), coverages in groups.items()
+        for document, page in conflicting_document_pages(coverages)}
 
 
 def _compatible(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
@@ -356,8 +401,7 @@ def _resolve_source_rows(
     active = [record for record in records if not record.deleted]
     by_id = {record.transaction_id: record for record in active}
     targets_by_occurrence = targets_by_occurrence or {}
-    conflicting_pages = conflicting_document_pages([*(row.coverage for row in rows),
-        *(coverage for record in active for coverage in record.coverages)])
+    conflicting_pages = conflicting_source_document_pages(rows, active)
     by_binding: dict[str, list[SourceRecord]] = defaultdict(list)
     by_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
     by_unscoped_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
@@ -385,7 +429,7 @@ def _resolve_source_rows(
         return key
 
     for row in rows:
-        if row.document_page in conflicting_pages:
+        if row.document_page and (row.source_type, row.parser_version, *row.document_page) in conflicting_pages:
             results[row.occurrence_key] = SourceResolution(row.occurrence_key, "conflict", reason="batch_identity_conflict")
             continue
         try:

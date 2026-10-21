@@ -4,17 +4,20 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import replace
 
-from ft.domain.cash_source_matching import SourceOccurrence
+from ft.domain.cash_source_matching import SourceDocumentEvidence, SourceOccurrence
 from ft.domain.cash_source_batch import SourceBatchInput
+from ft.domain.cash_source_documents import current_document_coverage, document_completeness
 from ft.domain.cash_source_scope import source_account_key
 
 
-def source_batch_rows(files, *, resolved_fields=None):
+def source_batch_rows(files, *, resolved_fields=None, known_document_evidence=()):
     """组合已解析文件，不重新解析；补丁按文件与物理行位置隔离。"""
     files = tuple(files)
-    result = SourceBatchInput(document_coverages=(file.document.coverage for file in files if file.document is not None))
+    evidence = (*file_document_evidence(files), *known_document_evidence)
+    result = SourceBatchInput(document_evidence=evidence,
+        document_coverages=(item.coverage for item in evidence))
     file_refs = set()
-    coverages = _combined_coverages(files)
+    coverages = _combined_coverages(files, evidence)
     for file in files:
         if file.file_ref in file_refs:
             raise ValueError("duplicate_source_file_ref")
@@ -25,26 +28,18 @@ def source_batch_rows(files, *, resolved_fields=None):
     return result
 
 
-def _combined_coverages(files):
+def file_document_evidence(files):
+    return tuple(SourceDocumentEvidence(file.document.source_type, file.document.parser_version, file.document.coverage)
+        for file in files if file.status == "parsed" and file.document is not None)
+
+
+def _combined_coverages(files, evidence):
     """只组合认证解析证据；单文件暂存保持原样，不重读原文件。"""
-    groups, result = {}, {}
+    completeness, result = document_completeness(evidence), {}
     for file in files:
         if file.status == "parsed" and file.document is not None and file.document.coverage.document_key:
-            document = file.document
-            groups.setdefault((document.source_type, document.parser_version, document.coverage.document_key), []).append(file)
-    for members in groups.values():
-        pages, conflict = {}, False
-        first = members[0].document.coverage
-        for file in members:
-            coverage = file.document.coverage
-            if (coverage.page_total, coverage.start, coverage.end, coverage.filters, coverage.strategy_version) != (first.page_total, first.start, first.end, first.filters, first.strategy_version):
-                conflict = True
-            for page, fingerprint in coverage.page_fingerprints.items():
-                conflict = conflict or pages.setdefault(page, fingerprint) != fingerprint
-        complete = not conflict and set(pages) == {str(page) for page in range(1, first.page_total + 1)}
-        for file in members:
-            result[file.file_ref] = replace(file.document.coverage, complete=complete,
-                evidence="icbc-pdf-export-pages-count-v1" if complete else "")
+            result[file.file_ref] = current_document_coverage(SourceDocumentEvidence(
+                file.document.source_type, file.document.parser_version, file.document.coverage), completeness)
     return result
 
 

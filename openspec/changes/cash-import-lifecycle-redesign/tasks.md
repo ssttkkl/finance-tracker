@@ -66,6 +66,8 @@
 - [x] 4.7.3.2.2 支持真实信用卡同次导出的连续页面文件：最小认证证据、重复页面定位、共同完整性校验与互斥出现次数；缺段／重叠矛盾保持未知，其他账单继续。
 - [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [ ] 4.8.1 接入文件级（含零行页）及已存认证页证据的计划／提交前重验，统一计算跨会话汇齐的完整性；不能仅靠旧行覆盖标志，空页元数据的持久化须在该步骤明确。
+- [x] 4.8.1.1 统一文件及候选旧导出的认证空间、当前活动绑定与独立空页证据；只在本次内存规划提升完整性，覆盖零行、命名空间、冲突、删除与迁移回滚。
+- [ ] 4.8.1.2 联合提交在锁内重验并保存认证空页；证据冲突或保存点失败时跳过相关依赖决定，不让依赖旧证明的写入继续。
 - [x] 4.8.2 实现已解析行的来源账户组及支付组成项桥接：来源范围隔离、稳定组引用、已有账户修订与币种、同账户合并、未知分摊及逐行错误；不创建账户、不提前写流水。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
 - [x] 4.9.1 实现同事务收据／逐项结果、用户幂等与会话／编辑上下文消费唯一性；将 PostgreSQL 工作区锁提前到 UoW 入口。
@@ -104,9 +106,14 @@
 
 ## 执行证据
 
+- 4.8.1.1 当前来源页认证（2026-10-21，HEAD／比较基线 `3c3575e`）：新能力先有 20 failed／1 passed（`/tmp/ft-cash-source-documents-red.log`），命名空间断言改为真正检查冲突结果后单独 1 failed（`/tmp/ft-cash-source-document-namespace-red.log`），避免仅比错原因码的空洞断言。47 迁移新增最小认证空页表，页码有界、工作区级联，已有来源表与财务值不变；有已保存证据拒绝有损降级。空页与活动来源绑定共同按渠道／解析空间／导出声明读取，批量按 150 个作用域查询；跳过行和无位置行不产生空页证明，预览只读。
+- 独立预审的 P2 “遗漏候选旧导出”与“扁平混用解析空间”均采纳并回写 design：候选 A 的业务页与空页在导入 B 时同样可组合认证；完整性按当前证据重新计算，不信任单行旧标志，不回写旧流水。领域初轮 103 passed（0.86 s），新 SQLite 范围 21 passed／9 deselected（4.69 s）。首次显式双后端 13 文件来源、资金、暂存、账户／关系／草稿及迁移矩阵 528 passed、无 skip（124.33 s，`/tmp/ft-cash-source-documents-dual.log`）。
+- 独立实施复核的 P2 草稿绑定迁移仍扁平比较旧页证据已采纳：新增实际迁移合并反例 SQLite 先 1 failed，再使用同一带命名空间冲突函数；两个来源存储合同文件最终显式双后端 98 passed、无 skip（39.92 s，`/tmp/ft-cash-source-document-merge-final.log`）。独立复核另有 25 passed／13 deselected，并以空内存库 EXPLAIN 确认两种读取使用作用域索引，没有把它算成 PostgreSQL 或数据规模性能证据。
+- `uv build --out-dir /tmp/ft-cash-source-documents-dist`、OpenSpec strict、范围 diff 和 `git diff --check` 通过；完整 SQLite `/tmp/ft-cash-source-documents-regression.log` 在最后 P2 修复后启动，仍在运行，尚不计入通过。Cross-platform Impact Check：本步只新增内部规划／证据存储，没有修改 Web、Native、共享 presentation 的页面、文案或操作，功能地图补证据而保留三端流程缺口。完整不可变计划、证据保存失败的依赖处理及实际新写入口仍分别在 4.8、4.9、4.11，未因此开放或宣称完成统一导入；浏览器、最终 Hallmark 与演示确认仍未完成。
+
 - 4.5.3.5 当前实例身份（2026-10-21，HEAD／比较基线 `cf9fa6c`）：流水、组成项和关系同字段同修订删除重建的上下文反例先有 SQLite 6 failed／PostgreSQL 6 passed（`/tmp/ft-cash-instance-identity-red.log`）；真正新建 45 版库的迁移反例先有 5 failed／1 passed（`/tmp/ft-cash-instance-migration-red.log`）。46 迁移只在 SQLite 重建三个源表并恢复现存最大 ID 与可用序列的较大值，包含空表；PostgreSQL 沿用原序列。两项关系表达式唯一索引按原定义显式恢复，端点方向、当前引用和来源值不变，降级到 45 保留兼容安全属性。
 - 最终独立静态复核无阻断，采纳低序列及活动来源唯一索引行为测试；真正完成首表复制或最后关系索引 DDL 后注入失败，均验证数据、结构、序列、版本与外键状态整体恢复。旧上下文在删除重建前已先通过验证，重建后必须拒绝，避免无效初始令牌的空洞测试。SQLite 严格警告范围 12 passed／7 deselected（6.11 s，`/tmp/ft-cash-instance-identity-green.log`）；追加两项边界后最终显式双后端 16 文件矩阵 498 passed、无 skip、1 warning（239.31 s，`/tmp/ft-cash-instance-identity-dual-final.log`）。此前 432 passed／6 failed 均为旧 HEAD 45 常量断言，修正并复跑，不计作成功证据。
-- `uv build --out-dir /tmp/ft-cash-instance-identity-dist`、OpenSpec strict、范围 diff 及 `git diff --check` 通过。完整 SQLite 非性能回归 `/tmp/ft-cash-instance-identity-regression.log` 正在运行，未计入本步已通过；最终完整回归与性能仍须在 6.1／6.7 完成。Cross-platform Impact Check：本步仅变更源实例持久化身份，没有修改 Web、Native、共享 presentation 的页面、文案或操作，功能地图补迁移合同证据而不改变页面数或三端 TODO；实际浏览器、Hallmark 和重大 UI 演示仍待 4.12–4.13。
+- `uv build --out-dir /tmp/ft-cash-instance-identity-dist`、OpenSpec strict、范围 diff 及 `git diff --check` 通过。完整 SQLite 非性能回归沿两项旧 Expo 排除 → 2,471 passed、535 skipped、53 deselected、1 warning（486.78 s，`/tmp/ft-cash-instance-identity-regression.log`）；源实例改动后独占新建／关系变更性能双后端 → 4 passed、19 deselected（28.23 s，`/tmp/ft-cash-instance-identity-perf.log`），没有并行测试、构建或生产代码改动，既有规模与预算不变。整个 A 类变更最终完整回归与性能仍在 6.1／6.7。Cross-platform Impact Check：本步仅变更源实例持久化身份，没有修改 Web、Native、共享 presentation 的页面、文案或操作，功能地图补迁移合同证据而不改变页面数或三端 TODO；实际浏览器、Hallmark 和重大 UI 演示仍待 4.12–4.13。
 
 - 4.5.3.4 草稿余额及当前报表（2026-10-21，HEAD／比较基线 `a07dae1`）：草稿未知 DTO、普通／批量删除、转正式余额增量、事务回滚及 38 位金额反例先有 12 failed；两个生产报表组合入口在完整夹具修正后均因未知日期失败，共 6 failed。内部行映射加入生命周期和修订，保留未知组成项；余额增量共用无存储 helper，草稿及删除项不产生增量，既有转账口径保持。收支及资金流改读当前正式投影及成员，在同一快照处理月份／全时段流向，未就绪安全返回 503，不回退另一套原始收支计算。
 - 独立工程复核的 P2 混合批次草稿覆盖余额时间、部分已知组成项填出父账户均采纳：实际混合删除先证明时间为 `None`，部分未知草稿在两个后端先失败，再分别只从有余额影响的正式行取时间、保留真实父账户。显式 PG 首轮 1 failed／193 passed 定位 `ExactDecimal.normalize()` 默认精度舍入，追加 `cast(String)` 证明库内值正确而 ORM 读错；该项与部分未知反例共 3 failed／1 passed 后修复为精度 80 读取，不改存储或 schema。

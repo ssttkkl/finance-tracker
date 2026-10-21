@@ -472,6 +472,8 @@ erDiagram
 
 稳定来源编号若只在账户内唯一，由来源适配器将作用域编码进不可变 `record_id`，与父表活动唯一键一致；来源原始编号仍在 `source_payload`，不能依赖父表唯一键误把两个账户的相同编号折叠。
 
+认证空页另用 `cash_source_empty_pages` 保存 `workspace_id/source_type/parser_version/document_key/page_number/coverage`，以前五项为复合主键，工作区外键级联；页码为 `1..2000`，`coverage` 只含该页摘要与认证范围。它不包含业务行、账号、原文件或历史状态。只有没有任何物理业务行（包括跳过行）的认证页可写入，且只在最终提交时保存；矛盾不覆盖，失败回滚不留证据。有业务行的证据仍来自当前活动来源绑定。计划和提交合并两类证据重新计算范围完整性，不信任单行旧完整标志，不回写全部旧流水。
+
 ### 4.5 当前问题与候选（新增）
 
 `cash_transaction_issues`：

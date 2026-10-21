@@ -27,7 +27,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20261021_46"
+SCHEMA_REVISION = "20261021_47"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "cash_transaction_components", "investment_events",
     "ledger_snapshots",
@@ -38,7 +38,7 @@ REQUIRED_TABLES = {
     "cash_investment_funding_relations",
     "users", "workspace_memberships", "user_sessions", "workspace_invitations",
     "cash_categories", "cash_category_states", "statement_account_mappings", "cash_import_commits",
-    "cash_source_bindings", "cash_transaction_issues", "cash_issue_candidates",
+    "cash_source_bindings", "cash_source_empty_pages", "cash_transaction_issues", "cash_issue_candidates",
     "cash_mutation_receipts", "cash_mutation_results",
     "cash_relation_candidates",
 }

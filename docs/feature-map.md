@@ -25,6 +25,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 已解析行的 [资金账户桥接](../src/ft/application/cash_import_funding.py) 准备来源账户组和支付组成项，缺映射／分摊保留已知字段，不创建账户；共享边界校验转正式的同向分摊并完整读取建行附言。[单行来源解释](../src/ft/adapters/cash_statement_evidence.py) 与解析行一起暂存，保留订单、状态及银行退款线索，不使用生成备注或保存跨行配对结果。后续统一计划及 F-05 页面仍待接入。
 工行 PDF 迁入解析上下文时保留信用卡行级本方身份与借记卡文件级身份；同次导出的连续页面在后端自动核对，重复页与矛盾页按来源结果处理。当前 F-05 的新 PDF／密码重传入口随统一会话切换验收，不据此标记客户端覆盖完成。
 
+跨会话的 [来源规划](../src/ft/application/cash_import_source_plan.py) 已组合当前活动绑定及 [认证空页](../src/ft/adapters/relational/cash_source_documents.py)，包含本次命中的旧候选导出；[合同测试](../tests/contract/test_cash_source_document_storage.py) 覆盖零行、命名空间、双向冲突与降级保护。预览不写业务数据；联合提交、统一客户端列表与三端 QA 仍待后续切换，不增加页面或独立关系入口。
+
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|
 | F-01 | 登录与注册 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | 登录、注册与认证状态恢复 |

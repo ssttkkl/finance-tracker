@@ -10,7 +10,7 @@ from typing import Mapping, Sequence
 from ft.domain.cash_record_policy import CashRecordPolicyError, _normalize, prepare_cash_record_update
 from ft.domain.cash_source_matching import (
     SourceOccurrence, SourceRecord, SourceResolution, _compatible, _digest, _index, _patch,
-    _record_binding_keys, _resolve_source_rows, conflicting_document_pages,
+    _record_binding_keys, _resolve_source_rows, conflicting_source_document_pages,
 )
 
 
@@ -42,9 +42,10 @@ class SourceBatchPlan:
 class SourceBatchInput(dict[str, SourceOccurrence]):
     """所有文件证据独立于行集合，空页也必须参与本批身份校验。"""
 
-    def __init__(self, *args, document_coverages=(), **kwargs):
+    def __init__(self, *args, document_coverages=(), document_evidence=(), **kwargs):
         super().__init__(*args, **kwargs)
         self.document_coverages = tuple(document_coverages)
+        self.document_evidence = tuple(document_evidence)
 
 
 @dataclass(frozen=True)
@@ -95,11 +96,9 @@ def resolve_source_batch(
     result_groups: dict[str, SourceBatchGroup] = {}
     group_cache = {}
     roots, proof_owner, contents, targets = {}, {}, {}, {}
-    conflicting_pages = conflicting_document_pages([
-        *(rows.document_coverages if isinstance(rows, SourceBatchInput) else ()),
-        *(row.coverage for row in rows.values()), *known_document_coverages,
-        *(coverage for record in active for coverage in record.coverages),
-    ])
+    file_evidence = (rows.document_evidence or rows.document_coverages) if isinstance(rows, SourceBatchInput) else ()
+    conflicting_pages = conflicting_source_document_pages(rows.values(), active,
+        evidence=(*file_evidence, *known_document_coverages))
 
     def shared_group(refs=(), ids=()):
         # 调用者复用集合元组；不为每条行重新散列、复制大集合。
@@ -156,7 +155,8 @@ def resolve_source_batch(
         sorted_ids = tuple(sorted(ids))
         failed = False
         if (len({contents[ref] for ref in refs}) > 1 or len(providers) > 1 or len(evidence) > 1
-            or any(rows[ref].document_page in conflicting_pages for ref in refs)
+            or any(rows[ref].document_page and (rows[ref].source_type, rows[ref].parser_version,
+                *rows[ref].document_page) in conflicting_pages for ref in refs)
             or len({(rows[ref].source_type, rows[ref].source_account_key) for ref in refs}) > 1):
             group = shared_group(ids=sorted_ids) if len(sorted_ids) > 1 else None
             for ref in refs:

@@ -9,10 +9,10 @@ import re
 from sqlalchemy import Text, and_, cast, delete, func, or_, select, tuple_
 
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
-from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceOccurrence, SourceRecord, provider_identity_key, _digest, conflicting_document_pages
+from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceDocumentEvidence, SourceOccurrence, SourceRecord, provider_identity_key, _digest, conflicting_source_document_pages
 from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
 from .models import (
-    CashIssueCandidateModel, CashSourceBindingModel,
+    CashIssueCandidateModel, CashSourceBindingModel, CashSourceEmptyPageModel,
     CashTransactionIssueModel, CashTransactionModel,
     CashTransactionComponentModel,
 )
@@ -204,6 +204,8 @@ class CashSourceRepository:
                 stable_evidence_binding_key=next((binding.stable_evidence_key for binding in aliases if binding.stable_evidence_key), None),
                 row_revision=parent.row_revision,
                 protected_fields=frozenset(name for name in ("note", "category_id") if (parent.manual_overrides or {}).get(name)),
+                document_evidence=tuple(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
+                    SourceCoverage(**binding.coverage)) for binding in aliases if binding.coverage.get("document_key")),
             ))
         return result
 
@@ -231,7 +233,13 @@ class CashSourceRepository:
             raise SourceBindingConflict("source_target_incompatible")
         self._validate_scope(target, row)
         if row.document_page:
+            from .cash_source_documents import _declaration
             page = row.document_page[1]
+            empty = self.session.get(CashSourceEmptyPageModel,
+                (self.workspace_id, row.source_type, row.parser_version, row.coverage.document_key, int(page)))
+            if empty is not None and (empty.coverage["page_fingerprints"].get(page) != row.coverage.page_fingerprints[page]
+                or _declaration(SourceCoverage(**empty.coverage)) != _declaration(row.coverage)):
+                raise SourceBindingConflict("source_document_conflict")
             fingerprint = CashSourceBindingModel.coverage["page_fingerprints"][page].as_string()
             conflict = self.session.scalar(select(CashSourceBindingModel.id).join(CashTransactionModel, and_(
                 CashTransactionModel.workspace_id == CashSourceBindingModel.workspace_id,
@@ -365,7 +373,8 @@ class CashSourceRepository:
             raise SourceBindingConflict("source_identity_conflict")
         if any(len(positions) > 1 for positions in _document_positions([*draft_bindings, *target_bindings]).values()):
             raise SourceBindingConflict("source_identity_conflict")
-        if conflicting_document_pages([SourceCoverage(**binding.coverage) for binding in [*draft_bindings, *target_bindings]]):
+        if conflicting_source_document_pages((), evidence=(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
+            SourceCoverage(**binding.coverage)) for binding in [*draft_bindings, *target_bindings])):
             raise SourceBindingConflict("source_document_conflict")
         for binding in draft_bindings:
             binding.transaction_id = target.id

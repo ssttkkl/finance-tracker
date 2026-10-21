@@ -500,6 +500,19 @@ class CashTransactionComponentModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
+class CashSourceEmptyPageModel(Base):
+    """认证空页的最小证据；不创建占位流水或保存原始页面。"""
+
+    __tablename__ = "cash_source_empty_pages"
+    __table_args__ = (CheckConstraint("page_number BETWEEN 1 AND 2000", name="ck_cash_source_empty_page_number"),)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True)
+    source_type: Mapped[str] = mapped_column(String(64), primary_key=True)
+    parser_version: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    coverage: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
 class CashSourceBindingModel(Base):
     """当前来源定位及别名；来源变化不更换内部流水身份。"""
 

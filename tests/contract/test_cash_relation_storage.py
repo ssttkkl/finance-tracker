@@ -302,7 +302,7 @@ def test_relation_migration_refuses_lossy_downgrade(current_relation_runtime, ch
         with pytest.raises(ValueError, match="refusing a lossy downgrade"):
             command.downgrade(_migration_config(connection), "20261021_41")
         connection.rollback()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_46"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_47"
 
 
 def test_relation_migration_does_not_reinterpret_non_cash_integer_collisions(current_relation_runtime):
