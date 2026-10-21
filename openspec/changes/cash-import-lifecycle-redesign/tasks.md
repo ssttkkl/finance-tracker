@@ -24,6 +24,7 @@
 - [ ] 4.3 为当前来源绑定、无编号多重集合、范围不足／名称交叉反例、删除重导及草稿别名写失败测试；实现来源对应。
 - [x] 4.3.1 完成单文件来源规划、同文件出现次数、认证证据、合成身份及事务内当前绑定／问题存储，验证两个后端。
 - [ ] 4.3.2 新解析元数据接入，多文件共同计划不相加重复次数；真实来源重叠和旧来源保守回填在 4.7–4.9 验收后关闭 4.3。
+- [x] 4.3.2.1 接入已确认的微信默认来源后端输入、文件设置命令和旧来源保守读取，验证重叠更新、固定字段冲突及作用域隔离；HTTP／Compose 在 4.11–4.12 切换。
 - [ ] 4.4 为草稿关联、角色矩阵、确认关系保护、类型解除、联合退款钻石与旧闭包写失败测试；实现当前关系与候选结构及组校验。
 - [x] 4.4.1 完成新建议证据／持久角色的共享校验、旧新确认图闭包及保守配对提交分组；保留既有特殊关系类型。
 - [ ] 4.4.2 完成父记录及组成项关系结构／候选迁移、类型更新调用、联合草稿成员完整性及最终财务图和组保存点接入。
@@ -158,3 +159,8 @@
 - 执行者最终显式专用 PostgreSQL 矩阵 `tests/test_bank_statement_rows.py tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_ccb_debit.py tests/test_icbc_asia_current_account.py tests/contract/test_parsed_cash_import_context.py tests/test_parsed_import_staging.py -q --disable-warnings --maxfail=2 --tb=short` → 242 passed、无 skip（9.16 s）。完整 SQLite 回归沿前述命令及两项已知 Expo 排除 → 1914 passed、283 skipped、53 deselected（213.46 s），日志 `/tmp/ft-import-bank-tables-regression.log`；收集后的预算及来源识别增量由上述最终 242 项另验。OpenSpec strict、diff 空白检查通过。
 - 真实来源只读校准：两份建行 XLS 共 953 次出现，0 行问题；金额／币种／时间／类型／资金提示与旧原生转换的多重集合完全一致（0 mismatch），两份均提取到完整本方身份及范围。没有可用的真实工银亚洲表格，该来源以去标识合成数据验证；未将真实数据写入账本或 Git，不据此关闭 6.3。没有新增来源分类单元或改变原生分类。Cross-platform Impact Check：Web、Native、共享 presentation 没有页面或文案变化，此内部解析小步不适用浏览器及最终 Hallmark 验收；对外切换与客户端验证仍待后续任务，4.7 整体保持未完成。
 - 银行最终增量独立复核：来源声明、精确全量标题和元数据／出现预算，43 passed、无阻断 finding；没有访问 PostgreSQL。
+
+- 4.3.2.1 微信默认来源（HEAD `3608797`，比较基线相同）：用户明确接受默认单一来源、多账号按需区分，已回写词表、主设计、跨层合同及两个 delta；不再保留待确认阻断。缺模块、缺文件设置命令和旧记录未识别范围的测试先失败，再实现来源输入桥接、NFC 名称校验、微信文件定位隔离、文件设置 CAS／权限／消费校验及旧微信可靠身份的只读推导，成功保存时才写绑定。内部账户和原始昵称／本人账号不改变默认范围。
+- 独立工程／来源／安全复核采纳两项 P1 和一项 P2：旧原文编号首尾空白导致时间冲突漏查、草稿绑定转移绕过隐含来源、失败重传丢失来源选择。7 项 SQLite 反例全部先失败；查询使用与 Python 相同的空白规范化，普通绑定与草稿合并共用双方身份检查，失败／密码／预算回退均保留来源配置。定向重新复核 7 passed，三项 finding 关闭，无新增阻断；独立附加验证空白集合及预算回退通过，未访问 PostgreSQL。
+- 最终显式专用 PostgreSQL 矩阵 `tests/contract/test_cash_source_storage.py tests/contract/test_parsed_cash_import_context.py tests/test_cash_source_scope.py tests/test_cash_source_matching.py tests/test_parsed_import_staging.py tests/test_cash_record_policy.py -q --disable-warnings --maxfail=2 --tb=short` → 276 passed、无 skip（34.17 s）。修复后的完整 SQLite 回归沿前述命令及两项已知 Expo 排除 → 1954 passed、301 skipped、53 deselected（245.38 s），日志 `/tmp/ft-import-wechat-scope-final-regression.log`。此前初次 262 项矩阵及修复前回归不作为最终修复验收；OpenSpec strict、diff 空白检查通过。
+- 六份真实微信账单只读输入校准：228 组重叠编号中 9 组识别可更新变化，其余识别重复，0 组意外待处理／新增／冲突；共 425 次与组内首份快照比较，410 次重复、15 次更新（包含上述 9 组的重复出现）。只验证解析与来源策略组合，未写真实账本，不将其当作联合提交或 6.3 完成。Cross-platform Impact Check：后端契约已记录文件来源选择，Web／Native／共享 presentation 尚未修改，无当前 UI 或文案变化；相关入口、三端流程与浏览器／Hallmark 验收仍在 4.11–4.13／6.4–6.6。多文件共同操作计划尚未接入，4.3.2／4.3 整体保持未完成。

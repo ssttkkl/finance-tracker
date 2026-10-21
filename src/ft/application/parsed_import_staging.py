@@ -13,6 +13,7 @@ from typing import Any
 
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.domain.cash_source_matching import SourceCoverage
+from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_staging import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
@@ -44,6 +45,7 @@ class ParsedImportFile:
     status: str
     document: ParsedCashDocument | None = None
     error_code: str | None = None
+    source_scope_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -111,6 +113,12 @@ def _valid_files(files):
                     or any(not isinstance(code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", code) for code in (*row.issue_codes, *((row.error_code,) if row.error_code is not None else ())))):
                     raise ParsedImportDataError("import_session_document_invalid")
                 positions.add(row.position)
+        try:
+            if (normalize_scope_label(item.source_scope_label) != item.source_scope_label
+                or item.source_scope_label is not None and item.source_type != "wechat"):
+                raise CashSourceScopeError
+        except CashSourceScopeError:
+            raise ParsedImportDataError("import_session_file_invalid") from None
 
 
 def _json_budget(value, budget, *, depth=0):

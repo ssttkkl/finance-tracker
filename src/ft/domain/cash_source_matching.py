@@ -20,6 +20,10 @@ def _digest(*values: Any) -> str:
     return sha256(json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
 
 
+def provider_identity_key(provider_id: str) -> str:
+    return _digest(provider_id)
+
+
 def _time(value: Any) -> datetime:
     result = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if result.tzinfo is None or result.utcoffset() is None:
@@ -90,10 +94,14 @@ class SourceOccurrence:
 
     @property
     def occurrence_key(self) -> str:
+        if self.source_type == "wechat" and self.source_account_key:
+            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version, self.table_key, self.position)
         return _digest(self.source_type, self.file_digest, self.parser_version, self.table_key, self.position)
 
     @property
     def file_scope_key(self) -> str:
+        if self.source_type == "wechat" and self.source_account_key:
+            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version)
         return _digest(self.source_type, self.file_digest, self.parser_version)
 
     @property
@@ -107,7 +115,7 @@ class SourceOccurrence:
     @property
     def provider_binding_key(self) -> str | None:
         if self.provider_id and self.account_scope_key:
-            return _digest(self.source_type, "account", self.account_scope_key, "provider_id", _digest(self.provider_id))
+            return _digest(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id))
         return None
 
     @property
@@ -125,7 +133,7 @@ class SourceOccurrence:
         specs = []
         if self.account_scope_key:
             if self.provider_id:
-                specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", _digest(self.provider_id)))
+                specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id)))
             specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "file_occurrence", self.occurrence_key))
         specs.append(SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key))
         return tuple(specs)
@@ -257,7 +265,7 @@ def resolve_source_file(rows: Sequence[SourceOccurrence], records: Sequence[Sour
         for key in record.binding_keys:
             by_binding[key].append(record)
         if record.provider_id and record.source_account_key:
-            provider_key = _digest(record.source_type, "account", record.source_account_key, "provider_id", _digest(record.provider_id))
+            provider_key = _digest(record.source_type, "account", record.source_account_key, "provider_id", provider_identity_key(record.provider_id))
             by_binding[provider_key].append(record)
         if record.provider_binding_key:
             by_binding[record.provider_binding_key].append(record)

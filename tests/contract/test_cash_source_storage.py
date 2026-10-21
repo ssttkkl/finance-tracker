@@ -41,6 +41,132 @@ def test_occurrence_bindings_are_transactional_and_same_file_idempotent(source_r
         assert len(session.scalars(select(CashSourceBindingModel)).all()) == 3
 
 
+@pytest.mark.parametrize("patch", [{"counterparty": "更新名称"}, {"amount": "-21"}, {"occurred_at": "2026-08-16T02:00:00+00:00"}])
+def test_legacy_wechat_identity_uses_confirmed_default_scope_even_when_fixed_time_changed(source_runtime, patch):
+    from datetime import datetime
+    from ft.adapters.relational.models import CashSourceBindingModel, CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from ft.domain.cash_source_matching import resolve_source_file
+    from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
+    from test_cash_source_scope import _file
+    first, = source_rows(_file()).values()
+    incoming = replace(first, fields={**first.fields, **patch})
+    with source_runtime.sessions.begin() as session:
+        target = session.get(CashTransactionModel, 1001)
+        target.source_type, target.record_id = "wechat", "wechat_000123"
+        target.source_payload = first.fields["source_payload"]
+        target.amount, target.currency = first.fields["amount"], first.fields["currency"]
+        target.occurred_at = datetime.fromisoformat(first.fields["occurred_at"])
+        target.record_type, target.record_subtype = first.fields["record_type"], first.fields["record_subtype"]
+        session.flush()
+        repo = _repository(session, source_runtime)
+        records = repo.records_for_file([incoming])
+        assert len(records) == 1 and records[0].source_account_key == WECHAT_DEFAULT_SCOPE
+        assert records[0].provider_id == "000123"
+        assert session.scalars(select(CashSourceBindingModel)).all() == []
+        result, = resolve_source_file([incoming], records)
+        assert result.transaction_id == "1001"
+        assert result.action == ("match" if "counterparty" in patch else "conflict")
+        if result.action == "match":
+            repo.save_occurrence(1001, incoming)
+            assert repo.find(incoming) == 1001
+
+
+def test_legacy_wechat_inconsistent_identity_is_not_backfilled_and_named_scope_is_preserved(source_runtime):
+    from datetime import datetime
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from ft.domain.cash_source_matching import resolve_source_file
+    from test_cash_source_scope import _file
+    first, = source_rows(_file()).values()
+    named, = source_rows(_file(label="工作微信")).values()
+    with source_runtime.sessions.begin() as session:
+        target = session.get(CashTransactionModel, 1001)
+        target.source_type, target.record_id = "wechat", "wechat_other"
+        target.source_payload = first.fields["source_payload"]
+        target.amount, target.currency = first.fields["amount"], first.fields["currency"]
+        target.occurred_at = datetime.fromisoformat(first.fields["occurred_at"])
+        session.flush()
+        repo = _repository(session, source_runtime)
+        result, = resolve_source_file([first], repo.records_for_file([first]))
+        assert result.action == "pending"
+        repo.save_occurrence(1001, named)
+        records = repo.records_for_file([first])
+        assert records[0].source_account_key == named.source_account_key
+        assert resolve_source_file([first], records)[0].action == "new"
+
+
+def test_wechat_named_scopes_do_not_share_identical_file_aliases(source_runtime):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from test_cash_source_scope import _file
+    first, = source_rows(_file()).values()
+    named, = source_rows(_file(label="工作微信")).values()
+    with source_runtime.sessions.begin() as session:
+        for transaction_id in (1001, 1002):
+            session.get(CashTransactionModel, transaction_id).source_type = "wechat"
+        session.flush()
+        repo = _repository(session, source_runtime)
+        repo.save_occurrence(1001, first)
+        repo.save_occurrence(1002, named)
+        assert repo.find(first) == 1001 and repo.find(named) == 1002
+
+
+def test_verified_legacy_wechat_scope_cannot_be_reassigned_by_first_binding(source_runtime):
+    from ft.adapters.relational.cash_sources import SourceBindingConflict
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from test_cash_source_scope import _file
+    named, = source_rows(_file(label="工作微信")).values()
+    with source_runtime.sessions.begin() as session:
+        target = session.get(CashTransactionModel, 1001)
+        target.source_type, target.record_id = "wechat", "wechat_000123"
+        target.source_payload = named.fields["source_payload"]
+        session.flush()
+        with pytest.raises(SourceBindingConflict, match="source_identity_conflict"):
+            _repository(session, source_runtime).save_occurrence(1001, named)
+
+
+@pytest.mark.parametrize("raw_number", ["000123 ", "\t000123", "\u3000000123\u00a0"])
+def test_legacy_wechat_raw_identifier_whitespace_does_not_hide_fixed_time_conflict(source_runtime, raw_number):
+    from datetime import datetime, timezone
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from ft.domain.cash_source_matching import resolve_source_file
+    from test_cash_source_scope import _file
+    first, = source_rows(_file()).values()
+    with source_runtime.sessions.begin() as session:
+        target = session.get(CashTransactionModel, 1001)
+        target.source_type, target.record_id = "wechat", "wechat_" + raw_number
+        target.source_payload = {"交易单号": raw_number}
+        target.occurred_at = datetime(2026, 8, 14, tzinfo=timezone.utc)
+        session.flush()
+        records = _repository(session, source_runtime).records_for_file([first])
+        assert len(records) == 1
+        result, = resolve_source_file([first], records)
+        assert result.action == "conflict" and result.transaction_id == "1001"
+
+
+@pytest.mark.parametrize("scope,provider", [("工作微信", "000123"), (None, "different-id")])
+def test_draft_binding_merge_cannot_override_implicit_legacy_wechat_identity(source_runtime, scope, provider):
+    from ft.adapters.relational.cash_sources import SourceBindingConflict
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.application.cash_import_source_rows import source_rows
+    from test_cash_source_scope import _file
+    first, = source_rows(_file(label=scope)).values()
+    first = replace(first, provider_id=provider)
+    with source_runtime.sessions.begin() as session:
+        target, draft = session.get(CashTransactionModel, 1001), session.get(CashTransactionModel, 1002)
+        target.source_type, target.record_id, target.source_payload = "wechat", "wechat_000123", {"交易单号": "000123"}
+        draft.source_type, draft.state = "wechat", "draft"
+        session.flush()
+        repo = _repository(session, source_runtime)
+        repo.save_occurrence(1002, first)
+        with pytest.raises(SourceBindingConflict, match="source_identity_conflict"):
+            repo.transfer_draft_bindings(1002, 1001)
+        assert repo.find(first) == 1002
+
+
 def test_pending_identity_only_binds_file_alias_and_retains_it_on_scope_completion(source_runtime):
     from ft.adapters.relational.models import CashTransactionModel
     runtime = source_runtime

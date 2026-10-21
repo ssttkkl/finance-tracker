@@ -8,6 +8,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 ## 页面级功能
 
+微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。
+
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|
 | F-01 | 登录与注册 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | 登录、注册与认证状态恢复 |

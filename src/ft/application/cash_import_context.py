@@ -13,6 +13,7 @@ from ft.adapters.cash_statement_document import StatementDocumentError
 from ft.adapters.cash_statement_rows import ParsedCashDocument, parse_cash_statement
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.models import WorkspaceMembershipModel
+from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_staging import ImportSessionNotFound
 from ft.application.parsed_import_staging import (
     ImportSessionClosed, ImportSessionRevisionConflict, ParsedImportDataError,
@@ -43,6 +44,7 @@ class CashImportUpload:
     content: bytes = field(repr=False)
     password: str | None = field(default=None, repr=False)
     source_hint: str | None = None
+    source_scope_label: str | None = None
 
 
 @dataclass(frozen=True)
@@ -97,27 +99,39 @@ class CashImportContextService:
             if (not isinstance(upload, CashImportUpload) or not isinstance(upload.client_file_ref, str)
                 or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", upload.client_file_ref) or upload.client_file_ref in refs
                 or not isinstance(upload.filename, str) or upload.source_hint is not None and not isinstance(upload.source_hint, str)
-                or upload.password is not None and not isinstance(upload.password, str)):
+                or upload.password is not None and not isinstance(upload.password, str)
+                or upload.source_scope_label is not None and not isinstance(upload.source_scope_label, str)):
                 raise ValueError("import_files_invalid")
             refs.add(upload.client_file_ref)
 
-    def _parse(self, upload):
+    def _parse(self, upload, *, previous_scope_label=None):
         raw = upload.content if isinstance(upload.content, bytes) else b""
         filename = (upload.filename.replace("\\", "/").rsplit("/", 1)[-1] or "账单").encode("utf-8", errors="replace").decode()[:255]
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
         file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(raw).hexdigest(),
             len(raw), hint, "failed", error_code="statement_input_invalid")
-        if not raw or len(raw) > _MAX_UPLOAD_BYTES:
-            return file
+        if previous_scope_label is not None:
+            file = replace(file, source_type="wechat", source_scope_label=previous_scope_label)
         try:
+            scope = normalize_scope_label(upload.source_scope_label) if upload.source_scope_label is not None else previous_scope_label
+            file = replace(file, source_scope_label=scope, source_type="wechat" if scope is not None else hint)
+            if not raw or len(raw) > _MAX_UPLOAD_BYTES:
+                return file
             document = self._parser(upload)
             if not isinstance(document, ParsedCashDocument):
                 raise ValueError("unexpected_document_type")
-            parsed = replace(file, source_type=document.source_type, status="parsed", document=document, error_code=None)
+            if document.source_type != "wechat":
+                file = replace(file, source_type=document.source_type, source_scope_label=None)
+                if upload.source_scope_label is not None and scope is not None:
+                    raise CashSourceScopeError("source_scope_unsupported")
+                scope = None
+            parsed = replace(file, source_type=document.source_type, status="parsed", document=document, error_code=None, source_scope_label=scope)
             self._staging.validate_file(parsed)
             return parsed
         except CashImportPasswordRequired as error:
             return replace(file, status="needs_password", error_code=error.code)
+        except CashSourceScopeError as error:
+            return replace(file, error_code=error.code)
         except StatementDocumentError as error:
             return replace(file, error_code=error.code if error.code in _FILE_ERRORS else "statement_unreadable")
         except ParsedImportDataError as error:
@@ -194,12 +208,28 @@ class CashImportContextService:
             old = next((file for file in current.files if file.file_ref == file_ref), None)
             if old is None:
                 raise ValueError("import_file_not_found")
-        parsed = self._parse(replace(upload, client_file_ref=old.client_file_ref))
+        parsed = self._parse(replace(upload, client_file_ref=old.client_file_ref), previous_scope_label=old.source_scope_label)
         with self._uow as uow:
             current = self._current(uow, session_id, expected_revision)
             result = self._fit(lambda files: self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
                 expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, (file_ref,)), plan=None),
                 tuple(parsed if file.file_ref == file_ref else file for file in current.files), {parsed.file_ref})
+            uow.commit()
+            return result
+
+    def set_file_source_scope(self, session_id, file_ref, source_scope_label, *, expected_revision):
+        with self._uow as uow:
+            current = self._current(uow, session_id, expected_revision)
+            file = next((file for file in current.files if file.file_ref == file_ref), None)
+            if file is None:
+                raise ValueError("import_file_not_found")
+            if file.status != "parsed" or file.source_type != "wechat":
+                raise CashSourceScopeError("source_scope_unsupported")
+            label = normalize_scope_label(source_scope_label)
+            result = self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
+                expected_revision=expected_revision,
+                files=tuple(replace(item, source_scope_label=label) if item.file_ref == file_ref else item for item in current.files),
+                preview_input=self._invalidate_input(current, (file_ref,)), plan=None)
             uow.commit()
             return result
 

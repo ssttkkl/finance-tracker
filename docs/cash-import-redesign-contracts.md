@@ -146,6 +146,7 @@ flowchart TD
 | `GET /cash-import/sessions/{session_id}` | 无 | `SessionView`，不返回文件下载地址或密码 |
 | `POST /cash-import/sessions/{session_id}/files` | 新文件或指定 `file_ref` 重传，`expected_session_revision`；密码仅本次传输 | 返回更新后的会话；重传只解析该文件，旧计划失效 |
 | `DELETE /cash-import/sessions/{session_id}/files/{file_ref}` | `If-Match` 会话修订 | 删除该文件解析内容及临时决定；其他文件不重读；旧计划失效 |
+| `PATCH /cash-import/sessions/{session_id}/files/{file_ref}` | `expected_session_revision`、`source_scope_label`（微信来源名称，可空） | 设置该微信文件来源；空值为默认来源，不重读文件，旧计划及该文件行选择失效 |
 | `POST /cash-import/sessions/{session_id}/plans` | `PreviewInput` | 返回不可变 `ImportPlanView`，不写业务流水 |
 | `GET /cash-import/plans/{plan_id}` | 无 | 读取计划摘要及第一页；分页路径见下文 |
 | `POST /cash-import/plans/{plan_id}/commit` | `{"expected_session_revision": 4}`；`Idempotency-Key` | `200` 返回已提交收据，包括全部成功、部分完成或无新增 |
@@ -154,7 +155,9 @@ flowchart TD
 
 `SessionView`：`session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`。过期会话返回 `410 session_expired`。
 
-文件元素包含 `file_ref`、脱敏 `display_name`、`status`（`ready/partial/password_required/failed`）、已识别行数、安全问题与 `can_retry`。不能识别行数时为 `null`。需要密码的文件只有状态和显示信息；重试必须带文件内容，后端不能凭会话重新读取它。
+文件元素包含 `file_ref`、脱敏 `display_name`、`status`（`ready/partial/password_required/failed`）、已识别行数、安全问题与 `can_retry`。不能识别行数时为 `null`。需要密码的文件只保留状态、显示信息及已选来源设置；重试必须带文件内容，后端不能凭会话重新读取它。
+
+微信文件可选 `source_scope_label`，普通上传省略时使用工作区内稳定的默认微信来源；多账号时用户才选择已有来源名称或输入另一名称。名称按 Unicode NFC 和两端空白规范化，最多 64 个字符及 256 UTF-8 字节，不接受控制字符；空值回到默认来源。默认来源和同名的自定义来源使用不同命名空间。选择独立于原始昵称、本方微信号和内部账户映射，不新增独立来源管理页面；文件重传保留已有选择，解析失败、需要密码或超限时也不丢失，除非上传明确提供另一选择或已成功识别为其他渠道。
 
 `client_file_ref` 标识客户端上传槽位，重传时保留；`file_ref` 标识当前解析结果，重传时更换，旧行引用及对应选择同时失效。其他文件的引用保持不变，新计划重新验证其余选择，避免将旧位置的决定应用到另一份内容。
 
@@ -449,7 +452,7 @@ erDiagram
 | 字段 | 类型／约束 |
 |---|---|
 | `id/workspace_id/transaction_id` | 主键及复合流水外键，非空 |
-| `source_type/source_scope_kind/source_scope_key` | 渠道、`account/file_local` 作用域种类及非空作用域键；本方账户未知时 `file_local` 用文件摘要及解析命名空间，只支持同文件幂等 |
+| `source_type/source_scope_kind/source_scope_key` | 渠道、`account/file_local` 作用域种类及非空作用域键；微信使用工作区内默认或用户区分的稳定来源，其他本方账户未知时 `file_local` 用文件摘要及解析命名空间，只支持同文件幂等 |
 | `identity_kind` | `provider_id/file_occurrence` |
 | `identity_key` | 渠道稳定编号的规范编码（可用定长摘要，原编号保留在来源行），或文件摘要＋表格位置＋行位置＋解析规则命名空间的规范编码；不是可变内容摘要 |
 | `identity_strength` | `provider/validated/manual/file_local`，说明当前对应依据；不能把文件位置标为跨文件交易身份 |
@@ -462,6 +465,8 @@ erDiagram
 唯一 `(workspace_id,source_type,source_scope_kind,source_scope_key,identity_kind,identity_key)`，索引 `(workspace_id,transaction_id)`。它表达当前对应，不保存字段历史。一个流水可以有多个来源定位；真实重复出现必须使用不同 `file_occurrence`，不能同一个文件中的两次出现都被消耗为同一笔。
 
 来源对应只在流水／草稿保存成功时提交；弱业务证据只能存为问题候选，不写确定的跨文件绑定。同文件出现位置是另一种确定性：允许 `file_local/file_occurrence` 指向草稿，只表示“这个文件的这一行已经保存”，不声称业务对应已确定。补齐来源账户后新增账户作用域绑定并保留原文件定位别名；合并到已有流水时两种绑定一起转移。同一未知来源账户文件再次上传必须命中原草稿。
+
+微信默认来源是已确认的导入假设，不伪造解析出的本人微信号；原始身份／昵称仍保留原意。相同编号在不同显式微信来源中互不去重；同一来源中的金额、方向或时间变化仍是固定字段冲突，不能因变化生成另一笔正式记录。没有当前绑定的旧微信记录，仅在原始交易号与既有 `record_id` 规则一致时按默认来源读取并在成功保存后补绑定，不把未知旧数据或昵称猜成自定义来源。
 
 整个候选集合重复但不能确定逐行对应时，可以报告重复而不创建新绑定。绑定指向已删除流水不具有阻止重导的效力，新记录成功后更新该绑定；失败恢复原值。
 
