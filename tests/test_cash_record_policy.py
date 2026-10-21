@@ -140,6 +140,26 @@ def test_note_uses_only_raw_source_comment_and_keeps_full_text():
     assert source_note({"備註": "原文備註"}) == "原文備註"
 
 
+def test_ccb_description_uses_full_raw_location_remark_before_classification_summary():
+    from ft.domain.cash_record_policy import source_note
+    original = "  原始交易地点／附言\n" + "原文" * 120 + "  "
+    assert source_note({"摘要": "消费", "交易地点/附言": original}) == original
+    assert source_note({"备注": "其他原备注", "交易地点/附言": original}) == "其他原备注"
+    assert source_note({"摘要": "转账", "交易地点/附言": "  "}) == "转账"
+
+
+@pytest.mark.parametrize("total,amounts", [("-20", ["-30", "10"]), ("20", ["30", "-10"]), ("0", ["-10", "10"])])
+def test_posting_rejects_offsetting_components_even_when_the_sum_balances(total, amounts):
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    record = _record(state="draft", amount=total, account_id=None, cash_granularity="aggregate", components=[
+        {"ordinal": index, "account_id": str(41 + index), "amount": amount, "currency": "CNY"}
+        for index, amount in enumerate(amounts)
+    ])
+    with pytest.raises(CashRecordPolicyError, match="component_direction_mismatch"):
+        validate_cash_record_for_posting(record)
+    assert record["state"] == "draft"
+
+
 @pytest.mark.parametrize("payload", [{"x": {1, 2}}, {"x": float("nan")}, {1: "value"}])
 def test_source_payload_must_be_valid_json(payload):
     from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update

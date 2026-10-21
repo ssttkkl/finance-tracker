@@ -89,7 +89,7 @@ def test_ccb_native_financial_fields_and_raw_note():
     assert fields["occurred_at"] == "2026-01-27T16:00:00+00:00"
     assert fields["record_type"] == "consumption"
     assert fields["counterparty"] == "测试商户" and fields["counterparty_account"] == "000123"
-    assert fields["note"] == "  消费  "
+    assert fields["note"] == row["交易地点/附言"]
     assert parsed.rows[0].payment_method == "微信支付"
     assert parsed.coverage.time_precision == "day"
 

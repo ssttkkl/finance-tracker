@@ -443,7 +443,7 @@ erDiagram
 
 沿用 `id/workspace_id/cash_transaction_id/account_id/amount/currency/ordinal/label/source_key/metadata_json/created_at`。草稿允许账户、金额、币种为空，但父引用、`ordinal` 非空；唯一 `(workspace_id,cash_transaction_id,ordinal)`。与父表和账户的复合外键有效，`account_id=null` 不代表虚拟账户。
 
-组成项不另存 `state`，继承父记录状态。正式父记录至少一个完整组成项、币种及合计正确；`atomic` 恰一个，`aggregate` 按已确认分摊保存。跨表约束由共享服务在锁内校验；余额查询必须连接活动正式父记录，不能只看组成项金额非空。
+组成项不另存 `state`，继承父记录状态。正式父记录至少一个完整组成项，与父流水同币种、同方向且精确合计正确；零父金额的组成项均为零。`atomic` 恰一个，`aggregate` 按已确认分摊保存。跨表约束由共享服务在锁内校验；余额查询必须连接活动正式父记录，不能只看组成项金额非空。
 
 正式组成项字段按主设计固定。草稿删除组成项前，清理对应候选，关联草稿退回父锚点；禁止通过级联删除留下错误关系。调整顺序不替换组成项主键。
 

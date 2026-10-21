@@ -223,7 +223,7 @@ def prepare_cash_record_update(
 def source_note(source_payload: Mapping[str, Any] | None) -> str:
     """直接读取来源的注释／描述／备注，不拼接、截断或生成替代文案。"""
     for field in (
-        "备注", "備註", "注释", "描述", "商品说明", "商品", "交易描述", "附言", "摘要",
+        "备注", "備註", "注释", "描述", "商品说明", "商品", "交易描述", "附言", "交易地点/附言", "摘要",
         "remark", "remarks", "comment", "comments", "description", "note",
     ):
         value = (source_payload or {}).get(field)
@@ -261,6 +261,10 @@ def validate_cash_record_for_posting(record: Mapping[str, Any]) -> None:
         raise CashRecordPolicyError("duplicate_component_ordinal", ("components",))
     if any(item["currency"] != normalized["currency"] for item in components):
         raise CashRecordPolicyError("component_currency_mismatch", ("components",))
+    amount = normalized["amount"]
+    if any((amount < 0 and item["amount"] > 0) or (amount > 0 and item["amount"] < 0)
+        or (amount == 0 and item["amount"] != 0) for item in components):
+        raise CashRecordPolicyError("component_direction_mismatch", ("components",))
     if normalized["cash_granularity"] == "atomic":
         if len(components) != 1 or components[0]["account_id"] != normalized["account_id"]:
             raise CashRecordPolicyError("component_account_mismatch", ("components",))

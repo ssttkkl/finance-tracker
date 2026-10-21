@@ -20,7 +20,7 @@
 ## 4. 构建：先失败测试再实现
 
 - [x] 4.1 为统一更新白名单、固定字段、人工清空保护、账号直接覆盖及类型兼容性写失败测试；实现共享领域策略。
-- [ ] 4.1.1 对照既有组成项合同补共享转正式校验的同方向约束；补建行 `交易地点/附言` 原始备注字段归一，避免新计划遗漏原文。
+- [x] 4.1.1 对照既有组成项合同补共享转正式校验的同方向约束；补建行 `交易地点/附言` 原始备注字段归一，避免新计划遗漏原文。
 - [x] 4.2 为父子草稿空值、正式完整性、精度、工作区隔离和组成项归属写失败持久化测试；实现 ORM 与保留正式数据的迁移。
 - [ ] 4.3 为当前来源绑定、无编号多重集合、范围不足／名称交叉反例、删除重导及草稿别名写失败测试；实现来源对应。
 - [x] 4.3.1 完成单文件来源规划、同文件出现次数、认证证据、合成身份及事务内当前绑定／问题存储，验证两个后端。
@@ -86,6 +86,10 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.1.1 共享边界补齐（2026-10-21，HEAD／比较基线 `90b0f81`）：三种汇总相等但方向相抵及建行长附言反例先失败；共享转正式校验拒绝反向组成项，零父金额只允许零项，普通草稿保存不受影响。备注增加合并列原文并优先于分类摘要，保留既有备注优先级与空值回退，不拼接／截断。主设计不变量、转正式 delta 及银行行测试同步更新。
+- 独立工程／财务复核 106 passed，另 7 个探针覆盖草稿保存、零项、正负零、精度及入参不变，无阻断。显式专用 PostgreSQL 执行 `tests/contract/test_cash_draft_storage.py tests/contract/test_parsed_cash_import_context.py tests/test_cash_record_policy.py tests/test_bank_statement_rows.py tests/test_cash_import_funding.py tests/test_cash_statement_rows.py tests/test_cash_transaction_components.py tests/test_statement_account_mapping.py -q --disable-warnings --maxfail=3 --tb=short` → 305 passed、无 skip（32.73 s）。完整 SQLite 沿前述命令及两项旧 Expo 排除 → 2,141 passed、311 skipped、53 deselected、1 warning（224.53 s），日志 `/tmp/ft-import-posting-boundaries-regression.log`，未把 backend skip 算双后端通过。
+- Cross-platform Impact Check：本步是新解析／统一转正式边界的内部修正，没有当前 Web、Native、共享 presentation 页面／文案变化；F-05 与正式维护入口尚未切换，整体 4.7–4.12 保持未完成，浏览器及最终 Hallmark 不适用于此内部小步。没有 schema 或旧数据改写；最终 diff、OpenSpec strict 及 `uv build --out-dir /tmp/ft-cash-import-posting-dist` 通过。旧负向写路径对混合符号也有遗漏，最终统一入口替换时以共享校验关闭，不能把当前修正声称为旧入口已全部切换。
 
 - 4.8.2 资金桥接（2026-10-21，HEAD／比较基线 `1754efd`）：缺模块先失败，新增纯组合模块及 47 项回归。消费解析行和已有账户快照，不写库、不创建账户。来源作用域与资金组分开；微信默认／命名来源隔离，银行不同完整账号即使尾号相同也分开，信用卡掩码仅文件内分组。缺账户、不可用／修订变化／币种不足只影响相关行；明确补选账户后解除原资金未识别原因。金额未知保持空值，多账户不猜余数，同内部账户可合并，显式金额矛盾不转正式。
 - 独立复核发现三个 P2：剥离金额后余额别名未再次归一、格式化完整账号未脱敏、优惠面额误作零流水资金。均先补失败回归，再复用原生基础账户规则、脱敏分隔数字、忽略促销面额；定向及最终增量复核分别 43／47 passed，无新增阻断。另补支付空部分、空括号、信用卡掩码、异常隔离、无效币种伪组、64 部分上限及低 Decimal 精度反例；来源原文和备注保持完整，不引入新的分类规则。
