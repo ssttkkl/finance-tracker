@@ -10,6 +10,7 @@ data class CashLedgerUiState(
     val filterOptions: CashFilterOptions = CashFilterOptions(),
     val projectionVersion: Long = 0,
     val listRevision: Int = 0,
+    val listLoadErrorCode: String? = null,
     val referencesErrorCode: String? = null,
     val filters: CashFilters = CashFilters(),
     val selectedIds: Set<String> = emptySet(),

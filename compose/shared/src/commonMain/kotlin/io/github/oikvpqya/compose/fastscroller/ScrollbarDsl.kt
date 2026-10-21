@@ -22,7 +22,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
 
 /**
  * Vertical scrollbar that can be attached to some scrollable
@@ -67,6 +69,7 @@ fun VerticalScrollbar(
     interactionSource: MutableInteractionSource = remember { MutableInteractionSource() },
     enablePressToScroll: Boolean = true,
     indicator: @Composable (position: Float, isVisible: Boolean) -> Unit = { _, _ -> },
+    visualOffsetX: Dp = 0.dp,
 ) {
     Scrollbar(
         adapter = adapter,
@@ -77,6 +80,7 @@ fun VerticalScrollbar(
         isVertical = true,
         enablePressToScroll = enablePressToScroll,
         indicator = indicator,
+        visualOffsetX = visualOffsetX,
     )
 }
 

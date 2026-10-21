@@ -19,6 +19,7 @@ package io.github.oikvpqya.compose.fastscroller
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.TweenSpec
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
@@ -40,7 +41,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.MeasurePolicy
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.constrainHeight
 import androidx.compose.ui.unit.constrainWidth
 import kotlin.math.roundToInt
@@ -58,6 +61,7 @@ internal fun Scrollbar(
     enablePressToScroll: Boolean,
     indicator: @Composable (position: Float, isVisible: Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    visualOffsetX: Dp = 0.dp,
 ) {
     val dragInteraction = remember { mutableStateOf<DragInteraction.Start?>(null) }
     DisposableEffect(interactionSource) {
@@ -88,9 +92,10 @@ internal fun Scrollbar(
     }
 
     val scrollThickness = with(LocalDensity.current) { style.thickness.toPx() }
+    val visualOffsetXPx = with(LocalDensity.current) { visualOffsetX.roundToPx() }
     val measurePolicy = if (isVertical) {
-        remember(sliderAdapter, scrollThickness) {
-            verticalMeasurePolicy(sliderAdapter, { containerSize = it }, scrollThickness.roundToInt())
+        remember(sliderAdapter, scrollThickness, visualOffsetXPx) {
+            verticalMeasurePolicy(sliderAdapter, { containerSize = it }, scrollThickness.roundToInt(), visualOffsetXPx)
         }
     } else {
         remember(sliderAdapter, scrollThickness) {
@@ -122,7 +127,8 @@ internal fun Scrollbar(
                     clip = true
                     shape = style.trackStyle.shape
                 }
-                .drawBehind { drawRect(if (isVisible) trackColor else Color.Transparent) },
+                .drawBehind { drawRect(if (isVisible) trackColor else Color.Transparent) }
+                .offset(x = visualOffsetX),
         )
     }
 
@@ -165,6 +171,7 @@ private fun verticalMeasurePolicy(
     sliderAdapter: SliderAdapter,
     setContainerSize: (Int) -> Unit,
     scrollThickness: Int,
+    visualOffsetX: Int,
 ): MeasurePolicy {
     return MeasurePolicy { measurables, constraints ->
         setContainerSize(constraints.maxHeight)
@@ -180,7 +187,7 @@ private fun verticalMeasurePolicy(
             width = constraints.maxWidth,
             height = constraints.maxHeight,
         ) {
-            placeable.place((constraints.maxWidth - placeable.width) / 2, pixelRange.first)
+            placeable.place((constraints.maxWidth - placeable.width) / 2 + visualOffsetX, pixelRange.first)
         }
     }
 }
