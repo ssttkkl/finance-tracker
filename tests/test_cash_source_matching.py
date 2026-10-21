@@ -205,6 +205,13 @@ def test_unknown_owner_extra_occurrence_stays_pending_after_known_match_consumed
     assert not results[1].bind
 
 
+def test_unknown_old_owner_cannot_prove_extra_occurrences_after_a_file_alias_match():
+    first = _row(1)
+    old = replace(_old(binding_keys=frozenset(first.binding_keys)), source_account_key=None)
+    results = _resolve([first, _row(2)], [old])
+    assert [r.action for r in results] == ["duplicate", "pending"]
+
+
 def test_verified_row_evidence_allows_unknown_range_but_names_never_do():
     from ft.domain.cash_source_matching import SourceCoverage
     row = replace(_row(name="新名称", stable_evidence="certified-bank-sequence:123"), coverage=SourceCoverage())

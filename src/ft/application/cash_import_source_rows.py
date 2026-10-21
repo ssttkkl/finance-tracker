@@ -7,6 +7,17 @@ from ft.domain.cash_source_matching import SourceOccurrence
 from ft.domain.cash_source_scope import source_account_key
 
 
+def source_batch_rows(files, *, resolved_fields=None):
+    """组合已解析文件，不重新解析；补丁按文件与物理行位置隔离。"""
+    result, file_refs = {}, set()
+    for file in files:
+        if file.file_ref in file_refs:
+            raise ValueError("duplicate_source_file_ref")
+        file_refs.add(file.file_ref)
+        result.update(source_rows(file, resolved_fields=(resolved_fields or {}).get(file.file_ref)))
+    return result
+
+
 def source_rows(file, *, resolved_fields=None):
     if file.status != "parsed" or file.document is None:
         return {}

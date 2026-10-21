@@ -431,3 +431,31 @@ def test_verified_evidence_survives_storage_and_prevents_crossed_identity_update
         assert result.action == "match" and result.transaction_id == "1001"
         different = replace(row, file_digest="c" * 64, stable_evidence="verified:B")
         assert resolve_source_file([different], repo.records_for_file([different]))[0].action == "new"
+
+
+@pytest.mark.parametrize("amount_conflict", [False, True])
+def test_joint_batch_keeps_loaded_evidence_and_updates_each_current_target_once(source_runtime, amount_conflict):
+    from ft.domain.cash_source_batch import resolve_source_batch
+    runtime = source_runtime
+    with runtime.sessions.begin() as session:
+        row = replace(_row_for_parent(session), stable_evidence="verified:current")
+        _repository(session, runtime).save_occurrence(1001, row)
+    with runtime.sessions.begin() as session:
+        repo = _repository(session, runtime)
+        fields = {**row.fields, "counterparty": "本次名称"}
+        if amount_conflict:
+            fields["amount"] = "2222"
+        first = replace(row, stable_evidence=None, provider_id="newly-reported-id", fields=fields, file_digest="b" * 64)
+        second = replace(first, stable_evidence=row.stable_evidence, file_digest="c" * 64)
+        rows = {"b:r1": first, "c:r1": second}
+        plan = resolve_source_batch(rows, repo.records_for_file(list(rows.values())))
+        assert all(result.transaction_id == "1001" for result in plan.rows)
+        if amount_conflict:
+            assert all(result.action == "conflict" and result.reason == "fixed_field_conflict" and not result.bind for result in plan.rows)
+        else:
+            assert [result.action for result in plan.rows] == ["match", "batch_duplicate"]
+            for incoming in rows.values():
+                repo.save_occurrence(1001, incoming)
+            replay = resolve_source_batch(rows, repo.records_for_file(list(rows.values())))
+            assert sum(result.action == "match" for result in replay.rows) == 1
+            assert repo.find(first) == repo.find(second) == 1001

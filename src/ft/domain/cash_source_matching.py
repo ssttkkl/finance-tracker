@@ -251,28 +251,42 @@ def _unchanged_assignment(rows: Sequence[SourceOccurrence], old: Sequence[Source
     return True
 
 
+def _record_binding_keys(record: SourceRecord) -> set[str]:
+    keys = set(record.binding_keys)
+    if record.provider_id and record.source_account_key:
+        keys.add(_digest(record.source_type, "account", record.source_account_key, "provider_id", provider_identity_key(record.provider_id)))
+    if record.provider_binding_key:
+        keys.add(record.provider_binding_key)
+    if record.stable_evidence and record.source_account_key:
+        keys.add(_digest(record.source_type, record.source_account_key, "verified", record.stable_evidence))
+    if record.stable_evidence_binding_key:
+        keys.add(record.stable_evidence_binding_key)
+    return keys
+
+
 def resolve_source_file(rows: Sequence[SourceOccurrence], records: Sequence[SourceRecord]) -> list[SourceResolution]:
     """一份文件内一对一消耗候选；调用方合并多文件计划，不能相加重复次数。"""
     if len({(row.source_type, row.file_digest, row.parser_version) for row in rows}) > 1:
         raise ValueError("one_source_file_required")
     if len({row.occurrence_key for row in rows}) != len(rows):
         raise ValueError("duplicate_source_locator")
+    return _resolve_source_rows(rows, records)
+
+
+def _resolve_source_rows(
+    rows: Sequence[SourceOccurrence], records: Sequence[SourceRecord], *,
+    targets_by_occurrence: Mapping[str, frozenset[str]] | None = None,
+) -> list[SourceResolution]:
+    """消耗一个逻辑集合；多文件调用前必须先完成共同集合及冲突规划。"""
     active = [record for record in records if not record.deleted]
+    by_id = {record.transaction_id: record for record in active}
+    targets_by_occurrence = targets_by_occurrence or {}
     by_binding: dict[str, list[SourceRecord]] = defaultdict(list)
     by_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
     by_unscoped_index: dict[tuple, list[SourceRecord]] = defaultdict(list)
     for record in active:
-        for key in record.binding_keys:
+        for key in _record_binding_keys(record):
             by_binding[key].append(record)
-        if record.provider_id and record.source_account_key:
-            provider_key = _digest(record.source_type, "account", record.source_account_key, "provider_id", provider_identity_key(record.provider_id))
-            by_binding[provider_key].append(record)
-        if record.provider_binding_key:
-            by_binding[record.provider_binding_key].append(record)
-        if record.stable_evidence and record.source_account_key:
-            by_binding[_digest(record.source_type, record.source_account_key, "verified", record.stable_evidence)].append(record)
-        if record.stable_evidence_binding_key:
-            by_binding[record.stable_evidence_binding_key].append(record)
         key = _index(record.fields)
         if key is not None:
             by_unscoped_index[(record.source_type, key)].append(record)
@@ -301,6 +315,7 @@ def resolve_source_file(rows: Sequence[SourceOccurrence], records: Sequence[Sour
             continue
         proofs = tuple(key for key in (row.provider_binding_key, row.stable_evidence_binding_key) if key)
         proofs += tuple("transaction:" + record.transaction_id for proof in proofs for record in by_binding[proof])
+        proofs += tuple("transaction:" + target for target in targets_by_occurrence.get(row.occurrence_key, ()))
         if proofs:
             roots[row.occurrence_key] = row.occurrence_key
             certified_rows.append(row)
@@ -328,6 +343,7 @@ def resolve_source_file(rows: Sequence[SourceOccurrence], records: Sequence[Sour
         if row.stable_evidence_binding_key:
             proof_keys.append(row.stable_evidence_binding_key)
         targets = {record.transaction_id: record for key in proof_keys for record in by_binding[key]}
+        targets.update((target, by_id[target]) for target in targets_by_occurrence.get(row.occurrence_key, ()))
         if targets:
             if len(targets) == 1 and (row.provider_binding_key or next(iter(targets)) not in used):
                 target = next(iter(targets.values()))
@@ -350,7 +366,7 @@ def resolve_source_file(rows: Sequence[SourceOccurrence], records: Sequence[Sour
         if not candidates:
             for row in members:
                 # 有直接绑定的旧出现已被消耗；额外出现仍须完整范围证明。
-                if possible and (key[1] is None or not any(row.coverage.comparable(cov, row.fields["occurred_at"]) for record in possible for cov in record.coverages)):
+                if possible and (key[1] is None or any(record.source_account_key is None for record in possible) or not any(row.coverage.comparable(cov, row.fields["occurred_at"]) for record in possible for cov in record.coverages)):
                     results[row.occurrence_key] = SourceResolution(row.occurrence_key, "pending", candidate_ids=tuple(sorted(record.transaction_id for record in possible)), reason="source_identity_ambiguous")
                 else:
                     results[row.occurrence_key] = SourceResolution(row.occurrence_key, "new", bind=True)

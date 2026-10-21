@@ -90,3 +90,20 @@ def test_same_number_reimports_update_and_fixed_conflict_under_default_scope():
         assert result.action == "conflict" and result.transaction_id == "1001"
     other, = _rows(_file(label="另一个微信")).values()
     assert resolve_source_file([other], [old])[0].action == "new"
+
+
+def test_multi_file_bridge_preserves_session_refs_and_resolved_fields_without_rereading():
+    from ft.application.cash_import_source_rows import source_batch_rows
+    from ft.domain.cash_source_batch import resolve_source_batch
+    first = _file()
+    second = replace(_file(nickname="昵称乙"), file_ref="file_2", client_file_ref="client_2")
+    failed = replace(first, file_ref="failed", status="failed", document=None, error_code="file_unreadable")
+    rows = source_batch_rows([first, second, failed], resolved_fields={
+        "file_1": {18: {"account_id": "101"}}, "file_2": {18: {"account_id": "101"}}})
+    assert list(rows) == ["file_1:r18", "file_2:r18"]
+    assert all(row.fields["account_id"] == "101" for row in rows.values())
+    assert "account_id" not in first.document.rows[0].fields
+    plan = resolve_source_batch(rows, [])
+    assert [row.action for row in plan.rows] == ["new", "batch_duplicate"]
+    with pytest.raises(ValueError, match="duplicate_source_file_ref"):
+        source_batch_rows([first, first])
