@@ -148,7 +148,9 @@ def test_draft_migration_round_trip_preserves_populated_ledger(draft_runtime):
         session.add(cash_relation_fixture(session,
                         workspace_id=runtime.workspace_id,
                         kind="refund_offset",
-                        state='draft',
+                        # A lossless round trip has no pending projection state.
+                        # Pending-state downgrade refusal is tested separately.
+                        state='ignored',
                         primary_component_id=1002,
                         secondary_component_id=1003,
                         anchor_component_id=1002

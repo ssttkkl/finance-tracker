@@ -15,7 +15,7 @@ class ProjectionUnavailableError(RuntimeError):
     code = "projection.unavailable"
 
 class ProjectionUpdatedError(RuntimeError):
-    code = "projection.updated"
+    code = "read_snapshot_changed"
 
 @dataclass(frozen=True)
 class CashAccountDTO:
@@ -50,10 +50,12 @@ class CashCategoryDTO:
 
 @dataclass(frozen=True)
 class ProjectionDTO:
-    projection_id: str; occurred_at: str; account: CashAccountSummaryDTO | None; counterparty: str; category: CashCategoryDTO | None; note: str
-    amount: str; currency: str; economic_type: str; transfer_subtype: str | None; composition: tuple[str, ...]
+    projection_id: str; occurred_at: str | None; account: CashAccountSummaryDTO | None; counterparty: str; category: CashCategoryDTO | None; note: str
+    amount: str | None; currency: str | None; economic_type: str | None; transfer_subtype: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
+    state: str = "posted"; statistics_eligible: bool = True; attention_count: int = 0
+    confirmation_status: str = "confirmed"; projection_version: int = 0
 @dataclass(frozen=True)
 class CashEconomicTypeFilterOptionDTO:
     economic_type: str
@@ -76,6 +78,16 @@ class CashMonthlySummaryDTO:
 @dataclass(frozen=True)
 class ProjectionPageDTO:
     projection_version: int; items: tuple[ProjectionDTO, ...]; next_cursor: str | None; page_size: int; filters: dict[str, str | None]; filter_options: CashFilterOptionsDTO; monthly_summaries: tuple[CashMonthlySummaryDTO, ...] = ()
+    pending_item_count: int = 0
+
+@dataclass(frozen=True)
+class ProjectionReadPage:
+    projection_version: int
+    items: tuple[ProjectionDTO, ...]
+    positions: tuple[tuple[str, str], ...]
+    filter_options: CashFilterOptionsDTO
+    monthly_summaries: tuple[CashMonthlySummaryDTO, ...]
+    pending_item_count: int
 
 @dataclass(frozen=True)
 class ProjectionFilters:
@@ -83,6 +95,8 @@ class ProjectionFilters:
     category_id: str | None = None; uncategorized: bool = False; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
     economic_type: str | None = None; transfer_subtype: str | None = None; composition: str | None = None
     timezone: str = DEFAULT_TIMEZONE
+    state: str = "all"
+    confirmation_status: str | None = None
     def as_cursor_data(self):
         return {key: (str(value) if value is not None else None) for key, value in self.__dict__.items()}
 
@@ -147,7 +161,11 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
     category_id, uncategorized = _category_filter_value(values)
     currency = values.get("currency") or None
     if currency and (len(currency) != 3 or not currency.isalpha()): raise ValueError("invalid_filter")
-    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, category_id, uncategorized, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name)
+    state, confirmation = values.get("state"), values.get("confirmation_status")
+    if (state is not None and (not isinstance(state, str) or state not in {"", "all", "posted", "draft"})
+        or confirmation is not None and (not isinstance(confirmation, str) or confirmation not in {"", "confirmed", "pending"})):
+        raise ValueError("invalid_filter")
+    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, category_id, uncategorized, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name, state or "all", confirmation or None)
 
 def local_bounds(filters):
     zone = ZoneInfo(filters.timezone)
@@ -158,31 +176,31 @@ def local_bounds(filters):
         end.astimezone(timezone.utc) if end else None,
     )
 
-def _encode(workspace, version, filters, occurred_at, projection_id):
-    raw = json.dumps({"v": 1, "workspace": workspace, "version": version, "filters": filters.as_cursor_data(), "occurred_at": occurred_at, "projection_id": projection_id}, sort_keys=True, separators=(",", ":")).encode()
+def _encode(workspace, version, filters, sort_at, projection_id):
+    raw = json.dumps({"v": 2, "workspace": workspace, "version": version, "filters": filters.as_cursor_data(), "sort_at": sort_at, "projection_id": projection_id}, sort_keys=True, separators=(",", ":")).encode()
     return base64.urlsafe_b64encode(raw).decode().rstrip("=")
 def _decode(cursor, workspace, filters):
     try: payload = json.loads(base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
     except Exception as exc: raise ValueError("invalid_cursor") from exc
-    if not isinstance(payload, dict): raise ValueError("invalid_cursor")
+    if not isinstance(payload, dict) or payload.keys() != {"v", "workspace", "version", "filters", "sort_at", "projection_id"}: raise ValueError("invalid_cursor")
     try:
         wire_version = payload["v"]
         cursor_workspace = payload["workspace"]
         cursor_filters = payload["filters"]
         version = payload["version"]
-        occurred_at = payload["occurred_at"]
+        sort_at = payload["sort_at"]
         projection_id = payload["projection_id"]
         if (
-            type(wire_version) is not int or wire_version != 1
+            type(wire_version) is not int or wire_version != 2
             or not isinstance(cursor_workspace, str) or cursor_workspace != workspace
             or not isinstance(cursor_filters, dict) or cursor_filters != filters.as_cursor_data()
             or type(version) is not int
-            or not isinstance(occurred_at, str)
+            or not isinstance(sort_at, str)
             or not isinstance(projection_id, str)
         ): raise ValueError
-        parsed_occurred_at = datetime.fromisoformat(occurred_at)
-        if parsed_occurred_at.tzinfo is None: raise ValueError
-        return version, parsed_occurred_at, projection_id
+        parsed_sort_at = datetime.fromisoformat(sort_at)
+        if parsed_sort_at.tzinfo is None: raise ValueError
+        return version, parsed_sort_at, projection_id
     except Exception as exc: raise ValueError("invalid_cursor") from exc
 
 class CashLedgerQueryService:
@@ -193,7 +211,8 @@ class CashLedgerQueryService:
     def list_cash_projections(self, *, cursor=None, limit=50, **values):
         if not isinstance(limit, int) or not 1 <= limit <= 50: raise ValueError("invalid_filter")
         filters = normalize_filters(**values)
-        version, rows, filter_options, monthly_summaries = self._repository.list_projection_page(filters, cursor, limit + 1); items = tuple(rows[:limit])
-        next_cursor = _encode(self._workspace_id, version, filters, items[-1].occurred_at, items[-1].projection_id) if len(rows) > limit else None
-        return ProjectionPageDTO(version, items, next_cursor, limit, filters.as_cursor_data(), filter_options, monthly_summaries)
+        page = self._repository.list_projection_page(filters, cursor, limit + 1)
+        items = page.items[:limit]
+        next_cursor = _encode(self._workspace_id, page.projection_version, filters, *page.positions[limit - 1]) if len(page.items) > limit else None
+        return ProjectionPageDTO(page.projection_version, items, next_cursor, limit, filters.as_cursor_data(), page.filter_options, page.monthly_summaries, page.pending_item_count)
     def get_projection_evidence(self, projection_id): return self._repository.get_evidence(projection_id)

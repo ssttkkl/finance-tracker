@@ -572,7 +572,7 @@ def test_projection_api_uses_utc_day_boundaries_and_rejects_old_cursor(request, 
         item["projection_id"]: item["amount"] for item in day.json()["items"]
     } == {"cash:1201": "-1.3", "cash:1001": "2000", "cash:1200": "-1.2"}
     assert stale.status_code == 409
-    assert stale.json() == {"error": {"code": "projection.updated", "message": "账本已更新，请刷新列表。"}}
+    assert stale.json() == {"error": {"code": "read_snapshot_changed", "message": "账本已更新，请刷新列表。"}}
 
 
 class _StorageFailureService:

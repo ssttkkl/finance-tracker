@@ -18,6 +18,8 @@ from ft.domain.cash_projection import (
 )
 from ft.domain.canonical import canonical_bytes
 
+from .cash_attention import read_cash_attention
+from .cash_relations import CurrentCashRelationRepository, _batches
 from .models import (
     CashProjectionDatasetModel,
     CashProjectionMemberModel,
@@ -28,6 +30,7 @@ from .models import (
     CashCategoryModel,
     CashTransactionModel,
     CashTransactionComponentModel,
+    CashTransactionIssueModel,
     TransactionRelationModel,
     WorkspaceModel,
 )
@@ -86,67 +89,19 @@ class RelationalCashProjectionRepository:
     def read_sources(self) -> tuple[tuple[CashProjectionFact, ...], tuple[ProjectionRelation, ...]]:
         return self.read_sources_for_facts(None)
 
-    def _component_ids_for_parents(self, parent_ids: set[int]) -> set[int]:
-        if not parent_ids:
-            return set()
-        return {
-            int(item) for item in self._session.scalars(select(CashTransactionComponentModel.id).where(
+    def _parent_ids_for_components(self, component_ids):
+        result = set()
+        for batch in _batches(sorted(component_ids)):
+            result.update(self._session.scalars(select(CashTransactionComponentModel.cash_transaction_id).where(
                 CashTransactionComponentModel.workspace_id == self._workspace_id,
-                CashTransactionComponentModel.cash_transaction_id.in_(parent_ids),
-            )).all()
-        }
+                CashTransactionComponentModel.id.in_(batch))))
+        return result
 
-    def accepted_relation_component_ids(
-        self, fact_ids: set[int], *, input_is_components: bool = False,
-    ) -> set[int]:
-        """Expand exact parent or component IDs through accepted relations.
-
-        Relation endpoints are component IDs while projection maintenance is
-        keyed by parent transaction IDs.  Keep that translation at the
-        repository boundary so callers never accidentally use a component ID
-        as a ``cash_transactions`` primary key.
-        """
+    def confirmed_transaction_closure(self, fact_ids: set[int], *, input_is_components: bool = False) -> set[int]:
+        """Translate explicit component references once, then retain parent seeds."""
         members = {int(item) for item in fact_ids if item is not None}
-        if not members:
-            return members
-        seed_components = members if input_is_components else self._component_ids_for_parents(members)
-        if not seed_components:
-            return set()
-        relation_filters = (
-            TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.state == "confirmed",
-            TransactionRelationModel.active.is_(True),
-            TransactionRelationModel.secondary_component_id.is_not(None),
-        )
-        edges = select(
-            TransactionRelationModel.primary_component_id.label("source"),
-            TransactionRelationModel.secondary_component_id.label("target"),
-        ).where(*relation_filters).union_all(
-            select(
-                TransactionRelationModel.secondary_component_id.label("source"),
-                TransactionRelationModel.primary_component_id.label("target"),
-            ).where(*relation_filters)
-        ).cte("cash_relation_edges")
-        # SQLAlchemy's recursive CTE reference must be made against the CTE
-        # itself; this form works on both SQLite and PostgreSQL.
-        reachable = select(
-            CashTransactionComponentModel.id.label("node"),
-        ).where(
-            CashTransactionComponentModel.workspace_id == self._workspace_id,
-            CashTransactionComponentModel.id.in_(seed_components),
-        ).cte("cash_relation_reachable", recursive=True)
-        reachable = reachable.union(
-            select(edges.c.target).join(reachable, edges.c.source == reachable.c.node)
-        )
-        return {
-            int(item) for item in self._session.scalars(
-                select(CashTransactionComponentModel.cash_transaction_id)
-                .where(
-                    CashTransactionComponentModel.workspace_id == self._workspace_id,
-                    CashTransactionComponentModel.id.in_(select(reachable.c.node)),
-                ).distinct()
-            ).all()
-        }
+        seeds = self._parent_ids_for_components(members) if input_is_components else members
+        return CurrentCashRelationRepository(self._session, self._workspace_id).confirmed_closure(seeds)
 
     def read_sources_for_facts(
         self, fact_ids: set[int] | None,
@@ -166,21 +121,10 @@ class RelationalCashProjectionRepository:
         if requested_ids is not None:
             if not requested_ids:
                 return (), ()
-            requested_parents = select(CashTransactionComponentModel.cash_transaction_id).where(
-                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                (CashTransactionComponentModel.id.in_(requested_ids)
-                 if input_is_components
-                 else CashTransactionComponentModel.cash_transaction_id.in_(requested_ids)),
-            )
+            requested_parents = self._parent_ids_for_components(requested_ids) if input_is_components else requested_ids
             fact_filter.append(CashTransactionModel.id.in_(requested_parents))
-            requested_components = select(CashTransactionComponentModel.id).where(
-                CashTransactionComponentModel.workspace_id == self._workspace_id,
-                CashTransactionComponentModel.cash_transaction_id.in_(requested_parents),
-            )
-            relation_filter.append(and_(
-                TransactionRelationModel.primary_component_id.in_(requested_components),
-                TransactionRelationModel.secondary_component_id.in_(requested_components),
-            ))
+            relation_filter.extend((TransactionRelationModel.primary_transaction_id.in_(requested_parents),
+                TransactionRelationModel.secondary_transaction_id.in_(requested_parents)))
         funding_component = aliased(CashTransactionComponentModel)
         funding_relation_id = select(CashInvestmentFundingRelationModel.id).join(
             funding_component,
@@ -199,48 +143,14 @@ class RelationalCashProjectionRepository:
             .where(*fact_filter)
             .order_by(CashTransactionModel.id)
         ).all()
-        facts = tuple(
-            CashProjectionFact(
-                id=row.id, account_id=row.account_id, occurred_at=row.occurred_at, amount=row.amount,
-                currency=row.currency, counterparty=row.counterparty, category_id=row.category_id, note=row.note,
-                source_type=row.source_type, record_id=row.record_id,
-                cash_granularity=row.cash_granularity,
-                funding_relation_id=funding_relation_id,
-            )
-            for row, funding_relation_id in fact_rows
-        )
-        secondary_component = aliased(CashTransactionComponentModel)
-        relation_rows = self._session.execute(
-            select(
-                TransactionRelationModel,
-                CashTransactionComponentModel.cash_transaction_id.label("primary_parent_id"),
-                secondary_component.cash_transaction_id.label("secondary_parent_id"),
-            )
-            .join(
-                CashTransactionComponentModel,
-                and_(
-                    CashTransactionComponentModel.workspace_id == TransactionRelationModel.workspace_id,
-                    CashTransactionComponentModel.id == TransactionRelationModel.primary_component_id,
-                ),
-            )
-            .join(
-                secondary_component,
-                and_(
-                    secondary_component.workspace_id == TransactionRelationModel.workspace_id,
-                    secondary_component.id == TransactionRelationModel.secondary_component_id,
-                ),
-            )
-            .where(*relation_filter)
-            .order_by(TransactionRelationModel.id)
-        ).all()
+        attention = read_cash_attention(self._session, self._workspace_id, {row.id for row, _funding in fact_rows})
+        facts = tuple(self._fact_from_model(row, needs_attention=row.id in attention.transaction_ids,
+            funding_relation_id=funding_relation_id) for row, funding_relation_id in fact_rows)
+        relation_rows = self._session.scalars(select(TransactionRelationModel).where(*relation_filter).order_by(TransactionRelationModel.id)).all()
         relations = tuple(
-            ProjectionRelation(
-                id=row.id, kind=row.kind, primary_fact_id=primary_parent_id,
-                secondary_fact_id=secondary_parent_id, status="accepted", subtype=row.subtype,
-                applied_amount=row.applied_amount,
-            )
-            for row, primary_parent_id, secondary_parent_id in relation_rows
-            if primary_parent_id != secondary_parent_id
+            ProjectionRelation(id=row.id, kind=row.kind, primary_fact_id=row.primary_transaction_id,
+                secondary_fact_id=row.secondary_transaction_id, status="accepted", subtype=row.subtype, applied_amount=row.applied_amount)
+            for row in relation_rows if row.primary_transaction_id != row.secondary_transaction_id
         )
         return facts, relations
 
@@ -266,6 +176,11 @@ class RelationalCashProjectionRepository:
             "facts": [
                 {
                     "id": item.id,
+                    "state": item.state,
+                    "row_revision": item.row_revision,
+                    "created_at": item.created_at,
+                    "record_type": item.record_type,
+                    "record_subtype": item.record_subtype,
                     "account_id": item.account_id,
                     "source_type": item.source_type,
                     "record_id": item.record_id,
@@ -300,7 +215,13 @@ class RelationalCashProjectionRepository:
                     "secondary_fact_id": item.secondary_component_id,
                     "primary_fact_type": "cash",
                     "secondary_fact_type": "cash",
-                    "status": "accepted",
+                    "state": item.state,
+                    "row_revision": item.row_revision,
+                    "primary_transaction_id": item.primary_transaction_id,
+                    "secondary_transaction_id": item.secondary_transaction_id,
+                    "primary_role": item.primary_role,
+                    "secondary_role": item.secondary_role,
+                    "decision_group_id": item.decision_group_id,
                     "subtype": item.subtype,
                     "rule_id": item.rule_id,
                     "applied_amount": item.applied_amount,
@@ -308,12 +229,14 @@ class RelationalCashProjectionRepository:
                 for item in self._session.scalars(
                     select(TransactionRelationModel).where(
                         TransactionRelationModel.workspace_id == self._workspace_id,
-                        TransactionRelationModel.state == "confirmed",
+                        TransactionRelationModel.state.in_(("confirmed", "draft")),
                         TransactionRelationModel.active.is_(True),
-                        TransactionRelationModel.secondary_component_id.is_not(None),
                     ).order_by(TransactionRelationModel.id).execution_options(populate_existing=True)
                 )
             ],
+            "issues": [tuple(row) for row in self._session.execute(select(
+                CashTransactionIssueModel.id, CashTransactionIssueModel.transaction_id, CashTransactionIssueModel.revision,
+            ).where(CashTransactionIssueModel.workspace_id == self._workspace_id).order_by(CashTransactionIssueModel.id))],
             "funding_relations": [
                 {
                     "id": item.id,
@@ -638,8 +561,9 @@ class RelationalCashProjectionRepository:
         state.member_count = state.member_count - len(old_member_ids) + len(replacement_member_ids)
         return self._status_for_state(state)
 
-    @staticmethod
-    def _fact_from_model(row: CashTransactionModel) -> CashProjectionFact:
+    def _fact_from_model(self, row: CashTransactionModel, *, needs_attention=None, funding_relation_id=None) -> CashProjectionFact:
+        if needs_attention is None:
+            needs_attention = row.id in read_cash_attention(self._session, self._workspace_id, {row.id}).transaction_ids
         return CashProjectionFact(
             id=row.id,
             account_id=row.account_id,
@@ -651,7 +575,8 @@ class RelationalCashProjectionRepository:
             note=row.note,
             source_type=row.source_type,
             record_id=row.record_id,
-            cash_granularity=row.cash_granularity,
+            cash_granularity=row.cash_granularity, state=row.state, created_at=row.created_at,
+            needs_attention=needs_attention, funding_relation_id=funding_relation_id,
         )
 
     def replace_standalone_fact(

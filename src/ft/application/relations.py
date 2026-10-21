@@ -2922,7 +2922,7 @@ class RelationService:
             raise ValueError("关系缺少对侧流水，无法形成有效收支投影")
         if is_open_leg_relation(relation) and relation["kind"] == RelationKind.REFUND_OFFSET.value:
             primary_id, secondary_id = secondary_id, primary_id
-        parent_ids = repository.accepted_relation_component_ids(
+        parent_ids = repository.confirmed_transaction_closure(
             {primary_id, secondary_id}, input_is_components=True,
         )
         facts, accepted = repository.read_sources_for_facts(parent_ids)

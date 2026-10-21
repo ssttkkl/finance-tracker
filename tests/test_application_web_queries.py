@@ -45,6 +45,18 @@ def test_monthly_summaries_follow_requested_browser_timezone():
     assert [summary.month for summary in tokyo] == ["2026-07"]
 
 
+def test_monthly_summaries_keep_full_money_precision_under_a_small_caller_context():
+    from decimal import localcontext
+    from ft.adapters.relational.web_queries import RelationalCashLedgerQueryRepository
+    rows = [(datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC")), "expense", Decimal("-12345678901234567890.123456789012345678"), "CNY"),
+        (datetime(2026, 1, 2, tzinfo=ZoneInfo("UTC")), "expense", Decimal("-0.000000000000000001"), "CNY")]
+    with localcontext() as context:
+        context.prec = 6
+        summaries = RelationalCashLedgerQueryRepository._monthly_summaries(rows, "UTC")
+        assert context.prec == 6
+    assert summaries[0].currencies[0].expense == "-12345678901234567890.123456789012345679"
+
+
 def test_projection_page_filters_and_stable_cursor(cash_web_runtime):
     service=_service(cash_web_runtime); first=service.list_cash_projections(limit=2); second=service.list_cash_projections(limit=2,cursor=first.next_cursor)
     assert [x.projection_id for x in first.items+second.items]==["cash:1003","cash:1002","cash:1001"]
@@ -275,8 +287,8 @@ def test_non_object_cursor_is_invalid(cash_web_runtime, payload):
         ("version", True),
         ("workspace", 1),
         ("filters", []),
-        ("occurred_at", 1),
-        ("occurred_at", "2026-07-03"),
+        ("sort_at", 1),
+        ("sort_at", "2026-07-03"),
         ("projection_id", 1),
         ("projection_id", True),
         ("projection_id", None),

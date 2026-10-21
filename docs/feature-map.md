@@ -8,7 +8,7 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单的全部旧写路径关闭、维护预览及 Compose 演示仍属上述未完成变更。
 
-[草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；来源读取、列表及统计筛选尚未切换，不据此开放草稿写入口或声称主页已能完成草稿维护。派生表升级后须先显式重建，保留已有正式值及引用。
+[草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；[来源读取与主页查询](../src/ft/adapters/relational/web_queries.py) 已保留无组成项草稿、未知值及待确认可见性，按稳定排序位置分页，月汇总排除草稿；读取和附属结果使用同一快照。HTTP 已转发状态筛选并返回可空值，Compose 展示、完整草稿维护及旧报表／余额边界尚未切换，不据此开放草稿写入口或声称主页维护已完成。派生表升级后须先显式重建，保留已有正式值及引用。
 
 ## 页面级功能
 

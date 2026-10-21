@@ -1,10 +1,10 @@
 # 现金导入流程重设计
 
 日期：2026-10-20
-状态：设计提议，尚未实施。
+状态：目标设计，实施中；完成范围见 [变更任务及验证证据](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。
 范围：外部现金账单转换为内部流水、导入前配对、联合确认、草稿补充及局部投影维护。
 
-本文承接 [现有后端架构梳理](cash-import-backend-architecture.md)，记录本轮需求澄清后的目标设计。当前可执行行为仍以 [OpenSpec 主规格](../openspec/specs/README.md) 和实现为准。本次只交付设计文档，不创建实现代码、数据库迁移或空的 OpenSpec 变更。
+本文承接 [现有后端架构梳理](cash-import-backend-architecture.md)，记录本轮需求澄清后的目标设计。当前可执行行为仍以 [OpenSpec 主规格](../openspec/specs/README.md) 和实现为准。用户已授权按本设计实施；尚未完成的目标及切换边界由上述变更记录维护，不能把目标合同当作当前已上线行为。
 
 配套的 [用户流程、接口与数据契约](cash-import-redesign-contracts.md) 按用户任务 → API → 表结构细化本文。本文负责业务规则，配套文档负责字段、路径、状态和约束；两者共同构成设计提议，不替代当前主规格。
 

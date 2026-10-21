@@ -297,7 +297,7 @@ class CashLedgerCommandService:
 
         members = RelationalCashProjectionRepository(
             uow._state().session, uow.workspace_id,
-        ).accepted_relation_component_ids({target})
+        ).confirmed_transaction_closure({target})
         relations = [
             relation for relation in uow.relations.list_for_facts(sorted(members), active_only=True)
             if relation.get("status") == RelationStatus.ACCEPTED.value
@@ -600,7 +600,7 @@ class CashLedgerCommandService:
 
             component_ids = RelationalCashProjectionRepository(
                 session, uow.workspace_id,
-            ).accepted_relation_component_ids({int(fact_id)})
+            ).confirmed_transaction_closure({int(fact_id)})
             target_ids = component_ids if mode == "delete_all" else {int(fact_id)}
             relation_rows = uow.relations.list_for_facts(
                 list(component_ids), active_only=False,
