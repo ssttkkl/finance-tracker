@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 import re
 from typing import Any
 
 from ft.adapters.cash_statement_document import CashStatementDocument
+from ft.adapters.cash_statement_evidence import extract_source_explanation
 from ft.domain.cash_record_policy import source_note
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.decimal import exact_decimal
@@ -26,6 +27,7 @@ class ParsedCashRow:
     disposition: str = "candidate"
     source_account_identifier: str | None = None
     document_position: str | None = None
+    source_explanation: dict[str, str | bool] = field(default_factory=dict, repr=False)
 
 
 @dataclass(frozen=True)
@@ -67,7 +69,7 @@ def _normalize_row(payload, source, position):
         issues.append("direction_unrecognized")
     elif source == "wechat" and direction not in {"支出", "收入", "/", "", "不计收支"}:
         issues.append("direction_unrecognized")
-    method = ""
+    method, explanation = "", {}
     if "amount_unreadable" not in issues and "direction_unrecognized" not in issues:
         native = parser(payload, position=position)
         if native is None:
@@ -82,9 +84,10 @@ def _normalize_row(payload, source, position):
             fields["counterparty_account"] = counterparty_account.value
             fields["counterparty_account_attrs"] = list(counterparty_account.attrs)
             method = native.get("payment_method", "")
+            explanation = extract_source_explanation(native)
     identifier = payload.get("交易订单号" if source == "alipay" else "交易单号", "").strip()
     provider_id = identifier if identifier not in {"", "/", "-", "--"} and len(identifier) <= 512 else None
-    return ParsedCashRow(position, fields, method, provider_id, tuple(issues))
+    return ParsedCashRow(position, fields, method, provider_id, tuple(issues), source_explanation=explanation)
 
 
 def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDocument:
@@ -125,7 +128,7 @@ def _bank_row(payload, document, position):
         "counterparty_account_attrs": [], "note": source_note(payload), "source_payload": deepcopy(payload)}
     method = _infer_ccb_payment_source(payload.get("交易地点/附言", "").strip(), card) if is_ccb else (
         f"工银亚洲活期账户({card})" if card else "工银亚洲活期账户")
-    amount, date = None, ""
+    amount, date, explanation = None, "", {}
     if is_ccb:
         value = payload.get("交易金额", "")
     else:
@@ -166,13 +169,14 @@ def _bank_row(payload, document, position):
         fields["counterparty_account"] = native["counterparty_account"]
         fields["record_type"], fields["record_subtype"] = classify_cash_record(source, native)
         method = native["payment_method"]
+        explanation = extract_source_explanation(native)
         if not is_ccb and amount == 0 and payload.get("業務類型", "").strip() in {"新開戶", "新开户"} and not issues:
             return ParsedCashRow(position, None, error_code="account_opening", disposition="skipped")
     counterparty_account = normalize_counterparty_account(fields["counterparty_account"], source=source,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"] = counterparty_account.value
     fields["counterparty_account_attrs"] = list(counterparty_account.attrs)
-    return ParsedCashRow(position, fields, method, issue_codes=tuple(issues))
+    return ParsedCashRow(position, fields, method, issue_codes=tuple(issues), source_explanation=explanation)
 
 
 def normalize_bank_document(document: CashStatementDocument) -> ParsedCashDocument:

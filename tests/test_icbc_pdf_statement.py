@@ -108,6 +108,15 @@ def test_debit_owner_comes_from_file_card_not_the_settlement_account_column(monk
     assert parsed.rows[0].fields["record_type"] == "consumption"
 
 
+@pytest.mark.parametrize("kind", ["credit", "debit"])
+def test_pdf_single_row_source_explanation_keeps_refund_evidence(monkeypatch, kind):
+    cells = _credit(摘要="退货", 对方户名="测试商户", **{"收\n支": "贷"}) if kind == "credit" else _debit(摘要="退款", **{"收入/支出金额": "20.00"})
+    row = _parse(monkeypatch, [Page(cells, kind=kind)]).rows[0]
+    assert row.source_explanation["summary"] in {"退货", "退款"}
+    assert row.source_explanation["_is_refund"] is True
+    assert not {"amount", "note", "category", "offset_group", "offset_role", "_fact_id", "_source_payload"} & row.source_explanation.keys()
+
+
 def test_a_counterparty_card_in_the_body_cannot_replace_a_missing_file_owner(monkeypatch):
     page = Page(_debit(), kind="debit")
     page.text = page.text.replace("卡号：" + OWNER + " 户名：测试用户\n", "")

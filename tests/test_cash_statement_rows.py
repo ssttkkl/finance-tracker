@@ -142,3 +142,23 @@ def test_non_finite_or_unrepresentable_amount_stays_unknown(value):
     row = _convert(_document(_payload(金额=value))).rows[0]
     assert row.fields["amount"] is None
     assert row.issue_codes == ("amount_unreadable",)
+
+
+@pytest.mark.parametrize("source", ["alipay", "wechat"])
+def test_native_source_evidence_is_captured_in_the_same_single_row_call(monkeypatch, source):
+    from ft import convert
+    name = "_parse_alipay_source_row" if source == "alipay" else "_parse_wechat_source_row"
+    original, calls = getattr(convert, name), []
+    def parse(payload, *, position):
+        calls.append(position)
+        return dict(original(payload, position=position), summary=["invalid hint"], _is_refund="bad",
+            offset_group="do not keep", note="do not replace raw note")
+    monkeypatch.setattr(convert, name, parse)
+    row = _convert(_document(_payload(source), source=source)).rows[0]
+    assert calls == [1]
+    assert row.source_explanation["txn_id"] == "0000123"
+    assert row.source_explanation["merchant_order_id"] == "merchant-1"
+    assert row.source_explanation["platform_status"] in {"交易成功", "支付成功"}
+    assert not {"summary", "_is_refund", "offset_group", "note", "_fact_id"} & row.source_explanation.keys()
+    assert row.fields["note"] == ("原始描述" if source == "alipay" else "原始备注")
+    assert row.fields["amount"] == "-20.00" and row.error_code is None

@@ -114,6 +114,18 @@ def test_asia_native_financial_fields_and_raw_note():
     assert row.fields["source_payload"][""] == "09:10:11"
 
 
+@pytest.mark.parametrize("builder,row,expected", [
+    (_ccb_bytes, _ccb_row(摘要="消费退货", 交易金额="4.23"), {"summary": "消费退货", "_ccb_refund_signal": "ccb_debit_refund"}),
+    (_asia_bytes, _asia_row(), {"summary": "本地轉賬", "txn_type": "轉賬"}),
+])
+def test_bank_single_row_source_explanation_survives_normalization(builder, row, expected):
+    parsed = _parse(builder(row)).rows[0]
+    for key, value in expected.items():
+        assert parsed.source_explanation[key] == value
+    assert "_raw_cp" in parsed.source_explanation
+    assert not {"note", "category", "amount", "_fact_id", "_source_payload"} & parsed.source_explanation.keys()
+
+
 def test_asia_masked_counterparty_uses_existing_normalization():
     row = _parse(_asia_bytes(_asia_row(對方賬號="879825****47"), account="879825074240")).rows[0]
     assert row.fields["counterparty_account"] == "879825074247"

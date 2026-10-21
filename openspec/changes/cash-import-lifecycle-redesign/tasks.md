@@ -37,6 +37,7 @@
 - [x] 4.6.2.1 切换按稳定 ID 的账户 HTTP 命令，校验严格正文与幂等键，关闭按名称写路径，覆盖权限、并发重试及未知结果恢复。
 - [ ] 4.7 为一次解析、不保留原文件、部分文件／行错误、TTL 与权限写失败测试；实现解析会话及临时存储。
 - [x] 4.7.1 保留平台原始出现、文件声明及逐行错误，复用既有原生转换语义，校准真实平台表头。
+- [x] 4.7.1.1 在同次单行归一中保留白名单来源解释，覆盖平台订单／状态及银行原生摘要／退款标记；仅保留单行证据，不保留候选组、配对置信或生成备注，接入解析暂存兼容旧对象。
 - [ ] 4.7.2 实现仅解析内容的暂存、会话修订、文件替换／密码重传及工作区同步边界，关闭旧原文件会话入口时一起验收。
 - [x] 4.7.2.1 完成解析 DTO 的单对象存储、内存／R2 条件替换、固定 TTL、取消清理和基础隔离验证。
 - [x] 4.7.2.2 接入文件应用服务、工作区锁和消费收据校验；实现无人访问的过期对象有界清扫及部署运行条件，不能只依赖读取时清理。
@@ -86,6 +87,10 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.7.1.1 单行来源解释（2026-10-21，HEAD／比较基线 `4eb1c35`）：白名单模块缺失先失败，再在平台、银行表格及 PDF 的同次原生调用中提取字符串／布尔提示。排除生成备注、金额、分类、散列身份、原始行及跨行配对决定，错误类型提示忽略；暂存拒绝非法白名单对象，旧 JSON 缺字段按空对象兼容。没有新增数据库列或改写原有来源正文。
+- 定向纯边界 `tests/test_cash_statement_evidence.py tests/test_cash_statement_rows.py tests/test_bank_statement_rows.py tests/test_icbc_pdf_statement.py tests/test_parsed_import_staging.py tests/test_cash_import_funding.py tests/test_parsed_import_cleanup.py -q --disable-warnings --tb=short` → 279 passed、1 warning。显式专用 PostgreSQL 矩阵含 `tests/contract/test_parsed_cash_import_context.py` 及上述前六项 → 315 passed、无 skip（15.09 s）。完整 SQLite 沿前述两项旧 Expo 排除 → 2,174 passed、311 skipped、53 deselected、1 warning（221.99 s），日志 `/tmp/ft-import-source-explanation-regression.log`。独立只读复核另跑 218 项测试通过，未发现阻断问题；未访问真实账单或 PostgreSQL。
+- Cross-platform Impact Check：本步仅扩充后端内部解析 DTO，公共接口、Web、Native 和共享 presentation 均未切换，没有用户可见页面／文案变化；后续关系存储、统一计划和 Compose 入口仍按原任务验收。`uv build --out-dir /tmp/ft-cash-import-explanation-dist`、OpenSpec strict、最终 diff 复核及 `git diff --check` 通过；浏览器及最终 Hallmark 不适用于此内部小步。旧跨行元数据回填／移除留在统一写入口切换，不宣称已完成。
 
 - 4.1.1 共享边界补齐（2026-10-21，HEAD／比较基线 `90b0f81`）：三种汇总相等但方向相抵及建行长附言反例先失败；共享转正式校验拒绝反向组成项，零父金额只允许零项，普通草稿保存不受影响。备注增加合并列原文并优先于分类摘要，保留既有备注优先级与空值回退，不拼接／截断。主设计不变量、转正式 delta 及银行行测试同步更新。
 - 独立工程／财务复核 106 passed，另 7 个探针覆盖草稿保存、零项、正负零、精度及入参不变，无阻断。显式专用 PostgreSQL 执行 `tests/contract/test_cash_draft_storage.py tests/contract/test_parsed_cash_import_context.py tests/test_cash_record_policy.py tests/test_bank_statement_rows.py tests/test_cash_import_funding.py tests/test_cash_statement_rows.py tests/test_cash_transaction_components.py tests/test_statement_account_mapping.py -q --disable-warnings --maxfail=3 --tb=short` → 305 passed、无 skip（32.73 s）。完整 SQLite 沿前述命令及两项旧 Expo 排除 → 2,141 passed、311 skipped、53 deselected、1 warning（224.53 s），日志 `/tmp/ft-import-posting-boundaries-regression.log`，未把 backend skip 算双后端通过。

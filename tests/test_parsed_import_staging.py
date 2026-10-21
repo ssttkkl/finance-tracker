@@ -145,6 +145,38 @@ def test_row_level_source_scope_survives_both_parsed_stores(staging):
     assert _get(store, session).files[0].document.rows[0].source_account_identifier == "6222000000001234"
 
 
+def test_source_explanation_roundtrip_is_detached(staging):
+    store, _now, _client = staging
+    file = _file()
+    row = replace(file.document.rows[0], source_explanation={"txn_id": "001", "_is_refund": False})
+    session = _create(store, files=(replace(file, document=replace(file.document, rows=(row,))),))
+    row.source_explanation["txn_id"] = "mutated"
+    assert _get(store, session).files[0].document.rows[0].source_explanation == {"txn_id": "001", "_is_refund": False}
+
+
+def test_old_parsed_objects_without_source_explanation_remain_readable(staging):
+    store, _now, client = staging
+    session = _create(store)
+    entries = client.objects if client.objects else store._entries
+    key = next(iter(entries))
+    value = json.loads(entries[key])
+    value["files"][0]["document"]["rows"][0].pop("source_explanation", None)
+    entries[key] = json.dumps(value).encode()
+    assert _get(store, session).files[0].document.rows[0].source_explanation == {}
+
+
+@pytest.mark.parametrize("explanation", [{"password": "secret"}, {"note": "generated"}, {"txn_id": []}, {"_is_refund": 1}, None])
+def test_invalid_source_explanation_cannot_be_published(staging, explanation):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    session = _create(store)
+    file = session.files[0]
+    changed = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], source_explanation=explanation),)))
+    with pytest.raises(ParsedImportDataError):
+        _replace(store, session, files=(changed,))
+    assert _get(store, session) == session
+
+
 @pytest.mark.parametrize("owner", ["", "x" * 257, 123, []])
 def test_invalid_row_level_scope_is_rejected_without_corrupting_session(staging, owner):
     from ft.application.parsed_import_staging import ParsedImportDataError

@@ -7,6 +7,7 @@ from datetime import datetime
 import re
 
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
+from ft.adapters.cash_statement_evidence import extract_source_explanation
 from ft.adapters.icbc_pdf_document import DEBIT_HEADERS, full_card
 from ft.domain.cash_record_policy import source_note
 from ft.domain.decimal import exact_decimal
@@ -61,6 +62,7 @@ def _row(row, document):
     if amount is not None:
         fields["amount"] = format(amount, "f")
     method = "工商银行信用卡" if credit else cells.get("渠道", "").replace("\n", "").strip()
+    explanation = {}
     if amount is not None:
         if credit:
             account = cells.get("对方账号", "").replace("\n", "").strip()
@@ -79,10 +81,12 @@ def _row(row, document):
         fields["counterparty"], fields["counterparty_account"] = native["counterparty"], native["counterparty_account"]
         fields["record_type"], fields["record_subtype"] = classify_cash_record(document.source_type, native)
         method = native["payment_method"]
+        explanation = extract_source_explanation(native)
     account = normalize_counterparty_account(fields["counterparty_account"], source=document.source_type,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"], fields["counterparty_account_attrs"] = account.value, list(account.attrs)
-    return ParsedCashRow(row.position, fields, method, issue_codes=tuple(issues), source_account_identifier=owner if credit else None, document_position=row.document_position)
+    return ParsedCashRow(row.position, fields, method, issue_codes=tuple(issues), source_account_identifier=owner if credit else None,
+        document_position=row.document_position, source_explanation=explanation)
 
 
 def normalize_icbc_document(document):

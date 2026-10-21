@@ -12,6 +12,7 @@ from threading import RLock
 from typing import Any
 
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
+from ft.adapters.cash_statement_evidence import valid_source_explanation
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_staging import (
@@ -108,6 +109,7 @@ def _valid_files(files):
                     or row.fields is not None and not isinstance(row.fields, dict)
                     or row.disposition == "candidate" and row.fields is None
                     or not isinstance(row.payment_method, str)
+                    or not valid_source_explanation(row.source_explanation)
                     or row.provider_id is not None and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
                     or row.source_account_identifier is not None and (not isinstance(row.source_account_identifier, str) or not 1 <= len(row.source_account_identifier) <= 256)
                     or row.document_position is not None and (not isinstance(row.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", row.document_position))
