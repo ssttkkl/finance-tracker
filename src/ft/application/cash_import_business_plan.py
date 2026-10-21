@@ -120,11 +120,12 @@ class CashImportBusinessPlanBuilder:
         self.workspace_id = workspace_id
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
-    def __call__(self, *, session, files, preview_input, previous_plan, plan_id):
+    def __call__(self, *, session, files, preview_input, previous_plan, plan_id, source_plan=None):
         record_ids = {op["occurrence_key"]: op["values"]["record_id"] for op in (previous_plan or {}).get("operations", [])
             if op.get("occurrence_key") and not op.get("transaction_id")}
         prepared = CashImportOperationPlanner(session, self.workspace_id).prepare(files,
-            account_selections=preview_input["account_selections"], row_choices=preview_input["row_choices"], record_ids=record_ids)
+            account_selections=preview_input["account_selections"], row_choices=preview_input["row_choices"], record_ids=record_ids,
+            source_plan=source_plan)
         operations = deepcopy(list(prepared.operations))
         for operation in operations:
             source = prepared.source_plan.rows[operation["row_refs"][0]]
@@ -436,6 +437,7 @@ class CashImportBusinessPlanBuilder:
                         "parent_ids": sorted(parents)})
         links = [_link(item["edge"]) for item in converted.values()]
         groups = []
+        closures = _closure_index(snapshot.context.relations)
         for identifiers in relation_commit_groups([_link(edge) for edge in snapshot.edges.values()], links):
             members = [converted[identifier] for identifier in identifiers]
             parents = {value for item in members for value in (item["edge"].primary_transaction_id, item["edge"].secondary_transaction_id) if value}
@@ -447,9 +449,22 @@ class CashImportBusinessPlanBuilder:
             versions = dict(snapshot.context.transaction_revisions)
             fingerprint = [(parent, versions.get(int(parent)), snapshot.parent_ops.get(parent, {}).get("values"),
                 snapshot.values[parent].get("source_explanation")) for parent in sorted(dependency_parents)]
-            suggestion = "sg_" + _digest("cash-import-suggestion-v1", sorted(identifiers), fingerprint)[:40]
+            existing = {parent for parent in dependency_parents if int(parent) < 2 ** 63}
+            complete = {parent for identifier in existing for parent in closures.get(identifier, (identifier,))}
+            context = snapshot.context
+            relation_ids = {edge.id for edge in context.relations if
+                {edge.primary_transaction_id, edge.secondary_transaction_id}.intersection(complete)}
+            dependency = (tuple(row for row in context.transaction_revisions if str(row[0]) in complete),
+                tuple(row for row in context.component_versions if str(row[1]) in complete),
+                tuple(row for row in context.relation_revisions if row[0] in relation_ids),
+                tuple(row for row in context.funding_versions if str(row[1]) in snapshot.components
+                    and snapshot.components[str(row[1])].transaction_id in complete),
+                tuple(row for row in context.issue_versions if str(row[1]) in complete))
+            proof = [(item["rule_id"], item["anchor_component_id"], item["candidate_count"], item["candidates"]) for item in members]
+            suggestion = "sg_" + _digest("cash-import-suggestion-v1", sorted(identifiers), fingerprint, dependency, proof)[:40]
             group = {"suggestion_id": suggestion, "action": "accept" if all(item["strong"] for item in members) else "defer",
                 "edges": [asdict(item["edge"]) for item in members], "evidence": {str(item["edge"].id): item["evidence"] for item in members},
+                "anchors": {str(item["edge"].id): item["anchor_component_id"] or item["edge"].primary_component_id for item in members},
                 "parent_ids": sorted(parents), "member_refs": [self._ref(snapshot, parent) for parent in sorted(parents)],
                 "allowed_actions": ["accept", "defer", "ignore"] if all(item["edge"].secondary_transaction_id for item in members) else ["defer", "ignore"],
                 "candidates": [], "candidate_id": None, "dependency_parent_ids": sorted(dependency_parents)}
@@ -484,7 +499,8 @@ class CashImportBusinessPlanBuilder:
             raise CashRelationError("relation_endpoint_incompatible")
         return {"edge": edge, "evidence": asdict(evidence), "anchor_component_id": anchor,
             "strong": proposal.status == "accepted" and proposal.confidence == "strong",
-            "rule_id": proposal.rule_id, "candidates": list(proposal.evidence.candidate_fact_ids)}
+            "rule_id": proposal.rule_id, "candidates": list(proposal.evidence.candidate_fact_ids),
+            "candidate_count": proposal.evidence.candidate_count}
 
     def _candidate_choices(self, snapshot, group, members):
         options = [self._edge_variants(snapshot, item) for item in members]

@@ -500,6 +500,52 @@ def test_candidate_lookup_is_batched_instead_of_one_query_per_occurrence(source_
         assert len(statements) <= 12
 
 
+def test_mixed_scope_and_evidence_lookup_keeps_portable_bind_budget(source_runtime):
+    from hashlib import sha256
+    from sqlalchemy import event
+    runtime = source_runtime
+    engine = runtime.sessions.kw["bind"]
+    counts = []
+    def count(_conn, _cursor, statement, parameters, _context, _many):
+        if statement.lstrip().upper().startswith("SELECT") and "cash_source_bindings" in statement:
+            counts.append(len(parameters))
+    with runtime.sessions.begin() as session:
+        first = replace(_row_for_parent(session), provider_id="synthetic-provider", stable_evidence="synthetic-proof")
+        repo = _repository(session, runtime)
+        repo.save_occurrence(1001, first)
+        rows = [first, *(replace(first, source_account_key=f"synthetic-owner-{i}",
+            file_digest=sha256(str(i).encode()).hexdigest(), provider_id=f"synthetic-provider-{i}",
+            stable_evidence=f"synthetic-proof-{i}") for i in range(199))]
+        event.listen(engine, "before_cursor_execute", count)
+        try:
+            found = repo._for_occurrences(rows)
+        finally:
+            event.remove(engine, "before_cursor_execute", count)
+        assert {binding.transaction_id for binding in found} == {1001}
+        assert counts and max(counts) <= 999
+
+
+def test_single_occurrence_lookup_uses_complete_identity_index(cash_web_runtime):
+    from sqlalchemy import event
+    runtime = cash_web_runtime
+    engine = runtime.sessions.kw["bind"]
+    captured = []
+    def capture(_conn, _cursor, statement, parameters, _context, _many):
+        if statement.lstrip().upper().startswith("SELECT") and "cash_source_bindings" in statement:
+            captured.append((statement, parameters))
+    with runtime.sessions.begin() as session:
+        row = replace(_row_for_parent(session), provider_id="synthetic-provider")
+        event.listen(engine, "before_cursor_execute", capture)
+        try:
+            _repository(session, runtime)._for_occurrence(row)
+        finally:
+            event.remove(engine, "before_cursor_execute", capture)
+        plans = [detail for statement, parameters in captured for *_, detail in session.connection().exec_driver_sql(
+            "EXPLAIN QUERY PLAN " + statement, parameters)]
+        assert any("identity_key=?" in detail and "source_scope_key=?" in detail for detail in plans), plans
+        assert not any("SCAN cash_source_bindings" in detail for detail in plans), plans
+
+
 def test_verified_evidence_survives_storage_and_prevents_crossed_identity_updates(source_runtime):
     from ft.domain.cash_source_matching import resolve_source_file, SourceCoverage
     runtime = source_runtime

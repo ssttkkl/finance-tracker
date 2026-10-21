@@ -30,6 +30,8 @@ class PreparedCashImportOperations:
 
 
 def _wire(value):
+    if value is None or type(value) in (str, int, bool, float):
+        return value
     if isinstance(value, Decimal):
         return format(value, "f")
     if isinstance(value, datetime):
@@ -54,7 +56,7 @@ class CashImportOperationPlanner:
     def __init__(self, session, workspace_id):
         self.session, self.workspace_id = session, workspace_id
 
-    def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None):
+    def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None, source_plan=None):
         files = tuple(files)
         inputs = _preview_input([] if account_selections is None else account_selections,
             [] if row_choices is None else row_choices, [])
@@ -66,7 +68,7 @@ class CashImportOperationPlanner:
             if file.status == "parsed" and file.document is not None for row in file.document.rows}
         if set(choices) - all_rows.keys() or set(selections) - {group.source_account_ref for group in scan.groups}:
             raise CashImportPlanError("plan_input_invalid")
-        source = CashImportSourcePlanner(self.session, self.workspace_id).prepare(files)
+        source = source_plan if source_plan is not None else CashImportSourcePlanner(self.session, self.workspace_id).prepare(files)
         accounts = self._accounts(selections, source.records, choices)
         funding = {row.row_ref: row for row in resolve_cash_funding(scan,
             selections=selections, accounts=accounts)}
@@ -184,7 +186,7 @@ class CashImportOperationPlanner:
                 CashTransactionIssueModel.workspace_id == self.workspace_id,
                 CashTransactionIssueModel.transaction_id.in_(batch))):
                 issues[str(issue.transaction_id)].append({"issue_id": str(issue.id), "revision": issue.revision,
-                    "code": issue.code, "field_path": issue.field_path})
+                    "code": issue.code, "field_path": issue.field_path, "issue_key": issue.issue_key})
         return targets, issues
 
     def _categories(self, choices):
@@ -259,6 +261,8 @@ class CashImportOperationPlanner:
         if manual.get("category_id") is not None and manual["category_id"] not in categories:
             raise CashRecordPolicyError("category_unavailable", ("category_id",))
         values = {**source_values, **manual_update.values}
+        if any("ordinal" not in part for part in values["components"]):
+            raise CashRecordPolicyError("invalid_field", ("components",))
         protected = sorted(set(manual) & {"note", "category_id"})
         issues = []
         pending = {}
@@ -285,6 +289,8 @@ class CashImportOperationPlanner:
             if choice["action"] == "defer" and not issues:
                 issues.append(_issue("posting_incomplete"))
             values["state"] = "draft" if issues else "posted"
+        issues.extend(_issue(issue["code"], issue["field_path"]) for issue in saved_issues
+            if issue.get("issue_key", "").startswith("relation:"))
         if record is None:
             values.update(record_id=allocate_source_record_id(occurrence), source_type=occurrence.source_type)
             action = "create_" + values["state"]
@@ -308,7 +314,8 @@ class CashImportOperationPlanner:
                 for key in ("record_type", "record_subtype")), "candidate_ids": list(candidates),
             "source_group_ref": resolution.group_ref, "source_explanation": deepcopy(explanation),
             "expected_issues": saved_issues, "expected_accounts": expected_accounts,
-            "retained_issue_ids": [issue["issue_id"] for issue in saved_issues if issue["code"] == "source_identity_ambiguous"]}
+            "retained_issue_ids": [issue["issue_id"] for issue in saved_issues if issue["code"] == "source_identity_ambiguous"
+                or issue.get("issue_key", "").startswith("relation:")]}
 
 
 def _batches(values, size=400):

@@ -28,7 +28,7 @@ class CashRelationTypeUpdateService:
     def __init__(self, session, workspace_id):
         self._session, self._workspace_id = session, workspace_id
 
-    def maintain(self, before, type_changed_ids, *, updated_transaction_ids=None):
+    def maintain(self, before, type_changed_ids, *, updated_transaction_ids=None, publish=True):
         """先验证完整剩余图，再解除失效确认边并替换旧组；不提交。"""
         if not isinstance(before, CurrentCashRelationContext):
             raise CashRelationError("relation_context_changed")
@@ -103,6 +103,6 @@ class CashRelationTypeUpdateService:
         actual_updates = {identifier for identifier in updated if revisions[identifier] != old_revisions[identifier]}
         stale = CurrentCashRelationRepository(self._session, self._workspace_id).mark_candidates_stale(actual_updates)
         projections = RelationalCashProjectionRepository(self._session, self._workspace_id)
-        state = projections.ready_state_lock_or_none()
+        state = projections.ready_state_lock_or_none() if publish else None
         status = projections.replace_active_components(build, set(before.transaction_ids | current.transaction_ids), state=state) if state is not None else None
         return CashRelationTypeUpdateResult(before.transaction_ids | current.transaction_ids, frozenset(removed), frozenset(funding_removed), stale, build, status)

@@ -146,6 +146,19 @@ def test_parsed_content_budget_is_independent_of_complete_plan_budget(staging):
     assert _get(store, session).revision == 2 and _get(store, session).plan == plan
 
 
+def test_escaped_json_overflow_keeps_size_reason_and_previous_plan(staging):
+    from ft.application.parsed_import_staging import InMemoryParsedImportStore, ParsedImportDataError, R2ParsedImportStore
+    original, now, client = staging
+    options = dict(max_bytes=12000, max_parsed_bytes=3000, clock=lambda: now[0])
+    store = InMemoryParsedImportStore(**options) if isinstance(original, InMemoryParsedImportStore) else R2ParsedImportStore(
+        client, bucket="escaped-budget", **options)
+    session = _create(store)
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        store.replace(session.session_id, workspace_id=session.workspace_id, user_id=session.user_id,
+            expected_revision=1, files=session.files, preview_input={}, plan={"synthetic": '"' * 7000})
+    assert _get(store, session).revision == 1 and _get(store, session).plan is None
+
+
 def test_datetime_in_source_fields_keeps_safe_invalid_json_failure(staging):
     from ft.application.parsed_import_staging import ParsedImportDataError
     store, now, _client = staging

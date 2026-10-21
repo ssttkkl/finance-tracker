@@ -170,6 +170,17 @@ def _restore_file(item):
     return ParsedImportFile(**item)
 
 
+def _json_default(value):
+    if type(value) in (ParsedImportSession, ParsedImportFile, ParsedCashDocument, ParsedCashRow, SourceCoverage):
+        return {field.name: getattr(value, field.name) for field in fields(value)}
+    raise TypeError("unsupported parsed JSON value")
+
+
+def _json_bytes(value):
+    return json.dumps(value, default=_json_default, ensure_ascii=False, allow_nan=False,
+        separators=(",", ":")).encode()
+
+
 class _ParsedImportStore:
     def __init__(self, *, ttl_seconds=1800, clock=_now, max_bytes=64 * 1024 * 1024, max_parsed_bytes=25 * 1024 * 1024):
         if (type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 1800
@@ -196,22 +207,23 @@ class _ParsedImportStore:
         parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
         _json_budget(session.files, [parsed_maximum])
         try:
-            parsed = json.dumps([asdict(file) for file in session.files], ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+            parsed = _json_bytes(session.files)
         except (TypeError, ValueError, RecursionError):
             raise ParsedImportDataError("import_session_json_invalid") from None
         if len(parsed) > parsed_maximum:
             raise ParsedImportDataError("import_session_draft_too_large")
-        del parsed
-        _json_budget(session, [self._max_bytes])
-        value = asdict(session)
+        value = {field.name: getattr(session, field.name) for field in fields(session) if field.name != "files"}
         value["session_digest"] = _hash(value.pop("session_id"))
         value["created_at"] = session.created_at.isoformat()
         value["expires_at"] = session.expires_at.isoformat()
-        _json_budget(value, [self._max_bytes])
+        _json_budget(value, [self._max_bytes - len(parsed) - 9])
         try:
-            content = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode()
+            body = _json_bytes(value)
         except (TypeError, ValueError, RecursionError):
             raise ParsedImportDataError("import_session_json_invalid") from None
+        if len(body) + len(parsed) + 9 > self._max_bytes:
+            raise ParsedImportDataError("import_session_draft_too_large")
+        content = body[:-1] + b',"files":' + parsed + b'}'
         if len(content) > self._max_bytes:
             raise ParsedImportDataError("import_session_draft_too_large")
         return content
@@ -219,6 +231,9 @@ class _ParsedImportStore:
     def _decode(self, session_id, content):
         try:
             value = json.loads(content)
+            _json_budget(value, [self._max_bytes])
+            if len(_json_bytes(value["files"])) > min(self._max_bytes, self._max_parsed_bytes):
+                raise ValueError
             if value.pop("session_digest") != _hash(session_id):
                 raise ValueError
             files = tuple(_restore_file(item) for item in value.pop("files"))
@@ -230,7 +245,9 @@ class _ParsedImportStore:
                 or not 0 < (result.expires_at - result.created_at).total_seconds() <= 1800
                 or any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (result.workspace_id, result.user_id))):
                 raise ValueError
-            self._encode(result)
+            _valid_files(result.files)
+            if not isinstance(result.preview_input, dict) or result.plan is not None and not isinstance(result.plan, dict):
+                raise ValueError
             return result
         except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
             raise ImportSessionStorageUnavailable from None
@@ -246,10 +263,10 @@ class _ParsedImportStore:
         for _attempt in range(3):
             session = ParsedImportSession(token_urlsafe(32), workspace_id, user_id, now, now + timedelta(seconds=self._ttl), 1, files, {}, None)
             content = self._encode(session)
-            self._validate_roundtrip(session.session_id, content)
+            decoded = self._validate_roundtrip(session.session_id, content)
             try:
                 self._publish(session, content, expected=None)
-                return self._decode(session.session_id, content)
+                return decoded
             except ImportSessionRevisionConflict:
                 continue
         raise ImportSessionStorageUnavailable
@@ -273,7 +290,7 @@ class _ParsedImportStore:
 
     def _validate_roundtrip(self, session_id, content):
         try:
-            self._decode(session_id, content)
+            return self._decode(session_id, content)
         except ImportSessionStorageUnavailable:
             raise ParsedImportDataError("import_session_json_invalid") from None
 
@@ -293,9 +310,9 @@ class _ParsedImportStore:
             raise ImportSessionClosed
         updated = replace(current, revision=current.revision + 1, files=files, preview_input=preview_input, plan=plan)
         content = self._encode(updated)
-        self._validate_roundtrip(session_id, content)
+        decoded = self._validate_roundtrip(session_id, content)
         self._publish(updated, content, expected=etag)
-        return self._decode(session_id, content)
+        return decoded
 
     def cancel(self, session_id, *, workspace_id, user_id, expected_revision):
         current, etag = self._read(session_id, workspace_id=workspace_id, user_id=user_id)
@@ -305,9 +322,9 @@ class _ParsedImportStore:
             return current
         updated = replace(current, revision=current.revision + 1, files=(), preview_input={}, plan=None, cancelled=True)
         content = self._encode(updated)
-        self._validate_roundtrip(session_id, content)
+        decoded = self._validate_roundtrip(session_id, content)
         self._publish(updated, content, expected=etag)
-        return self._decode(session_id, content)
+        return decoded
 
     @staticmethod
     def _sweep_args(cursor, limit):

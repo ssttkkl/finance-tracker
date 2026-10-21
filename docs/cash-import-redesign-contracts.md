@@ -300,11 +300,15 @@ flowchart TD
 
 摘要中的写入数量按唯一 `operation_ref` 计数；每个来源行仍有结果，同批重复来源行可返回 `duplicate_in_batch` 并引用同一操作。`relations_*` 按建议决定计数，组内每条关系明细另返回，不能一处按组、另一处按边相加。
 
+收据摘要保持有界，只保存计数及发布版本；不附加全量 `affected_transaction_ids` 或 `projection_refs` 数组。完整流水／关系引用随逐项结果分页读取，客户端按稳定流水引用定位最新详情。失败子集可在原 TTL 内从同一不可变解析会话派生，访问必须同时验证该用户的持久收据及失败结果；不复制原文件、不续期，也不重跑成功项。
+
 收据 `status=completed/partial/no_changes/failed` 描述已提交的处理结果；`committed=true` 表示执行结果已持久保存，不等于业务全部成功。已保存草稿属于成功写入。`partial` 表示有成功操作，也有失败或被跳过的有效业务操作／文件；`no_changes` 表示只有重复、用户保留现有或白名单跳过。`needs_attention_count` 表达草稿和待处理关联，避免把它们混成失败。若没有任何成功写入且存在有效业务操作失败，返回 `status=failed`，界面显示“未导入任何记录”，仍允许退出时撤销独立账户改动。事务整体回滚使用错误响应，不能生成已提交收据。
 
 `needs_attention_count` 按有当前问题的唯一流水计数；同一流水的多个问题或关系不重复加数，跨两笔流水的草稿关系可使两笔分别待处理。`saved_draft` 包含新增及更新草稿，逐项结果另外给出 `created/updated`。
 
-面向用户的待确认数量另由最终可见投影按 `confirmation_status=pending` 计数，字段为 `pending_item_count`；不能把内部流水数当成列表项数。收据包含 `affected_transaction_ids` 及提交后当前 `projection_refs`，客户端用正式查询刷新实际结果，不能在部分失败后继续展示原先预计的合并列表。
+面向用户的待确认数量另由最终可见投影按 `confirmation_status=pending` 计数，字段为 `pending_item_count`；不能把内部流水数当成列表项数。收据摘要只含有界计数和发布版本；受影响流水及提交后当前投影的引用放在分页逐项结果中。客户端用正式查询刷新实际结果，不能在部分失败后继续展示原先预计的合并列表。
+
+结果页的 `projection_refs` 和 `projection_version` 表达读取时的当前归属，引用数量不超过该页流水数；永久收据的发布版本及计数保留本次提交结果。后续合并、拆分或删除后，客户端以当前定位刷新详情，不把旧引用当作仍有效。
 
 ### 3.4 幂等、并发及结果恢复
 
@@ -490,7 +494,7 @@ erDiagram
 | `issue_key` | 同一流水内稳定问题键；唯一 `(workspace_id,transaction_id,issue_key)` |
 | `code/field_path` | 稳定原因和可选字段定位 |
 | `pending_source_payload` | 仅需后续处理的当前来源内容，可空；不是历史来源列表 |
-| `pending_fields` | 当前待应用业务值，可空；不能绕过固定字段校验 |
+| `pending_fields` | 当前待应用业务值，可空；不能绕过固定字段校验；保留键 `_source_explanation` 只承载同次来源解释白名单，应用来源值时由服务端一同处理，不作为用户可编辑字段 |
 | `origin` | 必要文件摘要、行定位、来源作用域，不能含原文件或密码 |
 | `revision/created_at/updated_at` | 并发与当前维护时间 |
 

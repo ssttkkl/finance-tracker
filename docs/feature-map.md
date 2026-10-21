@@ -1,10 +1,10 @@
 # Compose 功能地图
 
-> 盘点日期：2026-10-21。本文记录当前 Compose Multiplatform 页面级功能、共享实现证据和已知覆盖缺口。行为事实以 `openspec/specs/` 与代码为准。
+> 盘点日期：2026-10-22。本文记录当前 Compose Multiplatform 页面级功能、共享实现证据和已知覆盖缺口。行为事实以 `openspec/specs/` 与代码为准。
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
-现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py)、[当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py) 及 [局部上下文校验服务](../src/ft/application/cash_relation_context.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，完整组加载及无写入校验已具备，实际计划／提交／维护入口尚待接入。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。导入的对外写入口尚未切换；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
+现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py)、[当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py) 及 [局部上下文校验服务](../src/ft/application/cash_relation_context.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，完整组加载及无写入校验已具备，内部业务计划及联合提交已接入，公共导入及后续维护入口尚待切换。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。导入的对外写入口尚未切换；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
 普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单的全部旧写路径关闭、维护预览及 Compose 演示仍属上述未完成变更。
 
@@ -23,15 +23,17 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 ## 页面级功能
 
 微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。
-多文件共同来源规划在后端按等价集合合并重叠出现，逐来源行保留结果及不确定性；F-05 的计划发布、联合提交和共享列表尚未切换，页面数量及跨端 TODO 保持不变。当前投影维护已接入完整组成项分配证明及旧、新关系闭包，解除关系后原组的其余流水也会更新；相关 [双后端合同](../tests/contract/test_cash_projection_graph_reads.py) 不替代客户端草稿维护和导入验收。
-已解析行的 [资金账户桥接](../src/ft/application/cash_import_funding.py) 准备来源账户组和支付组成项，缺映射／分摊保留已知字段，不创建账户；共享边界校验转正式的同向分摊并完整读取建行附言。[单行来源解释](../src/ft/adapters/cash_statement_evidence.py) 与解析行一起暂存，保留订单、状态及银行退款线索，不使用生成备注或保存跨行配对结果。后续统一计划及 F-05 页面仍待接入。
+多文件共同来源规划在后端按等价集合合并重叠出现，逐来源行保留结果及不确定性；F-05 的公共 API 和共享列表尚未切换，页面数量及跨端 TODO 保持不变。当前投影维护已接入完整组成项分配证明及旧、新关系闭包，解除关系后原组的其余流水也会更新；相关 [双后端合同](../tests/contract/test_cash_projection_graph_reads.py) 不替代客户端草稿维护和导入验收。
+已解析行的 [资金账户桥接](../src/ft/application/cash_import_funding.py) 准备来源账户组和支付组成项，缺映射／分摊保留已知字段，不创建账户；共享边界校验转正式的同向分摊并完整读取建行附言。[单行来源解释](../src/ft/adapters/cash_statement_evidence.py) 与解析行一起暂存，保留订单、状态及银行退款线索，不使用生成备注或保存跨行配对结果。桥接已供内部业务计划及联合提交使用，F-05 页面仍待切换。
 工行 PDF 迁入解析上下文时保留信用卡行级本方身份与借记卡文件级身份；同次导出的连续页面在后端自动核对，重复页与矛盾页按来源结果处理。当前 F-05 的新 PDF／密码重传入口随统一会话切换验收，不据此标记客户端覆盖完成。
 
-跨会话的 [来源规划](../src/ft/application/cash_import_source_plan.py) 已组合当前活动绑定及 [认证空页](../src/ft/adapters/relational/cash_source_documents.py)，包含本次命中的旧候选导出；[合同测试](../tests/contract/test_cash_source_document_storage.py) 覆盖零行、命名空间、双向冲突与降级保护。预览不写业务数据；联合提交、统一客户端列表与三端 QA 仍待后续切换，不增加页面或独立关系入口。
+跨会话的 [来源规划](../src/ft/application/cash_import_source_plan.py) 已组合当前活动绑定及 [认证空页](../src/ft/adapters/relational/cash_source_documents.py)，包含本次命中的旧候选导出；[合同测试](../tests/contract/test_cash_source_document_storage.py) 覆盖零行、命名空间、双向冲突与降级保护。预览不写业务数据；内部联合提交已保存及重验相关证据，公共 API、统一客户端列表与三端 QA 仍待后续切换，不增加页面或独立关系入口。
 
-内部 [计划发布层](../src/ft/application/cash_import_plans.py) 已支持会话修订比较、不可变替换、投影项与明细分页、详情公开字段及安全问题；[发布合同](../tests/contract/test_cash_import_plan_publication.py) 使用合成业务结果验证边界。真实业务构建器、联合提交和 HTTP／Compose 尚未切换，不据此声明 F-05 新流程可用或提高三端覆盖。
+内部 [计划发布层](../src/ft/application/cash_import_plans.py) 已支持会话修订比较、不可变替换、投影项与明细分页、详情公开字段及安全问题；[发布合同](../tests/contract/test_cash_import_plan_publication.py) 使用合成业务结果验证边界。真实业务构建器和内部联合提交已接入，HTTP／Compose 尚未切换，不据此声明 F-05 新流程可用或提高三端覆盖。
 
-[逐流水操作规划](../src/ft/application/cash_import_operations.py) 已组合真实来源、账户映射和统一字段规则，区分新增、重复、草稿、更新与跳过；明确补齐后重算账户及完整性，保留人工备注、分类和当前组成项身份。[业务计划构建器](../src/ft/application/cash_import_business_plan.py) 已生成唯一预计流水列表、完整关系组和冻结详情；配对错误独立返回，未确认关系保持分列，净额为零的全额退款继续可见。仅有内部只读入口，实际联合提交和客户端消费尚待接入；三端页面覆盖状态及页面数不变。
+[逐流水操作规划](../src/ft/application/cash_import_operations.py) 已组合真实来源、账户映射和统一字段规则，区分新增、重复、草稿、更新与跳过；明确补齐后重算账户及完整性，保留人工备注、分类和当前组成项身份。[业务计划构建器](../src/ft/application/cash_import_business_plan.py) 已生成唯一预计流水列表、完整关系组和冻结详情；配对错误独立返回，未确认关系保持分列，净额为零的全额退款继续可见。内部联合提交已消费该计划，公共 API 和客户端消费尚待接入；三端页面覆盖状态及页面数不变。
+
+[联合提交命令](../src/ft/application/cash_import_commit.py) 已接入内部计划：逐流水保存点和完整关联组分别隔离，成功值才更新余额与相关列表，同事务保存收据和分页结果；重复提交、并发完全重复、草稿组成项替换及关系失败均有合同测试。HTTP、失败子集重试和 Compose 尚未切换，F-03／F-05 的页面总数、三端状态及对齐 TODO 不变。
 
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|

@@ -6,7 +6,7 @@ from collections import defaultdict
 import json
 import re
 
-from sqlalchemy import Text, and_, cast, delete, func, or_, select, tuple_
+from sqlalchemy import Text, and_, cast, delete, func, or_, select, tuple_, union_all
 
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
 from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceDocumentEvidence, SourceOccurrence, SourceRecord, provider_identity_key, _digest, conflicting_source_document_pages
@@ -79,11 +79,8 @@ class CashSourceRepository:
 
     def _target(self, transaction_id):
         transaction_id = _identifier(transaction_id)
-        target = self.session.scalar(select(CashTransactionModel).where(
-            CashTransactionModel.workspace_id == self.workspace_id,
-            CashTransactionModel.id == transaction_id, CashTransactionModel.deleted_at.is_(None),
-        ))
-        if target is None:
+        target = self.session.get(CashTransactionModel, transaction_id)
+        if target is None or target.workspace_id != self.workspace_id or target.deleted_at is not None:
             raise SourceBindingConflict("source_target_unavailable")
         return target
 
@@ -94,14 +91,26 @@ class CashSourceRepository:
         keys = sorted({(spec.source_type, spec.scope_kind, spec.scope_key, spec.identity_kind, spec.identity_key) for row in rows for spec in row.binding_specs})
         evidence_keys = sorted({row.stable_evidence_binding_key for row in rows if row.stable_evidence_binding_key})
         result = []
-        for offset in range(0, max(len(keys), len(evidence_keys)), 150):
-            result.extend(self.session.scalars(select(CashSourceBindingModel).where(
+        # 每个独立身份最多六个参数，另留一片证据，兼容 999 参数上限。
+        for offset in range(0, max(len(keys), len(evidence_keys)), 125):
+            scopes = defaultdict(list)
+            for *scope, identity in keys[offset:offset + 125]:
+                scopes[tuple(scope)].append(identity)
+            lookups = [select(CashSourceBindingModel.id).where(
                 CashSourceBindingModel.workspace_id == self.workspace_id,
-                or_(tuple_(CashSourceBindingModel.source_type, CashSourceBindingModel.source_scope_kind,
-                       CashSourceBindingModel.source_scope_key, CashSourceBindingModel.identity_kind,
-                       CashSourceBindingModel.identity_key).in_(keys[offset:offset + 150]),
-                    CashSourceBindingModel.stable_evidence_key.in_(evidence_keys[offset:offset + 150])),
-            )))
+                CashSourceBindingModel.source_type == scope[0],
+                CashSourceBindingModel.source_scope_kind == scope[1],
+                CashSourceBindingModel.source_scope_key == scope[2],
+                CashSourceBindingModel.identity_kind == scope[3],
+                CashSourceBindingModel.identity_key.in_(identities)) for scope, identities in scopes.items()]
+            evidence = evidence_keys[offset:offset + 125]
+            if evidence:
+                lookups.append(select(CashSourceBindingModel.id).where(
+                    CashSourceBindingModel.workspace_id == self.workspace_id,
+                    CashSourceBindingModel.stable_evidence_key.in_(evidence)))
+            if lookups:
+                result.extend(self.session.scalars(select(CashSourceBindingModel).where(
+                    CashSourceBindingModel.id.in_(union_all(*lookups)))))
         return list({binding.id: binding for binding in result}.values())
 
     def find(self, row: SourceOccurrence) -> int | None:
@@ -227,11 +236,13 @@ class CashSourceRepository:
             result.extend(SourceCoverage(**json.loads(value)) for value in values)
         return tuple(result)
 
-    def save_occurrence(self, transaction_id, row: SourceOccurrence, *, uncertain=False):
+    def save_occurrence(self, transaction_id, row: SourceOccurrence, *, uncertain=False, first_binding=False):
         target = self._target(transaction_id)
         if target.source_type != row.source_type or uncertain and target.state != "draft":
             raise SourceBindingConflict("source_target_incompatible")
-        self._validate_scope(target, row)
+        # 仅调用方刚创建且尚未绑定的新父记录可证明没有旧别名。
+        if not first_binding:
+            self._validate_scope(target, row)
         if row.document_page:
             from .cash_source_documents import _declaration
             page = row.document_page[1]

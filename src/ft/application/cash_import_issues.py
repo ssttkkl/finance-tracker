@@ -39,6 +39,8 @@ _REASONS = {
     "batch_identity_conflict": ("同一笔流水在所选账单中的内容不一致", "reselect_file"),
     "row_unreadable": ("这条记录无法识别，已跳过", "reselect_file"),
     "row_save_failed": ("这条流水未能保存，请稍后重试", "retry"),
+    "record_changed": ("已有流水已变化，本次未更新", "open_record"),
+    "source_evidence_save_failed": ("账单信息未能保存，请稍后重试", "retry"),
     "relation_save_failed": ("本次未能合并，可稍后处理", "review_relation"),
     "relation_context_changed": ("相关流水已变化，请重新确认", "review_relation"),
     "relation_pending": ("待确认合并，可回主页处理", "review_relation"),

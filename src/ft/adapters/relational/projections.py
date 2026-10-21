@@ -475,6 +475,24 @@ class RelationalCashProjectionRepository:
             )
         ).all())
 
+    def current_references(self, transaction_ids, *, state):
+        """有界定位当前成员；调用方在同一快照内读取并去重展示项。"""
+        if state is None or state.active_dataset_id is None:
+            return {}
+        result = {}
+        for batch in _batches(sorted({int(value) for value in transaction_ids})):
+            rows = self._session.execute(select(CashProjectionMemberModel.cash_transaction_id,
+                CashProjectionModel.projection_id, CashProjectionModel.attention_count).join(CashProjectionModel, and_(
+                    CashProjectionModel.workspace_id == CashProjectionMemberModel.workspace_id,
+                    CashProjectionModel.dataset_id == CashProjectionMemberModel.dataset_id,
+                    CashProjectionModel.id == CashProjectionMemberModel.projection_row_id)).where(
+                        CashProjectionMemberModel.workspace_id == self._workspace_id,
+                        CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                        CashProjectionMemberModel.cash_transaction_id.in_(batch)))
+            result.update((str(row.cash_transaction_id), {"transaction_id": str(row.cash_transaction_id),
+                "projection_id": row.projection_id, "attention_count": row.attention_count}) for row in rows)
+        return result
+
     def replace_active_components(
         self,
         build: CashProjectionBuild,
