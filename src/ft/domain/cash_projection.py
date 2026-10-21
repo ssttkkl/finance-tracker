@@ -77,11 +77,16 @@ class ProjectionRelation:
     status: str = "accepted"
     subtype: str = ""
     applied_amount: Decimal | None = None
+    refund_allocation_key: tuple[str, str] | None = None
 
     def __post_init__(self) -> None:
         if self.kind not in _RELATION_KINDS or self.id <= 0 or self.primary_fact_id <= 0 or self.secondary_fact_id <= 0:
             raise CashProjectionError("projection.invalid_relation")
         if self.kind == "transfer_pair" and self.subtype not in _TRANSFER_SUBTYPES:
+            raise CashProjectionError("projection.invalid_relation")
+        if self.refund_allocation_key is not None and (self.kind != "refund_offset"
+            or not isinstance(self.refund_allocation_key, tuple) or len(self.refund_allocation_key) != 2
+            or any(not isinstance(value, str) or not value for value in self.refund_allocation_key)):
             raise CashProjectionError("projection.invalid_relation")
         if self.applied_amount is not None:
             try:
@@ -199,8 +204,13 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
     for members in mirror_groups.values():
         incoming = {item: 0 for item in members}
         adjacency = {item: [] for item in members}
+        seen_parent_mirrors = set()
         for relation in mirror_relations:
             if relation.primary_fact_id in incoming and relation.secondary_fact_id in incoming:
+                parent_pair = relation.primary_fact_id, relation.secondary_fact_id
+                if parent_pair in seen_parent_mirrors:
+                    continue
+                seen_parent_mirrors.add(parent_pair)
                 incoming[relation.secondary_fact_id] += 1
                 adjacency[relation.primary_fact_id].append(relation.secondary_fact_id)
         roots = [item for item in members if incoming[item] == 0]
@@ -251,6 +261,17 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
                     len(set(explicit_amounts)) == 1
                     and len(set(component_amounts)) == 1
                 )
+                if any(item.refund_allocation_key is not None for item in same_edge):
+                    allocations = {}
+                    for item in same_edge:
+                        if item.refund_allocation_key is None or item.applied_amount is None:
+                            raise CashProjectionError("projection.invalid_relation")
+                        previous = allocations.setdefault(item.refund_allocation_key, item.applied_amount)
+                        if previous != item.applied_amount:
+                            raise CashProjectionError("projection.invalid_relation")
+                    total_applied = sum(allocations.values(), Decimal("0"))
+                else:
+                    total_applied = explicit_amounts[0] if mirrored_duplicate else sum(explicit_amounts, Decimal("0"))
                 relation = ProjectionRelation(
                     id=relation.id,
                     kind=relation.kind,
@@ -262,11 +283,7 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
                     # different source rows.  Equal component allocations are
                     # duplicate evidence; distinct component allocations are
                     # portions of one aggregate parent and must be summed.
-                    applied_amount=(
-                        explicit_amounts[0]
-                        if mirrored_duplicate
-                        else sum(explicit_amounts, Decimal("0"))
-                    ),
+                    applied_amount=total_applied,
                 )
         logical.append((relation, primary, secondary))
     nodes = sorted(set(canonical.values()))
@@ -316,33 +333,24 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         economic_type, amount, visible, hidden_reason = EconomicType.INTERNAL_TRANSFER, Decimal("0"), True, None
     elif refund_relations:
         refund_inputs = tuple(
-            (facts[primary], facts[secondary])
+            (item, facts[primary], facts[secondary])
             for item, primary, secondary in logical
             if item.kind == "refund_offset"
         )
         zero_amount_refund = all(
             expense.amount == 0 and refund.amount == 0 and expense.currency == refund.currency
-            for expense, refund in refund_inputs
+            for _relation, expense, refund in refund_inputs
         )
         if root.amount >= 0 and not zero_amount_refund:
             raise CashProjectionError("projection.invalid_relation")
         refunded = Decimal("0")
-        for expense, refund in refund_inputs:
+        for relation, expense, refund in refund_inputs:
             if not zero_amount_refund and (
                 expense.amount >= 0 or refund.amount <= 0 or expense.currency != refund.currency
             ):
                 raise CashProjectionError("projection.invalid_relation")
-            applied = next(
-                (
-                    item.applied_amount
-                    for item, _primary, _secondary in logical
-                    if item.kind == "refund_offset"
-                    and item.primary_fact_id == expense.id
-                    and item.secondary_fact_id == refund.id
-                ),
-                None,
-            )
-            refunded += applied if applied is not None and applied > 0 else refund.amount
+            applied = relation.applied_amount
+            refunded += applied if applied is not None and (applied > 0 or relation.refund_allocation_key is not None) else refund.amount
         if refunded > -root.amount:
             raise CashProjectionError("projection.invalid_relation")
         amount = root.amount + refunded

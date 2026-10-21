@@ -39,7 +39,7 @@ class RelationRoleEvidence:
     p2p_return_hard_key: bool = False
 
 
-def _endpoint(endpoint):
+def validate_relation_endpoint(endpoint):
     if (not isinstance(endpoint, RelationEndpoint) or endpoint.state != "posted" or endpoint.active is not True
         or not all(isinstance(value, str) and value for value in (endpoint.component_id, endpoint.transaction_id, endpoint.account_id))
         or not isinstance(endpoint.currency, str) or not re.fullmatch(r"[A-Za-z]{3}", endpoint.currency)
@@ -47,6 +47,8 @@ def _endpoint(endpoint):
         raise CashRelationError("relation_endpoint_incomplete")
     try:
         exact_decimal(endpoint.amount)
+        if not isinstance(endpoint.record_type, str) or not isinstance(endpoint.record_subtype, str):
+            raise ValueError
         validate_cash_record_subtype(endpoint.record_type, endpoint.record_subtype)
     except ValueError:
         raise CashRelationError("relation_endpoint_incompatible") from None
@@ -81,7 +83,7 @@ def validate_relation_roles(kind, subtype, primary, secondary, primary_role, sec
 
     本函数不替代金额、占用、退款额度和镜像折叠的最终图校验。
     """
-    _endpoint(primary); _endpoint(secondary)
+    validate_relation_endpoint(primary); validate_relation_endpoint(secondary)
     if primary.component_id == secondary.component_id:
         raise CashRelationError("relation_endpoint_incompatible")
     roles = (primary_role, secondary_role)
@@ -91,7 +93,9 @@ def validate_relation_roles(kind, subtype, primary, secondary, primary_role, sec
             or roles == ("refund", "refund") and _refund(primary) and _refund(secondary))
     elif kind == "refund_offset":
         if subtype == "":
-            valid = roles == ("expense", "refund") and _expense(primary, investment=True) and _refund(secondary)
+            zero_refund = (primary.amount == secondary.amount == 0 and primary.record_type in {"consumption", "refund", "investment_out"}
+                and secondary.record_type == "refund")
+            valid = roles == ("expense", "refund") and (_expense(primary, investment=True) and _refund(secondary) or zero_refund)
         elif subtype == "p2p_return":
             valid = (roles == ("p2p_out", "p2p_in") and primary.record_type == secondary.record_type == "transfer_reversal"
                 and primary.amount < 0 < secondary.amount)
@@ -104,7 +108,7 @@ def validate_relation_roles(kind, subtype, primary, secondary, primary_role, sec
 
 def discover_relation_roles(kind, subtype, primary, secondary, *, evidence=RelationRoleEvidence()):
     """新建议使用当前来源证据；不能以已确认角色替代该证据。"""
-    _endpoint(primary); _endpoint(secondary)
+    validate_relation_endpoint(primary); validate_relation_endpoint(secondary)
     if not isinstance(evidence, RelationRoleEvidence) or any(type(value) is not bool for value in (
         evidence.primary_original_expense, evidence.secondary_original_expense,
         evidence.investment_refund_hard_key, evidence.p2p_return_hard_key,

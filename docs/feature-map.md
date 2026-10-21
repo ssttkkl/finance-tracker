@@ -4,7 +4,7 @@
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
-现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py) 及 [当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。导入的对外写入口尚未切换；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
+现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py) 及 [当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，最终图及完整组加载尚待统一应用边界接入。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。导入的对外写入口尚未切换；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
 ## 页面级功能
 

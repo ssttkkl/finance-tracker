@@ -32,6 +32,8 @@
 - [ ] 4.4.2 完成父记录及组成项关系结构／候选迁移、类型更新调用、联合草稿成员完整性及最终财务图和组保存点接入。
 - [x] 4.4.2.1 用唯一当前关系结构替换旧状态／代理列／JSON 候选；增加父锚点、可空组成项、持久角色、决定组及修订和规范候选，验证已有关系／投影引用保留及双后端迁移。
 - [ ] 4.4.2.2 接入联合草稿完整性和最终图校验；旧服务过渡 DTO 只映射同一事实源，不成为新接口合同。
+- [x] 4.4.2.2.1 实现共享最终图及联合成员快照校验；组成项退款归并保留实际身份，补等额真实分摊、完整钻石、占用、精度、非根资金关联和窄零退款反例。
+- [ ] 4.4.2.2.2 从相关父流水及完整决定组加载当前上下文，接入计划／提交／维护共同使用的应用边界；组保存点在 4.9 验收。
 - [ ] 4.4.2.3 接入类型更新后的角色校验、失效解除及旧新闭包，验证不重新搜索和不重读可变文本。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
@@ -90,6 +92,11 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.4.2.2.1 最终关系图（2026-10-21，HEAD／比较基线 `a36256e`）：模块缺失先失败，再实现活动正式父流水的完整组成项、归属／角色、精确金额、转账独占、退款额度／逻辑消费唯一性、全部资金关联占用及父级图校验；草稿边无财务效果。退款分配保留组成项身份，经确认的完整组成项镜像才提供等价证明；同额真实分摊相加，镜像证据去重，同父多组成项镜像保留全部关系引用且不改变展示方向。联合成员快照验证当前完整集合及修订，但其数据库加载仍在 4.4.2.2.2。
+- 独立工程／财务复核发现 P1 非基准来源的部分退款丢分配、P1 零组成项错误抵扣非零父退款、P1 明确零值被当缺省扩大，以及 P2 错误结构泄漏裸异常；均先复现失败再修复，回写 design／表合同，106 项纯定向测试及最终独立复核通过，无新增阻断。缺省分配用内部 `None` 区分，旧零哨兵须由适配层转译；普通零退款只兼容父总额均零的既有合同。最终应用入口和旧数据读入尚未切换，不声称所有旧投影已经消费组成项证明。
+- 最终显式专用 PostgreSQL 矩阵 `tests/contract/test_cash_projection_parity.py tests/contract/test_cash_relation_storage.py tests/contract/test_cash_import_dual_backend.py tests/contract/test_dual_backend_icbc_refund_pairing.py tests/test_cash_relation_graph.py tests/test_cash_relation_policy.py tests/test_cash_projection.py tests/test_relational_cash_projections.py tests/test_application_cash_projections.py tests/test_transaction_relations_projection.py -q --disable-warnings --maxfail=3 --tb=short` → 229 passed、无 skip（50.23 s），日志 `/tmp/ft-cash-relation-graph-dual.log`。完整 SQLite 沿前述两项旧 Expo 排除 → 2,255 passed、342 skipped、53 deselected、1 warning（269.72 s），日志 `/tmp/ft-cash-relation-graph-regression.log`。1,001 笔父流水及 1,000 条独立退款边的去标识只读探针生成一个零净额结果，约 0.054 s，仅是当前领域成本观察，不替代最终应用性能验收。
+- Cross-platform Impact Check：本步为内部共享财务规则和投影计算，不修改 Web、Native 或共享 presentation 页面／文案／公共 DTO；功能地图记录后端边界，F-03／F-04／F-05 的统一入口与客户端 TODO 仍保留。`uv build --out-dir /tmp/ft-cash-relation-graph-dist`、OpenSpec strict、最终 diff 及 `git diff --check` 通过。无 schema／真实数据迁移；浏览器及最终 Hallmark 不适用于此内部小步，应用接入、完整组加载和保存点在后续任务验收。
 
 - 4.4.2.1 当前关系存储（2026-10-21，HEAD／比较基线 `d0c79b8`）：缺少目标列和候选表的合同先失败，再迁移同一张关系表及所有存储消费者。移除旧状态、排序副本、活动槽、代理列、JSON 候选和取代链；父锚点及端点归属、可空组成项、持久角色、决定组、单调修订和规范候选落库。迁移保留正式财务值、关系 ID、主次展示基准及投影引用；旧非现金端点拒绝并整体回滚，非法候选仅保留当前缺失提示，有损降级拒绝。旧应用 DTO 只是同一事实源的过渡映射，不是新 API。
 - 独立复核采纳 P1 主次排序改变投影基准，以及未绑定对侧残留角色、候选指向自己、当前决定来源错误、降级漏验角色四类边界 finding，均补失败回归后关闭。SQLite 实际查询计划又发现闭包及直接关系读取会走工作区状态索引；分别改为两向索引递归和端点／候选 ID 分支，补索引、环、多种子、分片、活动过滤回归。最终独立复核 33 passed、31 项 PostgreSQL 明确排除，另 6 组拓扑探针通过，无范围内阻断；PostgreSQL 索引表达式离线编译及实际建表均已验证。
