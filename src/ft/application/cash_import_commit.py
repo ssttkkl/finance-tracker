@@ -678,7 +678,16 @@ class CashImportCommandService(CashImportPlanService):
 
     def resolve(self, plan_id, *, idempotency_key):
         session_id = _session_id(plan_id)
-        with self._uow as uow:
+        from ft.adapters.relational.runtime import StorageError
+        try:
+            return self._resolve_locked(plan_id, session_id, idempotency_key)
+        except StorageError as error:
+            if error.code != "storage.busy":
+                raise
+            return {"status": "pending"}
+
+    def _resolve_locked(self, plan_id, session_id, idempotency_key):
+        with self._uow.nonblocking() as uow:
             self._authorize(uow)
             repository = CashMutationRepository(uow._state().session, self._workspace_id)
             receipt = repository.by_key(self._user_id, idempotency_key)

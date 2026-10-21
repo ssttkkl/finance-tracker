@@ -35,6 +35,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 [联合提交命令](../src/ft/application/cash_import_commit.py) 已接入内部计划：逐流水保存点和完整关联组分别隔离，成功值才更新余额与相关列表，同事务保存收据和分页结果；重复提交、并发完全重复、草稿组成项替换及关系失败均有合同测试。HTTP、失败子集重试和 Compose 尚未切换，F-03／F-05 的页面总数、三端状态及对齐 TODO 不变。
 
+内部结果核实命令使用两后端的非阻塞工作区锁：在途写入返回仍待核实，锁释放后以持久收据和计划状态确定结果，连接故障不误报未提交。普通写入等待规则保持；公共核实 API 及 Web／Native 的恢复操作仍随统一流程交付，没有新增页面。
+
 | ID | 页面级功能 | Compose 共享实现证据 | 当前实现 |
 |---|---|---|---|
 | F-01 | 登录与注册 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | 登录、注册与认证状态恢复 |

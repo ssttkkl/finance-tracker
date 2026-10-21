@@ -46,10 +46,15 @@ def ensure_workspace(session_factory, workspace_id: str, *, name: str | None = N
 
 
 class RelationalUnitOfWork:
-    def __init__(self, session_factory, workspace_id: str):
+    def __init__(self, session_factory, workspace_id: str, *, lock_nowait: bool = False):
         self._session_factory = session_factory
         self.workspace_id = workspace_id
+        self._lock_nowait = lock_nowait
         self._state_var = ContextVar(f"relational_uow_{id(self)}", default=None)
+
+    def nonblocking(self):
+        """为状态核实创建独立工作单元，不改变共享实例的普通写锁等待。"""
+        return RelationalUnitOfWork(self._session_factory, self.workspace_id, lock_nowait=True)
 
     @dataclass
     class _State:
@@ -112,7 +117,7 @@ class RelationalUnitOfWork:
     def __enter__(self) -> "RelationalUnitOfWork":
         session = self._session_factory()
         try:
-            workspace = lock_workspace(session, self.workspace_id)
+            workspace = lock_workspace(session, self.workspace_id, nowait=self._lock_nowait)
         except (DBAPIError, OperationalError) as exc:
             session.rollback(); session.close()
             from .runtime import storage_error

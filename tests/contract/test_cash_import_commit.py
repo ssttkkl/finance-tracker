@@ -46,6 +46,41 @@ def _results(service, receipt, kind=None):
     return service.results(receipt["receipt_id"], result_kind=kind, limit=200)["items"]
 
 
+def test_resolve_returns_pending_for_independent_writer_then_recovers(context_runtime):
+    from sqlalchemy import text
+    from ft.adapters.relational.workspace_lock import lock_workspace
+    service, plan = _plan(context_runtime)
+    def checker():
+        session = context_runtime.sessions()
+        if session.bind.dialect.name == "postgresql":
+            session.execute(text("SET LOCAL lock_timeout='0'"))
+            session.execute(text("SET LOCAL statement_timeout='2s'"))
+        return session
+    service._uow = RelationalUnitOfWork(checker, context_runtime.workspace_id)
+    with context_runtime.sessions() as writer:
+        lock_workspace(writer, context_runtime.workspace_id)
+        assert service.resolve(plan["plan_id"], idempotency_key="synthetic-pending") == {"status": "pending"}
+        writer.rollback()
+    with context_runtime.sessions() as session:
+        if session.bind.dialect.name == "sqlite":
+            assert session.connection().exec_driver_sql("PRAGMA busy_timeout").scalar() == 5000
+    assert service.resolve(plan["plan_id"], idempotency_key="synthetic-pending") == {"status": "retry_original"}
+    receipt = _commit(service, plan, "synthetic-pending")
+    assert service.resolve(plan["plan_id"], idempotency_key="synthetic-pending")["receipt"]["receipt_id"] == receipt["receipt_id"]
+
+
+@pytest.mark.parametrize("code", ["storage.connect", "storage.readonly", "storage.schema"])
+def test_resolve_does_not_treat_other_storage_failures_as_pending(context_runtime, monkeypatch, code):
+    from ft.adapters.relational.runtime import StorageError
+    service, plan = _plan(context_runtime)
+    def fail(self):
+        raise StorageError(code)
+    monkeypatch.setattr(RelationalUnitOfWork, "__enter__", fail)
+    with pytest.raises(StorageError) as captured:
+        service.resolve(plan["plan_id"], idempotency_key="synthetic-storage-error")
+    assert captured.value.code == code
+
+
 def test_large_new_batch_rolls_back_failed_chunk_then_isolates_one_row(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_import_new_rows import CashImportNewRowsRepository
     from ft.adapters.relational.cash_sources import CashSourceRepository

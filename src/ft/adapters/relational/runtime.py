@@ -64,10 +64,19 @@ class StorageError(RuntimeError):
 
 def storage_error(exc: BaseException, database_url: str) -> StorageError:
     """Map dialect-native failures without exposing driver text to callers."""
-    code = getattr(getattr(exc, "orig", exc), "sqlite_errorcode", None)
-    if code in {5, 6} or "locked" in str(exc).lower() or "busy" in str(exc).lower():
+    native = getattr(exc, "orig", exc)
+    state = getattr(native, "sqlstate", None) or getattr(native, "pgcode", None)
+    if state is not None:
+        label = {"55P03": "storage.busy", "25006": "storage.readonly"}.get(state, "storage.connect")
+        return StorageError(label, database_url)
+    code = getattr(native, "sqlite_errorcode", None)
+    if isinstance(code, int):
+        primary = code & 0xff
+        label = "storage.busy" if primary in {5, 6} else "storage.readonly" if primary == 8 else "storage.connect"
+        return StorageError(label, database_url)
+    if "locked" in str(exc).lower() or "busy" in str(exc).lower():
         return StorageError("storage.busy", database_url)
-    if code == 8 or "readonly" in str(exc).lower() or "read-only" in str(exc).lower():
+    if "readonly" in str(exc).lower() or "read-only" in str(exc).lower():
         return StorageError("storage.readonly", database_url)
     return StorageError("storage.connect", database_url)
 
