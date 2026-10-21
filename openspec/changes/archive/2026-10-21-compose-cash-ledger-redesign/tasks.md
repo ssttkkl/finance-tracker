@@ -140,8 +140,9 @@
 
 ## 7. 发布
 
-- [x] 7.1 记录交付摘要与回滚路径；无迁移步骤，回滚时还原本次 Compose 页面、QA、功能地图和 OpenSpec 改动；本次仅准备 PR，不合入。
-- [x] 7.2 用户已于 2026-10-21 明确授权本仓库创建面向 `main` 的 PR；已提交 `0907fd9`、推送 `codex/compose-cash-ledger-redesign` 并创建 [PR #95](https://github.com/ssttkkl/finance-tracker/pull/95)。PR 未合并；用户授权不包括合并。
+- [x] 7.1 记录交付摘要与回滚路径；无迁移步骤；如需回滚已合入改动，撤销本次合并提交即可还原 Compose 页面、QA、功能地图和 OpenSpec 记录。
+- [x] 7.2 用户已于 2026-10-21 明确授权本仓库向 `main` 创建并合并 PR；已提交 `0907fd9`、推送 `codex/compose-cash-ledger-redesign` 并创建 [PR #95](https://github.com/ssttkkl/finance-tracker/pull/95)。合并等待 delta 同步归档和最新 PR 检查通过。
+- [x] 7.3 按用户确认将唯一 delta spec 的 5 条 Compose 收支账本要求合并到 `cash-ledger/cash-ledger-browser` 主规格；保留主规格既有内容，逐条核对 5 个 requirement block 均已同步，`openspec validate --all --strict` 为 32/32、`openspec doctor` 为 Root OK。归档时保留 5 项未完成任务，不伪装为已完成。
 
 ## 8. 反思
 
@@ -149,6 +150,10 @@
 - [x] 8.2 复盘固定筛选/分页连续容器的实现取舍及测试发现，判断是否需更新共享 Compose UI 工作流防复发。
 - [x] 8.3 复盘按月固定头部与分页/滚动条序号映射：月份标题作为行内内容显示，不进入流水序号；sticky 选择使用已缓存的 `monthPositions` 与已加载行，跨月红回归覆盖头部替换时机。该实现关系仅属于账本页面，现有语义 ID 与浏览器回归足以防复发，无需新增通用规则。
 - [x] 8.4 复盘完整刷新状态与 Paging generation 的边界、各平台下拉手势一致性及测试发现：独立门控页面内容可避免 Paging 暂留上一代数据时旧流水闪回；筛选区置于刷新容器外、多选时关闭手势，并在状态代次更新前以请求哨兵去重；设备演示缺少失败状态控制器时应保留 Native 刷新状态验证待办，不以 Web 结果替代。
+
+## 9. 归档记录
+
+- 2026-10-21：按用户确认将唯一 delta spec 的 5 条 requirement 同步至 `openspec/specs/cash-ledger/cash-ledger-browser/spec.md`，并以警告归档。`openspec validate --all --strict`：32/32；`openspec doctor`：Root OK；`git diff --check`：通过。保留 5 项未完成任务（3.9、3.10、6.24、6.26、6.27），不将其标记为完成；PR #95 的合并须等待归档同步提交对应的检查全绿。
 
 ## 审查记录
 
