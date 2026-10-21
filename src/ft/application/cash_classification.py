@@ -3,14 +3,17 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import select
+
+from ft.adapters.relational.cash_categories import set_manual_category
+from ft.adapters.relational.cash_projection_visibility import maintainable_projection_conditions
+from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
 from ft.adapters.relational.models import (
     CashCategoryModel,
     CashProjectionMemberModel,
     CashProjectionModel,
-    CashProjectionStateModel,
-    CashTransactionModel,
 )
 
 
@@ -30,12 +33,7 @@ class CashClassificationService:
         if not ids:
             raise ValueError("category.projections_required")
         with self._sessions.begin() as session:
-            state_query = select(CashProjectionStateModel).where(
-                CashProjectionStateModel.workspace_id == self._workspace_id,
-            )
-            if session.bind.dialect.name == "postgresql":
-                state_query = state_query.with_for_update()
-            state = session.scalar(state_query)
+            state = RelationalCashProjectionRepository(session, self._workspace_id).ready_state_lock_or_none()
             if state is None or state.availability != "ready" or not state.active_dataset_id:
                 raise ValueError("projection.unavailable")
             if int(state.projection_version) != int(projection_version):
@@ -54,7 +52,7 @@ class CashClassificationService:
                 CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == state.active_dataset_id,
                 CashProjectionModel.projection_id.in_(ids),
-                CashProjectionModel.visible.is_(True),
+                *maintainable_projection_conditions(self._workspace_id, state.active_dataset_id),
             )).all()
             if len(rows) != len(ids):
                 raise ValueError("projection.version_conflict")
@@ -69,23 +67,23 @@ class CashClassificationService:
                 CashProjectionMemberModel.dataset_id == state.active_dataset_id,
                 CashProjectionMemberModel.projection_row_id.in_(row_ids),
             ).order_by(CashProjectionMemberModel.projection_row_id, CashProjectionMemberModel.ordinal)).all()))
-            if not member_ids:
+            if not member_ids or len(member_ids) != sum(row.member_count for row in rows):
                 raise ValueError("projection.version_conflict")
 
-            session.execute(update(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.id.in_(member_ids),
-                CashTransactionModel.deleted_at.is_(None),
-            ).values(category_id=target.id if target else None))
-            next_version = int(state.projection_version) + 1
-            for row in rows:
-                row.category_id = target.id if target else None
-                row.category_path = target.category_path if target else None
-                row.built_projection_version = next_version
-                row.updated_at = _now()
-            state.projection_version = next_version
-            state.updated_at = _now()
-            state.source_revision += 1
+            changed = set_manual_category(session, self._workspace_id, member_ids, target.id if target else None)
+            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
+            next_version = int(state.projection_version)
+            category_value, category_path = (target.id, target.category_path) if target else (None, None)
+            if changed or any(row.category_id != category_value or row.category_path != category_path for row in rows):
+                next_version += 1
+                for row in rows:
+                    row.category_id = category_value
+                    row.category_path = category_path
+                    row.built_projection_version = next_version
+                    row.updated_at = _now()
+                state.projection_version = next_version
+                state.updated_at = _now()
+                state.source_revision += 1
             return {
                 "projection_version": next_version,
                 "projection_count": len(rows),

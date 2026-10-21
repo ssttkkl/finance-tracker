@@ -24,6 +24,7 @@
 - `import/statement-import`：来源对应、来源原文备注、草稿、统一字段约束及逐行隔离。
 - `cash-ledger/transaction-relations`：草稿关联、联合最终图、已确认决定保护、类型更新清理及局部闭包。
 - `cash-ledger/cash-record-classification`：草稿可缺类型、对方账号及属性直接覆盖、普通类型更新无需历史迁移。
+- `cash-ledger/cash-category-management`：明确分类保护整笔成员及清空值，自动同步尊重人工决定，待处理项维护范围与列表一致。
 - `cash-ledger/cash-ledger-browser`：统一导入列表、确认状态、主页后续处理、独立账户及跨端一致性。
 - `shared/ledger-records`：同表草稿、正式字段约束、来源绑定、当前投影和删除重导。
 - `accounts/multi-currency-accounts`：普通账户命令稳定引用、并发修订及幂等，用于导入内独立账户操作和安全补偿。

@@ -4,10 +4,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
 from ft.adapters.relational.models import CashCategoryModel, CashCategoryStateModel, CashTransactionModel, WorkspaceModel
+from ft.adapters.relational.cash_categories import clear_manual_category
+from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+from ft.adapters.relational.workspace_lock import lock_workspace
 
 
 ROOT_SCOPE = "__root__"
@@ -36,11 +39,15 @@ class CashCategoryService:
         self._workspace_id = workspace_id
 
     def _state(self, session, *, lock: bool = False) -> CashCategoryStateModel:
+        if lock and lock_workspace(session, self._workspace_id) is None:
+            raise ValueError("category.workspace_not_found")
         query = select(CashCategoryStateModel).where(
             CashCategoryStateModel.workspace_id == self._workspace_id,
         )
         if lock and session.bind.dialect.name == "postgresql":
             query = query.with_for_update()
+        if lock:
+            query = query.execution_options(populate_existing=True)
         state = session.scalar(query)
         if state is None:
             workspace = session.scalar(select(WorkspaceModel.id).where(WorkspaceModel.id == self._workspace_id))
@@ -256,15 +263,9 @@ class CashCategoryService:
                 raise ValueError("category.impact_changed")
             if usage_count and not confirmed:
                 raise ValueError("category.delete_confirmation_required")
-            affected_ids = list(session.scalars(select(CashTransactionModel.id).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.category_id == category.id,
-                CashTransactionModel.deleted_at.is_(None),
-            )))
-            session.execute(update(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.category_id == category.id,
-            ).values(category_id=None))
+            changed = clear_manual_category(session, self._workspace_id, category.id)
+            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
+            affected_ids = {identifier for identifier, live in changed.items() if live}
             if affected_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(

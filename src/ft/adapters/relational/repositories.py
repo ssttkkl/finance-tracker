@@ -800,6 +800,8 @@ class RelationalCashflowRepository:
                 normalized_value = exact_decimal(value)
             elif field == "counterparty_account_attrs":
                 normalized_value = list(value or [])
+            elif field == "category_id":
+                normalized_value = str(value).strip() or None if value is not None else None
             elif field in {
                 "currency", "counterparty", "counterparty_account", "note",
                 "category_id", "record_type", "record_subtype",
@@ -810,14 +812,20 @@ class RelationalCashflowRepository:
             previous_value = getattr(row, field)
             if (
                 manual
-                and row.source_type
+                and row.source_type and field not in {"note", "category_id"}
                 and field not in source_values
                 and field not in overrides
                 and _json_safe(normalized_value) == _json_safe(previous_value)
             ):
                 continue
             setattr(row, field, normalized_value)
-            if manual and row.source_type:
+            if manual and field in {"note", "category_id"}:
+                protected = dict(overrides.get(field) or {})
+                protected["value"] = _json_safe(normalized_value)
+                if field in source_values:
+                    protected["source_value"] = _json_safe(source_values[field])
+                overrides[field] = protected
+            elif manual and row.source_type:
                 source_value = source_values.get(field, overrides.get(field, {}).get("source_value"))
                 if source_value is not None and _json_safe(normalized_value) == _json_safe(source_value):
                     overrides.pop(field, None)
@@ -944,9 +952,9 @@ class RelationalCashflowRepository:
             field: row[field]
             for field in (
                 "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-                "counterparty_account_attrs", "note", "record_type", "record_subtype",
+                "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
             )
-            if field in row and row[field] is not None
+            if field in row and (row[field] is not None or field == "category_id")
         }
         overrides = _json_safe(existing.manual_overrides or {})
         values = dict(row)

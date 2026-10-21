@@ -101,7 +101,7 @@ def test_import_merge_keeps_manual_field_and_refreshes_other_fields(cash_web_run
     assert created_new is False
     current = service.get_record(fact_id)["record"]
     assert current["counterparty"] == "人工校准"
-    assert current["note"] == "来源新备注"
+    assert current["note"] == "早餐"  # 明确提交的同值备注仍受人工保护。
 
 
 def test_cash_import_batch_preserves_idempotency_and_calibration(cash_web_runtime):
@@ -245,7 +245,9 @@ def test_import_is_row_idempotent_updates_snapshot_and_allows_republish_after_de
         amount="-13.00", counterparty="来源新商户", note="再次导入",
     ))
     with RelationalUnitOfWork(cash_web_runtime.sessions, cash_web_runtime.workspace_id) as uow:
-        assert uow.cashflows.get(fact_id)["manual_overrides"] == {}
+        assert uow.cashflows.get(fact_id)["manual_overrides"] == {
+            "note": {"value": "再次导入", "source_value": "再次导入"},
+        }
         uow.commit()
 
     command_service.delete_record(fact_id)

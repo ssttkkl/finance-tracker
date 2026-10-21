@@ -7,6 +7,7 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
+from ft.adapters.relational.cash_projection_visibility import active_source_conditions
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
@@ -364,18 +365,7 @@ class RelationalCashLedgerQueryRepository:
                 )
         return transfers
     def _active_source_conditions(self, dataset_id):
-        # A scalar PK lookup prevents PostgreSQL from flattening EXISTS into
-        # a repeated workspace scan when a freshly published dataset has no
-        # useful statistics yet. The deleted-member set is built just once.
-        root = select(CashTransactionModel.id).where(CashTransactionModel.workspace_id == self._workspace_id,
-            CashTransactionModel.id == CashProjectionModel.root_cash_transaction_id,
-            CashTransactionModel.deleted_at.is_(None)).limit(1).scalar_subquery().is_not(None)
-        deleted_projections = select(CashProjectionMemberModel.projection_row_id).join(CashTransactionModel, and_(
-            CashTransactionModel.workspace_id == CashProjectionMemberModel.workspace_id,
-            CashTransactionModel.id == CashProjectionMemberModel.cash_transaction_id)).where(
-                CashProjectionMemberModel.workspace_id == self._workspace_id,
-                CashProjectionMemberModel.dataset_id == dataset_id, CashTransactionModel.deleted_at.is_not(None)).correlate(None)
-        return root, CashProjectionModel.id.not_in(deleted_projections)
+        return active_source_conditions(self._workspace_id, dataset_id)
 
     def _filter_options(self, session, dataset_id, *, version=None, categories=None):
         cache_key = (dataset_id, version)

@@ -130,10 +130,13 @@ class CashProjectionService:
 
     @staticmethod
     def _synchronize_component_categories(session, workspace_id: str, build) -> None:
-        """已确认关系使用展示基准流水分类，并同步整个现金部分。"""
-        from sqlalchemy import or_, update
+        """同步展示基准分类，保留成员已有的人工分类和明确清空。"""
+        from sqlalchemy import select
+        from sqlalchemy.orm import load_only
+        from ft.adapters.relational.cash_relations import CurrentCashRelationRepository, _batches
         from ft.adapters.relational.models import CashTransactionModel
 
+        changed = set()
         for projection in build.projections:
             category_id = projection.primary_record.category_id
             member_ids = [
@@ -143,24 +146,20 @@ class CashProjectionService:
             ]
             if not member_ids:
                 continue
-            category_mismatch = (
-                CashTransactionModel.category_id.is_not(None)
-                if category_id is None
-                else or_(
-                    CashTransactionModel.category_id.is_(None),
-                    CashTransactionModel.category_id != category_id,
-                )
-            )
-            session.execute(
-                update(CashTransactionModel)
-                .where(
+            for batch in _batches(member_ids):
+                rows = session.scalars(select(CashTransactionModel).where(
                     CashTransactionModel.workspace_id == workspace_id,
-                    CashTransactionModel.id.in_(member_ids),
+                    CashTransactionModel.id.in_(batch),
                     CashTransactionModel.deleted_at.is_(None),
-                    category_mismatch,
-                )
-                .values(category_id=category_id)
-            )
+                ).options(load_only(CashTransactionModel.id, CashTransactionModel.category_id,
+                    CashTransactionModel.manual_overrides)))
+                for row in rows:
+                    if "category_id" not in (row.manual_overrides or {}) and row.category_id != category_id:
+                        row.category_id = category_id
+                        changed.add(row.id)
+        if changed:
+            session.flush()
+            CurrentCashRelationRepository(session, workspace_id).mark_candidates_stale(changed)
 
     @staticmethod
     def maintain_if_ready_in_session(

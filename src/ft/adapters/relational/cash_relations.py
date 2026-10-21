@@ -134,8 +134,13 @@ class CurrentCashRelationRepository:
 
     def mark_candidates_stale(self, transaction_ids):
         """调用方传入实际更新的流水；使其端点及对侧候选依赖失效。"""
+        transaction_ids = tuple(sorted({_id(value) for value in transaction_ids}))
+        if len(transaction_ids) > 500 and self._session.scalar(select(CashRelationCandidateModel.id).where(
+            CashRelationCandidateModel.workspace_id == self._workspace_id,
+            CashRelationCandidateModel.validity != "stale").limit(1)) is None:
+            return frozenset()
         changed = set()
-        for batch in _batches(sorted({_id(value) for value in transaction_ids})):
+        for batch in _batches(transaction_ids):
             candidate_dependencies = select(CashRelationCandidateModel.id, CashRelationCandidateModel.relation_id).where(
                 CashRelationCandidateModel.workspace_id == self._workspace_id,
                 CashRelationCandidateModel.candidate_transaction_id.in_(batch), CashRelationCandidateModel.validity != "stale",

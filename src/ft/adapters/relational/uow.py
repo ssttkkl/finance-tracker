@@ -9,6 +9,7 @@ from sqlalchemy.exc import DBAPIError, OperationalError
 
 from .models import Base, WorkspaceModel
 from .imports import RelationalImportRepository
+from .workspace_lock import lock_workspace
 from .repositories import (
     RelationalAccountAliasRepository,
     RelationalAccountRepository,
@@ -111,12 +112,7 @@ class RelationalUnitOfWork:
     def __enter__(self) -> "RelationalUnitOfWork":
         session = self._session_factory()
         try:
-            if session.bind.dialect.name == "sqlite" and session.bind.url.database != ":memory:":
-                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
-            workspace_query = select(WorkspaceModel.id).where(WorkspaceModel.id == self.workspace_id)
-            if session.bind.dialect.name == "postgresql":
-                workspace_query = workspace_query.with_for_update()
-            workspace = session.scalar(workspace_query)
+            workspace = lock_workspace(session, self.workspace_id)
         except (DBAPIError, OperationalError) as exc:
             session.rollback(); session.close()
             from .runtime import storage_error

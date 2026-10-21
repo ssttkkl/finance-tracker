@@ -12,6 +12,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 [45 迁移](../migrations/versions/20261021_45_cash_projection_ownership.py) 限制派生结果的工作区归属及唯一活动集合；全量修复发布成功后清理旧派生副本，正式源记录保持。相关 [归属和回滚合同](../tests/contract/test_cash_projection_ownership.py) 覆盖跨工作区写入、异常迁移与旧会话缓存，不新增页面或改变客户端覆盖状态。
 
+F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清空，自动分类同步保留成员已有人工选择，F-07 删除分类同步保护空值。业务隐藏但仍待处理的项可按当前列表范围维护，已删除来源仍被排除；[分类保护合同](../tests/contract/test_cash_manual_classification.py) 覆盖传播、候选失效及事务回滚。Web、Native、共享 presentation 本步没有页面、文案或操作结构改动，页面数与跨端覆盖 TODO 保持；新导入及完整草稿维护仍待上述统一流程切换。
+
 ## 页面级功能
 
 微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。

@@ -21,6 +21,7 @@ from ft.domain.canonical import canonical_bytes
 
 from .cash_attention import read_cash_attention
 from .cash_relations import CurrentCashRelationRepository, _batches
+from .workspace_lock import lock_workspace
 from .models import (
     CashProjectionDatasetModel,
     CashProjectionMemberModel,
@@ -33,7 +34,6 @@ from .models import (
     CashTransactionComponentModel,
     CashTransactionIssueModel,
     TransactionRelationModel,
-    WorkspaceModel,
 )
 
 
@@ -54,16 +54,11 @@ class RelationalCashProjectionRepository:
     def _state(self, *, create: bool = False, lock: bool = False) -> CashProjectionStateModel | None:
         statement = select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == self._workspace_id)
         if lock:
-            if self._session.bind.dialect.name == "sqlite":
-                connection = self._session.connection()
-                if not connection.connection.driver_connection.in_transaction:
-                    connection.exec_driver_sql("BEGIN IMMEDIATE")
-            workspace = select(WorkspaceModel).where(WorkspaceModel.id == self._workspace_id)
+            if lock_workspace(self._session, self._workspace_id) is None:
+                from sqlalchemy.exc import NoResultFound
+                raise NoResultFound()
             if self._session.bind.dialect.name == "postgresql":
-                workspace = workspace.with_for_update()
                 statement = statement.with_for_update()
-            with self._session.no_autoflush:
-                self._session.execute(workspace).one()
             statement = statement.execution_options(populate_existing=True)
         state = self._session.scalar(statement)
         if state is None and create:

@@ -454,12 +454,9 @@ class CashLedgerCommandService:
                 values["components"] = current.get("components") or []
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
-            category_changed = (
-                "category_id" in values
-                and str(values.get("category_id") or "") != str(current.get("category_id") or "")
-            )
+            category_supplied = "category_id" in values
             category_id = str(values.get("category_id") or "") or None
-            if category_changed:
+            if category_supplied:
                 projection_state = uow._state().session.scalar(sa_select(CashProjectionStateModel).where(
                     CashProjectionStateModel.workspace_id == self._workspace_id,
                 ))
@@ -503,7 +500,7 @@ class CashLedgerCommandService:
                 except CashRelationError:
                     raise ValueError("相关流水已变化，请重新打开后保存。") from None
                 component_ids = set(type_context.transaction_ids)
-            elif key_changed or category_changed:
+            elif key_changed or category_supplied:
                 component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
             updated = uow.cashflows.update(
                 int(fact_id),
@@ -511,12 +508,11 @@ class CashLedgerCommandService:
                 _row=current_model,
                 _account=account,
             )
-            if category_changed and len(component_ids) > 1:
-                uow._state().session.execute(sa_update(CashTransactionModel).where(
-                    CashTransactionModel.workspace_id == self._workspace_id,
-                    CashTransactionModel.id.in_(component_ids),
-                    CashTransactionModel.deleted_at.is_(None),
-                ).values(category_id=category_id))
+            changed_ids = {int(fact_id)} if current_model.row_revision != previous_row_revision else set()
+            if category_supplied:
+                from ft.adapters.relational.cash_categories import set_manual_category
+                changed_ids.update(set_manual_category(
+                    uow._state().session, self._workspace_id, component_ids, category_id))
             if component_relations and key_changed and type_context is None:
                 try:
                     self._validate_projection_graph(uow, component_ids)
@@ -532,9 +528,9 @@ class CashLedgerCommandService:
             if type_context is None:
                 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 
-                if category_changed or current_model.row_revision != previous_row_revision:
+                if changed_ids:
                     CurrentCashRelationRepository(uow._state().session, self._workspace_id).mark_candidates_stale(
-                        component_ids if category_changed else {int(fact_id)},
+                        changed_ids,
                     )
             if type_context is not None:
                 from ft.application.cash_relation_type_updates import CashRelationTypeUpdateService
@@ -543,16 +539,16 @@ class CashLedgerCommandService:
                 try:
                     CashRelationTypeUpdateService(uow._state().session, self._workspace_id).maintain(
                         type_context, {int(fact_id)},
-                        updated_transaction_ids=component_ids if category_changed else {int(fact_id)},
+                        updated_transaction_ids=changed_ids,
                     )
                 except CashRelationError as exc:
                     message = "相关流水已变化，请重新打开后保存。" if exc.code == "relation_context_changed" else "本次修改与已有配对冲突，请先调整配对。"
                     raise ValueError(message) from None
-            elif (key_changed or category_changed) and not component_relations:
+            elif (key_changed or category_supplied) and not component_relations:
                 CashProjectionService.replace_standalone_fact_if_ready_in_session(
                     uow._state().session, uow.workspace_id, current_model,
                 )
-            elif key_changed or category_changed:
+            elif key_changed or category_supplied:
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
@@ -767,11 +763,13 @@ class CashLedgerCommandService:
         if int(state.projection_version) != projection_version:
             raise ValueError("projection.version_conflict")
 
+        from ft.adapters.relational.cash_projection_visibility import maintainable_projection_conditions
+
         projection_statement = sa_select(CashProjectionModel).where(
             CashProjectionModel.workspace_id == self._workspace_id,
             CashProjectionModel.dataset_id == state.active_dataset_id,
             CashProjectionModel.projection_id.in_(ids),
-            CashProjectionModel.visible.is_(True),
+            *maintainable_projection_conditions(self._workspace_id, state.active_dataset_id),
         )
         if lock:
             projection_statement = projection_statement.with_for_update()
