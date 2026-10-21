@@ -18,6 +18,9 @@ _FIELDS = frozenset({"kind", "subtype", "state", "active", "primary_transaction_
     "rule_id", "created_by", "decided_by", "decided_at", "decision_reason"})
 _IDS = frozenset({"primary_transaction_id", "secondary_transaction_id", "primary_component_id",
     "secondary_component_id", "anchor_transaction_id", "anchor_component_id"})
+_GRAPH_FIELDS = ("id", "kind", "subtype", "primary_transaction_id", "secondary_transaction_id",
+    "primary_component_id", "secondary_component_id", "primary_role", "secondary_role", "applied_amount",
+    "state", "active", "decision_group_id", "row_revision")
 
 
 def _batches(values):
@@ -92,22 +95,42 @@ class CurrentCashRelationRepository:
             return []
         rows = {}
         for batch in _batches(sorted(ids)):
-            filters = [TransactionRelationModel.workspace_id == self._workspace_id]
-            if active_only:
-                filters.append(TransactionRelationModel.active.is_(True))
-            branches = [select(TransactionRelationModel.id).where(*filters, endpoint.in_(batch)) for endpoint in (
-                TransactionRelationModel.primary_transaction_id, TransactionRelationModel.secondary_transaction_id,
-                TransactionRelationModel.anchor_transaction_id)]
-            if include_candidates:
-                branches.append(select(CashRelationCandidateModel.relation_id).where(
-                    CashRelationCandidateModel.workspace_id == self._workspace_id,
-                    CashRelationCandidateModel.candidate_transaction_id.in_(batch)))
             # Keep the outer lookup on (workspace, id). An outer active filter
             # makes SQLite prefer its workspace-state index over the ID set.
             query = select(TransactionRelationModel).where(TransactionRelationModel.workspace_id == self._workspace_id,
-                TransactionRelationModel.id.in_(union(*branches))).execution_options(populate_existing=True)
+                TransactionRelationModel.id.in_(self._transaction_ids_query(batch, active_only, include_candidates))).execution_options(populate_existing=True)
             rows.update((row.id, row) for row in self._session.scalars(query) if not active_only or row.active)
         return self._dicts(rows[key] for key in sorted(rows))
+
+    def _transaction_ids_query(self, batch, active_only, include_candidates):
+        filters = [TransactionRelationModel.workspace_id == self._workspace_id]
+        if active_only:
+            filters.append(TransactionRelationModel.active.is_(True))
+        branches = [select(TransactionRelationModel.id).where(*filters, endpoint.in_(batch)) for endpoint in (
+            TransactionRelationModel.primary_transaction_id, TransactionRelationModel.secondary_transaction_id,
+            TransactionRelationModel.anchor_transaction_id)]
+        if include_candidates:
+            branches.append(select(CashRelationCandidateModel.relation_id).where(
+                CashRelationCandidateModel.workspace_id == self._workspace_id,
+                CashRelationCandidateModel.candidate_transaction_id.in_(batch)))
+        return union(*branches)
+
+    def graph_rows_for_transactions(self, transaction_ids):
+        rows = {}
+        for batch in _batches(sorted({_id(value) for value in transaction_ids})):
+            query = select(*(getattr(TransactionRelationModel, key) for key in _GRAPH_FIELDS)).where(
+                TransactionRelationModel.workspace_id == self._workspace_id,
+                TransactionRelationModel.id.in_(self._transaction_ids_query(batch, True, False)))
+            rows.update((row["id"], dict(row)) for row in self._session.execute(query).mappings() if row["active"])
+        return tuple(rows[key] for key in sorted(rows))
+
+    def graph_rows_for_groups(self, group_ids):
+        rows = {}
+        for batch in _batches(sorted(set(group_ids))):
+            query = select(*(getattr(TransactionRelationModel, key) for key in _GRAPH_FIELDS)).where(
+                TransactionRelationModel.workspace_id == self._workspace_id, TransactionRelationModel.decision_group_id.in_(batch))
+            rows.update((row["id"], dict(row)) for row in self._session.execute(query).mappings())
+        return tuple(rows[key] for key in sorted(rows))
 
     def confirmed_closure(self, transaction_ids):
         ids = {_id(value) for value in transaction_ids}

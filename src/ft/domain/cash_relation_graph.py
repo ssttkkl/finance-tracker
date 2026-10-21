@@ -35,6 +35,25 @@ class JointRelationMember:
     active: bool = True
 
 
+def validate_relation_graph_edge_input(relation):
+    """在任何引用查找前统一验证关系输入结构，不解释来源证据。"""
+    if (not isinstance(relation, CashRelationGraphEdge) or type(relation.id) is not int or relation.id <= 0
+        or not isinstance(relation.kind, str) or relation.kind not in {"payment_mirror", "refund_offset", "transfer_pair"}
+        or not isinstance(relation.state, str) or relation.state not in {"draft", "confirmed", "ignored"}
+        or type(relation.active) is not bool or not isinstance(relation.subtype, str)
+        or not isinstance(relation.primary_transaction_id, str) or not relation.primary_transaction_id
+        or any(value is not None and (not isinstance(value, str) or not value) for value in (
+            relation.secondary_transaction_id, relation.primary_component_id, relation.secondary_component_id,
+            relation.primary_role, relation.secondary_role))):
+        raise CashRelationError("relation_data_invalid")
+    if relation.applied_amount is not None:
+        try:
+            if not isinstance(relation.applied_amount, Decimal) or exact_decimal(relation.applied_amount) < 0:
+                raise ValueError
+        except (ValueError, TypeError, ArithmeticError):
+            raise CashRelationError("relation_amount_invalid") from None
+
+
 def validate_joint_relation_context(expected_members, current_members, decided_ids):
     """调用方从库加载完整组；客户端传入的子集不能代表当前组。"""
     def members(values):
@@ -139,14 +158,8 @@ def _build(facts, components, relations, funding):
     component_mirrors, parent_mirrors = _Equivalence(by_component), _Equivalence(parents)
     prepared, identifiers, business_keys, transfer_occupied = [], set(), set(), set()
     for relation in relations:
-        if (not isinstance(relation, CashRelationGraphEdge) or type(relation.id) is not int or relation.id <= 0 or relation.id in identifiers
-            or not isinstance(relation.kind, str) or relation.kind not in {"payment_mirror", "refund_offset", "transfer_pair"}
-            or not isinstance(relation.state, str) or relation.state not in {"draft", "confirmed", "ignored"}
-            or type(relation.active) is not bool or not isinstance(relation.subtype, str)
-            or not isinstance(relation.primary_transaction_id, str) or not relation.primary_transaction_id
-            or any(value is not None and (not isinstance(value, str) or not value) for value in (
-                relation.secondary_transaction_id, relation.primary_component_id, relation.secondary_component_id,
-                relation.primary_role, relation.secondary_role))):
+        validate_relation_graph_edge_input(relation)
+        if relation.id in identifiers:
             raise CashRelationError("relation_data_invalid")
         identifiers.add(relation.id)
         if not relation.active or relation.state != "confirmed":
