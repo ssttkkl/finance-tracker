@@ -1147,6 +1147,10 @@ test("F-03 FAB 覆盖列表，月份头部固定且桌面表格行内缩", async
     expect(filterBounds).not.toBeNull();
     expect(Math.abs(stickyBounds!.y - listBounds!.y)).toBeLessThanOrEqual(2);
     expect(stickyBounds!.y).toBeGreaterThanOrEqual(filterBounds!.y + filterBounds!.height - 2);
+    if (width >= 600) {
+      const filterCardRight = filterBounds!.x + filterBounds!.width + 16;
+      expect(Math.abs(stickyBounds!.x + stickyBounds!.width - filterCardRight)).toBeLessThanOrEqual(2);
+    }
 
     if (width >= 600) {
       const stickyTableHeader = page.locator('[id="ledger.sticky-table-header"]').last();
@@ -1270,16 +1274,23 @@ test("F-03 窄滚动条轨道和滑块贴齐列表并按尺寸显示", async ({ 
     expect(listBounds).not.toBeNull();
     expect(Math.abs(trackBounds!.width - 4)).toBeLessThanOrEqual(1);
     expect(Math.abs(thumbBounds!.width - 4)).toBeLessThanOrEqual(1);
-    expect(Math.abs(trackBounds!.x + trackBounds!.width - (listBounds!.x + listBounds!.width))).toBeLessThanOrEqual(2);
+    const listRight = listBounds!.x + listBounds!.width;
+    const expectedTrackRight = listRight - (sizeName === "compact" ? 0 : 16);
+    expect(Math.abs(trackBounds!.x + trackBounds!.width - expectedTrackRight)).toBeLessThanOrEqual(2);
     expect(Math.abs(thumbBounds!.x + thumbBounds!.width - (trackBounds!.x + trackBounds!.width))).toBeLessThanOrEqual(1);
     if (sizeName !== "compact") {
       const filtersBounds = await page.locator('[id="ledger.filters"]').last().boundingBox();
       const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      const monthTableBounds = await page.locator('[id^="ledger.table-2026-"]').first().boundingBox();
       expect(filtersBounds).not.toBeNull();
       expect(listBounds).not.toBeNull();
-      const filtersContentRight = filtersBounds!.x + filtersBounds!.width;
+      expect(monthTableBounds).not.toBeNull();
+      // The semantic filter panel is inside the filter card's 16 dp content padding.
+      const filterCardRight = filtersBounds!.x + filtersBounds!.width + 16;
       const listContentRight = listBounds!.x + listBounds!.width;
-      expect(Math.abs(filtersContentRight - listContentRight)).toBeLessThanOrEqual(2);
+      const monthTableRight = monthTableBounds!.x + monthTableBounds!.width;
+      expect(Math.abs(filterCardRight - listContentRight)).toBeLessThanOrEqual(2);
+      expect(Math.abs(filterCardRight - monthTableRight)).toBeLessThanOrEqual(2);
     } else {
       await page.screenshot({ path: path.join(screenshotDirectory, "scrollbar-compact-scrolling.png") });
     }

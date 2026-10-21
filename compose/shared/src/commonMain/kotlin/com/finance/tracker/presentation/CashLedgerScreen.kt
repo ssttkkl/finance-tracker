@@ -257,7 +257,6 @@ internal fun CashLedgerScreen(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
-                    .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 16.dp))
                     .testTag(SemanticIds.ledgerList),
                 contentPadding = PaddingValues(bottom = 104.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
@@ -408,7 +407,6 @@ internal fun CashLedgerScreen(
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .fillMaxWidth()
-                        .then(if (sizeClass == WindowSizeClass.COMPACT) Modifier else Modifier.padding(end = 16.dp))
                         .testTag(SemanticIds.ledgerStickySummary),
                     shape = MaterialTheme.shapes.medium,
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
