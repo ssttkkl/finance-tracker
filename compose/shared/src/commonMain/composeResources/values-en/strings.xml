@@ -489,7 +489,7 @@
     <string name="navigation_investment_holdings">Holdings</string>
     <string name="navigation_invitation">Accept invitation</string>
     <string name="navigation_not_found">Page not found</string>
-    <string name="navigation_workspace_management">Workspace settings</string>
+    <string name="navigation_workspace_management">Management</string>
     <string name="display_not_provided">Not provided</string>
     <string name="display_time_not_provided">Time not provided</string>
     <string name="display_date_full">%2$d/%3$d/%1$d</string>
@@ -615,4 +615,13 @@
     <string name="ledger_relation_dissolve_confirm">Dissolve links</string>
     <string name="ledger_relation_unlinking">Unlinking…</string>
     <string name="ledger_relation_dissolving">Dissolving links…</string>
+    <string name="management_workspace">Workspace</string>
+    <string name="management_basic_info">Basic info</string>
+    <string name="management_access">Access</string>
+    <string name="management_members">Members</string>
+    <string name="management_danger">Danger zone</string>
+    <string name="management_directory">Management directory</string>
+    <string name="management_open_directory">Open management directory</string>
+    <string name="management_category_more">Category actions</string>
+    <string name="management_category_has_children">Delete (move children first)</string>
 </resources>

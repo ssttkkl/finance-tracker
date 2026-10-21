@@ -74,6 +74,7 @@ internal fun ModalHeader(
     titleSpacing: Dp? = null,
     headerTestTag: String? = null,
     closeTestTag: String? = null,
+    closeEnabled: Boolean = true,
     title: @Composable () -> Unit,
 ) {
     val closeLabel = localizedText("copy_6c14bd7f6f")
@@ -96,6 +97,7 @@ internal fun ModalHeader(
     ) {
         IconButton(
             onClick = onClose,
+            enabled = closeEnabled,
             modifier = Modifier
                 .then(closeTestTag?.let { Modifier.testTag(it) } ?: Modifier)
                 .semantics { contentDescription = closeLabel },

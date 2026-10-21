@@ -448,7 +448,14 @@ export async function installComposeApiFixtures(
     if (/^\/api\/v1\/cash-categories\/[^/]+\/deletion-impact$/.test(pathname) && method === "GET") {
       return json({ category_id: pathname.split("/").at(-2), revision: 3, category_revision: 2, child_count: 0, direct_usage_count: 0 });
     }
-    if (/^\/api\/v1\/cash-categories\/[^/]+$/.test(pathname) && method === "PATCH") return json({});
+    if (/^\/api\/v1\/cash-categories\/[^/]+$/.test(pathname) && method === "PATCH") {
+      const values = JSON.parse(body ?? "{}");
+      const id = pathname.split("/").at(-1);
+      const previous = state.categoryItems.find((item) => item.id === id);
+      const item = { ...previous, ...values, id, revision: 3 };
+      state.categoryItems = state.categoryItems.map((category) => category.id === id ? item : category);
+      return json(item);
+    }
     if (/^\/api\/v1\/cash-categories\/[^/]+\/reorder$/.test(pathname) && method === "POST") return json({});
     if (/^\/api\/v1\/cash-categories\/[^/]+$/.test(pathname) && method === "DELETE") {
       return json({ category_id: pathname.split("/").at(-1), cleared_transaction_count: 0, revision: 4 });
