@@ -350,6 +350,7 @@ flowchart TD
 | `PATCH /cash-records/{transaction_id}/draft` | `expected_revision` 与字段补丁；只保存草稿，即使完整也不转正式；返回详情和问题 |
 | `POST /cash-mutations/plans` | 正式编辑、草稿转正式、当前问题处理或详情内关系维护；返回同类不可变计划 |
 | `GET /cash-mutations/plans/{plan_id}` 及 `/items`、`/items/{preview_item_id}` | 读取维护计划的预计流水结果及详情，权限、游标和到期规则与导入计划一致 |
+| `GET /cash-mutations/edit-contexts/{edit_context_id}/plan` | 重预览响应丢失时读取该上下文的当前计划；已消费返回原收据引用，不重新授权提交 |
 | `POST /cash-mutations/plans/{plan_id}/commit` | `Idempotency-Key`；统一字段约束及局部提交；返回 `MutationReceipt` 和最新定位 |
 
 草稿补丁请求也使用幂等键与并发修订，避免响应丢失后误报冲突。`state` 不属于补丁字段，用户不能直接改为 `posted`。正式编辑补丁只能包含主设计白名单；固定字段实际变化拒绝该操作，原记录不动。
@@ -374,7 +375,13 @@ flowchart TD
 
 `intent` 可选 `edit_record/finalize_draft/resolve_issue/maintain_relations`。`resolve_issue` 另外提供 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用；允许值由具体问题返回，不能将固定字段冲突用 `apply_source` 强行应用。`merge_into` 必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
 
+请求仅接受当前意图的字段；`patch`、`relation_choices` 省略时为空。`expected_revision`、`expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标值。关联决定沿用 `suggestion_id/action/candidate_id`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
+
 首次维护预览创建一个临时编辑上下文并返回 `edit_context_id/plan_revision`。修改补丁或关联选择时再次 `POST /cash-mutations/plans`，携带该上下文、`previous_plan_id/expected_plan_revision` 和完整输入；服务端按比较写入生成新计划并使旧计划不可提交。无须重新读取原文件；记录并发仍由 `expected_revision` 单独约束。维护提交请求带 `expected_plan_revision`，成功后消费该编辑上下文；过期返回 `410 plan_expired`，用户从当前详情重新预览。
+
+维护上下文只承载无文件的当前操作，不能用于导入或失败重试。首次 `plan_revision=1`，成功重预览递增；稳定的 `transaction_id` 不能在同一上下文内更换。父修订过期时先刷新当前详情，再用新父修订重预览；构建、输入或预算失败不替换原计划。所有者和当前工作区权限、永久消费收据在读取临时正文前检查，已清理的已消费上下文不会重新授权提交。
+
+维护计划的 `summary` 仅含非负、非布尔整数计数：`update_posted`、`finalize_draft`、`update_draft`、`resolve_issue`、`merge_draft`、`create_independent`、`duplicate`、`skip`、`relations_accepted`、`relations_deferred`、`relations_ignored`、`relations_removed`、`relations_failed`；不含错误文本或流水正文。未知键或错误类型在发布前拒绝，不能替换原计划。
 
 `maintain_relations` 从相关 `transaction_id` 出发提交当前建议或关系引用以及 `accept/defer/ignore/remove`；类型变化造成的系统解除由服务端计算，不作为客户端任意删除集合。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回新的关联解除或用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
 

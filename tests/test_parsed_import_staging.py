@@ -136,6 +136,39 @@ def test_retry_context_inherits_original_lifetime_and_clears_private_data_on_can
         _get(store, closed)
 
 
+def test_mutation_context_has_no_files_and_keeps_owner_cas_and_original_ttl(staging):
+    from ft.application.cash_import_staging import ImportSessionForbidden
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, now, _ = staging
+    current = store.create(workspace_id="workspace-a", user_id="user-a", files=(),
+        workflow_kind="mutation", context_data={"transaction_id": "1001", "version": 1})
+    assert current.files == () and _get(store, current).workflow_kind == "mutation"
+    with pytest.raises(ImportSessionForbidden):
+        _get(store, current, user_id="user-b")
+    now[0] += timedelta(seconds=30)
+    changed = _replace(store, current, preview_input={"patch": {"note": "合成维护正文"}},
+        plan={"plan_id": "synthetic-plan"})
+    assert changed.expires_at == current.expires_at and changed.files == ()
+    with pytest.raises(ImportSessionRevisionConflict):
+        _replace(store, current, plan={})
+    closed = store.cancel(current.session_id, workspace_id=current.workspace_id,
+        user_id=current.user_id, expected_revision=changed.revision)
+    assert closed.files == () and closed.context_data == {} and closed.preview_input == {} and closed.plan is None
+
+
+def test_mutation_context_cannot_gain_files_or_allow_empty_import(staging):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _, _ = staging
+    with pytest.raises(ParsedImportDataError):
+        store.create(workspace_id="workspace-a", user_id="user-a", files=())
+    with pytest.raises(ParsedImportDataError):
+        store.create(workspace_id="workspace-a", user_id="user-a", files=(_file(),), workflow_kind="mutation")
+    current = store.create(workspace_id="workspace-a", user_id="user-a", files=(), workflow_kind="mutation")
+    with pytest.raises(ParsedImportDataError):
+        _replace(store, current, files=(_file(),))
+    assert _get(store, current) == current
+
+
 @pytest.mark.parametrize("kind,created_offset,expires_offset", [
     ("arbitrary", 0, 60), ("retry", 0, 1900), ("retry", 10, 60), ("retry", -60, -1),
 ])

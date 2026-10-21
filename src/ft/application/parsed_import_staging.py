@@ -214,7 +214,8 @@ class _ParsedImportStore:
     def _encode(self, session):
         _valid_files(session.files)
         if (not isinstance(session.preview_input, dict) or session.plan is not None and not isinstance(session.plan, dict)
-            or not isinstance(session.workflow_kind, str) or session.workflow_kind not in {"import", "retry", "retry_capsule"}
+            or not isinstance(session.workflow_kind, str) or session.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
+            or session.workflow_kind == "mutation" and bool(session.files)
             or not isinstance(session.context_data, dict)):
             raise ParsedImportDataError("import_session_json_invalid")
         parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
@@ -256,7 +257,8 @@ class _ParsedImportStore:
             if (type(result.revision) is not int or result.revision < 1 or type(result.cancelled) is not bool
                 or result.created_at.tzinfo is None or result.expires_at.tzinfo is None
                 or not 0 < (result.expires_at - result.created_at).total_seconds() <= 1800
-                or not isinstance(result.workflow_kind, str) or result.workflow_kind not in {"import", "retry", "retry_capsule"}
+                or not isinstance(result.workflow_kind, str) or result.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
+                or result.workflow_kind == "mutation" and bool(result.files)
                 or not isinstance(result.context_data, dict)
                 or any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (result.workspace_id, result.user_id))):
                 raise ValueError
@@ -271,7 +273,7 @@ class _ParsedImportStore:
                created_at=None, expires_at=None, preview_input=None):
         if any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (workspace_id, user_id)):
             raise ParsedImportDataError("import_session_owner_invalid")
-        if not files:
+        if not files and workflow_kind != "mutation":
             raise ParsedImportDataError("import_session_file_count_invalid")
         now = self._clock()
         if not isinstance(now, datetime) or now.tzinfo is None:
