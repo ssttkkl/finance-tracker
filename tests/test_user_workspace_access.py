@@ -291,6 +291,7 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
         CashProjectionModel,
         CashProjectionRelationModel,
         CashProjectionDatasetModel,
+        CashProjectionStateModel,
         CashTransactionModel,
         TransactionRelationModel,
         UserModel,
@@ -311,6 +312,9 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
             id="wechat-dataset", workspace_id=target_id, state="active", source_revision=1,
             source_digest="wechat-source", rules_version="cash-projection-v1",
         ))
+        session.flush()
+        session.add(CashProjectionStateModel(workspace_id=target_id, active_dataset_id="wechat-dataset",
+            availability="ready", projection_version=1, source_revision=1, projection_count=1, member_count=1))
         session.add(CashProjectionModel(
             id=2001, workspace_id=target_id, dataset_id="wechat-dataset", projection_id="cash:1003",
             root_cash_transaction_id=1003, economic_type="expense", net_amount=Decimal("-12.50"),

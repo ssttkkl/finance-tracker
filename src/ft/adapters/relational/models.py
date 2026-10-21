@@ -578,6 +578,8 @@ class CashProjectionStateModel(Base):
 
     __tablename__ = "cash_projection_states"
     __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "active_dataset_id"], ["cash_projection_datasets.workspace_id", "cash_projection_datasets.id"],
+            ondelete="NO ACTION", name="fk_cash_projection_states_workspace_dataset"),
         CheckConstraint("availability IN ('uninitialized', 'ready')", name="ck_cash_projection_states_availability"),
         CheckConstraint("last_build_status IN ('never', 'running', 'succeeded', 'failed')", name="ck_cash_projection_states_build_status"),
         CheckConstraint("availability <> 'ready' OR active_dataset_id IS NOT NULL", name="ck_cash_projection_states_ready_dataset"),
@@ -601,11 +603,14 @@ class CashProjectionStateModel(Base):
 
 
 class CashProjectionDatasetModel(Base):
-    """收支投影的暂存、活动或已退休数据集。"""
+    """收支投影的暂存或活动数据集。"""
 
     __tablename__ = "cash_projection_datasets"
     __table_args__ = (
-        CheckConstraint("state IN ('staging', 'active', 'retired')", name="ck_cash_projection_datasets_state"),
+        UniqueConstraint("workspace_id", "id", name="uq_cash_projection_datasets_workspace_id"),
+        CheckConstraint("state IN ('staging', 'active')", name="ck_cash_projection_datasets_state"),
+        Index("uq_cash_projection_datasets_active_workspace", "workspace_id", unique=True,
+            sqlite_where=text("state = 'active'"), postgresql_where=text("state = 'active'")),
         Index("ix_cash_projection_datasets_workspace_state", "workspace_id", "state"),
     )
 
@@ -624,11 +629,12 @@ class CashProjectionModel(Base):
 
     __tablename__ = "cash_projections"
     __table_args__ = (
-        ForeignKeyConstraint(["dataset_id"], ["cash_projection_datasets.id"], ondelete="CASCADE", name="fk_cash_projections_dataset"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id"], ["cash_projection_datasets.workspace_id", "cash_projection_datasets.id"], ondelete="CASCADE", name="fk_cash_projections_dataset"),
         ForeignKeyConstraint(["workspace_id", "account_id"], ["accounts.workspace_id", "accounts.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_account"),
         ForeignKeyConstraint(["workspace_id", "root_cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_root"),
         ForeignKeyConstraint(["workspace_id", "funding_relation_id"], ["cash_investment_funding_relations.workspace_id", "cash_investment_funding_relations.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_funding_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "projection_id", name="uq_cash_projections_dataset_projection"),
+        UniqueConstraint("workspace_id", "dataset_id", "id", name="uq_cash_projections_workspace_dataset_id"),
         CheckConstraint("economic_type IN ('expense', 'income', 'internal_transfer')", name="ck_cash_projections_economic_type"),
         CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_projections_state"),
         CheckConstraint("statistics_eligible = (state = 'posted')", name="ck_cash_projections_statistics"),
@@ -685,7 +691,7 @@ class CashProjectionModel(Base):
 class CashProjectionMemberModel(Base):
     __tablename__ = "cash_projection_members"
     __table_args__ = (
-        ForeignKeyConstraint(["projection_row_id"], ["cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_members_projection"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id", "projection_row_id"], ["cash_projections.workspace_id", "cash_projections.dataset_id", "cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_members_projection"),
         ForeignKeyConstraint(["workspace_id", "cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projection_members_cash"),
         UniqueConstraint("workspace_id", "dataset_id", "cash_transaction_id", name="uq_cash_projection_members_dataset_cash"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_members_ordinal"),
@@ -705,7 +711,7 @@ class CashProjectionMemberModel(Base):
 class CashProjectionRelationModel(Base):
     __tablename__ = "cash_projection_relations"
     __table_args__ = (
-        ForeignKeyConstraint(["projection_row_id"], ["cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_relations_projection"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id", "projection_row_id"], ["cash_projections.workspace_id", "cash_projections.dataset_id", "cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_relations_projection"),
         ForeignKeyConstraint(["workspace_id", "transaction_relation_id"], ["transaction_relations.workspace_id", "transaction_relations.id"], ondelete="RESTRICT", name="fk_cash_projection_relations_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "transaction_relation_id", name="uq_cash_projection_relations_dataset_relation"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_relations_ordinal"),

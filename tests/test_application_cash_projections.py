@@ -116,7 +116,7 @@ def test_failed_rebuild_keeps_the_previous_active_dataset(cash_web_runtime):
         assert state.projection_version == first["projection_version"]
 
 
-def test_rebuild_retains_at_most_one_retired_dataset(cash_web_runtime):
+def test_rebuild_removes_all_retired_datasets(cash_web_runtime):
     from sqlalchemy import select
     from ft.adapters.relational.models import CashProjectionDatasetModel
 
@@ -132,7 +132,7 @@ def test_rebuild_retains_at_most_one_retired_dataset(cash_web_runtime):
                 CashProjectionDatasetModel.state == "retired",
             )
         ).all()
-    assert len(retired) == 1
+    assert retired == []
 
 
 def test_rebuild_rejects_changed_source_digest_without_publishing(cash_web_runtime, monkeypatch):

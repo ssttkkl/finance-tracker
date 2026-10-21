@@ -54,11 +54,17 @@ class RelationalCashProjectionRepository:
     def _state(self, *, create: bool = False, lock: bool = False) -> CashProjectionStateModel | None:
         statement = select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == self._workspace_id)
         if lock:
+            if self._session.bind.dialect.name == "sqlite":
+                connection = self._session.connection()
+                if not connection.connection.driver_connection.in_transaction:
+                    connection.exec_driver_sql("BEGIN IMMEDIATE")
             workspace = select(WorkspaceModel).where(WorkspaceModel.id == self._workspace_id)
             if self._session.bind.dialect.name == "postgresql":
                 workspace = workspace.with_for_update()
                 statement = statement.with_for_update()
-            self._session.execute(workspace).one()
+            with self._session.no_autoflush:
+                self._session.execute(workspace).one()
+            statement = statement.execution_options(populate_existing=True)
         state = self._session.scalar(statement)
         if state is None and create:
             state = CashProjectionStateModel(workspace_id=self._workspace_id, rules_version=RULES_VERSION)
@@ -325,10 +331,19 @@ class RelationalCashProjectionRepository:
         ))
         return dataset_id
 
+    def _staging_dataset(self, dataset_id):
+        self._state(lock=True)
+        dataset = self._session.scalar(select(CashProjectionDatasetModel).where(
+            CashProjectionDatasetModel.id == dataset_id, CashProjectionDatasetModel.workspace_id == self._workspace_id)
+            .execution_options(populate_existing=True))
+        if dataset is None or dataset.workspace_id != self._workspace_id or dataset.state != "staging":
+            raise RuntimeError("projection.incomplete")
+        return dataset
+
     def replace_dataset(self, dataset_id: str, build: CashProjectionBuild, *, projection_version: int) -> None:
-        self._session.execute(delete(CashProjectionRelationModel).where(CashProjectionRelationModel.dataset_id == dataset_id))
-        self._session.execute(delete(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id))
-        self._session.execute(delete(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset_id))
+        self._staging_dataset(dataset_id)
+        for model in (CashProjectionRelationModel, CashProjectionMemberModel, CashProjectionModel):
+            self._session.execute(delete(model).where(model.workspace_id == self._workspace_id, model.dataset_id == dataset_id))
         self._insert_projections(dataset_id, build.projections, projection_version)
 
     def _insert_projections(self, dataset_id: str, projections, projection_version: int) -> None:
@@ -708,6 +723,9 @@ class RelationalCashProjectionRepository:
     def publish_dataset(self, dataset_id: str, *, source_digest: str, rules_version: str) -> dict:
         state = self._state(create=True, lock=True)
         assert state is not None
+        dataset = self._staging_dataset(dataset_id)
+        if dataset_id == state.active_dataset_id:
+            raise RuntimeError("projection.incomplete")
         # Re-reading the canonical source immediately before publish prevents stale snapshots.
         if self.source_digest() != source_digest:
             raise RuntimeError("projection.concurrent_update")
@@ -715,11 +733,8 @@ class RelationalCashProjectionRepository:
             CashProjectionDatasetModel.__table__.update().where(
                 CashProjectionDatasetModel.workspace_id == self._workspace_id,
                 CashProjectionDatasetModel.state == "active",
-            ).values(state="retired")
+            ).values(state="staging")
         )
-        dataset = self._session.get(CashProjectionDatasetModel, dataset_id)
-        if dataset is None or dataset.workspace_id != self._workspace_id:
-            raise RuntimeError("projection.incomplete")
         # Keep counts portable across PostgreSQL and SQLite without dialect SQL.
         projection_count = len(self._session.scalars(select(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset_id)).all())
         member_count = len(self._session.scalars(select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)).all())
@@ -728,19 +743,7 @@ class RelationalCashProjectionRepository:
             raise RuntimeError("projection.incomplete")
         dataset.state, dataset.published_at = "active", _now()
         self._session.flush()
-        retired_ids = self._session.scalars(
-            select(CashProjectionDatasetModel.id)
-            .where(
-                CashProjectionDatasetModel.workspace_id == self._workspace_id,
-                CashProjectionDatasetModel.state == "retired",
-            )
-            .order_by(CashProjectionDatasetModel.published_at.desc(), CashProjectionDatasetModel.id.desc())
-            .offset(1)
-        ).all()
-        if retired_ids:
-            self._session.execute(
-                delete(CashProjectionDatasetModel).where(CashProjectionDatasetModel.id.in_(retired_ids))
-            )
+        previous_dataset_id = state.active_dataset_id
         state.active_dataset_id = dataset_id
         state.projection_version += 1
         state.availability = "ready"
@@ -748,6 +751,11 @@ class RelationalCashProjectionRepository:
         state.last_build_status = "succeeded"
         state.build_finished_at = _now()
         state.projection_count, state.member_count = projection_count, member_count
+        self._session.flush()
+        if previous_dataset_id is not None:
+            self._session.execute(delete(CashProjectionDatasetModel).where(
+                CashProjectionDatasetModel.workspace_id == self._workspace_id,
+                CashProjectionDatasetModel.id == previous_dataset_id))
         return self.status()
 
     def record_failed_build(
