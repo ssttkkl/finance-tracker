@@ -67,8 +67,8 @@ def _component_values(value: Any) -> list[dict]:
             if isinstance(item["amount"], (float, bool)):
                 raise ValueError("decimal string required")
             item["amount"] = exact_decimal(item["amount"])
-        if "ordinal" in item and (type(item["ordinal"]) is not int or item["ordinal"] < 0):
-            raise ValueError("ordinal must be a nonnegative integer")
+        if "ordinal" in item and (type(item["ordinal"]) is not int or not 0 <= item["ordinal"] < 2 ** 31):
+            raise ValueError("ordinal must fit a nonnegative 32-bit integer")
         if item.get("currency") is not None:
             item["currency"] = _currency(item["currency"])
         result.append(item)

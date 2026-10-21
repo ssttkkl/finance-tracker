@@ -178,6 +178,16 @@ def test_incomplete_draft_still_validates_supplied_structure(patch):
         prepare_cash_record_update(_record(state="draft"), patch)
 
 
+def test_component_ordinal_is_portable_to_both_database_integer_columns():
+    from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
+    current = _record(state="draft")
+    part = current["components"][0]
+    with pytest.raises(CashRecordPolicyError, match="invalid_field"):
+        prepare_cash_record_update(current, {"components": [{**part, "ordinal": 2 ** 31}]})
+    accepted = prepare_cash_record_update(current, {"components": [{**part, "ordinal": 2 ** 31 - 1}]})
+    assert accepted.values["components"][0]["ordinal"] == 2 ** 31 - 1
+
+
 def test_posting_requires_complete_parent_and_balanced_components():
     from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
     validate_cash_record_for_posting(_record())

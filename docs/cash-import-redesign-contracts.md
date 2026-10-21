@@ -354,7 +354,9 @@ flowchart TD
 
 草稿补丁请求也使用幂等键与并发修订，避免响应丢失后误报冲突。`state` 不属于补丁字段，用户不能直接改为 `posted`。正式编辑补丁只能包含主设计白名单；固定字段实际变化拒绝该操作，原记录不动。
 
-组成项 DTO 使用 `component_id`、`account_id`、`amount`、`currency`、`ordinal`。草稿补丁省略 `components` 时保持原组成项，提供时表示完整替换；已有项须携带属于当前流水的 `component_id`，新增项省略该字段并由服务端分配，删除项通过从数组移除表达。组成项删除与相关草稿引用清理在同一保存点内完成，不能留下失效端点；正式流水不开放组成项替换。
+草稿保存响应区分 `receipt` 与 `current_record`，后者带 `current_record_status=available/deleted/unavailable`，明确是读取时的当前详情。幂等重放返回原收据，再读取当前详情，不保存或重放流水正文；提交后详情暂不可读仍返回已提交收据及 `unavailable`，不能误报保存失败并重跑写入。普通详情中的父 `row_revision` 不是整个维护视图的版本，问题实例／修订和关系修订分别参与相关决定及维护计划校验。
+
+组成项 DTO 使用 `component_id`、`account_id`、`amount`、`currency`、`ordinal`；`ordinal` 是 `0..2**31-1` 的整数，不接受布尔值，不要求连续。草稿补丁省略 `components` 时保持原组成项，提供时表示完整替换；已有项须携带属于当前流水的 `component_id`，新增项省略该字段并由服务端分配，删除项通过从数组移除表达。组成项删除与相关草稿引用清理在同一保存点内完成，不能留下失效端点；正式流水不开放组成项替换。
 
 维护计划请求为判别联合：
 
@@ -435,7 +437,7 @@ erDiagram
 |---|---|---|
 | `id/workspace_id/created_at` | 沿用，非空 | 系统维护 |
 | `state` | `draft/posted`，非空 | 新增；只能由对应命令转换 |
-| `row_revision` | 正整数，非空 | 新增；业务值、当前问题或影响该记录维护视图的关系状态变化时增加 |
+| `row_revision` | 正整数，非空 | 业务字段、人工保护或组成项变化时推进；问题和关系分别使用各自实例／修订，维护计划联合校验 |
 | `source_type/record_id` | 导入记录非空；手工记录沿用现状 | 活动记录业务身份唯一；无编号时一次生成合成标识，不能使用会变化的描述哈希 |
 | `source_payload` | JSON，可空 | 导入记录保存当前原始来源列；手工记录可空，用户允许更新 |
 | `source_fingerprint` | 文本，可空 | 当前来源内容摘要，不是完整记录版本 |
@@ -682,7 +684,7 @@ erDiagram
     {"method": "POST", "path": "/api/v1/cash-mutations/plans/mp1/commit", "headers": {"Idempotency-Key": "finalize-k1"}, "body": {"expected_plan_revision": 1}}
   ],
   "responses": [
-    {"transaction_id": "102", "state": "draft", "row_revision": 3, "confirmation_status": "pending"},
+    {"receipt": {"receipt_id": "dr1", "status": "completed", "committed": true}, "current_record_status": "available", "current_record": {"transaction_id": "102", "state": "draft", "row_revision": 3, "confirmation_status": "pending"}},
     {"plan_id": "mp1", "edit_context_id": "ec1", "plan_revision": 1, "can_commit": true, "item_counts": {"confirmed": 1, "pending": 0}},
     {"receipt_id": "mr1", "plan_id": "mp1", "status": "completed", "committed": true, "row_results": [{"operation_ref": "op1", "outcome": "finalized_draft", "transaction_id": "102"}], "projection_refs": [{"transaction_id": "102", "projection_id": "projection_102"}]}
   ]
