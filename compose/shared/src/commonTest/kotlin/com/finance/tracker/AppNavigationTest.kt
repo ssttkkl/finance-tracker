@@ -13,17 +13,24 @@ import kotlin.test.assertTrue
 
 class AppNavigationTest {
     @Test
-    fun mainNavigationKeepsAllExistingAppRoutes() {
+    fun managementContainsCategoriesWithoutADuplicatePrimaryEntry() {
         assertEquals(
             listOf(
                 AppPage.CASH_LEDGER,
-                AppPage.CASH_CATEGORIES,
                 AppPage.INVESTMENT_HOLDINGS,
                 AppPage.INVESTMENT_EVENTS,
                 AppPage.WORKSPACE_MANAGEMENT,
             ),
             appDestinations.map(AppDestination::page),
         )
+    }
+
+    @Test
+    fun legacyCategoryRouteUsesManagementNavigationAndTitle() {
+        assertEquals(AppPage.WORKSPACE_MANAGEMENT, primaryPageFor(AppPage.CASH_CATEGORIES))
+        assertEquals("navigation_workspace_management", titleKeyFor(AppPage.CASH_CATEGORIES))
+        assertEquals(AppPage.CASH_CATEGORIES, parseAppRoute("/w/team/cash-categories").page)
+        assertEquals("/w/team/cash-categories", appPathForRoute(AppRoute(AppPage.CASH_CATEGORIES, workspaceId = "team")))
     }
 
     @Test

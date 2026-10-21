@@ -681,10 +681,9 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
   await page.screenshot({ path: testInfo.outputPath("app-390.png") });
 
   const destinations = [
-    { id: "cash-categories", screen: "cash-categories.screen", path: "cash-categories", title: "收支分类" },
     { id: "investment-holdings", screen: "investment-holdings.screen", path: "investment-holdings", title: "当前持仓" },
     { id: "investment-events", screen: "investment-events.screen", path: "investment-events", title: "投资事件" },
-    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management", title: "工作区管理" },
+    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management", title: "管理" },
   ];
   const visited = [{ url: `${workspaceRoot}/`, screen: "ledger.screen", title: "收支账本" }];
 
@@ -4076,6 +4075,11 @@ test("F-07 分类目录按上级路径搜索并可新增分类", async ({ page }
   };
   await page.route(`**${categoryDeletePath}`, delayedCategoryDelete);
   try {
+    await clickComposeUntil(
+      page,
+      page.locator('[id="cash-category.more.category-created"]').last(),
+      async () => page.getByRole("button", { name: "删除", exact: true }).last().isVisible(),
+    );
     await clickComposeTarget(page, page.getByRole("button", { name: "删除", exact: true }).last());
     const confirm = page.locator('[id="cash-category.delete.confirm"]').last();
     const cancel = page.locator('[id="cash-category.delete.cancel"]').last();
@@ -4345,7 +4349,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
   const api = await installComposeApiFixtures(page);
   await page.setViewportSize({ width: 390, height: 2000 });
   await page.goto(`${workspaceRoot}/workspace-management`);
-  await expect(page.getByText("成员", { exact: true }).last()).toContainText("成员");
+  await expect(page.getByText("成员与权限", { exact: true }).last()).toContainText("成员与权限");
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
     await page.screenshot({ path: "/tmp/finance-compose-workspace-management-390.png" });
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -4354,7 +4358,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
     await page.setViewportSize({ width: 390, height: 2000 });
     await page.waitForTimeout(500);
     await page.reload();
-    await expect(page.getByText("成员", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("成员与权限", { exact: true }).last()).toBeVisible();
   }
   await typeIntoComposeInput(page, '[id="workspace-management.name"]', "新的家庭账本", { replace: true });
   await page.keyboard.press("Tab");
@@ -4364,9 +4368,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
   await expect.poll(() => api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/auth/workspace")).toBe(true);
   await expect(page.getByText("已保存。", { exact: true }).last()).toContainText("已保存。");
 
-  await page.mouse.move(220, 740);
-  await page.mouse.wheel(0, 1400);
-  await page.locator('[id="workspace.management.invite"]').last().click({ force: true });
+  await clickComposeTarget(page, page.locator('[id="workspace.management.invite"]').last());
   await expect(page.locator('[id="workspace-management.invite-link"]').last()).toContainText(/\?invite=invite-e2e-token$/);
   expect(api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/auth/workspace")).toBe(true);
   expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/invitations")).toBe(true);

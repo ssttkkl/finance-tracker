@@ -1,6 +1,6 @@
 # Compose 功能地图
 
-> 盘点日期：2026-10-18。本文记录当前 Compose Multiplatform 页面级功能、共享实现证据和已知覆盖缺口。行为事实以 `openspec/specs/` 与代码为准。
+> 盘点日期：2026-10-21。本文记录当前 Compose Multiplatform 页面级功能、共享实现证据和已知覆盖缺口。行为事实以 `openspec/specs/` 与代码为准。
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
@@ -14,14 +14,16 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 | F-04 | 现金流水 | [`CashLedgerDetails.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerDetails.kt)、[`CashLedgerViewModel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerViewModel.kt)、[`FinanceDtos.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceDtos.kt)、[`CashEvidenceAndRecordMappers.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/mapping/CashEvidenceAndRecordMappers.kt)、[`cash_ledger.py`](../src/ft/application/cash_ledger.py) | 新建、详情、编辑、删除及关系查看；详情 DTO 按端点既有 JSON 类型解析 ID，完整映射分类路径、组成项关联 ID 与精确关联金额；详情/编辑共享 Compact 全屏任务与 Regular/Wide 末端分离的模态 Side Sheet，使用 `surfaceContainerLow`、Large shape、零 elevation；保持已批准宽度，Side Sheet 按 16 dp 外侧留白和 24 dp 内容边距布局，底部操作左对齐且主操作最左，非 AlertDialog 关闭入口在左
 | F-05 | 现金账单导入 | [`CashImportScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportScreen.kt)、[`ImportWorkflow.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportWorkflow.kt) | 多文件扫描、账户映射、预览、关系审核与确认；Compact Full-screen Dialog 使用 56 dp 标题栏、正文顶部/左右 24 dp 和 56 dp 底栏；Regular/Wide Side Sheet 保留既有宽度比例，操作左对齐且主操作最左 |
 | F-06 | 工作区邀请 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt)、[`AppRouting.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt) | 邀请预览、接受与取消 |
-| F-07 | 现金分类管理 | [`CashCategoryScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryScreen.kt)、[`CashCategoryViewModel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryViewModel.kt) | 分类目录、搜索、编辑、排序和删除确认 |
+| F-07 | 收支分类管理（管理页内） | [`CashCategoryScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryScreen.kt)、[`CashCategoryViewModel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryViewModel.kt) | 管理页内嵌分类目录、搜索、排序和删除确认；Compact 全屏、Regular/Wide 对话框编辑；旧分类链接定位管理页分类分组 |
 | F-08 | 投资持仓 | [`InvestmentScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)、[`InvestmentDisplayLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentDisplayLogic.kt) | 账户筛选、估值、表现和持仓详情；Basic Dialog 宽 280–560 dp、28 dp 圆角、四周 24 dp 留白；标题区自适应，标题/正文间距 16 dp、正文/操作间距 24 dp，左侧关闭入口为产品例外 |
 | F-09 | 投资事件 | [`InvestmentScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)、[`InvestmentDisplayLogic.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentDisplayLogic.kt) | 事件筛选、分页和证据详情；Basic Dialog 宽 280–560 dp、28 dp 圆角、四周 24 dp 留白；标题区自适应，标题/正文间距 16 dp、正文/操作间距 24 dp，左侧关闭入口为产品例外 |
-| F-10 | 工作区管理 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt) | 工作区资料、成员角色、邀请和删除 |
+| F-10 | 管理（工作区与收支分类） | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt) | 以 M3 文字角色、平面分组和细分隔呈现；两级统一管理：工作区资料→基本信息/危险操作、访问权限→成员与权限/邀请成员、收支账本→收支分类；Regular/Wide 右侧目录、Compact Toolbar 全屏目录，共享两级同页定位与当前项，投资无占位；实现见 [`ManagementLayout.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ManagementLayout.kt)、[`ManagementNavigation.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ManagementNavigation.kt)，验证记录见 [`tasks.md`](../openspec/changes/archive/2026-10-21-unify-management-settings/tasks.md) |
 
-以上 10 项均有共享 Compose 页面实现，并由 Compose Web、Android、iOS 三个目标平台承载。共享代码存在不代表每个 target 的设备 QA 均已覆盖。
+以上 10 项按用户任务统计；F-07 嵌入 F-10 后仍是可独立完成的分类任务，不因合并入口减少统计数量。以上各项均有共享 Compose 页面实现，并由 Compose Web、Android、iOS 三个目标平台承载。共享代码存在不代表每个 target 的设备 QA 均已覆盖。
 
 ## 当前已知覆盖缺口
+
+- F-07 / F-10：本次管理导航、目录和分类模态的 Web、Native 新验证记录于 [`tasks.md`](../openspec/changes/archive/2026-10-21-unify-management-settings/tasks.md)；Android 390 / 768 / 1440 dp 已通过目录、分类模态保存及旧链接定位；iOS 本轮仅共享编译，实际 iPhone/iPad 新布局仍待验收。
 
 - F-05：iOS 文件选择器选中文件后交回应用、直至完成导入的端到端流程仍需实机验证。
 - F-06：HTTPS Universal Links 需要部署域名与签名配置。

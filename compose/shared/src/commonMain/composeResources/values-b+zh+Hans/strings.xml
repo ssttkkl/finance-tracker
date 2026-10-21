@@ -489,7 +489,7 @@
     <string name="navigation_investment_holdings">当前持仓</string>
     <string name="navigation_invitation">接受邀请</string>
     <string name="navigation_not_found">页面不存在</string>
-    <string name="navigation_workspace_management">工作区管理</string>
+    <string name="navigation_workspace_management">管理</string>
     <string name="display_not_provided">未提供</string>
     <string name="display_time_not_provided">未提供时间</string>
     <string name="display_date_full">%1$d年%2$d月%3$d日</string>
@@ -615,4 +615,13 @@
     <string name="ledger_relation_dissolve_confirm">解散关联</string>
     <string name="ledger_relation_unlinking">正在取消关联…</string>
     <string name="ledger_relation_dissolving">正在解散关联…</string>
+    <string name="management_workspace">工作区资料</string>
+    <string name="management_basic_info">基本信息</string>
+    <string name="management_access">访问权限</string>
+    <string name="management_members">成员与权限</string>
+    <string name="management_danger">危险操作</string>
+    <string name="management_directory">管理目录</string>
+    <string name="management_open_directory">打开管理目录</string>
+    <string name="management_category_more">分类操作</string>
+    <string name="management_category_has_children">删除（需先处理子分类）</string>
 </resources>
