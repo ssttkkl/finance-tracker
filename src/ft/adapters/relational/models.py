@@ -34,6 +34,14 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def _projection_sort_at(context) -> datetime:
+    values = context.get_current_parameters()
+    value = values.get("occurred_at") or values.get("created_at")
+    if value is None:
+        raise ValueError("projection sort time required")
+    return value
+
+
 def exact_decimal(value) -> Decimal:
     """Return a finite Decimal that PostgreSQL NUMERIC(38,18) will not round."""
     return _domain_exact_decimal(value)
@@ -621,6 +629,12 @@ class CashProjectionModel(Base):
         ForeignKeyConstraint(["workspace_id", "funding_relation_id"], ["cash_investment_funding_relations.workspace_id", "cash_investment_funding_relations.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_funding_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "projection_id", name="uq_cash_projections_dataset_projection"),
         CheckConstraint("economic_type IN ('expense', 'income', 'internal_transfer')", name="ck_cash_projections_economic_type"),
+        CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_projections_state"),
+        CheckConstraint("statistics_eligible = (state = 'posted')", name="ck_cash_projections_statistics"),
+        CheckConstraint("attention_count >= 0 AND attention_count <= member_count", name="ck_cash_projections_attention"),
+        CheckConstraint("state <> 'posted' OR (economic_type IS NOT NULL AND net_amount IS NOT NULL AND currency IS NOT NULL AND occurred_at IS NOT NULL)", name="ck_cash_projections_posted_complete"),
+        CheckConstraint("state <> 'draft' OR (member_count = 1 AND accepted_relation_count = 0 AND attention_count = 1 AND economic_type IS NULL AND funding_relation_id IS NULL AND NOT has_payment_mirror AND NOT has_refund_offset AND NOT has_transfer_pair)", name="ck_cash_projections_draft_singleton"),
+        CheckConstraint("member_count >= 1 AND accepted_relation_count >= 0", name="ck_cash_projections_counts"),
         Index("ix_cash_projections_visible_list", "workspace_id", "dataset_id", "visible", "occurred_at", "projection_id"),
         Index("ix_cash_projections_account", "workspace_id", "dataset_id", "account_id"),
         Index("ix_cash_projections_currency", "workspace_id", "dataset_id", "currency"),
@@ -628,6 +642,9 @@ class CashProjectionModel(Base):
         Index("ix_cash_projections_category_id", "workspace_id", "dataset_id", "category_id"),
         Index("ix_cash_projections_category_path", "workspace_id", "dataset_id", "category_path"),
         Index("ix_cash_projections_root", "workspace_id", "dataset_id", "root_cash_transaction_id"),
+        Index("ix_cash_projections_current_sort", "workspace_id", "dataset_id", "sort_at", "projection_id"),
+        Index("ix_cash_projections_state_sort", "workspace_id", "dataset_id", "state", "sort_at", "projection_id"),
+        Index("ix_cash_projections_attention_sort", "workspace_id", "dataset_id", "attention_count", "sort_at", "projection_id"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -636,11 +653,15 @@ class CashProjectionModel(Base):
     projection_id: Mapped[str] = mapped_column(String(96), nullable=False)
     root_cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     funding_relation_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    economic_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)
+    statistics_eligible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
+    attention_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    sort_at: Mapped[datetime] = mapped_column(UTCDateTime().evaluates_none(), default=_projection_sort_at, nullable=False)
+    economic_type: Mapped[str | None] = mapped_column(String(24), nullable=True)
     transfer_subtype: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    net_amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    net_amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    occurred_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)

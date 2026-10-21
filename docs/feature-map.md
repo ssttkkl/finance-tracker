@@ -8,6 +8,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单的全部旧写路径关闭、维护预览及 Compose 演示仍属上述未完成变更。
 
+[草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。来源读取、当前问题加载、列表及统计筛选尚未切换，不据此开放草稿写入口或声称主页已能完成草稿维护。派生表升级后须先显式重建，保留已有正式值及引用。
+
 ## 页面级功能
 
 微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。

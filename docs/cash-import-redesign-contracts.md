@@ -542,6 +542,8 @@ erDiagram
 
 `cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。目标投影具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
 
+排序字段 `sort_at` 仅供索引及游标使用：有发生时间取发生时间，否则取父流水创建时间。它不作为账单日期展示，也不参与按发生日期统计；重建时保持相同来源，不能把重建时间当成草稿的新发生时间。
+
 每条活动流水恰属于一个当前投影；成员表以工作区、流水主键唯一。草稿投影只含该草稿，正式投影成员全为正式记录。统计只读取当前投影并要求 `state=posted` 及既有统计资格，不只依赖客户端筛选。若物理实现保留数据集字段，仅用于维护切换，不能让旧数据集加入当前查询。
 
 发布状态保留工作区写锁及 `source_revision/projection_version`。一次成功变更更新受影响旧、新组的投影和成员，同一事务发布；闭包外行不动，`attention_count` 随问题和草稿关系变更更新。增加按状态、待处理计数、时间及投影标识的查询索引；空时间草稿在待补充列表按创建时间稳定排序，不能因日期过滤缺失永远不可见。

@@ -14,7 +14,7 @@
 ## 3. 任务拆分与一致性
 
 - [x] 3.1 将八项能力及目标文档场景对应到测试与任务；明确旧 API、CLI／技能、Compose 调用切换表。
-- [ ] 3.2 准备仓库外依赖、专用 `_test` PostgreSQL 和合成夹具；真实账单仅只读，运行结果去标识化且不进 Git。
+- [x] 3.2 准备仓库外依赖、专用 `_test` PostgreSQL 和合成夹具；真实账单仅只读，运行结果去标识化且不进 Git。
 - [ ] 3.3 流程／schema／协议变化先更新 artifact；影响验收的业务歧义按具体问题澄清。
 
 ## 4. 构建：先失败测试再实现
@@ -36,6 +36,9 @@
 - [x] 4.4.2.2.2 从相关父流水及完整决定组加载当前上下文，提供计划／提交／维护共用的无写入校验边界；各业务入口接入及组保存点仍在 4.8–4.10 验收。
 - [x] 4.4.2.3 接入类型更新后的角色校验、失效解除及旧新闭包，验证不重新搜索和不重读可变文本；补资金关联现金侧、失效候选及剩余图失败的整条回滚。新导入／维护计划在 4.8–4.10 复用，旧固定字段入口统一关闭仍在 4.11。
 - [ ] 4.5 为草稿不入统计、唯一当前归属、待确认可见性和局部投影写失败测试；调整投影读写和余额边界。
+- [x] 4.5.1 增加草稿单例及可空财务展示、统计资格、待处理计数和稳定排序的领域／存储合同；迁移保留正式派生值及引用，旧缓存标记待重建。
+- [ ] 4.5.2 从当前问题及草稿关系派生待确认，接入局部读写、列表筛选／分页及全部统计排除草稿；未知日期仍可定位，待确认不越过显式筛选。
+- [ ] 4.5.3 校验唯一当前成员及跨工作区归属，移除旧退休副本依赖；保留组成项分配身份、保护人工分类及清空值，并完成余额及局部成本验证。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
 - [ ] 4.6.2 接入按 ID 的账户 API、CLI／Agent 及 Compose 普通账户表单和连续补偿链，关闭过渡期旧名称写入口。
@@ -92,6 +95,13 @@
 - [ ] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 
 ## 执行证据
+
+- 4.5.1 草稿投影形状（2026-10-21，HEAD／比较基线 `7fd42d2`）：缺少草稿状态及可空展示的纯领域／存储合同先失败，再实现单例、未知值保留、正式统计资格、待处理成员计数及派生确认状态。确认边拒绝草稿端点；正式财务必填由数据库条件约束保留，草稿必须单例、无确认边且无统计资格。发生时间为空时 `sort_at` 使用父创建时间，不把重建时间写作账单日期。统一投影算术使用 80 位上下文，避免 38 位退款在直接父级构建时被调用方精度截断。
+- 43 迁移只改变派生形状，保留正式投影主键、金额、分类、成员／关系引用及原始流水，旧缓存标记 `uninitialized` 等发布前显式重建；有草稿或待处理状态拒绝有损降级。旧迁移往返合同继续逐值比较来源及引用，只将该明确的缓存失效状态作为预期差异；升级失败仍须整体回滚并恢复 SQLite 外键。
+- 独立工程／财务复核：143 passed、35 PostgreSQL cases 明确排除，无范围内阻断；额外纯探针将调用方 Decimal 精度设为 6，38 位消费退款差仍精确为 −1E−18，并恢复调用方上下文。未访问私人账单、运行性能或 PostgreSQL。执行者显式双后端矩阵 `tests/contract/test_cash_draft_projection_storage.py tests/contract/test_cash_draft_storage.py tests/contract/test_cash_relation_storage.py tests/contract/test_cash_relation_type_updates.py tests/test_cash_projection_migration.py tests/test_alembic_migration.py tests/test_cash_draft_projection.py tests/test_cash_projection.py tests/test_relational_cash_projections.py tests/test_application_cash_projections.py tests/test_cash_relation_graph.py -q --disable-warnings --maxfail=3 --tb=short` → 287 passed、无 skip（78.09 s），日志 `/tmp/ft-cash-draft-projection-dual.log`。账户降级拒绝的 HEAD 断言随 schema 推进更新后，显式双后端 `tests/contract/test_account_commands.py` → 58 passed、无 skip（21.59 s）。
+- 一万笔全量修复、普通编辑、新建／类型编辑／删除的性能矩阵在 SQLite、PostgreSQL 共 6 项通过（137.09 s），日志 `/tmp/ft-cash-draft-projection-performance.log`，未在测量时并行运行其他测试或构建。Compose QA 在 `compose/qa/web` 执行 `npm ci` 成功，只安装锁定依赖，未修改 lockfile；实际浏览器及 Native 运行仍按后续任务验收。专用 PostgreSQL、合成夹具与临时解析对象均留在仓库外。
+- 首轮完整 SQLite 为 2,318 passed、1 failed，唯一失败是执行进程已加载的旧 schema 版本断言；修正后重跑完整矩阵，沿前述两项旧 Expo 排除 → 2,319 passed、392 skipped、53 deselected、1 warning（323.19 s），日志 `/tmp/ft-cash-draft-projection-final-regression.log`，不能把首轮失败算作通过。`uv build --out-dir /tmp/ft-cash-draft-projection-dist`、OpenSpec strict、最终 diff 及 `git diff --check` 通过。
+- Cross-platform Impact Check：本步只提供后端领域／派生表形状，未切换 Web、Native 或共享 presentation 的列表 DTO、页面、文案和操作；功能地图保留未完成入口及三端 TODO。来源与 attention 加载、全部统计／余额边界、当前成员约束及客户端显示仍待 4.5.2–4.5.3、4.11–4.13；新草稿写入口尚未开放，不把形状测试算成最终用户流程或浏览器 QA。
 
 - 4.4.2.3 类型变更维护（2026-10-21，HEAD／比较基线 `b817c7b`）：模块缺失先失败，再从更新前局部上下文核对当前固定财务结构与关系修订，按持久角色保留兼容确认边、系统解除失效边；先验证完整剩余图，再在同一事务发布原组全部成员。不调用发现器，不重读来源提示作为角色证据；现金—投资只校验现金类型及固定方向，不读取或修改投资事件。剩余图非法或投影保存失败时，由调用方事务回滚整条更新，避免任意牺牲其他已有决定。普通编辑已接入，新导入／维护计划复用留在 4.8–4.10。
 - 独立工程／财务复核发现 P1 聚合父流水空账户名使类型维护被绕过，及 P2 锚点变化未使候选失效；先以合成 SQLite 反例失败，再改为所有类型变化检查真实父／组成项财务结构，以及分别按候选修订与关系端点／锚点索引标记失效。草稿保留且不重新选配，所属关系修订推进。最终独立 SQLite 功能复核 114 passed、33 deselected，无新增阻断；未运行 PostgreSQL 或性能测试。

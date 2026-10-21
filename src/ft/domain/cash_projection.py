@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from enum import Enum
 from typing import Iterable
 
@@ -41,9 +41,9 @@ class ProjectionComposition(str, Enum):
 class CashProjectionFact:
     id: int
     account_id: int | None
-    occurred_at: datetime
-    amount: Decimal
-    currency: str
+    occurred_at: datetime | None
+    amount: Decimal | None
+    currency: str | None
     counterparty: str
     category_id: str | None
     note: str
@@ -51,19 +51,30 @@ class CashProjectionFact:
     record_id: str
     funding_relation_id: int | None = None
     cash_granularity: str = "atomic"
+    state: str = "posted"
+    created_at: datetime | None = None
+    needs_attention: bool = False
 
     def __post_init__(self) -> None:
         try:
-            amount = exact_decimal(self.amount, "amount")
-        except ValueError as exc:
+            if (type(self.id) is not int or self.id <= 0
+                or self.account_id is not None and (type(self.account_id) is not int or self.account_id <= 0)
+                or self.state not in {"draft", "posted"} or type(self.needs_attention) is not bool
+                or self.cash_granularity not in {"atomic", "aggregate"}):
+                raise ValueError
+            for value in (self.occurred_at, self.created_at):
+                if value is not None and (not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None):
+                    raise ValueError
+            if self.state == "posted" and (self.amount is None or self.currency is None or self.occurred_at is None):
+                raise ValueError
+            if self.state == "draft" and (self.occurred_at is None and self.created_at is None or self.funding_relation_id is not None):
+                raise ValueError
+            amount = None if self.amount is None else exact_decimal(self.amount, "amount")
+            currency = None if self.currency is None else self.currency.upper()
+            if currency is not None and (len(currency) != 3 or not currency.isascii() or not currency.isalpha()):
+                raise ValueError
+        except (TypeError, ValueError, AttributeError, ArithmeticError) as exc:
             raise CashProjectionError("projection.invalid_fact") from exc
-        if self.id <= 0 or (self.account_id is not None and self.account_id <= 0) or self.occurred_at.tzinfo is None:
-            raise CashProjectionError("projection.invalid_fact")
-        if self.cash_granularity not in {"atomic", "aggregate"}:
-            raise CashProjectionError("projection.invalid_fact")
-        currency = self.currency.upper()
-        if len(currency) != 3 or not currency.isalpha():
-            raise CashProjectionError("projection.invalid_fact")
         object.__setattr__(self, "amount", amount)
         object.__setattr__(self, "currency", currency)
 
@@ -102,8 +113,8 @@ class ProjectionRelation:
 class CashProjection:
     projection_id: str
     primary_record: CashProjectionFact
-    net_amount: Decimal
-    economic_type: EconomicType
+    net_amount: Decimal | None
+    economic_type: EconomicType | None
     visible: bool
     hidden_reason: str | None
     transfer_subtype: str | None
@@ -112,10 +123,24 @@ class CashProjection:
     relations: tuple[ProjectionRelation, ...]
     compositions: tuple[str, ...]
     funding_relation_id: int | None = None
+    state: str = "posted"
+    statistics_eligible: bool = True
+    attention_count: int = 0
 
     @property
-    def occurred_at(self) -> datetime:
+    def occurred_at(self) -> datetime | None:
         return self.primary_record.occurred_at
+
+    @property
+    def sort_at(self) -> datetime:
+        value = self.primary_record.occurred_at or self.primary_record.created_at
+        if value is None:
+            raise CashProjectionError("projection.invalid_fact")
+        return value
+
+    @property
+    def confirmation_status(self) -> str:
+        return "pending" if self.state == "draft" or self.attention_count else "confirmed"
 
 
 @dataclass(frozen=True)
@@ -372,6 +397,7 @@ def _validate_group(group: list[int], facts: dict[int, CashProjectionFact], rela
         member_ids=tuple(item.id for item, _ in members), members=members, relations=contained,
         compositions=tuple(kind for kind in ("payment_mirror", "transfer_pair", "refund_offset") if any(item.kind == kind for item in contained)),
         funding_relation_id=root.funding_relation_id,
+        attention_count=sum(1 for member, _roles in members if member.needs_attention),
     )
 
 
@@ -379,15 +405,29 @@ def build_cash_projections(
     facts: Iterable[CashProjectionFact], relations: Iterable[ProjectionRelation],
 ) -> CashProjectionBuild:
     """按同笔支付、内部转账、退款冲销的固定口径构建完整投影。"""
-    fact_list = tuple(facts)
+    with localcontext() as arithmetic:
+        arithmetic.prec = 80
+        return _build_cash_projections(facts, relations)
+
+
+def _build_cash_projections(facts, relations):
+    try:
+        fact_list, relation_list = tuple(facts), tuple(relations)
+    except TypeError:
+        raise CashProjectionError("projection.invalid_fact") from None
+    if any(not isinstance(item, CashProjectionFact) for item in fact_list):
+        raise CashProjectionError("projection.invalid_fact")
     fact_by_id = {item.id: item for item in fact_list}
     if len(fact_by_id) != len(fact_list):
         raise CashProjectionError("projection.invalid_fact")
-    accepted = tuple(item for item in relations if item.status == "accepted")
+    if any(not isinstance(item, ProjectionRelation) for item in relation_list):
+        raise CashProjectionError("projection.invalid_relation")
+    accepted = tuple(item for item in relation_list if item.status == "accepted")
     for relation in accepted:
-        if relation.primary_fact_id == relation.secondary_fact_id or relation.primary_fact_id not in fact_by_id or relation.secondary_fact_id not in fact_by_id:
+        if (relation.primary_fact_id == relation.secondary_fact_id or relation.primary_fact_id not in fact_by_id or relation.secondary_fact_id not in fact_by_id
+            or fact_by_id[relation.primary_fact_id].state != "posted" or fact_by_id[relation.secondary_fact_id].state != "posted"):
             raise CashProjectionError("projection.invalid_relation")
-    groups = _components(fact_by_id, accepted)
+    groups = _components({identifier: fact for identifier, fact in fact_by_id.items() if fact.state == "posted"}, accepted)
     component_by_fact = {
         fact_id: component_index
         for component_index, group in enumerate(groups)
@@ -406,6 +446,11 @@ def build_cash_projections(
         _validate_group(group, fact_by_id, tuple(relations_by_component[index]))
         for index, group in enumerate(groups)
     )
+    projections += tuple(CashProjection(
+        projection_id=f"cash:{fact.id}", primary_record=fact, net_amount=fact.amount, economic_type=None,
+        visible=True, hidden_reason=None, transfer_subtype=None, member_ids=(fact.id,),
+        members=((fact, ("root",)),), relations=(), compositions=(), state="draft", statistics_eligible=False, attention_count=1,
+    ) for fact in fact_list if fact.state == "draft")
     ordered = tuple(sorted(projections, key=lambda item: item.projection_id))
     if len({member for item in ordered for member in item.member_ids}) != len(fact_by_id):
         raise CashProjectionError("projection.incomplete")

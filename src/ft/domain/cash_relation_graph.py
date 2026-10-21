@@ -112,7 +112,7 @@ class _Equivalence:
 def _components(facts, components):
     parents = {}
     for fact in facts:
-        if not isinstance(fact, CashProjectionFact) or type(fact.id) is not int or fact.id <= 0 or str(fact.id) in parents:
+        if not isinstance(fact, CashProjectionFact) or fact.state != "posted" or type(fact.id) is not int or fact.id <= 0 or str(fact.id) in parents:
             raise CashRelationError("relation_endpoint_incomplete")
         parents[str(fact.id)] = fact
     by_component, by_parent = {}, defaultdict(list)
