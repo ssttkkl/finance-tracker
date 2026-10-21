@@ -338,10 +338,10 @@ class CashLedgerCommandService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
         from ft.domain.cash_projection import CashProjectionError, build_cash_projections
 
-        facts, relations = RelationalCashProjectionRepository(
-            uow._state().session, uow.workspace_id,
-        ).read_sources_for_facts(fact_ids)
         try:
+            facts, relations = RelationalCashProjectionRepository(
+                uow._state().session, uow.workspace_id,
+            ).read_sources_for_facts(fact_ids)
             build_cash_projections(facts, relations)
         except CashProjectionError as exc:
             raise RelationImpactRequired(

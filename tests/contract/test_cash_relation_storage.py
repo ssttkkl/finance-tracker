@@ -236,7 +236,7 @@ def test_relation_migration_preserves_current_values_ids_and_projection_referenc
     with runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
         session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
-        session.add(cash_relation_fixture(session, id=501, workspace_id=runtime.workspace_id,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True, id=501, workspace_id=runtime.workspace_id,
             kind="payment_mirror", primary_component_id=1003, secondary_component_id=1002,
             anchor_component_id=1003, state="confirmed", applied_amount=Decimal("12.50")))
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
@@ -296,7 +296,7 @@ def test_relation_migration_refuses_lossy_downgrade(current_relation_runtime, ch
     from tests.contract.test_cash_draft_storage import _migration_config
     runtime = current_relation_runtime
     with runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session, workspace_id=runtime.workspace_id, kind="refund_offset",
+        session.add(cash_relation_fixture(session, complete_legacy_types=True, workspace_id=runtime.workspace_id, kind="refund_offset",
             primary_component_id=1003, secondary_component_id=1001, anchor_component_id=1003, state="draft", **change))
     with runtime.sessions.kw["bind"].connect() as connection:
         with pytest.raises(ValueError, match="refusing a lossy downgrade"):

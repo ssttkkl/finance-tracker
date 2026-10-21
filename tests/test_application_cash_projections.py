@@ -99,7 +99,7 @@ def test_failed_rebuild_keeps_the_previous_active_dataset(cash_web_runtime):
     service = _service(cash_web_runtime)
     first = service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
@@ -157,7 +157,7 @@ def test_failed_rebuild_persists_redacted_diagnostic_in_independent_transaction(
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
@@ -206,7 +206,7 @@ def test_diagnostic_write_failure_does_not_replace_build_error(cash_web_runtime,
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
@@ -316,6 +316,7 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
     from ft.adapters.relational.models import (
         CashProjectionMemberModel,
         CashProjectionStateModel,
+        CashTransactionComponentModel,
         CashTransactionModel,
         TransactionRelationModel,
     )
@@ -324,9 +325,10 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
 
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
+        session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
     _service(cash_web_runtime).rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        relation = cash_relation_fixture(session,
+        relation = cash_relation_fixture(session, complete_legacy_types=True,
                        workspace_id=cash_web_runtime.workspace_id,
                        kind="payment_mirror",
                        subtype="",

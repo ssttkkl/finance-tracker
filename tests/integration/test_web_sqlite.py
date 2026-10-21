@@ -95,7 +95,7 @@ def test_file_sqlite_evidence_read_uses_one_projection_snapshot(cash_web_runtime
             currency="CNY",
             ordinal=0,
         ))
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
@@ -125,7 +125,7 @@ def test_file_sqlite_evidence_read_uses_one_projection_snapshot(cash_web_runtime
                 (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
             accepted.rule_id = "refund.fixture.v2"
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="transfer_pair",
                             subtype="",

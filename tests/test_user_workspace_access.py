@@ -319,7 +319,7 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
             accepted_relation_count=0, built_projection_version=1,
         ))
         session.flush()
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         id=4001,
                         workspace_id=target_id,
                         kind="transfer_pair",

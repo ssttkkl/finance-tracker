@@ -998,10 +998,10 @@ class RelationalCashflowRepository:
         ]
         if not accepted_relation_rows:
             return
-        facts, relations = RelationalCashProjectionRepository(
-            self._session, self._workspace_id,
-        ).read_sources()
         try:
+            facts, relations = RelationalCashProjectionRepository(
+                self._session, self._workspace_id,
+            ).read_sources()
             build_cash_projections(facts, relations)
         except CashProjectionError as exc:
             related_ids = {

@@ -400,6 +400,7 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
         date="2026-04-01 10:00:00",
         note="原消费",
         category="expense",
+        record_type="consumption",
     ).ok
     assert services.cashflow.add_manual_transaction(
         amount=Decimal("70.00"),
@@ -409,6 +410,7 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
         date="2026-04-02 10:00:00",
         note="退款",
         category="income",
+        record_type="refund",
     ).ok
 
     with services.uow as uow:

@@ -29,13 +29,14 @@ def test_evidence_reads_members_and_relations_in_fixed_batch_queries(cash_web_ru
     from decimal import Decimal
 
     from sqlalchemy import event
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
 
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
-        session.add(cash_relation_fixture(session,
+        session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="payment_mirror",
                         subtype="",

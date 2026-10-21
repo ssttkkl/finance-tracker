@@ -283,7 +283,7 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
                     account_id=2001, amount=Decimal("-10"), currency="CNY", ordinal=0,
                 ),
             ))
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id="category-workspace",
                     kind="payment_mirror",
                     subtype="",

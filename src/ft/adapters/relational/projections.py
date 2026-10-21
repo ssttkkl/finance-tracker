@@ -11,6 +11,7 @@ from sqlalchemy.orm import aliased
 
 from ft.domain.cash_projection import (
     CashProjectionBuild,
+    CashProjectionError,
     CashProjectionFact,
     ProjectionRelation,
     RULES_VERSION,
@@ -103,6 +104,29 @@ class RelationalCashProjectionRepository:
         seeds = self._parent_ids_for_components(members) if input_is_components else members
         return CurrentCashRelationRepository(self._session, self._workspace_id).confirmed_closure(seeds)
 
+    def affected_transaction_closure(self, transaction_ids, *, state):
+        """Close both current membership and new confirmed edges, never candidates."""
+        frontier = {int(item) for item in transaction_ids}
+        members, visited_groups = set(), set()
+        while frontier:
+            confirmed = self.confirmed_transaction_closure(frontier)
+            members.update(confirmed)
+            groups = set()
+            for batch in _batches(sorted(confirmed)):
+                groups.update(self._session.scalars(select(CashProjectionMemberModel.projection_row_id).where(
+                    CashProjectionMemberModel.workspace_id == self._workspace_id,
+                    CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.cash_transaction_id.in_(batch))))
+            frontier = set()
+            for batch in _batches(sorted(groups - visited_groups)):
+                frontier.update(self._session.scalars(select(CashProjectionMemberModel.cash_transaction_id).where(
+                    CashProjectionMemberModel.workspace_id == self._workspace_id,
+                    CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.projection_row_id.in_(batch))))
+            visited_groups.update(groups)
+            frontier.difference_update(members)
+        return members
+
     def read_sources_for_facts(
         self, fact_ids: set[int] | None,
         *, input_is_components: bool = False,
@@ -112,19 +136,11 @@ class RelationalCashProjectionRepository:
             CashTransactionModel.workspace_id == self._workspace_id,
             CashTransactionModel.deleted_at.is_(None),
         ]
-        relation_filter = [
-            TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.state == "confirmed",
-            TransactionRelationModel.active.is_(True),
-            TransactionRelationModel.secondary_component_id.is_not(None),
-        ]
         if requested_ids is not None:
             if not requested_ids:
                 return (), ()
             requested_parents = self._parent_ids_for_components(requested_ids) if input_is_components else requested_ids
             fact_filter.append(CashTransactionModel.id.in_(requested_parents))
-            relation_filter.extend((TransactionRelationModel.primary_transaction_id.in_(requested_parents),
-                TransactionRelationModel.secondary_transaction_id.in_(requested_parents)))
         funding_component = aliased(CashTransactionComponentModel)
         funding_relation_id = select(CashInvestmentFundingRelationModel.id).join(
             funding_component,
@@ -143,15 +159,27 @@ class RelationalCashProjectionRepository:
             .where(*fact_filter)
             .order_by(CashTransactionModel.id)
         ).all()
-        attention = read_cash_attention(self._session, self._workspace_id, {row.id for row, _funding in fact_rows})
+        identifiers = {row.id for row, _funding in fact_rows}
+        rows = CurrentCashRelationRepository(self._session, self._workspace_id).graph_rows_for_transactions(identifiers)
+        attention = read_cash_attention(self._session, self._workspace_id, identifiers, relation_rows=rows)
         facts = tuple(self._fact_from_model(row, needs_attention=row.id in attention.transaction_ids,
             funding_relation_id=funding_relation_id) for row, funding_relation_id in fact_rows)
-        relation_rows = self._session.scalars(select(TransactionRelationModel).where(*relation_filter).order_by(TransactionRelationModel.id)).all()
-        relations = tuple(
-            ProjectionRelation(id=row.id, kind=row.kind, primary_fact_id=row.primary_transaction_id,
-                secondary_fact_id=row.secondary_transaction_id, status="accepted", subtype=row.subtype, applied_amount=row.applied_amount)
-            for row in relation_rows if row.primary_transaction_id != row.secondary_transaction_id
-        )
+        related = {row[key] for row in rows if row["active"] and row["state"] == "confirmed"
+            for key in ("primary_transaction_id", "secondary_transaction_id") if row[key] is not None}
+        relations = ()
+        if related:
+            from .cash_relation_context import RelationalCashRelationContextRepository
+            from ft.domain.cash_relation_graph import build_cash_relation_graph
+            from ft.domain.cash_relation_policy import CashRelationError
+            context = RelationalCashRelationContextRepository(self._session, self._workspace_id).read(related)
+            if not context["transaction_ids"] <= identifiers:
+                raise CashProjectionError("projection.incomplete")
+            try:
+                graph = build_cash_relation_graph(context["facts"], context["components"], context["relations"],
+                    funding_component_ids=context["funding_component_ids"])
+            except CashRelationError:
+                raise CashProjectionError("projection.invalid_relation") from None
+            relations = tuple(sorted((edge for projection in graph.projections for edge in projection.relations), key=lambda edge: edge.id))
         return facts, relations
 
     def source_digest(self) -> str:
@@ -494,7 +522,7 @@ class RelationalCashProjectionRepository:
             }
             for old_row in old_rows:
                 replacement = replacement_by_id.get(old_row.projection_id)
-                if replacement is None or replacement.member_ids != frozenset({old_row.root_cash_transaction_id}):
+                if replacement is None or replacement.member_ids != (old_row.root_cash_transaction_id,):
                     break
                 for field, value in self._projection_mapping(
                     dataset_id, replacement, next_version,
@@ -527,7 +555,7 @@ class RelationalCashProjectionRepository:
             and len(replacement_projections[0].members) == 1
             and not replacement_projections[0].relations
             and replacement_projections[0].projection_id == old_rows[0].projection_id
-            and replacement_projections[0].member_ids == frozenset(old_member_ids)
+            and set(replacement_projections[0].member_ids) == old_member_ids
         ):
             for field, value in self._projection_mapping(
                 dataset_id, replacement_projections[0], next_version,

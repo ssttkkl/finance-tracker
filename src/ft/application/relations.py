@@ -2905,12 +2905,15 @@ class RelationService:
 
     def _validate_projection_acceptance(self, uow, relation: dict, *, other_fact_id: str | None) -> None:
         """确认前将候选关系纳入完整收支投影，非法图必须失败关闭。"""
-        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        from dataclasses import replace
+        from ft.adapters.relational.cash_relation_context import RelationalCashRelationContextRepository
+        from ft.adapters.relational.cash_relations import legacy_relation_roles
         from ft.adapters.relational.models import CashTransactionComponentModel
-        from ft.domain.cash_projection import CashProjectionError, ProjectionRelation, build_cash_projections
+        from ft.domain.cash_projection import CashProjectionError
+        from ft.domain.cash_relation_graph import build_cash_relation_graph
+        from ft.domain.cash_relation_policy import CashRelationError
         from sqlalchemy import select
 
-        repository = RelationalCashProjectionRepository(uow._state().session, uow.workspace_id)
         primary_id = int(relation.get("primary_component_id") or relation["primary_fact_id"])
         secondary_id = int(
             other_fact_id
@@ -2922,10 +2925,6 @@ class RelationService:
             raise ValueError("关系缺少对侧流水，无法形成有效收支投影")
         if is_open_leg_relation(relation) and relation["kind"] == RelationKind.REFUND_OFFSET.value:
             primary_id, secondary_id = secondary_id, primary_id
-        parent_ids = repository.confirmed_transaction_closure(
-            {primary_id, secondary_id}, input_is_components=True,
-        )
-        facts, accepted = repository.read_sources_for_facts(parent_ids)
         parent_by_component = {
             int(item.id): int(item.cash_transaction_id)
             for item in uow._state().session.scalars(select(CashTransactionComponentModel).where(
@@ -2937,21 +2936,23 @@ class RelationService:
         candidate_secondary = parent_by_component.get(secondary_id)
         if candidate_primary is None or candidate_secondary is None:
             raise ValueError("关系组成项不存在")
-        candidate = ProjectionRelation(
-            id=int(relation["id"]), kind=relation["kind"], primary_fact_id=candidate_primary,
-            secondary_fact_id=candidate_secondary, status=RelationStatus.ACCEPTED.value,
-            subtype=relation.get("subtype") or "",
-            applied_amount=relation.get("applied_amount"),
-        )
         try:
-            # A web relation is inserted before this validation.  Do not add
-            # the same edge twice: mirror chains are directed and a duplicate
-            # edge would look like a cycle even though the user's graph is valid.
-            accepted_without_candidate = tuple(
-                item for item in accepted if int(item.id) != int(candidate.id)
-            )
-            build_cash_projections(facts, (*accepted_without_candidate, candidate))
-        except CashProjectionError as exc:
+            context = RelationalCashRelationContextRepository(uow._state().session, uow.workspace_id).read(
+                {candidate_primary, candidate_secondary})
+            previous = next(edge for edge in context["relations"] if edge.id == int(relation["id"]))
+            roles = (previous.primary_role, previous.secondary_role)
+            if previous.secondary_component_id is None:
+                primary = next(part for part in context["components"] if part.component_id == str(primary_id))
+                roles = legacy_relation_roles(previous.kind, previous.subtype, primary.amount)
+            candidate = replace(previous, primary_transaction_id=str(candidate_primary),
+                secondary_transaction_id=str(candidate_secondary), primary_component_id=str(primary_id),
+                secondary_component_id=str(secondary_id), primary_role=roles[0], secondary_role=roles[1], state="confirmed")
+            # Keep component identities through the shared final graph proof.
+            # Replacing the existing edge also avoids inserting it twice.
+            edges = tuple(candidate if edge.id == candidate.id else edge for edge in context["relations"])
+            build_cash_relation_graph(context["facts"], context["components"], edges,
+                funding_component_ids=context["funding_component_ids"])
+        except (CashProjectionError, CashRelationError, StopIteration) as exc:
             raise ValueError("该关系无法形成有效收支投影") from exc
 
     def reject(self, relation_id: str, *, actor: str, reason: str = "") -> OperationResult:

@@ -11,7 +11,7 @@ def test_accept_rejects_a_refund_that_cannot_form_a_cash_projection(cash_web_run
     from ft.application.relations import RelationService
 
     with cash_web_runtime.sessions.begin() as session:
-        relation = cash_relation_fixture(session,
+        relation = cash_relation_fixture(session, complete_legacy_types=True,
                        workspace_id=cash_web_runtime.workspace_id,
                        kind="refund_offset",
                        subtype="",

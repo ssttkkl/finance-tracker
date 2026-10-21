@@ -346,7 +346,7 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
             id=1004, workspace_id=runtime.workspace_id, cash_transaction_id=1004,
             account_id=101, amount=Decimal("3"), currency="CNY", ordinal=0,
         ))
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",

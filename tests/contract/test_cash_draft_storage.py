@@ -145,7 +145,7 @@ def test_draft_migration_round_trip_preserves_populated_ledger(draft_runtime):
     from ft.application.cash_projections import CashProjectionService
     runtime = draft_runtime
     with runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=runtime.workspace_id,
                         kind="refund_offset",
                         # A lossless round trip has no pending projection state.

@@ -104,7 +104,7 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="transfer_pair",
                             subtype="ordinary_transfer",
@@ -159,7 +159,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="transfer_pair",
                             subtype=subtype,
@@ -169,6 +169,11 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
                             state='confirmed'
                         ))
 
+        if subtype not in {"currency_exchange", "cross_currency_remittance"}:
+            from ft.domain.cash_projection import CashProjectionError
+            with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
+                CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+            continue
         assert CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()["availability"] == "ready"
         with runtime.sessions() as session:
             state = session.get(CashProjectionStateModel, runtime.workspace_id)
@@ -196,7 +201,10 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             Decimal("0"),
             2,
         )
-    assert projections[0] == projections[1]
+    if subtype in {"currency_exchange", "cross_currency_remittance"}:
+        assert len(projections) == 2 and projections[0] == projections[1]
+    else:
+        assert projections == []
 
 
 @pytest.mark.parametrize(
@@ -237,7 +245,7 @@ def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="transfer_pair",
                             subtype="currency_exchange",
@@ -308,7 +316,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             component.currency = expense.currency
             refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
-                account_id=102,
+                account_id=expense.account_id,
                 occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal(refund_amount),
                 currency=refund_currency,
@@ -320,7 +328,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             session.add(refund)
             session.flush()
             _add_singleton_component(session, refund)
-            relation = cash_relation_fixture(session,
+            relation = cash_relation_fixture(session, complete_legacy_types=True,
                            workspace_id=runtime.workspace_id,
                            kind="refund_offset",
                            subtype="",
@@ -423,7 +431,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             _add_singleton_component(session, mirrored_refund)
             _add_singleton_component(session, transfer)
             session.add_all((
-                cash_relation_fixture(session,
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="refund_offset",
                     subtype="",
@@ -432,7 +440,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                     anchor_component_id=1003,
                     state='confirmed'
                 ),
-                cash_relation_fixture(session,
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="payment_mirror",
                     subtype="",
@@ -441,7 +449,7 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
                     anchor_component_id=refund.id,
                     state='confirmed'
                 ),
-                cash_relation_fixture(session,
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="transfer_pair",
                     subtype="ordinary_transfer",

@@ -27,7 +27,7 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
             id=1004, workspace_id=cash_web_runtime.workspace_id, cash_transaction_id=1004,
             account_id=101, amount=Decimal("12.50"), currency="CNY", ordinal=0,
         ))
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=cash_web_runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
@@ -43,7 +43,7 @@ def test_evidence_whitelists_snapshot_and_keeps_hidden_projection_readable(reque
     assert evidence["projection"].visible is False
     assert evidence["projection"].hidden_reason == "full_refund"
     assert "source_snapshot" not in evidence["root_record"]
-    assert evidence["root_record"]["record_type"] == "other"
+    assert evidence["root_record"]["record_type"] == "consumption"
     assert evidence["root_record"]["record_subtype"] == "not_applicable"
     assert evidence["root_record"]["account_name"] == "日常账户"
     assert [member["id"] for member in evidence["members"]] == ["1003", "1004"]
@@ -57,7 +57,7 @@ def test_evidence_only_exposes_cash_inactive_relation_hints(cash_web_runtime):
 
     with cash_web_runtime.sessions.begin() as session:
         session.add_all((
-            cash_relation_fixture(session,
+            cash_relation_fixture(session, complete_legacy_types=True,
                 workspace_id=cash_web_runtime.workspace_id,
                 kind="transfer_pair",
                 subtype="",

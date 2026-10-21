@@ -129,7 +129,7 @@ def performance_runtime(request, tmp_path):
             reset_postgres_schema(url)
 
 
-def _fixture_digest() -> str:
+def _fixture_digest(*, scenario: str | None = None) -> str:
     payload = {
         "seed": "cash-projection-performance-v1",
         "facts": FACT_COUNT,
@@ -139,6 +139,8 @@ def _fixture_digest() -> str:
         "transfer_pairs": TRANSFER_PAIR_COUNT,
         "start": START.isoformat(),
     }
+    if scenario is not None:
+        payload["scenario"] = scenario
     return sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -210,7 +212,8 @@ def _seed_cash_projection_workload(sessions) -> None:
     components: list[dict] = []
     relations: list[dict] = []
 
-    def add_transaction(identifier: int, account_id: int, amount: Decimal, category: str) -> None:
+    def add_transaction(identifier: int, account_id: int, amount: Decimal, category: str,
+                        record_type: str, record_subtype: str = "not_applicable") -> None:
         transactions.append({
             "id": identifier,
             "workspace_id": WORKSPACE,
@@ -223,6 +226,8 @@ def _seed_cash_projection_workload(sessions) -> None:
             "counterparty": "去标识化交易对方",
             "note": "固定性能夹具",
             "category": category,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
         })
         components.append({
             "id": identifier,
@@ -258,27 +263,28 @@ def _seed_cash_projection_workload(sessions) -> None:
             1 if identifier % 2 else 2,
             Decimal("-10.00") if identifier % 2 else Decimal("10.00"),
             "日常",
+            "consumption" if identifier % 2 else "income",
         )
 
     next_identifier = SINGLE_FACT_COUNT + 1
     for _ in range(PAYMENT_MIRROR_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-20.00"), "同笔支付")
-        add_transaction(secondary_fact_id, 2, Decimal("-20.00"), "同笔支付")
+        add_transaction(primary_fact_id, 1, Decimal("-20.00"), "同笔支付", "consumption")
+        add_transaction(secondary_fact_id, 2, Decimal("-20.00"), "同笔支付", "consumption")
         add_relation("payment_mirror", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
     for _ in range(REFUND_OFFSET_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-100.00"), "退款冲销")
-        add_transaction(secondary_fact_id, 1, Decimal("25.00"), "退款冲销")
+        add_transaction(primary_fact_id, 1, Decimal("-100.00"), "退款冲销", "consumption")
+        add_transaction(secondary_fact_id, 1, Decimal("25.00"), "退款冲销", "refund")
         add_relation("refund_offset", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
     for _ in range(TRANSFER_PAIR_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-50.00"), "内部转账")
-        add_transaction(secondary_fact_id, 2, Decimal("50.00"), "内部转账")
+        add_transaction(primary_fact_id, 1, Decimal("-50.00"), "内部转账", "transfer_out", "ordinary_transfer")
+        add_transaction(secondary_fact_id, 2, Decimal("50.00"), "内部转账", "transfer_in", "ordinary_transfer")
         add_relation("transfer_pair", primary_fact_id, secondary_fact_id, "ordinary_transfer")
         next_identifier += 2
 
@@ -416,9 +422,25 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
     from ft.application.cash_ledger import CashLedgerCommandService
     from ft.application.cash_projections import CashProjectionService
     from ft.application.relations import RelationService
+    from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
+    from sqlalchemy import update
 
     backend, sessions = performance_runtime
     _seed_cash_projection_workload(sessions)
+    # Declare legal cross-currency endpoints before timing. Both relation
+    # subtypes below accept these same fixed financial facts and roles.
+    indices = (*range(2 * RELATION_WARMUPS), *range(100, 100 + 2 * RELATION_SAMPLES))
+    outgoing_ids = tuple(1 + index * 2 for index in indices)
+    incoming_ids = tuple(identifier + 1 for identifier in outgoing_ids)
+    with sessions.begin() as session:
+        session.execute(update(AccountModel).where(AccountModel.workspace_id == WORKSPACE, AccountModel.id == 1)
+            .values(currencies=["CNY", "USD"]))
+        session.execute(update(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE,
+            CashTransactionModel.id.in_(outgoing_ids)).values(record_type="transfer_out", record_subtype="cross_border_remittance"))
+        session.execute(update(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE,
+            CashTransactionModel.id.in_(incoming_ids)).values(account_id=1, currency="USD", record_type="transfer_in", record_subtype="ordinary_transfer"))
+        session.execute(update(CashTransactionComponentModel).where(CashTransactionComponentModel.workspace_id == WORKSPACE,
+            CashTransactionComponentModel.cash_transaction_id.in_(incoming_ids)).values(account_id=1, currency="USD"))
     CashProjectionService(sessions, WORKSPACE).rebuild()
     service = CashLedgerCommandService(
         sessions,
@@ -435,7 +457,7 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
             "primary_fact_id": primary,
             "secondary_fact_id": secondary,
             "kind": "transfer_pair",
-            "subtype": "ordinary_transfer",
+            "subtype": "currency_exchange",
             "status": "accepted",
         }
 
@@ -460,11 +482,12 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
         current_relation_id = relation_id(detail)
 
         started = time.perf_counter_ns()
-        service.update_relation(current_relation_id, {
+        updated = service.update_relation(current_relation_id, {
             "kind": "transfer_pair",
             "subtype": "cross_currency_remittance",
         })
         samples["update"].append(time.perf_counter_ns() - started)
+        assert updated["relations"][0]["subtype"] == "cross_currency_remittance"
 
         started = time.perf_counter_ns()
         service.cancel_relation(current_relation_id)
@@ -480,7 +503,7 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({
         "backend": backend,
-        "fixture_digest": _fixture_digest(),
+        "fixture_digest": _fixture_digest(scenario="legal-currency-exchange-pairs-v1"),
         "warmups": RELATION_WARMUPS,
         "samples": RELATION_SAMPLES,
         "relation_samples_ns": samples,
@@ -889,6 +912,8 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
                 "counterparty": "关联规模性能夹具",
                 "note": "固定关联规模性能夹具",
                 "category": "日常",
+                "record_type": "consumption",
+                "record_subtype": "not_applicable",
             } for offset in range(size))
             extra_components.extend({
                 "id": base + offset,

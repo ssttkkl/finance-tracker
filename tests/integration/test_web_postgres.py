@@ -127,7 +127,7 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
             currency="CNY",
             ordinal=0,
         ))
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
             workspace_id=runtime.workspace_id,
             kind="refund_offset",
             subtype="",
@@ -155,7 +155,7 @@ def test_postgres_evidence_read_uses_one_projection_snapshot(postgres_cash_web_r
                 (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
             accepted.rule_id = "refund.fixture.v2"
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                 workspace_id=runtime.workspace_id,
                 kind="transfer_pair",
                 subtype="",

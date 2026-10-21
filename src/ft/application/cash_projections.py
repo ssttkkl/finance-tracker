@@ -122,7 +122,7 @@ class CashProjectionService:
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.require_ready_state_lock()
-        component_ids = repository.confirmed_transaction_closure(affected_fact_ids)
+        component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
@@ -177,12 +177,10 @@ class CashProjectionService:
         state = repository.ready_state_lock_or_none()
         if state is None:
             return None
-        component_ids = repository.confirmed_transaction_closure(affected_fact_ids)
+        component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         if known_component_ids is not None:
-            component_ids |= repository.confirmed_transaction_closure(
-                {int(item) for item in known_component_ids},
-                input_is_components=True,
-            )
+            component_ids = repository.affected_transaction_closure(component_ids | repository._parent_ids_for_components(
+                {int(item) for item in known_component_ids}), state=state)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)

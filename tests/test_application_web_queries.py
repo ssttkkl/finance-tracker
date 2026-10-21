@@ -363,7 +363,7 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
                 currency="CNY",
                 ordinal=0,
             ))
-            session.add(cash_relation_fixture(session,
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="refund_offset",
                             subtype="",

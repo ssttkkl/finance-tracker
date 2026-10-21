@@ -7,6 +7,7 @@ from decimal import Decimal
 from ft.domain.cashflow import CashflowResult
 from ft.domain.accounts import normalize_currency
 from ft.domain.decimal import exact_decimal
+from ft.domain.record_type import default_cash_record_subtype
 from ft.repositories import UnitOfWork
 from ft.schema import CURRENCY_SYMBOLS
 
@@ -186,8 +187,8 @@ class TransferService:
             to_fact_id = _stage_transfer_event(uow, to_acct, to_row)
             if from_fact_id is not None and to_fact_id is not None:
                 subtype = (
-                    "credit_repayment" if "loan" in {from_acct.type, to_acct.type}
-                    else "currency_exchange" if from_currency != to_currency
+                    "currency_exchange" if from_currency != to_currency
+                    else "credit_repayment" if "loan" in {from_acct.type, to_acct.type}
                     else "ordinary_transfer"
                 )
                 uow.relations.add({
@@ -236,7 +237,7 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
         "counterparty": "",
         "note": text,
         "record_type": record_type,
-        "record_subtype": "ordinary_transfer",
+        "record_subtype": default_cash_record_subtype(record_type),
         "account_name": account_name,
         "source_type": "",
     }
@@ -245,7 +246,9 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
 def _transfer_event(date_str: str, amount: Decimal, account, counterpart, currency: str, counterpart_currency: str, direction: str,
                     note: str) -> dict:
     if account.type not in {"security", "crypto"}:
-        record_type = "transfer_out" if direction == "out" else "transfer_in"
+        record_type = ("fx_out" if direction == "out" else "fx_in") if currency != counterpart_currency and counterpart.type not in {"security", "crypto"} else (
+            "repayment" if "loan" in {account.type, counterpart.type} and counterpart.type not in {"security", "crypto"}
+            else "transfer_out" if direction == "out" else "transfer_in")
         default_note = (
             f"购汇至{counterpart_currency}" if direction == "out" and currency != counterpart_currency
             else f"购汇自{counterpart_currency}" if direction == "in" and currency != counterpart_currency

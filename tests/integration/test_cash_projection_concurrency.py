@@ -118,7 +118,7 @@ def test_postgresql_source_digest_covers_accepted_relation_evidence(postgres_cas
     with postgres_cash_web_runtime.sessions.begin() as session:
         repository = RelationalCashProjectionRepository(session, postgres_cash_web_runtime.workspace_id)
         before = repository.source_digest()
-        session.add(cash_relation_fixture(session,
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=postgres_cash_web_runtime.workspace_id,
                         kind="refund_offset",
                         subtype="",
