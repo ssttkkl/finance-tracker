@@ -1,0 +1,267 @@
+from copy import deepcopy
+from dataclasses import replace
+from decimal import Decimal, localcontext
+
+import pytest
+
+from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
+from ft.application.parsed_import_staging import ParsedImportFile
+from ft.domain.cash_source_matching import SourceCoverage
+
+
+def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", label=None, ref="a", issues=()):
+    rows = tuple(ParsedCashRow(index, {"amount": amount, "currency": "CNY", "occurred_at": "2026-10-01T10:00:00+00:00",
+        "record_type": "consumption", "record_subtype": "not_applicable", "note": "  原始备注  ",
+        "source_payload": {"付款方式": method}}, method, issue_codes=issues) for index, method in enumerate(methods, 1))
+    document = ParsedCashDocument(source, "table", "native-v1", rows, owner, owner, SourceCoverage(), len(rows), len(rows))
+    return ParsedImportFile(ref, ref, "fixture.csv", ref * 64, 100, source, "parsed", document, source_scope_label=label)
+
+
+def _scan(*files):
+    from ft.application.cash_import_funding import scan_cash_funding
+    return scan_cash_funding(files)
+
+
+def _resolve(scan, *, selections=None, accounts=None):
+    from ft.application.cash_import_funding import resolve_cash_funding
+    if selections is None:
+        selections = {group.source_account_ref: {"account_id": str(index), "expected_account_revision": 3}
+            for index, group in enumerate(scan.groups, 1)}
+    if accounts is None:
+        accounts = {str(index): {"id": str(index), "revision": 3, "active": True, "type": "cash", "currencies": ["CNY"]}
+            for index, _ in enumerate(scan.groups, 1)}
+    return resolve_cash_funding(scan, selections=selections, accounts=accounts)
+
+
+def test_missing_mapping_keeps_known_values_and_does_not_block_mapped_row():
+    scan = _scan(_file(methods=("银行卡(1234)", "余额")))
+    first, second = _resolve(scan, selections={scan.groups[1].source_account_ref: {"account_id": "2", "expected_account_revision": 3}})
+    assert not first.ready and first.fields["account_id"] is None and "account_missing" in first.issue_codes
+    assert first.fields["amount"] == "-30" and first.fields["components"][0]["amount"] == "-30"
+    assert second.ready and second.fields["account_id"] == "2"
+
+
+def test_unknown_composite_allocation_keeps_one_parent_and_each_known_account():
+    scan = _scan(_file(methods=("银行卡(1234)&余额&红包",)))
+    assert len(scan.groups) == 2
+    row, = _resolve(scan)
+    assert not row.ready and row.fields["cash_granularity"] == "aggregate" and row.fields["account_id"] is None
+    assert [component["amount"] for component in row.fields["components"]] == [None, None]
+    assert [component["account_id"] for component in row.fields["components"]] == ["1", "2"]
+    assert "allocation_missing" in row.issue_codes and row.fields["amount"] == "-30"
+
+
+def test_explicit_allocations_are_signed_and_amount_is_not_part_of_group_identity():
+    scan = _scan(_file(methods=("银行卡(1234)10元&余额20元", "银行卡(1234)20元&余额10元")))
+    assert len(scan.groups) == 2
+    rows = _resolve(scan)
+    assert all(row.ready for row in rows)
+    assert [component["amount"] for component in rows[0].fields["components"]] == ["-10", "-20"]
+    assert rows[0].group_refs == rows[1].group_refs
+
+
+@pytest.mark.parametrize("method", ["银行卡(1234)&银行卡(1234)", "银行卡(1234)10元&银行卡(1234)20元"])
+def test_repeated_funding_account_is_one_component(method):
+    row, = _resolve(_scan(_file(methods=(method,))))
+    assert row.ready and row.fields["cash_granularity"] == "atomic"
+    assert len(row.fields["components"]) == 1 and row.fields["components"][0]["amount"] == "-30"
+
+
+def test_two_source_labels_mapped_to_one_internal_account_need_no_allocation():
+    scan = _scan(_file(methods=("银行卡(1234)&余额",)))
+    selections = {group.source_account_ref: {"account_id": "1", "expected_account_revision": 3} for group in scan.groups}
+    row, = _resolve(scan, selections=selections)
+    assert row.ready and row.fields["cash_granularity"] == "atomic" and len(row.fields["components"]) == 1
+    assert row.fields["account_id"] == "1" and row.fields["components"][0]["amount"] == "-30"
+
+
+@pytest.mark.parametrize("method", ["银行卡(1234)10元&余额10元", "银行卡(1234)40元&余额", "银行卡(1234)31元"])
+def test_explicit_amount_conflicts_remain_drafts(method):
+    row, = _resolve(_scan(_file(methods=(method,))))
+    assert not row.ready and "component_total_mismatch" in row.issue_codes
+
+
+def test_partial_allocation_is_not_filled_from_the_remainder():
+    row, = _resolve(_scan(_file(methods=("银行卡(1234)10元&余额",))))
+    assert [part["amount"] for part in row.fields["components"]] == ["-10", None]
+    assert not row.ready and "allocation_missing" in row.issue_codes
+
+
+@pytest.mark.parametrize("amount,ready", [("0", True), (None, False), ("-10", False)])
+def test_only_known_zero_can_use_wallet_for_promotion_only_or_missing_funding(amount, ready):
+    scan = _scan(_file(methods=("红包&优惠券",), amount=amount))
+    row, = _resolve(scan, **({} if ready else {"selections": {}}))
+    assert row.ready is ready
+    if ready:
+        assert scan.groups[0].display_name == "支付宝余额"
+    else:
+        assert "funding_unrecognized" in row.issue_codes
+
+
+def test_explicit_account_choice_resolves_unrecognized_funding_without_inventing_identity():
+    scan = _scan(_file(methods=("",)))
+    unknown, = _resolve(scan, selections={})
+    completed, = _resolve(scan)
+    assert not unknown.ready and "funding_unrecognized" in unknown.issue_codes
+    assert completed.ready and not completed.issue_codes and completed.fields["account_id"] == "1"
+    assert scan.groups[0].identity_kind == "file_local"
+
+
+def test_blank_payment_parts_do_not_implicitly_prove_a_wallet():
+    scan = _scan(_file(methods=(" & ",)))
+    assert scan.groups[0].identity_kind == "file_local"
+    assert not _resolve(scan, selections={})[0].ready
+
+
+def test_amount_without_a_funding_name_is_local_and_has_a_readable_label():
+    scan = _scan(_file(methods=("30元",)))
+    assert scan.groups[0].identity_kind == "file_local" and scan.groups[0].display_name
+    assert not _resolve(scan, selections={})[0].ready and _resolve(scan)[0].ready
+
+
+@pytest.mark.parametrize("method", ["优惠券10元", "红包5元&优惠券5元"])
+def test_zero_payment_does_not_treat_promotion_face_value_as_funding(method):
+    row, = _resolve(_scan(_file(methods=(method,), amount="0")))
+    assert row.ready and row.fields["components"][0]["amount"] == "0"
+
+
+@pytest.mark.parametrize("patch,code", [
+    ({"active": False}, "account_unavailable"), ({"type": "security"}, "account_unavailable"),
+    ({"revision": 4}, "account_changed"), ({"currencies": ["USD"]}, "account_currency_missing"),
+])
+def test_unavailable_or_changed_account_only_affects_its_rows(patch, code):
+    scan = _scan(_file(methods=("银行卡(1234)", "余额")))
+    accounts = {str(i): {"id": str(i), "revision": 3, "active": True, "type": "cash", "currencies": ["CNY"]} for i in (1, 2)}
+    accounts["1"].update(patch)
+    rows = _resolve(scan, accounts=accounts)
+    assert not rows[0].ready and code in rows[0].issue_codes and rows[1].ready
+
+
+def test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated():
+    files = [_file("wechat", ("零钱",), owner=None, ref="a"), _file("wechat", ("零钱",), owner="nickname", ref="b"),
+             _file("wechat", ("零钱",), owner=None, label="工作", ref="c")]
+    scan = _scan(*files)
+    assert len(scan.groups) == 2
+    assert scan.rows[0].group_refs == scan.rows[1].group_refs != scan.rows[2].group_refs
+
+
+def test_bank_uses_complete_owner_and_never_collapses_identical_card_tails():
+    scan = _scan(_file("ccb_debit", ("建设银行",), owner="6212000000001234", ref="a"),
+                 _file("ccb_debit", ("建设银行",), owner="6222000000001234", ref="b"))
+    assert len(scan.groups) == 2
+    assert all("6212000000001234" not in group.display_name and "6222000000001234" not in group.display_name for group in scan.groups)
+    assert scan.rows[0].group_refs != scan.rows[1].group_refs
+
+
+def test_unknown_bank_owner_is_file_local_and_credit_uses_each_row_owner():
+    first = _file("icbc_credit", ("信用卡", "信用卡"), owner=None)
+    document = replace(first.document, rows=tuple(replace(row, source_account_identifier=owner)
+        for row, owner in zip(first.document.rows, ("6222000000001234", "6222000000005678"))))
+    scan = _scan(replace(first, document=document), _file("icbc_debit", ("借记卡",), owner=None, ref="b"),
+                 _file("icbc_debit", ("借记卡",), owner=None, ref="c"))
+    assert len(scan.groups) == 4
+
+
+def test_distinct_masked_credit_cards_are_separate_local_mapping_groups():
+    file = _file("icbc_credit", ("信用卡", "信用卡"), owner=None)
+    rows = tuple(replace(row, fields={**row.fields, "source_payload": {"交易卡号": masked}})
+        for row, masked in zip(file.document.rows, ("6222****1234", "6222****5678")))
+    scan = _scan(replace(file, document=replace(file.document, rows=rows)))
+    assert len(scan.groups) == 2 and scan.rows[0].group_refs != scan.rows[1].group_refs
+    assert all(group.identity_kind == "file_local" for group in scan.groups)
+
+
+def test_financial_precision_and_source_text_survive_low_decimal_context():
+    amount = "12345678901234567890.123456789012345678"
+    file = _file(methods=("银行卡(1234)",), amount="-" + amount)
+    before = deepcopy(file)
+    with localcontext() as context:
+        context.prec = 6
+        row, = _resolve(_scan(file))
+    assert row.ready and Decimal(row.fields["components"][0]["amount"]) == Decimal("-" + amount)
+    assert file == before and row.fields["note"] == "  原始备注  " and row.fields["source_payload"] == file.document.rows[0].fields["source_payload"]
+
+
+@pytest.mark.parametrize("method", ["银行卡(1234)¥1e3", "银行卡(1234)-10元", "银行卡(1234)10元20元"])
+def test_invalid_allocation_tokens_are_not_silently_replaced_by_parent(method):
+    row, = _resolve(_scan(_file(methods=(method,))))
+    assert not row.ready and "allocation_amount_invalid" in row.issue_codes
+
+
+def test_installment_is_a_base_account_and_does_not_create_a_new_account():
+    scan = _scan(_file(methods=("招商银行信用卡分期(1234)", "招商银行信用卡(1234)")))
+    assert len(scan.groups) == 1 and all(row.ready for row in _resolve(scan))
+
+
+def test_wallet_base_identity_is_the_same_with_or_without_explicit_amount():
+    scan = _scan(_file(methods=("余额", "余额30元", "账户余额30元", "支付宝余额30元")))
+    assert len(scan.groups) == 1 and scan.groups[0].display_name == "支付宝余额"
+    assert all(row.ready for row in _resolve(scan))
+
+
+def test_allocation_wrapping_and_spaces_do_not_create_a_different_wallet():
+    scan = _scan(_file(methods=("余额", "余额( 30 元 )", "余额【 30元 】")))
+    assert len(scan.groups) == 1 and all(row.ready for row in _resolve(scan))
+
+
+@pytest.mark.parametrize("source,method", [
+    ("wechat", "银行卡(6222 1234 5678 9012)"), ("wechat", "银行卡(6222-1234-5678-9012)"),
+    ("alipay", "银行卡(6222-1234-5678-9012)"),
+])
+def test_group_labels_mask_formatted_full_account_numbers(source, method):
+    group, = _scan(_file(source, (method,))).groups
+    digits = "".join(char for char in group.display_name if char.isdigit())
+    assert "6222123456789012" not in digits and "9012" in digits
+
+
+def test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group():
+    file = _file(methods=("余额", "银行卡(1234)"))
+    bad = replace(file.document.rows[0], fields=None, disposition="skipped", error_code="row_unreadable")
+    file = replace(file, document=replace(file.document, rows=(bad, file.document.rows[1])))
+    scan = _scan(file, replace(file, file_ref="b", client_file_ref="b", status="failed", document=None, error_code="statement_unreadable"))
+    assert len(scan.rows) == 1 and len(scan.groups) == 1 and _resolve(scan)[0].ready
+
+
+def test_adapter_failure_is_an_explicit_row_failure_and_others_continue(monkeypatch):
+    import ft.application.cash_import_funding as module
+    original = module.parse_alipay_payment_components
+    def parse(row):
+        if row["payment_method"] == "异常":
+            raise RuntimeError("sensitive importer error")
+        return original(row)
+    monkeypatch.setattr(module, "parse_alipay_payment_components", parse)
+    rows = _resolve(_scan(_file(methods=("异常", "余额"))))
+    assert rows[0].error_code == "funding_unreadable" and not rows[0].ready
+    assert rows[1].ready
+
+
+def test_invalid_row_does_not_leave_unused_source_account_groups():
+    file = _file(methods=("异常账户", "余额"))
+    first, second = file.document.rows
+    first = replace(first, fields={**first.fields, "currency": ["invalid"]})
+    scan = _scan(replace(file, document=replace(file.document, rows=(first, second))))
+    assert len(scan.groups) == 1 and scan.groups[0].row_refs == ("a:r2",)
+    assert scan.rows[0].error_code == "funding_unreadable"
+
+
+def test_too_many_payment_parts_only_fails_that_row():
+    scan = _scan(_file(methods=("&".join(["余额"] * 65), "余额")))
+    first, second = _resolve(scan)
+    assert first.error_code == "funding_unreadable" and second.ready
+
+
+@pytest.mark.parametrize("choice", [
+    {"account_id": 1, "expected_account_revision": 3}, {"account_id": "1", "expected_account_revision": True},
+    {"account_id": "1"}, {"account_id": None, "expected_account_revision": 3}, {"arbitrary": "value"}, [],
+])
+def test_selection_structure_is_strict(choice):
+    from ft.application.cash_import_funding import CashFundingInputError
+    scan = _scan(_file())
+    with pytest.raises(CashFundingInputError):
+        _resolve(scan, selections={scan.groups[0].source_account_ref: choice})
+
+
+def test_a_selection_for_another_scan_is_not_applied_to_current_rows():
+    from ft.application.cash_import_funding import CashFundingInputError
+    with pytest.raises(CashFundingInputError):
+        _resolve(_scan(_file()), selections={"other": {"account_id": "1", "expected_account_revision": 3}})
