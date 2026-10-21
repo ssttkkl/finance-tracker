@@ -152,10 +152,17 @@ def _json_budget(value, budget, *, depth=0):
         budget[0] -= 2 + len(value)
         for item in value:
             _json_budget(item, budget, depth=depth + 1)
-    elif isinstance(value, dict) and all(isinstance(key, str) for key in value):
+    elif isinstance(value, dict):
         budget[0] -= 2 + 2 * len(value)
         for key, item in value.items():
-            _json_budget(key, budget, depth=depth + 1)
+            if not isinstance(key, str):
+                raise ParsedImportDataError("import_session_json_invalid")
+            try:
+                budget[0] -= len(key.encode("utf-8"))
+            except UnicodeError:
+                raise ParsedImportDataError("import_session_json_invalid") from None
+            if budget[0] < 0:
+                raise ParsedImportDataError("import_session_draft_too_large")
             _json_budget(item, budget, depth=depth + 1)
     else:
         raise ParsedImportDataError("import_session_json_invalid")

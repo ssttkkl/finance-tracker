@@ -592,10 +592,11 @@ def test_non_financial_json_numbers_can_roundtrip_in_source_evidence(staging):
     assert _get(store, first) == second
 
 
-def test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision(staging):
+@pytest.mark.parametrize("content", ['{"note":"\\ud800"}', '{"\\ud800":"value"}'])
+def test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision(staging, content):
     from ft.application.parsed_import_staging import ParsedImportDataError
     store, _now, _client = staging
     first = _create(store)
     with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
-        _replace(store, first, plan=json.loads('{"note":"\\ud800"}'))
+        _replace(store, first, plan=json.loads(content))
     assert _get(store, first) == first

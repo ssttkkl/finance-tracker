@@ -68,6 +68,14 @@ def _document_positions(bindings):
     return positions
 
 
+def _all_positions(bindings):
+    positions = defaultdict(set)
+    for binding in bindings:
+        if binding.source_scope_kind == "file_local" and binding.identity_kind == "file_occurrence":
+            positions[binding.source_scope_key].add(binding.identity_key)
+    return positions
+
+
 # 与 Python str.strip 使用同一空白集合，兼容旧读取器保留的原始交易号。
 _ID_WHITESPACE = " \t\r\n\v\f\x1c\x1d\x1e\x1f\x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
 
@@ -208,7 +216,7 @@ class CashSourceRepository:
                 provider_id=legacy_provider,
                 coverages=tuple(SourceCoverage(**binding.coverage) for binding in aliases),
                 binding_keys=frozenset(key.key for key in keys),
-                file_occurrences={scope: frozenset(positions) for scope, positions in _document_positions(aliases).items()},
+                file_occurrences={scope: frozenset(positions) for scope, positions in _all_positions(aliases).items()},
                 provider_binding_key=next((key.key for key in keys if key.identity_kind == "provider_id"), None),
                 stable_evidence_binding_key=next((binding.stable_evidence_key for binding in aliases if binding.stable_evidence_key), None),
                 row_revision=parent.row_revision,

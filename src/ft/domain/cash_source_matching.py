@@ -266,14 +266,25 @@ def _matched(row: SourceOccurrence, old: SourceRecord) -> SourceResolution:
     )
 
 
-def _distinct_document_positions(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
-    if not row.document_occurrence_key:
+def _distinct_positions(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
+    if row.document_occurrence_key:
+        if isinstance(old, SourceOccurrence):
+            if (row.document_scope_key == old.document_scope_key and old.document_occurrence_key
+                and row.document_occurrence_key != old.document_occurrence_key):
+                return True
+        elif (row.document_scope_key in old.file_occurrences
+            and row.document_occurrence_key not in old.file_occurrences[row.document_scope_key]):
+            return True
+    # 普通文件位置只排除弱对应，不推翻可靠编号或认证行的同一性。
+    keys = old.binding_keys
+    if (row.provider_binding_key and (row.provider_binding_key == old.provider_binding_key or row.provider_binding_key in keys)
+        or row.stable_evidence_binding_key and (row.stable_evidence_binding_key == old.stable_evidence_binding_key
+            or row.stable_evidence_binding_key in keys)):
         return False
     if isinstance(old, SourceOccurrence):
-        return bool(row.document_scope_key == old.document_scope_key and old.document_occurrence_key
-            and row.document_occurrence_key != old.document_occurrence_key)
-    return bool(row.document_scope_key in old.file_occurrences
-        and row.document_occurrence_key not in old.file_occurrences[row.document_scope_key])
+        return row.file_scope_key == old.file_scope_key and row.occurrence_key != old.occurrence_key
+    return bool(row.file_scope_key in old.file_occurrences
+        and row.occurrence_key not in old.file_occurrences[row.file_scope_key])
 
 
 def conflicting_document_pages(coverages: Sequence[SourceCoverage]) -> set[tuple[str, str]]:
@@ -323,7 +334,7 @@ def conflicting_source_document_pages(rows, records=(), *, evidence=()):
 
 def _compatible(row: SourceOccurrence, old: SourceRecord | SourceOccurrence) -> bool:
     return not (
-        _distinct_document_positions(row, old)
+        _distinct_positions(row, old)
         or row.provider_id and old.provider_id and row.provider_id != old.provider_id
         or row.provider_binding_key and old.provider_binding_key and row.provider_binding_key != old.provider_binding_key
         or row.stable_evidence and old.stable_evidence and row.stable_evidence != old.stable_evidence

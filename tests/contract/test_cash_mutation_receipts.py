@@ -105,6 +105,43 @@ def test_keys_and_contexts_are_scoped_to_user_and_workspace(mutation_runtime):
         assert _repo(session, runtime).results("different-user", original["receipt_id"]) is None
 
 
+def test_retry_consumption_reads_only_registered_import_success_with_bounded_parameters(mutation_runtime):
+    from hashlib import sha256
+    from sqlalchemy import event
+    runtime = mutation_runtime
+    identifiers = [f"{index:043d}" for index in range(256)]
+    positive = ["created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate", "duplicate_in_batch"]
+    rows = [{"result_kind": "row", "item_ref": f"f:r{index}", "outcome": outcome, "operation_ref": "op-1"}
+        for index, outcome in enumerate(positive)]
+    rows += [{"result_kind": kind, "item_ref": reference, "outcome": outcome}
+        for kind, reference, outcome in (("row", "f:skipped", "skipped"), ("row", "f:failed", "failed"),
+            ("row", "f:alias", "duplicate_in_batch"), ("relation", "f:relation", "duplicate"))]
+    with runtime.sessions.begin() as session:
+        repo = _repo(session, runtime)
+        digest = sha256(identifiers[0].encode()).hexdigest()
+        receipt = _save(repo, session_digest=digest, results=rows)
+        _save(repo, user_id="other-user", session_digest=digest,
+            results=[{"result_kind": "row", "item_ref": "f:other_user", "outcome": "saved_draft"}])
+        _save(repo, idempotency_key="derivation", operation_kind="retry_session", session_digest=sha256(identifiers[1].encode()).hexdigest(),
+            results=[{"result_kind": "row", "item_ref": "f:derivation", "outcome": "saved_draft"}])
+        _save(repo, idempotency_key="unregistered", session_digest="a" * 64,
+            results=[{"result_kind": "row", "item_ref": "f:unregistered", "outcome": "saved_draft"}])
+        sizes = []
+        def observe(_connection, _cursor, statement, parameters, _context, _many):
+            if statement.lstrip().upper().startswith("SELECT"):
+                sizes.append(len(parameters))
+        event.listen(session.bind, "before_cursor_execute", observe)
+        try:
+            references = {f"unused:r{index}" for index in range(701)} | {row["item_ref"] for row in rows}
+            references.update(("f:other_user", "f:derivation", "f:unregistered"))
+            result = repo.successful_import_rows("fixture-user", identifiers, references)
+        finally:
+            event.remove(session.bind, "before_cursor_execute", observe)
+        assert set(result) == {f"f:r{index}" for index in range(len(positive))}
+        assert {value["receipt_id"] for value in result.values()} == {receipt["receipt_id"]}
+        assert sizes and max(sizes) < 999
+
+
 def test_result_paging_is_stable_and_bounded(mutation_runtime):
     runtime = mutation_runtime
     with runtime.sessions.begin() as session:

@@ -67,14 +67,15 @@
 - [x] 4.7.3.2 迁入工行信用卡／借记卡 PDF，包含密码重传、一次提取及逐条隔离。
 - [x] 4.7.3.2.1 一次读取原生 PDF 表格及范围证据，接入行级本方身份、共享单行分类和默认文件解析；验证金额固定列、密码／坏行隔离、资源清理和五份真实样本。
 - [x] 4.7.3.2.2 支持真实信用卡同次导出的连续页面文件：最小认证证据、重复页面定位、共同完整性校验与互斥出现次数；缺段／重叠矛盾保持未知，其他账单继续。
-- [x] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
+- [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [x] 4.8.1 接入文件级（含零行页）及已存认证页证据的计划／提交前重验，统一计算跨会话汇齐的完整性；不能仅靠旧行覆盖标志，空页元数据的持久化须在该步骤明确。
 - [x] 4.8.1.1 统一文件及候选旧导出的认证空间、当前活动绑定与独立空页证据；只在本次内存规划提升完整性，覆盖零行、命名空间、冲突、删除与迁移回滚。
 - [x] 4.8.1.2 联合提交在锁内重验并保存认证空页；证据冲突或保存点失败时跳过相关依赖决定，不让依赖旧证明的写入继续。
 - [x] 4.8.2 实现已解析行的来源账户组及支付组成项桥接：来源范围隔离、稳定组引用、已有账户修订与币种、同账户合并、未知分摊及逐行错误；不创建账户、不提前写流水。
 - [x] 4.8.3 实现不可变计划发布／替换和只读分页详情，验证同一会话 CAS、到期、权限、消费先验及失败保持；不把内部发布层当作已完成业务预览。
-- [x] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
+- [ ] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
 - [x] 4.8.4.1 将实际来源共同操作、资金映射、字段规则及明确补丁组合为逐流水决定；重算补齐结果，保留人工保护及组成项身份，验证固定冲突、等价重复、暂缓更新及逐行安全失败。
+- [ ] 4.8.4.1.1 API 切换前校准账户选择重验：仅改名称或纯修订变化不跳过，按稳定 ID、当前归属、启用状态、允许类型及所需币种重验；覆盖新增／草稿转正式、人工资金补丁及无关行继续，普通账户命令 CAS 不变。
 - [x] 4.8.4.2 接入当前关系与新建议、完整组决定及虚拟最终图，将逐流水操作组成唯一预计列表和详情；验证选择失效、关系错误隔离及当前闭包依赖。
 - [x] 4.8.4.3 去除新增伪差异、共享冻结详情字段，分别约束 25 MiB 解析内容及 64 MiB 完整会话；验证不可变详情及真实 19 份账单的完整预览／暂存，不截断数据。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
@@ -85,9 +86,10 @@
 - [ ] 4.9.2.2 实现用户范围收据读取／分页与未知结果核实；失败子集派生随 4.10、HTTP 切换及旧收据迁入／移除随 4.11 完成。
 - [x] 4.9.2.2.1 为原生锁忙映射及内部核实命令写失败测试；实际独立连接验证 SQLite／PostgreSQL 锁忙只返回 `pending`，锁释放后恢复权威状态，其他存储异常不被吞掉。
 - [ ] 4.10 为失败项限时派生、子集范围安全、草稿补全／转正式、问题处理与维护重预览写失败测试；实现后续维护 API。
-- [ ] 4.10.1 为独立失败正文、私有访问、原 TTL、清理／回滚孤儿及失败存储安全降级写失败测试；替换保留完整原会话的过渡实现。
+- [x] 4.10.1 为独立失败正文、私有访问、原 TTL、清理／回滚孤儿及失败存储安全降级写失败测试；替换保留完整原会话的过渡实现。
 - [x] 4.10.1.1 完成有类型的私有暂存、继承 TTL、来源子集标记和公开入口失败关闭；不据此开放尚未实现的派生授权及正文消费。
-- [ ] 4.10.2 为无编号剩余次数、未验证决定无信用、子集不能认证完整／空页、必要别名、重复派生及幂等范围写失败测试；实现收据授权的新会话及计划，双后端重验。
+- [x] 4.10.2 为无编号剩余次数、未验证决定无信用、子集不能认证完整／空页、必要别名、重复派生及幂等范围写失败测试；实现收据授权的新会话及计划，双后端重验。
+- [x] 4.10.2.1 共享失败证明、当前来源结果和冻结操作中的候选集合；覆盖多失败单元共享大量候选且原证明失效，验证候选精确、必要别名不拆分及证明／计划体积近似线性，关闭独立规模复核 P2。
 - [ ] 4.10.3 为同身份草稿 PATCH／转正式、统一字段及账户约束、原始备注／分类保护写失败测试；实现无文件的维护上下文和共享保存边界。
 - [ ] 4.10.4 为当前问题应用／保留、身份草稿合并／独立、来源绑定转移和候选失效写失败测试；实现维护计划及当前闭包发布。
 - [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
@@ -103,6 +105,26 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.10.1–4.10.2 最终功能矩阵（2026-10-22，HEAD／比较基线 `1c1e9c0`，验证本步未提交差异）：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-shared-final-dual.log tests/contract/test_cash_import_retry.py tests/contract/test_cash_import_retry_candidates.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_mutation_receipts.py tests/contract/test_parsed_cash_import_context.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_import_plan_publication.py tests/test_cash_import_retry_validation.py tests/test_cash_source_retry_positions.py tests/test_cash_source_matching.py tests/test_cash_source_batch.py tests/test_parsed_import_staging.py -q --disable-warnings --tb=short --maxfail=4` → 706 passed、无 skip（844.36 s）。使用显式专用 `_test` PostgreSQL；同一应用合同覆盖 SQLite，候选形状破坏、候选当前修订、保存点回滚刷新及派生恢复均包含在最终源代码加载之后。先前 SQLite 中间矩阵 138 passed、112 PostgreSQL cases 明确跳过（269.41 s）不替代此结果。`uv build --out-dir /tmp/ft-cash-retry-shared-dist`、`uv run python -m compileall -q src` 及 OpenSpec strict 通过；最终成本检查另行独占运行。
+- 成本门槛校准：首轮 2 failed、优化后 1 failed／3 passed（`/tmp/ft-cash-retry-cost-optimized.log`），分别反映“派生＋预览合计 5 s”的新增合并门槛，不能改写为通过。独立工程复核确认两个独立命令应分别计时：预览保持既有 5 s、提交保持 15 s，派生命令新增单独 5 s 预算，并继续报告合计；普通导入、重复导入和 256 MiB 门槛不变。
+- 最终独占成本命令 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-shared-final-performance.log tests/test_cash_import_performance.py -q -m performance -s --disable-warnings --tb=short` → 4 passed（175.92 s）。SQLite／PostgreSQL 普通预览 3.9101／3.8862 s、首次提交 5.5795／11.1414 s、重复往返 6.5679／9.2817 s；失败内容准备 1.7305／1.9614 s、派生 0.7685／0.7192 s、重试预览 4.2865／4.2323 s、重试提交 6.4045／11.9306 s，均满足对应 5／15 s 预算。派生加预览合计仍报告为 5.0550／4.9515 s，不冒称两端均符合此前新增的合计 5 s。进程 RSS 高水位增量：普通约 5.03 MiB／0，重试约 13.23／14.97 MiB，均低于 256 MiB；0 不表示没有内存使用。测量时未并发本任务其他测试、构建或运行时代码修改，只有文档证据整理。
+- 新增规模独立静态复核 P2：共享组候选被逐失败单元展开到证明，证明变化后又重复扫描／复制，再在逐操作冻结时展开。登记 4.10.2.1；修复后，证明及冻结计划按内容签名共享集合，当前来源规划复用有效组，提交按集合加载当前候选，保存点回滚后刷新。32／128 单元的体积及候选精确性回归先失败后通过；最终双后端及成本结果单独记录，不增加用户交互。
+
+- 重试成本首测为独占运行，未并发其他测试、构建或修改运行时代码：普通千行导入两后端均通过旧预算；新增千行失败子集用例 2 failed，派生加预览 SQLite 5.2227 s、PostgreSQL 5.5383 s，超过新增合计 5 s，准备 1.9322／2.0536 s、提交 6.0705／12.6444 s、内存增量 28.34 MiB／0，日志 `/tmp/ft-cash-retry-cost-final.log`。0 仅表示未超过同进程既有 RSS 高水位。首测不是通过证据；之后优化同请求内的根上下文读取和形状校验、输入签名复用及 JSON 预算遍历，再按前述独立命令边界验收。
+
+- 4.10.1–4.10.2 应用层（2026-10-22，验证时 HEAD／比较基线 `1c1e9c0`）：按持久收据另存失败正文、继承原 TTL、登记派生及跨副本消费；成功草稿也撤销失败正文访问。初始应用回归先 2 failed，文件位置弱对应先 1 failed；原两项 P2 修复后 SQLite 主要链路 28 passed、24 PostgreSQL cases 明确跳过（58.54 s，`/tmp/ft-cash-retry-complete-sqlite.log`），完整形状及物理位置纯测试 30 passed（0.46 s，`/tmp/ft-cash-retry-private-shapes.log`）。账户来源范围变更的增量 1 passed、1 PostgreSQL case 明确跳过；这些中间结果不当作双后端证据。
+- 十一文件显式双后端 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-final-dual.log tests/contract/test_cash_import_retry.py tests/contract/test_cash_mutation_receipts.py tests/contract/test_parsed_cash_import_context.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_plan_publication.py tests/test_cash_import_retry_validation.py tests/test_cash_source_retry_positions.py tests/test_cash_source_matching.py tests/test_cash_source_batch.py -q --disable-warnings --tb=short --maxfail=4` → 516 passed、2 failed（703.04 s）。两处旧过渡测试仍要求原会话充当失败上下文，按已确认私有副本合同更新断言；另补派生同键在成功后返回消费收据及实际认证文档重试，最终双后端两文件 `-k 'retry or consumed_context'` → 58 passed、90 deselected、无 skip（114.92 s，`/tmp/ft-cash-retry-final-incremental.log`）。原同键派生误报过期先 1 failed，修复后 SQLite 定向 1 passed；最终增量覆盖该修复，不把原大矩阵记作全绿。
+- 独立只读复核关闭必要别名及形状校验两项 P2，补完整消费白名单／用户工作区过滤、登记失败／事务孤儿、根不可读、清理失败、兄弟旧计划、无编号剩余次数及另一子项成功后剩余次数验证。派生重放及成本测试设置增量复核无新增阻断；审查者未运行数据库、探针、构建或性能，不以审查替代执行证据。
+- 真实恢复探针只使用仓库外临时 SQLite：微信 212 条，模拟一条写入后保存失败，211 条成功、1 条跳过；派生仅包含该失败行，重试新增 1 条、跳过 0 条，原键重放及成功消费均验证。`/tmp/ft-cash-retry-real-probe.log` 只保存计数与布尔结果；临时库已删除，没有保存原文件、密码或来源正文到 Git／日志。此前完整真实账单回归仍按原证据保留，本探针不替代最终 HTTP／客户端验证。
+
+- 账户重验的独立合同核对确认一项 API 切换前 P2：合同 §3.6 允许无关展示变化，当前资金选择及 `expected_accounts` 指纹却会仅因修订变化拒绝。登记 4.8.4.1.1 并恢复父任务未完成；后续以当前资金语义依赖重验代替单独比较修订，保留普通账户命令严格 CAS。本轮为静态证据，尚无实施或测试通过声明，不混入失败项重试的完成范围。
+
+- 4.10.1–4.10.2 应用层独立预审发现两项 P2：移除必要别名后可能部分保存并消费整个共同操作；内部证明仅检查外层容器，损坏的次数描述／文档证据／来源决定可能在正文返回后才报错。先补回归，SQLite 定向结果 4 failed、1 passed、5 PostgreSQL cases 未运行（`/tmp/ft-cash-retry-review-red.log`）；按 design 回写逐共同操作安全跳过、全部必要别名成功才消费及完整内部形状校验，后续修复和复核结果见本节最终记录。
+
+- 共享候选的最后一轮独立静态复核无范围内 P1／P2；覆盖授权、必要别名、祖先消费、重放、证明、候选签名与指纹、当前候选修订、保存点回滚刷新和 JSON 预算。确认不再构造单一当前选项随后丢弃的临时组保持语义；真实问题与候选的规范链接仍须逐项保存，相应密集写入成本没有被宣称消除。审查未运行测试或访问真实账单，账户展示变化 P2 按 4.8.4.1.1 保留下一步。
+- 本步 Cross-platform Impact Check：新增内部失败项派生能力，Web、Native 及共享 presentation 尚未消费新命令，不改页面、操作或文案，三端 UI 验收及 Hallmark 仍留在 4.11–4.13。功能地图只更新后端证据，页面数及对齐 TODO 保持。没有新增 schema／依赖或实际账本迁移；回退应用不会撤销已提交流水和收据，旧代码无法读取新增私有重试种类，限时正文仍由原 TTL 清理。发布前须统一切换公共入口和客户端，不能将内部能力视为已交付的新导入 UI。
+- 反思：失败恢复不能仅缩小来源行集合后重跑普通导入；必须保留必要别名及原次数证明，并以持久成功结果消费。复用与优化的单位应是已校验的同请求资料及共享候选集合，不能扩大业务身份或取消逐流水保存点；相应反例已纳入本步回归。
 
 - 4.10.1.1 私有重试基础（2026-10-22，验证时 HEAD／比较基线 `11bd695`）：内存／R2 的继承寿命、旧对象、取消清理和来源子集先 13 failed；普通入口读取／改写私有对象先 2 failed。新增上下文种类及内部资料受原 JSON、深度、字节及 CAS 边界约束，普通入口当前只开放 `import`，完整重试授权尚未接入。独立静态复核无阻断，补已有完整页仍不能认证子集，以及提交／核实不可进入私有上下文两个反例。
 - 六文件双后端矩阵 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-context-final-matrix.log tests/test_parsed_import_staging.py tests/contract/test_parsed_cash_import_context.py tests/test_cash_source_documents.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_import_plan_publication.py tests/contract/test_cash_import_commit.py -q --disable-warnings --tb=short` → 345 passed、4 failed（376.75 s）；失败均为新增私有计划夹具后缀超过合同固定 16 字符，未进入目标拒绝路径。修正夹具并补独立复核反例后，最终两文件 `-k 'retry_subset or private_or_unregistered'` → 8 passed、78 deselected、无 skip（13.10 s，`/tmp/ft-cash-retry-context-final-incremental.log`）。未把首轮写成全绿。`uv build --out-dir /tmp/ft-cash-retry-context-dist`、OpenSpec strict 和 `git diff --check` 通过。

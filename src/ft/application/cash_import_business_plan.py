@@ -153,6 +153,7 @@ class CashImportBusinessPlanBuilder:
         build = snapshot.build()
         result = self._present(files, operations, rows, snapshot, build, groups, failures, accounts)
         result.update(invalidated_choices=invalidated, operations=operations, row_decisions=rows,
+            source_candidate_sets=prepared.candidate_sets,
             relation_groups=_wire(groups), relation_failures=failures, dependencies={"seed_ids": sorted(context.seed_ids), "token": context.token,
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
             type_effects={"removed_relation_ids": sorted(snapshot.removed_relations),

@@ -654,9 +654,12 @@ def test_consumed_context_keeps_only_needed_retry_access_and_success_releases_bo
         monkeypatch.setattr(service, "_save_row", fail)
     receipt = _commit(service, plan)
     staged = service._staging.get(plan["session_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
+    assert staged.cancelled and not staged.files and staged.plan is None
     if failure:
-        assert receipt["retry_context_id"] == plan["session_id"]
-        assert receipt["retry_context_expires_at"] == staged.expires_at.isoformat() and staged.files
+        assert receipt["retry_context_id"] != plan["session_id"]
+        capsule = service._staging.get(receipt["retry_context_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
+        assert receipt["retry_context_expires_at"] == staged.expires_at.isoformat() == capsule.expires_at.isoformat()
+        assert capsule.workflow_kind == "retry_capsule" and capsule.files and capsule.plan is None
     else:
         assert "retry_context_id" not in receipt and staged.cancelled and not staged.files and staged.plan is None
 

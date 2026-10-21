@@ -325,7 +325,7 @@ def resolve_source_batch(
             failed = any(value.action in {"conflict", "pending"} for value in values)
             candidate_ids = tuple(sorted({candidate for value in values for candidate in value.candidate_ids}
                                          | {value.transaction_id for value in values if value.transaction_id})) if failed else ()
-            group = shared_group(options, candidate_ids) if failed or len(options) > 1 else None
+            group = shared_group(options, candidate_ids) if options != (unit.ref,) and (failed or len(options) > 1) else None
             evaluations[id(options)] = (values[0] if len(values) == 1 else None, failed, group)
         only, failed, group = evaluations[id(options)]
         if options == (unit.ref,):
@@ -344,4 +344,5 @@ def resolve_source_batch(
                     bind=bool(only and only.bind), duplicate_of=options[0] if only else None,
                     group_ref=group,
                 )
-    return SourceBatchPlan(tuple(output[ref] for ref in rows), tuple(result_groups.values()))
+    used_groups = {value.group_ref for value in output.values() if value.group_ref}
+    return SourceBatchPlan(tuple(output[ref] for ref in rows), tuple(value for key, value in result_groups.items() if key in used_groups))

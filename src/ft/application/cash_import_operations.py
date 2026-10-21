@@ -14,6 +14,7 @@ from ft.application.cash_import_funding import resolve_cash_funding, scan_cash_f
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_plans import CashImportPlanError, _preview_input
 from ft.application.cash_import_source_plan import CashImportSourcePlanner
+from ft.application.cash_source_candidate_sets import SourceCandidateSets
 from ft.domain.cash_record_policy import (
     CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, MUTABLE_CASH_FIELDS, CashRecordPolicyError,
     _normalize, prepare_cash_record_update, validate_cash_record_for_posting,
@@ -27,6 +28,7 @@ class PreparedCashImportOperations:
     operations: tuple[dict, ...]
     source_plan: object
     funding_scan: object
+    candidate_sets: dict
 
 
 def _wire(value):
@@ -77,6 +79,7 @@ class CashImportOperationPlanner:
         source_results = {row.row_ref: row for row in source.plan.rows}
         groups = {group.group_ref: group for group in source.plan.groups}
         operations, decisions = [], {}
+        candidate_sets = SourceCandidateSets()
         members = defaultdict(list)
         for resolution in source.plan.rows:
             # 批内确定重复指向共同操作；等价集合不虚构单笔对应。
@@ -94,6 +97,7 @@ class CashImportOperationPlanner:
                 continue
             choice = requested[0] if requested else {"action": "apply"}
             record = records.get(resolution.transaction_id)
+            candidates, candidate_group = (), None
             try:
                 if resolution.action == "conflict":
                     # 固定冲突没有可保存的更新草稿。
@@ -123,9 +127,11 @@ class CashImportOperationPlanner:
                     candidates = resolution.candidate_ids
                     if resolution.group_ref in groups:
                         candidates = groups[resolution.group_ref].candidate_ids
+                        candidate_group = resolution.group_ref
                     operation = self._operation(ref, record, targets.get(resolution.transaction_id),
                         saved_issues.get(resolution.transaction_id, ()), source.rows[ref], resolution,
                         funding[ref], selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts)
+                candidate_sets.bind(operation, candidates, candidate_group)
                 occurrence_key = source.rows[ref].occurrence_key
                 operation["occurrence_key"] = occurrence_key
                 if record is None and occurrence_key in (record_ids or {}):
@@ -157,7 +163,7 @@ class CashImportOperationPlanner:
         for ref, row in all_rows.items():
             if ref not in decisions:
                 decisions[ref] = self._skip(ref, row.error_code or "row_unreadable")
-        return PreparedCashImportOperations(tuple(decisions[ref] for ref in all_rows), tuple(operations), source, scan)
+        return PreparedCashImportOperations(tuple(decisions[ref] for ref in all_rows), tuple(operations), source, scan, candidate_sets.values)
 
     def _accounts(self, selections, records, choices):
         references = [choice.get("account_id") for choice in selections.values()]
@@ -311,7 +317,7 @@ class CashImportOperationPlanner:
             "current": current if record else None, "values": values, "manual_fields": protected,
             "field_diffs": diffs, "issues": list({(item["code"], item["field_path"]): item for item in issues}.values()),
             "pending_fields": pending, "type_changed": any(values.get(key) != current.get(key)
-                for key in ("record_type", "record_subtype")), "candidate_ids": list(candidates),
+                for key in ("record_type", "record_subtype")), "candidate_ids": candidates,
             "source_group_ref": resolution.group_ref, "source_explanation": deepcopy(explanation),
             "expected_issues": saved_issues, "expected_accounts": expected_accounts,
             "retained_issue_ids": [issue["issue_id"] for issue in saved_issues if issue["code"] == "source_identity_ambiguous"

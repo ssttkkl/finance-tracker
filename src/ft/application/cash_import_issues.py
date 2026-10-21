@@ -41,6 +41,8 @@ _REASONS = {
     "row_save_failed": ("这条流水未能保存，请稍后重试", "retry"),
     "record_changed": ("已有流水已变化，本次未更新", "open_record"),
     "source_evidence_save_failed": ("账单信息未能保存，请稍后重试", "retry"),
+    "retry_aliases_incomplete": ("相关账单已移除，请重新导入", "reselect_file"),
+    "retry_context_changed": ("相关账单已变化，请重新导入", "reselect_file"),
     "relation_save_failed": ("本次未能合并，可稍后处理", "review_relation"),
     "relation_context_changed": ("相关流水已变化，请重新确认", "review_relation"),
     "relation_pending": ("待确认合并，可回主页处理", "review_relation"),

@@ -23,8 +23,8 @@ from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches
 from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService, _session_id
 from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
-from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_import_source_rows import file_document_evidence
+from ft.application.cash_source_candidate_sets import frozen_source_candidate_sets, source_candidate_ids
 from ft.application.cash_projections import CashProjectionService
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.application.cash_relation_type_updates import CashRelationTypeUpdateService
@@ -50,7 +50,7 @@ def _reason(error, fallback):
 def _operation_fingerprint(operation):
     keys = {"occurrence_key", "transaction_id", "expected_revision", "planned_action", "current", "values",
         "manual_fields", "field_diffs", "pending_fields", "source_updates", "issues", "expected_issues",
-        "retained_issue_ids", "expected_accounts", "source_explanation", "source_scope_key", "candidate_ids"}
+        "retained_issue_ids", "expected_accounts", "source_explanation", "source_scope_key", "candidate_ids", "candidate_set_ref"}
     return _digest({key: operation[key] for key in keys if key in operation})
 
 
@@ -73,7 +73,8 @@ def _equivalent_duplicate(before, current):
 def _issues_unchanged(operation):
     previous = {(item["code"], item["field_path"]) for item in operation["expected_issues"]}
     desired = {(item["code"], item["field_path"]) for item in operation["issues"]}
-    return previous == desired and not operation["pending_fields"] and not operation.get("candidate_ids")
+    return (previous == desired and not operation["pending_fields"]
+        and not operation.get("candidate_ids") and not operation.get("candidate_set_ref"))
 
 
 class CashImportCommandService(CashImportPlanService):
@@ -101,7 +102,7 @@ class CashImportCommandService(CashImportPlanService):
             plan = current.plan
             if not plan.get("can_commit"):
                 raise CashImportPlanError("plan_input_invalid")
-            sources = CashImportSourcePlanner(session, self._workspace_id).prepare(current.files)
+            sources = self._prepare_sources(uow, current)
             fresh = self._builder(session=session, files=current.files, preview_input=current.preview_input,
                 previous_plan=plan, plan_id=plan_id, source_plan=sources)
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()
@@ -110,8 +111,10 @@ class CashImportCommandService(CashImportPlanService):
             actual, identity, component_ids, changes, affected = {}, {}, {}, [], set()
             fresh_ops = {item["occurrence_key"]: item for item in fresh["operations"]}
             records = {record.transaction_id: record for record in sources.records}
+            candidate_sets = frozen_source_candidate_sets(plan.get("source_candidate_sets", {}))
+            candidate_models, candidate_epoch = {}, 0
             bulk = self._new_batches(session, plan["operations"], fresh_ops, sources.rows, dependencies, failed_namespaces)
-            failures = set()
+            failures, validated = set(), set()
             for operation in plan["operations"]:
                 ref = operation["operation_ref"]
                 candidate = fresh_ops.get(operation["occurrence_key"])
@@ -134,6 +137,7 @@ class CashImportCommandService(CashImportPlanService):
                         continue
                     if candidate is None or _operation_fingerprint(operation) != _operation_fingerprint(candidate):
                         raise _RowChanged
+                    validated.add(ref)
                     if operation["planned_action"] == "duplicate" and _issues_unchanged(operation):
                         record = records[operation["transaction_id"]]
                         missing = any(spec.key not in record.binding_keys for update in operation["source_updates"] if update["bind"]
@@ -149,7 +153,8 @@ class CashImportCommandService(CashImportPlanService):
                         saved = bulk[ref]
                     else:
                         with session.begin_nested():
-                            saved = self._save_row(session, operation, sources.rows)
+                            resolved = self._candidate_operation(session, operation, candidate_sets, candidate_models, candidate_epoch)
+                            saved = self._save_row(session, resolved, sources.rows)
                             session.flush()
                     identifier, mapping, before, after, touched = saved
                     identity[operation["preview_transaction_id"]] = str(identifier)
@@ -163,6 +168,7 @@ class CashImportCommandService(CashImportPlanService):
                     if not _recoverable(error):
                         raise
                     session.expire_all()
+                    candidate_epoch += 1
                     failures.add(operation["preview_transaction_id"])
                     actual[ref] = {"outcome": "skipped", "code": _reason(error, "row_save_failed")}
                     if operation["transaction_id"] is not None:
@@ -205,9 +211,13 @@ class CashImportCommandService(CashImportPlanService):
             written = any(item["outcome"] not in {"skipped", "duplicate", "duplicate_in_batch"} for item in actual.values())
             written = written or any(item["outcome"] in {"confirmed", "deferred", "ignored"} for item in groups)
             status = "partial" if problem and succeeded else "failed" if problem else "completed" if written else "no_changes"
-            retryable = any(row.get("code") in {"row_save_failed", "source_evidence_save_failed", "record_changed", "account_changed"}
-                and row["outcome"] == "skipped" for row in rows)
-            retry = {"retry_context_id": session_id, "retry_context_expires_at": current.expires_at.isoformat()} if retryable else {}
+            from ft.application.cash_import_retry import CashImportRetryService, prepare_retry_context
+            try:
+                retry = prepare_retry_context(uow, self._staging, self._user_id, current, plan, sources, rows, validated)
+            except Exception as error:
+                if not _recoverable(error):
+                    raise
+                retry = {"retry_context_status": "reselect_file"}
             receipt = receipts.create(user_id=self._user_id, idempotency_key=idempotency_key,
                 request_digest=digest, operation_kind="import", plan_id=plan_id,
                 session_digest=sha256(session_id.encode()).hexdigest(),
@@ -215,13 +225,38 @@ class CashImportCommandService(CashImportPlanService):
                     "pending_item_count": pending_items, "projection_version": state.projection_version, **retry},
                 results=[*rows, *groups, *file_results])
             uow.commit()
-            if not retryable:
-                try:
-                    self._staging.cancel(session_id, workspace_id=self._workspace_id, user_id=self._user_id, expected_revision=current.revision)
-                except Exception:
-                    # 临时清理失败不改变收据；固定 TTL 和后台清扫仍负责收尾。
-                    pass
+            try:
+                self._staging.cancel(session_id, workspace_id=self._workspace_id, user_id=self._user_id, expected_revision=current.revision)
+            except Exception:
+                # 已消费收据先阻断访问，固定 TTL 和后台清扫负责物理收尾。
+                pass
+            try:
+                CashImportRetryService(self._uow, self._staging, user_id=self._user_id).cleanup(current)
+            except Exception:
+                # 持久消费结果仍在所有重试读入口生效，不能依赖清理成功授权。
+                pass
             return _receipt_view(receipt)
+
+    def retry_session(self, receipt_id, *, row_refs=None, idempotency_key):
+        from ft.application.cash_import_retry import CashImportRetryService
+        return CashImportRetryService(self._uow, self._staging, user_id=self._user_id).derive(receipt_id,
+            row_refs=row_refs, idempotency_key=idempotency_key)
+
+    def _candidate_operation(self, session, operation, candidate_sets, cache, epoch):
+        key = operation.get("candidate_set_ref")
+        if key is None:
+            return operation
+        candidates = source_candidate_ids(operation, candidate_sets)
+        if key not in cache or cache[key][0] != epoch:
+            models = {}
+            for batch in _batches(int(identifier) for identifier in candidates):
+                models.update((str(row.id), row) for row in session.scalars(select(CashTransactionModel).where(
+                    CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id.in_(batch),
+                    CashTransactionModel.deleted_at.is_(None)).execution_options(populate_existing=True)))
+            if set(models) != set(candidates):
+                raise SourceBindingConflict("source_candidate_changed")
+            cache[key] = epoch, models
+        return {**operation, "candidate_ids": candidates, "_source_candidate_models": cache[key][1]}
 
     def _new_batches(self, session, operations, fresh, source_rows, dependencies, failed_namespaces):
         from ft.adapters.relational.cash_import_new_rows import CashImportNewRowsRepository
@@ -411,8 +446,14 @@ class CashImportCommandService(CashImportPlanService):
             if old is not None and issue["code"] == "source_identity_ambiguous" and not operation.get("candidate_ids"):
                 retained.add(old.id)
                 continue
-            candidates = {int(identifier): session.get(CashTransactionModel, int(identifier)).row_revision
-                for identifier in operation.get("candidate_ids", [])} if issue["code"] == "source_identity_ambiguous" else {}
+            candidates = {}
+            if issue["code"] == "source_identity_ambiguous":
+                models = operation.get("_source_candidate_models")
+                if models is not None:
+                    candidates = {int(identifier): row.row_revision for identifier, row in models.items()}
+                else:
+                    candidates = {int(identifier): session.get(CashTransactionModel, int(identifier)).row_revision
+                        for identifier in operation.get("candidate_ids", [])}
             pending = operation["pending_fields"] if issue["code"] == "source_update_pending" else {}
             if pending:
                 pending = {**pending, "_source_explanation": operation.get("source_explanation", {})}
@@ -699,6 +740,10 @@ class CashImportCommandService(CashImportPlanService):
             try:
                 current = self._read_context(uow, session_id)
             except (ImportSessionExpired, ImportSessionNotFound):
+                return {"status": "not_committed"}
+            except CashMutationConflict as error:
+                if error.code != "retry_already_processed":
+                    raise
                 return {"status": "not_committed"}
             if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
                 return {"status": "not_committed"}
