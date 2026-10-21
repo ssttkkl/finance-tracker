@@ -141,7 +141,7 @@
 ## 7. 发布
 
 - [x] 7.1 记录交付摘要与回滚路径；无迁移步骤，回滚时还原本次 Compose 页面、QA、功能地图和 OpenSpec 改动；本次仅准备 PR，不合入。
-- [ ] 7.2 用户已于 2026-10-21 明确授权本仓库创建面向 `main` 的 PR；验证通过后执行提交、推送和创建 PR，授权不包括合并。
+- [x] 7.2 用户已于 2026-10-21 明确授权本仓库创建面向 `main` 的 PR；已提交 `0907fd9`、推送 `codex/compose-cash-ledger-redesign` 并创建 [PR #95](https://github.com/ssttkkl/finance-tracker/pull/95)。PR 未合并；用户授权不包括合并。
 
 ## 8. 反思
 
