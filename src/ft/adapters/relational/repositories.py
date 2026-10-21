@@ -4,7 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
-from decimal import Decimal
+from decimal import Decimal, localcontext
 import re
 import hashlib
 import json
@@ -74,8 +74,8 @@ def _parse_timestamp(value) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+def _format_timestamp(value: datetime | None) -> str | None:
+    return value.astimezone(timezone.utc).isoformat() if value is not None else None
 
 
 def _validate_currency(value: str) -> str:
@@ -327,11 +327,13 @@ class RelationalCashflowRepository:
         # API callers and hand-written records.
         if parent_amount < 0 and supplied_magnitudes and all(item["amount"] >= 0 for item in specs):
             for item in specs:
-                item["amount"] = -item["amount"]
+                item["amount"] = item["amount"].copy_negate()
         if parent_amount >= 0 and any(item["amount"] < 0 for item in specs):
             raise ValueError("组成项金额方向必须与父流水一致")
-        if sum((item["amount"] for item in specs), Decimal("0")) != parent_amount:
-            raise ValueError("组成项金额之和必须等于父流水金额")
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            if sum((item["amount"] for item in specs), Decimal("0")) != parent_amount:
+                raise ValueError("组成项金额之和必须等于父流水金额")
         return specs
 
     def _sync_components(
@@ -1127,16 +1129,15 @@ class RelationalCashflowRepository:
             component_account = self._session.scalar(select(AccountModel).where(
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.id == component.account_id,
-            ))
-            if component_account is None:
-                continue
-            component_accounts.append(component_account)
+            )) if component.account_id is not None else None
+            if component_account is not None:
+                component_accounts.append(component_account)
             component_rows.append({
                 "id": component.id,
                 "cash_transaction_id": component.cash_transaction_id,
                 "account_id": component.account_id,
-                "account_name": component_account.name,
-                "account_type": component_account.type,
+                "account_name": component_account.name if component_account is not None else None,
+                "account_type": component_account.type if component_account is not None else None,
                 "amount": component.amount,
                 "currency": component.currency,
                 "ordinal": component.ordinal,
@@ -1144,9 +1145,13 @@ class RelationalCashflowRepository:
                 "source_key": component.source_key,
                 "metadata": _json_safe(component.metadata_json or {}),
             })
-        effective_account = account if account is not None else (component_accounts[0] if len(component_accounts) == 1 else None)
+        effective_account = account
+        if effective_account is None and row.state != "draft" and len(component_accounts) == 1:
+            effective_account = component_accounts[0]
         return {
             "id": row.id,
+            "state": row.state,
+            "row_revision": row.row_revision,
             "record_id": row.record_id,
             "source_type": row.source_type or "",
             "source_payload": row.source_payload,
@@ -1165,9 +1170,9 @@ class RelationalCashflowRepository:
             "category_id": row.category_id,
             "record_type": row.record_type,
             "record_subtype": row.record_subtype,
-            "account_name": effective_account.name if effective_account is not None else "",
-            "account_id": effective_account.id if effective_account is not None else None,
-            "account_type": effective_account.type if effective_account is not None else "",
+            "account_name": effective_account.name if effective_account is not None else (None if row.state == "draft" else ""),
+            "account_id": row.account_id,
+            "account_type": effective_account.type if effective_account is not None else (None if row.state == "draft" else ""),
             "cash_granularity": row.cash_granularity,
             "components": component_rows,
             "deleted_at": row.deleted_at,
@@ -1412,7 +1417,9 @@ class RelationalSnapshotRepository:
         if not isinstance(bucket, dict):
             raise ValueError("snapshot account balance must be a currency mapping")
         current = exact_decimal(bucket.get(currency, 0))
-        bucket[currency] = format(exact_decimal(current + exact_decimal(delta)), "f")
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            bucket[currency] = format(exact_decimal(current + exact_decimal(delta)), "f")
 
 
 
@@ -1684,13 +1691,13 @@ class RelationalRelationRepository:
             if len(component_amounts) != 2:
                 raise ValueError("关系组成项不存在")
             if applied_amount == 0:
-                applied_amount = min(abs(exact_decimal(amount)) for amount in component_amounts)
+                applied_amount = min(exact_decimal(amount).copy_abs() for amount in component_amounts)
         if applied_amount:
             component_amounts = self._session.scalars(select(CashTransactionComponentModel.amount).where(
                 CashTransactionComponentModel.workspace_id == self._workspace_id,
                 CashTransactionComponentModel.id.in_([primary_component] + ([secondary_component] if secondary_component else [])),
             )).all()
-            if any(applied_amount > abs(exact_decimal(amount)) for amount in component_amounts):
+            if any(applied_amount > exact_decimal(amount).copy_abs() for amount in component_amounts):
                 raise ValueError("关系分摊金额超过组成项金额")
             if relation.get("kind") == "refund_offset":
                 endpoint_ids = [primary_component]
@@ -1704,9 +1711,7 @@ class RelationalRelationRepository:
                     CashTransactionComponentModel.id.in_(endpoint_ids),
                 )).all())
                 for component_id in endpoint_ids:
-                    existing_total = self._session.scalar(select(
-                        func.coalesce(func.sum(TransactionRelationModel.applied_amount), 0)
-                    ).where(
+                    existing_amounts = self._session.scalars(select(TransactionRelationModel.applied_amount).where(
                         TransactionRelationModel.workspace_id == self._workspace_id,
                         TransactionRelationModel.kind == "refund_offset",
                         TransactionRelationModel.state == "confirmed",
@@ -1715,9 +1720,12 @@ class RelationalRelationRepository:
                             (TransactionRelationModel.primary_component_id == component_id)
                             | (TransactionRelationModel.secondary_component_id == component_id)
                         ),
-                    ))
-                    if exact_decimal(existing_total or "0") + applied_amount > abs(exact_decimal(component_amount_by_id[component_id])):
-                        raise ValueError("组成项退款分摊金额超过可用金额")
+                    )).yield_per(500)
+                    with localcontext() as arithmetic:
+                        arithmetic.prec = 80
+                        existing_total = sum(existing_amounts, Decimal("0"))
+                        if existing_total + applied_amount > exact_decimal(component_amount_by_id[component_id]).copy_abs():
+                            raise ValueError("组成项退款分摊金额超过可用金额")
         status = relation.get("status") or RelationStatus.PENDING_REVIEW.value
         anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
         if anchor in ("", None):

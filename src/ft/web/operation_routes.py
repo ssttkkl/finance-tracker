@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError
+from ft.application.web_queries import ProjectionUnavailableError
 from ft.web.serialization import error_payload, json_value
 
 
@@ -185,6 +186,8 @@ def operation_router(services) -> APIRouter:
     def finance_report(month: str | None = None):
         try:
             return JSONResponse(json_value(services.legacy_queries().report(month=month)))
+        except ProjectionUnavailableError:
+            return _error("projection.unavailable", "账本数据暂不可用，请先完成更新。", 503)
         except ValueError:
             return _error("invalid_filter", "报表月份无效。")
 

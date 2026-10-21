@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -83,7 +83,9 @@ class ExactDecimal(TypeDecorator):
         # PostgreSQL NUMERIC(38,18) pads trailing zeros on read.  Strip only that
         # representation padding so domain multiplications keep the same exact
         # bounds as SQLite text storage, which never invents scale-18 zeros.
-        return Decimal("0") if decimal == 0 else decimal.normalize()
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            return Decimal("0") if decimal == 0 else decimal.normalize()
 
 
 class UTCDateTime(TypeDecorator):

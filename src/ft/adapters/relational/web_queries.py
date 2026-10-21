@@ -1,7 +1,7 @@
 """收支投影的关系型只读查询。"""
 from __future__ import annotations
 from contextlib import contextmanager
-from datetime import timezone
+from datetime import datetime, timezone
 from decimal import Decimal, localcontext
 from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
@@ -11,6 +11,7 @@ from ft.adapters.relational.cash_projection_visibility import active_source_cond
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.domain.queries import FlowDTO
 
 def _amount(value):
     if value is None:
@@ -191,6 +192,46 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
+
+    def read_finance_report(self, *, month=None):
+        """旧管理报表复用当前正式投影，金额及资金流共享读取快照。"""
+        start = end = None
+        if month:
+            start = datetime.strptime(month, "%Y-%m").replace(day=1, tzinfo=timezone.utc)
+            end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+        with self._read_snapshot() as session, localcontext() as arithmetic:
+            arithmetic.prec = 80
+            state = self._active(session)
+            conditions = (CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == state.active_dataset_id, CashProjectionModel.state == "posted",
+                *active_source_conditions(self._workspace_id, state.active_dataset_id))
+            totals_query = select(CashProjectionModel.currency, CashProjectionModel.economic_type,
+                CashProjectionModel.net_amount).where(*conditions, CashProjectionModel.statistics_eligible.is_(True))
+            if start is not None:
+                totals_query = totals_query.where(CashProjectionModel.occurred_at >= start, CashProjectionModel.occurred_at < end)
+            income, expenses = {}, {}
+            for currency, economic_type, amount in session.execute(totals_query).yield_per(500):
+                if economic_type not in {"income", "expense"}:
+                    continue
+                target = income if economic_type == "income" else expenses
+                target[currency] = target.get(currency, Decimal("0")) + amount.copy_abs()
+            cash = aliased(CashTransactionModel)
+            flows_query = select(cash.note, cash.currency, cash.amount).select_from(CashProjectionModel).join(
+                CashProjectionMemberModel, and_(
+                    CashProjectionMemberModel.workspace_id == CashProjectionModel.workspace_id,
+                    CashProjectionMemberModel.dataset_id == CashProjectionModel.dataset_id,
+                    CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)).join(cash, and_(
+                        cash.workspace_id == CashProjectionMemberModel.workspace_id,
+                        cash.id == CashProjectionMemberModel.cash_transaction_id)).where(*conditions,
+                            cash.state == "posted", cash.deleted_at.is_(None), cash.record_type == "transfer_out")
+            grouped = {}
+            for note, currency, amount in session.execute(flows_query).yield_per(500):
+                key = (note, currency)
+                grouped[key] = grouped.get(key, Decimal("0")) + amount.copy_abs()
+            flows = tuple(FlowDTO(note, currency, amount) for (note, currency), amount in
+                sorted(grouped.items(), key=lambda item: (-item[1], item[0]))[:10])
+            return {"income": income, "expenses": expenses, "flows": flows}
+
     def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None, *, projection_version):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
         account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)

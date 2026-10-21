@@ -118,16 +118,15 @@ class WorkspaceServices:
 
     def legacy_queries(self):
         from ft.adapters.market_data import CompositeQuoteProvider, MarketDataProvider
+        from ft.adapters.relational.web_queries import RelationalCashLedgerQueryRepository
         from ft.adapters.relational.queries import (
             RelationalAccountQueryRepository,
             RelationalSnapshotQueryRepository,
             RelationalTransactionQueryRepository,
         )
         from ft.application.queries import FinanceQueryService
-        from ft.application.relations import RelationService
         from ft.application.valuation import ValuationService
 
-        relation_service = RelationService(self._uow())
         quote_provider = CompositeQuoteProvider()
         return FinanceQueryService(
             accounts=RelationalAccountQueryRepository(self._sessions, self._workspace()),
@@ -135,7 +134,7 @@ class WorkspaceServices:
             snapshots=RelationalSnapshotQueryRepository(self._sessions, self._workspace()),
             market_data=MarketDataProvider(quote_provider),
             valuation=ValuationService(quote_provider),
-            relation_projector=relation_service.project,
+            cash_reporter=RelationalCashLedgerQueryRepository(self._sessions, self._workspace()).read_finance_report,
         )
 
     def legacy_funding_relations(self):

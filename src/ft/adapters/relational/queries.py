@@ -43,7 +43,8 @@ class RelationalTransactionQueryRepository:
                 .outerjoin(AccountModel, (
                     AccountModel.workspace_id == CashTransactionModel.workspace_id
                 ) & (AccountModel.id == CashTransactionModel.account_id))
-                .where(CashTransactionModel.workspace_id == self._workspace_id)
+                .where(CashTransactionModel.workspace_id == self._workspace_id,
+                    CashTransactionModel.state == "posted", CashTransactionModel.deleted_at.is_(None))
             )
             if month:
                 start_local = datetime.strptime(month, "%Y-%m").replace(day=1, tzinfo=timezone.utc)

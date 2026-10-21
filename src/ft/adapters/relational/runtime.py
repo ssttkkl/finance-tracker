@@ -94,6 +94,8 @@ def validate_runtime(engine, workspace_id: str, database_url: str) -> None:
 
 
 def build_relational_services(settings) -> ServiceBundle:
+    from .web_queries import RelationalCashLedgerQueryRepository
+
     try:
         engine = create_relational_engine(settings.database_url)
     except RelationalEngineError as exc:
@@ -112,7 +114,7 @@ def build_relational_services(settings) -> ServiceBundle:
         snapshots=RelationalSnapshotQueryRepository(sessions, settings.workspace_id),
         market_data=market_data,
         valuation=valuation,
-        relation_projector=relations_preview.project,
+        cash_reporter=RelationalCashLedgerQueryRepository(sessions, settings.workspace_id).read_finance_report,
     )
     relations = relations_preview
     funding_relations = CashInvestmentFundingRelationService(sessions, settings.workspace_id)

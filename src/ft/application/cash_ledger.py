@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64
@@ -32,6 +32,7 @@ from ft.adapters.relational.models import (
 from ft.adapters.relational.repositories import RelationalCashflowRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.adapters.statement_import import StatementParser
+from ft.application.cash_balances import counts_toward_balance, apply_snapshot_components
 from ft.application.cash_projections import CashProjectionService
 from ft.application.statement_import import StatementImportService, _row_record_id
 from ft.application.statement_account_mapping import (
@@ -235,38 +236,15 @@ class CashLedgerCommandService:
         return account
 
     def _snapshot_deltas(self, uow, changes: list[tuple[dict | None, dict | None]]) -> None:
-        if not changes:
+        if not any(counts_toward_balance(old) or counts_toward_balance(new) for old, new in changes):
             return
         snapshot = uow.snapshot.load(lock=True)
         latest = None
 
-        def apply_row(row, multiplier):
-            if not row or str(row.get("record_type") or "other") in {"transfer_in", "transfer_out"}:
-                return
-            components = row.get("components") or []
-            if not components:
-                components = [{
-                    "account_name": row.get("account_name"),
-                    "account_type": row.get("account_type") or "cash",
-                    "amount": row.get("amount"),
-                    "currency": row.get("currency"),
-                }]
-            for component in components:
-                account_name = str(component.get("account_name") or "").strip()
-                if not account_name:
-                    raise ValueError("组成项缺少目标账户")
-                uow.snapshot.update_balance(
-                    snapshot,
-                    account_name,
-                    component.get("account_type") or "cash",
-                    str(component.get("currency") or row.get("currency") or "").upper(),
-                    Decimal(str(component.get("amount") or "0")) * Decimal(str(multiplier)),
-                )
-
         for old, new in changes:
-            apply_row(old, -1)
-            apply_row(new, 1)
-            latest = new or old or latest
+            apply_snapshot_components(snapshot, uow, old, -1)
+            apply_snapshot_components(snapshot, uow, new, 1)
+            latest = new if counts_toward_balance(new) else old if counts_toward_balance(old) else latest
         snapshot["updated_at"] = (latest or {}).get("occurred_at", "")
         uow.snapshot.save(snapshot)
 
@@ -1918,10 +1896,12 @@ class CashLedgerCommandService:
             parent_amount = Decimal(str(row["amount"]))
         except (KeyError, InvalidOperation, TypeError, ValueError):
             return False
-        return (
-            all(amount.is_finite() for amount in amounts)
-            and sum(amounts, Decimal("0")) == parent_amount
-        )
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            return (
+                all(amount.is_finite() for amount in amounts)
+                and sum(amounts, Decimal("0")) == parent_amount
+            )
 
     def _preview_relation_suggestions(
         self,

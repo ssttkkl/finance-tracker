@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 
 from ft.domain.cashflow import CashflowResult
 from ft.domain.accounts import normalize_currency
@@ -200,7 +200,7 @@ class TransferService:
                     "created_by": "manual",
                 })
             snap = uow.snapshot.load(lock=True)
-            _apply_transfer_snapshot(snap, from_acct, from_currency, -amount)
+            _apply_transfer_snapshot(snap, from_acct, from_currency, amount.copy_negate())
             _apply_transfer_snapshot(snap, to_acct, to_currency, real_to)
             snap["updated_at"] = date
             uow.snapshot.save(snap)
@@ -256,7 +256,7 @@ def _transfer_event(date_str: str, amount: Decimal, account, counterpart, curren
         )
         return _transfer_row(
             date_str,
-            -amount if direction == "out" else amount,
+            amount.copy_negate() if direction == "out" else amount,
             currency,
             note or default_note,
             account.name,
@@ -303,6 +303,12 @@ def _ambiguous_investment_account_name(uow: UnitOfWork, *accounts):
 
 
 def _apply_transfer_snapshot(snap: dict, account, currency: str, amount: Decimal) -> None:
+    with localcontext() as arithmetic:
+        arithmetic.prec = 80
+        _apply_transfer_snapshot_exact(snap, account, currency, amount)
+
+
+def _apply_transfer_snapshot_exact(snap: dict, account, currency: str, amount: Decimal) -> None:
     if account.type not in {"security", "crypto"}:
         _ensure_snapshot_account(snap, account.type, account.name, currency)
         accounts = snap.setdefault("accounts", {}).setdefault(account.type, {})
