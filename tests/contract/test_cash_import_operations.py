@@ -293,7 +293,8 @@ def test_explicit_draft_financial_completion_revalidates_account_and_clears_old_
         operation, = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}]).operations
         assert operation["planned_action"] == expected
         if expected == "create_posted":
-            assert not operation["issues"] and operation["expected_accounts"] == [{"account_id": "101", "revision": 1}]
+            assert not operation["issues"] and operation["expected_accounts"] == [{"account_id": "101",
+                "exists": True, "active": True, "type": "cash", "currency_support": {"CNY": True}}]
         else:
             assert any(issue["code"] == "account_unavailable" for issue in operation["issues"])
 
@@ -348,14 +349,13 @@ def test_unidentified_equivalent_repetitions_do_not_create_extra_operations(draf
             "duplicate_in_batch", "duplicate_in_batch"]
 
 
-def test_stale_mapping_keeps_account_changed_reason_and_never_promotes_new_record(draft_runtime):
+def test_account_rename_does_not_invalidate_current_valid_mapping(draft_runtime):
     file = _file()
     with draft_runtime.sessions.begin() as session:
         session.get(AccountModel, 101).name = "最新账户名"
     with draft_runtime.sessions() as session:
         operation, = _prepare(session, draft_runtime, (file,), selections=_selections((file,))).operations
-        assert operation["values"]["state"] == "draft"
-        assert any(issue["code"] == "account_changed" for issue in operation["issues"])
+        assert operation["values"]["state"] == "posted" and not operation["issues"]
 
 
 def test_new_record_cannot_claim_an_existing_component_identifier(draft_runtime):

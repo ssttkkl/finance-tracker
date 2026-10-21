@@ -281,7 +281,7 @@ class CashImportOperationPlanner:
                 issues.append(_issue("source_update_pending"))
         elif not is_posted:
             # 明确补丁可以补齐资金；旧身份问题需要独立解决，不能靠重传消失。
-            account_issues, expected_accounts = _draft_accounts(values, accounts, selections, funding.group_refs)
+            account_issues, expected_accounts = _draft_accounts(values, accounts)
             issues.extend(account_issues)
             try:
                 validate_cash_record_for_posting(values)
@@ -334,35 +334,40 @@ def _current_values(record):
     return {field: _normalize(field, value) for field, value in record.fields.items()}
 
 
-def _draft_accounts(values, accounts, selections, group_refs):
-    references = {item.get("account_id") for item in values["components"]}
+def _draft_accounts(values, accounts):
+    required = defaultdict(set)
+    for part in values["components"]:
+        currencies = required[part.get("account_id")]
+        if part.get("currency") is not None:
+            currencies.add(part["currency"])
     if values.get("account_id") is not None:
-        references.add(values["account_id"])
-    issues, versions = [], []
-    if None in references or not references:
+        currencies = required[values["account_id"]]
+        if values.get("currency") is not None:
+            currencies.add(values["currency"])
+    issues, dependencies = [], []
+    if None in required or not required:
         issues.append(_issue("account_missing"))
     unavailable = set()
-    for identifier in sorted(references - {None}):
+    for identifier in sorted(required.keys() - {None}):
         account = accounts.get(identifier)
-        if account is not None:
-            versions.append({"account_id": identifier, "revision": account["revision"]})
+        supported = {currency: account is not None and currency in account["currencies"]
+            for currency in sorted(required[identifier])}
+        dependencies.append({"account_id": identifier, "exists": account is not None,
+            "active": account["active"] if account is not None else False,
+            "type": account["type"] if account is not None else None, "currency_support": supported})
         if account is None or not account["active"] or account["type"] not in {"cash", "loan", "lend"}:
             issues.append(_issue("account_unavailable"))
             if account is None:
                 unavailable.add(identifier)
             continue
-        if any(selections[group].get("account_id") == identifier
-            and selections[group].get("expected_account_revision") != account["revision"]
-            for group in group_refs if group in selections):
-            issues.append(_issue("account_changed"))
-        if values.get("currency") is not None and values["currency"] not in account["currencies"]:
+        if not all(supported.values()):
             issues.append(_issue("account_currency_missing"))
     # 外工作区／已删除引用不能写入草稿外键；保留缺项及问题供补选。
     if values.get("account_id") in unavailable:
         values["account_id"] = None
     values["components"] = [{**item, "account_id": None} if item.get("account_id") in unavailable else item
         for item in values["components"]]
-    return issues, versions
+    return issues, dependencies
 
 
 def _remaining_funding_issues(codes, values, manual):

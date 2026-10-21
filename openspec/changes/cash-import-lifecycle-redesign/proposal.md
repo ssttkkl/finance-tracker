@@ -21,7 +21,7 @@
 
 ### Modified Capabilities
 
-- `import/cash-import-session`：不保留原文件、部分文件继续、计划修订及消费、持久收据、恢复与限时失败重试。
+- `import/cash-import-session`：不保留原文件、部分文件继续、按当前资金资格重验账户、计划修订及消费、持久收据、恢复与限时失败重试。
 - `import/statement-import`：来源对应、来源原文备注、草稿、统一字段约束及逐行隔离。
 - `cash-ledger/transaction-relations`：草稿关联、联合最终图、已确认决定保护、类型更新清理及局部闭包。
 - `cash-ledger/cash-record-classification`：草稿可缺类型、对方账号及属性直接覆盖、普通类型更新无需历史迁移。

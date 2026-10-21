@@ -67,15 +67,15 @@
 - [x] 4.7.3.2 迁入工行信用卡／借记卡 PDF，包含密码重传、一次提取及逐条隔离。
 - [x] 4.7.3.2.1 一次读取原生 PDF 表格及范围证据，接入行级本方身份、共享单行分类和默认文件解析；验证金额固定列、密码／坏行隔离、资源清理和五份真实样本。
 - [x] 4.7.3.2.2 支持真实信用卡同次导出的连续页面文件：最小认证证据、重复页面定位、共同完整性校验与互斥出现次数；缺段／重叠矛盾保持未知，其他账单继续。
-- [ ] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
+- [x] 4.8 为不可变计划、预计投影列表、分页／详情、计划替换和发布消费竞争写失败测试；实现计划与目标 DTO。
 - [x] 4.8.1 接入文件级（含零行页）及已存认证页证据的计划／提交前重验，统一计算跨会话汇齐的完整性；不能仅靠旧行覆盖标志，空页元数据的持久化须在该步骤明确。
 - [x] 4.8.1.1 统一文件及候选旧导出的认证空间、当前活动绑定与独立空页证据；只在本次内存规划提升完整性，覆盖零行、命名空间、冲突、删除与迁移回滚。
 - [x] 4.8.1.2 联合提交在锁内重验并保存认证空页；证据冲突或保存点失败时跳过相关依赖决定，不让依赖旧证明的写入继续。
 - [x] 4.8.2 实现已解析行的来源账户组及支付组成项桥接：来源范围隔离、稳定组引用、已有账户修订与币种、同账户合并、未知分摊及逐行错误；不创建账户、不提前写流水。
 - [x] 4.8.3 实现不可变计划发布／替换和只读分页详情，验证同一会话 CAS、到期、权限、消费先验及失败保持；不把内部发布层当作已完成业务预览。
-- [ ] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
+- [x] 4.8.4 接入实际来源、资金、字段差异、当前关系及新建议的业务构建器，输出唯一预计流水列表，覆盖批内共同操作和逐项安全失败。
 - [x] 4.8.4.1 将实际来源共同操作、资金映射、字段规则及明确补丁组合为逐流水决定；重算补齐结果，保留人工保护及组成项身份，验证固定冲突、等价重复、暂缓更新及逐行安全失败。
-- [ ] 4.8.4.1.1 API 切换前校准账户选择重验：仅改名称或纯修订变化不跳过，按稳定 ID、当前归属、启用状态、允许类型及所需币种重验；覆盖新增／草稿转正式、人工资金补丁及无关行继续，普通账户命令 CAS 不变。
+- [x] 4.8.4.1.1 API 切换前校准账户选择重验：仅改名称或纯修订变化不跳过，按稳定 ID、当前归属、启用状态、允许类型及所需币种重验；覆盖新增／草稿转正式、人工资金补丁及无关行继续，普通账户命令 CAS 不变。
 - [x] 4.8.4.2 接入当前关系与新建议、完整组决定及虚拟最终图，将逐流水操作组成唯一预计列表和详情；验证选择失效、关系错误隔离及当前闭包依赖。
 - [x] 4.8.4.3 去除新增伪差异、共享冻结详情字段，分别约束 25 MiB 解析内容及 64 MiB 完整会话；验证不可变详情及真实 19 份账单的完整预览／暂存，不截断数据。
 - [ ] 4.9 为逐行保存点、关系组隔离、缓存回滚、收据同事务、重复键／上下文消费和未知结果写失败测试；实现联合提交。
@@ -106,6 +106,11 @@
 
 ## 6. 测试与 QA
 
+- 4.8.4.1.1 账户重验（2026-10-22，HEAD／比较基线 `f867f9a`）：账户改名及纯修订的新增／草稿转正式回归先 4 failed、1 passed（13.78 s，`/tmp/ft-cash-account-revalidation-red.log`），失败中止后未进入 PostgreSQL，不计为双后端。设计及 delta 明确按人工补丁后的最终父／全部组成项冻结 `account_id/exists/active/type/currency_support`，只包含实际所需币种，不再单独比较导入账户修订；普通账户 CAS 及正式固定字段约束不改。独立静态预审和最终复核关闭原 P2，无新 P1／P2，补无关币种删除及人工多账户分摊失效；审查没有代运行测试。
+- SQLite 账户三文件 `tests/contract/test_cash_import_account_revalidation.py tests/contract/test_cash_import_operations.py tests/test_cash_import_funding.py -q --disable-warnings --tb=short --maxfail=4` → 105 passed、58 PostgreSQL cases 明确跳过（138.35 s，`/tmp/ft-cash-account-revalidation-sqlite.log`）。随后补账户失效原因：原笼统 `record_changed` 先 1 failed、1 skipped（3.16 s），修复后 `-k 'lost_account or allocation_accounts'` → 4 passed、4 skipped（10.18 s，`/tmp/ft-cash-account-reason-sqlite.log`）；只替换目标及修订未变化时的安全原因，不改变跳过判定。增量静态复核无阻断；最终完整双后端结果单独记录，不将中间 skip 当通过。
+- 最终账户双后端命令 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-account-revalidation-dual.log tests/contract/test_cash_import_account_revalidation.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_retry.py tests/contract/test_account_commands.py tests/test_cash_import_funding.py -q --disable-warnings --tb=short --maxfail=3` → 427 passed、无 skip（693.27 s）。使用显式专用 `_test` PostgreSQL，覆盖新增／草稿转正式／人工资金补丁的预览前后变化、全部最终分摊账户、仅相关行跳过、普通账户 CAS、共同配对和失败恢复；源代码在最终原因增量之后加载。`uv build --out-dir /tmp/ft-cash-account-revalidation-final-dist`、语法编译及 OpenSpec strict 通过，最终独占成本另列如下。
+- 账户步最终独占成本 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-account-revalidation-performance.log tests/test_cash_import_performance.py -q -m performance -s --disable-warnings --tb=short` → 4 passed（169.76 s）。SQLite／PostgreSQL 普通预览 3.8720／3.8247 s、首次提交 5.6014／11.1282 s、重复往返 6.5090／10.8249 s；失败内容准备 1.8949／1.9757 s、派生 0.7221／0.7666 s、重试预览 4.4844／4.0798 s、重试提交 6.3795／6.1686 s，符合原有独立命令 5／15 s 预算。派生加预览合计 5.2065／4.8464 s 继续如实报告；进程 RSS 高水位增量普通约 5.44 MiB／0、重试 37.69／0.42 MiB，均低于 256 MiB。测量期间没有并发本任务测试、构建或修改运行时代码。
+- 本步 Cross-platform Impact Check：只校准尚未公开的新后端计划与提交，Web、Native 和共享 presentation 未改页面或文案；功能地图更新内部证据，页面数及对齐 TODO 不变。无 schema、新依赖或真实数据迁移，回退应用只会恢复原先的账户误拒绝，不改既有流水和余额；最终接口切换仍须使升级前旧临时计划失效。反思：导入当前资金资格与账户普通命令 CAS 是不同依赖，不能把纯修订变化误作业务语义失效；新增回归同时约束最终人工分摊及无关行隔离。
 - 4.10.1–4.10.2 最终功能矩阵（2026-10-22，HEAD／比较基线 `1c1e9c0`，验证本步未提交差异）：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-shared-final-dual.log tests/contract/test_cash_import_retry.py tests/contract/test_cash_import_retry_candidates.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_mutation_receipts.py tests/contract/test_parsed_cash_import_context.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_import_plan_publication.py tests/test_cash_import_retry_validation.py tests/test_cash_source_retry_positions.py tests/test_cash_source_matching.py tests/test_cash_source_batch.py tests/test_parsed_import_staging.py -q --disable-warnings --tb=short --maxfail=4` → 706 passed、无 skip（844.36 s）。使用显式专用 `_test` PostgreSQL；同一应用合同覆盖 SQLite，候选形状破坏、候选当前修订、保存点回滚刷新及派生恢复均包含在最终源代码加载之后。先前 SQLite 中间矩阵 138 passed、112 PostgreSQL cases 明确跳过（269.41 s）不替代此结果。`uv build --out-dir /tmp/ft-cash-retry-shared-dist`、`uv run python -m compileall -q src` 及 OpenSpec strict 通过；最终成本检查另行独占运行。
 - 成本门槛校准：首轮 2 failed、优化后 1 failed／3 passed（`/tmp/ft-cash-retry-cost-optimized.log`），分别反映“派生＋预览合计 5 s”的新增合并门槛，不能改写为通过。独立工程复核确认两个独立命令应分别计时：预览保持既有 5 s、提交保持 15 s，派生命令新增单独 5 s 预算，并继续报告合计；普通导入、重复导入和 256 MiB 门槛不变。
 - 最终独占成本命令 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-retry-shared-final-performance.log tests/test_cash_import_performance.py -q -m performance -s --disable-warnings --tb=short` → 4 passed（175.92 s）。SQLite／PostgreSQL 普通预览 3.9101／3.8862 s、首次提交 5.5795／11.1414 s、重复往返 6.5679／9.2817 s；失败内容准备 1.7305／1.9614 s、派生 0.7685／0.7192 s、重试预览 4.2865／4.2323 s、重试提交 6.4045／11.9306 s，均满足对应 5／15 s 预算。派生加预览合计仍报告为 5.0550／4.9515 s，不冒称两端均符合此前新增的合计 5 s。进程 RSS 高水位增量：普通约 5.03 MiB／0，重试约 13.23／14.97 MiB，均低于 256 MiB；0 不表示没有内存使用。测量时未并发本任务其他测试、构建或运行时代码修改，只有文档证据整理。

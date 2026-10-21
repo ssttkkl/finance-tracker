@@ -38,6 +38,10 @@ class _RowChanged(ValueError):
     code = "record_changed"
 
 
+class _AccountChanged(_RowChanged):
+    code = "account_changed"
+
+
 def _recoverable(error):
     # 完整性错误可由保存点恢复；连接中断／锁与事务错误绝不伪装成单行失败。
     return not isinstance(error, DBAPIError) or (isinstance(error, (IntegrityError, DataError)) and not error.connection_invalidated)
@@ -136,6 +140,11 @@ class CashImportCommandService(CashImportPlanService):
                         actual[ref] = {"outcome": "duplicate", "transaction_id": candidate["transaction_id"]}
                         continue
                     if candidate is None or _operation_fingerprint(operation) != _operation_fingerprint(candidate):
+                        if (candidate is not None and operation.get("expected_accounts")
+                            and operation["transaction_id"] == candidate["transaction_id"]
+                            and operation["expected_revision"] == candidate["expected_revision"]
+                            and operation["expected_accounts"] != candidate["expected_accounts"]):
+                            raise _AccountChanged
                         raise _RowChanged
                     validated.add(ref)
                     if operation["planned_action"] == "duplicate" and _issues_unchanged(operation):

@@ -127,14 +127,21 @@ def test_zero_payment_does_not_treat_promotion_face_value_as_funding(method):
 
 @pytest.mark.parametrize("patch,code", [
     ({"active": False}, "account_unavailable"), ({"type": "security"}, "account_unavailable"),
-    ({"revision": 4}, "account_changed"), ({"currencies": ["USD"]}, "account_currency_missing"),
+    ({"currencies": ["USD"]}, "account_currency_missing"),
 ])
-def test_unavailable_or_changed_account_only_affects_its_rows(patch, code):
+def test_unavailable_account_only_affects_its_rows(patch, code):
     scan = _scan(_file(methods=("银行卡(1234)", "余额")))
     accounts = {str(i): {"id": str(i), "revision": 3, "active": True, "type": "cash", "currencies": ["CNY"]} for i in (1, 2)}
     accounts["1"].update(patch)
     rows = _resolve(scan, accounts=accounts)
     assert not rows[0].ready and code in rows[0].issue_codes and rows[1].ready
+
+
+def test_new_account_revision_revalidates_current_eligibility_without_reselection():
+    scan = _scan(_file())
+    row, = _resolve(scan, accounts={"1": {"id": "1", "revision": 4,
+        "active": True, "type": "cash", "currencies": ["CNY", "USD"]}})
+    assert row.ready and row.fields["account_id"] == "1" and not row.issue_codes
 
 
 def test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated():

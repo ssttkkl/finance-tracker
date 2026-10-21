@@ -205,8 +205,6 @@ def _selection_accounts(scan, selections, accounts):
         if (not isinstance(account, Mapping) or str(account.get("id", account.get("account_id"))) != selected
             or account.get("active") is not True or account.get("type") not in {"cash", "loan", "lend"}):
             result[ref] = (None, "account_unavailable")
-        elif account.get("revision", account.get("account_revision")) != revision:
-            result[ref] = (None, "account_changed")
         else:
             result[ref] = (account, None)
     return result
