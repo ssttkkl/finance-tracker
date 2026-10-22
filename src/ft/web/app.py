@@ -18,7 +18,7 @@ from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashLedgerQueryService
 from ft.application.cash_ledger import CashLedgerCommandService
-from ft.config import StorageSettings, build_import_staging_store, build_parsed_import_store
+from ft.config import StorageSettings, build_parsed_import_store
 from ft.web.serialization import error_payload
 from ft.application.access import AccessService, AuthenticationRequired, PermissionDenied, bearer_token
 
@@ -64,12 +64,11 @@ def validate_web_origin(origin: str) -> str:
 
 
 class WorkspaceServices:
-    """Resolve legacy workspace-bound services from an authenticated request context."""
-    def __init__(self, sessions, workspace_var, *, user_var=None, import_staging_store=None, parsed_import_store=None):
+    """按认证上下文构造工作区服务。"""
+    def __init__(self, sessions, workspace_var, *, user_var=None, parsed_import_store=None):
         self._sessions = sessions
         self._workspace_var = workspace_var
         self._user_var = user_var
-        self._import_staging_store = import_staging_store
         self._parsed_import_store = parsed_import_store
     def _workspace(self):
         workspace_id = self._workspace_var.get()
@@ -165,10 +164,6 @@ class WorkspaceServices:
 
         return CashProjectionService(self._sessions, self._workspace())
 
-    def legacy_relations(self):
-        from ft.application.relations import RelationService
-
-        return RelationService(self._uow())
 
     def add_account_alias(self, *, alias_type: str, alias_value: str, account_name: str) -> dict:
         from sqlalchemy import select
@@ -198,30 +193,9 @@ class WorkspaceServices:
         workspace_id = self._workspace()
         query = CashLedgerQueryService(self._sessions, workspace_id)
         if hasattr(query, name): return getattr(query, name)
-        from ft.application.relations import RelationService
-        from ft.adapters.relational.uow import RelationalUnitOfWork
-        command = CashLedgerCommandService(self._sessions, workspace_id, relation_service=RelationService(RelationalUnitOfWork(self._sessions, workspace_id)))
-        from ft.application.cash_import_session import CashImportSessionService
-        if name in {
-            "scan_import",
-            "scan_import_session",
-            "scan_import_batch",
-            "scan_import_batch_session",
-            "preview_import_session",
-            "commit_import_session",
-            "preview_import_batch_session",
-            "commit_import_batch_session",
-        }:
-            if self._import_staging_store is None:
-                raise ValueError("import_session_storage_config_missing")
-            session_service = CashImportSessionService(
-                command,
-                self._import_staging_store,
-                workspace_id=workspace_id,
-                user_id=self._user(),
-            )
-            if hasattr(session_service, name): return getattr(session_service, name)
-        if hasattr(command, name): return getattr(command, name)
+        if name in {"create_record", "delete_record", "delete_projections", "preview_delete_projections", "list_records", "options"}:
+            command = CashLedgerCommandService(self._sessions, workspace_id)
+            return getattr(command, name)
         from ft.application.cash_categories import CashCategoryService
         category = CashCategoryService(self._sessions, workspace_id)
         if hasattr(category, name): return getattr(category, name)
@@ -435,13 +409,11 @@ def create_runtime_app():
         sessions = create_session_factory(engine)
         workspace_var = ContextVar("web_workspace_id", default=None)
         user_var = ContextVar("web_user_id", default=None)
-        import_staging_store = build_import_staging_store()
         parsed_import_store, parsed_import_cleanup = build_parsed_import_store()
         service = WorkspaceServices(
             sessions,
             workspace_var,
             user_var=user_var,
-            import_staging_store=import_staging_store,
             parsed_import_store=parsed_import_store,
         )
         from ft.adapters.fx_rates import FxRateProvider

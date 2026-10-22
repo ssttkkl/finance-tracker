@@ -268,18 +268,18 @@ def test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contra
     assert response.json()["error"]["code"] == "amount_must_be_decimal_string"
 
 
-def test_http_replacement_matrix_covers_queries_relations_investments_and_fact_delete():
+def test_http_replacement_matrix_preserves_queries_investments_and_funding_after_cash_cutover():
     operations = _Operations()
     client = _client(operations)
 
     assert client.get("/api/v1/queries/accounts").status_code == 200
     assert client.get("/api/v1/queries/transactions?limit=10").status_code == 200
     assert client.get("/api/v1/reports/finance?month=2026-08").status_code == 200
-    assert client.get("/api/v1/relations/pending").status_code == 200
-    assert client.post("/api/v1/relations/check", json={"fact_ids": ["cash-1"]}).status_code == 200
-    assert client.post("/api/v1/relations/relation-1/accept", json={"reason": "receipt"}).status_code == 200
-    assert client.post("/api/v1/relations/relation-1/reject", json={"reason": "not-a-match"}).status_code == 200
-    assert client.request("DELETE", "/api/v1/cash-facts/cash-1", json={"reason": "duplicate"}).status_code == 200
+    assert client.get("/api/v1/relations/pending").status_code == 404
+    assert client.post("/api/v1/relations/check", json={"fact_ids": ["cash-1"]}).status_code == 404
+    assert client.post("/api/v1/relations/relation-1/accept", json={"reason": "receipt"}).status_code == 404
+    assert client.post("/api/v1/relations/relation-1/reject", json={"reason": "not-a-match"}).status_code == 404
+    assert client.request("DELETE", "/api/v1/cash-facts/cash-1", json={"reason": "duplicate"}).status_code == 404
     assert client.get("/api/v1/funding-relations/pending").status_code == 200
     assert client.post("/api/v1/funding-relations/scan").status_code == 200
     assert client.post("/api/v1/funding-relations/8/confirm", json={"reason": "receipt"}).status_code == 200
@@ -290,7 +290,7 @@ def test_http_replacement_matrix_covers_queries_relations_investments_and_fact_d
     }).status_code == 201
 
     assert ("query.accounts",) in operations.calls
-    assert ("relations.check", {"seed_fact_ids": ["cash-1"], "seed_batch_id": None, "trigger": "manual_range"}) in operations.calls
+    assert not any(call[0].startswith("relations.") for call in operations.calls)
     assert any(call[0] == "investment.buy" for call in operations.calls)
 
 

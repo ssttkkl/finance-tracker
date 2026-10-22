@@ -57,21 +57,6 @@ class ImportStagingSettings:
         return cls(backend=backend, ttl_seconds=ttl_seconds, prefix=prefix)
 
 
-def build_import_staging_store(*, environ=None):
-    """Build the explicitly selected temporary store at the composition root."""
-    environment = dict(os.environ if environ is None else environ)
-    settings = ImportStagingSettings.load(environ=environment)
-    if settings.backend == "memory":
-        from ft.application.cash_import_staging import InMemoryImportStagingStore
-
-        return InMemoryImportStagingStore(ttl_seconds=settings.ttl_seconds)
-    from ft.application.cash_import_staging import R2ImportStagingStore
-    try:
-        return R2ImportStagingStore.from_environment(environ=environment)
-    except ValueError as exc:
-        raise StorageConfigurationError(str(exc)) from exc
-
-
 def build_parsed_import_store(*, environ=None):
     """构造新解析存储及其必需清扫器；不连接或创建业务数据库。"""
     from ft.application.parsed_import_staging import InMemoryParsedImportStore, R2ParsedImportStore

@@ -117,10 +117,11 @@
 - [x] 4.11.3 接入计划分页／详情、一次确认、持久收据、结果核实及失败项重试会话，覆盖权限、协议和安全错误。
 - [ ] 4.11.4 接入无文件维护与计划 API，关闭旧固定字段／直接关系及旧导入写入口，更新 Agent 技能及旧收据切换。
 - [x] 4.11.4.1 接入当前流水详情、幂等草稿保存及无文件维护计划／确认，复用严格输入、安全提交结果与分页，覆盖当前权限、旧计划失效及响应丢失。
-- [ ] 4.11.4.2 接入当前投影详情及流水重新定位，关闭旧固定字段／直接关系、旧导入和绕过新合同的现金写入口；保持手工新建及既定删除能力。
+- [x] 4.11.4.2 接入当前投影详情及流水重新定位，关闭旧固定字段／直接关系、旧导入和绕过新合同的现金写入口；保持手工新建及既定删除能力。
 - [x] 4.11.4.2.1 增加同快照当前投影详情及稳定流水重新定位，验证草稿、合并／拆分、净额零、删除、工作区和未就绪结果。
-- [ ] 4.11.4.2.2 关闭旧公开导入、直接现金关系／固定字段和旧事实删除入口，移除运行时原文件会话分发；保留新建、既定删除、校准、转账、投资及别名能力，新建只接收公开字段。
+- [x] 4.11.4.2.2 关闭旧公开导入、直接现金关系／固定字段和旧事实删除入口，移除运行时原文件会话分发；保留新建、既定删除、校准、转账、投资及别名能力，新建只接收公开字段。
 - [x] 4.11.4.2.2.1 收紧手工新建的公开字段及组成项输入，由服务端建立明确备注／分类保护；验证私有字段拒绝、原子性及正常新建。
+- [x] 4.11.4.2.2.2 移除旧公开导入、直接现金关系、固定字段和事实删除路由及原文件运行时分发／构造器，迁移旧 HTTP 用例并验证保留能力。
 - [x] 4.11.4.2.3 将独立现金—投资候选扫描及确认重验限制为正式现金流水，验证完整草稿不能占用投资端点及正常正式匹配不回归。
 - [ ] 4.11.4.3 保留旧提交结果的归属、键和真实摘要，迁入统一收据并移除旧表／运行时写入，覆盖双后端升级、碰撞失败及安全回滚。
 - [ ] 4.11.4.4 更新 Agent 导入技能和 API 参考，只使用新会话／计划／结果接口，不恢复 CLI，不增加逐条强制确认。
@@ -136,6 +137,13 @@
 
 ## 6. 测试与 QA
 
+- 4.11.4.2.2.2 旧公开入口切换（2026-10-22，HEAD／比较基线 `e3fe558`）：首次新合同 4 failed、2 deselected（4.47 s，`/tmp/ft-cash-legacy-cutover-red.log`），实际旧导入仍执行、运行时仍分发旧原文件会话、旧暂存构造器仍可用；保留能力测试另误写批量删除为 POST 新路径，应沿用既有 `DELETE /cash-projections`，该项不是能力缺失。移除路由／原文件构造及通用旧命令回退并修正测试路径后，4 passed、2 deselected（4.24 s，`/tmp/ft-cash-legacy-cutover-first.log`）。
+- 六个旧原文件／会话 HTTP 测试函数及旧直接关系产品流程已退出合同，由当前 `test_cash_import_session_api.py`、`test_cash_import_plan_api.py`、`test_cash_maintenance_api.py` 及既定当前删除合同承担相应真实流程，不保留旧行为或 skip；CORS 验证改为新 multipart／计划提交路径，仍拒绝恶意来源。旧运行时分发及配置测试改为明确现金命令、解析存储和缺配置边界，投资／别名／转账保留断言继续执行。首次扩展因文本清理局部 import 留下缩进而收集失败（`/tmp/ft-cash-legacy-cutover-expanded.log`）；从基线按精确函数范围重做后语法及扩展 SQLite 68 passed、13 deselected（66.67 s，`/tmp/ft-cash-legacy-cutover-expanded-collected.log`）。
+- 独立静态复核发现 P2：移除旧 JSON 导入时误删仍用于投资 SSE 的模块引用。既有投资实时更新用例先 1 failed、1 deselected（2.25 s，`/tmp/ft-cash-legacy-cutover-sse-red.log`），恢复 `json` 导入后，当前导入／维护／投资 HTTP SQLite 90 passed、82 deselected（139.29 s，`/tmp/ft-cash-legacy-cutover-current-sqlite.log`）。独立增量静态复核确认关闭，无新 P1/P2；保留投资、账户、别名、校准、转账及当前删除的边界未变。
+- 最终固定源码：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-legacy-cutover-final-dual.log tests/contract/test_cash_legacy_entry_cutover.py tests/contract/test_cash_import_session_api.py tests/contract/test_cash_import_plan_api.py tests/contract/test_cash_maintenance_api.py tests/contract/test_cash_manual_create_boundary.py tests/contract/test_account_command_api.py tests/contract/test_investment_web_api.py tests/contract/test_cli_replacement_api.py tests/contract/test_web_api.py tests/test_application_web_services.py tests/test_cash_import_config.py tests/test_cash_ledger_management.py tests/test_user_workspace_access.py -q --disable-warnings --tb=short --maxfail=4` → 319 passed、无 skip（399.82 s）。当前合同使用同一服务覆盖 SQLite 与显式专用 `_test` PostgreSQL，无并行 PostgreSQL pytest；未参数化的旧查询、认证和配置场景按原夹具执行。10 个 Python 文件语法、8 个合同 JSON 示例、OpenSpec strict、`uv build --out-dir /tmp/ft-cash-legacy-cutover-dist` 及 wheel 四个运行时模块逐字校验通过；未配置 Python 类型检查器。
+
+- 切换后最终独占 HTTP 成本：`uv run python /tmp/ft_cash_legacy_cutover_cost.py > /tmp/ft-cash-legacy-cutover-performance.log 2>&1` → 4 passed（35.32 s）。万笔背景、千行实际新导入 HTTP 预览 SQLite／PostgreSQL 0.93／1.02 s、提交 1.26／3.07 s；50 项分页 3 次预热／20 次样本 P95 78.08／86.26 ms，原预览 5 s、提交 15 s、分页 100 ms 及内存预算均保持。维护 HTTP 同样 3 次预热／20 次样本，读取 P95 2.40／7.56 ms、草稿保存含详情 6.07／19.13 ms、预览至提交 10.10／28.74 ms，保留原 100 ms 预算。无其他测试、构建或运行时代码编辑；两枚已核对孤立上报进程在 `finally` 恢复，无其他本任务回归暂停。
+- 本切换小步 Cross-platform Impact Check：Web、Native、共享 Compose DTO／ViewModel 均必须切换，当前 F-04／F-05 仍用旧 API，详情／编辑／配对及导入尚未端到端联通。功能地图明确标为三端共同迁移缺口，仍 10 项页面代码，不增加覆盖或移除 QA TODO；浏览器、Native、Hallmark 和用户演示未运行。当前后端中间提交不得独立部署至仍使用旧客户端的环境，须完成 4.12／4.13 后协调发布。无 schema、新依赖或真实账本写入；内部旧类及旧收据暂留 4.11.4.3，不能据原文件工厂移除声称已清理既有外部对象。回退应优先前滚修正，不重新开放违背固定字段／组提交合同的旧入口。反思：删除大段代码后要核对保留端点的共享导入及真实业务分支，静态语法通过不能代替行为回归。继续旧收据迁移及 Agent 技能更新，整体 4.11 保持未完成。
 - 4.11.4.2.2.1 手工新建边界（2026-10-22，HEAD／比较基线 `23e278a`）：最初 `-k sqlite` 未匹配现有夹具名称，8 deselected、退出 5（`/tmp/ft-cash-manual-create-red.log`）；第一次复用的认证客户端未挂载 `mutation_service`，三项 HTTP 404 不是目标红证据，不能据此称复现。修正为与运行时一致的带写服务认证应用，临时恢复基线源码并在 `finally` 恢复本次实现，4 failed、4 deselected（6.55 s，`/tmp/ft-cash-manual-create-corrected-red.log`），实际私有字段返回 201，直接应用调用未拒绝，保护及严格正文行为缺失。
 - 首轮扩展因正向测试从夹具预置行而非本次响应 ID 读取保护，及三个旧测试继续通过手工入口注入已被忽略的来源字段而失败（`/tmp/ft-cash-manual-create-expanded.log`）。正向断言改为本次 ID；详情隐私场景改由低层夹具创建真实来源流水，其他手工组用例删除原本被忽略的来源声明，不放宽业务断言。独立静态复核新增 P2：非法 UTF-8 会暴露解码错误，过深 JSON 会返回 500；两例先 2 failed（3.59 s，`/tmp/ft-cash-manual-create-decode-both-red.log`），再将协议解码与业务调用分开，统一安全 `422`，增量复核确认关闭。
 - 后续 SQLite 41 passed、1 failed、12 deselected（58.44 s，`/tmp/ft-cash-manual-create-sqlite-final.log`），唯一失败是旧 `cash_granularity` 忽略约定；新合同拒绝全部未知／内部字段，改为先断言拒绝，再保留组成项数量决定形态及父账户的原断言。最终 SQLite 44 passed、14 deselected（61.54 s，`/tmp/ft-cash-manual-create-sqlite-complete.log`），包含公开 OpenAPI、未填写不建保护、明确清空建保护、组成项内部字段及有界正文。
