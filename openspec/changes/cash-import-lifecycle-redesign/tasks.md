@@ -120,7 +120,7 @@
 - [ ] 4.11.4.2 接入当前投影详情及流水重新定位，关闭旧固定字段／直接关系、旧导入和绕过新合同的现金写入口；保持手工新建及既定删除能力。
 - [x] 4.11.4.2.1 增加同快照当前投影详情及稳定流水重新定位，验证草稿、合并／拆分、净额零、删除、工作区和未就绪结果。
 - [ ] 4.11.4.2.2 关闭旧公开导入、直接现金关系／固定字段和旧事实删除入口，移除运行时原文件会话分发；保留新建、既定删除、校准、转账、投资及别名能力，新建只接收公开字段。
-- [ ] 4.11.4.2.3 将独立现金—投资候选扫描及确认重验限制为正式现金流水，验证完整草稿不能占用投资端点及正常正式匹配不回归。
+- [x] 4.11.4.2.3 将独立现金—投资候选扫描及确认重验限制为正式现金流水，验证完整草稿不能占用投资端点及正常正式匹配不回归。
 - [ ] 4.11.4.3 保留旧提交结果的归属、键和真实摘要，迁入统一收据并移除旧表／运行时写入，覆盖双后端升级、碰撞失败及安全回滚。
 - [ ] 4.11.4.4 更新 Agent 导入技能和 API 参考，只使用新会话／计划／结果接口，不恢复 CLI，不增加逐条强制确认。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
@@ -134,6 +134,12 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.11.4.2.3 草稿投资资金准入（2026-10-22，HEAD／比较基线 `d8aacfd`）：完整草稿扫描及确认反例先 3 failed、23 deselected（0.65 s，`/tmp/ft-cash-funding-draft-red.log`）；加入正式状态条件及提前工作区锁后 SQLite 13 passed、13 deselected（1.21 s，`/tmp/ft-cash-funding-draft-sqlite.log`）。独立 PostgreSQL 删除／扫描竞争在临时去掉提前锁时先 1 failed（1.33 s，`/tmp/ft-cash-funding-delete-lock-red.log`），恢复后通过；该实际竞争只覆盖扫描，确认及拒绝的相同锁顺序经独立静态复核，未冒称另跑竞争。测试低层改变状态用于校验防御边界，不开放正式流水降为草稿。
+- 首次矩阵因误写不存在的测试路径退出 4、未收集测试（`/tmp/ft-cash-funding-draft-final-dual.log`），随后正确路径 105 passed、无 skip（105.74 s，`/tmp/ft-cash-funding-draft-final-matrix.log`）。首次独占万笔成本 1 passed、1 failed（25.71 s，`/tmp/ft-cash-funding-lifecycle-performance.log`），PostgreSQL 扫描至确认 P95 2163.65 ms，未放宽原 100 ms 预算。独占 cProfile／SQL 诊断（`/tmp/ft-cash-funding-diagnostic.log`、`/tmp/ft-cash-funding-sql-diagnostic.log`）定位确认端点连接使用状态索引、对 10,001 个父行反复扫描组成项，实际 EXPLAIN 约 2.15 s；先回写 design，再改为锁内按组成项 ID 和父 ID 分别读取，不要求刷新统计或关闭优化器。
+- 最终固定源码：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-funding-draft-bounded-final.log tests/test_cash_investment_funding_relations.py tests/contract/test_cash_relation_type_updates.py tests/contract/test_cash_current_relation_delete.py tests/contract/test_cash_current_projection_api.py -q --disable-warnings --tb=short --maxfail=3` → 105 passed、无 skip（105.24 s）。同一资金服务及受影响合同覆盖 SQLite 与显式专用 `_test` PostgreSQL，无并行 PostgreSQL pytest。3 个 Python 文件语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-funding-draft-dist`、wheel 运行时模块逐字校验、OpenSpec strict 和空白检查通过；未配置 Python 类型检查器。独立增量静态复核确认草稿 P2 及查询重写无新增 P1/P2，手工新建私有字段 P2 仍属 4.11.4.2.2，未关闭整体切换。
+- 最终独占成本：`uv run python /tmp/ft_cash_funding_lifecycle_cost.py > /tmp/ft-cash-funding-lifecycle-performance-final.log 2>&1` → 2 passed（12.54 s）。万笔背景、3 次预热／20 次实际新端点样本，扫描加确认含投影维护 SQLite／PostgreSQL P95 14.31／20.09 ms，保留原 100 ms 门槛；不代表 HTTP 或大批候选成本。无并发测试、构建或运行时代码编辑；诊断与最终运行中的两枚已核对孤立上报进程均在 `finally` 恢复，没有暂停其他本任务回归。
+- 本资金准入小步 Cross-platform Impact Check：后端生命周期边界影响 Web／Native 共同业务结果，现有独立投资能力保留；共享 DTO、实际页面、操作及文案未改。功能地图仍 10 项，Compose／三端 QA 缺口保持，浏览器、Native、Hallmark 和用户演示未运行。无 schema、新依赖或真实账本写入；回退本应用修正会重新暴露草稿占用风险，应前滚修复，不通过改写正式金额或删除历史资金关联回退。反思：提前同步锁及查询成本须分别验证，不能以投影阶段已有锁代替读取前锁，也不能用功能回归代替成本证据。继续 4.11.4.2.2。
 
 - 4.11.4.2.1 当前结果读取（2026-10-22，HEAD／比较基线 `87dfae8`）：稳定流水定位先因缺失路径 404 失败（`/tmp/ft-cash-current-projection-api-red.log`）。首次 SQLite 5 passed、1 failed、6 deselected（10.64 s，`/tmp/ft-cash-current-projection-api-first.log`），唯一失败是新测试假设拆组必须改变根标识；实际稳定根标识可以继续属于当前数据集，已在设计／合同明确“返回最新成员及版本，只有退出当前集才 404”，不新增历史映射或改既有身份。当前读取与维护 HTTP 扩展 30 passed、30 PostgreSQL cases 未运行（50.91 s，`/tmp/ft-cash-current-projection-api-expanded.log`），补隐藏范围、未就绪、成员缺失及安全存储错误后当前读取 SQLite 8 passed、8 PostgreSQL cases 未运行（13.75 s，`/tmp/ft-cash-current-projection-api-final-sqlite.log`）。
 - 新读取独立静态复核覆盖工作区、当前数据集、同快照展示／成员／问题／转账、可维护范围、根及成员完整性、公开隐私和稳定标识语义，无新增 P1/P2；未运行验证。前次旧入口新建私有字段、投资候选草稿准入两项预审 P2 已明确登记在 4.11.4.2.2／.3，属于尚未切换的旧能力，当前读入口不扩展该写风险；整体切换和交付前必须关闭，不能据本读取小步标记整体完成。

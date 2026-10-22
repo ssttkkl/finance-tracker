@@ -123,6 +123,97 @@ def _add_investment(
     return row
 
 
+@pytest.mark.parametrize("record_type", ["investment_out", "transfer_out"])
+def test_complete_cash_draft_is_not_a_funding_candidate_until_posted(funding_runtime, record_type):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashInvestmentFundingRelationModel
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(select(account).where(account.workspace_id == "funding").order_by(account.id)).all()
+        cash = _add_cash(session, cash_model, account_id=bank.id, record_id="draft-funding", amount="-100", record_type=record_type)
+        cash.state = "draft"
+        _add_investment(session, investment_model, account_id=broker.id, record_id="draft-investment")
+    service = CashInvestmentFundingRelationService(sessions, "funding")
+    assert service.scan() == []
+    with sessions() as session:
+        assert session.scalars(select(CashInvestmentFundingRelationModel)).all() == []
+    with sessions.begin() as session:
+        session.get(cash_model, cash.id).state = "posted"
+    relation, = service.scan()
+    assert relation["cash_transaction_component_id"] == cash._test_component_id
+    assert relation["status"] == ("accepted" if record_type == "investment_out" else "pending_review")
+
+
+def test_confirmation_rechecks_cash_lifecycle_without_consuming_an_investment_endpoint(funding_runtime):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashInvestmentFundingRelationModel
+    from ft.application.cash_investment_funding_relations import CashInvestmentFundingRelationService
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(select(account).where(account.workspace_id == "funding").order_by(account.id)).all()
+        cash = _add_cash(session, cash_model, account_id=bank.id, record_id="pending-to-draft", amount="-100", record_type="transfer_out")
+        _add_investment(session, investment_model, account_id=broker.id, record_id="pending-investment")
+    service = CashInvestmentFundingRelationService(sessions, "funding")
+    pending, = service.scan()
+    assert pending["status"] == "pending_review"
+    with sessions.begin() as session:
+        session.get(cash_model, cash.id).state = "draft"
+    with pytest.raises(ValueError, match="端点不可用"):
+        service.confirm(pending["id"], actor="tester")
+    with sessions() as session:
+        assert session.get(CashInvestmentFundingRelationModel, pending["id"]).status == "pending_review"
+    with sessions.begin() as session:
+        posted = _add_cash(session, cash_model, account_id=bank.id, record_id="other-posted", amount="-100", record_type="investment_out")
+    current = service.scan()
+    accepted, = [item for item in current if item["status"] == "accepted"]
+    assert accepted["cash_transaction_component_id"] == posted._test_component_id
+
+
+@pytest.mark.parametrize("funding_runtime", postgres_test_backend_params()[1:], indirect=True)
+def test_funding_scan_reads_current_endpoints_after_a_competing_workspace_delete(funding_runtime, monkeypatch):
+    from datetime import timezone
+    from threading import Event, Thread
+    from sqlalchemy import select
+    import ft.application.cash_investment_funding_relations as funding
+    sessions, account, cash_model, investment_model = funding_runtime
+    with sessions.begin() as session:
+        bank, broker = session.scalars(select(account).where(account.workspace_id == "funding").order_by(account.id)).all()
+        cash = _add_cash(session, cash_model, account_id=bank.id, record_id="concurrent-delete", amount="-100", record_type="investment_out")
+        _add_investment(session, investment_model, account_id=broker.id, record_id="concurrent-investment")
+    service = funding.CashInvestmentFundingRelationService(sessions, "funding")
+    ready, result, errors = Event(), [], []
+    lock = funding.lock_workspace
+    candidates = service._candidate_cash
+    def locking(*args, **kwargs):
+        ready.set()
+        return lock(*args, **kwargs)
+    def reading(*args, **kwargs):
+        value = candidates(*args, **kwargs)
+        ready.set()
+        return value
+    monkeypatch.setattr(funding, "lock_workspace", locking)
+    monkeypatch.setattr(service, "_candidate_cash", reading)
+    def scan():
+        try:
+            result.extend(service.scan())
+        except Exception as error:
+            errors.append(error)
+    worker = Thread(target=scan, daemon=True)
+    try:
+        with sessions.begin() as writer:
+            lock(writer, "funding")
+            writer.get(cash_model, cash.id).deleted_at = datetime.now(timezone.utc)
+            writer.flush()
+            worker.start()
+            assert ready.wait(5), "independent scanner did not reach its read boundary"
+    finally:
+        if worker.ident is not None:
+            worker.join(5)
+    assert not worker.is_alive() and not errors
+    assert result == []
+
+
 def test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer(funding_runtime):
     from sqlalchemy import select
 
