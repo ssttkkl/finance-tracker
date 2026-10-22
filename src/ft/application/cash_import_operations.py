@@ -317,6 +317,21 @@ class CashImportOperationPlanner:
                 diffs.append({"field": field, "current": current.get(field), "incoming": incoming,
                     "effective": values.get(field), "resolution": "keep_existing" if pending else
                     "protected" if field in source_update.protected_fields and field not in manual else "apply"})
+        # 单笔资金覆盖没有整组的来源对应证明，不能反推或改写未来默认。
+        used = []
+        if (not is_posted or choice["action"] != "defer") and not set(manual) & {"account_id", "components", "cash_granularity"}:
+            comparable = lambda parts: prepare_cash_record_update({"state": "draft"},
+                {"components": _component_finances(parts)}).values
+            if not is_posted or comparable(values["components"]) == comparable(funding.fields["components"]):
+                required = defaultdict(set)
+                for part in values["components"]:
+                    if part.get("currency") is not None:
+                        required[part.get("account_id")].add(part["currency"])
+                if values.get("account_id") is not None and values.get("currency") is not None:
+                    required[values["account_id"]].add(values["currency"])
+                used = [{"source_account_ref": group, "source_type": occurrence.source_type, "account_id": account}
+                    for group, account in funding.selected_groups
+                    if required[account].issubset(accounts[account]["currencies"] or ())]
         return {"transaction_id": record.transaction_id if record else None,
             "expected_revision": record.row_revision if record else None, "planned_action": action,
             "current": current if record else None, "values": values, "manual_fields": protected,
@@ -324,7 +339,7 @@ class CashImportOperationPlanner:
             "pending_fields": pending, "type_changed": any(values.get(key) != current.get(key)
                 for key in ("record_type", "record_subtype")), "candidate_ids": candidates,
             "source_group_ref": resolution.group_ref, "source_explanation": deepcopy(explanation),
-            "expected_issues": saved_issues, "expected_accounts": expected_accounts,
+            "expected_issues": saved_issues, "expected_accounts": expected_accounts, "used_account_selections": used,
             "retained_issue_ids": [issue["issue_id"] for issue in saved_issues if issue["code"] == "source_identity_ambiguous"
                 or issue.get("issue_key", "").startswith("relation:")]}
 

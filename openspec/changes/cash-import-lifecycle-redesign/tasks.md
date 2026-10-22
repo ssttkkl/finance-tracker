@@ -13,7 +13,7 @@
 
 ## 3. 任务拆分与一致性
 
-- [x] 3.1 将九项能力及目标文档场景对应到测试与任务；明确旧 API、CLI／技能、Compose 调用切换表。
+- [x] 3.1 将九项能力及目标文档场景对应到测试与任务；明确旧 API、Agent 技能、Compose 调用切换表，已移除 CLI 不恢复。
 - [x] 3.2 准备仓库外依赖、专用 `_test` PostgreSQL 和合成夹具；真实账单仅只读，运行结果去标识化且不进 Git。
 - [ ] 3.3 流程／schema／协议变化先更新 artifact；影响验收的业务歧义按具体问题澄清。
 
@@ -52,7 +52,7 @@
 - [ ] 4.5.4.2 在实际新预览、共享 Compose 及最终浏览器／演示中验证全额退款可见及详情入口；随 4.8.4、4.12–4.13 交付。
 - [ ] 4.6 为独立账户创建修改、CAS、修订链及幂等删除写失败测试；实现普通账户接口与收据。
 - [x] 4.6.1 完成账户版本列／迁移和统一 ORM 修订、稳定 ID、独立 CAS 应用命令、同事务白名单收据及删除引用／旧余额保护。
-- [ ] 4.6.2 接入按 ID 的账户 API、CLI／Agent 及 Compose 普通账户表单和连续补偿链，关闭过渡期旧名称写入口。
+- [ ] 4.6.2 接入按 ID 的账户 API、Agent 及 Compose 普通账户表单和连续补偿链，关闭过渡期旧名称写入口，不恢复已移除 CLI。
 - [x] 4.6.2.1 切换按稳定 ID 的账户 HTTP 命令，校验严格正文与幂等键，关闭按名称写路径，覆盖权限、并发重试及未知结果恢复。
 - [ ] 4.7 为一次解析、不保留原文件、部分文件／行错误、TTL 与权限写失败测试；实现解析会话及临时存储。
 - [x] 4.7.1 保留平台原始出现、文件声明及逐行错误，复用既有原生转换语义，校准真实平台表头。
@@ -111,7 +111,11 @@
 - [x] 4.10.5.1 接入只读的当前关系维护计划：完整组、原样保持、当前候选证明及完整组合、预计列表和失效选择；联合更新执行器就绪前不允许提交。
 - [x] 4.10.5.2 以原关系 ID 和 CAS 更新完整决定组，隔离关联保存点及外层发布失败，验证混合失活旧组不复活、联合钻石原子性、候选并发和旧新闭包。
 - [x] 4.10.5.3 补齐无组成项草稿删除、父锚点及候选反向引用清理；保留父记录／组成项删除审计并释放当前来源身份，验证整组清理、静默重导及另一侧当前投影。
-- [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
+- [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；Agent 与技能共用新服务，关闭绕过新合同的旧入口，不恢复已移除 CLI。
+- [x] 4.11.1 补齐来源范围隔离的账户建议及实际成功使用映射保存；覆盖单笔资金覆盖、同账户合并、部分失败、草稿、旧映射保守读取、同值重放及外层回滚。
+- [ ] 4.11.2 接入逐文件 multipart 上传、严格元数据、会话读取及文件 CAS；限制实际上传量并在所有出口清理当次原始文件。
+- [ ] 4.11.3 接入计划分页／详情、一次确认、持久收据、结果核实及失败项重试会话，覆盖权限、协议和安全错误。
+- [ ] 4.11.4 接入无文件维护与计划 API，关闭旧固定字段／直接关系及旧导入写入口，更新 Agent 技能及旧收据切换。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
 
@@ -124,6 +128,11 @@
 
 ## 6. 测试与 QA
 
+- 4.11.1 最终固定源码双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-import-account-mapping-complete-dual.log tests/contract/test_cash_import_account_mappings.py tests/contract/test_cash_import_account_revalidation.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_retry.py tests/test_cash_import_funding.py -q --disable-warnings --tb=short --maxfail=3` → 377 passed、无 skip（397.70 s）。同一应用服务覆盖 SQLite 与显式专用 `_test` PostgreSQL；资金纯函数用例按既有参数执行，不冒称另有数据库写入。映射发布或收据写后故障回滚、关系失败保留合法映射、源范围与旧建议隔离、冻结后默认变化和同值修订均通过。原预备矩阵中止后重新执行全量六模块，无并发 PostgreSQL pytest。
+- 独占原固定规模成本：`uv run python /tmp/ft_cash_import_account_mapping_cost.py > /tmp/ft-cash-import-account-mapping-performance.log 2>&1` → 4 passed（45.56 s），一万笔背景、每批一千笔，保留原预览／提交／重复导入／失败项派生预算及内存门槛。SQLite／PostgreSQL 首次预览约 0.87／0.97 s、首次提交 1.23／3.04 s、重复预览加提交 1.48／3.17 s；均为固定单次批量测试，不冒称多样本 P95。期间没有本任务其他测试、构建或运行时代码编辑；两枚精确核实的孤立上报进程在 `finally` 恢复并经 `ps` 确认。批量映射查询按 200 个精确键读取，纯内存 SQLite `EXPLAIN QUERY PLAN` 显示工作区／渠道／种类／键的完整索引查找，不将该静态查询计划当作跨后端性能替代。
+- 6 个 Python 文件语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-import-account-mapping-dist`、wheel 两个新模块、OpenSpec strict 和 diff 空白检查通过；未配置 Python 类型检查器。Cross-platform Impact Check：本小步仅补后端映射保存与建议边界，Web、Native 和共享 presentation 尚无新 DTO／页面／文案变化；功能地图保留 F-05 三端接入、浏览器和 Native QA 缺口，页面仍为 10 项。没有 schema／依赖变化或真实账本写入；回退不删除已确认的来源组映射，不恢复旧的无本人范围推断。反思：记住默认的资格与正式流水可变字段的保存资格必须分开，成功草稿也不能把不合法账户配置变成未来默认。HTTP／Compose 与完整回归仍未完成，不据此关闭 4.11 或整个变更。
+- 4.11.1 账户映射 Flow-Back（2026-10-22，HEAD／比较基线 `a709041`）：对照表合同发现新联合提交尚未保存实际使用映射；先补充设计、来源 delta 和接口任务拆分，再由两项实际提交反例先红（3.51 s，`/tmp/ft-cash-import-account-mapping-red.log`）。沿用原表，以精确来源组独立命名空间保存，预览／建议不写库。首轮 SQLite 20 passed（27.55 s，`/tmp/ft-cash-import-account-mapping-first.log`），覆盖局部失败、草稿、同账户合并、来源隔离和只读旧建议。
+- 独立静态复核发现缺币种草稿仍可污染默认的 P2；新增反例先红（3.39 s，`/tmp/ft-cash-import-account-mapping-currency-red.log`），其中已有默认分支初轮因测试复用幂等键失败，修正为独立键；最终按父流水和全部组成项所需币种过滤使用证明，不清除草稿内可维护的信息。扩展首轮 24 passed、2 failed（36.41 s）两项均为夹具复用幂等键，修正后 27 passed（37.02 s，`/tmp/ft-cash-import-account-mapping-sqlite-final.log`）。随后发现派生证明进入指纹会阻断已有正式流水的普通文字更新，两项实际反例先红，移除该派生字段的指纹依赖，仍保留固定事实、冻结选择及新建／草稿账户依赖；SQLite 最终 29 passed、29 PostgreSQL cases 明确未运行（39.95 s，`/tmp/ft-cash-import-account-mapping-posted-final.log`）。预备双后端矩阵为补该反例主动中止，不计为通过；最终固定源码矩阵另跑。独立增量复核确认两项 P2 关闭，无剩余 P1/P2；性能和最终双后端仍待完成。
 - 4.10.5.3 删除合同 Flow-Back（2026-10-22，HEAD／比较基线 `7ad18b0`）：跨层表合同要求逻辑删除保留记录，旧两个入口最后却物理删除；先明确改回已确认合同，新增 shared ledger delta，不以输入纠错或清理旧引用作为删除原财务字段的理由。直接父／锚点删除集与旧闭包重建集分离，完整未确认组清理而无关确认边保留。父锚点四项先 4 failed（7.55 s，`/tmp/ft-cash-current-relation-delete-red.log`），保留无关确认边／候选修订／原记录的增量先 4 failed、1 passed（8.24 s，`/tmp/ft-cash-current-relation-delete-scope-red.log`）。
 - 删除首轮 6 passed、3 failed（12.94 s，`/tmp/ft-cash-current-relation-delete-first-green.log`），失败为夹具把按投影删除也预期成单条解除原因，以及未采用既有零计数键省略规则；修正夹具后扩大回归 17 passed、3 failed（27.69 s，`/tmp/ft-cash-current-relation-delete-expanded.log`），后三项为旧草稿余额测试依赖物理不存在。按逻辑删除合同检查保留的删除信息，聚合组成项旧测试同样改为核对保留财务值；余额断言不变，不扩大当前读取范围。
 - SQLite 删除、余额及原管理／组成项四模块 → 68 passed、37 PostgreSQL cases 明确未运行（92.28 s，`/tmp/ft-cash-current-relation-delete-expanded-final.log`）；新增已核对候选被删除后旧计划不能提交的桥接用例另 1 passed（2.04 s，`/tmp/ft-cash-current-relation-delete-plan-invalidation.log`）。包含同组无关确认边、父锚点预览计数、工作区隔离、三个阶段故障回滚；独立静态复核无 P1/P2，建议的完整重建不复活及目标自身绑定／问题／组成项回滚均补齐。最终双后端及性能仍须完成，不把未运行后端计作通过。

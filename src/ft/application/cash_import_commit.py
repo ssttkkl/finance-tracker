@@ -12,6 +12,7 @@ from ft.adapters.relational.cash_sources import CashSourceRepository, SourceBind
 from ft.adapters.relational.models import CashTransactionModel
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
+from ft.application.cash_import_account_mappings import CashImportAccountMappings
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches
 from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService, _session_id
@@ -138,6 +139,10 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                     if operation["transaction_id"] is not None:
                         actual[ref]["transaction_id"] = operation["transaction_id"]
             rows = self._row_results(plan, fresh, actual, dependencies, failed_namespaces)
+            used = [choice for operation in plan["operations"]
+                if actual[operation["operation_ref"]]["outcome"] != "skipped"
+                for choice in fresh_ops[operation["occurrence_key"]].get("used_account_selections", ())]
+            CashImportAccountMappings(session, self._workspace_id).publish(used, user_id=self._user_id)
             groups = self._save_groups(session, plan, fresh, identity, component_ids, failures, affected,
                 manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]})
             self._discovery_issues(session, plan, identity, failures, affected)

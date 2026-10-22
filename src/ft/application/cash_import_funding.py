@@ -70,6 +70,7 @@ class CashFundingResolution:
     issue_codes: tuple[str, ...]
     ready: bool
     error_code: str | None = None
+    selected_groups: tuple[tuple[str, str], ...] = field(default=(), repr=False)
 
 
 def _sum(values):
@@ -217,7 +218,7 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
         fields = deepcopy(row.fields)
         issues = [code for code in row.issue_codes if code != "funding_unrecognized"
             or any(selected[ref][0] is None for ref in row.group_refs)]
-        merged = OrderedDict()
+        merged, used = OrderedDict(), set()
         try:
             total = exact_decimal(fields["amount"]) if fields.get("amount") is not None else None
             for part in row.parts:
@@ -227,6 +228,8 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
                 if account is not None and fields.get("currency") is not None and fields["currency"] not in account.get("currencies", ()):
                     issues.append("account_currency_missing")
                 account_id = str(account.get("id", account.get("account_id"))) if account is not None else None
+                if account_id is not None:
+                    used.add((part.group_ref, account_id))
                 key = ("account", account_id) if account_id else ("source", part.group_ref)
                 values = merged.setdefault(key, {"account_id": account_id, "amounts": []})
                 values["amounts"].append(_magnitude(part.amount))
@@ -253,7 +256,8 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
                 validate_cash_record_for_posting(fields)
             except CashRecordPolicyError as error:
                 issues.append(error.code)
-            result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)), not issues and row.error_code is None, row.error_code))
+            result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)),
+                not issues and row.error_code is None, row.error_code, tuple(sorted(used))))
         except Exception:
             result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)), False, "funding_unreadable"))
     return tuple(result)
