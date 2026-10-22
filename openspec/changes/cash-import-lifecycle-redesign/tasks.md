@@ -108,6 +108,9 @@
 - [x] 4.10.4.3.1 实现只读合并计划：双方固定事实及人工冲突、当前绑定／问题／候选／完整关系组快照、组成项唯一对应、目标原组分类、预计保留目标和身份候选详情；预览不写业务库。
 - [x] 4.10.4.3.2 接入整个合并单元的联合执行与结果定位：转移完整当前问题及双向候选、父／组成项锚点和来源绑定，最后退出源草稿；验证重放、源退出、余额、投影、收据及分阶段注入失败回滚。
 - [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
+- [x] 4.10.5.1 接入只读的当前关系维护计划：完整组、原样保持、当前候选证明及完整组合、预计列表和失效选择；联合更新执行器就绪前不允许提交。
+- [ ] 4.10.5.2 以原关系 ID 和 CAS 更新完整决定组，隔离关联保存点及外层发布失败，验证混合失活旧组不复活、联合钻石原子性、候选并发和旧新闭包。
+- [ ] 4.10.5.3 补齐父锚点及候选反向引用的删除／组成项清理，验证无组成项草稿、整组清理、静默重导及另一侧当前投影。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
@@ -121,6 +124,15 @@
 
 ## 6. 测试与 QA
 
+- 4.10.5 实施前独立静态预审（2026-10-22，HEAD／比较基线 `b881627`）：默认保持必须不写，不能用延后将既有确认降级；旧关系使用更新而非导入新增写法，保留 ID、锚点和决定组。完整组包含已停用成员，原样保持及解除不复活旧边；联合草稿的状态一致要求不扩大到历史确认组。候选完整集合、原证明修订／证据及归属进入计划依赖，不能写回当前父修订为旧证明授信；多边选择由完整合法组合产生。父锚点没有组成项也能延后／清理，旧新闭包均须重建。以上均采纳并回写 design／合同，审查者未执行测试、数据库、构建、探针、进程操作或编辑；无新增用户产品决策。
+- 4.10.5.1 只读入口先 2 failed、19 deselected（3.39 s，`/tmp/ft-cash-current-relation-plan-red.log`）；首轮 10 passed、11 PostgreSQL cases 明确跳过、1 failed（15.58 s），失败为测试误将原有两条确认退款也排除，修成只选择镜像组，保留全部合法维护入口。后补暂定双端不能绕过陈旧候选的两项真实失败，先失败后修复；三文件 SQLite 57 passed、57 PostgreSQL cases 明确跳过（78.91 s，`/tmp/ft-cash-current-relation-plan-expanded.log`），尚非最终源码验收。
+- 独立只读复核提出 2 项 P2：明确解除却显示 `effect=keep`；改选 A–C 后漏掉原暂定对侧 B 的最终状态。均采纳，新增实际预览反例及当前原消费提示反例共 3 failed／1 passed（6.20 s，`/tmp/ft-cash-current-relation-review-red.log`）。后续静态证据复核确认旧 hard-key 布尔结论也不能替代当前关联键／状态／作用域；先安排投资退款、个人转账退回的正反例，再作选定双端纯校验，不调用全局发现或刷新候选证明。
+- 特殊退款正反例先 6 failed、2 passed、42 deselected（11.29 s，`/tmp/ft-cash-current-relation-hard-key-red.log`）；重验选定双端当前关联键／状态及作用域后，新增模块 25 passed、25 PostgreSQL cases 明确跳过（34.99 s，`/tmp/ft-cash-current-relation-plan-review-green.log`）。增量独立静态复核确认两项 P2 及角色证据问题关闭，无新增阻断；未运行验证。六文件 SQLite 回归 → 144 passed、142 PostgreSQL cases 明确跳过（205.18 s，`/tmp/ft-cash-current-relation-plan-final-sqlite.log`）。
+- 最后自审发现旧维护选择失效时误用新建议的默认降级，实际确认边仍保留但公开 `action` 被改成延后；实际预览反例先 1 failed、51 deselected（1.78 s，`/tmp/ft-cash-current-relation-invalidated-red.log`）。仅对当前组保持原决定，新导入组降级语义不变；最终新增模块 → 26 passed、26 PostgreSQL cases 明确跳过（36.75 s，`/tmp/ft-cash-current-relation-plan-final-edges.log`）。独立增量静态复核确认关闭，无新阻断；该最后 guard 的双后端矩阵另验，不冒用前一轮完整源码证据。
+- 最终固定源码的同一 Application Service 双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-current-relation-plan-final-dual.log tests/contract/test_cash_current_relation_plan.py tests/contract/test_cash_relation_context.py tests/contract/test_cash_relation_storage.py tests/contract/test_cash_mutation_business_plan.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_mutation_commit.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_draft_merge_plan.py -q --disable-warnings --tb=short --maxfail=3` → 414 passed、无 skip（501.36 s）。显式专用 `_test` PostgreSQL，无并行 PostgreSQL pytest；当前组更新入口仍未开放，不将旧写入回归算成该入口已经实现。5 个 Python 文件语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-current-relation-plan-release-dist`、wheel 新模块及 OpenSpec strict 通过；未冒称 Python 类型检查。
+- 普通完整维护独占成本 `uv run python /tmp/ft_cash_maintenance_reuse_cost.py > /tmp/ft-cash-current-relation-plan-performance.log 2>&1` → 2 passed（12.46 s）。一万笔背景、3 次预热／20 次测量，SQLite／PostgreSQL 预览加提交 P95 7.40／21.66 ms，单独提交 5.36／16.65 ms，均满足原 100 ms。没有并发本任务测试、构建或运行时代码编辑；未暂停本任务回归，两枚核实的孤立上报进程在 `finally` 恢复并经 `ps` 确认为运行态。当前关系更新的完整成本随执行器验证，不把普通维护成本当作新流程已验收。
+- 本步 Cross-platform Impact Check：只增加后端内部当前关系预览及其安全选择，Web、Native 和共享 presentation 没有页面、文案、路由或入口改动；功能地图记录内部证据，页面数、跨端覆盖及 TODO 保持。更新执行器未就绪前保持不可提交，公开接口、客户端、浏览器／Hallmark 和用户演示仍在后续任务，不以内部详情合同替代。没有 schema、新依赖或真实账本写入；回退时取消未消费维护上下文，不改库中既有决定。反思：已有决定的默认保持、失效选择处理和新建议的默认延后必须分清；按完整旧、新受影响成员检查预览，不能只检查选中的最终合并项。
+- 4.10.5.2 工程预审采纳四项边界：清理豁免只作用于联合状态限制，完整组、令牌、归属及最终图仍重验；内部字段写入造成的候选失效／修订须明确归因，旧证明不得变为有效；保存点依赖包含旧、新端点和相关字段操作；完整校验集合与实际写集合分开，未变或旧停用成员不写。当前只读步仍关闭 `maintain_relations` 提交，更新执行器与父锚点删除留在后续子项；没有新增用户产品决策。
 - 4.10.4.3.2 联合执行开始（2026-10-22，HEAD／比较基线 `84667e1`）：以真实维护命令先验证保留目标、源退出、余额不重记、原输入定位及无上下文重放；初轮因合并只读门禁失败，日志 `/tmp/ft-cash-draft-merge-commit-red.log`。已先回写候选等价／失效、问题内技术引用迁移、`merged_draft` 结果及失败源定位；当前问题正文不建立历史副本，外层投影／收据失败必须完整回滚。候选不同证据仍拒绝整个单元，不按顺序取舍。联合执行尚未完成。
 - 联合实现初轮 SQLite 11 passed／12 PostgreSQL cases 明确跳过、1 failed（18.87 s，`/tmp/ft-cash-draft-merge-commit-first.log`）；失败为夹具使用非白名单 `origin.marker`，已改成支持的文件定位字段，保留原数据约束。身份当前详情尚未提供合并动作的反例亦先失败，再开放有当前候选且绑定一致的草稿动作；独立确认仍检查原绑定，不能借此给矛盾来源授信。
 - 联合实现独立静态复核提出 2 项 P2，均采纳：默认组成项清理早于已规划的等价候选删除，可能先撞唯一索引；预计新建目标问题未纳入键占用，可能与源旧实例撞键。先新增真实确认命令反例，再调整同保存点内次序和只读键规划；源、目标同原因问题仍保留两个实例和正文，不在异常时随意覆盖。审查者未运行任何测试、数据库、构建、探针或进程操作。

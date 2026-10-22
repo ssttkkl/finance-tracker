@@ -106,7 +106,7 @@ class CurrentCashRelationRepository:
             raise CashRelationError("relation_not_found")
         return row
 
-    def _dicts(self, rows):
+    def _dicts(self, rows, *, include_candidate_ids=False):
         rows = tuple(rows)
         grouped = {}
         for batch in _batches(rows):
@@ -114,7 +114,7 @@ class CurrentCashRelationRepository:
                 CashRelationCandidateModel.workspace_id == self._workspace_id,
                 CashRelationCandidateModel.relation_id.in_([row.id for row in batch]),
             ).order_by(CashRelationCandidateModel.candidate_transaction_id, CashRelationCandidateModel.candidate_component_id)):
-                grouped.setdefault(candidate.relation_id, []).append({
+                grouped.setdefault(candidate.relation_id, []).append({**({"id": candidate.id} if include_candidate_ids else {}),
                     "candidate_transaction_id": candidate.candidate_transaction_id,
                     "candidate_component_id": candidate.candidate_component_id,
                     "expected_row_revision": candidate.expected_row_revision,
@@ -127,7 +127,7 @@ class CurrentCashRelationRepository:
     def get(self, relation_id):
         return self._dicts((self._model(relation_id),))[0]
 
-    def list_for_transactions(self, transaction_ids, *, active_only=True, include_candidates=False):
+    def list_for_transactions(self, transaction_ids, *, active_only=True, include_candidates=False, include_candidate_ids=False):
         ids = {_id(value) for value in transaction_ids}
         if not ids:
             return []
@@ -138,7 +138,7 @@ class CurrentCashRelationRepository:
             query = select(TransactionRelationModel).where(TransactionRelationModel.workspace_id == self._workspace_id,
                 TransactionRelationModel.id.in_(self._transaction_ids_query(batch, active_only, include_candidates))).execution_options(populate_existing=True)
             rows.update((row.id, row) for row in self._session.scalars(query) if not active_only or row.active)
-        return self._dicts(rows[key] for key in sorted(rows))
+        return self._dicts((rows[key] for key in sorted(rows)), include_candidate_ids=include_candidate_ids)
 
     def _transaction_ids_query(self, batch, active_only, include_candidates):
         filters = [TransactionRelationModel.workspace_id == self._workspace_id]

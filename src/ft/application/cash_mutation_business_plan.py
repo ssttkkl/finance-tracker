@@ -6,6 +6,7 @@ from ft.adapters.relational.models import CashProjectionMemberModel, CashProject
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
 from ft.application.cash_draft_merge import CashDraftMergePlanner
+from ft.application.cash_current_relation_plan import CashCurrentRelationPlanner
 from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
     _identifier)
 from ft.domain.cash_record_policy import CashRecordPolicyError
@@ -14,7 +15,7 @@ from ft.domain.cash_record_policy import CashRecordPolicyError
 class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
     def __call__(self, *, session, preview_input, previous_plan, current_record=None):
         intent = preview_input["intent"]
-        if intent not in {"edit_record", "finalize_draft", "resolve_issue"}:
+        if intent not in {"edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}:
             raise CashRecordMaintenanceError("plan_input_invalid")
         planner = CashRecordOperationPlanner(session, self.workspace_id)
         row = planner.record(_identifier(preview_input["transaction_id"]), current_record=current_record)
@@ -25,6 +26,11 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         resolutions = preview_input.get("issue_resolutions", [])
         merging = any(choice["resolution"] == "merge_into" for choice in resolutions)
         additional_seeds, decision_groups = set(), set()
+        current_relations = None
+        if intent == "maintain_relations":
+            current_relations = CashCurrentRelationPlanner(session, self.workspace_id, row.id, business_builder=self)
+            additional_seeds.update(current_relations.seed_ids)
+            decision_groups.update(current_relations.decision_group_ids)
         if merging:
             source = row
             row, operation = CashDraftMergePlanner(planner).prepare(source, resolutions, patch)
@@ -37,7 +43,8 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         elif resolutions:
             operation = planner.prepare_resolving(row, patch, resolutions, finalize=intent == "finalize_draft")
         else:
-            operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else planner.prepare_edit(row, patch))
+            operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else
+                planner.prepare_draft(row, patch) if intent == "maintain_relations" and row.state == "draft" else planner.prepare_edit(row, patch))
         operations = [operation]
         category_origin = operation.get("merge_draft", {}).get("category_origin")
         category_members = self._category_members(session, row.id) if "category_id" in patch or category_origin else []
@@ -69,7 +76,7 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True,
             current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes),
             additional_seed_ids=additional_seeds, decision_group_ids=decision_groups,
-            snapshot_transform=CashDraftMergePlanner.overlay if merging else None)
+            snapshot_transform=CashDraftMergePlanner.overlay if merging else None, current_relation_builder=current_relations)
         if len(operations) != expected_count:
             # 一次维护意图不能只保存整笔分类的一部分。
             raise CashRecordPolicyError("relation_endpoint_incompatible", ("record_type", "record_subtype"))
@@ -80,9 +87,9 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
                     op["transaction_id"] for op in operations if op["current"]["state"] == "draft"} else ["save_draft", "finalize_draft"]
                 if merging and member["transaction_id"] == str(row.id) and row.state == "draft":
                     member["allowed_actions"] = ["save_draft"]
-        result.update(can_commit=bool(operations), category_member_ids=category_members,
+        result.update(can_commit=bool(operations) and intent != "maintain_relations", category_member_ids=category_members,
             mutation_units=[[op["operation_ref"] for op in operations]])
-        result["summary"]["relations_removed"] = len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
+        result["summary"]["relations_removed"] = result["summary"].get("relations_removed", 0) + len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
         resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)
         if resolved_count:
             result["summary"]["resolve_issue"] = resolved_count

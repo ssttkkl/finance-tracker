@@ -14,6 +14,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 [身份草稿合并预览](../tests/contract/test_cash_draft_merge_plan.py) 检查双方原始固定事实与人工冲突，保留目标组成项及未采用内容，冻结双向候选和完整关联组；身份候选详情展示当前修订而不更新旧证明。自动分类保护原组人工值，源人工分类冲突须明确统一。[合并联合执行合同](../tests/contract/test_cash_draft_merge_commit.py) 已接入内部维护命令：同一单元保存目标及整笔分类、迁移绑定和当前问题／候选／锚点，最后使源草稿退出；失败保留源内容，成功收据定位目标，投影或收据失败回滚整个命令。Web、Native、共享 presentation 的流程和入口尚未切换，页面数、覆盖及 TODO 保持不变。
 
+内部 [已有配对维护预览](../tests/contract/test_cash_current_relation_plan.py) 从当前流水读取完整决定组及已有候选，不搜索新配对；初次预览保持成员原状态，明确选择才计算预计合并或解除，候选证明变化使旧选择失效。没有组成项的草稿保留延后和清理能力。完整组更新执行器接入前该意图不可提交，不能误用导入新增关系的写入器；公开接口和 Web、Native、共享 presentation 尚未切换，页面数、覆盖及 TODO 保持。
+
 [草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；[来源读取与主页查询](../src/ft/adapters/relational/web_queries.py) 已保留无组成项草稿、未知值及待确认可见性，按稳定排序位置分页，月汇总排除草稿；读取和附属结果使用同一快照。HTTP 已转发状态筛选并返回可空值，Compose 展示和完整草稿维护尚未切换，不据此开放草稿写入口或声称主页维护已完成。派生表升级后须先显式重建，保留已有正式值及引用。
 
 [45 迁移](../migrations/versions/20261021_45_cash_projection_ownership.py) 限制派生结果的工作区归属及唯一活动集合；全量修复发布成功后清理旧派生副本，正式源记录保持。相关 [归属和回滚合同](../tests/contract/test_cash_projection_ownership.py) 覆盖跨工作区写入、异常迁移与旧会话缓存，不新增页面或改变客户端覆盖状态。

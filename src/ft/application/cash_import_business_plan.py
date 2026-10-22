@@ -139,7 +139,8 @@ class CashImportBusinessPlanBuilder:
 
     def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
         files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
-        current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None):
+        current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None,
+        current_relation_builder=None):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
         accounts = self._accounts(session)
         new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
@@ -155,6 +156,8 @@ class CashImportBusinessPlanBuilder:
             if snapshot.parent_ops.get(part.transaction_id, {}).get("planned_action") in {"create_posted", "finalize_draft"}}
         proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])
         groups, conversion_failures = self._groups(snapshot, proposals)
+        if current_relation_builder is not None:
+            groups.extend(current_relation_builder(snapshot, accounts))
         failures.extend(conversion_failures)
         invalidated = self._apply_choices(groups, relation_choices, previous_plan)
         relation_failures = self._apply_groups(snapshot, groups)
@@ -311,7 +314,7 @@ class CashImportBusinessPlanBuilder:
             {row[0]: row for row in context.funding_versions}, {}, set(), set())
         old_closures = _closure_index(context.relations)
         for identifier, value in values.items():
-            if value["state"] == "draft":
+            if value["state"] == "draft" and int(identifier) in context.active_transaction_ids:
                 snapshot.facts[identifier] = self._fact(identifier, value, needs_attention=True)
         for op in tuple(operations):
             identifier = op["transaction_id"] or str(_virtual("transaction", op["occurrence_key"]))
@@ -628,19 +631,28 @@ class CashImportBusinessPlanBuilder:
                     candidate = next((item for item in current[identifier]["candidates"] if item["candidate_id"] == candidate_id), None)
                     if candidate is None:
                         invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
-                        current[identifier]["action"] = "defer"
+                        if current[identifier].get("origin") != "current":
+                            current[identifier]["action"] = "defer"
                         continue
                     for key in ("edges", "evidence", "parent_ids", "member_refs"):
                         current[identifier][key] = deepcopy(candidate[key])
                     current[identifier]["candidate_id"] = candidate_id
+                elif action == "accept" and current[identifier].get("origin") == "current":
+                    confirmation = current[identifier].get("direct_confirmation")
+                    if confirmation is None:
+                        raise CashImportPlanError("plan_input_invalid")
+                    for key in ("edges", "evidence", "parent_ids", "member_refs"):
+                        current[identifier][key] = deepcopy(confirmation[key])
                 elif action == "accept" and any(edge["secondary_transaction_id"] is None for edge in current[identifier]["edges"]):
                     raise CashImportPlanError("plan_input_invalid")
                 current[identifier]["action"] = action
+                if current[identifier].get("origin") == "current":
+                    current[identifier]["changed"] = True
             else:
                 invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
                 touched.update(tuple(sorted(ref.items())) for ref in old[identifier]["member_refs"])
         for group in groups:
-            if any(tuple(sorted(ref.items())) in touched for ref in group["member_refs"]):
+            if group.get("origin") != "current" and any(tuple(sorted(ref.items())) in touched for ref in group["member_refs"]):
                 group["action"] = "defer"
         return invalidated
 
@@ -650,11 +662,14 @@ class CashImportBusinessPlanBuilder:
         old_closures = _closure_index(snapshot.context.relations)
         edges_by_group, group_by_edge = {}, {}
         for group in groups:
-            state = {"accept": "confirmed", "defer": "draft", "ignore": "ignored"}[group["action"]]
-            edges = [CashRelationGraphEdge(**dict(edge, state=state)) for edge in group["edges"]]
+            if group.get("origin") == "current" and not group["changed"]:
+                continue
+            state = {"accept": "confirmed", "defer": "draft", "ignore": "ignored", "remove": None}[group["action"]]
+            edges = [CashRelationGraphEdge(**dict(edge, **({"active": False} if state is None else {"state": state})))
+                if edge["active"] else CashRelationGraphEdge(**edge) for edge in group["edges"]]
             edges_by_group[group["suggestion_id"]] = edges
             group_by_edge.update((str(edge.id), group) for edge in edges)
-        changes = [_link(edge, group["suggestion_id"]) for group in groups for edge in edges_by_group[group["suggestion_id"]]]
+        changes = [_link(edge, suggestion) for suggestion, edges in edges_by_group.items() for edge in edges]
         for identifiers in relation_commit_groups([_link(edge) for edge in snapshot.edges.values()], changes):
             related = {group_by_edge[identifier]["suggestion_id"]: group_by_edge[identifier] for identifier in identifiers}
             edges = [edge for suggestion in related for edge in edges_by_group[suggestion]]
@@ -692,6 +707,7 @@ class CashImportBusinessPlanBuilder:
         if include_unchanged:
             touched.update(snapshot.parent_ops)
         touched.update(parent for group in groups for parent in group["parent_ids"])
+        touched.update(parent for group in groups if group.get("changed") for parent in group.get("old_parent_ids", ()))
         # 类型解除后同一旧组的其余成员也属于此次预计结果。
         old_links = [_link(edge) for edge in snapshot.context.relations]
         from ft.domain.cash_relation_policy import affected_relation_closure
@@ -733,7 +749,7 @@ class CashImportBusinessPlanBuilder:
                 if operation:
                     diffs.extend({**diff, **self._ref(snapshot, parent)} for diff in operation.get("field_diffs", []))
             effects = [{"relation_id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
-                "effect": "remove" if edge.id in snapshot.removed_relations else "keep",
+                "effect": "remove" if edge.id in snapshot.removed_relations or not snapshot.edges[edge.id].active else "keep",
                 "member_refs": [self._ref(snapshot, parent) for parent in (edge.primary_transaction_id, edge.secondary_transaction_id) if parent in snapshot.values]}
                 for edge in snapshot.context.relations if edge.active and edge.state == "confirmed"
                 and parents.intersection((edge.primary_transaction_id, edge.secondary_transaction_id))]
@@ -743,9 +759,11 @@ class CashImportBusinessPlanBuilder:
         counts = dict(Counter(op["planned_action"] for op in operations))
         counts.update({"duplicate": sum(row["planned_action"] in {"duplicate", "duplicate_in_batch"} for row in rows),
             "skip": sum(row["planned_action"] == "skip" for row in rows),
-            "relations_accepted": sum(group["action"] == "accept" for group in groups),
-            "relations_deferred": sum(group["action"] == "defer" for group in groups),
-            "relations_ignored": sum(group["action"] == "ignore" for group in groups), "relations_failed": len(failures)})
+            "relations_accepted": sum(group["action"] == "accept" and group.get("changed", True) for group in groups),
+            "relations_deferred": sum(group["action"] == "defer" and group.get("changed", True) for group in groups),
+            "relations_ignored": sum(group["action"] == "ignore" and group.get("changed", True) for group in groups),
+            "relations_removed": sum(group["action"] == "remove" and group.get("changed", True) for group in groups),
+            "relations_failed": len(failures)})
         processing = []
         for row in rows:
             if row["planned_action"] == "skip" or row["planned_action"] in {"duplicate", "duplicate_in_batch"}:
