@@ -110,6 +110,10 @@ class CashMutationPlanService(CashRecordMaintenanceService):
             edit_context_digest=sha256(identifier.encode()).hexdigest())
         if receipt is not None:
             raise CashMutationConflict("edit_context_committed", receipt["receipt_id"])
+        return self._stored_context(identifier)
+
+    def _stored_context(self, identifier):
+        """只加载临时内容；调用方已在当前事务授权并检查永久消费。"""
         current = self._staging.get(identifier, workspace_id=self._workspace_id, user_id=self._user_id)
         if current.workflow_kind != "mutation" or current.files:
             raise ImportSessionNotFound

@@ -116,12 +116,20 @@ class CashProjectionService:
             logger.warning("无法写入收支投影失败诊断", exc_info=True)
 
     @staticmethod
-    def maintain_in_session(session, workspace_id: str, affected_fact_ids: set[int]) -> dict:
+    def maintain_in_session(session, workspace_id: str, affected_fact_ids: set[int], *, locked_state=None) -> dict:
         """在源写入所属事务内替换受影响投影连通组。"""
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
-        state = repository.require_ready_state_lock()
+        if locked_state is None:
+            state = repository.require_ready_state_lock()
+        else:
+            from sqlalchemy.orm import object_session
+            # 只接收本事务调用方已经锁定的状态，不跨会话复用。
+            if (object_session(locked_state) is not session or locked_state.workspace_id != workspace_id
+                or locked_state.availability != "ready" or not locked_state.active_dataset_id):
+                raise RuntimeError("projection.unavailable")
+            state = locked_state
         component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)

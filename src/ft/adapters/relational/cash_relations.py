@@ -5,7 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import json
 
-from sqlalchemy import and_, case, delete, literal, select, union, update
+from sqlalchemy import and_, bindparam, case, delete, literal, select, union, update
 
 from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint, validate_relation_roles
 from ft.domain.decimal import exact_decimal
@@ -21,6 +21,44 @@ _IDS = frozenset({"primary_transaction_id", "secondary_transaction_id", "primary
 _GRAPH_FIELDS = ("id", "kind", "subtype", "primary_transaction_id", "secondary_transaction_id",
     "primary_component_id", "secondary_component_id", "primary_role", "secondary_role", "applied_amount",
     "state", "active", "decision_group_id", "row_revision")
+
+
+def _confirmed_closure_query():
+    workspace = bindparam("closure_workspace")
+    reachable = select(CashTransactionModel.id.label("node")).where(
+        CashTransactionModel.workspace_id == workspace,
+        CashTransactionModel.id.in_(bindparam("closure_seeds", expanding=True))).cte("current_relation_closure", recursive=True)
+    # 两个有索引的方向分别连接，保留 SQLite 的局部查询计划。
+    directions = select(literal(0).label("direction")).union_all(select(literal(1))).cte("relation_directions")
+    primary = TransactionRelationModel.__table__.alias("from_primary")
+    secondary = TransactionRelationModel.__table__.alias("from_secondary")
+    traversal = reachable.join(directions, literal(True)).outerjoin(primary, and_(
+        directions.c.direction == 0, primary.c.workspace_id == workspace,
+        primary.c.primary_transaction_id == reachable.c.node, primary.c.active.is_(True), primary.c.state == "confirmed",
+    )).outerjoin(secondary, and_(
+        directions.c.direction == 1, secondary.c.workspace_id == workspace,
+        secondary.c.secondary_transaction_id == reachable.c.node, secondary.c.active.is_(True), secondary.c.state == "confirmed",
+    ))
+    neighbour = case((directions.c.direction == 0, primary.c.secondary_transaction_id), else_=secondary.c.primary_transaction_id)
+    reachable = reachable.union(select(neighbour).select_from(traversal).where(neighbour.is_not(None)))
+    return select(reachable.c.node)
+
+
+# 只复用无业务值的表达式；工作区和种子每次绑定，结果始终读取当前事务。
+_CONFIRMED_CLOSURE_QUERY = _confirmed_closure_query()
+
+
+def _graph_rows_query():
+    workspace, ids = bindparam("graph_workspace"), bindparam("graph_parent_ids", expanding=True)
+    branches = [select(TransactionRelationModel.id).where(TransactionRelationModel.workspace_id == workspace,
+        TransactionRelationModel.active.is_(True), endpoint.in_(ids)) for endpoint in (
+            TransactionRelationModel.primary_transaction_id, TransactionRelationModel.secondary_transaction_id,
+            TransactionRelationModel.anchor_transaction_id)]
+    return select(*(getattr(TransactionRelationModel, key) for key in _GRAPH_FIELDS)).where(
+        TransactionRelationModel.workspace_id == workspace, TransactionRelationModel.id.in_(union(*branches)))
+
+
+_GRAPH_ROWS_QUERY = _graph_rows_query()
 
 
 def _batches(values):
@@ -118,10 +156,9 @@ class CurrentCashRelationRepository:
     def graph_rows_for_transactions(self, transaction_ids):
         rows = {}
         for batch in _batches(sorted({_id(value) for value in transaction_ids})):
-            query = select(*(getattr(TransactionRelationModel, key) for key in _GRAPH_FIELDS)).where(
-                TransactionRelationModel.workspace_id == self._workspace_id,
-                TransactionRelationModel.id.in_(self._transaction_ids_query(batch, True, False)))
-            rows.update((row["id"], dict(row)) for row in self._session.execute(query).mappings() if row["active"])
+            current = self._session.execute(_GRAPH_ROWS_QUERY,
+                {"graph_workspace": self._workspace_id, "graph_parent_ids": batch}).mappings()
+            rows.update((row["id"], dict(row)) for row in current if row["active"])
         return tuple(rows[key] for key in sorted(rows))
 
     def graph_rows_for_groups(self, group_ids):
@@ -171,23 +208,8 @@ class CurrentCashRelationRepository:
             seeds = set(batch) - result
             if not seeds:
                 continue
-            reachable = select(CashTransactionModel.id.label("node")).where(CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.id.in_(seeds)).cte("current_relation_closure", recursive=True)
-            # Separate indexed directions: an OR join can scan every confirmed
-            # workspace edge in SQLite. Each direction enables only one join.
-            directions = select(literal(0).label("direction")).union_all(select(literal(1))).cte("relation_directions")
-            primary = TransactionRelationModel.__table__.alias("from_primary")
-            secondary = TransactionRelationModel.__table__.alias("from_secondary")
-            traversal = reachable.join(directions, literal(True)).outerjoin(primary, and_(
-                directions.c.direction == 0, primary.c.workspace_id == self._workspace_id,
-                primary.c.primary_transaction_id == reachable.c.node, primary.c.active.is_(True), primary.c.state == "confirmed",
-            )).outerjoin(secondary, and_(
-                directions.c.direction == 1, secondary.c.workspace_id == self._workspace_id,
-                secondary.c.secondary_transaction_id == reachable.c.node, secondary.c.active.is_(True), secondary.c.state == "confirmed",
-            ))
-            neighbour = case((directions.c.direction == 0, primary.c.secondary_transaction_id), else_=secondary.c.primary_transaction_id)
-            reachable = reachable.union(select(neighbour).select_from(traversal).where(neighbour.is_not(None)))
-            result.update(self._session.scalars(select(reachable.c.node)))
+            result.update(self._session.scalars(_CONFIRMED_CLOSURE_QUERY,
+                {"closure_workspace": self._workspace_id, "closure_seeds": sorted(seeds)}))
         return result
 
     def _values(self, values):

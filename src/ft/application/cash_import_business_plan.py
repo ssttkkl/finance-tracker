@@ -154,6 +154,12 @@ class CashImportBusinessPlanBuilder:
         invalidated = self._apply_choices(groups, relation_choices, previous_plan)
         relation_failures = self._apply_groups(snapshot, groups)
         failures.extend(relation_failures)
+        unique_failures = {}
+        for failure in failures:
+            failure = dict(failure, parent_ids=sorted(set(failure["parent_ids"])))
+            key = _digest(failure["code"], failure["parent_ids"], failure.get("suggestion_id"))
+            unique_failures.setdefault(key, failure)
+        failures = list(unique_failures.values())
         for failure in failures:
             for parent in failure["parent_ids"]:
                 if parent in snapshot.facts:

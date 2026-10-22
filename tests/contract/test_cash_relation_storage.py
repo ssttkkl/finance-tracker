@@ -389,6 +389,35 @@ def test_local_relation_queries_use_bounded_parameter_batches(current_relation_r
     assert counts and max(counts) <= 2100
 
 
+def test_reused_closure_query_rebinds_workspace_seeds_and_current_state(current_relation_runtime):
+    from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+    from ft.adapters.relational.models import WorkspaceModel
+    runtime = current_relation_runtime
+    with runtime.sessions.begin() as session:
+        own = CurrentCashRelationRepository(session, runtime.workspace_id)
+        other_workspace = "closure-other-workspace"
+        session.add(WorkspaceModel(id=other_workspace, name="闭包隔离"))
+        session.flush()
+        other_id = _draft_parent(session, other_workspace, "closure-other-draft")
+        other = CurrentCashRelationRepository(session, other_workspace)
+        assert own.confirmed_closure([1001]) == {1001}
+        assert other.confirmed_closure([1001, other_id]) == {other_id}
+        assert own.confirmed_closure([other_id]) == set()
+        relation = _relation(runtime.workspace_id, state="confirmed", primary_component_id=1002,
+            secondary_component_id=1003, anchor_component_id=1002, primary_role="expense", secondary_role="expense")
+        session.add(relation)
+        session.flush()
+        assert own.confirmed_closure([1002]) == {1002, 1003}
+        assert other.confirmed_closure([1002]) == set()
+        assert [edge["id"] for edge in own.graph_rows_for_transactions([1003])] == [relation.id]
+        assert not other.graph_rows_for_transactions([1003, other_id])
+        assert not own.graph_rows_for_transactions([1001, other_id])
+        relation.active = False
+        session.flush()
+        assert own.confirmed_closure([1002]) == {1002}
+        assert not own.graph_rows_for_transactions([1002])
+
+
 def test_unbound_secondary_cannot_have_a_persisted_role(current_relation_runtime):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     from ft.domain.cash_relation_policy import CashRelationError

@@ -43,6 +43,29 @@ def test_inactive_or_ignored_edges_do_not_mark_current_members(relation_context_
         assert not read_cash_attention(session, runtime.workspace_id, {1101, 1102, 1103, 1104}).transaction_ids
 
 
+def test_batched_attention_rebinds_selected_secondary_and_current_issue_state(relation_context_runtime):
+    from ft.adapters.relational.cash_attention import read_cash_attention
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        sources = CashSourceRepository(session, runtime.workspace_id)
+        first = sources.save_issue(1104, "one", code="source_update_conflict")
+        second = sources.save_issue(1104, "two", code="source_update_conflict")
+        repo = CurrentCashRelationRepository(session, runtime.workspace_id)
+        edge = _add(repo, 1101, 1102)
+        _add(repo, 1103, 1105, state="ignored")
+        identifiers = {1102, 1104, *range(20000, 21200)}
+        attention = read_cash_attention(session, runtime.workspace_id, identifiers)
+        assert attention.transaction_ids == frozenset({1102, 1104})
+        assert attention.issue_versions == tuple(sorted(((first.id, 1104, first.revision), (second.id, 1104, second.revision))))
+        assert attention == read_cash_attention(session, runtime.workspace_id, identifiers,
+            relation_rows=repo.graph_rows_for_transactions(identifiers))
+        assert not read_cash_attention(session, "unrelated-workspace", identifiers).transaction_ids
+        repo.replace(edge["id"], {"active": False}, expected_revision=edge["row_revision"])
+        sources.clear_issue(1104, "one")
+        sources.clear_issue(1104, "two")
+        assert not read_cash_attention(session, runtime.workspace_id, identifiers).transaction_ids
+
+
 @pytest.mark.parametrize("change", ["add", "update", "clear", "recreate"])
 def test_local_context_detects_issue_changes_without_parent_revision(relation_context_runtime, change):
     runtime = relation_context_runtime

@@ -17,6 +17,7 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             raise CashRecordMaintenanceError("plan_input_invalid")
         planner = CashRecordOperationPlanner(session, self.workspace_id)
         row = planner.record(_identifier(preview_input["transaction_id"]))
+        current_records = {str(row.id): row}
         patch = preview_input["patch"]
         operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else planner.prepare_edit(row, patch))
         operations = [operation]
@@ -24,11 +25,12 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         for identifier in category_members:
             if identifier != str(row.id):
                 member = planner.record(int(identifier))
+                current_records[identifier] = member
                 operations.append(planner.prepare_edit(member, {"category_id": patch["category_id"]}))
         scopes = self._source_scopes(session, {int(op["transaction_id"]) for op in operations})
         for index, operation in enumerate(operations, 1):
             identifier, source = operation["transaction_id"], operation["values"]["source_type"]
-            current = planner.record(int(identifier))
+            current = current_records[identifier]
             operation.update(operation_ref=f"op_{index}", row_refs=[],
                 source_scope_key=scopes.get((identifier, source), self._fallback_scope(source, identifier)),
                 matching_record_id="occurrence:" + identifier,

@@ -43,7 +43,7 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 [共享来源派生](../src/ft/adapters/cash_statement_effects.py) 已覆盖首次归一、导入人工补充和草稿来源行维护：无人工保护的备注随原文同步，金额补齐重算依赖方向的提示，失效解释清空；来源本方身份、已确认关系和绑定保持当前决定。F-04／F-05 的公共入口和共享 Compose 尚未切换，不据此提高三端覆盖或增加页面。
 
-内部 [无文件维护计划发布层](../src/ft/application/cash_mutation_plans.py) 已接入独立编辑上下文、原到期时间、计划替换、冻结详情分页及响应丢失后的当前计划读取；[发布合同](../tests/contract/test_cash_mutation_plan_publication.py) 验证权限、消费及只读边界。[实际维护规划](../src/ft/application/cash_mutation_business_plan.py) 使用 [共享当前操作准备](../src/ft/application/cash_record_operations.py) 和导入同类预计列表，支持正式编辑、草稿转正式、整笔分类、类型拆分及保留当前问题，正式普通编辑不寻找新配对。问题／关系维护、实际联合提交及 F-04／F-05 的 HTTP 与共享 Compose 入口仍未切换，不增加页面数或提高三端覆盖状态。
+内部 [无文件维护计划发布层](../src/ft/application/cash_mutation_plans.py) 已接入独立编辑上下文、原到期时间、计划替换、冻结详情分页及响应丢失后的当前计划读取；[发布合同](../tests/contract/test_cash_mutation_plan_publication.py) 验证权限、消费及只读边界。[实际维护规划](../src/ft/application/cash_mutation_business_plan.py) 使用 [共享当前操作准备](../src/ft/application/cash_record_operations.py) 和导入同类预计列表，支持正式编辑、草稿转正式、整笔分类、类型拆分及保留当前问题，正式普通编辑不寻找新配对。[维护联合命令](../src/ft/application/cash_mutation_commit.py) 复用 [事务内写入](../src/ft/application/cash_plan_execution.py)，核对局部当前依赖，按整笔流水与完整配对组保存，并提供永久消费收据及结果核实。当前问题／既有关系的明确维护动作及 F-04／F-05 的 HTTP 与共享 Compose 入口仍未切换，不增加页面数或提高三端覆盖状态。
 
 解析暂存已区分普通导入和私有重试资料，并支持继承原到期时间；[来源子集合同](../tests/contract/test_cash_source_document_storage.py) 防止省略行被认作空页或完整导出。普通文件／计划入口拒绝私有及未授权重试上下文；收据授权派生与次数证明已接入上述内部重试命令，公共接口及客户端重试操作尚未切换，三端状态及页面数保持。
 
