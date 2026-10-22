@@ -11,6 +11,8 @@ from ft.domain.application import RelationImpactRequired
 from ft.web.serialization import error_payload, json_value
 from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
 from ft.application.cash_import_staging import ImportSessionPasswordRequired
+from ft.adapters.relational.runtime import StorageError
+from ft.application.web_queries import CurrentProjectionRefDTO, ProjectionDetailDTO
 
 _IMPORT_PASSWORD_ERRORS = (PDFPasswordRequiredError, PDFPasswordInvalidError)
 
@@ -182,6 +184,27 @@ def cash_router(
         try:return json_value(service.get_projection_evidence(projection_id))
         except LookupError:return JSONResponse(error_payload("not_found","当前工作区中找不到该收支记录。"),404)
         except ProjectionUnavailableError:return JSONResponse(error_payload("projection.unavailable","账本数据暂不可用，请先完成更新。"),503)
+    @router.get("/cash-projections/{projection_id}", response_model=ProjectionDetailDTO)
+    def current_projection(projection_id: str):
+        try:
+            return json_value(service.get_cash_projection(projection_id))
+        except LookupError:
+            return JSONResponse({"error": {"code": "projection_not_found", "message": "这笔记录已变化，请刷新列表。",
+                "field_errors": [], "retryable": False}}, 404)
+        except (ProjectionUnavailableError, StorageError):
+            return JSONResponse({"error": {"code": "projection.unavailable", "message": "流水暂不可用，请稍后重试。",
+                "field_errors": [], "retryable": True}}, 503)
+
+    @router.get("/cash-records/{transaction_id}/projection", response_model=CurrentProjectionRefDTO)
+    def current_record_projection(transaction_id: str):
+        try:
+            return json_value(service.get_cash_record_projection(transaction_id))
+        except LookupError:
+            return JSONResponse({"error": {"code": "record_not_found", "message": "未找到这条流水。",
+                "field_errors": [], "retryable": False}}, 404)
+        except (ProjectionUnavailableError, StorageError):
+            return JSONResponse({"error": {"code": "projection.unavailable", "message": "流水暂不可用，请稍后重试。",
+                "field_errors": [], "retryable": True}}, 503)
     if category_service is not None:
         @router.get("/cash-categories")
         def list_cash_categories():

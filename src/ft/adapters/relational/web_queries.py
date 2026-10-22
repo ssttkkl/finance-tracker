@@ -7,11 +7,16 @@ from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
-from ft.adapters.relational.cash_projection_visibility import active_source_conditions
+from ft.adapters.relational.cash_projection_visibility import active_source_conditions, maintainable_projection_conditions
+from ft.adapters.relational.cash_attention import read_cash_attention
+from ft.adapters.relational.cash_relations import _batches
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
 from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 from ft.domain.queries import FlowDTO
+from ft.application.cash_import_issues import cash_import_issue
+from ft.application.web_queries import CurrentProjectionRefDTO, ProjectionDetailDTO, ProjectionIssueDTO, ProjectionMemberDTO
+from ft.adapters.relational.models import CashTransactionIssueModel
 
 def _amount(value):
     if value is None:
@@ -192,6 +197,72 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
+
+    def get_current_projection_reference(self, identifier):
+        with self._read_snapshot() as session:
+            state = self._active(session)
+            parent = session.scalar(select(CashTransactionModel.id).where(
+                CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id == identifier,
+                CashTransactionModel.deleted_at.is_(None)))
+            if parent is None:
+                raise LookupError("record_not_found")
+            row = session.scalar(select(CashProjectionModel).join(CashProjectionMemberModel, and_(
+                CashProjectionMemberModel.workspace_id == CashProjectionModel.workspace_id,
+                CashProjectionMemberModel.dataset_id == CashProjectionModel.dataset_id,
+                CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)).where(
+                    CashProjectionModel.workspace_id == self._workspace_id,
+                    CashProjectionModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.cash_transaction_id == identifier,
+                    *active_source_conditions(self._workspace_id, state.active_dataset_id)))
+            if row is None:
+                raise ProjectionUnavailableError()
+            return CurrentProjectionRefDTO(str(identifier), row.projection_id, row.attention_count, state.projection_version)
+
+    def get_current_projection(self, projection_id):
+        with self._read_snapshot() as session:
+            state = self._active(session)
+            row = session.scalar(select(CashProjectionModel).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == state.active_dataset_id, CashProjectionModel.projection_id == projection_id,
+                *maintainable_projection_conditions(self._workspace_id, state.active_dataset_id)))
+            if row is None:
+                raise LookupError("projection_not_found")
+            parents = session.scalars(select(CashTransactionModel).join(CashProjectionMemberModel, and_(
+                CashProjectionMemberModel.workspace_id == CashTransactionModel.workspace_id,
+                CashProjectionMemberModel.cash_transaction_id == CashTransactionModel.id)).where(
+                    CashProjectionMemberModel.workspace_id == self._workspace_id,
+                    CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.projection_row_id == row.id).order_by(CashProjectionMemberModel.ordinal)).all()
+            identifiers = {parent.id for parent in parents}
+            if len(parents) != row.member_count or row.root_cash_transaction_id not in identifiers:
+                raise ProjectionUnavailableError()
+            attention = read_cash_attention(session, self._workspace_id, identifiers)
+            members = tuple(ProjectionMemberDTO(str(parent.id), parent.row_revision, parent.state,
+                "pending" if parent.state == "draft" or parent.id in attention.transaction_ids else "confirmed") for parent in parents)
+            issues = []
+            for batch in _batches(sorted(identifiers)):
+                for issue in session.execute(select(CashTransactionIssueModel.id, CashTransactionIssueModel.transaction_id,
+                    CashTransactionIssueModel.revision, CashTransactionIssueModel.code, CashTransactionIssueModel.field_path).where(
+                        CashTransactionIssueModel.workspace_id == self._workspace_id,
+                        CashTransactionIssueModel.transaction_id.in_(batch)).order_by(CashTransactionIssueModel.id)):
+                    try:
+                        reason = cash_import_issue(issue.code, field_path=issue.field_path)
+                    except ValueError:
+                        reason = cash_import_issue("posting_incomplete")
+                    issues.append(ProjectionIssueDTO(transaction_id=str(issue.transaction_id), issue_id=str(issue.id),
+                        revision=issue.revision, **reason))
+            account = session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id, AccountModel.id == row.account_id))
+            relations = session.scalars(select(CashProjectionRelationModel).where(
+                CashProjectionRelationModel.workspace_id == self._workspace_id,
+                CashProjectionRelationModel.dataset_id == state.active_dataset_id,
+                CashProjectionRelationModel.projection_row_id == row.id).order_by(CashProjectionRelationModel.ordinal)).all()
+            source_types = tuple(dict.fromkeys(parent.source_type for parent in parents if parent.source_type))
+            transfer = self._transfer_details(session, state.active_dataset_id, (row.id,)).get(row.id)
+            categories = _category_rows(session, self._workspace_id) if row.category_id else {}
+            projection = self._dto(row, account, relations, source_types, transfer, categories,
+                projection_version=state.projection_version)
+            return ProjectionDetailDTO(state.projection_version, projection, members, tuple(issues))
 
     def read_finance_report(self, *, month=None):
         """旧管理报表复用当前正式投影，金额及资金流共享读取快照。"""

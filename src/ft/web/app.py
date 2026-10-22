@@ -331,7 +331,8 @@ def create_app(
             def denied(code, message, status):
                 body = error_payload(code, message)
                 if request.url.path.startswith(("/api/v1/cash-import/sessions", "/api/v1/cash-import/plans",
-                    "/api/v1/cash-import/receipts", "/api/v1/cash-mutations", "/api/v1/cash-records/")):
+                    "/api/v1/cash-import/receipts", "/api/v1/cash-mutations", "/api/v1/cash-records/",
+                    "/api/v1/cash-projections/")):
                     body["error"].update(field_errors=[], retryable=False)
                 return JSONResponse(body, status)
             if (

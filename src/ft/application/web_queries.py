@@ -56,6 +56,43 @@ class ProjectionDTO:
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
     state: str = "posted"; statistics_eligible: bool = True; attention_count: int = 0
     confirmation_status: str = "confirmed"; projection_version: int = 0
+
+
+@dataclass(frozen=True)
+class ProjectionMemberDTO:
+    transaction_id: str
+    row_revision: int
+    state: str
+    confirmation_status: str
+
+
+@dataclass(frozen=True)
+class ProjectionIssueDTO:
+    transaction_id: str
+    issue_id: str
+    revision: int
+    code: str
+    message: str
+    field_path: str | None
+    blocking_scope: str
+    next_action: str
+    after_import_action: str | None = None
+
+
+@dataclass(frozen=True)
+class ProjectionDetailDTO:
+    projection_version: int
+    projection: ProjectionDTO
+    members: tuple[ProjectionMemberDTO, ...]
+    issues: tuple[ProjectionIssueDTO, ...]
+
+
+@dataclass(frozen=True)
+class CurrentProjectionRefDTO:
+    transaction_id: str
+    projection_id: str
+    attention_count: int
+    projection_version: int
 @dataclass(frozen=True)
 class CashEconomicTypeFilterOptionDTO:
     economic_type: str
@@ -216,3 +253,15 @@ class CashLedgerQueryService:
         next_cursor = _encode(self._workspace_id, page.projection_version, filters, *page.positions[limit - 1]) if len(page.items) > limit else None
         return ProjectionPageDTO(page.projection_version, items, next_cursor, limit, filters.as_cursor_data(), page.filter_options, page.monthly_summaries, page.pending_item_count)
     def get_projection_evidence(self, projection_id): return self._repository.get_evidence(projection_id)
+    def get_cash_projection(self, projection_id):
+        if not isinstance(projection_id, str) or not 1 <= len(projection_id) <= 128:
+            raise LookupError("projection_not_found")
+        return self._repository.get_current_projection(projection_id)
+
+    def get_cash_record_projection(self, transaction_id):
+        from ft.application.cash_record_operations import CashRecordMaintenanceError, _identifier
+        try:
+            identifier = _identifier(transaction_id)
+        except CashRecordMaintenanceError:
+            raise LookupError("record_not_found") from None
+        return self._repository.get_current_projection_reference(identifier)

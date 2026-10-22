@@ -362,6 +362,8 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护结构错误返回 `422`，当前流水修订变化返回 `409 record_changed`，不可见目标返回 `404`。统一字段规则拒绝固定字段变化时返回 `422 fixed_field_conflict`；可定位错误的 `field_errors` 项包含 `field/code/message`，只回传已知字段名，不附输入值。尚未补齐但不能定位到单一字段的原因仍通过安全消息和当前详情的问题表达，不伪造字段位置。允许来源的浏览器可读取认证错误；其他编辑者不能读取或提交本人的临时维护计划。
 
+当前投影详情返回 `projection_version/projection/members/issues`：展示结果 `projection` 与列表字段一致，成员为 `transaction_id/row_revision/state/confirmation_status`，问题带所属流水、实例／修订及安全原因，不返回来源正文或旧关系历史。整份响应使用同一读取快照。标识仍属于当前结果时返回最新成员及版本，不保证旧分组不变；标识退出当前数据集或不可见时返回 `404 projection_not_found` 并重载列表，不保留历史分组映射。稳定流水重新定位返回 `transaction_id/projection_id/attention_count/projection_version`，数据集未就绪或活动流水缺少当前归属返回 `503`，不能返回旧位置；已删除流水返回不可见。
+
 草稿保存响应区分 `receipt` 与 `current_record`，后者带 `current_record_status=available/deleted/unavailable`，明确是读取时的当前详情。幂等重放返回原收据，再读取当前详情，不保存或重放流水正文；提交后详情暂不可读仍返回已提交收据及 `unavailable`，不能误报保存失败并重跑写入。普通详情中的父 `row_revision` 不是整个维护视图的版本，问题实例／修订和关系修订分别参与相关决定及维护计划校验。
 
 组成项 DTO 使用 `component_id`、`account_id`、`amount`、`currency`、`ordinal`；`ordinal` 是 `0..2**31-1` 的整数，不接受布尔值，不要求连续。草稿补丁省略 `components` 时保持原组成项，提供时表示完整替换；已有项须携带属于当前流水的 `component_id`，新增项省略该字段并由服务端分配，删除项通过从数组移除表达。组成项删除与相关草稿引用清理在同一保存点内完成，不能留下失效端点；正式流水不开放组成项替换。
