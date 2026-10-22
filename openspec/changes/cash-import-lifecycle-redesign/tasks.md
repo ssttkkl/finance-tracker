@@ -120,6 +120,7 @@
 - [ ] 4.11.4.2 接入当前投影详情及流水重新定位，关闭旧固定字段／直接关系、旧导入和绕过新合同的现金写入口；保持手工新建及既定删除能力。
 - [x] 4.11.4.2.1 增加同快照当前投影详情及稳定流水重新定位，验证草稿、合并／拆分、净额零、删除、工作区和未就绪结果。
 - [ ] 4.11.4.2.2 关闭旧公开导入、直接现金关系／固定字段和旧事实删除入口，移除运行时原文件会话分发；保留新建、既定删除、校准、转账、投资及别名能力，新建只接收公开字段。
+- [x] 4.11.4.2.2.1 收紧手工新建的公开字段及组成项输入，由服务端建立明确备注／分类保护；验证私有字段拒绝、原子性及正常新建。
 - [x] 4.11.4.2.3 将独立现金—投资候选扫描及确认重验限制为正式现金流水，验证完整草稿不能占用投资端点及正常正式匹配不回归。
 - [ ] 4.11.4.3 保留旧提交结果的归属、键和真实摘要，迁入统一收据并移除旧表／运行时写入，覆盖双后端升级、碰撞失败及安全回滚。
 - [ ] 4.11.4.4 更新 Agent 导入技能和 API 参考，只使用新会话／计划／结果接口，不恢复 CLI，不增加逐条强制确认。
@@ -135,6 +136,13 @@
 
 ## 6. 测试与 QA
 
+- 4.11.4.2.2.1 手工新建边界（2026-10-22，HEAD／比较基线 `23e278a`）：最初 `-k sqlite` 未匹配现有夹具名称，8 deselected、退出 5（`/tmp/ft-cash-manual-create-red.log`）；第一次复用的认证客户端未挂载 `mutation_service`，三项 HTTP 404 不是目标红证据，不能据此称复现。修正为与运行时一致的带写服务认证应用，临时恢复基线源码并在 `finally` 恢复本次实现，4 failed、4 deselected（6.55 s，`/tmp/ft-cash-manual-create-corrected-red.log`），实际私有字段返回 201，直接应用调用未拒绝，保护及严格正文行为缺失。
+- 首轮扩展因正向测试从夹具预置行而非本次响应 ID 读取保护，及三个旧测试继续通过手工入口注入已被忽略的来源字段而失败（`/tmp/ft-cash-manual-create-expanded.log`）。正向断言改为本次 ID；详情隐私场景改由低层夹具创建真实来源流水，其他手工组用例删除原本被忽略的来源声明，不放宽业务断言。独立静态复核新增 P2：非法 UTF-8 会暴露解码错误，过深 JSON 会返回 500；两例先 2 failed（3.59 s，`/tmp/ft-cash-manual-create-decode-both-red.log`），再将协议解码与业务调用分开，统一安全 `422`，增量复核确认关闭。
+- 后续 SQLite 41 passed、1 failed、12 deselected（58.44 s，`/tmp/ft-cash-manual-create-sqlite-final.log`），唯一失败是旧 `cash_granularity` 忽略约定；新合同拒绝全部未知／内部字段，改为先断言拒绝，再保留组成项数量决定形态及父账户的原断言。最终 SQLite 44 passed、14 deselected（61.54 s，`/tmp/ft-cash-manual-create-sqlite-complete.log`），包含公开 OpenAPI、未填写不建保护、明确清空建保护、组成项内部字段及有界正文。
+- 最终固定源码：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-manual-create-final-dual.log tests/contract/test_cash_manual_create_boundary.py tests/test_cash_ledger_management.py tests/test_cash_transaction_components.py tests/contract/test_cash_record_maintenance.py -q --disable-warnings --tb=short --maxfail=3` → 120 passed、无 skip（148.20 s）。新增手工应用／HTTP 合同与维护在 SQLite、显式专用 `_test` PostgreSQL 使用同一服务；未参数化旧用例按原夹具执行，不冒称另跑 PostgreSQL。无并行 PostgreSQL pytest。6 个 Python 文件语法、8 个合同 JSON 示例、OpenSpec strict、`uv build --out-dir /tmp/ft-cash-manual-create-dist` 及 wheel 三个运行时模块逐字校验通过；未配置 Python 类型检查器。独立增量静态复核关闭私有字段及解码 P2，无新增 P1/P2；旧公开入口关闭仍未完成。
+
+- 手工新建最终独占成本：`uv run python /tmp/ft_cash_manual_create_cost.py > /tmp/ft-cash-manual-create-performance.log 2>&1` → 2 passed（12.63 s）。复用原万笔新建／类型编辑／无关联删除用例，3 次预热、20 次样本及每项 P95 ≤ 100 ms 均保持；SQLite／PostgreSQL 新建 3.35／7.50 ms、类型编辑 4.40／13.80 ms、删除 2.39／8.39 ms。计入应用事务及结果读取，不代表 HTTP 成本。运行中无其他测试、构建或源码编辑，两枚已核对孤立上报进程在 `finally` 恢复，无其他本任务回归暂停。
+- 本手工边界小步 Cross-platform Impact Check：公共输入和安全错误供 Web、Native 共用，实际页面、入口与共享 presentation 未改；功能地图仍 10 项，Compose 接入、浏览器／Native／Hallmark 和重大 UI 演示仍未完成。无 schema、新依赖或真实账本写入；回退此加固会重新允许私有字段注入，应前滚修正；已保存的人工保护不能作为临时会话清理。反思：HTTP fixture 必须装配真实写服务，正向断言必须定位本次对象；协议解码错误不应落入透传业务异常的分支。原字段 P2 已关闭，继续旧公开入口关闭，不据此关闭 4.11.4.2.2。
 - 4.11.4.2.3 草稿投资资金准入（2026-10-22，HEAD／比较基线 `d8aacfd`）：完整草稿扫描及确认反例先 3 failed、23 deselected（0.65 s，`/tmp/ft-cash-funding-draft-red.log`）；加入正式状态条件及提前工作区锁后 SQLite 13 passed、13 deselected（1.21 s，`/tmp/ft-cash-funding-draft-sqlite.log`）。独立 PostgreSQL 删除／扫描竞争在临时去掉提前锁时先 1 failed（1.33 s，`/tmp/ft-cash-funding-delete-lock-red.log`），恢复后通过；该实际竞争只覆盖扫描，确认及拒绝的相同锁顺序经独立静态复核，未冒称另跑竞争。测试低层改变状态用于校验防御边界，不开放正式流水降为草稿。
 - 首次矩阵因误写不存在的测试路径退出 4、未收集测试（`/tmp/ft-cash-funding-draft-final-dual.log`），随后正确路径 105 passed、无 skip（105.74 s，`/tmp/ft-cash-funding-draft-final-matrix.log`）。首次独占万笔成本 1 passed、1 failed（25.71 s，`/tmp/ft-cash-funding-lifecycle-performance.log`），PostgreSQL 扫描至确认 P95 2163.65 ms，未放宽原 100 ms 预算。独占 cProfile／SQL 诊断（`/tmp/ft-cash-funding-diagnostic.log`、`/tmp/ft-cash-funding-sql-diagnostic.log`）定位确认端点连接使用状态索引、对 10,001 个父行反复扫描组成项，实际 EXPLAIN 约 2.15 s；先回写 design，再改为锁内按组成项 ID 和父 ID 分别读取，不要求刷新统计或关闭优化器。
 - 最终固定源码：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-funding-draft-bounded-final.log tests/test_cash_investment_funding_relations.py tests/contract/test_cash_relation_type_updates.py tests/contract/test_cash_current_relation_delete.py tests/contract/test_cash_current_projection_api.py -q --disable-warnings --tb=short --maxfail=3` → 105 passed、无 skip（105.24 s）。同一资金服务及受影响合同覆盖 SQLite 与显式专用 `_test` PostgreSQL，无并行 PostgreSQL pytest。3 个 Python 文件语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-funding-draft-dist`、wheel 运行时模块逐字校验、OpenSpec strict 和空白检查通过；未配置 Python 类型检查器。独立增量静态复核确认草稿 P2 及查询重写无新增 P1/P2，手工新建私有字段 P2 仍属 4.11.4.2.2，未关闭整体切换。

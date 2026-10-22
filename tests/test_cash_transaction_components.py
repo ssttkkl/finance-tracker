@@ -208,15 +208,16 @@ def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runti
         assert parent.amount == Decimal("-100.00")
 
 
-def test_component_count_derives_cash_granularity_and_ignores_client_value(cash_web_runtime):
+def test_component_count_derives_cash_granularity_and_rejects_client_value(cash_web_runtime):
     from ft.adapters.relational.models import CashTransactionModel
 
     _enable_cny(cash_web_runtime, "日常账户")
     service = _service(cash_web_runtime)
 
+    with pytest.raises(ValueError):
+        service.create_record(_payload(account_name="日常账户", cash_granularity="aggregate"))
     atomic = service.create_record(_payload(
         account_name="日常账户",
-        cash_granularity="aggregate",
         components=[{"account_name": "日常账户", "amount": "-100.00"}],
     ))["record"]
     assert atomic["cash_granularity"] == "atomic"

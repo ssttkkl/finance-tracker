@@ -503,10 +503,12 @@ def test_cash_web_routes_keep_relation_actions_user_safe(cash_web_runtime):
 def test_cash_detail_contract_hides_import_and_delete_internals(cash_web_runtime):
     _enable_cny(cash_web_runtime, "日常账户")
     service = _service(cash_web_runtime)
-    created = service.create_record(_payload(
-        source_type="fixture", record_id="private-row",
-        source_payload={"merchant": "来源商户"},
-    ))
+    with service._uow as uow:
+        identifier = uow.cashflows.add("cash", _payload(
+            source_type="fixture", record_id="private-row", source_payload={"merchant": "来源商户"},
+        ))
+        uow.commit()
+    created = service.get_record(identifier)
 
     record = created["record"]
     assert {"id", "amount", "currency", "occurred_at", "account_name", "counterparty",
@@ -556,7 +558,7 @@ def test_dissolve_relation_group_keeps_all_member_records_independent(cash_web_r
     _enable_cny(cash_web_runtime, "日常账户")
     service = _service(cash_web_runtime)
     records = [service.create_record(_payload(
-        amount="-20", counterparty=f"同笔渠道 {index}", source_type="fixture", record_id=f"group-{index}",
+        amount="-20", counterparty=f"同笔渠道 {index}",
     ))["record"] for index in range(3)]
     for left, right in zip(records, records[1:]):
         service.add_relation({
@@ -667,8 +669,7 @@ def test_batch_delete_related_projection_deletes_the_whole_relation_group(cash_w
     _enable_cny(cash_web_runtime, "日常账户")
     service = _service(cash_web_runtime)
     records = [service.create_record(_payload(
-        amount="-20", counterparty=f"同笔渠道 {index}", source_type="fixture",
-        record_id=f"batch-group-{index}",
+        amount="-20", counterparty=f"同笔渠道 {index}",
     ))["record"] for index in range(3)]
     for left, right in zip(records, records[1:]):
         service.add_relation({

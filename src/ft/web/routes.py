@@ -4,6 +4,11 @@ import json
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
+from ft.application.cash_ledger import ManualCashRecordInputError
+from ft.web.cash_import_protocol import json_input
+from ft.web.cash_manual_protocol import ManualCashRecordInput
+from ft.web.cash_plan_protocol import json_contract
 from ft.application.web_queries import ProjectionUnavailableError, ProjectionUpdatedError
 from ft.application.cash_categories import _UNSET
 from ft.application.investment_web_queries import InvestmentCursorUpdatedError
@@ -367,10 +372,17 @@ def cash_router(
                 code = str(exc) if str(exc) in {"invalid_cursor", "invalid_filter"} else "invalid_filter"
                 return JSONResponse(error_payload(code, "搜索条件或加载位置无效，请重新搜索。"), 400)
 
-        @router.post("/cash-records")
+        @router.post("/cash-records", openapi_extra=json_contract(ManualCashRecordInput))
         async def create_cash_record(request: Request):
             try:
-                return JSONResponse(json_value(mutation_service.create_record(await request.json())), 201)
+                payload = await json_input(request, ManualCashRecordInput)
+            except (ValueError, RecursionError):
+                return JSONResponse(error_payload("invalid_record", "请检查填写内容后重试。"), 422)
+            try:
+                result = await run_in_threadpool(mutation_service.create_record, payload.model_dump(exclude_unset=True))
+                return JSONResponse(json_value(result), 201)
+            except ManualCashRecordInputError:
+                return JSONResponse(error_payload("invalid_record", "请检查填写内容后重试。"), 422)
             except ValueError as exc:
                 return JSONResponse(error_payload("invalid_record", str(exc)), 400)
 

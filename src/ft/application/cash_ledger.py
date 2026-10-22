@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, localcontext
 from pathlib import Path
@@ -139,6 +140,25 @@ EDITABLE_FIELDS = (
     "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
     "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
 )
+
+
+class ManualCashRecordInputError(ValueError):
+    """手工新建只能声明公开业务字段。"""
+
+
+def _manual_create_payload(payload):
+    fields = {"account_name", "amount", "currency", "occurred_at", "counterparty",
+        "counterparty_account", "counterparty_account_attrs", "note", "category_id", "category",
+        "record_type", "record_subtype", "components"}
+    component_fields = {"account_name", "account_id", "amount", "currency", "label"}
+    if not isinstance(payload, dict) or set(payload) - fields:
+        raise ManualCashRecordInputError("请检查填写内容后重试。")
+    components = payload.get("components")
+    if components is not None and (not isinstance(components, list) or len(components) > 64 or any(
+        not isinstance(item, dict) or set(item) - component_fields for item in components
+    )):
+        raise ManualCashRecordInputError("请检查账户分摊后重试。")
+    return deepcopy(payload)
 
 
 def _wire(value):
@@ -336,6 +356,7 @@ class CashLedgerCommandService:
         )
 
     def create_record(self, payload: dict) -> dict:
+        payload = _manual_create_payload(payload)
         with self._uow as uow:
             account_name = str(payload.get("account_name") or "").strip()
             if not account_name:
@@ -381,6 +402,10 @@ class CashLedgerCommandService:
                 account=account,
                 return_model=True,
             )
+            fact_model.manual_overrides = {
+                field: {"value": getattr(fact_model, field)}
+                for field in ("note", "category_id") if field in payload
+            }
             fact_id = fact_model.id
             current = uow.cashflows._to_row(fact_model, account)
             self._snapshot_delta(uow, None, current)
