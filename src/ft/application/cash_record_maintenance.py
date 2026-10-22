@@ -75,9 +75,10 @@ class CashRecordMaintenanceService:
             location = projections.current_references({identifier}, state=state).get(str(identifier))
             fields = self._fields(session, row)
             planner = CashRecordOperationPlanner(session, self._workspace_id)
-            identity_resolutions = (planner.available_identity_resolutions(row) if editable
-                and any(issue.code == "source_identity_ambiguous" for issue in issues) else [])
             candidates = identity_candidates(session, self._workspace_id, issues)
+            identity_resolutions = (planner.available_identity_resolutions(row,
+                candidate_ids={candidate["transaction_id"] for group in candidates.values() for candidate in group}) if editable
+                and any(issue.code == "source_identity_ambiguous" for issue in issues) else [])
             return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision,
                 "confirmation_status": "pending" if row.state == "draft" or identifier in attention.transaction_ids else "confirmed",
                 "fields": _wire(fields), "editable_fields": sorted((_EDITABLE if row.state == "draft" else MUTABLE_CASH_FIELDS) if editable else ()),

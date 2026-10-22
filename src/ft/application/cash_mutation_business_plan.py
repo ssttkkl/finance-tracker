@@ -80,8 +80,7 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
                     op["transaction_id"] for op in operations if op["current"]["state"] == "draft"} else ["save_draft", "finalize_draft"]
                 if merging and member["transaction_id"] == str(row.id) and row.state == "draft":
                     member["allowed_actions"] = ["save_draft"]
-        # 联合写入器接入前，合并只能核对预计结果，不允许走通用单行保存。
-        result.update(can_commit=bool(operations) and not merging, category_member_ids=category_members,
+        result.update(can_commit=bool(operations), category_member_ids=category_members,
             mutation_units=[[op["operation_ref"] for op in operations]])
         result["summary"]["relations_removed"] = len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
         resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)

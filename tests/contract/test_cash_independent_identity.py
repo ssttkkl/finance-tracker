@@ -45,7 +45,7 @@ def test_independent_confirmation_preserves_entity_bindings_and_replays_without_
     identifier, choices = _pending(runtime)
     records, service = _records(runtime), _service(runtime)
     before, bindings, balances = records.read(identifier), _bindings(runtime, identifier), _snapshot(runtime)
-    assert before["issues"][0]["allowed_resolutions"] == ["create_independent"]
+    assert "create_independent" in before["issues"][0]["allowed_resolutions"]
     view = _preview(service, runtime, identifier, intent="finalize_draft" if finalize else "resolve_issue", issue_resolutions=choices)
     assert view["summary"]["create_independent"] == 1 and view["summary"]["resolve_issue"] == 1
     assert records.read(identifier) == before and _bindings(runtime, identifier) == bindings

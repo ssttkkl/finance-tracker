@@ -8,11 +8,11 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单的全部旧写路径关闭、维护预览及 Compose 演示仍属上述未完成变更。
 
-身份待处理草稿已保留输入自身证明的可靠来源键，[来源合同](../tests/contract/test_cash_draft_source_identity.py) 覆盖跨文件重复、时间变化、当前问题和候选保留、共同草稿及保存失败回滚；只有文件局部证据的旧数据仍隔离，旧未知文件覆盖证据不替已知账户授信。本步没有新增 Web、Native 或共享 presentation 入口，页面数、覆盖状态和跨端 TODO 不变；合并、公开维护接口及客户端仍在实施，独立确认进度见下文。
+身份待处理草稿已保留输入自身证明的可靠来源键，[来源合同](../tests/contract/test_cash_draft_source_identity.py) 覆盖跨文件重复、时间变化、当前问题和候选保留、共同草稿及保存失败回滚；只有文件局部证据的旧数据仍隔离，旧未知文件覆盖证据不替已知账户授信。本步没有新增 Web、Native 或共享 presentation 入口，页面数、覆盖状态和跨端 TODO 不变；公开维护接口及客户端仍在实施，内部独立确认和合并进度见下文。
 
-[身份独立确认合同](../tests/contract/test_cash_independent_identity.py) 已接入内部无文件维护：只清除所选当前身份问题，保留实体及绑定，可与来源采用、补字段和明确转正式共用计划；无绑定旧微信保持隔离，绑定实例及证据变化会使旧确认失效。来源或认证页证据矛盾时不提供独立动作。合并、公开维护接口和客户端仍未切换；本步 Web、Native、共享 presentation 没有新入口或页面覆盖变化。
+[身份独立确认合同](../tests/contract/test_cash_independent_identity.py) 已接入内部无文件维护：只清除所选当前身份问题，保留实体及绑定，可与来源采用、补字段和明确转正式共用计划；无绑定旧微信保持隔离，绑定实例及证据变化会使旧确认失效。来源或认证页证据矛盾时不提供独立动作。公开维护接口和客户端仍未切换；本步 Web、Native、共享 presentation 没有新入口或页面覆盖变化。
 
-[身份草稿合并预览](../tests/contract/test_cash_draft_merge_plan.py) 已接入内部只读计划：检查双方原始固定事实与人工冲突，保留目标组成项及未采用内容，冻结双向候选和完整关联组；身份候选详情展示当前修订而不更新旧证明。自动分类保护原组人工值，源人工分类冲突须明确统一。联合写入接入前合并计划不可提交；Web、Native、共享 presentation 的流程和入口尚未切换，页面数、覆盖及 TODO 保持不变。
+[身份草稿合并预览](../tests/contract/test_cash_draft_merge_plan.py) 检查双方原始固定事实与人工冲突，保留目标组成项及未采用内容，冻结双向候选和完整关联组；身份候选详情展示当前修订而不更新旧证明。自动分类保护原组人工值，源人工分类冲突须明确统一。[合并联合执行合同](../tests/contract/test_cash_draft_merge_commit.py) 已接入内部维护命令：同一单元保存目标及整笔分类、迁移绑定和当前问题／候选／锚点，最后使源草稿退出；失败保留源内容，成功收据定位目标，投影或收据失败回滚整个命令。Web、Native、共享 presentation 的流程和入口尚未切换，页面数、覆盖及 TODO 保持不变。
 
 [草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；[来源读取与主页查询](../src/ft/adapters/relational/web_queries.py) 已保留无组成项草稿、未知值及待确认可见性，按稳定排序位置分页，月汇总排除草稿；读取和附属结果使用同一快照。HTTP 已转发状态筛选并返回可空值，Compose 展示和完整草稿维护尚未切换，不据此开放草稿写入口或声称主页维护已完成。派生表升级后须先显式重建，保留已有正式值及引用。
 
@@ -51,7 +51,7 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 内部 [无文件维护计划发布层](../src/ft/application/cash_mutation_plans.py) 已接入独立编辑上下文、原到期时间、计划替换、冻结详情分页及响应丢失后的当前计划读取；[发布合同](../tests/contract/test_cash_mutation_plan_publication.py) 验证权限、消费及只读边界。[实际维护规划](../src/ft/application/cash_mutation_business_plan.py) 使用 [共享当前操作准备](../src/ft/application/cash_record_operations.py) 和导入同类预计列表，支持正式编辑、草稿转正式、整笔分类、类型拆分及保留当前问题，正式普通编辑不寻找新配对。[维护联合命令](../src/ft/application/cash_mutation_commit.py) 复用 [事务内写入](../src/ft/application/cash_plan_execution.py)，核对局部当前依赖，按整笔流水与完整配对组保存，并提供永久消费收据及结果核实。当前问题／既有关系的明确维护动作及 F-04／F-05 的 HTTP 与共享 Compose 入口仍未切换，不增加页面数或提高三端覆盖状态。
 
-内部 [来源问题决定](../src/ft/application/cash_source_issue_resolutions.py) 已将采用／保留、多项问题及字段补充接入同一维护计划；草稿可明确同次转正式，单纯事项处理不制造父字段更新。[来源处理合同](../tests/contract/test_cash_source_issue_resolution.py) 覆盖人工保护、当前实例／正文并发、组成项准入及回滚。身份独立／合并和既有关系明确维护仍待接入，F-04／F-05 公开接口及三端入口未切换，页面数和跨端 TODO 保持。
+内部 [来源问题决定](../src/ft/application/cash_source_issue_resolutions.py) 已将采用／保留、多项问题及字段补充接入同一维护计划；草稿可明确同次转正式，单纯事项处理不制造父字段更新。[来源处理合同](../tests/contract/test_cash_source_issue_resolution.py) 覆盖人工保护、当前实例／正文并发、组成项准入及回滚。身份独立／合并已接入内部维护，既有关系明确维护仍待接入；F-04／F-05 公开接口及三端入口未切换，页面数和跨端 TODO 保持。
 
 解析暂存已区分普通导入和私有重试资料，并支持继承原到期时间；[来源子集合同](../tests/contract/test_cash_source_document_storage.py) 防止省略行被认作空页或完整导出。普通文件／计划入口拒绝私有及未授权重试上下文；收据授权派生与次数证明已接入上述内部重试命令，公共接口及客户端重试操作尚未切换，三端状态及页面数保持。
 

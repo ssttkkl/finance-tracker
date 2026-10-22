@@ -131,14 +131,14 @@ class CashRecordOperationPlanner:
                 self.session, self.workspace_id).independent_identity_snapshot(row.id)
         return self._finalize(operation) if finalize else operation
 
-    def available_identity_resolutions(self, row):
+    def available_identity_resolutions(self, row, *, candidate_ids=()):
         if row.state != "draft":
             return []
         try:
             CashSourceRepository(self.session, self.workspace_id).independent_identity_snapshot(row.id)
         except SourceBindingConflict:
             return []
-        return ["create_independent"]
+        return ["create_independent", "merge_into"] if candidate_ids else ["create_independent"]
 
     def available_source_resolutions(self, row, issue, *, existing_issues):
         try:

@@ -7,6 +7,7 @@ from ft.adapters.relational.projections import RelationalCashProjectionRepositor
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
 from ft.application.cash_mutation_plans import CashMutationPlanError, CashMutationPlanService, _context_id, _revision
+from ft.application.cash_draft_merge_writer import CashDraftMergeWriter
 from ft.application.cash_plan_execution import (CashPlanWriteOperations, _operation_fingerprint,
     _reason, _receipt_view, _recoverable)
 from ft.application.cash_projections import CashProjectionService
@@ -53,7 +54,13 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                     saved = []
                     with session.begin_nested():
                         for operation in unit:
+                            if operation.get("merge_draft"):
+                                CashDraftMergeWriter(session, self._workspace_id).prepare_record_updates(operation)
+                        for operation in unit:
                             saved.append((operation, self._save_row(session, operation, {})))
+                        for operation, result in saved:
+                            if operation.get("merge_draft"):
+                                result[4].update(CashDraftMergeWriter(session, self._workspace_id).save(operation))
                         session.flush()
                 except Exception as error:
                     if not _recoverable(error):
@@ -61,7 +68,8 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                     session.expire_all()
                     for operation in unit:
                         failures.add(operation["preview_transaction_id"])
-                        actual[operation["operation_ref"]] = {"outcome": "skipped", "transaction_id": operation["transaction_id"],
+                        actual[operation["operation_ref"]] = {"outcome": "skipped", "transaction_id": operation.get("merge_draft", {}).get(
+                            "source_transaction_id", operation["transaction_id"]),
                             "code": _reason(error, "row_save_failed")}
                 else:
                     # 保存点成功之后的执行错误必须回滚外层，不能误报为已回滚单元。
@@ -74,7 +82,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                         if operation["planned_action"] != "duplicate":
                             affected.add(parent)
                         changes.append((before, after))
-            rows = [{"result_kind": "row", "item_ref": operation["transaction_id"],
+            rows = [{"result_kind": "row", "item_ref": operation.get("merge_draft", {}).get("source_transaction_id", operation["transaction_id"]),
                 "operation_ref": operation["operation_ref"], **actual[operation["operation_ref"]]} for operation in plan["operations"]]
             groups = self._save_groups(session, plan, fresh, identity, components, failures, affected,
                 manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]})
@@ -84,7 +92,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             if affected:
                 CashProjectionService.maintain_in_session(session, self._workspace_id, affected, locked_state=state)
             session.flush()
-            summary = Counter({key: 0 for key in ("updated_posted", "finalized_draft", "saved_draft", "duplicate", "skipped",
+            summary = Counter({key: 0 for key in ("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate", "skipped",
                 "relations_confirmed", "relations_deferred", "relations_ignored", "relations_removed", "relations_failed")})
             summary.update(item["outcome"] for item in actual.values())
             summary["resolved_issues"] = sum(len(operation.get("resolved_issue_ids", [])) for operation in plan["operations"]
@@ -101,9 +109,11 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             succeeded = any(item["outcome"] not in {"skipped", "failed"} for item in (*rows, *groups))
             written = summary["resolved_issues"] > 0 or any(item["outcome"] not in {"skipped", "duplicate"} for item in (*rows, *groups))
             status = "partial" if problem and succeeded else "failed" if problem else "completed" if written else "no_changes"
+            retained = next((actual[operation["operation_ref"]]["transaction_id"] for operation in plan["operations"]
+                if operation.get("merge_draft")), str(row.id))
             receipt = receipts.create(user_id=self._user_id, idempotency_key=idempotency_key, request_digest=digest,
                 operation_kind="mutation", plan_id=plan_id, edit_context_digest=context_digest,
-                result_summary={"status": status, "summary": dict(summary), "retained_transaction_id": str(row.id),
+                result_summary={"status": status, "summary": dict(summary), "retained_transaction_id": retained,
                     "projection_version": state.projection_version, "needs_attention_count": pending, "pending_item_count": pending_items},
                 results=[*rows, *groups])
             uow.commit()

@@ -55,7 +55,7 @@ class CashPlanWriteOperations:
     @staticmethod
     def _row_outcome(operation):
         return {"create_posted": "created_posted", "create_draft": "saved_draft", "update_draft": "saved_draft",
-            "update_posted": "updated_posted", "finalize_draft": "finalized_draft", "duplicate": "duplicate"}[operation["planned_action"]]
+            "update_posted": "updated_posted", "finalize_draft": "finalized_draft", "merge_draft": "merged_draft", "duplicate": "duplicate"}[operation["planned_action"]]
 
     def _save_groups(self, session, plan, fresh, identity, components, failed_rows, affected, *, manual):
         groups, result = defaultdict(list), []

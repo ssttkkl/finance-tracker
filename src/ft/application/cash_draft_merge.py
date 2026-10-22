@@ -12,6 +12,7 @@ from ft.adapters.relational.models import (AccountModel, CashIssueCandidateModel
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches, _wire
 from ft.application.cash_source_issue_resolutions import _pending_patch, prepare_source_issue_resolutions
+from ft.application.cash_draft_merge_writer import prepare_merge_references
 from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS, CashRecordPolicyError, _normalize
 from ft.domain.cash_relation_policy import CashRelationError
 from ft.domain.cash_source_matching import _digest
@@ -197,6 +198,7 @@ class CashDraftMergePlanner:
                 source.manual_overrides, target.manual_overrides, source.relation_metadata, target.relation_metadata)}})
         target_parts = {part["component_id"] for part in operation["values"]["components"] if part.get("component_id") is not None}
         operation["merge_draft"]["relations"] = self._remap_relations(refs["relations"], source_id, target_id, component_map, target_parts)
+        prepare_merge_references(operation)
         operation["planned_action"] = "merge_draft"
         return target, operation
 
