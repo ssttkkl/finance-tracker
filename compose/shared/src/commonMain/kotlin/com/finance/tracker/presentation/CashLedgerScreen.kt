@@ -671,6 +671,7 @@ internal fun CashLedgerScreen(
             } else {
                 CashRecordDetailContent(
                     state = state,
+                    sizeClass = sizeClass,
                     viewModel = viewModel,
                     canWrite = canWrite,
                     options = state.options,
@@ -1573,7 +1574,7 @@ private fun CashProjectionRow(
                     negative = item.amount.startsWith("-"),
                     textAlign = TextAlign.End,
                 )
-                Box(Modifier.weight(0.08f), contentAlignment = Alignment.CenterEnd) {
+                Box(Modifier.weight(0.08f).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
                     IconButton(
                         onClick = onOpen,
                         modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord),
