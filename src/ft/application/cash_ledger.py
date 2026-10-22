@@ -567,7 +567,6 @@ class CashLedgerCommandService:
             current_model, current_account = current_model_row
             if current_model.deleted_at is not None:
                 raise ValueError("找不到这条流水记录")
-            current = uow.cashflows._to_row(current_model, current_account)
             if mode not in {"delete_all", "delete_current_dissolve"}:
                 raise ValueError("无效的删除方式")
             from ft.adapters.relational.projections import RelationalCashProjectionRepository
@@ -576,9 +575,10 @@ class CashLedgerCommandService:
                 session, uow.workspace_id,
             ).confirmed_transaction_closure({int(fact_id)})
             target_ids = component_ids if mode == "delete_all" else {int(fact_id)}
-            relation_rows = uow.relations.list_for_facts(
-                list(component_ids), active_only=False,
-            ) if component_ids else []
+            from ft.application.cash_record_deletion import CashRecordDeletion
+
+            deletion = CashRecordDeletion(session, self._workspace_id, target_ids)
+            relation_rows = deletion.relations
             target_id_list = sorted(target_ids)
             models_by_id = {int(current_model.id): (current_model, current_account)}
             remaining_target_ids = [
@@ -609,80 +609,7 @@ class CashLedgerCommandService:
             ]
             if not models:
                 raise ValueError("找不到这条流水记录")
-            standalone_delete = component_ids == {int(fact_id)} and not relation_rows and len(models) == 1
-            relation_ids = [int(relation["id"]) for relation in relation_rows]
-            if relation_ids:
-                # Projection rows hold RESTRICT references to the current
-                # relation. Remove those derived links before deleting the
-                # relation itself; the affected projection group is rebuilt
-                # below in the same transaction.
-                session.execute(sa_delete(CashProjectionRelationModel).where(
-                    CashProjectionRelationModel.workspace_id == self._workspace_id,
-                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
-                ))
-                session.execute(sa_delete(TransactionRelationModel).where(
-                    TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.id.in_(relation_ids),
-                ))
-            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
-                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
-                    sa_select(CashTransactionComponentModel.id).where(
-                        CashTransactionComponentModel.workspace_id == self._workspace_id,
-                        CashTransactionComponentModel.cash_transaction_id.in_(target_id_list),
-                    )
-                ),
-            ))
-            if standalone_delete:
-                CashProjectionService.remove_if_ready_in_session(
-                    session, uow.workspace_id, {int(fact_id)},
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
-            elif mode == "delete_all":
-                # Every fact in the current component is being deleted. There
-                # is no remaining group to rebuild, so remove the active
-                # derived rows directly instead of rebuilding an empty group.
-                CashProjectionService.remove_if_ready_in_session(
-                    session, uow.workspace_id, component_ids,
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
-            else:
-                for model in models:
-                    model.deleted_at = datetime.now(timezone.utc)
-                    model.deleted_by = actor
-                    model.delete_reason = mode
-                session.flush()
-                CashProjectionService.maintain_if_ready_in_session(
-                    session,
-                    uow.workspace_id,
-                    set(target_ids) | component_ids,
-                    known_component_ids=component_ids,
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
+            self._delete_records_in_uow(uow, models, previous_rows, deletion, actor=actor, reason=mode)
             uow.commit()
         return {
             "deleted": True,
@@ -693,10 +620,24 @@ class CashLedgerCommandService:
             "related_fact_ids": sorted({
                 str(endpoint)
                 for relation in relation_rows
-                for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                for endpoint in (relation.get("primary_transaction_id"), relation.get("secondary_transaction_id"))
                 if endpoint not in (None, "") and str(endpoint) != str(fact_id)
             }),
         }
+
+    def _delete_records_in_uow(self, uow, models, previous_rows, deletion, *, actor, reason):
+        session = uow._state().session
+        deletion.clear_references()
+        now = datetime.now(timezone.utc)
+        for model in models:
+            model.deleted_at, model.deleted_by, model.delete_reason = now, actor, reason
+        session.flush()
+        if deletion.affected_ids <= deletion.target_ids:
+            status = CashProjectionService.remove_if_ready_in_session(session, self._workspace_id, set(deletion.target_ids))
+        else:
+            status = CashProjectionService.maintain_if_ready_in_session(session, self._workspace_id, set(deletion.affected_ids))
+        self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
+        return status
 
     @staticmethod
     def _normalize_projection_ids(projection_ids) -> list[str]:
@@ -790,43 +731,19 @@ class CashLedgerCommandService:
         if len(models_by_id) != len(member_ids):
             raise ValueError("projection.version_conflict")
 
-        from sqlalchemy.orm import aliased
+        from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 
-        primary_component = aliased(CashTransactionComponentModel)
-        secondary_component = aliased(CashTransactionComponentModel)
-        relation_rows = session.execute(
-            sa_select(
-                TransactionRelationModel,
-                primary_component.cash_transaction_id.label("primary_parent_id"),
-                secondary_component.cash_transaction_id.label("secondary_parent_id"),
-            )
-            .join(
-                primary_component,
-                (primary_component.workspace_id == TransactionRelationModel.workspace_id)
-                & (primary_component.id == TransactionRelationModel.primary_component_id),
-            )
-            .outerjoin(
-                secondary_component,
-                (secondary_component.workspace_id == TransactionRelationModel.workspace_id)
-                & (secondary_component.id == TransactionRelationModel.secondary_component_id),
-            )
-            .where(
-                TransactionRelationModel.workspace_id == self._workspace_id,
-                (
-                    primary_component.cash_transaction_id.in_(member_ids)
-                    | secondary_component.cash_transaction_id.in_(member_ids)
-                ),
-            )
-        ).all()
+        relation_rows = CurrentCashRelationRepository(session, self._workspace_id).list_for_transactions(
+            member_ids, active_only=False)
         member_projection_ids = {
             int(row.cash_transaction_id): int(row.projection_row_id)
             for row in member_rows
         }
         relation_group_projection_ids = {
             member_projection_ids[int(endpoint)]
-            for row, primary_parent_id, secondary_parent_id in relation_rows
-            if row.active and row.state in {"confirmed", "draft"}
-            for endpoint in (primary_parent_id, secondary_parent_id)
+            for row in relation_rows
+            if row["active"] and row["state"] in {"confirmed", "draft"}
+            for endpoint in (row["primary_transaction_id"], row["secondary_transaction_id"], row["anchor_transaction_id"])
             if endpoint is not None and int(endpoint) in member_projection_ids
         }
         cash_repo = RelationalCashflowRepository(session, self._workspace_id)
@@ -875,46 +792,14 @@ class CashLedgerCommandService:
                 session, projection_ids, projection_version, lock=True,
             )
             member_ids = set(targets["member_ids"])
-            relation_rows = uow.relations.list_for_facts(
-                list(member_ids), active_only=False,
-            )
-            relation_ids = sorted({int(row["id"]) for row in relation_rows})
-            if relation_ids:
-                # Derived links must be removed before their source relation
-                # rows; projection rows themselves are removed below.
-                session.execute(sa_delete(CashProjectionRelationModel).where(
-                    CashProjectionRelationModel.workspace_id == self._workspace_id,
-                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
-                ))
+            from ft.application.cash_record_deletion import CashRecordDeletion
 
-            projection_status = CashProjectionService.remove_if_ready_in_session(
-                session, uow.workspace_id, member_ids,
-            )
+            deletion = CashRecordDeletion(session, self._workspace_id, member_ids)
+            projection_status = self._delete_records_in_uow(uow,
+                [model for model, _account in targets["models_by_id"].values()], targets["previous_rows"], deletion,
+                actor=actor, reason="delete_all")
             if projection_status is None:
                 raise ValueError("projection.unavailable")
-            if relation_ids:
-                session.execute(sa_delete(TransactionRelationModel).where(
-                    TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.id.in_(relation_ids),
-                ))
-            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
-                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
-                    sa_select(CashTransactionComponentModel.id).where(
-                        CashTransactionComponentModel.workspace_id == self._workspace_id,
-                        CashTransactionComponentModel.cash_transaction_id.in_(member_ids),
-                    )
-                ),
-            ))
-            self._snapshot_deltas(uow, [(row, None) for row in targets["previous_rows"]])
-            session.execute(
-                sa_delete(CashTransactionModel)
-                .where(
-                    CashTransactionModel.workspace_id == self._workspace_id,
-                    CashTransactionModel.id.in_(member_ids),
-                )
-                .execution_options(synchronize_session=False)
-            )
             uow.commit()
             return {
                 "deleted": True,

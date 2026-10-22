@@ -107,10 +107,10 @@
 - [x] 4.10.4.3 实现草稿合并的双方约束、人工冲突、绑定及当前问题／候选／锚点清理、同单元发布和保留身份定位；验证失败不丢正文或部分引用。
 - [x] 4.10.4.3.1 实现只读合并计划：双方固定事实及人工冲突、当前绑定／问题／候选／完整关系组快照、组成项唯一对应、目标原组分类、预计保留目标和身份候选详情；预览不写业务库。
 - [x] 4.10.4.3.2 接入整个合并单元的联合执行与结果定位：转移完整当前问题及双向候选、父／组成项锚点和来源绑定，最后退出源草稿；验证重放、源退出、余额、投影、收据及分阶段注入失败回滚。
-- [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
+- [x] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
 - [x] 4.10.5.1 接入只读的当前关系维护计划：完整组、原样保持、当前候选证明及完整组合、预计列表和失效选择；联合更新执行器就绪前不允许提交。
 - [x] 4.10.5.2 以原关系 ID 和 CAS 更新完整决定组，隔离关联保存点及外层发布失败，验证混合失活旧组不复活、联合钻石原子性、候选并发和旧新闭包。
-- [ ] 4.10.5.3 补齐父锚点及候选反向引用的删除／组成项清理，验证无组成项草稿、整组清理、静默重导及另一侧当前投影。
+- [x] 4.10.5.3 补齐无组成项草稿删除、父锚点及候选反向引用清理；保留父记录／组成项删除审计并释放当前来源身份，验证整组清理、静默重导及另一侧当前投影。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
@@ -124,6 +124,12 @@
 
 ## 6. 测试与 QA
 
+- 4.10.5.3 删除合同 Flow-Back（2026-10-22，HEAD／比较基线 `7ad18b0`）：跨层表合同要求逻辑删除保留记录，旧两个入口最后却物理删除；先明确改回已确认合同，新增 shared ledger delta，不以输入纠错或清理旧引用作为删除原财务字段的理由。直接父／锚点删除集与旧闭包重建集分离，完整未确认组清理而无关确认边保留。父锚点四项先 4 failed（7.55 s，`/tmp/ft-cash-current-relation-delete-red.log`），保留无关确认边／候选修订／原记录的增量先 4 failed、1 passed（8.24 s，`/tmp/ft-cash-current-relation-delete-scope-red.log`）。
+- 删除首轮 6 passed、3 failed（12.94 s，`/tmp/ft-cash-current-relation-delete-first-green.log`），失败为夹具把按投影删除也预期成单条解除原因，以及未采用既有零计数键省略规则；修正夹具后扩大回归 17 passed、3 failed（27.69 s，`/tmp/ft-cash-current-relation-delete-expanded.log`），后三项为旧草稿余额测试依赖物理不存在。按逻辑删除合同检查保留的删除信息，聚合组成项旧测试同样改为核对保留财务值；余额断言不变，不扩大当前读取范围。
+- SQLite 删除、余额及原管理／组成项四模块 → 68 passed、37 PostgreSQL cases 明确未运行（92.28 s，`/tmp/ft-cash-current-relation-delete-expanded-final.log`）；新增已核对候选被删除后旧计划不能提交的桥接用例另 1 passed（2.04 s，`/tmp/ft-cash-current-relation-delete-plan-invalidation.log`）。包含同组无关确认边、父锚点预览计数、工作区隔离、三个阶段故障回滚；独立静态复核无 P1/P2，建议的完整重建不复活及目标自身绑定／问题／组成项回滚均补齐。最终双后端及性能仍须完成，不把未运行后端计作通过。
+- 最终固定源码双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-current-relation-delete-final-dual.log tests/contract/test_cash_current_relation_delete.py tests/contract/test_cash_draft_balances.py tests/contract/test_cash_projection_graph_reads.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_mutation_commit_recovery.py tests/test_cash_ledger_management.py tests/test_cash_transaction_components.py -q --disable-warnings --tb=short --maxfail=3` → 259 passed、无 skip、1 warning（320.22 s）。同一 Application Service 使用 SQLite 和显式专用 `_test` PostgreSQL，无并行 PostgreSQL pytest；原管理／组成项测试仍按其既有 SQLite fixture 执行，不冒称那些未参数化用例另跑了 PostgreSQL。新增有编号／无编号重导扩展先 SQLite 2 passed（3.78 s），最终增量 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-current-relation-delete-reimport-final-dual.log tests/contract/test_cash_current_relation_delete.py -q -k deleted_source_occurrence --disable-warnings --tb=short` → 4 passed、28 deselected、无 skip（5.55 s），补齐完整重建后不复活及静默新身份；不将重复执行相加成独立用例数。
+- 原删除成本独占：`uv run python /tmp/ft_cash_current_relation_delete_cost.py > /tmp/ft-cash-current-relation-delete-performance.log 2>&1` → 4 passed、19 deselected（27.72 s），一万笔背景、3 次预热／20 次样本，原 100 ms 预算保持。SQLite／PostgreSQL 无关联删除 P95 2.73／8.39 ms、删除当前并解除 5.11／14.19 ms、删除全组 3.85／9.17 ms；同跑的新建和既有编辑成本均通过原门槛，不以旧固定字段编辑用例宣称新维护合同开放固定字段。没有并发本任务测试、构建或运行时代码编辑，两枚核实的孤立上报进程在 `finally` 全部恢复并经 `ps` 确认；未暂停其他任务回归。
+- 5 个 Python 文件语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-current-relation-delete-dist`、wheel 新模块、OpenSpec strict 和范围 diff 通过；未配置 Python 类型检查器，不冒称类型检查。Cross-platform Impact Check：现有 Web／Native 删除入口共用已修正后端，响应形状、共享 presentation、页面／文案／导航不变，剩余合法配对的当前展示得到保留。功能地图同步后端与待验状态，10 项页面及跨端 TODO 保持；真实客户端删除、浏览器、最终 Hallmark、Native 与重大 UI 演示仍随 4.11–4.13／6.4–6.6 验收，不能把 API 单元测试等同浏览器通过。无 schema／依赖或真实账本改写；回退应用代码时保留删除信息及当前绑定结果，不撤销已确认删除或自动复活旧身份；升级前旧临时计划失效。反思：删除目标与重建闭包必须区分，逻辑删除也必须主动清理反向候选并推进其所属修订，不能只依赖物理级联。
 - 4.10.5.2 当前关系联合执行（2026-10-22，HEAD／比较基线 `3d599d6`）：实际提交反例先因维护门禁 2 failed（3.47 s，`/tmp/ft-cash-current-relation-commit-red.log`）；专用更新器首轮 40 passed、40 PostgreSQL cases 明确跳过（56.94 s，`/tmp/ft-cash-current-relation-commit-first.log`）。覆盖原 ID／锚点／决定组、联合镜像及零净额可见、旧停用成员、完整组保存点、候选并发、字段内部失效、余额、收据重放和外层发布回滚；不把 SQLite skip 计作双后端完成。
 - 独立静态复核发现草稿多个候选组成项同时移除时可能先撞唯一键的 P2。实际组合反例先 2 failed／1 passed（4.82 s，`/tmp/ft-cash-current-relation-coupled-red.log`）；将已明确忽略／解除的完整组与字段放进同一保存点，先清理候选。中间失败暴露旧组引用应随财务／类型／来源补丁失效；测试改为先展示补丁后的完整组再明确选择，不放宽写入或候选规则。最终组合 3 passed（4.76 s，`/tmp/ft-cash-current-relation-coupled-order-final.log`），增量实际提交模块 26 passed（38.12 s，`/tmp/ft-cash-current-relation-commit-expanded.log`）。未明确清理的延后保留不同证明，安全跳过不能保存的字段操作。
 - 旧选择失效后仍须允许其余合法字段提交，私有原输入只用于识别同一失效选择；补充篡改旧动作／候选的拒绝回归。独立复核再提出撤回补丁可能使旧 SG 恢复并重新授信的 P2；A→B→A 实际重预览反例先 2 failed（3.19 s，`/tmp/ft-cash-current-relation-restored-choice-red.log`）。临时选择代际使恢复后的建议使用新 ID，旧输入在重预览和确认重建中持续失效，新 ID 可明确重选。三模块选择增量 14 passed、14 PostgreSQL cases 明确跳过（19.63 s，`/tmp/ft-cash-current-relation-choice-generation-green.log`）；最终矩阵、成本及独立复核仍须补齐。私有代际和证明不进入公开详情或永久收据，无新增用户产品决策。

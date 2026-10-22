@@ -16,6 +16,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 内部 [已有配对维护预览](../tests/contract/test_cash_current_relation_plan.py) 从当前流水读取完整决定组及已有候选，不搜索新配对；初次预览保持成员原状态，明确选择才计算预计合并或解除，候选证明变化使旧选择失效。没有组成项的草稿保留延后和清理能力。[完整组更新合同](../tests/contract/test_cash_current_relation_commit.py) 已接入专用执行器，保留原关系身份、锚点及旧停用成员，按保存点隔离关系失败；投影或收据失败整体回滚。草稿组成项与明确候选清理存在依赖时共同保存，失效选择不会因撤回补丁自动恢复。公开接口和 Web、Native、共享 presentation 尚未切换，页面数、覆盖及 TODO 保持。
 
+F-04 的 [删除执行与合同](../tests/contract/test_cash_current_relation_delete.py) 已按父流水清理当前引用，支持无组成项草稿及反向候选；清理未确认完整组，保留其余合法确认边。原记录、组成项及删除信息保留，当前来源绑定释放，删除后重导不会复活旧身份。删除预览包含父锚点，失败共同回滚余额、引用及当前展示。现有 Web、Native 删除入口共用该后端，客户端结构及页面数不变；实际客户端删除及新导入、草稿维护的跨端 QA 仍随统一流程验收，不能把后端合同当作浏览器／设备通过。
+
 [草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；[来源读取与主页查询](../src/ft/adapters/relational/web_queries.py) 已保留无组成项草稿、未知值及待确认可见性，按稳定排序位置分页，月汇总排除草稿；读取和附属结果使用同一快照。HTTP 已转发状态筛选并返回可空值，Compose 展示和完整草稿维护尚未切换，不据此开放草稿写入口或声称主页维护已完成。派生表升级后须先显式重建，保留已有正式值及引用。
 
 [45 迁移](../migrations/versions/20261021_45_cash_projection_ownership.py) 限制派生结果的工作区归属及唯一活动集合；全量修复发布成功后清理旧派生副本，正式源记录保持。相关 [归属和回滚合同](../tests/contract/test_cash_projection_ownership.py) 覆盖跨工作区写入、异常迁移与旧会话缓存，不新增页面或改变客户端覆盖状态。

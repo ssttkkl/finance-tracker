@@ -85,7 +85,9 @@ def test_draft_delete_does_not_touch_snapshot(draft_runtime, known, operation):
         commands.delete_projections([f"cash:{identifier}"], projection_version=version)
     with RelationalUnitOfWork(runtime.sessions, runtime.workspace_id) as uow:
         assert uow.snapshot.load() == before
-        assert uow.cashflows.get(identifier) is None
+        removed = uow.cashflows.get(identifier)
+        assert removed["deleted"] and removed["state"] == "draft"
+        assert removed["deleted_at"] is not None and removed["delete_reason"]
 
 
 def test_draft_transition_affects_balance_once_and_rollback_restores_snapshot(draft_runtime):

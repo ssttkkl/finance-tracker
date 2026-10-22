@@ -203,7 +203,9 @@ def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runti
     deleted = service.delete_record(str(record["id"]))
     assert deleted["deleted"] is True
     with cash_web_runtime.sessions() as session:
-        assert session.get(CashTransactionModel, record["id"]) is None
+        parent = session.get(CashTransactionModel, record["id"])
+        assert parent is not None and parent.deleted_at is not None and parent.account_id is None
+        assert parent.amount == Decimal("-100.00")
 
 
 def test_component_count_derives_cash_granularity_and_ignores_client_value(cash_web_runtime):
