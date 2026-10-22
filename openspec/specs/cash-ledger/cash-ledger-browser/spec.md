@@ -604,7 +604,7 @@ Compose Web、Android 和 iOS 的收支账本 MUST 保持相同的页面区域�
 
 `REGULAR` 和 `WIDE` 表格行的全部内容（包括选择框和行内操作）MUST 使用 16 dp 的水平内缩，与月份汇总及列标题对齐；行分隔线 MUST 保持铺满月份容器。该行内缩 MUST NOT 改变 `COMPACT` 布局。
 
-`REGULAR` 和 `WIDE` 的列表右侧预留宽度 MUST 为 16 dp，避免为窄滚动条保留过多空白；月份汇总和列标题 MUST 与缩窄后的列表内容边界对齐。所有尺寸的可见滚动条轨道和滑块 MUST 保持纤细并贴齐列表右边缘，交互热区 MUST 保留 40 dp 以支持触控定位，且 MUST 覆盖列表、不改变列表宽度。`COMPACT` MUST 在滚动时显示滚动条，并在停止滚动 2 秒后渐隐；`REGULAR` / `WIDE` MUST 常驻显示。
+`REGULAR` 和 `WIDE` 的月份表格容器及固定月份栏右边缘 MUST 与上方筛选卡片的右边缘对齐；该外侧对齐 MUST NOT 通过缩窄账本列表或月份容器实现。表格行内容 MUST 保留 16 dp 的水平内缩，给滚动条可见轨道留出间隔，行分隔线 MUST 横跨月份容器。`REGULAR` / `WIDE` 的可见滚动条轨道和滑块 MUST 保持纤细并靠近表格行内容的右边界；`COMPACT` 的滚动条轨道和滑块 MUST 贴齐列表右边缘。所有尺寸的滚动条交互热区 MUST 保留 40 dp 以支持触控定位，且 MUST 覆盖列表、不改变列表宽度。`COMPACT` MUST 在滚动时显示滚动条，并在停止滚动 2 秒后渐隐；`REGULAR` / `WIDE` MUST 常驻显示。
 
 #### Scenario: 在 Compact 窗口浏览收支账本
 
@@ -653,15 +653,16 @@ Compose Web、Android 和 iOS 的收支账本 MUST 保持相同的页面区域�
 #### Scenario: 在桌面表格中浏览对齐的流水行
 
 - **WHEN** 使用者在 `REGULAR` 或 `WIDE` 中查看月份容器内的表格
-- **THEN** 每行内容两侧 MUST 各缩进 16 dp，并与月份汇总及列标题对齐
+- **THEN** 月份容器和固定月份栏的右边缘 MUST 与上方筛选卡片的右边缘对齐
+- **AND** 每行内容两侧 MUST 各缩进 16 dp，并与月份汇总及列标题对齐
 - **AND** 每行分隔线 MUST 横跨月份容器，且选择框和行内操作 MUST 保留在行内容的缩进范围内
 
 #### Scenario: 使用 Regular 或 Wide 账本滚动条
 
 - **WHEN** 使用者在 `REGULAR` 或 `WIDE` 中拖动或点击账本滚动条
-- **THEN** 列表右侧预留宽度 MUST 为 16 dp，且月份汇总和列标题 MUST 与该列表内容边界对齐
-- **AND** 滚动条可见轨道和滑块 MUST 保持纤细并贴齐列表右边缘，交互热区 MUST 保留 40 dp 且 MUST 不改变列表宽度
-- **AND** 列表及固定月份头 MUST 使用缩窄后的内容宽度对齐
+- **THEN** 月份容器和固定月份栏 MUST 与筛选卡片共用右边界，列表 MUST NOT 额外预留 16 dp 的外侧宽度
+- **AND** 表格行内容 MUST 保留 16 dp 水平内缩，滚动条可见轨道和滑块 MUST 位于行内容右边界附近
+- **AND** 滚动条交互热区 MUST 保留 40 dp 并覆盖列表，不得改变列表宽度
 - **AND** 滚动条 MUST 继续支持拖动和点击定位
 - **AND** `COMPACT` 滚动条 MUST 覆盖列表，且不得缩窄列表视口；滚动时显示，停止 2 秒后渐隐
 
