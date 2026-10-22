@@ -12,7 +12,7 @@ from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_parsed_cash_import_context import USER, _consume, _document, context_runtime
 
 
-def _client(runtime, monkeypatch, *, parser=None, store=None, user_id=USER):
+def _client(runtime, monkeypatch, *, parser=None, store=None, user_id=USER, role="editor"):
     from ft.application.access import AuthenticationRequired
     from ft.web.app import WorkspaceServices, create_app
     workspace, user = ContextVar("cash_session_workspace", default=None), ContextVar("cash_session_user", default=None)
@@ -20,7 +20,7 @@ def _client(runtime, monkeypatch, *, parser=None, store=None, user_id=USER):
         def require_context(self, token, _roles):
             if token != "fixture-token":
                 raise AuthenticationRequired("authentication_required")
-            return runtime.workspace_id, "editor", user_id
+            return runtime.workspace_id, role, user_id
     store = store or InMemoryParsedImportStore()
     service = WorkspaceServices(runtime.sessions, workspace, user_var=user, parsed_import_store=store)
     def context(self):

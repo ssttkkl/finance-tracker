@@ -150,7 +150,7 @@ flowchart TD
 | `POST /cash-import/sessions/{session_id}/plans` | `PreviewInput` | 返回不可变 `ImportPlanView`，不写业务流水 |
 | `GET /cash-import/plans/{plan_id}` | 无 | 读取计划摘要及第一页；分页路径见下文 |
 | `POST /cash-import/plans/{plan_id}/commit` | `{"expected_session_revision": 4}`；`Idempotency-Key` | `200` 返回已提交收据，包括全部成功、部分完成或无新增 |
-| `POST /cash-import/receipts/{receipt_id}/retry-sessions` | 可选失败 `row_refs[]`，新幂等键 | 在临时重试内容有效时生成新会话，返回 `SessionView`；不执行旧请求，不重跑成功项 |
+| `POST /cash-import/receipts/{receipt_id}/retry-sessions` | 可选失败 `row_refs[]`，新幂等键 | 在临时重试内容有效时生成新会话，`201` 返回 `SessionView`；不执行旧请求，不重跑成功项 |
 | `DELETE /cash-import/sessions/{session_id}` | 无 | 取消未提交会话、清理解析内容；不撤销账户，不撤销已提交导入；提交中返回 `409` |
 
 `SessionView`：`session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`（未提交时为空）。过期会话返回 `410 session_expired`。
@@ -168,6 +168,8 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 来源账户元素包含 `source_account_ref/source_type/display_name/currencies/row_count`，以及独立的 `suggestion` 和 `selection`。`suggestion` 包含建议 `account_id/expected_account_revision/basis`；`selection` 是本次已保存的账户选择或 `null`，明确暂不选择账户时其中 `account_id=null`。建议不是已经确认的选择。内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
 
 `PreviewInput` 使用完整替换的选择集合，避免省略和撤销混淆：
+
+三类选择数组均须提供；第一次 `previous_plan_id` 为 `null`。JSON 请求最多 64 MiB，结构及修订严格校验；行内补丁的业务字段问题仍逐行返回。分页大小默认 50、最大 200；收据结果的 `result_id/next_after` 为十进制字符串，后一值为空表示结束。查询参数不接受重复键。
 
 ```json
 {
@@ -209,6 +211,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `file_results[]` | 文件级问题，不能伪装成单条流水 |
 | `can_commit` | 可终结处理，包括全部重复；无可辨认行且只有文件错误时为 `false` |
 | `pages` | 投影项及处理明细的分页游标 |
+| `invalidated_choices[]` | 失效选择的 `kind/reference/code`，不能静默换成另一候选 |
 
 `GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。它们从属于这一项详情，不是另一份顶层关系列表。
 
@@ -275,9 +278,12 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 {
   "receipt_id": "receipt_example",
   "plan_id": "plan_example",
+  "operation_kind": "import",
+  "created_at": "2026-10-22T08:00:00+00:00",
   "status": "partial",
   "committed": true,
   "needs_attention_count": 1,
+  "pending_item_count": 1,
   "summary": {
     "created_posted": 1,
     "updated_posted": 0,
@@ -289,15 +295,6 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
     "relations_deferred": 0,
     "relations_failed": 1
   },
-  "row_results": [
-    {"row_ref": "f1:r1", "operation_ref": "op1", "outcome": "created_posted", "transaction_id": "101"},
-    {"row_ref": "f1:r2", "operation_ref": "op2", "outcome": "saved_draft", "transaction_id": "102", "message": "尚未选择账户，已保存为待补充流水"},
-    {"row_ref": "f1:r3", "operation_ref": null, "outcome": "duplicate", "transaction_id": "88"},
-    {"row_ref": "f1:r4", "operation_ref": "op4", "outcome": "skipped", "code": "fixed_field_conflict", "message": "已有流水的金额与本次账单不同，未更新"}
-  ],
-  "relation_results": [
-    {"suggestion_id": "sg1", "outcome": "failed", "code": "endpoint_changed", "message": "相关流水已变化，本次未合并"}
-  ],
   "projection_version": 19
 }
 ```
@@ -308,7 +305,9 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 收据 `status=completed/partial/no_changes/failed` 描述已提交的处理结果；`committed=true` 表示执行结果已持久保存，不等于业务全部成功。已保存草稿属于成功写入。`partial` 表示有成功操作，也有失败或被跳过的有效业务操作／文件；`no_changes` 表示只有重复、用户保留现有或白名单跳过。`needs_attention_count` 表达草稿和待处理关联，避免把它们混成失败。若没有任何成功写入且存在有效业务操作失败，返回 `status=failed`，界面显示“未导入任何记录”，仍允许退出时撤销独立账户改动。事务整体回滚使用错误响应，不能生成已提交收据。
 
-`needs_attention_count` 按有当前问题的唯一流水计数；同一流水的多个问题或关系不重复加数，跨两笔流水的草稿关系可使两笔分别待处理。`saved_draft` 包含新增及更新草稿，逐项结果另外给出 `created/updated`。
+`needs_attention_count` 按有当前问题的唯一流水计数；同一流水的多个问题或关系不重复加数，跨两笔流水的草稿关系可使两笔分别待处理。`saved_draft` 包含新增及更新草稿，结果定位到实际保存的流水。
+
+逐项结果由 `/rows`、`/relations` 读取：`items[]` 包含 `result_id/result_kind/item_ref/outcome`，以及适用的 `operation_ref/transaction_id/relation_id/account_id/code/message`；来源行或建议标识使用 `item_ref`。结果页还包含 `next_after/projection_refs/projection_version`。`code` 存在时提供安全文案；成功结果没有额外问题文案。原文件、来源绑定证明及临时失败正文标识不通过收据 DTO 暴露。
 
 面向用户的待确认数量另由最终可见投影按 `confirmation_status=pending` 计数，字段为 `pending_item_count`；不能把内部流水数当成列表项数。收据摘要只含有界计数和发布版本；受影响流水及提交后当前投影的引用放在分页逐项结果中。客户端用正式查询刷新实际结果，不能在部分失败后继续展示原先预计的合并列表。
 

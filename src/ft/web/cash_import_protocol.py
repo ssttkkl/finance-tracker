@@ -1,11 +1,13 @@
 """现金导入的严格请求边界和当次上传资源。"""
 from contextlib import asynccontextmanager
 import json
+import math
 import re
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from starlette.datastructures import UploadFile
+from starlette.concurrency import run_in_threadpool
 from starlette.formparsers import MultiPartException, MultiPartParser
 
 from ft.application.cash_import_context import CashImportUpload
@@ -118,18 +120,25 @@ def _constant(_value):
     raise CashImportProtocolError
 
 
+def _float(value):
+    number = float(value)
+    if not math.isfinite(number):
+        raise CashImportProtocolError
+    return number
+
+
 def strict_json(value, model):
-    return model.model_validate(json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant))
+    return model.model_validate(json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float))
 
 
-async def json_input(request, model):
+async def json_input(request, model, *, max_bytes=MAX_METADATA_BYTES):
     chunks, size = [], 0
     async for chunk in request.stream():
         size += len(chunk)
-        if size > MAX_METADATA_BYTES:
+        if size > max_bytes:
             raise CashImportProtocolError
         chunks.append(chunk)
-    return strict_json(b"".join(chunks), model)
+    return await run_in_threadpool(strict_json, b"".join(chunks), model)
 
 
 def expected_revision(request):

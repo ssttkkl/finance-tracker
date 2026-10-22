@@ -10,6 +10,7 @@ from ft.adapters.relational.models import (AccountModel, CashSourceBindingModel,
     TransactionRelationModel, WorkspaceMembershipModel)
 from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
+from ft.application.cash_commit_outcome import CashCommitFailure
 from tests.contract.test_cash_import_operations import _file, _selections, _bind_existing
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
@@ -582,8 +583,9 @@ def test_final_receipt_or_projection_failure_rolls_back_all_business_writes(cont
     target, method = (CashMutationRepository, "create") if phase == "receipt" else (CashProjectionService, "maintain_in_session")
     original = getattr(target, method)
     monkeypatch.setattr(target, method, fail)
-    with pytest.raises(RuntimeError, match="synthetic final failure"):
+    with pytest.raises(CashCommitFailure) as failure:
         _commit(service, plan)
+    assert failure.value.commit_state == "not_committed"
     with context_runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
         assert session.scalar(select(func.count()).select_from(CashSourceBindingModel)) == 0
@@ -792,8 +794,9 @@ def test_connection_failure_aborts_outer_transaction_instead_of_becoming_a_row_s
             raise OperationalError("synthetic driver failure", {}, Exception("private detail"), connection_invalidated=True)
         return result
     monkeypatch.setattr(service, "_save_row", fail)
-    with pytest.raises(OperationalError):
+    with pytest.raises(CashCommitFailure) as failure:
         _commit(service, plan)
+    assert failure.value.commit_state == "not_committed"
     with context_runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
             CashTransactionModel.source_type == "alipay")) == 0

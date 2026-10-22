@@ -212,8 +212,10 @@ def test_mapping_and_records_rollback_together_on_publication_failure(context_ru
         original(*args, **kwargs)
         raise RuntimeError("synthetic publication failure")
     monkeypatch.setattr(owner, name, fail)
-    with pytest.raises(RuntimeError, match="synthetic publication"):
+    from ft.application.cash_commit_outcome import CashCommitFailure
+    with pytest.raises(CashCommitFailure) as failure:
         _commit(service, plan)
+    assert failure.value.commit_state == "not_committed"
     assert _mappings(runtime) == []
     with runtime.sessions() as session:
         assert not session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == "alipay"))

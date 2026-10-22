@@ -633,3 +633,19 @@ def test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revisio
     with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
         _replace(store, first, plan=json.loads(content))
     assert _get(store, first) == first
+
+
+@pytest.mark.parametrize("container", ["list", "dict"])
+def test_json_scalar_depth_boundary_is_preserved(staging, container):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    value = "正常字段"
+    for _ in range(62):
+        value = [value] if container == "list" else {"value": value}
+    accepted = _replace(store, first, plan={"nested": value})
+    assert _get(store, accepted).plan == {"nested": value}
+    value = [value] if container == "list" else {"value": value}
+    with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
+        _replace(store, accepted, plan={"nested": value})
+    assert _get(store, accepted) == accepted

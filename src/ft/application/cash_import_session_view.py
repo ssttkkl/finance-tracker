@@ -4,20 +4,22 @@ from copy import deepcopy
 from ft.application.cash_import_issues import cash_import_issue
 
 
+def cash_import_file_view(file):
+    rows = file.document.rows if file.document is not None else ()
+    codes = list(dict.fromkeys(code for row in rows if row.disposition != "skipped"
+        for code in (*row.issue_codes, *((row.error_code,) if row.error_code else ()))))
+    if file.error_code:
+        codes.insert(0, file.error_code)
+    status = "password_required" if file.status == "needs_password" else "failed" if file.status != "parsed" else "partial" if codes else "ready"
+    return {"file_ref": file.file_ref, "client_file_ref": file.client_file_ref,
+        "display_name": file.filename, "source_type": file.source_type, "source_scope_label": file.source_scope_label,
+        "status": status, "recognized_row_count": file.document.observed_count if file.document is not None else None,
+        "issues": [cash_import_issue(code, blocking_scope="file") for code in codes[:16]],
+        "can_retry": file.status != "parsed"}
+
+
 def cash_import_session_view(current, groups, suggestions):
-    files = []
-    for file in current.files:
-        rows = file.document.rows if file.document is not None else ()
-        codes = list(dict.fromkeys(code for row in rows if row.disposition != "skipped"
-            for code in (*row.issue_codes, *((row.error_code,) if row.error_code else ()))))
-        if file.error_code:
-            codes.insert(0, file.error_code)
-        status = "password_required" if file.status == "needs_password" else "failed" if file.status != "parsed" else "partial" if codes else "ready"
-        files.append({"file_ref": file.file_ref, "client_file_ref": file.client_file_ref,
-            "display_name": file.filename, "source_type": file.source_type, "source_scope_label": file.source_scope_label,
-            "status": status, "recognized_row_count": file.document.observed_count if file.document is not None else None,
-            "issues": [cash_import_issue(code, blocking_scope="file") for code in codes[:16]],
-            "can_retry": file.status != "parsed"})
+    files = [cash_import_file_view(file) for file in current.files]
     inputs = {key: deepcopy(value) for key, value in current.preview_input.items()
         if key in {"account_selections", "row_choices", "relation_choices"}}
     selected = {item["source_account_ref"]: item for item in inputs.get("account_selections", [])}

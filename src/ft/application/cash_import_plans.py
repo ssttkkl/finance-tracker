@@ -329,7 +329,8 @@ class CashImportPlanService(CashImportContextService):
                 current = self._read_context(uow, session_id)
                 if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
                     raise CashImportPlanError("plan_changed")
-                return deepcopy(current.plan)
+                # 暂存已为本次读取解码出独占对象；公开页仍只复制实际返回字段。
+                return current.plan
         except (ImportSessionExpired, ImportSessionNotFound):
             raise CashImportPlanError("plan_expired") from None
 

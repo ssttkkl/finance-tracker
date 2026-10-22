@@ -95,6 +95,20 @@ class WorkspaceServices:
             raise ImportSessionStorageUnavailable
         return CashImportContextService(self._uow(), self._parsed_import_store, user_id=self._user())
 
+    def cash_import_commands(self):
+        from ft.application.cash_import_commit import CashImportCommandService
+        from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+        if self._parsed_import_store is None:
+            raise ImportSessionStorageUnavailable
+        return CashImportCommandService(self._uow(), self._parsed_import_store, user_id=self._user())
+
+    def cash_mutation_commands(self):
+        from ft.application.cash_mutation_commit import CashMutationCommandService
+        from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+        if self._parsed_import_store is None:
+            raise ImportSessionStorageUnavailable
+        return CashMutationCommandService(self._uow(), self._parsed_import_store, user_id=self._user())
+
     def legacy_cashflow(self):
         from ft.application.cashflow import CashflowService
 
@@ -298,6 +312,8 @@ def create_app(
     from ft.web.operation_routes import operation_router
 
     allowed_origin = validate_web_origin(allowed_origin)
+    from ft.web.cash_access_logging import install_cash_access_filter
+    install_cash_access_filter()
     app = FastAPI(
         title="Finance Tracker 本机账本浏览器",
         docs_url=None,
@@ -319,6 +335,12 @@ def create_app(
     if access_service is not None:
         @app.middleware("http")
         async def authenticate_web_api(request, call_next):
+            def denied(code, message, status):
+                body = error_payload(code, message)
+                if request.url.path.startswith(("/api/v1/cash-import/sessions", "/api/v1/cash-import/plans",
+                    "/api/v1/cash-import/receipts", "/api/v1/cash-mutations")):
+                    body["error"].update(field_errors=[], retryable=False)
+                return JSONResponse(body, status)
             if (
                 request.url.path.startswith("/api/v1")
                 and not request.url.path.startswith("/api/v1/auth")
@@ -330,14 +352,14 @@ def create_app(
                         {"admin", "editor", "viewer"},
                     )
                     if request.method not in {"GET", "HEAD", "OPTIONS"} and role == "viewer":
-                        return JSONResponse(error_payload("workspace_forbidden", "当前角色仅可查看账本。"), 403)
+                        return denied("workspace_forbidden", "当前角色仅可查看账本。", 403)
                     request.state.workspace_id = workspace_id; request.state.workspace_role = role; request.state.user_id = user_id
                     context_token = workspace_context.set(workspace_id) if workspace_context is not None else None
                     user_token = user_context.set(user_id) if user_context is not None else None
                 except AuthenticationRequired:
-                    return JSONResponse(error_payload("authentication_required", "请先登录。"), 401)
+                    return denied("authentication_required", "请先登录。", 401)
                 except PermissionDenied:
-                    return JSONResponse(error_payload("workspace_forbidden", "当前用户无权访问该工作区。"), 403)
+                    return denied("workspace_forbidden", "当前用户无权访问该工作区。", 403)
                 try: return await call_next(request)
                 finally:
                     if user_token is not None: user_context.reset(user_token)
@@ -374,6 +396,8 @@ def create_app(
         if callable(getattr(operations_service, "parsed_import_context", None)):
             from ft.web.cash_import_routes import cash_import_router
             app.include_router(cash_import_router(operations_service))
+            from ft.web.cash_plan_routes import cash_plan_router
+            app.include_router(cash_plan_router(operations_service))
     return app
 
 

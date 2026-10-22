@@ -13,10 +13,12 @@ from ft.adapters.relational.models import CashTransactionModel
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
 from ft.application.cash_import_account_mappings import CashImportAccountMappings
+from ft.application.cash_commit_outcome import CashCommitBoundary
+from ft.application.cash_import_context import CashImportPermissionDenied
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches
 from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService, _session_id
-from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionForbidden, ImportSessionNotFound
 from ft.application.cash_import_source_rows import file_document_evidence
 from ft.application.cash_source_candidate_sets import frozen_source_candidate_sets, source_candidate_ids
 from ft.application.cash_projections import CashProjectionService
@@ -44,6 +46,13 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             builder=CashImportBusinessPlanBuilder(uow.workspace_id), **kwargs)
 
     def commit(self, plan_id, *, expected_session_revision, idempotency_key):
+        boundary = CashCommitBoundary()
+        with boundary.guard((CashImportPlanError, CashImportPermissionDenied, CashMutationConflict,
+            ImportSessionExpired, ImportSessionForbidden, ImportSessionNotFound)):
+            return self._commit(plan_id, expected_session_revision=expected_session_revision,
+                idempotency_key=idempotency_key, boundary=boundary)
+
+    def _commit(self, plan_id, *, expected_session_revision, idempotency_key, boundary):
         if type(expected_session_revision) is not int or expected_session_revision < 1:
             raise CashImportPlanError("plan_input_invalid")
         session_id = _session_id(plan_id)
@@ -59,6 +68,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             consumed = receipts.for_context(self._user_id, session_digest=sha256(session_id.encode()).hexdigest())
             if consumed is not None:
                 raise CashMutationConflict("session_committed", consumed["receipt_id"])
+            boundary.no_prior_result()
             current = self.current_for_commit(uow, plan_id, expected_session_revision=expected_session_revision)
             plan = current.plan
             if not plan.get("can_commit"):
@@ -194,7 +204,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                 result_summary={"status": status, "summary": dict(summary), "needs_attention_count": pending,
                     "pending_item_count": pending_items, "projection_version": state.projection_version, **retry},
                 results=[*rows, *groups, *file_results])
-            uow.commit()
+            boundary.commit(uow)
             try:
                 self._staging.cancel(session_id, workspace_id=self._workspace_id, user_id=self._user_id, expected_revision=current.revision)
             except Exception:

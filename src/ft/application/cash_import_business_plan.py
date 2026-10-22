@@ -799,10 +799,9 @@ class CashImportBusinessPlanBuilder:
         processing.extend({"planned_action": "skip", "member_refs": [self._ref(snapshot, parent)
             for parent in failure["parent_ids"] if parent in snapshot.values], **_pending(failure["code"], relation=True)}
             for failure in failures)
-        file_results = [{"file_ref": file.file_ref, "display_name": file.filename, "status": file.status,
-            "recognized_row_count": len(file.document.rows) if file.document else 0,
-            "issues": [cash_import_issue(file.error_code, blocking_scope="file")] if file.error_code else [],
-            "can_retry": file.status != "parsed"} for file in files]
+        from ft.application.cash_import_session_view import cash_import_file_view
+        file_results = [{key: value for key, value in cash_import_file_view(file).items()
+            if key in {"file_ref", "display_name", "status", "recognized_row_count", "issues", "can_retry"}} for file in files]
         return {"items": items, "item_details": details, "detail_values": detail_values, "processing_details": processing,
             "file_results": file_results, "summary": counts, "can_commit": any(file.status == "parsed" for file in files)}
 
