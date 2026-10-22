@@ -234,14 +234,8 @@ internal fun CashLedgerScrollbar(
             maxOf(scrollbarStyle.minimalHeight.toPx(), trackHeightPx / totalCount.coerceAtLeast(1))
         }
         val scrollbarHitWidth = SCROLLBAR_HIT_WIDTH_DP
-        val scrollbarVisualOffsetX = if (compact) {
-            (scrollbarHitWidth.dp - scrollbarStyle.thickness) / 2
-        } else {
-            2.dp
-        }
-        val scrollbarTrackOffsetFromContainerEnd =
-            -((scrollbarHitWidth.dp - scrollbarStyle.thickness) / 2) + scrollbarVisualOffsetX
-        val monthBubbleOffsetX = if (compact) -scrollbarStyle.thickness else (-scrollbarHitWidth / 2).dp
+        val scrollbarVisualOffsetX = (scrollbarHitWidth.dp - scrollbarStyle.thickness) / 2
+        val monthBubbleOffsetX = -scrollbarStyle.thickness
         val bubbleHeightPx = with(density) { 56.dp.toPx() }
         val scrollbarModifier = Modifier
             .align(Alignment.CenterEnd)
@@ -304,7 +298,6 @@ internal fun CashLedgerScrollbar(
                         .align(Alignment.CenterEnd)
                         .width(scrollbarStyle.thickness)
                         .fillMaxHeight()
-                        .offset(x = scrollbarTrackOffsetFromContainerEnd)
                         .testTag(SemanticIds.ledgerScrollbarTrack),
                 )
                 VerticalScrollbar(
@@ -321,7 +314,6 @@ internal fun CashLedgerScrollbar(
                                     .align(Alignment.CenterEnd)
                                     .width(scrollbarStyle.thickness)
                                     .height(with(density) { thumbHeightPx.toDp() })
-                                    .offset(x = scrollbarTrackOffsetFromContainerEnd)
                                     .testTag(SemanticIds.ledgerScrollbarThumb),
                             )
                         }

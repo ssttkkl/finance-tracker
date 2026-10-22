@@ -92,6 +92,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChangeIgnoreConsumed
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
@@ -365,7 +366,7 @@ internal fun CashLedgerScreen(
                 monthPositions = monthPositions,
                 isOrdinalLoaded = { ordinal -> pagedRows.peek(ordinal) != null },
                 compact = sizeClass == WindowSizeClass.COMPACT,
-                modifier = Modifier.align(Alignment.CenterEnd),
+                modifier = Modifier.align(Alignment.CenterEnd).zIndex(1f),
             )
             }
             val firstVisibleRecord = if (listReady) listState.layoutInfo.visibleItemsInfo
