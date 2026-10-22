@@ -111,3 +111,14 @@
 - 用户已确认将当前演示结果通过 PR 合入 `main`；已授权在同仓库该分支提交、推送、创建 PR 与合并。当前 `origin/main` 包含 `#97`，应从最新基线提交/变基。iOS 实机 QA 缺口已在先前交付说明中告知，并保留为已知限制；不会虚报为通过。
 
 - 已将 change 归档至 `openspec/changes/archive/2026-10-22-refine-cash-record-detail-layout/`；两个修改需求和新增需求均已同步至主规格。iOS 实机 QA 仍未完成，原因是本环境没有可用设备；在用户明确授权 PR/合并前已告知该限制，因此按用户指示继续交付并保留为残余验证项。
+
+### main 最新基线回归与合入验证
+
+- 以最新 `origin/main` `808cd68120eb5506d5c76ae0eb748e33ae50a8b2` 检查 PR #98 时，发现它移除了流水列表右侧 16 dp padding 后，桌面行末详情按钮中心与滚动条命中区重叠。真实浏览器 768×1000 px 上按钮中心 x=712、滚动条命中区起点 x=712，导致按钮点击被滚动条画布截获，详情无法打开。先在当前最新主干生产构建上复现该问题，随后给按钮点击区增加 16 dp 末端内缩，并新增中心点避开滚动条的回归断言；这是列表入口 hit target 的小修复，不改变详情布局或业务行为。
+- 用户授权目标为同仓库 PR #98 合入 `main`。PR: https://github.com/ssttkkl/finance-tracker/pull/98；分支 `codex/refine-cash-record-detail-layout`。本记录在推送后补录最终提交、CI 和 merge commit。
+- 生产 Web 预览 `http://127.0.0.1:5192/`：`npm run test:e2e --prefix compose/qa/web -- --grep '详情排版'` 16/16 通过，覆盖 Chromium 151、390/768/1440×1000、详情入口、单源/关联、长内容、加载、错误重试、只读和菜单确认。再加无遮罩入口截图后，`npm run test:e2e --prefix compose/qa/web -- --grep '时间进入平铺字段'` 3/3 通过；截图 `compose/qa/web/test-results/evidence/cash-detail-typography/ledger-entry-{390,768,1440}.png` 可见桌面入口没有挤压金额列或破坏行对齐。未捕获 console、page、静态资源或网络错误。
+- API 36 Android 只读模拟器 `emulator-5556`、density 320：运行 `ANDROID_SERIAL=emulator-5556 ./gradlew :shared:connectedAndroidDeviceTest -Pandroid.testInstrumentationRunnerArguments.class=com.finance.tracker.CashRecordDetailDeviceTest --no-configuration-cache`，分别在 2880×2000、1536×2048、780×1800 px（1440/768/390 dp）运行，每窗 3/3 通过，合计 9/9。Android 已完成三窗口实际设备测试；iOS `:shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 通过，但仍无可用 iPhone/iPad 设备进行真实 UI QA。
+- `npm run test:node --prefix compose/qa/web` 3/3 通过。Web 生产构建成功（49 tasks，6 min 16 s）。最终 UI Hallmark audit 覆盖 `ledger-entry-{390,768,1440}.png` 和最新单源、关联滚动、长文本截图：0 critical、0 major、0 minor；行末图标向左内缩后仍清晰并与金额列保持间距。
+- Cross-platform Impact Check：该末端内缩发生在共享 `CashLedgerScreen.kt`，影响 Web 和 Native 的桌面表格 hit target；Web 通过三宽浏览器验证，Android 通过三窗真实模拟器验证，iOS 共享编译通过但实际 iOS UI QA 未完成；Compact 沿用卡片行入口且没有变化。API、持久化、财务金额与权限语义均未变化，数据库双后端矩阵不适用。
+- 审查 finding：最新 main 引入的滚动条点击覆盖为 1 个高优先级交互缺陷，已用几何回归断言及 16 dp 内缩修复；最终 Hallmark audit 无视觉 finding。残余限制仅为 iOS 真机/模拟器 UI QA，后续补跑条件为可用 iOS 设备或模拟器。本次新截图与测试产物不提交到 Git。
+- 最后复核命令：`npm run test:node --prefix compose/qa/web`、上述三宽 Playwright 和 Android 设备命令、`./gradlew :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache`；推送前另执行 `openspec validate --all --strict`、`openspec doctor`、`git diff --check`。执行日期 2026-10-22；提交前 HEAD 为 `dcd4640cf484bdbf36c04fd281120389cc352fac`，基线为 `808cd68120eb5506d5c76ae0eb748e33ae50a8b2`。

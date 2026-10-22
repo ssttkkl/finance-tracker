@@ -43,6 +43,17 @@ async function openDetail(page: Page, width: number) {
   const row = byId(page, "ledger.record-projection-1");
   await row.waitFor({ state: "visible" });
   const target = width < 600 ? row : row.locator('[id="ledger.open-record"]').last();
+  if (width >= 600) {
+    const [targetBox, scrollbarBox] = await Promise.all([
+      target.boundingBox(),
+      byId(page, "ledger.scrollbar").boundingBox(),
+    ]);
+    expect(targetBox).not.toBeNull();
+    expect(scrollbarBox).not.toBeNull();
+    expect(targetBox!.x + targetBox!.width / 2).toBeLessThan(scrollbarBox!.x);
+  }
+  await mkdir(evidence, { recursive: true });
+  await page.screenshot({ path: path.join(evidence, `ledger-entry-${width}.png`) });
   const entryBounds = await click(page, target);
   await byId(page, "ledger.record-panel").waitFor({ state: "visible" });
   return entryBounds!;
