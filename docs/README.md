@@ -20,6 +20,7 @@
 | [Compose 功能地图](feature-map.md) | Compose 页面、实现证据与当前 QA 覆盖 |
 | [导入、关系与同步流程](import-flow.md) | 当前主要导入和数据提交流程 |
 | [现金账单导入后端架构](cash-import-backend-architecture.md) | Compose 多文件现金导入的服务链路、问题与重构建议 |
+| [投资管理架构](investment-management-architecture.md) | 手工写入、账单导入、连接器同步、事件查询、组合估值和现金—投资资金关系的当前模型与 API 契约 |
 | [现金导入临时存储配置](cash-import-r2-staging.md) | R2 与内存暂存后端的配置和边界 |
 | [UI 设计约束](ui-design-rules.md) | Compose UI 实现与审查规则 |
 | [设计系统组件登记](design-system/registry.yaml) | 当前共享展示辅助项 |
