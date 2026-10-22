@@ -8,6 +8,7 @@ from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
 from ft.application.cash_mutation_plans import CashMutationPlanError, CashMutationPlanService, _context_id, _revision
 from ft.application.cash_draft_merge_writer import CashDraftMergeWriter
+from ft.application.cash_current_relation_writer import CashCurrentRelationWriter
 from ft.application.cash_plan_execution import (CashPlanWriteOperations, _operation_fingerprint,
     _reason, _receipt_view, _recoverable)
 from ft.application.cash_projections import CashProjectionService
@@ -47,12 +48,17 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             self._validate_current(plan, fresh)
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()
             actual, identity, components, changes, affected, failures = {}, {}, {}, [], set(), set()
+            early_groups, excluded_groups = [], set()
             operations = {op["operation_ref"]: op for op in plan["operations"]}
             for references in plan["mutation_units"]:
                 unit = [operations[ref] for ref in references]
+                relation_writer = CashCurrentRelationWriter(session, self._workspace_id, self._user_id)
+                coupled = relation_writer.coupled_groups(plan, unit)
+                excluded_groups.update(group["suggestion_id"] for group in coupled)
                 try:
                     saved = []
                     with session.begin_nested():
+                        relation_results = relation_writer.before_records(coupled, plan) if coupled else []
                         for operation in unit:
                             if operation.get("merge_draft"):
                                 CashDraftMergeWriter(session, self._workspace_id).prepare_record_updates(operation)
@@ -66,6 +72,13 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                     if not _recoverable(error):
                         raise
                     session.expire_all()
+                    if coupled:
+                        failed_relations = relation_writer.failed_results(coupled, error)
+                        early_groups.extend(failed_relations)
+                        touched = relation_writer.parent_ids(coupled)
+                        affected.update(touched)
+                        for group, result in zip(coupled, failed_relations):
+                            self._relation_problem(session, touched, group.get("commit_group_id", group["suggestion_id"]), result["code"])
                     for operation in unit:
                         failures.add(operation["preview_transaction_id"])
                         actual[operation["operation_ref"]] = {"outcome": "skipped", "transaction_id": operation.get("merge_draft", {}).get(
@@ -73,6 +86,9 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                             "code": _reason(error, "row_save_failed")}
                 else:
                     # 保存点成功之后的执行错误必须回滚外层，不能误报为已回滚单元。
+                    early_groups.extend(relation_results)
+                    if coupled:
+                        affected.update(relation_writer.parent_ids(coupled))
                     for operation, result in saved:
                         parent, mapping, before, after, touched = result
                         identity[operation["preview_transaction_id"]] = str(parent)
@@ -85,7 +101,8 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             rows = [{"result_kind": "row", "item_ref": operation.get("merge_draft", {}).get("source_transaction_id", operation["transaction_id"]),
                 "operation_ref": operation["operation_ref"], **actual[operation["operation_ref"]]} for operation in plan["operations"]]
             groups = self._save_groups(session, plan, fresh, identity, components, failures, affected,
-                manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]})
+                manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]}, excluded=excluded_groups)
+            groups = [*early_groups, *groups]
             self._discovery_issues(session, plan, identity, failures, affected)
             groups.extend(self._discovery_results(plan, identity, failures))
             self._balances(uow, changes)
@@ -100,7 +117,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             for item in groups:
                 summary["relations_" + item["outcome"]] += 1
             if not failures:
-                summary["relations_removed"] = len(plan["type_effects"]["removed_relation_ids"]) + len(plan["type_effects"]["removed_funding_ids"])
+                summary["relations_removed"] += len(plan["type_effects"]["removed_relation_ids"]) + len(plan["type_effects"]["removed_funding_ids"])
             successful = affected | {int(item["transaction_id"]) for item in actual.values() if item["outcome"] != "skipped"}
             locations = RelationalCashProjectionRepository(session, self._workspace_id).current_references(successful, state=state)
             pending_items = len({value["projection_id"] for value in locations.values() if value["attention_count"] > 0})
@@ -123,6 +140,12 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                 # 永久消费先阻断重写，固定 TTL 清理不影响成功结果。
                 pass
             return _receipt_view(receipt)
+
+    def _save_groups(self, session, plan, fresh, identity, components, failed_rows, affected, *, manual, excluded=()):
+        if any(group.get("origin") == "current" for group in plan["relation_groups"]):
+            return CashCurrentRelationWriter(session, self._workspace_id, self._user_id).save_groups(
+                plan, fresh, failed_rows, affected, on_failure=self._relation_problem, excluded=excluded)
+        return super()._save_groups(session, plan, fresh, identity, components, failed_rows, affected, manual=manual)
 
     @staticmethod
     def _validate_current(plan, fresh):

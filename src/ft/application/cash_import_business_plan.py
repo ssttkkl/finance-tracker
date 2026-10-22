@@ -159,7 +159,7 @@ class CashImportBusinessPlanBuilder:
         if current_relation_builder is not None:
             groups.extend(current_relation_builder(snapshot, accounts))
         failures.extend(conversion_failures)
-        invalidated = self._apply_choices(groups, relation_choices, previous_plan)
+        invalidated, invalidated_sources, choice_generations = self._apply_choices(groups, relation_choices, previous_plan)
         relation_failures = self._apply_groups(snapshot, groups)
         failures.extend(relation_failures)
         unique_failures = {}
@@ -175,7 +175,9 @@ class CashImportBusinessPlanBuilder:
         build = snapshot.build()
         result = self._present(files, operations, rows, snapshot, build, groups, failures, accounts,
             include_unchanged=include_unchanged)
-        result.update(invalidated_choices=invalidated, operations=operations, row_decisions=rows,
+        result.update(invalidated_choices=invalidated, invalidated_relation_choices=invalidated_sources,
+            relation_choice_generations=choice_generations,
+            operations=operations, row_decisions=rows,
             source_candidate_sets=source_candidate_sets or {},
             relation_groups=_wire(groups), relation_failures=failures, dependencies={"seed_ids": sorted(context.seed_ids), "token": context.token,
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
@@ -615,11 +617,40 @@ class CashImportBusinessPlanBuilder:
     @staticmethod
     def _apply_choices(groups, choices, previous):
         old = {group["suggestion_id"]: group for group in (previous or {}).get("relation_groups", [])}
-        if any(choice["suggestion_id"] not in old or choice.get("candidate_id") is not None
-            and choice["candidate_id"] not in {item["candidate_id"] for item in old[choice["suggestion_id"]]["candidates"]} for choice in choices):
-            raise CashImportPlanError("plan_input_invalid")
+        stale = (previous or {}).get("invalidated_relation_choices", {})
+        generations = deepcopy((previous or {}).get("relation_choice_generations", {}))
+        def identify(group):
+            source = group["source_suggestion_id"]
+            generation = generations.get(source, 0)
+            group["choice_generation"] = generation
+            group["suggestion_id"] = ("sg_" + _digest("cash-relation-choice-generation-v1", source, generation)[:40]
+                if generation else source)
+        for group in groups:
+            group["source_suggestion_id"] = group["suggestion_id"]
+            identify(group)
+        for choice in choices:
+            identifier = choice["suggestion_id"]
+            if identifier not in old:
+                if identifier not in stale or stale[identifier]["choice"] != choice:
+                    raise CashImportPlanError("plan_input_invalid")
+            elif choice.get("candidate_id") is not None and choice["candidate_id"] not in {
+                item["candidate_id"] for item in old[identifier]["candidates"]}:
+                raise CashImportPlanError("plan_input_invalid")
         current = {group["suggestion_id"]: group for group in groups}
-        invalidated, touched = [], set()
+        invalidated, touched, sources = [], set(), {}
+        def invalidate(choice):
+            identifier = choice["suggestion_id"]
+            invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
+            refs = old[identifier]["member_refs"] if identifier in old else stale[identifier]["member_refs"]
+            sources[identifier] = {"choice": deepcopy(choice), "member_refs": deepcopy(refs)}
+            touched.update(tuple(sorted(ref.items())) for ref in refs)
+            if identifier in old:
+                source = old[identifier].get("source_suggestion_id", identifier)
+                generations[source] = max(generations.get(source, 0), old[identifier].get("choice_generation", 0) + 1)
+            if identifier in current:
+                group = current.pop(identifier)
+                identify(group)
+                current[group["suggestion_id"]] = group
         for choice in choices:
             identifier = choice["suggestion_id"]
             if identifier in current:
@@ -630,9 +661,7 @@ class CashImportBusinessPlanBuilder:
                 if candidate_id:
                     candidate = next((item for item in current[identifier]["candidates"] if item["candidate_id"] == candidate_id), None)
                     if candidate is None:
-                        invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
-                        if current[identifier].get("origin") != "current":
-                            current[identifier]["action"] = "defer"
+                        invalidate(choice)
                         continue
                     for key in ("edges", "evidence", "parent_ids", "member_refs"):
                         current[identifier][key] = deepcopy(candidate[key])
@@ -649,12 +678,11 @@ class CashImportBusinessPlanBuilder:
                 if current[identifier].get("origin") == "current":
                     current[identifier]["changed"] = True
             else:
-                invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
-                touched.update(tuple(sorted(ref.items())) for ref in old[identifier]["member_refs"])
+                invalidate(choice)
         for group in groups:
             if group.get("origin") != "current" and any(tuple(sorted(ref.items())) in touched for ref in group["member_refs"]):
                 group["action"] = "defer"
-        return invalidated
+        return invalidated, sources, generations
 
     @staticmethod
     def _apply_groups(snapshot, groups):

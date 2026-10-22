@@ -38,6 +38,15 @@ class CashCurrentRelationPlanner:
 
     def __call__(self, snapshot, accounts):
         self.accounts, self.matching_facts, self.hard_keys = accounts, None, {}
+        removed_parts = {str(part["component_id"]) for operation in snapshot.parent_ops.values()
+            if operation.get("current", {}).get("state") == "draft" for part in operation["current"]["components"]
+            if part.get("component_id") is not None and str(part["component_id"]) not in {
+                str(value["component_id"]) for value in operation["values"]["components"] if value.get("component_id") is not None}}
+        for identifier, edge in tuple(snapshot.edges.items()):
+            changes = {role + suffix: None for role in ("primary", "secondary")
+                if getattr(edge, role + "_component_id") in removed_parts for suffix in ("_component_id", "_role")}
+            if changes:
+                snapshot.edges[identifier] = replace(edge, **changes)
         pending = {str(parent) for _identifier, parent, _revision in snapshot.context.issue_versions}
         for identifier, fact in tuple(snapshot.facts.items()):
             operation = snapshot.parent_ops.get(identifier, {})
@@ -55,13 +64,20 @@ class CashCurrentRelationPlanner:
                 continue
             parents = {parent for edge in edges for parent in (edge.primary_transaction_id, edge.secondary_transaction_id)
                 if parent is not None and parent in snapshot.facts}
-            suggestion = "sg_" + _digest("cash-current-relation-v1", rows, snapshot.context.token)[:40]
+            dependencies = {str(row[key]) for row in rows for key in ("primary_transaction_id", "secondary_transaction_id") if row[key] is not None}
+            dependencies.update(str(candidate["candidate_transaction_id"]) for row in rows for candidate in row["candidates"])
+            profile = {parent: {key: snapshot.values[parent].get(key) for key in ("state", "record_type", "record_subtype",
+                "source_type", "source_scope_key", "source_explanation", "occurred_at", "amount", "currency", "cash_granularity", "components")}
+                for parent in dependencies if parent in snapshot.values}
+            suggestion = "sg_" + _digest("cash-current-relation-v1", rows, snapshot.context.token, profile)[:40]
             state = active[0].state if len({edge.state for edge in active}) == 1 else "draft"
             group = {"suggestion_id": suggestion, "origin": "current", "changed": False,
                 "action": {"confirmed": "accept", "draft": "defer", "ignored": "ignore"}[state],
-                "edges": [asdict(edge) for edge in edges], "references": deepcopy(rows),
+                "edges": [asdict(edge) for edge in edges], "expected_record_edges": [asdict(edge) for edge in edges],
+                "references": deepcopy(rows),
                 "evidence": {str(row["id"]): deepcopy(row["evidence"]) for row in rows},
-                "anchors": {str(row["id"]): str(row["anchor_component_id"]) if row["anchor_component_id"] is not None else None for row in rows},
+                "anchors": {str(row["id"]): str(row["anchor_component_id"]) if row["anchor_component_id"] is not None
+                    and str(row["anchor_component_id"]) not in removed_parts else None for row in rows},
                 "parent_ids": sorted(parents), "old_parent_ids": sorted(parents),
                 "member_refs": [{"transaction_id": parent} for parent in sorted(parents)],
                 "allowed_actions": ["remove"] if all(edge.state == "confirmed" for edge in active) else ["defer", "ignore", "remove"],

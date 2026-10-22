@@ -273,3 +273,43 @@ def test_new_funding_occupation_changes_the_context_without_touching_cash_revisi
         fresh = service.load({1101})
         assert fresh.funding_component_ids == {"6101"}
         assert service.validate(fresh).build.projections[0].net_amount == 0
+
+
+@pytest.mark.parametrize("action", ["defer", "ignore", "remove"])
+def test_complete_cleanup_can_preserve_an_old_inactive_draft_member(relation_context_runtime, action):
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        drafts = _joint(session, runtime.workspace_id)
+        session.get(TransactionRelationModel, drafts[1]["id"]).active = False
+        session.flush()
+        service = CashRelationGraphService(session, runtime.workspace_id)
+        context = service.load({1101}, decision_group_ids={"joint"})
+        ids = {row["id"] for row in drafts}
+        updates = tuple(replace(edge, **({"active": False} if action == "remove" else
+            {"state": "draft" if action == "defer" else "ignored"})) if edge.active else edge
+            for edge in context.relations if edge.id in ids)
+        prepared = service.validate(context, updates=updates, cleanup_group_ids={"joint"})
+        inactive = next(edge for edge in context.relations if edge.id == drafts[1]["id"])
+        assert next(edge for edge in prepared.relations if edge.id == inactive.id) == inactive
+        assert session.get(TransactionRelationModel, drafts[0]["id"]).state == "draft"
+
+
+@pytest.mark.parametrize("invalid", ["partial", "reactivate", "confirm"])
+def test_cleanup_exception_never_authorizes_partial_groups_or_confirmation(relation_context_runtime, invalid):
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        drafts = _joint(session, runtime.workspace_id)
+        session.get(TransactionRelationModel, drafts[1]["id"]).active = False
+        session.flush()
+        service = CashRelationGraphService(session, runtime.workspace_id)
+        context = service.load({1101}, decision_group_ids={"joint"})
+        ids = {row["id"] for row in drafts}
+        updates = [edge for edge in context.relations if edge.id in ids]
+        if invalid == "partial":
+            updates = [replace(updates[0], active=False)]
+        elif invalid == "reactivate":
+            updates = [replace(edge, active=True, state="ignored") for edge in updates]
+        else:
+            updates = [replace(edge, state="confirmed") if edge.active else edge for edge in updates]
+        with pytest.raises(CashRelationError):
+            service.validate(context, updates=updates, cleanup_group_ids={"joint"})

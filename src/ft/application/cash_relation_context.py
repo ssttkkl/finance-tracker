@@ -51,7 +51,7 @@ class CashRelationGraphService:
     def load(self, transaction_ids, *, decision_group_ids=()):
         return CurrentCashRelationContext(**self._repository.read(transaction_ids, decision_group_ids=decision_group_ids))
 
-    def validate(self, expected, *, updates=(), additions=(), evidence_by_relation=None):
+    def validate(self, expected, *, updates=(), additions=(), evidence_by_relation=None, cleanup_group_ids=()):
         if not isinstance(expected, CurrentCashRelationContext):
             raise CashRelationError("relation_context_changed")
         current = self.load(expected.seed_ids, decision_group_ids=expected.decision_group_ids)
@@ -69,11 +69,34 @@ class CashRelationGraphService:
             or any(edge.id in previous for edge in additions)):
             raise CashRelationError("relation_context_changed")
         grouped = dict(current.relation_groups)
-        decided = {str(edge.id) for edge in updates if previous[edge.id].state == "draft" and edge.id in grouped}
+        try:
+            cleanup = set(cleanup_group_ids)
+        except TypeError:
+            raise CashRelationError("relation_data_invalid") from None
+        if (any(not isinstance(group, str) or not 1 <= len(group) <= 128 for group in cleanup)
+            or not cleanup <= set(current.decision_group_ids)):
+            raise CashRelationError("relation_group_incomplete")
+        targets = {edge.id: edge for edge in updates}
+        for group in cleanup:
+            ids = {int(member.id) for member in current.joint_members if member.decision_group_id == group}
+            if not ids or not ids <= targets.keys():
+                raise CashRelationError("relation_group_incomplete")
+            active = []
+            for identifier in ids:
+                old, target = previous[identifier], targets[identifier]
+                if not old.active:
+                    if target != old:
+                        raise CashRelationError("relation_group_changed")
+                else:
+                    active.append(target)
+            if (any(edge.active and edge.state == "confirmed" for edge in active)
+                or not all(not edge.active for edge in active) and len({(edge.state, edge.active) for edge in active}) != 1):
+                raise CashRelationError("relation_group_incomplete")
+        decided = {str(edge.id) for edge in updates if previous[edge.id].state == "draft" and edge.id in grouped
+            and grouped[edge.id] not in cleanup}
         if any(grouped[int(identifier)] not in current.decision_group_ids for identifier in decided):
             raise CashRelationError("relation_group_incomplete")
         validate_joint_relation_context(expected.joint_members, current.joint_members, decided)
-        targets = {edge.id: edge for edge in updates}
         for group in {grouped[int(identifier)] for identifier in decided}:
             members = [targets[int(member.id)] for member in current.joint_members if member.decision_group_id == group]
             if len({(edge.state, edge.active) for edge in members}) != 1:

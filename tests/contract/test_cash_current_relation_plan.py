@@ -77,7 +77,7 @@ def test_default_preview_preserves_every_current_decision_and_never_discovers(co
     monkeypatch.setattr(CashImportBusinessPlanBuilder, "_discover", lambda *_a, **_k: pytest.fail("maintenance searched new pairs"))
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     assert _rows(runtime) == before
-    assert not view["can_commit"]  # 当前组更新执行器就绪前不能走新增关系写入器。
+    assert view["can_commit"]
     assert all(view["summary"].get(key, 0) == 0 for key in (
         "relations_accepted", "relations_deferred", "relations_ignored", "relations_removed"))
     group, = _groups(service, view)
@@ -141,6 +141,18 @@ def test_stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_de
     assert current["action"] == "accept"
     item, = selected["items"]
     assert item["confirmation_status"] == "confirmed" and len(item["member_refs"]) == 2
+
+
+def test_current_type_patch_invalidates_old_pair_choice_without_blocking_repreview(context_runtime):
+    runtime = context_runtime
+    service, _ = _start(runtime)
+    view = _preview(service, runtime, "1101", intent="maintain_relations")
+    group, = _groups(service, view)
+    selected = _choose(service, runtime, view, {"suggestion_id": group["suggestion_id"], "action": "accept"},
+        patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    assert selected["invalidated_choices"] == [{"kind": "relation", "reference": group["suggestion_id"], "code": "relation_context_changed"}]
+    assert selected["summary"]["relations_accepted"] == 0
+    assert _records(runtime).read("1101")["fields"]["record_type"] == "consumption"
 
 
 def _open(runtime, *, stale=False):
