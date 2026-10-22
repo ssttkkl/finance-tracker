@@ -671,6 +671,7 @@ internal fun CashLedgerScreen(
             } else {
                 CashRecordDetailContent(
                     state = state,
+                    sizeClass = sizeClass,
                     viewModel = viewModel,
                     canWrite = canWrite,
                     options = state.options,

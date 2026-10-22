@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -65,9 +66,11 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
@@ -252,6 +255,7 @@ private fun CashRecordModalOverlay(
 @Composable
 internal fun CashRecordDetailContent(
     state: CashLedgerUiState,
+    sizeClass: WindowSizeClass,
     viewModel: CashLedgerViewModel,
     canWrite: Boolean,
     options: LedgerOptions,
@@ -264,8 +268,9 @@ internal fun CashRecordDetailContent(
     val record = detail?.record
     Column(Modifier.fillMaxWidth()) {
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
             when {
                 state.recordLoading -> Text(localizedText("copy_875adbe057"))
@@ -289,27 +294,43 @@ internal fun CashRecordDetailContent(
                     val amountLabel = selectedProjection?.let(::cashProjectionAmountLabel) ?: "${record.amount} ${record.currency}"
                     val amountIsNegative = selectedProjection?.amount?.startsWith("-") ?: record.amount.startsWith("-")
 
-                    Text(
-                        amountLabel,
-                        style = MaterialTheme.typography.headlineMedium.withTabularNumbers(),
-                        color = if (amountIsNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                    )
-                    Text(record.counterparty.ifBlank { record.accountName }, style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        listOfNotNull(economicType, formatLocalDateTime(record.occurredAt)).joinToString(" · "),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        Modifier.fillMaxWidth().testTag("record.detail.summary"),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            amountLabel,
+                            modifier = Modifier.testTag("record.detail.amount"),
+                            style = MaterialTheme.typography.headlineMedium.withTabularNumbers(),
+                            color = if (amountIsNegative) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        )
+                        Text(
+                            record.counterparty.ifBlank { record.accountName },
+                            modifier = Modifier.testTag("record.detail.counterparty"),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                    }
+                    Column(
+                        Modifier.fillMaxWidth().testTag("record.detail.facts"),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            localizedText("ledger_detail_transaction_facts"),
+                            modifier = Modifier.semantics { heading() },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Column(
-                            Modifier.fillMaxWidth().padding(16.dp),
+                            Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(4.dp),
                         ) {
-                            Text(localizedText("ledger_detail_transaction_facts"), style = MaterialTheme.typography.titleMedium)
-                            HorizontalDivider()
-                            CashRecordFact(localizedText("copy_e81089915c"), cashRecordTypeLabel(record.recordType, options))
-                            CashRecordFact(localizedText("copy_c3d92b20c8"), record.accountName)
-                            CashRecordFact(localizedText("copy_a42e73f0a7"), cashCategoryDisplayPath(record.category))
+                            val recordType = cashRecordTypeLabel(record.recordType, options)
+                            if (economicType != null && economicType != recordType) {
+                                CashRecordFact(localizedText("copy_c939d425cd"), economicType)
+                            }
+                            CashRecordFact(localizedText("copy_e81089915c"), recordType, "record.detail.fact.type")
+                            CashRecordFact(localizedText("copy_51f85a78ca"), formatLocalDateTime(record.occurredAt), "record.detail.fact.time")
+                            CashRecordFact(localizedText("copy_c3d92b20c8"), record.accountName, "record.detail.fact.account")
+                            CashRecordFact(localizedText("copy_a42e73f0a7"), cashCategoryDisplayPath(record.category), "record.detail.fact.category")
                             options.recordTypes.firstOrNull { it.value == record.recordType }
                                 ?.subtypes?.firstOrNull { it.value == record.recordSubtype }
                                 ?.label?.takeIf { record.recordSubtype != "not_applicable" }
@@ -318,11 +339,15 @@ internal fun CashRecordDetailContent(
                                 CashRecordFact(localizedText("copy_27a7edc87c"), it)
                             }
                             record.note.takeIf(String::isNotBlank)?.let {
-                                CashRecordFact(localizedText("copy_e0361480e3"), it)
+                                CashRecordFact(localizedText("copy_e0361480e3"), it, "record.detail.fact.note")
                             }
                             if (evidence != null && cashEvidenceSourceLabel(evidence).isNotBlank()) {
-                                HorizontalDivider(Modifier.padding(vertical = 4.dp))
-                                Text(localizedText("copy_b9e9fd25ac", cashEvidenceSourceLabel(evidence)), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(
+                                    localizedText("copy_b9e9fd25ac", cashEvidenceSourceLabel(evidence)),
+                                    modifier = Modifier.padding(top = 8.dp),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
                             }
                         }
                     }
@@ -699,14 +724,14 @@ private fun CashRecordRelatedSection(
                         Text(localizedText("copy_f46e36d281"), style = MaterialTheme.typography.titleMedium)
                         Text(
                             localizedText(if (expanded) "ledger_detail_hide_related" else "ledger_detail_view_related"),
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.primary,
                         )
                     }
                     if (relatedCount > 0) {
                         Text(
                             localizedText("ledger_detail_related_count", relatedCount),
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
@@ -719,9 +744,9 @@ private fun CashRecordRelatedSection(
             }
             if (expanded) Column(
                 Modifier.fillMaxWidth().testTag(SemanticIds.recordRelatedContent),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Text(localizedText("ledger_detail_current_record"), style = MaterialTheme.typography.titleSmall)
+                Text(localizedText("ledger_detail_current_record"), modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                 CashRelatedRecordSummary(
                     counterparty = record.counterparty.ifBlank { record.accountName },
                     amount = amountLabel,
@@ -733,12 +758,12 @@ private fun CashRecordRelatedSection(
                     counterpartyAccount = record.counterpartyAccount,
                 )
                 if (acceptedRelations.isNotEmpty() || relatedEvidenceMembers.isNotEmpty()) {
-                    Text(localizedText("ledger_detail_other_records"), style = MaterialTheme.typography.titleSmall)
+                    Text(localizedText("ledger_detail_other_records"), modifier = Modifier.semantics { heading() }, style = MaterialTheme.typography.titleSmall)
                 }
                 acceptedRelations.forEach { relation ->
                     val related = if (relation.primaryRecord?.id == record.id) relation.secondaryRecord else relation.primaryRecord
                     HorizontalDivider()
-                    Text(relation.label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(relation.label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     related?.let {
                         CashRelatedRecordSummary(
                             counterparty = it.counterparty.ifBlank { localizedText("copy_6ea13ee38c") },
@@ -755,7 +780,7 @@ private fun CashRecordRelatedSection(
                         member.id == related?.id || member.recordId == related?.id
                     }
                     relatedEvidence?.let {
-                        Text(cashEvidenceMemberImpactLabel(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(cashEvidenceMemberImpactLabel(it), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     TextButton(
                         onClick = { related?.let(onEditRelated) },
@@ -800,7 +825,7 @@ private fun CashRecordRelatedSection(
                 if (evidence != null) {
                     relatedEvidenceMembers.forEach { member ->
                         HorizontalDivider()
-                        Text(cashEvidenceMemberLabel(member, options, evidence.projection), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(cashEvidenceMemberLabel(member, options, evidence.projection), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         CashRelatedRecordSummary(
                             counterparty = member.counterparty.ifBlank { localizedText("copy_6ea13ee38c") },
                             amount = "${member.amount} ${member.currency}",
@@ -811,7 +836,7 @@ private fun CashRecordRelatedSection(
                             note = member.note,
                             counterpartyAccount = member.counterpartyAccount.orEmpty(),
                         )
-                        Text(cashEvidenceMemberImpactLabel(member), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(cashEvidenceMemberImpactLabel(member), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     record.components.orEmpty().takeIf { it.size > 1 }?.let { components ->
                         Text(localizedText("copy_dad2cec350"), style = MaterialTheme.typography.titleSmall)
@@ -839,19 +864,35 @@ private fun CashRecordRelatedSection(
 }
 
 @Composable
-private fun CashRecordFact(label: String, value: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Top,
+internal fun CashRecordFact(label: String, value: String, semanticId: String? = null) {
+    val labelTag = semanticId?.let { Modifier.testTag("$it.label") } ?: Modifier
+    val valueTag = semanticId?.let { Modifier.testTag("$it.value") } ?: Modifier
+    val fontScale = LocalDensity.current.fontScale
+    BoxWithConstraints(
+        Modifier.fillMaxWidth().padding(vertical = 4.dp)
+            .then(semanticId?.let { Modifier.testTag(it) } ?: Modifier),
     ) {
-        Text(label, modifier = Modifier.widthIn(min = 88.dp, max = 104.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(value, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Start)
+        if (maxWidth / fontScale < 280.dp) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(label, modifier = labelTag, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(value, modifier = valueTag.fillMaxWidth(), style = MaterialTheme.typography.bodyLarge)
+            }
+        } else {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(
+                    label,
+                    modifier = labelTag.widthIn(min = 88.dp, max = 104.dp).alignByBaseline(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(value, modifier = valueTag.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodyLarge)
+            }
+        }
     }
 }
 
 @Composable
-private fun CashRelatedRecordSummary(
+internal fun CashRelatedRecordSummary(
     counterparty: String,
     amount: String,
     occurredAt: String,
@@ -861,14 +902,29 @@ private fun CashRelatedRecordSummary(
     note: String,
     counterpartyAccount: String,
 ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
-            Text(counterparty, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-            Text(amount, style = MaterialTheme.typography.titleSmall.withTabularNumbers(), textAlign = TextAlign.End)
+    val nameStyle = MaterialTheme.typography.titleMedium
+    val amountStyle = MaterialTheme.typography.titleMedium.withTabularNumbers()
+    val textMeasurer = rememberTextMeasurer()
+    val gapPx = with(LocalDensity.current) { 12.dp.roundToPx() }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val nameWidth = textMeasurer.measure(counterparty, nameStyle, softWrap = false).size.width
+            val amountWidth = textMeasurer.measure(amount, amountStyle, softWrap = false).size.width
+            if (nameWidth + amountWidth + gapPx <= constraints.maxWidth) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(counterparty, modifier = Modifier.weight(1f).alignByBaseline(), style = nameStyle)
+                    Text(amount, modifier = Modifier.alignByBaseline(), style = amountStyle, textAlign = TextAlign.End)
+                }
+            } else {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(counterparty, style = nameStyle)
+                    Text(amount, style = amountStyle)
+                }
+            }
         }
         Text(
             "${formatLocalDateTime(occurredAt)} · $accountName",
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         CashRecordFact(localizedText("copy_e81089915c"), recordType)
