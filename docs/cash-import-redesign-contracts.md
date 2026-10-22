@@ -153,7 +153,11 @@ flowchart TD
 | `POST /cash-import/receipts/{receipt_id}/retry-sessions` | 可选失败 `row_refs[]`，新幂等键 | 在临时重试内容有效时生成新会话，返回 `SessionView`；不执行旧请求，不重跑成功项 |
 | `DELETE /cash-import/sessions/{session_id}` | 无 | 取消未提交会话、清理解析内容；不撤销账户，不撤销已提交导入；提交中返回 `409` |
 
-`SessionView`：`session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`。过期会话返回 `410 session_expired`。
+`SessionView`：`session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`（未提交时为空）。过期会话返回 `410 session_expired`。
+
+multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `metadata` 为严格 JSON；其中 `files[]` 元素包含 `client_file_ref`、可选 `password/source_hint/source_scope_label`，不传本地路径。追加／重传另带整数 `expected_session_revision`，重传时带 `file_ref` 且仅允许一份文件。文件与元数据一一对应，单个文本字段最多 64 KiB；密码只供本次解析。`source_scope_label` 缺省沿用，明确 `null` 切回默认来源。
+
+已提交会话优先返回持久 `receipt_id`，不要求解析暂存仍存在；此时 `session_revision/expires_at/last_preview_input` 为 `null`，`last_plan_id` 来自收据，文件和来源账户数组为空，不能再次预览。未提交会话的过期仍返回 `410`。
 
 文件元素包含 `file_ref`、脱敏 `display_name`、`status`（`ready/partial/password_required/failed`）、已识别行数、安全问题与 `can_retry`。不能识别行数时为 `null`。需要密码的文件只保留状态、显示信息及已选来源设置；重试必须带文件内容，后端不能凭会话重新读取它。
 
@@ -161,7 +165,7 @@ flowchart TD
 
 `client_file_ref` 标识客户端上传槽位，重传时保留；`file_ref` 标识当前解析结果，重传时更换，旧行引用及对应选择同时失效。其他文件的引用保持不变，新计划重新验证其余选择，避免将旧位置的决定应用到另一份内容。
 
-来源账户元素包含 `source_account_ref`、渠道、安全显示名称、建议 `account_id`、建议依据和是否已选择；内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
+来源账户元素包含 `source_account_ref/source_type/display_name/currencies/row_count`，以及独立的 `suggestion` 和 `selection`。`suggestion` 包含建议 `account_id/expected_account_revision/basis`；`selection` 是本次已保存的账户选择或 `null`，明确暂不选择账户时其中 `account_id=null`。建议不是已经确认的选择。内部完整账号只在授权来源信息读取中按现有规则使用，不能回传为列表调试信息。
 
 `PreviewInput` 使用完整替换的选择集合，避免省略和撤销混淆：
 

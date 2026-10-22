@@ -33,7 +33,7 @@
 
 ## Impact
 
-A 类完整变更。影响 Python 领域规则、ORM／Alembic、应用服务、FastAPI、Agent 写入口，以及 Compose 共享数据、状态、页面和演示；不恢复已移除 CLI。功能地图、词表和调用技能随实际能力同步，不提前声称覆盖完成。不增加依赖作为默认方案。
+A 类完整变更。影响 Python 领域规则、ORM／Alembic、应用服务、FastAPI、Agent 写入口，以及 Compose 共享数据、状态、页面和演示；不恢复已移除 CLI。功能地图、词表和调用技能随实际能力同步，不提前声称覆盖完成。multipart 上传新增 `python-multipart`，并显式声明已使用的 Starlette API 下限，理由及资源边界见 design。
 
 验收以 [主设计](../../../docs/cash-import-redesign.md) 和 [跨层契约](../../../docs/cash-import-redesign-contracts.md) 为输入，delta 是本实施变更的行为合同。非目标：重设计其他产品导航、全库重新配对、历史追溯或版本链、自动修正正式固定字段、保留原始文件、修改真实账本。允许只读使用 `~/.ft/bills`，测试数据库及中间结果均在仓库外，提交夹具必须去标识化。
 

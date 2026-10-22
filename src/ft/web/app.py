@@ -313,7 +313,7 @@ def create_app(
         allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
         allow_credentials=False,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key"],
+        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key", "If-Match"],
     )
 
     if access_service is not None:
@@ -371,6 +371,9 @@ def create_app(
     ))
     if operations_service is not None:
         app.include_router(operation_router(operations_service))
+        if callable(getattr(operations_service, "parsed_import_context", None)):
+            from ft.web.cash_import_routes import cash_import_router
+            app.include_router(cash_import_router(operations_service))
     return app
 
 

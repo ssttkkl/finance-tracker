@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 from hashlib import sha256
 import re
 from uuid import uuid4
+from typing import BinaryIO
 
 from sqlalchemy import select
 
@@ -41,7 +42,7 @@ class CashImportPasswordRequired(ValueError):
 class CashImportUpload:
     client_file_ref: str
     filename: str
-    content: bytes = field(repr=False)
+    content: bytes | BinaryIO = field(repr=False)
     password: str | None = field(default=None, repr=False)
     source_hint: str | None = None
     source_scope_label: str | None = None
@@ -66,9 +67,13 @@ def _display_filename(filename, password):
     if password:
         filename = filename.replace(password, "")
     stem, dot, extension = filename.rpartition(".")
+    if extension.lower() not in {"csv", "xls", "xlsx", "pdf", "tsv", "txt"}:
+        dot = ""
     stem = stem if dot else filename
     stem = re.sub(r"(?:密码|password|pwd)\s*[:：=_-]?\s*(?:[（(\[【]\s*[^)）\]】]*[)）\]】]?|[^\s()（）\[\]【】]+)", "", stem, flags=re.I)
     stem = re.sub(r"\(\s*\)|（\s*）|\[\s*\]|【\s*】", "", stem).strip() or "账单"
+    stem = re.sub(r"[0-9](?:[\s\-－—·]*[0-9]){11,}",
+        lambda match: "尾号" + re.sub(r"[^0-9]", "", match[0])[-4:], stem)
     return (stem + ("." + extension if dot else ""))[:255]
 
 
@@ -137,19 +142,24 @@ class CashImportContextService:
             refs.add(upload.client_file_ref)
 
     def _parse(self, upload, *, previous_scope_label=None):
-        raw = upload.content if isinstance(upload.content, bytes) else b""
         filename = _display_filename(upload.filename, upload.password)
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
-        file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(raw).hexdigest(),
-            len(raw), hint, "failed", error_code="statement_input_invalid")
+        file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(b"").hexdigest(),
+            0, hint, "failed", error_code="statement_input_invalid")
         if previous_scope_label is not None:
             file = replace(file, source_type="wechat", source_scope_label=previous_scope_label)
         try:
             scope = normalize_scope_label(upload.source_scope_label) if upload.source_scope_label is not None else previous_scope_label
             file = replace(file, source_scope_label=scope, source_type="wechat" if scope is not None else hint)
-            if not raw or len(raw) > _MAX_UPLOAD_BYTES:
+            raw = upload.content if isinstance(upload.content, bytes) else upload.content.read(_MAX_UPLOAD_BYTES + 1)
+            if not isinstance(raw, bytes):
                 return file
-            document = self._parser(upload)
+            file = replace(file, digest=sha256(raw).hexdigest(), size=len(raw))
+            if len(raw) > _MAX_UPLOAD_BYTES:
+                return replace(file, error_code="statement_file_too_large")
+            if not raw:
+                return file
+            document = self._parser(replace(upload, content=raw))
             if not isinstance(document, ParsedCashDocument):
                 raise ValueError("unexpected_document_type")
             if document.source_type != "wechat":
@@ -209,6 +219,26 @@ class CashImportContextService:
                 files, {file.file_ref for file in files})
             uow.commit()
             return result
+
+    def authorize_upload(self):
+        with self._uow as uow:
+            self._authorize(uow)
+
+    def get_view(self, session_id):
+        from ft.application.cash_import_account_mappings import CashImportAccountMappings
+        from ft.application.cash_import_funding import scan_cash_funding
+        from ft.application.cash_import_session_view import cash_import_session_view
+        with self._uow as uow:
+            self._authorize(uow, write=False)
+            receipt = self._receipt(uow, session_id)
+            if receipt:
+                return {"session_id": session_id, "session_revision": None, "expires_at": None,
+                    "state": "committed", "files": [], "source_accounts": [], "last_preview_input": None,
+                    "last_plan_id": receipt.get("plan_id"), "can_preview": False, "receipt_id": receipt["receipt_id"]}
+            current = self._read_context(uow, session_id)
+            scan = scan_cash_funding(current.files)
+            suggestions = CashImportAccountMappings(uow._state().session, self._workspace_id).suggest(scan.groups)
+            return cash_import_session_view(current, scan.groups, suggestions)
 
     def get(self, session_id):
         with self._uow as uow:
