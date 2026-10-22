@@ -8,6 +8,12 @@ from ft.application.access import PermissionDenied
 from ft.application.cash_commit_outcome import CashCommitFailure
 from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_mutation_plans import CashMutationPlanError
+from ft.application.cash_record_operations import CashRecordMaintenanceError
+from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS,
+    MUTABLE_CASH_FIELDS, CashRecordPolicyError)
+from ft.application.cash_import_issues import cash_import_issue
+from ft.web.cash_maintenance_protocol import (CashRecordView, DraftSaveInput, DraftSaveView,
+    MutationCommitInput, MutationPlanView, MutationPreviewInput)
 from ft.web.cash_import_protocol import CashImportProtocolError, CashImportSessionView, json_input
 from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
 from ft.web.cash_plan_protocol import (
@@ -35,11 +41,23 @@ _CONFLICTS = {
     "session_committed": "本次导入已提交，请查看结果。",
     "edit_context_committed": "本次修改已提交，请查看结果。",
     "retry_already_processed": "这些未导入项已处理，请查看结果。",
+    "record_changed": "流水已变化，请刷新后重试。",
+    "issue_changed": "待处理内容已变化，请刷新后重试。",
+    "relation_context_changed": "相关流水已变化，请刷新后重试。",
+}
+_RECORD_ERRORS = {
+    "record_not_found": (404, "未找到这条流水。"),
+    "draft_required": (409, "这条流水已确认，请刷新后修改。"),
+    "posted_required": (409, "请先补充并确认这条流水。"),
+    "projection_unavailable": (503, "流水暂不可用，请稍后重试。"),
+    "projection_changed": (409, "相关流水已变化，请刷新后重试。"),
+    "plan_input_invalid": (422, "修改内容有误，请检查后重试。"),
+    "record_input_invalid": (422, "修改内容有误，请检查后重试。"),
 }
 
 
-def _error(code, status, message, **details):
-    return JSONResponse({"error": {"code": code, "message": message, "field_errors": [],
+def _error(code, status, message, *, field_errors=None, **details):
+    return JSONResponse({"error": {"code": code, "message": message, "field_errors": field_errors or [],
         "retryable": status == 503}, **details}, status)
 
 
@@ -57,6 +75,22 @@ def plan_failure(error):
     if isinstance(error, (CashImportPlanError, CashMutationPlanError)) and error.code in _PLAN_ERRORS:
         status, message = _PLAN_ERRORS[error.code]
         return _error(error.code, status, message)
+    if isinstance(error, CashRecordMaintenanceError):
+        code = error.code if error.code in _RECORD_ERRORS else "record_input_invalid"
+        status, message = _RECORD_ERRORS[code]
+        return _error(code, status, message)
+    if isinstance(error, CashRecordPolicyError):
+        if error.code == "fixed_field_conflict":
+            code, message = error.code, "金额、币种、时间和账户不能修改，请删除后新建。"
+        else:
+            try:
+                reason = cash_import_issue(error.code)
+                code, message = reason["code"], reason["message"]
+            except ValueError:
+                code, message = "record_input_invalid", "修改内容有误，请检查后重试。"
+        allowed = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"}
+        fields = [{"field": field, "code": code, "message": message} for field in error.fields if field in allowed]
+        return _error(code, 422, message, field_errors=fields)
     if isinstance(error, CashImportProtocolError) and error.code == "idempotency_key_required":
         return _error(error.code, 422, "未能确认本次操作，请重试。")
     return _failure(error)
@@ -97,6 +131,51 @@ def cash_plan_router(services):
     async def preview(session_id: str, request: Request):
         return await command(request, ImportPreviewInput, lambda body, _key:
             services.cash_import_commands().preview(session_id, **body.model_dump(exclude_unset=True)))
+
+    @router.get("/cash-records/{transaction_id}", response_model=CashRecordView, response_model_exclude_unset=True)
+    async def record(transaction_id: str):
+        return await invoke(lambda: services.cash_record_maintenance().read(transaction_id))
+
+    @router.patch("/cash-records/{transaction_id}/draft", response_model=DraftSaveView,
+        response_model_exclude_unset=True, openapi_extra=json_contract(DraftSaveInput, keyed=True))
+    async def save_draft(transaction_id: str, request: Request):
+        return await command(request, DraftSaveInput, lambda body, key: services.cash_record_maintenance().save_draft(
+            transaction_id, expected_revision=body.expected_revision, patch=body.patch, idempotency_key=key), keyed=True, write=True)
+
+    @router.post("/cash-mutations/plans", response_model=MutationPlanView, response_model_exclude_unset=True,
+        openapi_extra=json_contract(MutationPreviewInput))
+    async def mutation_preview(request: Request):
+        return await command(request, MutationPreviewInput, lambda body, _key:
+            services.cash_mutation_commands().preview(body.model_dump(exclude_unset=True)))
+
+    @router.get("/cash-mutations/plans/{plan_id}", response_model=MutationPlanView, response_model_exclude_unset=True)
+    async def mutation_plan(plan_id: str):
+        return await invoke(lambda: services.cash_mutation_commands().read_plan(plan_id))
+
+    @router.get("/cash-mutations/edit-contexts/{edit_context_id}/plan", response_model=MutationPlanView,
+        response_model_exclude_unset=True)
+    async def current_mutation_plan(edit_context_id: str):
+        return await invoke(lambda: services.cash_mutation_commands().current_plan(edit_context_id))
+
+    @router.get("/cash-mutations/plans/{plan_id}/items", response_model=ItemPageView, response_model_exclude_unset=True,
+        openapi_extra=page_contract())
+    async def mutation_items(plan_id: str, request: Request):
+        try:
+            page = page_input(request)
+        except _ERRORS as error:
+            return plan_failure(error)
+        return await invoke(lambda: services.cash_mutation_commands().items(plan_id, **page))
+
+    @router.get("/cash-mutations/plans/{plan_id}/items/{preview_item_id}", response_model=PlanItemDetailView,
+        response_model_exclude_unset=True)
+    async def mutation_item(plan_id: str, preview_item_id: str):
+        return await invoke(lambda: services.cash_mutation_commands().item(plan_id, preview_item_id))
+
+    @router.post("/cash-mutations/plans/{plan_id}/commit", response_model=MutationReceiptView,
+        response_model_exclude_unset=True, openapi_extra=json_contract(MutationCommitInput, keyed=True))
+    async def mutation_commit(plan_id: str, request: Request):
+        return await command(request, MutationCommitInput, lambda body, key: services.cash_mutation_commands().commit(
+            plan_id, expected_plan_revision=body.expected_plan_revision, idempotency_key=key), keyed=True, write=True)
 
     @router.get("/cash-import/plans/{plan_id}", response_model=ImportPlanView, response_model_exclude_unset=True)
     async def read_plan(plan_id: str):

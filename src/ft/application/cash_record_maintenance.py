@@ -9,6 +9,7 @@ from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import WorkspaceMembershipModel
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.access import PermissionDenied
+from ft.application.cash_commit_outcome import CashCommitBoundary
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _wire
 from ft.application.cash_draft_merge import identity_candidates
@@ -16,7 +17,7 @@ from ft.application.cash_projections import CashProjectionService
 from ft.application.cash_record_writer import CashRecordWriter
 from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
     _EDITABLE, _identifier, _request_digest)
-from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS
+from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS, CashRecordPolicyError
 
 
 def _receipt(value):
@@ -106,6 +107,12 @@ class CashRecordMaintenanceService:
         return {"receipt": _receipt(receipt), "current_record_status": status, "current_record": detail}
 
     def save_draft(self, transaction_id, *, expected_revision, patch, idempotency_key):
+        boundary = CashCommitBoundary()
+        with boundary.guard((CashRecordMaintenanceError, CashRecordPolicyError, CashMutationConflict, PermissionDenied)):
+            return self._save_draft(transaction_id, expected_revision=expected_revision, patch=patch,
+                idempotency_key=idempotency_key, boundary=boundary)
+
+    def _save_draft(self, transaction_id, *, expected_revision, patch, idempotency_key, boundary):
         identifier = _identifier(transaction_id)
         if type(expected_revision) is not int or not 1 <= expected_revision < 2 ** 63:
             raise CashRecordMaintenanceError("record_input_invalid")
@@ -118,6 +125,7 @@ class CashRecordMaintenanceService:
             receipts = CashMutationRepository(session, self._workspace_id)
             receipt = receipts.replay(self._user_id, idempotency_key, request_digest=digest, operation_kind="save_draft")
             if receipt is None:
+                boundary.no_prior_result()
                 row = self._record(session, identifier)
                 if row.row_revision != expected_revision:
                     raise CashMutationConflict("record_changed")
@@ -132,5 +140,5 @@ class CashRecordMaintenanceService:
                     operation_kind="save_draft", result_summary={"status": "completed", "summary": {"saved_draft": 1},
                         "projection_version": state.projection_version}, results=[{"result_kind": "row",
                         "item_ref": str(identifier), "transaction_id": str(identifier), "outcome": "saved_draft"}])
-                uow.commit()
+                boundary.commit(uow)
         return self._outcome(receipt, identifier)

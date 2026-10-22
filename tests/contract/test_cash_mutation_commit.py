@@ -12,6 +12,7 @@ from ft.adapters.relational.models import (AccountModel, CashMutationReceiptMode
 from ft.adapters.relational.repositories import RelationalSnapshotRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.application.cash_projections import CashProjectionService
+from ft.application.cash_commit_outcome import CashCommitFailure
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_cash_import_business_plan import _existing_mirror
 from tests.contract.test_cash_import_commit import configured, _plan, _commit as _import_commit, _results
@@ -175,8 +176,9 @@ def test_publication_failure_rolls_back_record_and_keeps_context_retryable(conte
             original(*args, **kwargs)
             raise RuntimeError("synthetic receipt failure")
         monkeypatch.setattr(CashMutationRepository, "create", fail)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(CashCommitFailure) as error:
         _commit(service, view)
+    assert error.value.commit_state == "not_committed"
     assert _records(runtime).read(identifier) == before and _snapshot(runtime) == balances
     assert service.read_plan(view["plan_id"]) == view
     with runtime.sessions() as session:
@@ -336,15 +338,14 @@ def test_connection_or_failed_problem_publication_rolls_back_outer_transaction(c
             original(*args, **kwargs)
             raise OperationalError("synthetic driver failure", {}, Exception("private detail"), connection_invalidated=True)
         monkeypatch.setattr(service, "_save_row", fail)
-        expected = OperationalError
     else:
         original = CashSourceRepository.save_issue
         def fail(*args, **kwargs):
             original(*args, **kwargs)
             raise RuntimeError("synthetic failed problem publication")
         monkeypatch.setattr(CashSourceRepository, "save_issue", fail)
-        expected = RuntimeError
-    with pytest.raises(expected):
+    with pytest.raises(CashCommitFailure) as error:
         _commit(service, view)
+    assert error.value.commit_state == "not_committed"
     assert _records(runtime).read(identifier) == before and _snapshot(runtime) == balances
     assert service.read_plan(view["plan_id"]) == view

@@ -328,13 +328,6 @@ def cash_router(
         def options():
             return mutation_service.options()
 
-        @router.get("/cash-records/{fact_id}")
-        def cash_record(fact_id: str):
-            try:
-                return json_value(mutation_service.get_record(fact_id))
-            except ValueError:
-                return JSONResponse(error_payload("not_found", "当前工作区中找不到这条流水记录。"), 404)
-
         @router.get("/cash-records")
         def cash_records(query: str = "", exclude_id: str | None = None, date_from: str | None = None, date_to: str | None = None, timezone: str | None = None, cursor: str | None = None, limit: int = 20):
             try:

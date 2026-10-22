@@ -109,6 +109,10 @@ class WorkspaceServices:
             raise ImportSessionStorageUnavailable
         return CashMutationCommandService(self._uow(), self._parsed_import_store, user_id=self._user())
 
+    def cash_record_maintenance(self):
+        from ft.application.cash_record_maintenance import CashRecordMaintenanceService
+        return CashRecordMaintenanceService(self._uow(), user_id=self._user())
+
     def legacy_cashflow(self):
         from ft.application.cashflow import CashflowService
 
@@ -320,17 +324,6 @@ def create_app(
         redoc_url=None,
         lifespan=lifespan,
     )
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[allowed_origin],
-        # The local Vite/preview port may move when another process occupies the
-        # default port. Keep the trust boundary local while allowing that port
-        # change without making the user manually restart the API.
-        allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
-        allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
-        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key", "If-Match"],
-    )
 
     if access_service is not None:
         @app.middleware("http")
@@ -338,7 +331,7 @@ def create_app(
             def denied(code, message, status):
                 body = error_payload(code, message)
                 if request.url.path.startswith(("/api/v1/cash-import/sessions", "/api/v1/cash-import/plans",
-                    "/api/v1/cash-import/receipts", "/api/v1/cash-mutations")):
+                    "/api/v1/cash-import/receipts", "/api/v1/cash-mutations", "/api/v1/cash-records/")):
                     body["error"].update(field_errors=[], retryable=False)
                 return JSONResponse(body, status)
             if (
@@ -365,6 +358,19 @@ def create_app(
                     if user_token is not None: user_context.reset(user_token)
                     if context_token is not None: workspace_context.reset(context_token)
             return await call_next(request)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[allowed_origin],
+        # The local Vite/preview port may move when another process occupies the
+        # default port. Keep the trust boundary local while allowing that port
+        # change without making the user manually restart the API.
+        allow_origin_regex=LOCAL_WEB_ORIGIN_REGEX,
+        allow_credentials=False,
+        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+        allow_headers=["Accept", "Content-Type", "Authorization", "X-FT-Statement-Password", "Idempotency-Key", "If-Match"],
+    )
+
 
     @app.exception_handler(StorageError)
     def storage_failure(_request, exc: StorageError):

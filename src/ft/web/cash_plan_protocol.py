@@ -299,6 +299,9 @@ def json_contract(model, *, keyed=False):
             if "$ref" in value:
                 return inline({**definitions[value["$ref"].removeprefix("#/$defs/")],
                     **{key: item for key, item in value.items() if key != "$ref"}})
+            if "propertyName" in value and "mapping" in value:
+                # 判别联合的分支已内联，不能留下指向已移除 $defs 的映射。
+                value = {key: item for key, item in value.items() if key != "mapping"}
             return {key: inline(item) for key, item in value.items()}
         if isinstance(value, list):
             return [inline(item) for item in value]

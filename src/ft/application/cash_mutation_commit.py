@@ -5,7 +5,10 @@ from hashlib import sha256
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_import_issues import cash_import_issue
-from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+from ft.application.cash_commit_outcome import CashCommitBoundary
+from ft.application.access import PermissionDenied
+from ft.application.cash_record_operations import CashRecordMaintenanceError
+from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionForbidden, ImportSessionNotFound
 from ft.application.cash_mutation_plans import CashMutationPlanError, CashMutationPlanService, _context_id, _revision
 from ft.application.cash_draft_merge_writer import CashDraftMergeWriter
 from ft.application.cash_current_relation_writer import CashCurrentRelationWriter
@@ -13,10 +16,18 @@ from ft.application.cash_plan_execution import (CashPlanWriteOperations, _operat
     _reason, _receipt_view, _recoverable)
 from ft.application.cash_projections import CashProjectionService
 from ft.domain.cash_source_matching import _digest
+from ft.domain.cash_record_policy import CashRecordPolicyError
 
 
 class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanService):
     def commit(self, plan_id, *, expected_plan_revision, idempotency_key):
+        boundary = CashCommitBoundary()
+        with boundary.guard((CashRecordMaintenanceError, CashRecordPolicyError, CashMutationConflict, PermissionDenied,
+            ImportSessionExpired, ImportSessionForbidden, ImportSessionNotFound)):
+            return self._commit(plan_id, expected_plan_revision=expected_plan_revision,
+                idempotency_key=idempotency_key, boundary=boundary)
+
+    def _commit(self, plan_id, *, expected_plan_revision, idempotency_key, boundary):
         if not _revision(expected_plan_revision):
             raise CashMutationPlanError("plan_input_invalid")
         identifier = _context_id(plan_id)
@@ -33,6 +44,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             consumed = receipts.for_context(self._user_id, edit_context_digest=context_digest)
             if consumed is not None:
                 raise CashMutationConflict("edit_context_committed", consumed["receipt_id"])
+            boundary.no_prior_result()
             try:
                 current = self._stored_context(identifier)
                 self._checked_plan(current, plan_id, expected_plan_revision=expected_plan_revision)
@@ -133,7 +145,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                 result_summary={"status": status, "summary": dict(summary), "retained_transaction_id": retained,
                     "projection_version": state.projection_version, "needs_attention_count": pending, "pending_item_count": pending_items},
                 results=[*rows, *groups])
-            uow.commit()
+            boundary.commit(uow)
             try:
                 self._staging.cancel(identifier, workspace_id=self._workspace_id, user_id=self._user_id, expected_revision=current.revision)
             except Exception:

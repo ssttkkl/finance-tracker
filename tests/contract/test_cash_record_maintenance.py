@@ -9,6 +9,7 @@ from ft.adapters.relational.models import (CashMutationReceiptModel, CashSourceB
     CashTransactionComponentModel, CashTransactionModel, WorkspaceMembershipModel)
 from ft.adapters.relational.repositories import RelationalSnapshotRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
+from ft.application.cash_commit_outcome import CashCommitFailure
 from tests.contract.test_cash_import_commit import configured, _commit, _plan, _results
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
@@ -231,9 +232,10 @@ def test_projection_publish_failure_rolls_back_draft_and_receipt(context_runtime
     def unavailable(*_args, **_kwargs):
         raise RuntimeError("synthetic projection publishing failure")
     monkeypatch.setattr(CashProjectionService, "maintain_in_session", unavailable)
-    with pytest.raises(RuntimeError):
+    with pytest.raises(CashCommitFailure) as error:
         service.save_draft(identifier, expected_revision=before["row_revision"], patch=_complete(before),
             idempotency_key="synthetic-draft-publish-rollback")
+    assert error.value.commit_state == "not_committed"
     assert service.read(identifier) == before
     with runtime.sessions() as session:
         assert session.scalar(select(CashMutationReceiptModel).where(
