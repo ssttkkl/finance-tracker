@@ -38,7 +38,7 @@ def _operation_fingerprint(operation):
     keys = {"occurrence_key", "transaction_id", "expected_revision", "planned_action", "current", "values",
         "manual_fields", "field_diffs", "pending_fields", "source_updates", "issues", "expected_issues",
         "retained_issue_ids", "expected_accounts", "source_explanation", "source_scope_key", "candidate_ids", "candidate_set_ref",
-        "type_changed", "preview_transaction_id", "preview_components"}
+        "type_changed", "preview_transaction_id", "preview_components", "issue_resolutions", "resolved_issue_ids"}
     return _digest({key: operation[key] for key in keys if key in operation})
 
 def _receipt_view(receipt):

@@ -138,14 +138,16 @@ class CashImportBusinessPlanBuilder:
             source_candidate_sets=prepared.candidate_sets)
 
     def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
-        files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False):
+        files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
+        current_records=None, source_scope_snapshot=None):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
         accounts = self._accounts(session)
         new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
         candidates = self._candidate_ids(session, new, source_rows or {})
         existing = {int(op["transaction_id"]) for op in operations if op.get("transaction_id")}
         context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates)
-        snapshot = self._snapshot(session, context, operations, accounts, rows)
+        snapshot = self._snapshot(session, context, operations, accounts, rows,
+            current_records=current_records, source_scope_snapshot=source_scope_snapshot)
         seeds = {part.component_id for part in snapshot.components.values()
             if snapshot.parent_ops.get(part.transaction_id, {}).get("planned_action") in {"create_posted", "finalize_draft"}}
         proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])
@@ -276,18 +278,24 @@ class CashImportBusinessPlanBuilder:
                 WECHAT_DEFAULT_SCOPE if key[1] == "wechat" else "file:" + next(iter(local)) if len(local) == 1 else "ambiguous:" + key[0])
         return result
 
-    def _snapshot(self, session, context, operations, accounts, rows):
-        values, scopes = {}, self._source_scopes(session, context.transaction_ids)
-        for batch in _batches(context.transaction_ids):
-            for parent in session.scalars(select(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.id.in_(batch))):
-                values[str(parent.id)] = {field: _normalize(field, getattr(parent, field)) for field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
-                    if hasattr(parent, field)} | {"source_type": parent.source_type, "record_id": parent.record_id,
-                    "state": parent.state, "created_at": parent.created_at,
-                    "source_explanation": extract_source_explanation(parent.relation_metadata)}
-                values[str(parent.id)]["source_scope_key"] = scopes.get((str(parent.id), parent.source_type),
-                    self._fallback_scope(parent.source_type, parent.id))
-                values[str(parent.id)]["matching_record_id"] = "occurrence:" + str(parent.id)
+    def _snapshot(self, session, context, operations, accounts, rows, *, current_records=None, source_scope_snapshot=None):
+        # 已查询 ID 单独保存，空结果也属于本次已读事实；其余闭包成员仍实际查询。
+        covered, known_scopes = source_scope_snapshot if source_scope_snapshot is not None else (frozenset(), {})
+        scopes = {**known_scopes, **self._source_scopes(session, context.transaction_ids - covered)}
+        current = {int(identifier): parent for identifier, parent in (current_records or {}).items()
+            if int(identifier) in context.transaction_ids}
+        for batch in _batches(context.transaction_ids - current.keys()):
+            current.update((parent.id, parent) for parent in session.scalars(select(CashTransactionModel).where(
+                CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.id.in_(batch))))
+        values = {}
+        for parent in current.values():
+            values[str(parent.id)] = {field: _normalize(field, getattr(parent, field)) for field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
+                if hasattr(parent, field)} | {"source_type": parent.source_type, "record_id": parent.record_id,
+                "state": parent.state, "created_at": parent.created_at,
+                "source_explanation": extract_source_explanation(parent.relation_metadata)}
+            values[str(parent.id)]["source_scope_key"] = scopes.get((str(parent.id), parent.source_type),
+                self._fallback_scope(parent.source_type, parent.id))
+            values[str(parent.id)]["matching_record_id"] = "occurrence:" + str(parent.id)
         by_parent = defaultdict(list)
         for identifier, parent, account, amount, currency, ordinal in context.component_versions:
             by_parent[str(parent)].append({"component_id": str(identifier), "account_id": str(account) if account is not None else None,

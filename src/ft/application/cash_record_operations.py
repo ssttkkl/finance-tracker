@@ -1,7 +1,7 @@
 """从库中当前流水准备统一操作；调用方负责授权及工作区事务。"""
 from copy import deepcopy
 
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 
 from ft.adapters.cash_statement_effects import prepare_cash_source_effects
 from ft.adapters.relational.models import (AccountModel, CashCategoryModel, CashTransactionComponentModel,
@@ -55,7 +55,15 @@ class CashRecordOperationPlanner:
     def __init__(self, session, workspace_id):
         self.session, self.workspace_id = session, workspace_id
 
-    def record(self, identifier):
+    def record(self, identifier, *, current_record=None):
+        # 只接受入口在本次已授权事务明确传入的目标，不从任意缓存推断授权。
+        state = inspect(current_record) if isinstance(current_record, CashTransactionModel) else None
+        if (state is not None and state.persistent and state.session is self.session
+            and not state.expired and not state.expired_attributes and current_record.id == identifier):
+            if (current_record.workspace_id != self.workspace_id or current_record.deleted_at is not None
+                or current_record in self.session.deleted):
+                raise CashRecordMaintenanceError("record_not_found")
+            return current_record
         row = self.session.scalar(select(CashTransactionModel).where(CashTransactionModel.workspace_id == self.workspace_id,
             CashTransactionModel.id == identifier, CashTransactionModel.deleted_at.is_(None)))
         if row is None:
@@ -91,25 +99,61 @@ class CashRecordOperationPlanner:
 
     def prepare_finalize(self, row, patch):
         operation = self.prepare_draft(row, patch)
+        return self._finalize(operation)
+
+    @staticmethod
+    def _finalize(operation):
         if operation["issues"]:
             issue = operation["issues"][0]
             raise CashRecordPolicyError(issue["code"], (issue["field_path"],) if issue["field_path"] else ())
         for issue in operation["expected_issues"]:
-            if issue["code"] in {"source_identity_ambiguous", "source_update_pending"}:
+            if issue["issue_id"] in operation["retained_issue_ids"] and issue["code"] in {"source_identity_ambiguous", "source_update_pending"}:
                 raise CashRecordPolicyError(issue["code"], ())
         operation["values"]["state"] = "posted"
         operation["planned_action"] = "finalize_draft"
         return operation
 
-    def _prepare(self, row, patch):
+    def prepare_resolving(self, row, patch, choices, *, finalize=False, existing_issues=None):
+        from ft.application.cash_source_issue_resolutions import prepare_source_issue_resolutions
+        if finalize and row.state != "draft":
+            raise CashRecordMaintenanceError("draft_required")
         if not isinstance(patch, dict) or set(patch) - _EDITABLE:
             raise CashRecordPolicyError("field_not_editable", ())
+        existing = self.issues(row.id) if existing_issues is None else existing_issues
+        protected = {key for key, value in (row.manual_overrides or {}).items() if value}
         current = self.fields(row)
-        prepared = prepare_cash_record_update(current, patch)
-        values = {**deepcopy(current), **prepared.values}
-        values, explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
-            source_explanation=row.relation_metadata, protected_fields={key for key, value in (row.manual_overrides or {}).items() if value})
-        if "components" in patch:
+        source_patch, resolutions = prepare_source_issue_resolutions(current, existing, choices, patch, protected_fields=protected)
+        operation = self._prepare(row, patch, source_patch=source_patch, resolutions=resolutions,
+            existing_issues=existing, current_fields=current)
+        return self._finalize(operation) if finalize else operation
+
+    def available_source_resolutions(self, row, issue, *, existing_issues):
+        try:
+            self.prepare_resolving(row, {}, [{"issue_id": str(issue.id), "expected_issue_revision": issue.revision,
+                "resolution": "apply_source"}], existing_issues=existing_issues)
+        except ValueError:
+            return ["keep_existing"]
+        return ["apply_source", "keep_existing"]
+
+    def _prepare(self, row, patch, *, source_patch=None, resolutions=(), existing_issues=None, current_fields=None):
+        if not isinstance(patch, dict) or set(patch) - _EDITABLE:
+            raise CashRecordPolicyError("field_not_editable", ())
+        current = self.fields(row) if current_fields is None else current_fields
+        protected = {key for key, value in (row.manual_overrides or {}).items() if value}
+        source_update, explanation = None, None
+        base = current
+        if source_patch:
+            source_update = prepare_cash_record_update(current, source_patch, protected_fields=protected)
+            base = {**deepcopy(current), **source_update.values}
+            base, explanation = prepare_cash_source_effects(base, source_patch, source_type=row.source_type,
+                source_explanation=row.relation_metadata, protected_fields=protected)
+        prepared = prepare_cash_record_update(base, patch)
+        values = {**deepcopy(base), **prepared.values}
+        values, manual_explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
+            source_explanation=explanation if explanation is not None else row.relation_metadata, protected_fields=protected)
+        if manual_explanation is not None:
+            explanation = manual_explanation
+        if "components" in patch or "components" in (source_patch or {}):
             _validate_component_ids(current["components"], values["components"])
         if any("ordinal" not in part for part in values["components"]):
             raise CashRecordPolicyError("invalid_field", ("components",))
@@ -118,9 +162,11 @@ class CashRecordOperationPlanner:
         if values.get("category_id") is not None and self.session.scalar(select(CashCategoryModel.id).where(
             CashCategoryModel.workspace_id == self.workspace_id, CashCategoryModel.id == values["category_id"])) is None:
             raise CashRecordPolicyError("category_unavailable", ("category_id",))
-        existing = self.issues(row.id)
+        existing = self.issues(row.id) if existing_issues is None else existing_issues
+        resolved = {choice["issue_id"] for choice in resolutions}
+        remaining_issues = [issue for issue in existing if str(issue.id) not in resolved]
         issues, dependencies = [], []
-        external = existing
+        external = remaining_issues
         if row.state == "draft":
             references = {part.get("account_id") for part in values["components"]} | {values.get("account_id")}
             identifiers = {_identifier(value, code="record_input_invalid") for value in references if value is not None}
@@ -134,20 +180,27 @@ class CashRecordOperationPlanner:
                 validate_cash_record_for_posting(values)
             except CashRecordPolicyError as error:
                 issues.append(cash_import_issue(error.code, field_path=error.fields[0] if error.fields else None))
-            external = [issue for issue in existing if issue.code not in _RECOMPUTED | _PARSED_FIELD_ISSUES
+            external = [issue for issue in remaining_issues if issue.code not in _RECOMPUTED | _PARSED_FIELD_ISSUES
                 or issue.issue_key.startswith("relation:")]
-            parsed = [issue for issue in existing if issue.code in _PARSED_FIELD_ISSUES and issue not in external]
-            remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, patch))
+            parsed = [issue for issue in remaining_issues if issue.code in _PARSED_FIELD_ISSUES and issue not in external]
+            remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, {**(source_patch or {}), **patch}))
             issues.extend(cash_import_issue(issue.code, field_path=issue.field_path) for issue in parsed if issue.code in remaining)
         manual = sorted(set(patch) & {"note", "category_id"})
         explanation_changed = explanation is not None and explanation != (row.relation_metadata or {})
         action = "update_" + row.state if values != current or manual or explanation_changed else "duplicate"
+        diffs = {field: {"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),
+            "effective": _wire(values.get(field)), "resolution": "protected" if source_update and field in source_update.protected_fields
+                and field not in patch else "apply"} for field, value in (source_patch or {}).items()
+            if field in _EDITABLE and (value != current.get(field) or source_update and field in source_update.protected_fields)}
+        diffs.update({field: {"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),
+            "effective": _wire(values.get(field)), "resolution": "apply"} for field, value in values.items()
+            if value != current.get(field) and field in _EDITABLE and (field in patch or field not in diffs)})
         return {**({"source_explanation": explanation} if explanation is not None else {}),
+            **({"issue_resolutions": list(resolutions), "resolved_issue_ids": sorted(resolved)} if resolutions else {}),
             "transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
-            "current": _wire(current), "values": _wire(values), "manual_fields": manual, "type_changed": prepared.type_changed,
-            "field_diffs": [{"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),
-                "effective": _wire(values.get(field)), "resolution": "apply"} for field, value in values.items()
-                if value != current.get(field) and field in _EDITABLE],
+            "current": _wire(current), "values": _wire(values), "manual_fields": manual,
+            "type_changed": any(values.get(field) != current.get(field) for field in ("record_type", "record_subtype")),
+            "field_diffs": [diffs[field] for field in sorted(diffs)],
             "source_updates": [], "pending_fields": {}, "candidate_ids": [], "expected_accounts": dependencies,
             "issues": list({(issue["code"], issue["field_path"]): issue for issue in issues}.values()),
             "display_retained_issues": [cash_import_issue(issue.code, field_path=issue.field_path,

@@ -47,13 +47,14 @@ class CashRecordMaintenanceService:
         return CashRecordOperationPlanner(session, self._workspace_id).issues(identifier)
 
     @staticmethod
-    def _safe_issue(row):
+    def _safe_issue(row, *, allowed_resolutions=None):
         try:
             issue = cash_import_issue(row.code, field_path=row.field_path)
         except ValueError:
             issue = cash_import_issue("posting_incomplete")
-        resolutions = (["apply_source", "keep_existing"] if row.code == "source_update_pending" else
-            ["merge_into", "create_independent"] if row.code == "source_identity_ambiguous" else [])
+        resolutions = ["apply_source", "keep_existing"] if row.code == "source_update_pending" else []
+        if allowed_resolutions is not None:
+            resolutions = allowed_resolutions
         return {"issue_id": str(row.id), "revision": row.revision, **issue, "allowed_resolutions": resolutions,
             "pending_fields": {key: deepcopy(value) for key, value in (row.pending_fields or {}).items() if key in _EDITABLE},
             "pending_source_payload": deepcopy(row.pending_source_payload)}
@@ -72,10 +73,13 @@ class CashRecordMaintenanceService:
             state = projections._state()
             location = projections.current_references({identifier}, state=state).get(str(identifier))
             fields = self._fields(session, row)
+            planner = CashRecordOperationPlanner(session, self._workspace_id)
             return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision,
                 "confirmation_status": "pending" if row.state == "draft" or identifier in attention.transaction_ids else "confirmed",
                 "fields": _wire(fields), "editable_fields": sorted((_EDITABLE if row.state == "draft" else MUTABLE_CASH_FIELDS) if editable else ()),
-                "issues": [self._safe_issue(issue) for issue in issues],
+                "issues": [self._safe_issue(issue, allowed_resolutions=[] if not editable else
+                    planner.available_source_resolutions(row, issue, existing_issues=issues) if issue.code == "source_update_pending" else None)
+                    for issue in issues],
                 "relations": [{"relation_id": str(relation["id"]), **{key: relation[key] for key in
                     ("kind", "subtype", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],
                 "projection_ref": {**location, "projection_version": state.projection_version} if location else None}

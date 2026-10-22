@@ -42,7 +42,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             row = self._record(session, int(current.preview_input["transaction_id"]))
             if row.row_revision != current.preview_input["expected_revision"]:
                 raise CashMutationConflict("record_changed")
-            fresh = self._builder(session=session, preview_input=current.preview_input, previous_plan=plan)
+            fresh = self._builder(session=session, preview_input=current.preview_input, previous_plan=plan, current_record=row)
             self._validate_current(plan, fresh)
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()
             actual, identity, components, changes, affected, failures = {}, {}, {}, [], set(), set()
@@ -87,6 +87,8 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             summary = Counter({key: 0 for key in ("updated_posted", "finalized_draft", "saved_draft", "duplicate", "skipped",
                 "relations_confirmed", "relations_deferred", "relations_ignored", "relations_removed", "relations_failed")})
             summary.update(item["outcome"] for item in actual.values())
+            summary["resolved_issues"] = sum(len(operation.get("resolved_issue_ids", [])) for operation in plan["operations"]
+                if actual[operation["operation_ref"]]["outcome"] != "skipped")
             for item in groups:
                 summary["relations_" + item["outcome"]] += 1
             if not failures:
@@ -97,7 +99,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             pending = self._attention_count(session, successful)
             problem = bool(failures) or any(item["outcome"] == "failed" for item in groups)
             succeeded = any(item["outcome"] not in {"skipped", "failed"} for item in (*rows, *groups))
-            written = any(item["outcome"] not in {"skipped", "duplicate"} for item in (*rows, *groups))
+            written = summary["resolved_issues"] > 0 or any(item["outcome"] not in {"skipped", "duplicate"} for item in (*rows, *groups))
             status = "partial" if problem and succeeded else "failed" if problem else "completed" if written else "no_changes"
             receipt = receipts.create(user_id=self._user_id, idempotency_key=idempotency_key, request_digest=digest,
                 operation_kind="mutation", plan_id=plan_id, edit_context_digest=context_digest,

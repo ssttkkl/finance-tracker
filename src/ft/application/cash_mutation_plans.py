@@ -17,7 +17,7 @@ class CashMutationPlanError(CashRecordMaintenanceError):
     pass
 
 
-_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices"}
+_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions"}
 _META = {"edit_context_id", "previous_plan_id", "expected_plan_revision"}
 _ISSUE = {"issue_id", "expected_issue_revision", "resolution", "target_transaction_id", "expected_target_revision"}
 _INTENTS = {"edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
@@ -37,13 +37,40 @@ def _context_id(plan_id):
     return match[1]
 
 
+def _issue_resolutions(value):
+    if not isinstance(value, list) or len(value) > 100:
+        raise CashMutationPlanError("plan_input_invalid")
+    result, seen = [], set()
+    for item in value:
+        if not isinstance(item, dict) or set(item) - _ISSUE:
+            raise CashMutationPlanError("plan_input_invalid")
+        resolution = item.get("resolution")
+        if (not isinstance(resolution, str) or resolution not in {"apply_source", "keep_existing", "merge_into", "create_independent"}
+            or not _revision(item.get("expected_issue_revision"))):
+            raise CashMutationPlanError("plan_input_invalid")
+        identifier = str(_identifier(item.get("issue_id"), code="plan_input_invalid"))
+        if identifier in seen:
+            raise CashMutationPlanError("plan_input_invalid")
+        seen.add(identifier)
+        choice = {"issue_id": identifier, "expected_issue_revision": item["expected_issue_revision"], "resolution": resolution}
+        if resolution == "merge_into":
+            choice["target_transaction_id"] = str(_identifier(item.get("target_transaction_id"), code="plan_input_invalid"))
+            if not _revision(item.get("expected_target_revision")):
+                raise CashMutationPlanError("plan_input_invalid")
+            choice["expected_target_revision"] = item["expected_target_revision"]
+        elif {"target_transaction_id", "expected_target_revision"} & item.keys():
+            raise CashMutationPlanError("plan_input_invalid")
+        result.append(choice)
+    return result
+
+
 def _input(value):
     if not isinstance(value, dict):
         raise CashMutationPlanError("plan_input_invalid")
     _request_digest("cash-mutation-preview-v1", value)
     intent = value.get("intent")
     if (not isinstance(intent, str) or intent not in _INTENTS
-        or value.keys() - _COMMON - _META - (_ISSUE if intent == "resolve_issue" else set())
+        or value.keys() - _COMMON - _META
         or not _revision(value.get("expected_revision")) or not isinstance(value.get("patch", {}), dict)):
         raise CashMutationPlanError("plan_input_invalid")
     data = {key: deepcopy(item) for key, item in value.items() if key not in _META}
@@ -51,18 +78,12 @@ def _input(value):
     data.setdefault("patch", {})
     data["relation_choices"] = _choices(value.get("relation_choices", []), key="suggestion_id",
         fields={"suggestion_id", "action", "candidate_id"}, actions={"accept", "defer", "ignore", "remove"})
-    if intent == "resolve_issue":
-        resolution = value.get("resolution")
-        if (not isinstance(resolution, str) or resolution not in {"apply_source", "keep_existing", "merge_into", "create_independent"}
-            or not _revision(value.get("expected_issue_revision"))):
-            raise CashMutationPlanError("plan_input_invalid")
-        data["issue_id"] = str(_identifier(value.get("issue_id"), code="plan_input_invalid"))
-        if resolution == "merge_into":
-            data["target_transaction_id"] = str(_identifier(value.get("target_transaction_id"), code="plan_input_invalid"))
-            if not _revision(value.get("expected_target_revision")):
-                raise CashMutationPlanError("plan_input_invalid")
-        elif any(value.get(key) is not None for key in ("target_transaction_id", "expected_target_revision")):
-            raise CashMutationPlanError("plan_input_invalid")
+    data["issue_resolutions"] = _issue_resolutions(value.get("issue_resolutions", []))
+    merges = [choice for choice in data["issue_resolutions"] if choice["resolution"] == "merge_into"]
+    if (intent == "resolve_issue" and not data["issue_resolutions"] or intent == "maintain_relations" and data["issue_resolutions"]
+        or len(merges) > 1 or merges and (intent == "finalize_draft"
+            or any(choice["resolution"] == "create_independent" for choice in data["issue_resolutions"]))):
+        raise CashMutationPlanError("plan_input_invalid")
     metadata = {key: value.get(key) for key in _META}
     context = metadata["edit_context_id"]
     if context is None:
@@ -161,7 +182,8 @@ class CashMutationPlanService(CashRecordMaintenanceService):
                 row = self._record(session, int(data["transaction_id"]))
                 if row.row_revision != data["expected_revision"]:
                     raise CashMutationConflict("record_changed")
-                result = self._builder(session=session, preview_input=deepcopy(data), previous_plan=deepcopy(previous))
+                result = self._builder(session=session, preview_input=deepcopy(data), previous_plan=deepcopy(previous),
+                    current_record=row)
                 _validate_build(result)
                 if current is None:
                     current = self._staging.create(workspace_id=self._workspace_id, user_id=self._user_id,

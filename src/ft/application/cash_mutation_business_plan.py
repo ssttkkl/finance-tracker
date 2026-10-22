@@ -11,15 +11,21 @@ from ft.domain.cash_record_policy import CashRecordPolicyError
 
 
 class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
-    def __call__(self, *, session, preview_input, previous_plan):
+    def __call__(self, *, session, preview_input, previous_plan, current_record=None):
         intent = preview_input["intent"]
-        if intent not in {"edit_record", "finalize_draft"}:
+        if intent not in {"edit_record", "finalize_draft", "resolve_issue"}:
             raise CashRecordMaintenanceError("plan_input_invalid")
         planner = CashRecordOperationPlanner(session, self.workspace_id)
-        row = planner.record(_identifier(preview_input["transaction_id"]))
+        row = planner.record(_identifier(preview_input["transaction_id"]), current_record=current_record)
         current_records = {str(row.id): row}
         patch = preview_input["patch"]
-        operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else planner.prepare_edit(row, patch))
+        if intent == "edit_record" and row.state != "posted":
+            raise CashRecordMaintenanceError("posted_required")
+        resolutions = preview_input.get("issue_resolutions", [])
+        if resolutions:
+            operation = planner.prepare_resolving(row, patch, resolutions, finalize=intent == "finalize_draft")
+        else:
+            operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else planner.prepare_edit(row, patch))
         operations = [operation]
         category_members = self._category_members(session, row.id) if "category_id" in patch else []
         for identifier in category_members:
@@ -39,7 +45,8 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             "planned_action": op["planned_action"]} for op in operations]
         expected_count = len(operations)
         result = self.build_operations(session=session, operations=operations, rows=rows,
-            relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True)
+            relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True,
+            current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes))
         if len(operations) != expected_count:
             # 一次维护意图不能只保存整笔分类的一部分。
             raise CashRecordPolicyError("relation_endpoint_incompatible", ("record_type", "record_subtype"))
@@ -51,6 +58,9 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         result.update(can_commit=bool(operations), category_member_ids=category_members,
             mutation_units=[[op["operation_ref"] for op in operations]])
         result["summary"]["relations_removed"] = len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
+        resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)
+        if resolved_count:
+            result["summary"]["resolve_issue"] = resolved_count
         return result
 
     @staticmethod

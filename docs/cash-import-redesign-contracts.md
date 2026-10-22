@@ -369,15 +369,20 @@ flowchart TD
   "transaction_id": "102",
   "expected_revision": 2,
   "patch": {},
+  "issue_resolutions": [],
   "relation_choices": []
 }
 ```
 
-`intent` 可选 `edit_record/finalize_draft/resolve_issue/maintain_relations`。`resolve_issue` 另外提供 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用；允许值由具体问题返回，不能将固定字段冲突用 `apply_source` 强行应用。`merge_into` 必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
+`intent` 可选 `edit_record/finalize_draft/resolve_issue/maintain_relations`。前 3 种意图可提供 `issue_resolutions` 数组；每项包含 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用。`resolve_issue` 至少提供一项，不接受同一问题的重复决定；允许值由当前问题返回。先应用所选来源决定，再应用本次显式 `patch`，最后验证最终状态及生成预计列表；`finalize_draft` 可在同次确认中解决来源阻断并转正式，单独 `resolve_issue` 不自动转正式。不能将固定字段冲突用 `apply_source` 或后续补丁掩盖。`merge_into` 是保留目标身份的终结动作，必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
 
-请求仅接受当前意图的字段；`patch`、`relation_choices` 省略时为空。`expected_revision`、`expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标值。关联决定沿用 `suggestion_id/action/candidate_id`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
+请求仅接受当前意图的字段；`patch`、`issue_resolutions`、`relation_choices` 省略时为空，`maintain_relations` 不携带来源问题决定。`expected_revision`、每项 `expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。每次最多处理 100 个当前问题；问题必须属于当前流水。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标字段；同次只能有一个合并目标，不能同时要求 `finalize_draft` 或 `create_independent`，也不隐式转正式目标草稿。关联决定沿用 `suggestion_id/action/candidate_id`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
+
+`apply_source` 使用库中当前待采用内容，来源备注／分类的自动取值不新增人工保护；已有人工选择及清空继续保留，本次显式 `patch` 可以覆盖并建立保护。多份采用内容对同一字段不一致时，须由本次补丁明确统一，否则保留原问题并拒绝该计划；每份来源的固定字段及结构仍须先合法。来源行的明确清空由服务端保存是否存在的标记区分；旧事项缺少正文时不推断清空，无足够可采用内容时只允许保留现有。`keep_existing` 只结束所选当前事项，保留字段、来源绑定及其他未选事项；单纯事项处理不制造父字段更新，但成功收据及当前待处理状态须反映该处理。流水、事项和局部投影仍共同提交，失败完整回滚。
 
 首次维护预览创建一个临时编辑上下文并返回 `edit_context_id/plan_revision`。修改补丁或关联选择时再次 `POST /cash-mutations/plans`，携带该上下文、`previous_plan_id/expected_plan_revision` 和完整输入；服务端按比较写入生成新计划并使旧计划不可提交。无须重新读取原文件；记录并发仍由 `expected_revision` 单独约束。维护提交请求带 `expected_plan_revision`，成功后消费该编辑上下文；过期返回 `410 plan_expired`，用户从当前详情重新预览。
+
+`create_independent` 只确认当前身份草稿保留原实体及全部来源绑定，不隐式转正式，可与明确的补充／转正式共用一次确认。输入自身已验证的来源范围和可靠键在最初保存草稿时即可进入来源绑定；这不消除与旧未知流水的对应问题。不同文件中的同一可靠编号应复用原草稿，时间变化也不另造草稿；旧问题和候选继续保留。来源原文修改不改变可信编号，自定义微信范围不回退默认。旧无可信绑定的数据继续保守隔离，不能从后来文件为全部旧别名授信，也不能抢占另一条活动流水的可靠身份。预览及提交核对当前完整绑定集合，即使父修订未变，绑定或证据变化也使旧计划失效；不另复制身份证明，不向公开输入或永久收据暴露绑定证明正文。
 
 维护上下文只承载无文件的当前操作，不能用于导入或失败重试。首次 `plan_revision=1`，成功重预览递增；稳定的 `transaction_id` 不能在同一上下文内更换。父修订过期时先刷新当前详情，再用新父修订重预览；构建、输入或预算失败不替换原计划。所有者和当前工作区权限、永久消费收据在读取临时正文前检查，已清理的已消费上下文不会重新授权提交。
 
@@ -488,6 +493,8 @@ erDiagram
 唯一 `(workspace_id,source_type,source_scope_kind,source_scope_key,identity_kind,identity_key)`，索引 `(workspace_id,transaction_id)`。它表达当前对应，不保存字段历史。一个流水可以有多个来源定位；真实重复出现必须使用不同 `file_occurrence`，不能同一个文件中的两次出现都被消耗为同一笔。
 
 来源对应只在流水／草稿保存成功时提交；弱业务证据只能存为问题候选，不写确定的跨文件绑定。同文件出现位置是另一种确定性：允许 `file_local/file_occurrence` 指向草稿，只表示“这个文件的这一行已经保存”，不声称业务对应已确定。补齐来源账户后新增账户作用域绑定并保留原文件定位别名；合并到已有流水时两种绑定一起转移。同一未知来源账户文件再次上传必须命中原草稿。
+
+身份草稿自身已验证的来源范围和可靠键仍应在首次保存时绑定，不能因为与旧未知流水的对应尚未确认而丢弃；重复来源可直接复用草稿，原问题继续保留。该强身份不为旧未知候选授信，也不把未知范围编号变成全局编号；多键指向不同活动目标时安全拒绝该单元，不能抢占。
 
 微信默认来源是已确认的导入假设，不伪造解析出的本人微信号；原始身份／昵称仍保留原意。相同编号在不同显式微信来源中互不去重；同一来源中的金额、方向或时间变化仍是固定字段冲突，不能因变化生成另一笔正式记录。没有当前绑定的旧微信记录，仅在原始交易号与既有 `record_id` 规则一致时按默认来源读取并在成功保存后补绑定，不把未知旧数据或昵称猜成自定义来源。
 

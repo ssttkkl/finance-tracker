@@ -12,7 +12,7 @@ from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
 
-def _build(*, session, preview_input, previous_plan):
+def _build(*, session, preview_input, previous_plan, current_record=None):
     identifier = preview_input["transaction_id"]
     items = [{"preview_item_id": f"item_{index}", "confirmation_status": "pending" if index % 2 else "confirmed",
         "anticipated_state": "posted", "display": {"amount": "0"}, "statistics_eligible": True,

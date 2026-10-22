@@ -19,7 +19,7 @@ def _issues_unchanged(operation):
     previous = {(item["code"], item["field_path"]) for item in operation["expected_issues"]}
     desired = {(item["code"], item["field_path"]) for item in operation["issues"]}
     return (previous == desired and not operation["pending_fields"]
-        and not operation.get("candidate_ids") and not operation.get("candidate_set_ref"))
+        and not operation.get("candidate_ids") and not operation.get("candidate_set_ref") and not operation.get("resolved_issue_ids"))
 
 
 class CashRecordWriter:
@@ -31,6 +31,7 @@ class CashRecordWriter:
         parent_id = int(operation["transaction_id"]) if operation["transaction_id"] else None
         parent = session.get(CashTransactionModel, parent_id) if parent_id else None
         before = deepcopy(operation["current"])
+        was_posted = parent is not None and parent.state == "posted"
         old_context = (CashRelationGraphService(session, self._workspace_id).load({parent_id})
             if parent is not None and parent.state == "posted" and operation["type_changed"] else None)
         if parent is None:
@@ -47,9 +48,39 @@ class CashRecordWriter:
             if "source_explanation" in operation and not operation["pending_fields"]:
                 parent.relation_metadata = deepcopy(operation["source_explanation"])
         session.flush()
+        mapping = self._save_components(session, parent, operation, values, before,
+            existing=parent_id is not None, was_posted=was_posted)
+        if old_context is not None:
+            CashRelationTypeUpdateService(session, self._workspace_id).maintain(old_context, {parent.id}, publish=False)
+        source = CashSourceRepository(session, self._workspace_id)
+        first_binding = parent_id is None
+        for update in operation["source_updates"]:
+            if update["bind"]:
+                source.save_occurrence(parent.id, source_rows[update["row_ref"]], uncertain=update["uncertain"],
+                    first_binding=first_binding)
+                first_binding = False
+        if parent_id is not None or operation["issues"]:
+            self._row_issues(session, source, parent.id, operation)
+        if parent_id is not None and operation["planned_action"] != "duplicate":
+            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale({parent.id})
+        after = deepcopy(operation["values"])
+        touched = set(old_context.transaction_ids) if old_context else set()
+        if not _issues_unchanged(operation):
+            touched.add(parent.id)
+        return parent.id, mapping, before, after, touched
+
+    def _save_components(self, session, parent, operation, values, before, *, existing, was_posted):
+        virtual = {item["ordinal"]: item["component_id"] for item in operation["preview_components"]}
+        identifiers = [part.get("component_id") for part in (before or {}).get("components", [])]
+        if (was_posted and parent.state == values.get("state") == (before or {}).get("state") == "posted"
+            and str(parent.id) == operation["transaction_id"]
+            and before["components"] == operation["values"]["components"]
+            and all(identifier is not None for identifier in identifiers) and len(set(identifiers)) == len(identifiers)):
+            # 完整当前组成项已由调用方在本事务重验；固定财务值无需再次读取／赋值。
+            return {str(virtual[part["ordinal"]]): str(part["component_id"]) for part in before["components"]}
         parts = {part.id: part for part in session.scalars(select(CashTransactionComponentModel).where(
             CashTransactionComponentModel.workspace_id == self._workspace_id,
-            CashTransactionComponentModel.cash_transaction_id == parent.id))} if parent_id is not None else {}
+            CashTransactionComponentModel.cash_transaction_id == parent.id))} if existing else {}
         wanted = {int(value["component_id"]) for value in values["components"] if value.get("component_id") is not None}
         removed = parts.keys() - wanted
         if removed:
@@ -69,7 +100,6 @@ class CashRecordWriter:
                 blocked.add(temporary)
             session.flush()
         mapping = {}
-        virtual = {item["ordinal"]: item["component_id"] for item in operation["preview_components"]}
         for value in values["components"]:
             part = parts.get(int(value["component_id"])) if value.get("component_id") is not None else None
             if part is None:
@@ -80,24 +110,7 @@ class CashRecordWriter:
                 setattr(part, key, int(item) if key == "account_id" and item is not None else item)
             session.flush()
             mapping[str(virtual[value["ordinal"]])] = str(part.id)
-        if old_context is not None:
-            CashRelationTypeUpdateService(session, self._workspace_id).maintain(old_context, {parent.id}, publish=False)
-        source = CashSourceRepository(session, self._workspace_id)
-        first_binding = parent_id is None
-        for update in operation["source_updates"]:
-            if update["bind"]:
-                source.save_occurrence(parent.id, source_rows[update["row_ref"]], uncertain=update["uncertain"],
-                    first_binding=first_binding)
-                first_binding = False
-        if parent_id is not None or operation["issues"]:
-            self._row_issues(session, source, parent.id, operation)
-        if parent_id is not None and operation["planned_action"] != "duplicate":
-            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale({parent.id})
-        after = deepcopy(operation["values"])
-        touched = set(old_context.transaction_ids) if old_context else set()
-        if not _issues_unchanged(operation):
-            touched.add(parent.id)
-        return parent.id, mapping, before, after, touched
+        return mapping
 
     def _detach_draft_components(self, session, component_ids):
         relations = {}
@@ -130,6 +143,9 @@ class CashRecordWriter:
         retained = {int(identifier) for identifier in operation["retained_issue_ids"]}
         for issue in operation["issues"]:
             old = by_reason.get((issue["code"], issue["field_path"]))
+            if (old is not None and old.id in retained and issue["code"] == "source_update_pending"
+                and not operation["pending_fields"]):
+                continue
             if old is not None and issue["code"] == "source_identity_ambiguous" and not operation.get("candidate_ids"):
                 retained.add(old.id)
                 continue
@@ -143,7 +159,8 @@ class CashRecordWriter:
                         for identifier in operation.get("candidate_ids", [])}
             pending = operation["pending_fields"] if issue["code"] == "source_update_pending" else {}
             if pending:
-                pending = {**pending, "_source_explanation": operation.get("source_explanation", {})}
+                pending = {**pending, "_source_explanation": operation.get("source_explanation", {}),
+                    **({"_source_payload_present": True} if "source_payload" in pending else {})}
             saved = sources.save_issue(parent_id, old.issue_key if old else "import:" + _digest(issue["code"], issue["field_path"]),
                 code=issue["code"], field_path=issue["field_path"], pending_fields={key: value for key, value in pending.items() if key != "source_payload"},
                 pending_source_payload=pending.get("source_payload"), candidates=candidates)
