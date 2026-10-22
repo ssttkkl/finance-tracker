@@ -12,6 +12,8 @@ Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业�
 
 [身份独立确认合同](../tests/contract/test_cash_independent_identity.py) 已接入内部无文件维护：只清除所选当前身份问题，保留实体及绑定，可与来源采用、补字段和明确转正式共用计划；无绑定旧微信保持隔离，绑定实例及证据变化会使旧确认失效。来源或认证页证据矛盾时不提供独立动作。合并、公开维护接口和客户端仍未切换；本步 Web、Native、共享 presentation 没有新入口或页面覆盖变化。
 
+[身份草稿合并预览](../tests/contract/test_cash_draft_merge_plan.py) 已接入内部只读计划：检查双方原始固定事实与人工冲突，保留目标组成项及未采用内容，冻结双向候选和完整关联组；身份候选详情展示当前修订而不更新旧证明。自动分类保护原组人工值，源人工分类冲突须明确统一。联合写入接入前合并计划不可提交；Web、Native、共享 presentation 的流程和入口尚未切换，页面数、覆盖及 TODO 保持不变。
+
 [草稿投影的领域合同](../src/ft/domain/cash_projection.py) 及 [43 迁移](../migrations/versions/20261021_43_cash_draft_projections.py) 已支持单例、可空展示、独立统计资格及待处理计数；正式财务字段仍必填。[当前待处理信息](../src/ft/adapters/relational/cash_attention.py) 已按相关流水有界加载，问题实例与修订纳入局部上下文，删除重建会使旧确认失效；[来源读取与主页查询](../src/ft/adapters/relational/web_queries.py) 已保留无组成项草稿、未知值及待确认可见性，按稳定排序位置分页，月汇总排除草稿；读取和附属结果使用同一快照。HTTP 已转发状态筛选并返回可空值，Compose 展示和完整草稿维护尚未切换，不据此开放草稿写入口或声称主页维护已完成。派生表升级后须先显式重建，保留已有正式值及引用。
 
 [45 迁移](../migrations/versions/20261021_45_cash_projection_ownership.py) 限制派生结果的工作区归属及唯一活动集合；全量修复发布成功后清理旧派生副本，正式源记录保持。相关 [归属和回滚合同](../tests/contract/test_cash_projection_ownership.py) 覆盖跨工作区写入、异常迁移与旧会话缓存，不新增页面或改变客户端覆盖状态。

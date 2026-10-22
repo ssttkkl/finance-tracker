@@ -11,6 +11,7 @@ from ft.adapters.relational.projections import RelationalCashProjectionRepositor
 from ft.application.access import PermissionDenied
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _wire
+from ft.application.cash_draft_merge import identity_candidates
 from ft.application.cash_projections import CashProjectionService
 from ft.application.cash_record_writer import CashRecordWriter
 from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
@@ -76,12 +77,14 @@ class CashRecordMaintenanceService:
             planner = CashRecordOperationPlanner(session, self._workspace_id)
             identity_resolutions = (planner.available_identity_resolutions(row) if editable
                 and any(issue.code == "source_identity_ambiguous" for issue in issues) else [])
+            candidates = identity_candidates(session, self._workspace_id, issues)
             return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision,
                 "confirmation_status": "pending" if row.state == "draft" or identifier in attention.transaction_ids else "confirmed",
                 "fields": _wire(fields), "editable_fields": sorted((_EDITABLE if row.state == "draft" else MUTABLE_CASH_FIELDS) if editable else ()),
                 "issues": [self._safe_issue(issue, allowed_resolutions=[] if not editable else
                     planner.available_source_resolutions(row, issue, existing_issues=issues) if issue.code == "source_update_pending" else
                     identity_resolutions if issue.code == "source_identity_ambiguous" else None)
+                    | ({"candidates": candidates.get(str(issue.id), [])} if issue.code == "source_identity_ambiguous" else {})
                     for issue in issues],
                 "relations": [{"relation_id": str(relation["id"]), **{key: relation[key] for key in
                     ("kind", "subtype", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],

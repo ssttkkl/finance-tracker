@@ -5,6 +5,7 @@ from ft.adapters.cash_statement_evidence import extract_source_explanation
 from ft.adapters.relational.models import CashProjectionMemberModel, CashProjectionModel
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
+from ft.application.cash_draft_merge import CashDraftMergePlanner
 from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
     _identifier)
 from ft.domain.cash_record_policy import CashRecordPolicyError
@@ -22,18 +23,38 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         if intent == "edit_record" and row.state != "posted":
             raise CashRecordMaintenanceError("posted_required")
         resolutions = preview_input.get("issue_resolutions", [])
-        if resolutions:
+        merging = any(choice["resolution"] == "merge_into" for choice in resolutions)
+        additional_seeds, decision_groups = set(), set()
+        if merging:
+            source = row
+            row, operation = CashDraftMergePlanner(planner).prepare(source, resolutions, patch)
+            current_records[str(row.id)] = row
+            additional_seeds.add(source.id)
+            for relation in operation["merge_draft"]["references"]["relations"]:
+                additional_seeds.update(relation[key] for key in ("primary_transaction_id", "secondary_transaction_id") if relation[key] is not None)
+                if relation["decision_group_id"] is not None:
+                    decision_groups.add(relation["decision_group_id"])
+        elif resolutions:
             operation = planner.prepare_resolving(row, patch, resolutions, finalize=intent == "finalize_draft")
         else:
             operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else planner.prepare_edit(row, patch))
         operations = [operation]
-        category_members = self._category_members(session, row.id) if "category_id" in patch else []
+        category_origin = operation.get("merge_draft", {}).get("category_origin")
+        category_members = self._category_members(session, row.id) if "category_id" in patch or category_origin else []
+        category_value = operation["values"]["category_id"]
         for identifier in category_members:
             if identifier != str(row.id):
                 member = planner.record(int(identifier))
                 current_records[identifier] = member
-                operations.append(planner.prepare_edit(member, {"category_id": patch["category_id"]}))
-        scopes = self._source_scopes(session, {int(op["transaction_id"]) for op in operations})
+                protected = bool((member.manual_overrides or {}).get("category_id"))
+                if "category_id" not in patch and protected:
+                    if category_origin == "human" and member.category_id != category_value:
+                        raise CashRecordPolicyError("source_resolution_conflict", ("category_id",))
+                    continue
+                operations.append(planner._prepare(member, {}, source_patch={"category_id": category_value})
+                    if "category_id" not in patch and category_origin == "source"
+                    else planner.prepare_edit(member, {"category_id": category_value}))
+        scopes = self._source_scopes(session, {int(identifier) for identifier in current_records})
         for index, operation in enumerate(operations, 1):
             identifier, source = operation["transaction_id"], operation["values"]["source_type"]
             current = current_records[identifier]
@@ -46,7 +67,9 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         expected_count = len(operations)
         result = self.build_operations(session=session, operations=operations, rows=rows,
             relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True,
-            current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes))
+            current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes),
+            additional_seed_ids=additional_seeds, decision_group_ids=decision_groups,
+            snapshot_transform=CashDraftMergePlanner.overlay if merging else None)
         if len(operations) != expected_count:
             # 一次维护意图不能只保存整笔分类的一部分。
             raise CashRecordPolicyError("relation_endpoint_incompatible", ("record_type", "record_subtype"))
@@ -55,7 +78,10 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
                 member["editable_fields"] = [field for field in member["editable_fields"] if field != "account_name"]
                 member["allowed_actions"] = ["edit_record"] if member["transaction_id"] not in {
                     op["transaction_id"] for op in operations if op["current"]["state"] == "draft"} else ["save_draft", "finalize_draft"]
-        result.update(can_commit=bool(operations), category_member_ids=category_members,
+                if merging and member["transaction_id"] == str(row.id) and row.state == "draft":
+                    member["allowed_actions"] = ["save_draft"]
+        # 联合写入器接入前，合并只能核对预计结果，不允许走通用单行保存。
+        result.update(can_commit=bool(operations) and not merging, category_member_ids=category_members,
             mutation_units=[[op["operation_ref"] for op in operations]])
         result["summary"]["relations_removed"] = len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
         resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)

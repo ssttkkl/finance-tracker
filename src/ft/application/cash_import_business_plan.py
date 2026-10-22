@@ -139,15 +139,18 @@ class CashImportBusinessPlanBuilder:
 
     def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
         files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
-        current_records=None, source_scope_snapshot=None):
+        current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
         accounts = self._accounts(session)
         new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
         candidates = self._candidate_ids(session, new, source_rows or {})
         existing = {int(op["transaction_id"]) for op in operations if op.get("transaction_id")}
-        context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates)
+        context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates | set(additional_seed_ids),
+            decision_group_ids=decision_group_ids)
         snapshot = self._snapshot(session, context, operations, accounts, rows,
             current_records=current_records, source_scope_snapshot=source_scope_snapshot)
+        if snapshot_transform is not None:
+            snapshot_transform(snapshot, operations)
         seeds = {part.component_id for part in snapshot.components.values()
             if snapshot.parent_ops.get(part.transaction_id, {}).get("planned_action") in {"create_posted", "finalize_draft"}}
         proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])

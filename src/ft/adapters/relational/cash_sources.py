@@ -148,6 +148,9 @@ class CashSourceRepository:
 
     def independent_identity_snapshot(self, transaction_id):
         """只读当前绑定及活动归属；不从可改来源正文恢复身份。"""
+        return self._identity_snapshot(transaction_id)
+
+    def _identity_snapshot(self, transaction_id, *, same_identity=()):
         target = self._target(transaction_id)
         bindings = self.bindings_for(target.id)
         account = [binding for binding in bindings if binding.source_scope_kind == "account"]
@@ -163,7 +166,7 @@ class CashSourceRepository:
         key_fields = ("source_type", "source_scope_kind", "source_scope_key", "identity_kind", "identity_key")
         keys = sorted({tuple(getattr(binding, field) for field in key_fields) for binding in bindings})
         evidence = sorted({binding.stable_evidence_key for binding in bindings if binding.stable_evidence_key})
-        others = sorted({binding.transaction_id for binding in self._for_keys(keys, evidence)} - {target.id})
+        others = sorted({binding.transaction_id for binding in self._for_keys(keys, evidence)} - {target.id} - set(same_identity))
         for offset in range(0, len(others), 500):
             if self.session.scalar(select(CashTransactionModel.id).where(CashTransactionModel.workspace_id == self.workspace_id,
                 CashTransactionModel.id.in_(others[offset:offset + 500]), CashTransactionModel.deleted_at.is_(None)).limit(1)) is not None:
@@ -416,7 +419,8 @@ class CashSourceRepository:
         ))
         self.session.flush()
 
-    def transfer_draft_bindings(self, draft_id, target_id):
+    def validate_draft_merge(self, draft_id, target_id):
+        """只读核对当前双方身份；不移动绑定，也不从来源正文生成证明。"""
         draft, target = self._target(draft_id), self._target(target_id)
         if draft.state != "draft" or draft.id == target.id or draft.source_type != target.source_type:
             raise SourceBindingConflict("source_merge_requires_draft")
@@ -430,6 +434,12 @@ class CashSourceRepository:
         if conflicting_source_document_pages((), evidence=(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
             SourceCoverage(**binding.coverage)) for binding in [*draft_bindings, *target_bindings])):
             raise SourceBindingConflict("source_document_conflict")
+        snapshots = {str(parent.id): self._identity_snapshot(parent.id, same_identity={draft.id, target.id}) for parent in (draft, target)}
+        return snapshots
+
+    def transfer_draft_bindings(self, draft_id, target_id):
+        self.validate_draft_merge(draft_id, target_id)
+        draft_bindings = self.bindings_for(draft_id)
         for binding in draft_bindings:
-            binding.transaction_id = target.id
+            binding.transaction_id = _identifier(target_id)
         self.session.flush()

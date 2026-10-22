@@ -105,7 +105,7 @@
 - [x] 4.10.4.2.1 保存身份草稿自身已验证的来源键，保留当前问题／候选；验证跨文件／时间变化复用、多键归属冲突、未知范围隔离及范围相符的覆盖证据读取。
 - [x] 4.10.4.2.2 接入确认独立与当前绑定集合 CAS；验证同次及之后转正式、当前问题清除、权限、重复确认、并发及发布回滚。
 - [ ] 4.10.4.3 实现草稿合并的双方约束、人工冲突、绑定及当前问题／候选／锚点清理、同单元发布和保留身份定位；验证失败不丢正文或部分引用。
-- [ ] 4.10.4.3.1 实现只读合并计划：双方固定事实及人工冲突、当前绑定／问题／候选／完整关系组快照、组成项唯一对应、目标原组分类、预计保留目标和身份候选详情；预览不写业务库。
+- [x] 4.10.4.3.1 实现只读合并计划：双方固定事实及人工冲突、当前绑定／问题／候选／完整关系组快照、组成项唯一对应、目标原组分类、预计保留目标和身份候选详情；预览不写业务库。
 - [ ] 4.10.4.3.2 接入整个合并单元的联合执行与结果定位：转移完整当前问题及双向候选、父／组成项锚点和来源绑定，最后退出源草稿；验证重放、源退出、余额、投影、收据及分阶段注入失败回滚。
 - [ ] 4.10.5 为当前草稿关系的完整决定组、候选修订、确认／延后／忽略／解除及父锚点删除写失败测试；复用最终图校验，禁止残缺组提交。
 - [ ] 4.11 用 API 权限／结构／安全错误测试驱动 FastAPI 路由切换；CLI、Agent 与技能共用新服务，关闭绕过新合同的旧入口。
@@ -121,6 +121,14 @@
 
 ## 6. 测试与 QA
 
+- 4.10.4.3.1 只读合并计划失败驱动（2026-10-22，HEAD／比较基线 `d518a8d`）：首轮夹具保留了导入生成的唯一 `record_id`，新草稿被既有唯一约束跳过；改为模拟旧无绑定且独立内部编号的目标，草稿目标使用未映射来源及当前身份问题。修正后有效初轮 3 failed、2 PostgreSQL cases 明确跳过、8 deselected（`/tmp/ft-cash-draft-merge-plan-red.log`），均因尚不支持 `merge_into`；初次实现后 7 passed、8 skipped、1 个草稿目标夹具失败，修正后 8 passed、8 PostgreSQL cases 明确跳过（12.55 s）。新增未知资金占位对完整分摊的反例再现 1 failed／1 skipped（`/tmp/ft-cash-draft-merge-placeholder-red.log`）；只比较真实已知分配，不把未映射的父金额占位当成单项分配。本步先发布只读预计目标、完整引用快照和当前身份候选详情，联合写入接入前合并 `can_commit=false`，防止误用通用单行保存；尚未完成本步双后端或联合执行验收。
+- 只读实现独立静态复核发现 3 项 P2：多份来源的显式统一补丁未参与冲突消解；组成项对应仍用采用前结构，可能丢失已选的新分摊；自动分类传播误按人工补丁覆盖原组人工值。均采纳并先回写 design，安排真实维护服务反例；每份来源仍先校验原始固定事实和结构，不能用统一补丁遮盖冲突。审查者未运行测试、数据库、构建、探针或进程操作。本轮扩展 SQLite 95 passed、95 PostgreSQL cases 明确跳过、1 failed（138.87 s，`/tmp/ft-cash-draft-merge-plan-expanded.log`），失败是候选展示测试误写固定修订 `2`，实际夹具更新内部编号已正常推进修订；改为比较本次捕获的当前修订，不改业务断言。P2 修复及增量独立复核仍在进行。
+- 三项 P2 反例先 5 failed、1 passed、6 PostgreSQL cases 明确跳过（9.48 s，`/tmp/ft-cash-draft-merge-review-red.log`），修复后合并计划模块 19 passed／19 PostgreSQL cases 明确跳过（29.32 s，`/tmp/ft-cash-draft-merge-review-green.log`）。增量独立静态复核确认三项关闭，另确认一项 P2：将本次明确决定草稿组的状态一致约束误用于所有旧组，会拒绝类型维护后合法保留部分确认边、停用其他边的组合。先补旧确认组反例；本次只迁移完整组及引用，保留原决定和活动状态，用最终图和唯一性核对，不重新要求旧成员活动状态一致。
+- 旧确认组反例先 1 failed／1 skipped（2.19 s，`/tmp/ft-cash-draft-merge-group-red.log`），去除不适用的旧组活动状态一致限制。五文件 SQLite 127 passed、126 PostgreSQL cases 明确跳过（185.91 s，`/tmp/ft-cash-draft-merge-plan-final-sqlite.log`）。补目标草稿同次删除组成项的引用回退反例先 1 failed／1 skipped（2.33 s，`/tmp/ft-cash-draft-merge-target-parts-red.log`），映射改以最终目标组成项为准；目标草稿合并计划不提供不可同次执行的转正式动作，动作反例亦先失败。最终新增边界及双后端矩阵另验，不把早一轮视为最后代码证据。
+- 最后边界 SQLite → 22 passed、22 PostgreSQL cases 明确跳过（33.82 s，`/tmp/ft-cash-draft-merge-plan-final-edges.log`）。最终同一 Application Service 双后端：`python3 /tmp/ft_cash_dual.py /tmp/ft-cash-draft-merge-plan-final-dual.log tests/contract/test_cash_draft_merge_plan.py tests/contract/test_cash_source_storage.py tests/contract/test_cash_source_document_storage.py tests/contract/test_cash_mutation_business_plan.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_independent_identity.py tests/contract/test_cash_mutation_commit.py -q --disable-warnings --tb=short --maxfail=3` → 319 passed、无 skip（387.86 s）。专用 `_test` PostgreSQL 显式配置且无并行 PostgreSQL pytest；本轮源码固定，构建及文档整理未改变运行时代码。
+- 最终独立静态增量复核关闭全部 P2，无新增 P1/P2；只读读取，没有代跑验证。Python 语法、8 个合同 JSON 示例、`uv build --out-dir /tmp/ft-cash-draft-merge-plan-dist`、wheel 包含新模块、OpenSpec strict 及范围空白检查均通过；语法检查不冒称 Python 类型检查。普通维护完整成本在独占补验中，联合写入、公开接口及客户端仍未完成。
+- 普通完整维护独占成本：`uv run python /tmp/ft_cash_maintenance_reuse_cost.py > /tmp/ft-cash-draft-merge-plan-performance.log 2>&1` → 2 passed（12.48 s）。一万笔背景、3 次预热／20 次测量，SQLite／PostgreSQL 预览加提交 P95 7.18／23.94 ms，单独提交 5.31／18.74 ms，均满足原 100 ms；没有并发本任务测试、构建或运行时代码编辑。两枚已核对孤立上报进程在 `finally` 恢复，`ps` 确认均为运行态；无本任务回归被暂停。不据此覆盖以前超预算记录，复杂合并写入成本仍待后续联合实现。
+- 本步 Cross-platform Impact Check：只增加后端内部合并预览及身份问题当前候选 DTO，无 Web、Native 或共享 presentation 页面、文案、操作、路由变化；功能地图补内部证据，页面数、覆盖及 TODO 不变。公开维护接口及 Compose 仍在 4.11–4.13；本步未运行浏览器或 Hallmark，不计为 UI 完成。无 schema、新依赖、真实账本改写或来源解析变化；只读计划不可提交，回退实现只需取消未消费编辑上下文，不回写历史或删除已保存事实。反思：先比较原始事实，再用有效来源和最终目标规划引用；人工传播与自动传播共用字段约束，但不能混淆用户选择的归属。
 - 4.10.4.1 预审（2026-10-22，HEAD／比较基线 `8e37c87`）：独立只读复核确认不需新增产品决策。已先回写数组复合意图、每份来源先校验、显式补丁人工保护、最终类型比较、正文存在性、仅问题成功计数及按实例清除；无来源内容／非法内容的采用动作与读取共用校验，保留现有仍可用。首步不开放身份独立／合并；可信 origin 及全部引用在后续两小步实现。预审未执行测试、数据库、构建或私人探针。
 - 来源决定数组及实际处理的缺失回归先 4 failed（3.39 s，`/tmp/ft-cash-source-issue-red.log`）；首轮实现后 34 passed、19 PostgreSQL cases 明确跳过（46.25 s，`/tmp/ft-cash-source-issue-sqlite.log`）。扩展发现整笔分类多成员循环变量使预览处理计数丢失，反例先 1 failed／1 PostgreSQL case 明确跳过，再改为汇总全部操作；扩展矩阵另跑，不把尚未配置的后端计为通过。
 - 来源独立静态复核 P2：来源组成项只做字段归一，最终显式补丁能遮住未知字段、其他流水引用或重复 ordinal，导致读取／执行准入不一致。三个 SQLite 反例先 3 failed、3 PostgreSQL cases 明确跳过（8.60 s，`/tmp/ft-cash-source-issue-components-red.log`）；先明确合并前结构准入，再复用现有引用／字段校验并验证 ordinal，草稿不因此提前要求完整。该 finding 须修复后增量独立复核。
