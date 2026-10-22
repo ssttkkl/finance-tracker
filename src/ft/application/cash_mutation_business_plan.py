@@ -61,6 +61,9 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)
         if resolved_count:
             result["summary"]["resolve_issue"] = resolved_count
+        independent = sum(any(choice["resolution"] == "create_independent" for choice in op.get("issue_resolutions", [])) for op in operations)
+        if independent:
+            result["summary"]["create_independent"] = independent
         return result
 
     @staticmethod

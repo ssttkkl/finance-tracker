@@ -6,6 +6,7 @@ from sqlalchemy import inspect, select
 from ft.adapters.cash_statement_effects import prepare_cash_source_effects
 from ft.adapters.relational.models import (AccountModel, CashCategoryModel, CashTransactionComponentModel,
     CashTransactionIssueModel, CashTransactionModel)
+from ft.adapters.relational.cash_sources import CashSourceRepository, SourceBindingConflict
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches, _draft_accounts, _remaining_funding_issues, _validate_component_ids, _wire
 from ft.application.parsed_import_staging import ParsedImportDataError, _json_budget, _json_bytes
@@ -125,7 +126,19 @@ class CashRecordOperationPlanner:
         source_patch, resolutions = prepare_source_issue_resolutions(current, existing, choices, patch, protected_fields=protected)
         operation = self._prepare(row, patch, source_patch=source_patch, resolutions=resolutions,
             existing_issues=existing, current_fields=current)
+        if any(choice["resolution"] == "create_independent" for choice in resolutions):
+            operation["expected_source_bindings"] = CashSourceRepository(
+                self.session, self.workspace_id).independent_identity_snapshot(row.id)
         return self._finalize(operation) if finalize else operation
+
+    def available_identity_resolutions(self, row):
+        if row.state != "draft":
+            return []
+        try:
+            CashSourceRepository(self.session, self.workspace_id).independent_identity_snapshot(row.id)
+        except SourceBindingConflict:
+            return []
+        return ["create_independent"]
 
     def available_source_resolutions(self, row, issue, *, existing_issues):
         try:

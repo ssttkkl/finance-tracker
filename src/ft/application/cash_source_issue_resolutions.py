@@ -38,11 +38,13 @@ def prepare_source_issue_resolutions(current, issues, choices, patch, *, protect
         issue = by_id.get(choice["issue_id"])
         if issue is None or issue.revision != choice["expected_issue_revision"]:
             raise CashMutationConflict("issue_changed")
-        if issue.code != "source_update_pending" or choice["resolution"] not in {"apply_source", "keep_existing"}:
+        independent = (issue.code == "source_identity_ambiguous" and current["state"] == "draft"
+            and choice["resolution"] == "create_independent")
+        if not independent and (issue.code != "source_update_pending" or choice["resolution"] not in {"apply_source", "keep_existing"}):
             raise CashRecordPolicyError("issue_resolution_invalid", ())
         selected.append({**choice, "body_digest": _digest(issue.code, issue.field_path,
             issue.pending_fields, issue.pending_source_payload, issue.origin)})
-        if choice["resolution"] == "keep_existing":
+        if independent or choice["resolution"] == "keep_existing":
             continue
         source = _pending_patch(issue)
         # 每份来源先校验，后续显式补丁不能遮住固定字段或非法结构。

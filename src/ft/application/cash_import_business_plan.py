@@ -261,7 +261,7 @@ class CashImportBusinessPlanBuilder:
 
     @staticmethod
     def _fallback_scope(source, identifier):
-        return WECHAT_DEFAULT_SCOPE if source == "wechat" else "unbound:" + str(identifier)
+        return "unbound:" + str(identifier)
 
     def _source_scopes(self, session, identifiers):
         scopes = defaultdict(lambda: defaultdict(set))

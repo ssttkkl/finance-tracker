@@ -98,6 +98,9 @@ class CashSourceRepository:
     def _for_occurrences(self, rows):
         keys = sorted({(spec.source_type, spec.scope_kind, spec.scope_key, spec.identity_kind, spec.identity_key) for row in rows for spec in row.binding_specs})
         evidence_keys = sorted({row.stable_evidence_binding_key for row in rows if row.stable_evidence_binding_key})
+        return self._for_keys(keys, evidence_keys)
+
+    def _for_keys(self, keys, evidence_keys):
         result = []
         # 每个独立身份最多六个参数，另留一片证据，兼容 999 参数上限。
         for offset in range(0, max(len(keys), len(evidence_keys)), 125):
@@ -142,6 +145,34 @@ class CashSourceRepository:
             CashSourceBindingModel.workspace_id == self.workspace_id,
             CashSourceBindingModel.transaction_id == transaction_id,
         ).order_by(CashSourceBindingModel.id)).all()
+
+    def independent_identity_snapshot(self, transaction_id):
+        """只读当前绑定及活动归属；不从可改来源正文恢复身份。"""
+        target = self._target(transaction_id)
+        bindings = self.bindings_for(target.id)
+        account = [binding for binding in bindings if binding.source_scope_kind == "account"]
+        if (any(binding.source_type != target.source_type for binding in bindings)
+            or len({binding.source_scope_key for binding in account}) > 1
+            or len({binding.identity_key for binding in account if binding.identity_kind == "provider_id"}) > 1
+            or len({binding.stable_evidence_key for binding in bindings if binding.stable_evidence_key}) > 1
+            or any(len(positions) > 1 for positions in _document_positions(bindings).values())):
+            raise SourceBindingConflict("source_identity_conflict")
+        if conflicting_source_document_pages((), evidence=(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
+            SourceCoverage(**binding.coverage)) for binding in bindings)):
+            raise SourceBindingConflict("source_document_conflict")
+        key_fields = ("source_type", "source_scope_kind", "source_scope_key", "identity_kind", "identity_key")
+        keys = sorted({tuple(getattr(binding, field) for field in key_fields) for binding in bindings})
+        evidence = sorted({binding.stable_evidence_key for binding in bindings if binding.stable_evidence_key})
+        others = sorted({binding.transaction_id for binding in self._for_keys(keys, evidence)} - {target.id})
+        for offset in range(0, len(others), 500):
+            if self.session.scalar(select(CashTransactionModel.id).where(CashTransactionModel.workspace_id == self.workspace_id,
+                CashTransactionModel.id.in_(others[offset:offset + 500]), CashTransactionModel.deleted_at.is_(None)).limit(1)) is not None:
+                raise SourceBindingConflict("active_source_binding")
+        fields = ("id", "created_at", "transaction_id", *key_fields, "revision", "identity_strength",
+            "stable_evidence_key", "strategy_version", "coverage")
+        facts = [{field: getattr(binding, field) for field in fields} for binding in sorted(bindings,
+            key=lambda binding: (*[getattr(binding, field) for field in key_fields], binding.id))]
+        return {"count": len(facts), "digest": _digest(facts)}
 
     def _validate_scope(self, target, row):
         bindings = self.bindings_for(target.id)
