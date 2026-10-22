@@ -106,8 +106,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                     if operation["planned_action"] == "duplicate" and _issues_unchanged(operation):
                         record = records[operation["transaction_id"]]
                         missing = any(spec.key not in record.binding_keys for update in operation["source_updates"] if update["bind"]
-                            for spec in sources.rows[update["row_ref"]].binding_specs
-                            if not update["uncertain"] or spec.scope_kind == "file_local")
+                            for spec in sources.rows[update["row_ref"]].binding_specs)
                         if not missing:
                             identity[operation["preview_transaction_id"]] = operation["transaction_id"]
                             component_ids.update({part["component_id"]: part["component_id"] for part in operation["preview_components"]})

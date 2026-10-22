@@ -131,6 +131,15 @@ def test_reliable_id_needs_no_range_and_shares_one_operation_across_files():
     assert results["b:r1"].duplicate_of == "a:r1"
 
 
+def test_known_aliases_share_one_pending_record_when_old_correspondence_is_unknown():
+    row = _row(provider_id="provider-A")
+    old = replace(_old(), source_account_key=None)
+    results = _batch({**_file("a", [row]), **_file("b", [row])}, [old])
+    assert results["a:r1"].action == "pending"
+    assert results["b:r1"].duplicate_of == "a:r1"
+    assert results["b:r1"].candidate_ids == results["a:r1"].candidate_ids
+
+
 @pytest.mark.parametrize("fields", [{"counterparty": "更新"}, {"amount": "-21"}, {"occurred_at": "2026-08-16T00:00:00Z"}])
 def test_conflicting_reliable_snapshots_do_not_use_file_order_and_other_rows_continue(fields):
     rows = {**_file("a", [_row(provider_id="A")]), **_file("b", [_row(provider_id="A", fields=fields)]),

@@ -203,6 +203,9 @@ class CashSourceRepository:
             if len(scopes) > 1:
                 raise SourceBindingConflict("source_binding_ambiguous")
             keys = [SourceBindingKey(binding.source_type, binding.source_scope_kind, binding.source_scope_key, binding.identity_kind, binding.identity_key) for binding in aliases]
+            # 已知范围只使用相符账户绑定的覆盖证据，不替旧未知文件授信。
+            verified = [binding for binding in aliases if binding.source_scope_kind == "account"
+                and binding.source_scope_key in scopes] if scopes else aliases
             fields = {name: getattr(parent, name) for name in (
                 "state", "amount", "occurred_at", "currency", "account_id", "cash_granularity",
                 "counterparty", "counterparty_account", "counterparty_account_attrs", "note", "category_id",
@@ -214,7 +217,7 @@ class CashSourceRepository:
                 transaction_id=str(parent.id), source_type=parent.source_type,
                 source_account_key=next(iter(scopes), WECHAT_DEFAULT_SCOPE if legacy_provider else None), fields=fields,
                 provider_id=legacy_provider,
-                coverages=tuple(SourceCoverage(**binding.coverage) for binding in aliases),
+                coverages=tuple(SourceCoverage(**binding.coverage) for binding in verified),
                 binding_keys=frozenset(key.key for key in keys),
                 file_occurrences={scope: frozenset(positions) for scope, positions in _all_positions(aliases).items()},
                 provider_binding_key=next((key.key for key in keys if key.identity_kind == "provider_id"), None),
@@ -222,7 +225,7 @@ class CashSourceRepository:
                 row_revision=parent.row_revision,
                 protected_fields=frozenset(name for name in ("note", "category_id") if (parent.manual_overrides or {}).get(name)),
                 document_evidence=tuple(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
-                    SourceCoverage(**binding.coverage)) for binding in aliases if binding.coverage.get("document_key")),
+                    SourceCoverage(**binding.coverage)) for binding in verified if binding.coverage.get("document_key")),
             ))
         return result
 
@@ -273,7 +276,8 @@ class CashSourceRepository:
             ).limit(1))
             if conflict is not None:
                 raise SourceBindingConflict("source_document_conflict")
-        specs = [spec for spec in row.binding_specs if not uncertain or spec.scope_kind == "file_local"]
+        # 对应问题不否定本次出现已验证的外部身份；未知范围本身不会生成账户键。
+        specs = row.binding_specs
         existing = {
             (binding.source_type, binding.source_scope_kind, binding.source_scope_key, binding.identity_kind, binding.identity_key): binding
             for binding in self._for_occurrence(row)
@@ -303,7 +307,7 @@ class CashSourceRepository:
                     source_scope_key=spec.scope_key, identity_kind=spec.identity_kind,
                     identity_key=spec.identity_key, identity_strength=strength,
                     strategy_version=row.parser_version, coverage=coverage,
-                    stable_evidence_key=row.stable_evidence_binding_key if not uncertain and spec.scope_kind == "account" else None,
+                    stable_evidence_key=row.stable_evidence_binding_key if spec.scope_kind == "account" else None,
                 )
                 self.session.add(binding)
             else:
@@ -311,7 +315,7 @@ class CashSourceRepository:
                 binding.identity_strength = strength
                 binding.strategy_version = row.parser_version
                 binding.coverage = coverage
-                if not uncertain and spec.scope_kind == "account" and row.stable_evidence_binding_key:
+                if spec.scope_kind == "account" and row.stable_evidence_binding_key:
                     binding.stable_evidence_key = row.stable_evidence_binding_key
         self.session.flush()
 

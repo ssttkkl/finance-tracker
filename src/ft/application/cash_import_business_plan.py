@@ -275,7 +275,7 @@ class CashImportBusinessPlanBuilder:
             known = kinds["account"]
             local = kinds["file_local"]
             result[key] = (next(iter(known)) if len(known) == 1 else "ambiguous:" + key[0] if known else
-                WECHAT_DEFAULT_SCOPE if key[1] == "wechat" else "file:" + next(iter(local)) if len(local) == 1 else "ambiguous:" + key[0])
+                "file:" + next(iter(local)) if len(local) == 1 else "ambiguous:" + key[0])
         return result
 
     def _snapshot(self, session, context, operations, accounts, rows, *, current_records=None, source_scope_snapshot=None):

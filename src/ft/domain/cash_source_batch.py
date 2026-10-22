@@ -335,7 +335,8 @@ def resolve_source_batch(
                 continue
             if failed:
                 if options == (unit.ref,):
-                    output[ref] = result(ref, only)
+                    # 本次出现之间的确定身份不受旧流水对应问题影响。
+                    output[ref] = replace(result(ref, only), duplicate_of=unit.ref if only.action == "pending" else None)
                 else:
                     output[ref] = SourceBatchResolution(ref, "pending", reason="source_identity_ambiguous", group_ref=group)
             else:
