@@ -5,6 +5,27 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun authoritativeSameSessionReceiptDropsOldPlanButOrdinaryReceiptCannotBypassBinding() {
+        val session = "a".repeat(43)
+        val first = "ip_$session.${"b".repeat(16)}"
+        val other = "ip_$session.${"c".repeat(16)}"
+        val oldFile = ImportPlanFile("old", "synthetic.csv", "failed", null, emptyList(), "row_unreadable", true)
+        val prepared = prepared().let { it.copy(context = it.context!!.copy(sessionId = session),
+            plan = it.plan!!.copy(planId = first, sessionId = session, files = listOf(oldFile)), resultFiles = listOf(oldFile)) }
+        val pending = prepared.beginConfirmation("original").failed(DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE))
+        val receipt = receipt().copy(planId = other)
+        assertNull(pending.received(receipt).receipt)
+        val completed = pending.resolved(ImportResolveResult("committed", receipt))
+        assertEquals(receipt, completed.receipt)
+        assertTrue(completed.resultFiles.isEmpty())
+        assertNull(completed.plan)
+        for (invalid in listOf(receipt.copy(planId = "ip_${"z".repeat(43)}.${"c".repeat(16)}"), receipt.copy(planId = first, operationKind = "account_create"))) {
+            val rejected = pending.resolved(ImportResolveResult("committed", invalid))
+            assertNull(rejected.receipt)
+            assertEquals(ImportSubmissionState.UNKNOWN, rejected.submission)
+        }
+    }
+
     @Test fun restoresFullChoicesAndNeverReplacesExplicitClearWithSuggestion() {
         val clear = ImportAccountSelection("src", ImportAccountTarget(null, null))
         val choices = ImportChoiceSet(listOf(clear), listOf(ImportRecordChoice("f:r1", ImportRowDecision.DEFER)),

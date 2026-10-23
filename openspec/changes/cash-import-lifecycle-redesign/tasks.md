@@ -141,7 +141,7 @@
 - [x] 4.12.2.1.2 将完整回归发现的退休 helper／旧私有异常断言迁到当前精确分摊及安全提交边界，保留全部精度、回滚和重试覆盖。
 - [ ] 4.12.2.2 用失败测试落实共享状态的预览、完整组决定、一次确认、结果核实、分页与失效选择，随后替换旧 ViewModel。
 - [x] 4.12.2.2.1 先实现共享纯状态及失败回归：恢复完整选择、冻结提交、核实四状态、过期分页与详情隔离，不接页面或宣称账户退出补偿已完成。
-- [ ] 4.12.2.2.2 接入任务 ViewModel：先读恢复标识、按令牌执行当前 Repository、持久化成功后再确认、核实／原请求重试及权威未提交后的刷新；以失败流程测试覆盖中断和迟到响应。
+- [x] 4.12.2.2.2 接入任务 ViewModel：先读恢复标识、按令牌执行当前 Repository、持久化成功后再确认、核实／原请求重试及权威未提交后的刷新；以失败流程测试覆盖中断和迟到响应。
 - [ ] 4.12.2.3 实现按用户／工作区隔离的最小恢复标识，不持久保存密码、原文件、账户旧值或财务正文。
 - [x] 4.12.2.3.1 先实现绑定后端／使用者／工作区的严格最小存储和四平台适配，验证实际 Web 异常与逐文件进度保存边界；ViewModel 和页面接入仍由父任务验收。
 - [ ] 4.12.3 依既有 Hallmark 方向实现共享统一列表及一次确认、文件账户准备和状态；删除独立关联步骤及冗余说明。
@@ -159,6 +159,14 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.12.2.2.2 共享任务 ViewModel（2026-10-23，HEAD／比较基线 `29f00e1`）：缺少类型的编译红灯 2s（`/tmp/ft-import-task-vm-red.log`），首批 7 项通过 11s（`/tmp/ft-import-task-vm-first.log`）。新增恢复读取失败、收据读取失败、核实后保存中提前可编辑、解绑后非协作上传继续四项，实际 4 failed／6s（`/tmp/ft-import-task-vm-edges-red.log`）；锁定恢复和待获取收据、保存完成前持续 busy、解绑进度明确取消后 11 项通过 26s（`/tmp/ft-import-task-vm-edges-fixed.log`）。已确定收据不依赖过期解析正文；提交前保存失败不发请求，后续仅重试同一原键、修订和计划。
+- 独立工程／业务／并发静态复核两项 P2：核实返回同会话其他计划的确定收据被误拒；普通刷新失败后旧计划仍可确认。实际 2 failed／3s（`/tmp/ft-import-task-vm-review-red.log`）；修复只授权核实接口确认的同会话导入收据，不放开普通收据、异会话或异操作，实际计划不同时丢弃旧文件信息；刷新开始即锁定。首次修复后测试 fake 的预览未推进服务端上下文修订，导致成功重读仍返回旧修订，1 failed／10s（`/tmp/ft-import-task-vm-review-fixed.log`）；修正 fake 按真实合同推进修订，不放开客户端旧响应检查。
+- 补完整选择先预览后文件命令、两页及按需详情、行明确清空及整组决定；已知会话上传中断后可沿用旧上下文，实际 1 failed／3s（`/tmp/ft-import-task-vm-integration-red.log`），修复后 16 项 VM 加 15 项状态通过 10s（`/tmp/ft-import-task-vm-integration-fixed.log`）。再独立复核发现文件删除／来源设置响应丢失同样需要刷新锁，并扩展到无修改重预览响应丢失，新增实际 2 failed／4s（`/tmp/ft-import-task-vm-mutations-red.log`）；所有推进会话修订的命令发出前锁定，成功响应及恢复标识保存后才解除。18 项 VM 加 16 项状态通过 10s（`/tmp/ft-import-task-vm-mutations-fixed.log`）；删除和来源设置在同一绿色场景分别执行。另检查同会话另一计划、普通收据不可借道、旧预计文件清空与异会话／异操作拒绝。
+- 最终静态复核确认原两项 P2 和文件命令 P2 关闭，无新增 P1／P2；范围仅为上述任务执行编排，复核者不执行测试或构建。取消／重新开始、账户编排、实际结果分页和页面替换仍后续实施，不用这一步勾选父任务。Cross-platform Impact Check：共享 ViewModel 和状态受影响，当前页面仍未消费，无可见 UI 或后端持久化变化，真实客户端 QA、Hallmark 及用户演示缺口保留；无新依赖或真实账本写入。
+- 最终在 `compose/` 执行既定五任务矩阵 → BUILD SUCCESSFUL（1m 48s），215 host／219 Chrome Wasm、零失败／跳过，包含两种 iOS 编译及 Web 生产构建，日志 `/tmp/ft-import-task-vm-platform-final.log`；此前 16 VM 的平台矩阵通过（1m 49s，`/tmp/ft-import-task-vm-platform-matrix.log`），不替代最后两项回归后的重跑。OpenSpec strict、含新文件的暂存空白检查通过。发布回退移除尚未由页面使用的新 ViewModel，保留原入口；中间版本仍不单独部署。反思：改变会话修订的全部命令都要先锁定，不只保护最终提交；最终结果归属按会话消费边界，而不是只比较旧计划编号。
+- 完整回归第二轮为 3321 passed／1242 skipped／73 deselected／1 failed（16m 11s，`/tmp/ft-import-choice-full-sqlite-final.log`）：唯一失败是执行者临时脚本在模块顶层 `pytest.main`，SQLite spawn 子进程重新运行整个验证脚本，15s 内未退出，不是业务断言失败。已中断并清理经父子关系和命令行确认的两个自建子进程，一份未响应 SIGINT 的子进程升级终止，核对并恢复脚本暂停的两份孤儿 reporter。仓库测试未修改；正确 CLI 入口单独运行 `PYTHONPATH=tests:.:src uv run pytest tests/test_relational_live.py -q --disable-warnings --tb=short` → 5 passed／1.85s（`/tmp/ft-import-choice-live-cli.log`）。完整回归改为带 main guard 的脚本调用独立 `python -m pytest` 进程重新运行，不将错误 harness 的失败或补跑冒称完整通过。
+- 最终完整回归通过：`uv run python /tmp/ft_cash_import_final_sqlite_cli.py` 以独立 `python -m pytest tests -q -m 'not performance' --disable-warnings --tb=short`、相同两项范围外 Mobile packaging 排除及明确不配置 PostgreSQL 执行 → 3322 passed／1242 skipped／73 deselected／1 warning（16m 15s，`/tmp/ft-import-choice-full-sqlite-cli-final.log`），零失败。脚本 main guard 与子进程边界正确，多进程 SQLite 通过；结束恢复两份孤儿 reporter，无后台重入测试。HEAD／比较基线 `29f00e1`，Python 最终实现与 `7fa6e51` 相同；跳过项不计双后端，显式 PostgreSQL 证据仍为本步 791、79、46 项矩阵及原固定成本。最终整体交付门禁和 6.1 仍随后续范围复核，不提前关闭 UI 或主变更。
 
 - 4.12.2.3.1 最小恢复存储（2026-10-23，HEAD／比较基线 `7fa6e51`）：先新增缺少存储类型的失败测试（4s，`/tmp/ft-import-recovery-red.log`），初版 5 项通过（26s，`/tmp/ft-import-recovery-first.log`）。独立复核发现真实计划编号包含 `.` 而存储拒绝（P1），以及默认 JSON 解码接受重复键（P2）；对应实际新增回归分别 1 failed（5s／4s，`/tmp/ft-import-recovery-plan-format-red.log`、`/tmp/ft-import-recovery-strict-red.log`），修复后 7 项通过（23s，`/tmp/ft-import-recovery-strict-fixed.log`）。按真实 `ip_<43 位 session>.<16 位 token>` 校验并核对会话，自定义字段解码拒绝重复／转义同名、未知字段、引号数字、数字引用及不完整或矛盾指针；损坏值和读取失败不当成不存在。SHA-256 只隔离本机命名空间，不代替权限；不新增依赖。
 - 增加三种操作取消透传；实际 Chrome 存储往返及 SecurityError／QuotaExceededError 注入。首轮完整矩阵 199 Wasm 通过／1 失败（37s，`/tmp/ft-import-recovery-platform-matrix.log`），暴露外国 DOM 异常未稳定安全映射，测试报告读取 JsException stack 时为 NPE；现在在 JS 边界捕获，使用独立 missing／value／error 状态及写入成功布尔值，不读取异常正文。测试始终恢复原方法并只清理合成范围。一次定向命令误给聚合 `wasmJsTest` 传 `--tests`，CLI 配置拒绝，没有执行测试，不计通过；随后使用完整既定矩阵。

@@ -30,10 +30,13 @@ data class ImportTaskUiState(
     val submission: ImportSubmissionState = ImportSubmissionState.IDLE,
     val previewDirty: Boolean = false,
     val needsContextRefresh: Boolean = false,
+    val recoveryReady: Boolean = true,
+    val localFileFailures: List<ImportLocalFileFailure> = emptyList(),
+    val unprocessedFileRefs: List<String> = emptyList(),
     val busy: Boolean = false,
     val errorCode: String? = null,
 ) {
-    val canEdit: Boolean get() = !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && (context == null || context.state == "open")
+    val canEdit: Boolean get() = recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
     val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
 
@@ -139,7 +142,10 @@ data class ImportTaskUiState(
     fun acceptResolution(request: ImportTaskRequest, value: ImportResolveResult): ImportTaskUiState {
         if (activeRequest != request || frozenCommand == null || receipt != null) return this
         return when (value.status) {
-            "committed" -> value.receipt?.takeIf { it.committed }?.let { acceptReceipt(request, it) }
+            "committed" -> value.receipt?.takeIf { it.committed && it.operationKind == "import" && sameImportSession(frozenCommand.planId, it.planId) }?.let {
+                copy(receiptToFetch = it.receiptId, plan = plan.takeIf { old -> old?.planId == it.planId },
+                    resultFiles = resultFiles.takeIf { _ -> frozenCommand.planId == it.planId }.orEmpty()).acceptReceipt(request, it)
+            }
                 ?: copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = "request_failed")
             "pending" -> copy(submission = ImportSubmissionState.UNKNOWN, busy = false, errorCode = null)
             "retry_original" -> copy(submission = ImportSubmissionState.RETRY_ORIGINAL, busy = false, errorCode = null)
@@ -165,3 +171,10 @@ data class ImportTaskUiState(
 }
 
 private fun invalidTaskChoice(): Nothing = throw DomainFailure("import_input_invalid", 0, FailureCategory.RECOVERABLE)
+
+private fun sameImportSession(expected: String, actual: String?): Boolean {
+    if (expected == actual) return true
+    val pattern = Regex("ip_([A-Za-z0-9_-]{43})\\.([A-Za-z0-9_-]{16})")
+    val first = pattern.matchEntire(expected)?.groupValues?.get(1) ?: return false
+    return actual?.let { pattern.matchEntire(it)?.groupValues?.get(1) } == first
+}
