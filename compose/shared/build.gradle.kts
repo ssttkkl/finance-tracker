@@ -92,6 +92,7 @@ kotlin {
             implementation(libs.ktor.client.engine.defaults)
             implementation(libs.kotlinx.serialization.json)
             implementation(libs.filekit.dialogs.compose)
+            implementation(libs.kotlinx.io.core)
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)

@@ -3,6 +3,7 @@ package com.finance.tracker.presentation
 import com.finance.tracker.core.*
 import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.domain.*
+import com.finance.tracker.data.PlatformCashImportFileSource
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_arrow_back
 import com.finance.tracker.resources.ic_arrow_forward
@@ -104,12 +105,6 @@ private val inlineImportErrorCodes = setOf(
     "import_component_amount_invalid",
 )
 
-private class PlatformImportFileSource(private val file: PlatformFile) : FileSource {
-    override val name: String get() = file.name
-    override val mediaType: String? get() = file.mimeType()?.toString()
-    override val size: Long? get() = file.size().takeIf { it >= 0 }
-    override suspend fun read(): ByteArray = file.readBytes()
-}
 
 @Composable
 internal fun CashImportScreen(
@@ -252,7 +247,7 @@ internal fun CashImportScreen(
             type = FileKitType.File(extensions = listOf("csv", "xls", "xlsx", "pdf")),
             mode = FileKitMode.Multiple(maxItems = MAX_IMPORT_FILES),
             onError = { viewModel.setPickerError() },
-            onResult = { files -> viewModel.receiveFiles(files?.map(::PlatformImportFileSource)) },
+            onResult = { files -> viewModel.receiveFiles(files?.map(::PlatformCashImportFileSource)) },
         )
     } else null
 

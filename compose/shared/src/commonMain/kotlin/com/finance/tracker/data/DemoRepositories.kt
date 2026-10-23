@@ -8,7 +8,7 @@ private const val DEMO_STATEMENT_NAME = "演示银行账单.csv" // i18n-allow: 
 private const val DEMO_STATEMENT_DIGEST = "demo-statement-v1"
 
 /** An in-memory statement fixture. Its bytes are synthetic and never come from the platform file system. */
-class DemoStatementFileSource : FileSource {
+class DemoStatementFileSource : BoundedFileSource {
     override val name: String = DEMO_STATEMENT_NAME
     override val mediaType: String = "text/csv"
     private val bytes = (
@@ -18,6 +18,10 @@ class DemoStatementFileSource : FileSource {
         ).encodeToByteArray()
     override val size: Long = bytes.size.toLong()
     override suspend fun read(): ByteArray = bytes.copyOf()
+    override suspend fun readBounded(maxBytes: Int): ByteArray {
+        if (bytes.size > maxBytes) throw FileReadLimitExceeded()
+        return bytes.copyOf()
+    }
 }
 
 /** Session and finance data for the explicitly selected, process-local Compose demo. */
