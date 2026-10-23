@@ -1,5 +1,7 @@
 # Compose 功能地图
 
+2026-10-23 本次交付范围调整为现金导入后端；统一导入页、主页草稿维护及账户交互由后续独立 UI 任务实施。本轮未提交的 UI 改动已撤回，页面数、现有客户端入口与跨端缺口均不变。已提交的网络、状态及最小恢复存储只是后续接入基础，不代表实际页面已切换。
+
 > 盘点日期：2026-10-23。本文记录当前 Compose Multiplatform 页面级功能、共享实现证据和已知覆盖缺口。行为事实以 `openspec/specs/` 与代码为准。
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。

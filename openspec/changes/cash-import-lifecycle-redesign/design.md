@@ -1,5 +1,7 @@
 ## Context
 
+2026-10-23 交付边界：按用户最新要求，本次收口为后端开发与验收。原设计中的统一 Compose 页面、账户退出交互、主页维护入口、演示及客户端 QA 留给后续独立任务，本次不再实施。以下客户端章节保留为设计输入；后端提供完整 API 和安全恢复控制字段，不据此宣称客户端已经可用。未实现的 UI delta 不同步主规格，整个跨端变更不提前归档。
+
 行为输入为 [主设计](../../../docs/cash-import-redesign.md) 与 [跨层契约](../../../docs/cash-import-redesign-contracts.md)。既有现金数据在 `cash_transactions`、`cash_transaction_components`，关系为 `transaction_relations`，投影已有局部维护服务；现有 `CashLedgerCommandService` 同时承担旧导入和编辑，临时存储保存文件。现有完整回归必须作为切换证据，不能绕过旧路径留下规则分叉。
 
 ## Goals / Non-Goals
