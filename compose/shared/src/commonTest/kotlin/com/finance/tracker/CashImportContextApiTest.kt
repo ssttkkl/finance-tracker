@@ -6,6 +6,8 @@ import com.finance.tracker.domain.FileSource
 import com.finance.tracker.domain.BoundedFileSource
 import com.finance.tracker.domain.FileReadLimitExceeded
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.io.Buffer
 import kotlinx.io.RawSource
 import kotlinx.io.writeString
@@ -22,6 +24,38 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportContextApiTest {
+    @Test fun savesProgressBeforeReadingOrSendingNextFile() = runTest {
+        val started = CompletableDeferred<Unit>()
+        val saved = CompletableDeferred<Unit>()
+        var requests = 0
+        val client = client { requests++ }
+        val second = ContextFile("two.csv", byteArrayOf(2))
+        val uploading = async {
+            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1))), CashImportUploadInput("b", second)), onSession = {
+                if (requests == 1) { started.complete(Unit); saved.await() }
+            })
+        }
+        started.await()
+        assertEquals(1, requests)
+        assertEquals(0, second.reads)
+        saved.complete(Unit)
+        assertNotNull(uploading.await().session)
+        assertEquals(2, requests)
+        client.close()
+    }
+
+    @Test fun failedProgressSaveStopsBatchWithoutCallingItAFileFailure() = runTest {
+        var requests = 0
+        val client = client { requests++ }
+        val second = ContextFile("two.csv", byteArrayOf(2))
+        assertFailsWith<IllegalStateException> {
+            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1))), CashImportUploadInput("b", second)), onSession = { error("synthetic save failure") })
+        }
+        assertEquals(1, requests)
+        assertEquals(0, second.reads)
+        client.close()
+    }
+
     @Test fun partialSessionRetainsExistingSelectionAndOpaqueIds() {
         val value = apiJson.decodeFromString<CashImportSessionDto>(SESSION)
         assertTrue(value.canPreview)

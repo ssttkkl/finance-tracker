@@ -141,7 +141,9 @@
 - [x] 4.12.2.1.2 将完整回归发现的退休 helper／旧私有异常断言迁到当前精确分摊及安全提交边界，保留全部精度、回滚和重试覆盖。
 - [ ] 4.12.2.2 用失败测试落实共享状态的预览、完整组决定、一次确认、结果核实、分页与失效选择，随后替换旧 ViewModel。
 - [x] 4.12.2.2.1 先实现共享纯状态及失败回归：恢复完整选择、冻结提交、核实四状态、过期分页与详情隔离，不接页面或宣称账户退出补偿已完成。
+- [ ] 4.12.2.2.2 接入任务 ViewModel：先读恢复标识、按令牌执行当前 Repository、持久化成功后再确认、核实／原请求重试及权威未提交后的刷新；以失败流程测试覆盖中断和迟到响应。
 - [ ] 4.12.2.3 实现按用户／工作区隔离的最小恢复标识，不持久保存密码、原文件、账户旧值或财务正文。
+- [x] 4.12.2.3.1 先实现绑定后端／使用者／工作区的严格最小存储和四平台适配，验证实际 Web 异常与逐文件进度保存边界；ViewModel 和页面接入仍由父任务验收。
 - [ ] 4.12.3 依既有 Hallmark 方向实现共享统一列表及一次确认、文件账户准备和状态；删除独立关联步骤及冗余说明。
 - [ ] 4.12.4 接主页当前详情、草稿保存／转正式、正式更新、来源问题及完整关联决定；保存后按稳定流水定位实际结果。
 - [ ] 4.12.5 实现独立账户表单、修订链、未知结果核实及退出一次询问和安全逆序补偿；刷新不伪造原值。
@@ -157,6 +159,11 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.12.2.3.1 最小恢复存储（2026-10-23，HEAD／比较基线 `7fa6e51`）：先新增缺少存储类型的失败测试（4s，`/tmp/ft-import-recovery-red.log`），初版 5 项通过（26s，`/tmp/ft-import-recovery-first.log`）。独立复核发现真实计划编号包含 `.` 而存储拒绝（P1），以及默认 JSON 解码接受重复键（P2）；对应实际新增回归分别 1 failed（5s／4s，`/tmp/ft-import-recovery-plan-format-red.log`、`/tmp/ft-import-recovery-strict-red.log`），修复后 7 项通过（23s，`/tmp/ft-import-recovery-strict-fixed.log`）。按真实 `ip_<43 位 session>.<16 位 token>` 校验并核对会话，自定义字段解码拒绝重复／转义同名、未知字段、引号数字、数字引用及不完整或矛盾指针；损坏值和读取失败不当成不存在。SHA-256 只隔离本机命名空间，不代替权限；不新增依赖。
+- 增加三种操作取消透传；实际 Chrome 存储往返及 SecurityError／QuotaExceededError 注入。首轮完整矩阵 199 Wasm 通过／1 失败（37s，`/tmp/ft-import-recovery-platform-matrix.log`），暴露外国 DOM 异常未稳定安全映射，测试报告读取 JsException stack 时为 NPE；现在在 JS 边界捕获，使用独立 missing／value／error 状态及写入成功布尔值，不读取异常正文。测试始终恢复原方法并只清理合成范围。一次定向命令误给聚合 `wasmJsTest` 传 `--tests`，CLI 配置拒绝，没有执行测试，不计通过；随后使用完整既定矩阵。
+- 上传进度保存先有挂起回调编译红灯（3s，`/tmp/ft-import-upload-persistence-red.log`），再将数据／领域回调改为 `suspend`；测试证明完成保存前不读下一文件、保存失败停止且不伪装为单文件失败。最终在 `compose/` 执行既定五任务矩阵 → BUILD SUCCESSFUL（1m 27s），196 host／200 Chrome Wasm，零失败／跳过，两种 iOS 编译及生产 Web 构建通过，日志 `/tmp/ft-import-recovery-platform-final.log`。Android 明确同步 commit、iOS 检查同步保存结果；Native 实际运行仍后续补验，编译不计运行 QA。保留既有警告及 Ktor hex 弃用提示。
+- Cross-platform Impact Check：三端共享恢复合同、上传回调和各平台本机适配受影响，尚无页面／ViewModel 消费，不增加产品入口、可见文案或布局；功能地图仍 10 项，全部客户端 QA 与用户演示缺口保持。本机存储不改关系数据库，无 PostgreSQL／SQLite schema 变更，不写真实账本。最终 OpenSpec strict／暂存空白检查与独立静态再复核另行通过；回退移除未消费的适配即可，已保存值为带版本的标识。反思：真实服务编号和真实浏览器异常必须进入基础合同测试，合成 Kotlin 异常不能代替外部异常边界。
 
 - 4.12.2.2.1 共享纯状态（2026-10-23，HEAD／比较基线 `55a1b92`；与后端独立运行）：先新增缺少状态类型的失败测试（4s，`/tmp/ft-import-task-state-red.log`），实现后 9 项通过（26s，`/tmp/ft-import-task-state-first.log`）。旧计划修订回退、权威未提交后尚未刷新却可编辑、成功结果仍保留预计项，3 项实际失败（5s，`/tmp/ft-import-task-state-edges-corrected-red.log`）；修复后 12 项通过（22s，`/tmp/ft-import-task-state-second.log`）。测试缺字段草稿仍可确认、明确空值保护、原请求冻结及四态核实，不把待确认当整批阻断。
 - 独立工程／并发复核再报两个 P2：收据后迟到预览数据可重填结果页；关键响应没有发起请求身份，旧会话、旧核实／收据／失败可以覆盖新任务。以修复前状态 API 实际新增回归 3 failed（26s，`/tmp/ft-import-task-state-correlation-red.log`），再添加任务 epoch／递增请求令牌并强制所有接收及结束回调匹配，额外核对会话／修订和收据归属；结果清空可执行计划及全部预计项，仅保留当次文件处理信息。当前 15 项定向通过（25s，`/tmp/ft-import-task-state-correlation-fixed.log`）；静态再复核确认两项 P2 关闭，无新增 P1／P2。复核者未执行测试、数据库或构建；实际 ViewModel、恢复存储、账户补偿和 UI 尚未接入，父任务不关闭。

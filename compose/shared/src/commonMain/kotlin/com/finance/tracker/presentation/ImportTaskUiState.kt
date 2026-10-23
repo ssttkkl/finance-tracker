@@ -6,7 +6,6 @@ import kotlin.random.Random
 enum class ImportTaskPhase { PREPARE, REVIEW, RESULT }
 enum class ImportSubmissionState { IDLE, SAVING, UNKNOWN, CHECKING, RETRY_ORIGINAL, COMPLETE }
 data class ImportTaskRequest(val taskId: Long, val sequence: Long)
-data class ImportFrozenCommand(val planId: String, val revision: Long, val idempotencyKey: String)
 
 data class ImportTaskUiState(
     val taskId: Long = Random.nextLong(),

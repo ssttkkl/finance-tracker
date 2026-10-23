@@ -4,9 +4,9 @@ import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
 class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : CashImportLifecycleRepository {
-    override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: (ImportContext) -> Unit): ImportUploadBatch = guarded {
+    override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch = guarded {
         val inputs = files.map { CashImportUploadInput(it.clientFileRef, it.file, it.password, it.sourceHint, it.sourceScope?.let { scope -> CashImportScopeInput(scope.label) }) }
-        val progress: (CashImportSessionDto) -> Unit = { onContext(it.toDomain()) }
+        val progress: suspend (CashImportSessionDto) -> Unit = { onContext(it.toDomain()) }
         val value = if (context == null) {
             if (replacingFileRef != null) invalidCashInput()
             api.createCashImportSession(inputs, progress)

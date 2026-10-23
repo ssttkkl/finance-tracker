@@ -3,6 +3,7 @@ package com.finance.tracker.domain
 enum class ImportRowDecision { APPLY, KEEP_EXISTING, DEFER }
 enum class ImportPairDecision { ACCEPT, DEFER, IGNORE }
 enum class ImportResultKind { ROW, RELATION }
+data class ImportFrozenCommand(val planId: String, val revision: Long, val idempotencyKey: String)
 
 data class ImportAccountTarget(val accountId: String?, val revision: Long?)
 data class ImportAccountSelection(val sourceAccountRef: String, val target: ImportAccountTarget)
@@ -109,7 +110,7 @@ data class ImportResultPage(val items: List<ImportResultItem>, val nextAfter: St
 data class ImportResolveResult(val status: String, val receipt: ImportReceipt?)
 
 interface CashImportLifecycleRepository {
-    suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: (ImportContext) -> Unit = {}): ImportUploadBatch
+    suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
     suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext

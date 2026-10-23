@@ -38,7 +38,7 @@ data class CashImportUploadBatchResult(
 
 suspend fun FinanceApiClient.createCashImportSession(
     files: List<CashImportUploadInput>,
-    onSession: (CashImportSessionDto) -> Unit = {},
+    onSession: suspend (CashImportSessionDto) -> Unit = {},
 ): CashImportUploadBatchResult = uploadCashImportContext(files, onSession = onSession)
 
 suspend fun FinanceApiClient.addCashImportFiles(
@@ -46,7 +46,7 @@ suspend fun FinanceApiClient.addCashImportFiles(
     files: List<CashImportUploadInput>,
     expectedSessionRevision: Long,
     fileRef: String? = null,
-    onSession: (CashImportSessionDto) -> Unit = {},
+    onSession: suspend (CashImportSessionDto) -> Unit = {},
 ): CashImportUploadBatchResult {
     requireContextRevision(expectedSessionRevision)
     if (fileRef != null && files.size != 1) throw ApiFailure("import_payload_invalid", 0)
@@ -93,7 +93,7 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
     initialSessionId: String? = null,
     initialRevision: Long? = null,
     fileRef: String? = null,
-    onSession: (CashImportSessionDto) -> Unit,
+    onSession: suspend (CashImportSessionDto) -> Unit,
 ): CashImportUploadBatchResult {
     if (files.size !in 1..20 || files.map { it.clientFileRef }.toSet().size != files.size || files.any {
         !it.clientFileRef.matches(Regex("[A-Za-z0-9_-]{1,128}"))
