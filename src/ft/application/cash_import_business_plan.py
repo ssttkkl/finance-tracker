@@ -650,7 +650,7 @@ class CashImportBusinessPlanBuilder:
                 item["candidate_id"] for item in old[identifier]["candidates"]}:
                 raise CashImportPlanError("plan_input_invalid")
         current = {group["suggestion_id"]: group for group in groups}
-        invalidated, touched, sources = [], set(), {}
+        invalidated, touched, sources, explicit = [], set(), {}, set()
         def invalidate(choice):
             identifier = choice["suggestion_id"]
             invalidated.append({"kind": "relation", "reference": identifier, "code": "relation_context_changed"})
@@ -688,12 +688,14 @@ class CashImportBusinessPlanBuilder:
                 elif action == "accept" and any(edge["secondary_transaction_id"] is None for edge in current[identifier]["edges"]):
                     raise CashImportPlanError("plan_input_invalid")
                 current[identifier]["action"] = action
+                explicit.add(identifier)
                 if current[identifier].get("origin") == "current":
                     current[identifier]["changed"] = True
             else:
                 invalidate(choice)
         for group in groups:
-            if group.get("origin") != "current" and any(tuple(sorted(ref.items())) in touched for ref in group["member_refs"]):
+            if (group.get("origin") != "current" and group["suggestion_id"] not in explicit
+                and any(tuple(sorted(ref.items())) in touched for ref in group["member_refs"])):
                 group["action"] = "defer"
         return invalidated, sources, generations
 

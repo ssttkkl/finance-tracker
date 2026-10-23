@@ -169,6 +169,7 @@ def test_binding_changes_invalidate_independent_plan_without_parent_revision(con
 
 
 def test_stable_evidence_already_owned_by_other_active_record_blocks_independent(context_runtime):
+    from ft.application.cash_commit_outcome import CashCommitFailure
     runtime = context_runtime
     identifier, choices = _pending(runtime)
     with runtime.sessions.begin() as session:
@@ -183,8 +184,13 @@ def test_stable_evidence_already_owned_by_other_active_record_blocks_independent
         values.update(transaction_id=1003, identity_key="e" * 64)
         session.add(CashSourceBindingModel(**values))
     assert _records(runtime).read(identifier)["issues"][0]["allowed_resolutions"] == []
-    with pytest.raises(ValueError):
+    before = _records(runtime).read(identifier)
+    bindings = _bindings(runtime, identifier)
+    with pytest.raises(CashCommitFailure, match="^commit_failed$") as failure:
         _commit(service, view)
+    assert failure.value.commit_state == "not_committed"
+    assert _records(runtime).read(identifier) == before
+    assert _bindings(runtime, identifier) == bindings
     assert _read_issue(runtime, choices[0]) is not None
 
 

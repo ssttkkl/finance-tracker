@@ -40,6 +40,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 旧导入结果通过 [迁移 49](../migrations/versions/20261023_49_unify_cash_import_receipts.py) 迁入同一命令收据，保留原归属、键、时间及真实业务计数，原技术正文不保留；有损降级拒绝。原用户可以通过 [安全查询合同](../tests/contract/test_cash_legacy_receipt_api.py) 按特殊旧键读取，日志不暴露键；[双后端迁移合同](../tests/contract/test_cash_legacy_receipt_migration.py) 覆盖碰撞、坏摘要、实际删表后回滚及工作区删除。Web、Native、共享 presentation 未在本步修改，不增加页面或移除客户端迁移与 QA 缺口。
 
+F-05 的 [关系选择重验](../src/ft/application/cash_import_choice_context.py) 在文件变化后仅私有保留最小证明，旧计划仍不可执行；完整恢复输入能保留未受影响的延后／忽略，当前组合法重选能生效，其他失效组继续待确认。非零确认代数保持，旧指纹恢复不能自动重新确认；[恢复合同](../tests/contract/test_cash_import_choice_recovery.py) 覆盖连续文件操作和失败发布。此为共享流程接入前的后端修复，无客户端页面或三端覆盖变化，QA 缺口保持。
+
 F-05 的 [共享确认状态核心](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportTaskUiState.kt) 已实现准备／统一核对／结果、完整决定、冻结请求和四态核实的纯转换；迟到响应按任务和请求隔离，成功后不复用预计列表。该状态仍未接入 ViewModel、恢复存储或页面，不替代旧入口；Web、Android、iOS 的真实用户流程和 QA TODO 不变。
 
 F-05 的 [当前领域合同](../compose/shared/src/commonMain/kotlin/com/finance/tracker/domain/CashImportLifecycle.kt) 及 [Repository 映射](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashImportLifecycleRepositoryImpl.kt) 已承接上述网络能力，完整恢复选择与明确清空，保留结构化未知值、精确金额和安全恢复控制字段。共享状态与页面尚未切换，旧页面仍在；本步不增加页面数，不移除 Web、Native 或演示／QA 缺口。

@@ -242,8 +242,16 @@ def test_legacy_refund_budget_rejects_one_smallest_unit_overflow(draft_runtime):
                 anchor_fact_id=1003, status="accepted", applied_amount=tiny))
 
 
-def test_legacy_import_allocation_readiness_preserves_exact_sum():
-    row = dict(amount="-12345678901234567890.123456789012345678", component_allocation=dict(
-        status="complete", components=[dict(amount="-12345678901234567890.123456789012345677"),
-            dict(amount="-0.000000000000000001")]))
-    assert CashLedgerCommandService._component_allocation_is_relation_ready(row)
+def test_current_posting_allocation_preserves_exact_sum_and_rejects_one_unit_overflow():
+    from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
+    row = dict(amount="-12345678901234567890.123456789012345678", currency="CNY",
+        occurred_at="2026-07-05T00:00:00Z", record_type="consumption", record_subtype="not_applicable",
+        cash_granularity="aggregate", account_id=None, components=[
+            dict(ordinal=0, account_id="101", currency="CNY", amount="-12345678901234567890.123456789012345677"),
+            dict(ordinal=1, account_id="102", currency="CNY", amount="-0.000000000000000001")])
+    with localcontext() as arithmetic:
+        arithmetic.prec = 6
+        validate_cash_record_for_posting(row)
+        row["components"][1]["amount"] = "-0.000000000000000002"
+        with pytest.raises(CashRecordPolicyError, match="component_total_mismatch"):
+            validate_cash_record_for_posting(row)

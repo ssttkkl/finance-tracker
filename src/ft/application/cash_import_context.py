@@ -16,6 +16,7 @@ from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMuta
 from ft.adapters.relational.models import WorkspaceMembershipModel
 from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_errors import ImportSessionNotFound
+from ft.application.cash_import_choice_context import retained_choice_context
 from ft.application.parsed_import_staging import (
     ImportSessionClosed, ImportSessionRevisionConflict, ParsedImportDataError,
     ParsedImportFile, ParsedImportSession,
@@ -258,7 +259,7 @@ class CashImportContextService:
         with self._uow as uow:
             current = self._current(uow, session_id, expected_revision)
             result = self._fit(lambda files: self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, ()), plan=None),
+                expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, ()), plan=None, context_data=retained_choice_context(current)),
                 (*current.files, *added), {file.file_ref for file in added})
             uow.commit()
             return result
@@ -274,7 +275,7 @@ class CashImportContextService:
         with self._uow as uow:
             current = self._current(uow, session_id, expected_revision)
             result = self._fit(lambda files: self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, (file_ref,)), plan=None),
+                expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, (file_ref,)), plan=None, context_data=retained_choice_context(current)),
                 tuple(parsed if file.file_ref == file_ref else file for file in current.files), {parsed.file_ref})
             uow.commit()
             return result
@@ -291,7 +292,7 @@ class CashImportContextService:
             result = self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
                 expected_revision=expected_revision,
                 files=tuple(replace(item, source_scope_label=label) if item.file_ref == file_ref else item for item in current.files),
-                preview_input=self._invalidate_input(current, (file_ref,)), plan=None)
+                preview_input=self._invalidate_input(current, (file_ref,)), plan=None, context_data=retained_choice_context(current))
             uow.commit()
             return result
 
@@ -302,7 +303,7 @@ class CashImportContextService:
                 raise ValueError("import_file_not_found")
             result = self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
                 expected_revision=expected_revision, files=tuple(file for file in current.files if file.file_ref != file_ref),
-                preview_input=self._invalidate_input(current, (file_ref,)), plan=None)
+                preview_input=self._invalidate_input(current, (file_ref,)), plan=None, context_data=retained_choice_context(current))
             uow.commit()
             return result
 

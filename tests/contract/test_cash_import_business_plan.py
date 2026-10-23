@@ -494,3 +494,58 @@ def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kep
         assert len(plan["operations"]) == 4 and len(plan["items"]) == 3
         assert plan["summary"]["relations_accepted"] == 1 and plan["summary"]["relations_failed"] == 1
         assert len([item for item in plan["items"] if item["confirmation_status"] == "pending"]) == 2
+
+
+@pytest.mark.parametrize("action", ["accept", "ignore"])
+@pytest.mark.parametrize("old_first", [True, False])
+def test_explicit_current_group_choice_wins_over_retained_invalidated_choice(draft_runtime, monkeypatch, action, old_first):
+    with draft_runtime.sessions.begin() as session:
+        file = _open_transfer(session, draft_runtime, monkeypatch)
+    with draft_runtime.sessions() as session:
+        first = _build(session, draft_runtime, (file,))
+    original, = first["relation_groups"]
+    stale = {"suggestion_id": original["suggestion_id"], "action": "accept", "candidate_id": original["candidates"][0]["candidate_id"]}
+    with draft_runtime.sessions.begin() as session:
+        session.get(CashTransactionModel, 1001).note = "候选已变化，需要重新确认"
+    with draft_runtime.sessions() as session:
+        changed = _build(session, draft_runtime, (file,), previous=first, relations=[stale])
+        current, = changed["relation_groups"]
+        assert current["action"] == "defer" and current["suggestion_id"] != stale["suggestion_id"]
+        choice = {"suggestion_id": current["suggestion_id"], "action": action, "candidate_id": current["candidates"][0]["candidate_id"]}
+        selected = _build(session, draft_runtime, (file,), previous=changed,
+            relations=[stale, choice] if old_first else [choice, stale])
+        group, = selected["relation_groups"]
+        assert group["action"] == action
+        assert selected["invalidated_choices"]
+        if action == "accept":
+            assert len(selected["items"]) == 1 and selected["items"][0]["confirmation_status"] == "confirmed"
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
+
+
+def test_nonzero_choice_generation_survives_file_invalidation_and_blocks_old_fingerprint_revival(draft_runtime, monkeypatch):
+    from types import SimpleNamespace
+    from ft.application.cash_import_choice_context import CONTEXT_KEY, retained_choice_context
+    with draft_runtime.sessions.begin() as session:
+        file = _open_transfer(session, draft_runtime, monkeypatch)
+    with draft_runtime.sessions() as session:
+        first = _build(session, draft_runtime, (file,))
+    initial = first["relation_groups"][0]
+    choice0 = {"suggestion_id": initial["suggestion_id"], "action": "accept", "candidate_id": initial["candidates"][0]["candidate_id"]}
+    with draft_runtime.sessions() as session:
+        changed = _build(session, draft_runtime, (file,), previous=first, relations=[choice0],
+            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "第一次变化"}}])
+    with draft_runtime.sessions() as session:
+        returned = _build(session, draft_runtime, (file,), previous=changed, relations=[choice0])
+        current = returned["relation_groups"][0]
+        assert current["choice_generation"] == 1 and current["action"] == "defer"
+        choice1 = {"suggestion_id": current["suggestion_id"], "action": "accept", "candidate_id": current["candidates"][0]["candidate_id"]}
+        selected = _build(session, draft_runtime, (file,), previous=returned, relations=[choice1])
+    proof = retained_choice_context(SimpleNamespace(plan=selected, context_data={}))[CONTEXT_KEY]
+    with draft_runtime.sessions() as session:
+        invalidated = _build(session, draft_runtime, (file,), previous=proof, relations=[choice1],
+            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "文件变化后再次变化"}}])
+    with draft_runtime.sessions() as session:
+        final = _build(session, draft_runtime, (file,), previous=invalidated, relations=[choice1])
+        assert final["relation_groups"][0]["action"] == "defer"
+        assert final["relation_groups"][0]["choice_generation"] == 2
+        assert final["relation_groups"][0]["suggestion_id"] != choice1["suggestion_id"]

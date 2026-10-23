@@ -9,6 +9,7 @@ import re
 from secrets import token_urlsafe
 
 from ft.application.cash_import_context import CashImportContextService
+from ft.application.cash_import_choice_context import (CashImportChoiceContextError, previous_choice_context, without_choice_context)
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
@@ -303,7 +304,7 @@ class CashImportPlanService(CashImportContextService):
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
                 additional = {"source_plan": self._prepare_sources(uow, current)} if current.workflow_kind == "retry" else {}
                 result = self._builder(session=uow._state().session, files=deepcopy(current.files),
-                    preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous), plan_id=plan_id, **additional)
+                    preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id, **additional)
                 if (not isinstance(result, dict) or not isinstance(result.get("items"), list)
                     or not isinstance(result.get("summary"), dict) or type(result.get("can_commit")) is not bool):
                     raise CashImportPlanError("plan_build_failed")
@@ -321,9 +322,11 @@ class CashImportPlanService(CashImportContextService):
                 view = self._view(plan)
                 self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
                     expected_revision=current.revision, files=current.files, preview_input=preview_input, plan=plan,
-                    return_session=False)
+                    context_data=without_choice_context(current), return_session=False)
                 uow.commit()
                 return view
+        except CashImportChoiceContextError:
+            raise CashImportPlanError("plan_build_failed") from None
         except (ImportSessionRevisionConflict, ImportSessionClosed):
             raise CashImportPlanError("plan_changed") from None
         except (ImportSessionExpired, ImportSessionNotFound):

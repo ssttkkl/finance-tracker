@@ -162,6 +162,7 @@ def test_merge_unit_failure_restores_all_current_facts(context_runtime, monkeypa
 
 @pytest.mark.parametrize("stage", ["projection", "receipt"])
 def test_merge_publication_failure_rolls_back_everything_and_keeps_plan(context_runtime, monkeypatch, stage):
+    from ft.application.cash_commit_outcome import CashCommitFailure
     from ft.adapters.relational.cash_mutations import CashMutationRepository
     from ft.application.cash_projections import CashProjectionService
     runtime = context_runtime
@@ -176,8 +177,10 @@ def test_merge_publication_failure_rolls_back_everything_and_keeps_plan(context_
         raise RuntimeError("synthetic publication failure after write")
     with monkeypatch.context() as patch:
         patch.setattr(owner, name, failed)
-        with pytest.raises(RuntimeError, match="synthetic publication"):
+        with pytest.raises(CashCommitFailure, match="^commit_failed$") as failure:
             _commit(service, view)
+        assert failure.value.commit_state == "not_committed"
+        assert "synthetic publication" not in str(failure.value)
     assert _business(runtime) == before and _snapshot(runtime) == balance
     assert service.read_plan(view["plan_id"]) == view
     with runtime.sessions() as session:
