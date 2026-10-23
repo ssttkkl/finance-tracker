@@ -4,7 +4,7 @@
 
 Compose Web、Android、iOS 共用 `compose/shared` 中的页面、状态和业务流程。Web、Android、iOS 工程入口分别位于 `compose/webApp`、`compose/androidApp` 和 `compose/iosApp`。旧 `web/src`、`mobile/src` 与 TypeScript shared packages 不属于当前客户端主线。
 
-现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py)、[当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py) 及 [局部上下文校验服务](../src/ft/application/cash_relation_context.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，完整组加载及无写入校验已具备，内部业务计划及联合提交已接入，新公开导入及后续维护 HTTP 已接入，旧公开写入口已关闭，旧收据迁移及客户端消费仍待完成。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。新导入接口已提供，旧导入写入口已移除，原文件暂存不再由运行时构造；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
+现金导入重设计正在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) 中推进。当前已加入字段／草稿约束、来源对应及当前问题、平台与 [银行表格逐行解析](../src/ft/adapters/bank_statement_document.py)、仅解析内容的会话存储及 [后台过期清扫](../src/ft/application/parsed_import_cleanup.py)、命令收据、工作区同步、[逐文件会话服务](../src/ft/application/cash_import_context.py)、[关系角色／提交分组策略](../src/ft/domain/cash_relation_policy.py)、[最终关系图校验](../src/ft/domain/cash_relation_graph.py)、[当前关系与候选存储](../src/ft/adapters/relational/cash_relations.py) 及 [局部上下文校验服务](../src/ft/application/cash_relation_context.py)；关系表使用父锚点、可空组成项和规范候选，旧服务只映射同一结构，完整组加载及无写入校验已具备，内部业务计划及联合提交已接入，新公开导入及后续维护 HTTP 已接入，旧公开写入口已关闭，旧收据已迁入统一结果，客户端消费仍待完成。[账户 CAS 命令](../src/ft/application/account_commands.py) 已通过 [按 ID 的 HTTP 接口](../src/ft/web/account_routes.py) 独立生效，旧按名称写路径已移除。新导入接口已提供，旧导入写入口已移除，原文件暂存不再由运行时构造；下表 F-03／F-04／F-05 的 Web、Android、iOS 仍按既有实现及验证状态记录。草稿维护、统一预览列表、Compose 账户独立操作及相应三端 QA 未完成，不据此增加页面数或移除既有覆盖缺口。
 
 普通流水编辑已接入 [类型变更的局部关系维护](../src/ft/application/cash_relation_type_updates.py)：按既有角色保留或解除确认关系，检查现金—投资的现金端，重建原组全部成员；普通字段与类型更新都会使依赖旧修订的候选失效。没有新增页面或关系入口；正式字段白名单及维护预览已提供新公开合同，Compose 接入和演示仍属上述未完成变更。
 
@@ -34,7 +34,9 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 微信默认来源、文件多账号设置命令及旧来源读取已接入 [后端来源输入](../src/ft/application/cash_import_source_rows.py)；F-05 的文件设置入口仍待 Compose 与新会话 API 切换，不新增独立来源管理页面。[账户建议及映射发布](../src/ft/application/cash_import_account_mappings.py) 按来源范围隔离，只记住实际保存成功且有效的整组选择；单笔改账户不改变以后默认。该后端小步尚未增加新客户端入口，Web、Native 和共享 presentation 的接入及实际 QA 仍待完成。
 
-旧 `CashLedgerCommandService` 导入、原文件会话及原文件暂存实现已退役；当前解析、计划、提交和维护共用独立错误模块。批量预览减少内部副本和空绑定查询，保留输入隔离、完整校验及原固定成本门槛。旧收据表仍待下一步迁移，投资导入及其共享服务保留；这不代表所有历史内部导入类或外部旧对象已清理。三端客户端迁移与 QA 缺口保持。
+旧 `CashLedgerCommandService` 导入、原文件会话及原文件暂存实现已退役；当前解析、计划、提交和维护共用独立错误模块。批量预览减少内部副本和空绑定查询，保留输入隔离、完整校验及原固定成本门槛。旧收据表已移除，安全摘要及原键查询由统一结果承接，投资导入及其共享服务保留；这不代表所有历史内部导入类或外部旧对象已清理。三端客户端迁移与 QA 缺口保持。
+
+旧导入结果通过 [迁移 49](../migrations/versions/20261023_49_unify_cash_import_receipts.py) 迁入同一命令收据，保留原归属、键、时间及真实业务计数，原技术正文不保留；有损降级拒绝。原用户可以通过 [安全查询合同](../tests/contract/test_cash_legacy_receipt_api.py) 按特殊旧键读取，日志不暴露键；[双后端迁移合同](../tests/contract/test_cash_legacy_receipt_migration.py) 覆盖碰撞、坏摘要、实际删表后回滚及工作区删除。Web、Native、共享 presentation 未在本步修改，不增加页面或移除客户端迁移与 QA 缺口。
 
 F-05 的 [新会话 HTTP 入口](../src/ft/web/cash_import_routes.py) 已支持逐文件上传、密码重传、来源设置、移除、取消和安全会话读取；[协议与资源边界](../src/ft/web/cash_import_protocol.py) 不保留原文件，已提交结果优先按收据恢复。[计划及结果 HTTP](../src/ft/web/cash_plan_routes.py) 接入预计列表／详情、完整计划确认、持久收据与结果分页、未知结果核实和失败项重试会话。当前尚未接入 Compose，Web、Android、iOS 仍使用原流程，不据此增加共享页面数或移除三端 QA 缺口。
 
@@ -44,7 +46,7 @@ F-04 的手工新建继续保留，应用边界及 HTTP 只接受公开流水／
 
 独立的 [现金—投资资金关联](../src/ft/application/cash_investment_funding_relations.py) 在扫描和确认时只选择正式现金流水，即使草稿财务字段已完整也不占用投资端点；扫描及决定与删除、流水维护共用工作区同步边界。投资能力及其入口保留，不随旧现金关系流程一起关闭；本步无新增客户端页面或操作，三端覆盖及 QA 缺口不变。
 
-多文件共同来源规划在后端按等价集合合并重叠出现，逐来源行保留结果及不确定性；F-05 的旧公开入口已移除，共享列表及旧收据迁移尚未完成，页面数量及跨端 TODO 保持不变。当前投影维护已接入完整组成项分配证明及旧、新关系闭包，解除关系后原组的其余流水也会更新；相关 [双后端合同](../tests/contract/test_cash_projection_graph_reads.py) 不替代客户端草稿维护和导入验收。
+多文件共同来源规划在后端按等价集合合并重叠出现，逐来源行保留结果及不确定性；F-05 的旧公开入口已移除，共享列表尚未切换，旧收据已迁入统一结果，页面数量及跨端 TODO 保持不变。当前投影维护已接入完整组成项分配证明及旧、新关系闭包，解除关系后原组的其余流水也会更新；相关 [双后端合同](../tests/contract/test_cash_projection_graph_reads.py) 不替代客户端草稿维护和导入验收。
 已解析行的 [资金账户桥接](../src/ft/application/cash_import_funding.py) 准备来源账户组和支付组成项，缺映射／分摊保留已知字段，不创建账户；共享边界校验转正式的同向分摊并完整读取建行附言。[单行来源解释](../src/ft/adapters/cash_statement_evidence.py) 与解析行一起暂存，保留订单、状态及银行退款线索，不使用生成备注或保存跨行配对结果。桥接已供内部业务计划及联合提交使用，F-05 页面仍待切换。
 工行 PDF 迁入解析上下文时保留信用卡行级本方身份与借记卡文件级身份；同次导出的连续页面在后端自动核对，重复页与矛盾页按来源结果处理。当前 F-05 的新 PDF／密码重传入口随统一会话切换验收，不据此标记客户端覆盖完成。
 

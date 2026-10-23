@@ -123,11 +123,11 @@
 - [x] 4.11.4.2.2.1 收紧手工新建的公开字段及组成项输入，由服务端建立明确备注／分类保护；验证私有字段拒绝、原子性及正常新建。
 - [x] 4.11.4.2.2.2 移除旧公开导入、直接现金关系、固定字段和事实删除路由及原文件运行时分发／构造器，迁移旧 HTTP 用例并验证保留能力。
 - [x] 4.11.4.2.3 将独立现金—投资候选扫描及确认重验限制为正式现金流水，验证完整草稿不能占用投资端点及正常正式匹配不回归。
-- [ ] 4.11.4.3 保留旧提交结果的归属、键和真实摘要，迁入统一收据并移除旧表／运行时写入，覆盖双后端升级、碰撞失败及安全回滚。
+- [x] 4.11.4.3 保留旧提交结果的归属、键和真实摘要，迁入统一收据并移除旧表／运行时写入，覆盖双后端升级、碰撞失败及安全回滚。
 - [x] 4.11.4.3.1 清理旧原文件会话／暂存及旧现金导入实现，保留共用错误、当前现金命令与投资；迁移已退出合同的旧测试和性能场景至当前服务。
 - [x] 4.11.4.3.1.1 以万行预览超限失败及独占剖析驱动局部成本修正，保留输入／返回隔离、完整检查、候选语义与原 5 s／256 MiB 门槛，再运行双后端原固定场景。
-- [ ] 4.11.4.3.2 先写旧收据升级、碰撞、坏摘要、原用户特殊键读取和有损降级失败测试，再迁入真实计数／账户计数、移除旧表及模型，补安全查询与日志脱敏。
-- [ ] 4.11.4.3.3 运行双后端升级／回滚／工作区删除及当前收据 API 矩阵、原固定性能预算、构建和独立复核，记录发布与外部旧对象清理条件。
+- [x] 4.11.4.3.2 先写旧收据升级、碰撞、坏摘要、原用户特殊键读取和有损降级失败测试，再迁入真实计数／账户计数、移除旧表及模型，补安全查询与日志脱敏。
+- [x] 4.11.4.3.3 运行双后端升级／回滚／工作区删除及当前收据 API 矩阵、原固定性能预算、构建和独立复核，记录发布与外部旧对象清理条件。
 - [ ] 4.11.4.4 更新 Agent 导入技能和 API 参考，只使用新会话／计划／结果接口，不恢复 CLI，不增加逐条强制确认。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
@@ -140,6 +140,17 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.11.4.3.2 旧收据迁移与查询（2026-10-23，HEAD／比较基线 `06d4c0b`）：迁移 49 将原结果以 `legacy_import` 迁入统一收据，保留 ID、工作区、用户、原键及时间，仅复制实际非负计数及历史账户计数；不伪造状态、逐项结果、当前账户或失败正文，不继承旧文件摘要作为消费键。按 125 项先全量预检，再复制及删旧表；碰撞、坏摘要整次拒绝。移除旧 ORM、运行时必需表及工作区清理引用；有迁入旧结果时在 DDL 前拒绝有损降级，无旧结果时恢复空旧表并保留当前结果。第 40 版保留原结果的测试改为明确在 39→40 验证，再验证升级当前版本，不删除原中间合同。
+- 测试先行：迁移缺失先 5 failed（`/tmp/ft-cash-legacy-receipts-red.log`）；最初 API 夹具未建立真实成员，403 不作为业务失败证据（`/tmp/ft-cash-legacy-receipt-api-red.log`）。修正成员后特殊键读取实际 4 failed（8.07 s，`/tmp/ft-cash-legacy-receipt-api-corrected-red.log`）。首轮组合 34 passed／1 failed，旧收据本人重试误报 404；按设计补为已有 `retry_context_unavailable`（410），他人仍 404。边界新增 10 failed／14 passed（12.41 s，`/tmp/ft-cash-legacy-receipts-boundaries-red.log`），复现中文摘要字节预算不一致及含引号／空格的日志尾部泄露；修复后初步 45 passed（41.75 s，`/tmp/ft-cash-legacy-receipts-second.log`）。所有中间失败保留，不宣称首轮全绿。
+- 独立工程／安全静态复核采纳 P2：旧键可含引号，正则不能用引号猜结束位置。现对独立目标参数整体脱敏，对已拼接文本保守遮蔽该路由后全部后缀，三类格式的九个新增反例先失败再通过；复核确认关闭且无新增 P1／P2。摘要大小与统一仓库使用相同 ASCII JSON 字节计数，账户名另校验 UTF-8，畸形存储 JSON／时间归为安全原因。实际 DROP 完成之后才注入故障，验证表、原结果、新复制结果及版本一起回滚；其他工作区的全局 ID 碰撞也拒绝，同键不同用户则允许。
+- 扩展 SQLite 六文件命令 `PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cash_legacy_receipt_migration.py tests/contract/test_cash_legacy_receipt_api.py tests/contract/test_cash_mutation_receipts.py tests/test_alembic_migration.py tests/test_cash_plan_protocol.py tests/test_user_workspace_access.py -q -k 'not postgres' --tb=short --maxfail=3` → 120 passed、68 deselected（128.91 s，`/tmp/ft-cash-legacy-receipts-sqlite.log`）。之后新增畸形存储安全错误、他人重试和非法 UTF-8 名称由最终矩阵覆盖。
+- 最终命令 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-legacy-receipts-dual.log` 加上述六文件及 `tests/contract/test_account_commands.py tests/contract/test_cash_draft_projection_storage.py tests/contract/test_cash_full_refund_visibility.py tests/contract/test_cash_relation_storage.py tests/contract/test_cash_source_document_storage.py tests/test_relational_runtime.py -q --tb=short --maxfail=3` → 410 passed、无 skip（417.73 s）。专用 `_test` PostgreSQL 与 SQLite 使用相同服务，覆盖旧／新结果、权限、原键精确保留、共享摘要、全量预检、升级降级、实际 DDL 后失败回滚、工作区删除及当前账户／关系／来源／投影存储。唯一警告为既有 Starlette TestClient 的 httpx 废弃提示，不是迁移或 SQL 警告；不在本步引入新依赖。
+- `uv build --out-dir /tmp/ft-cash-legacy-receipts-dist`、19 个改动 Python 文件语法、9 个发布包运行模块逐字一致、旧原文件模块缺席、8 项合同 JSON、OpenSpec strict 和空白检查通过；项目没有配置 Python 静态类型检查器。原固定成本由下述最终版本独占验证，不以功能矩阵替代。
+
+- 最终固定成本 `uv run python /tmp/ft_cash_import_retirement_cost.py > /tmp/ft-cash-legacy-receipts-performance.log 2>&1` → 8 passed、17 deselected（85.69 s）。万笔背景千行新导入预览 SQLite／PostgreSQL 0.901／1.049 s、提交 1.371／4.249 s；重复往返 1.153／3.304 s，真实来源更新往返 2.619／6.014 s，保留实际 1,000 行更新断言。万行预览 4.645／4.927 s，进程 RSS 高水位增量 169.30／63.92 MiB；原 5 s／256 MiB 门槛不变，高水位差值不等价于单操作精确峰值。本固定场景从已解析输入开始，不代表上传或原生 PDF 解析成本。失败千行派生加预览 0.751／0.806 s，提交 1.228／2.950 s；3 次预热、20 次样本的新建／改类型／删除 P95 为 SQLite 4.10／4.82／2.69 ms、PostgreSQL 7.68／14.40／8.83 ms，均保留原 100 ms 门槛。
+- 最终公开成本 `uv run python /tmp/ft_cash_legacy_cutover_cost.py > /tmp/ft-cash-legacy-receipts-http-performance.log 2>&1` → 4 passed（33.07 s）。万笔背景千行实际 HTTP 预览 0.572／0.576 s、提交 1.020／2.785 s，50 项分页 3 预热／20 样本 P95 70.06／83.04 ms；维护 HTTP 读取 2.61／6.36 ms、草稿保存含详情 6.49／17.13 ms、预览至提交 10.90／24.44 ms。原预览 5 s、提交 15 s、分页及维护 100 ms 和内存预算保持。两轮独占期间无其他测试、构建或运行时代码修改，未暂停其他回归；两枚经核对的孤立上报进程均在 `finally` 恢复。
+- 本步产品／范围、工程和最终静态 diff 复核覆盖永久结果保真、公共查询、权限、日志、迁移原子性及回退，P2 已闭环。Cross-platform Impact Check：本步只改后端存储及结果查询合同；Web、Native、共享 presentation 的页面、可见文案及交互均未修改，当前旧客户端仍须统一切换。功能地图保持 10 项及三端迁移／QA 缺口，不宣称已完成浏览器、Native、Hallmark 或用户演示。没有执行真实业务库迁移、部署、备份恢复或外部对象删除。发布前停止旧版本写入及作废旧临时上下文；有旧收据时仅前滚修复，完整库恢复与旧原文件对象清理须按精确目标另获授权。反思：兼容旧键只放宽只读查找，不能借机放宽新命令及重放；事务回滚证据必须在实际 DDL 之后注入失败。
 
 - 4.11.4.3.1 旧内部导入退役及原固定成本接续（2026-10-23，HEAD／比较基线 `1762b7b`）：当前能力缺失先 2 failed（0.38 s，`/tmp/ft-cash-import-retirement-red.log`），再移除原文件会话／暂存模块及 `CashLedgerCommandService` 旧现金导入执行方法，将当前会话、计划、维护和重试共用的错误移到独立模块。只删除已退出合同的旧向导／原文件测试及旧账户草稿／扫描／提交断言；当前解析、账户映射、重复／来源更新、联合写入、投资和现行现金命令由当前合同承接，不保留旧行为或增加 skip。共享 `StatementImportService`／`RelationService` 及独立投资路径仍保留，未声称所有历史内部类已清除；旧收据表及外部旧对象仍待后续处理。
 - 最初扩展 SQLite 因未加 `PYTHONPATH=tests:.:src` 出现 4 个测试辅助模块导入错误，不是业务失败（`/tmp/ft-cash-import-retirement-sqlite.log`）；修正运行环境后 216 passed、28 PostgreSQL cases 明确排除（78.71 s，`/tmp/ft-cash-import-retirement-sqlite-path.log`）。随后 `python3 /tmp/ft_cash_dual.py /tmp/ft-cash-import-retirement-dual.log` 加旧现金管理、账户映射、解析暂存／清扫、当前会话、计划发布、重试、维护恢复及应用组合 13 文件 → 509 passed、无 skip（371.98 s）。该矩阵早于下述性能优化，不将其当作最终优化后的全部证据。

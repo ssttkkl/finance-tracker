@@ -332,7 +332,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 `GET /cash-mutations/receipts/{receipt_id}` 返回摘要，`/rows`、`/relations` 分页返回结果。`GET /cash-mutations/receipts/by-key/{key}` 在当前用户、工作区内查询，路径及键从访问日志中脱敏。返回 `200` 表示已提交；未发现用 `404 receipt_not_found`，**不代表事务肯定没提交**，客户端仍只能重试原请求或继续查询。
 
-旧导入收据以 `operation_kind=legacy_import` 迁入同一结构，保留原 ID、归属、键及时间。`summary` 只保留实际存在的 `new_rows/updated_rows/mapping_saved/skipped_rows`；`legacy_by_account` 保存原历史账户名称与处理计数，不改称新增数、不要求合计等于 `new_rows`，也不按当前账户回填。旧收据没有新计划或消费上下文，无逐项结果及重试正文，不推断缺失状态；原文件名、技术摘要及旧消息不进入永久结果。目标碰撞或坏摘要整次拒绝，存在已迁入旧收据时拒绝无法还原的降级。
+旧导入收据以 `operation_kind=legacy_import` 迁入同一结构，保留原 ID、归属、键及时间。`summary` 只保留实际存在的 `new_rows/updated_rows/mapping_saved/skipped_rows`；`legacy_by_account` 保存原历史账户名称与处理计数，不改称新增数、不要求合计等于 `new_rows`，也不按当前账户回填。旧收据没有新计划或消费上下文，无逐项结果及重试正文，原用户请求派生重试返回 `retry_context_unavailable`（410），归属不符仍返回 404，不推断缺失状态；原文件名、技术摘要及旧消息不进入永久结果。目标碰撞或坏摘要整次拒绝，存在已迁入旧收据时拒绝无法还原的降级。
 
 补充 `GET /cash-mutations/receipts/by-key?key=...`，在当前用户及工作区内按原键精确查询，支持旧键中的斜杠、空格和 Unicode；原路径式查询保留。键及整个查询串从应用访问日志脱敏；反向代理仍需部署配置。兼容读取使用独立有界校验，新写入及重放的严格键规则不变。
 

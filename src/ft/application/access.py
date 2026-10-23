@@ -15,7 +15,6 @@ from ft.adapters.relational.models import (
     AccountModel,
     CashCategoryModel,
     CashCategoryStateModel,
-    CashImportCommitModel,
     CashInvestmentFundingRelationModel,
     CashProjectionDatasetModel,
     CashProjectionMemberModel,
@@ -272,7 +271,6 @@ class AccessService:
         for model in (
             CashCategoryModel,
             CashCategoryStateModel,
-            CashImportCommitModel,
             StatementAccountMappingModel,
             AccountAliasModel,
             SyncCursorModel,

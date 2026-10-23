@@ -1,5 +1,6 @@
 """不可变计划和当前处理结果的公开 HTTP 结构。"""
 import re
+from urllib.parse import parse_qsl
 from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -212,6 +213,7 @@ class MutationReceiptView(Output):
     created_at: str
     status: Literal["completed", "partial", "no_changes", "failed"] | None = None
     summary: dict[str, Count] = Field(default_factory=dict)
+    legacy_by_account: dict[str, Count] = Field(default_factory=dict)
     needs_attention_count: Count | None = None
     pending_item_count: Count | None = None
     projection_version: Count | None = None
@@ -311,6 +313,23 @@ def json_contract(model, *, keyed=False):
         contract["parameters"] = [{"in": "header", "name": "Idempotency-Key", "required": True,
             "schema": {"type": "string", "pattern": r"^[A-Za-z0-9_:.~-]{1,255}$"}}]
     return contract
+
+
+def receipt_key_input(request):
+    raw = request.scope.get("query_string", b"")
+    try:
+        if len(raw) > 4096:
+            raise ValueError
+        query = raw.decode("ascii")
+        if re.search(r"%(?![0-9a-fA-F]{2})", query):
+            raise ValueError
+        pairs = parse_qsl(query, keep_blank_values=True, strict_parsing=True, encoding="utf-8", errors="strict", max_num_fields=2)
+        if len(pairs) != 1 or pairs[0][0] != "key":
+            raise ValueError
+        from ft.adapters.relational.cash_mutations import _lookup_key
+        return _lookup_key(pairs[0][1])
+    except (ValueError, UnicodeError):
+        raise CashImportProtocolError("import_input_invalid") from None
 
 
 def page_contract(*, results=False, processing=False):

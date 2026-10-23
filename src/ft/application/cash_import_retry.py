@@ -172,7 +172,7 @@ class CashImportRetryService(CashImportContextService):
                         raise CashMutationConflict("retry_already_processed", consumed["receipt_id"])
                     return self._read_context(uow, replay["retry_context_id"])
                 receipt = repository.get(self._user_id, receipt_id)
-                if receipt is None or receipt["operation_kind"] != "import":
+                if receipt is None or receipt["operation_kind"] not in {"import", "legacy_import"}:
                     raise CashImportPlanError("receipt_not_found")
                 if not receipt.get("retry_context_id"):
                     raise CashImportPlanError("retry_context_unavailable")

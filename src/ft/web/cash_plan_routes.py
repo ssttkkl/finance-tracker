@@ -19,7 +19,7 @@ from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
 from ft.web.cash_plan_protocol import (
     CashPlanErrorView, ImportCommitInput, ImportPlanView, ImportPreviewInput, ItemPageView,
     MutationReceiptView, MutationResultPageView, PlanItemDetailView, ProcessingPageView,
-    ResolveInput, ResolveView, RetrySessionInput, idempotency_key, json_contract, page_contract, page_input,
+    ResolveInput, ResolveView, RetrySessionInput, idempotency_key, json_contract, page_contract, page_input, receipt_key_input,
 )
 
 
@@ -220,6 +220,16 @@ def cash_plan_router(services):
         return await command(request, RetrySessionInput, derive, keyed=True, write=True)
 
     # 固定 by-key 路由必须先于单个收据路由。
+    @router.get("/cash-mutations/receipts/by-key", response_model=MutationReceiptView,
+        response_model_exclude_unset=True, openapi_extra={"parameters": [{"in": "query", "name": "key", "required": True,
+            "schema": {"type": "string", "minLength": 1, "maxLength": 255}}]})
+    async def receipt_by_query(request: Request):
+        try:
+            key = receipt_key_input(request)
+        except _ERRORS as error:
+            return plan_failure(error)
+        return await invoke(lambda: services.cash_import_commands().receipt_by_key(key))
+
     @router.get("/cash-mutations/receipts/by-key/{key}", response_model=MutationReceiptView,
         response_model_exclude_unset=True)
     async def receipt_by_key(key: str):

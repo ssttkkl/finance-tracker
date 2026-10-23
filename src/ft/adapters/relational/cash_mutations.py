@@ -36,6 +36,17 @@ def _digest(value, *, nullable=False):
     return value
 
 
+def _lookup_key(value):
+    """旧键仅供精确只读查询；新写入及重放继续使用严格字符规则。"""
+    if not isinstance(value, str) or not value.strip() or len(value) > 255:
+        raise ValueError("mutation_reference_invalid")
+    try:
+        value.encode("utf-8")
+    except UnicodeError:
+        raise ValueError("mutation_reference_invalid") from None
+    return value
+
+
 def _account_result(value):
     from ft.domain.accounts import ACCOUNT_TYPES
     expected = {"account_id", "name", "type", "active", "currencies", "account_revision", "deleted"}
@@ -55,7 +66,7 @@ def _summary(value):
     counters = {"needs_attention_count", "pending_item_count", "projection_version", "account_revision"}
     references = {"retry_context_id", "account_id", "retained_transaction_id"}
     reference_lists = {"affected_transaction_ids"}
-    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "retry_context_status", "projection_refs", "account"}
+    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "retry_context_status", "projection_refs", "account", "legacy_by_account"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("mutation_summary_invalid")
     value = deepcopy(value)
@@ -87,6 +98,14 @@ def _summary(value):
         elif key == "summary":
             if not isinstance(item, dict) or any(not isinstance(name, str) or not re.fullmatch("[a-z][a-z0-9_]{0,63}", name) or type(count) is not int or count < 0 for name, count in item.items()):
                 raise ValueError("mutation_summary_invalid")
+        elif key == "legacy_by_account":
+            if not isinstance(item, dict) or any(not isinstance(name, str) or type(count) is not int or count < 0 for name, count in item.items()):
+                raise ValueError("mutation_summary_invalid")
+            try:
+                for name in item:
+                    name.encode("utf-8")
+            except UnicodeError:
+                raise ValueError("mutation_summary_invalid") from None
         elif key == "retry_context_expires_at" and item is not None:
             try:
                 if not isinstance(item, str) or datetime.fromisoformat(item.replace("Z", "+00:00")).tzinfo is None:
@@ -152,6 +171,10 @@ class CashMutationRepository:
 
     def by_key(self, user_id, idempotency_key):
         row = self._session.scalar(self._query(user_id).where(CashMutationReceiptModel.idempotency_key == _text(idempotency_key, 255)))
+        return self._view(row)
+
+    def lookup_key(self, user_id, idempotency_key):
+        row = self._session.scalar(self._query(user_id).where(CashMutationReceiptModel.idempotency_key == _lookup_key(idempotency_key)))
         return self._view(row)
 
     def get(self, user_id, receipt_id):

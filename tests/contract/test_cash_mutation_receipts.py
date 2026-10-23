@@ -255,28 +255,36 @@ def test_sqlite_unfiltered_result_paging_does_not_sort_the_entire_receipt(cash_w
 
 
 def test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade(mutation_runtime):
+    from datetime import datetime, timezone
     from alembic import command
-    from sqlalchemy import text
-    from ft.adapters.relational.models import CashImportCommitModel
+    from sqlalchemy import MetaData, Table, text
     from tests.contract.test_cash_draft_storage import _migration_config
     runtime = mutation_runtime
-    with runtime.sessions.begin() as session:
-        session.add(CashImportCommitModel(id="legacy-receipt", workspace_id=runtime.workspace_id, user_id="fixture-user",
-            idempotency_key="legacy-key", session_digest="legacy-content-digest", result_json={"new_rows": 1}))
     engine = runtime.sessions.kw["bind"]
     with engine.connect() as connection:
         command.downgrade(_migration_config(connection), "20261021_39")
-        assert connection.execute(text("SELECT result_json FROM cash_import_commits WHERE id='legacy-receipt'")).scalar_one() is not None
-        connection.rollback()
-        command.upgrade(_migration_config(connection), "head")
+    with engine.begin() as connection:
+        old = Table("cash_import_commits", MetaData(), autoload_with=connection)
+        connection.execute(old.insert(), {"id": "legacy-receipt", "workspace_id": runtime.workspace_id,
+            "user_id": "fixture-user", "idempotency_key": "legacy-key", "session_digest": "legacy-content-digest",
+            "result_json": {"new_rows": 1}, "created_at": datetime.now(timezone.utc)})
+    with engine.connect() as connection:
+        command.upgrade(_migration_config(connection), "20261021_40")
+        # Revision 40 adds unified receipts while retaining the original result unchanged.
+        old = Table("cash_import_commits", MetaData(), autoload_with=connection)
+        assert connection.execute(select(old.c.result_json)).scalar_one() == {"new_rows": 1}
+        assert connection.scalar(text("SELECT count(*) FROM cash_mutation_receipts")) == 0
     with runtime.sessions.begin() as session:
-        assert session.get(CashImportCommitModel, "legacy-receipt").result_json == {"new_rows": 1}
         receipt = _save(_repo(session, runtime))
     with engine.connect() as connection:
         with pytest.raises(ValueError, match="refusing a lossy"):
             command.downgrade(_migration_config(connection), "20261021_39")
+    with engine.connect() as connection:
+        command.upgrade(_migration_config(connection), "head")
     with runtime.sessions() as session:
-        assert _repo(session, runtime).get("fixture-user", receipt["receipt_id"]) is not None
+        repo = _repo(session, runtime)
+        assert repo.get("fixture-user", receipt["receipt_id"]) == receipt
+        assert repo.get("fixture-user", "legacy-receipt")["summary"] == {"new_rows": 1}
 
 
 def test_database_rejects_result_attached_to_another_workspaces_receipt(mutation_runtime):

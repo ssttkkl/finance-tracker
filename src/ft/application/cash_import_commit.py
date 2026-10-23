@@ -355,7 +355,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
     def receipt_by_key(self, idempotency_key):
         with self._uow as uow:
             self._authorize(uow, write=False)
-            value = CashMutationRepository(uow._state().session, self._workspace_id).by_key(self._user_id, idempotency_key)
+            value = CashMutationRepository(uow._state().session, self._workspace_id).lookup_key(self._user_id, idempotency_key)
             if value is None:
                 raise CashImportPlanError("receipt_not_found")
             return _receipt_view(value)

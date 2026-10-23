@@ -299,7 +299,7 @@ def test_account_revision_migration_refuses_to_drop_used_concurrency_tokens(acco
             command.downgrade(_migration_config(connection), "20261021_40")
         connection.rollback()
         assert connection.scalar(text("SELECT revision FROM accounts WHERE id=101")) == 2
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261021_48"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261023_49"
 
 
 def test_sqlite_account_migration_keeps_deleted_id_high_watermark(cash_web_runtime):

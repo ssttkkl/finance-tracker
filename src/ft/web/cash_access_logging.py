@@ -3,7 +3,8 @@ import logging
 import re
 
 
-_KEY_PATH = re.compile(r"/api/v1/cash-mutations/receipts/by-key/[^\s\"']+")
+# 原键可包含引号，已拼接文本没有可靠的键结束标记，保守遮蔽其后全部内容。
+_KEY_PATH = re.compile(r"/api/v1/cash-mutations/receipts/by-key(?:/|\?).*", re.DOTALL)
 
 
 def _redact(value):
