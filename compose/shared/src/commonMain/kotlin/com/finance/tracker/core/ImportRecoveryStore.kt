@@ -32,20 +32,14 @@ interface ImportRecoveryStorage {
     suspend fun read(key: String): String?
     suspend fun write(key: String, value: String)
     suspend fun remove(key: String)
+    suspend fun keys(prefix: String, limit: Int): List<String> = error("import_recovery_unavailable")
 }
 
 expect fun createPlatformImportRecoveryStorage(): ImportRecoveryStorage
 
 class ScopedImportRecoveryStore(scope: ImportRecoveryScope, private val storage: ImportRecoveryStorage) : ImportRecoveryStore {
     private val mutex = Mutex()
-    private val key: String
-    init {
-        require(scope.apiOrigin.isNotBlank() && scope.apiOrigin.length <= 2048 && scope.principal.isNotBlank() &&
-            scope.principal.length <= 320 && scope.workspaceId.isNotBlank() && scope.workspaceId.length <= 128) { "import_recovery_scope_invalid" }
-        val namespace = listOf(scope.apiOrigin, scope.principal, scope.workspaceId).joinToString("") { "${it.length}:$it" }
-        // 摘要只作本机命名空间，不替代服务端的所有者及权限校验。
-        key = "finance-tracker:cash-import:v1:" + hex(sha256(namespace.encodeToByteArray()))
-    }
+    private val key = importRecoveryNamespace(scope)
 
     override suspend fun load(): ImportRecoveryPointer? = mutex.withLock {
         val text = access { storage.read(key) } ?: return@withLock null
@@ -71,6 +65,14 @@ class ScopedImportRecoveryStore(scope: ImportRecoveryScope, private val storage:
     private suspend fun <T> access(action: suspend () -> T): T = try { action() }
     catch (cancelled: CancellationException) { throw cancelled }
     catch (_: Exception) { throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE) }
+}
+
+internal fun importRecoveryNamespace(scope: ImportRecoveryScope): String {
+    require(scope.apiOrigin.isNotBlank() && scope.apiOrigin.length <= 2048 && scope.principal.isNotBlank() &&
+        scope.principal.length <= 320 && scope.workspaceId.isNotBlank() && scope.workspaceId.length <= 128) { "import_recovery_scope_invalid" }
+    val namespace = listOf(scope.apiOrigin, scope.principal, scope.workspaceId).joinToString("") { "${it.length}:$it" }
+    // 摘要只作本机命名空间，不替代服务端的所有者及权限校验。
+    return "finance-tracker:cash-import:v1:" + hex(sha256(namespace.encodeToByteArray()))
 }
 
 @Serializable(with = StoredImportPointerSerializer::class)

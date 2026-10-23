@@ -8,6 +8,22 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class BrowserImportRecoveryStorageTest {
+    @Test fun accountKeysUseActualBrowserStorageAndEnumerationErrorsStayRecoverable() = runTest {
+        val scope = ImportRecoveryScope("https://account-recovery-qa.test", "synthetic@test", "test-workspace")
+        val store = ScopedImportAccountRecovery(scope, createPlatformImportRecoveryStorage())
+        try {
+            store.add("synthetic-account-key")
+            assertEquals(listOf("synthetic-account-key"), store.keys())
+            for (operation in listOf("key", "length")) {
+                injectEnumerationFailure(operation)
+                try {
+                    assertEquals("account_recovery_unavailable", assertFailsWith<DomainFailure> { store.keys() }.code)
+                } finally { restoreStorageMethod() }
+            }
+            assertEquals(listOf("synthetic-account-key"), store.keys())
+        } finally { restoreStorageMethod(); store.complete("synthetic-account-key") }
+    }
+
     @Test fun actualBrowserStorageRestoresReferencesAndMapsDomExceptions() = runTest {
         val scope = ImportRecoveryScope("https://recovery-qa.test", "synthetic@test", "test-workspace")
         val storage = createPlatformImportRecoveryStorage()
@@ -43,3 +59,12 @@ private fun injectStorageFailure(operation: String): Unit = js("""{
     };
 }""")
 private fun restoreStorageMethod(): Unit = js("""{ if (globalThis.__ftRecoveryStorageRestore) { globalThis.__ftRecoveryStorageRestore(); delete globalThis.__ftRecoveryStorageRestore; } }""")
+
+private fun injectEnumerationFailure(operation: String): Unit = js("""{
+    const original = Object.getOwnPropertyDescriptor(Storage.prototype, operation);
+    globalThis.__ftRecoveryStorageRestore = () => { Object.defineProperty(Storage.prototype, operation, original); };
+    const fail = function() { throw new DOMException('synthetic browser error', 'SecurityError'); };
+    Object.defineProperty(Storage.prototype, operation, operation === 'length'
+        ? { configurable: true, get: fail }
+        : { configurable: true, writable: true, value: fail });
+}""")

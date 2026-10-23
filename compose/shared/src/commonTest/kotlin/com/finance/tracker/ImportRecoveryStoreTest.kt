@@ -126,4 +126,5 @@ internal class RecoveryMemoryStorage : ImportRecoveryStorage {
     override suspend fun read(key: String): String? = values[key]
     override suspend fun write(key: String, value: String) { values[key] = value }
     override suspend fun remove(key: String) { values.remove(key) }
+    override suspend fun keys(prefix: String, limit: Int): List<String> = values.keys.filter { it.startsWith(prefix) }.take(limit)
 }

@@ -148,6 +148,10 @@
 - [ ] 4.12.3 依既有 Hallmark 方向实现共享统一列表及一次确认、文件账户准备和状态；删除独立关联步骤及冗余说明。
 - [ ] 4.12.4 接主页当前详情、草稿保存／转正式、正式更新、来源问题及完整关联决定；保存后按稳定流水定位实际结果。
 - [ ] 4.12.5 实现独立账户表单、修订链、未知结果核实及退出一次询问和安全逆序补偿；刷新不伪造原值。
+- [x] 4.12.5.1 账户命令发送前保存独立有界操作键；实现当前资格读取、原请求恢复及跨刷新只读核实，不混用主导入恢复标识。
+- [ ] 4.12.5.2 以失败测试实现完整内存证据的逆序 CAS 补偿、未知命令暂停相关链、停用后删除及失败真实状态；明确无成功业务写入的 failed 结果仍询问。
+- [x] 4.12.5.2.1 先完成账户执行及逆序补偿 ViewModel、失败回归和独立复核；全局顺序按首次命令固定，页面退出条件仍由父任务验收。
+- [ ] 4.12.5.3 接独立账户表单和统一退出询问，覆盖正常关闭、返回、键盘和浏览器内导航；创建生效后才出现在可选项，不再保存账户草稿。
 - [ ] 4.12.6 移除不再使用的旧客户端协议、映射与四步测试，更新演示及端到端用例；三类窗口、真实 Web／Native、Hallmark audit 和用户演示确认分别验收。
 
 - [ ] 4.13 更新演示场景、语义测试 ID、功能地图及相关说明；Web／Android／iOS 覆盖状态按实际证据填写。
@@ -160,6 +164,14 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.12.5.1／4.12.5.2.1 账户任务基础（2026-10-23，HEAD／比较基线 `94eafce`）：按既有 `$openspec-apply-change` 继续实施，`$openspec-update-change` 回写跨刷新只读核实、独立键寿命及并发超额批读取；`$domain-glossary` 复用“导入期间账户改动／账户修订号／处理收据”，按 `$chinese-documentation` 复核适用中文。没有新增用户决策或领域概念。账户键只含随机键及常量标记，作用域摘要保持主恢复指针原格式，取消主导入不能移除账户键。
+- 恢复存储缺类型先编译失败 4s（`/tmp/ft-import-account-recovery-red.log`），4 项通过 25s（`/tmp/ft-import-account-recovery-green.log`）。独立复核 P2：两个标签在 63 条时并发新增可产生 65 条，旧读取把全部合法键判损坏；新增实际 1 failed／6s（`/tmp/ft-import-account-recovery-overflow-red.log`），改为达到 64 条拒绝新命令、并发超额仍分批读取，不丢弃；补双实例受控交错与 67 条逐批可达回归。Web 新枚举也覆盖真实 `Storage.key`／`length` 的 DOM 异常，四端均安全映射而不泄漏正文。
+- 账户 VM 缺类型编译失败 3s（`/tmp/ft-import-account-vm-red.log`）；首轮 7 项中 1 项失败，fake 当前读取未按启用状态更新删除能力，修正 fake 不放开客户端能力检查。新增深冻结等边界实际 1 failed／5s（`/tmp/ft-import-account-vm-edges-red.log`），递归冻结正文后 12 项 VM 与 5 项恢复存储通过 25s（`/tmp/ft-import-account-vm-edges-green.log`）。已成功写入后当前读取或本机清除失败，只继续收尾，不重发写入、不重复生成补偿证据；跨刷新不恢复丢失的旧值，未知创建不能再次发新创建。
+- 独立工程／业务／并发复核四项 P2 全部采纳：未知原尝试之后的 403 不能证明未提交（实际 1 failed／5s，`/tmp/ft-import-account-vm-review-red.log`）；成功收据之后当前明确 404 应结束核实而不是永久卡住（1 failed／18s，`/tmp/ft-import-account-vm-deleted-red.log`）；全局交错换名须按操作逆序、延迟清键后的旧错误不能污染解绑状态（连同 404 实际 3 failed／5s，`/tmp/ft-import-account-vm-review2-red.log`）。修复严格状态判断、每次等待后的令牌检查及全局步骤，19 项 VM 与 6 项存储通过 21s（`/tmp/ft-import-account-vm-review2-green.log`）。另补不同账户失败隔离、原请求补偿重试、停用后删除失败保持实际停用状态及本机清除失败。
+- 后续独立复核 P2：未知早期操作晚核实不能按收据到达时间重排；同时补满批核实后下一批入口，实际 2 failed／7s（`/tmp/ft-import-account-vm-order-red.log`），首次命令固定顺序及有界补入剩余键后，21 项 VM 与 6 项存储通过 25s（`/tmp/ft-import-account-vm-order-green.log`）。最终定向静态复核原 finding 全关闭，无新增 P1／P2；复核者不运行测试或改文件。首轮平台矩阵因 JVM 专属 `putIfAbsent` 在 Wasm／iOS 不可用，编译失败 28s（`/tmp/ft-import-account-platform-matrix.log`）；替换为共享集合操作，未改变语义。
+- 最终执行 `CHROME_BIN=… ./compose/gradlew -p compose :shared:testAndroidHostTest :shared:wasmJsTest :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosArm64 :webApp:wasmJsBrowserDistribution --offline --no-configuration-cache` → BUILD SUCCESSFUL（3m 45s），253 host／258 Chrome Wasm，零失败／跳过；两种 iOS 编译及生产 Web 构建通过，日志 `/tmp/ft-import-account-platform-final.log`。本步未触及后端，沿用已记录完整 SQLite 与显式 PostgreSQL 合同证据，不将平台编译视作真实客户端 QA。
+- Cross-platform Impact Check：Web／Android／iOS 共享账户编排与各自本机存储受影响，目前没有页面消费或用户可见文案变化；主页数和三端覆盖缺口不变，功能地图已记实。账户表单、一次退出询问、failed 收据退出规则、浏览器内导航、真实 Web／Native QA、Hallmark audit 和用户演示仍开放，不关闭 4.12.5／4.12.5.2／4.12.5.3。无新依赖、后端 schema 或真实账本写入。回退仅移除未消费的编排与账户键枚举，保留主恢复指针；反思：操作发起顺序、确定结果顺序和当前账户资格是三种不同事实，补偿不能混用。
 
 - 4.12.2.2.3 实际结果与任务结束（2026-10-23，HEAD／比较基线 `38b59d4`）：新增结果分页、取消和重新开始缺少 API 的编译红灯 4s（`/tmp/ft-import-task-results-red.log`），实现后 24 项 VM 通过 25s（`/tmp/ft-import-task-results-first.log`）。结果累积实际 outcome，只保留最新版本的当前引用；另一种类分页推进版本也清理已缓存的旧引用，旧版本拒绝。取消／重开明确阻止冻结提交及待取收据，本机清除失败不重置，取消响应丢失后保持锁定。
 - 过期会话无法结束的补充回归实际 1 failed／6s（`/tmp/ft-import-task-cancel-expired-red.log`），按后端取消接口先查永久收据的既定合同，仅匹配明确 410 session_expired／404 session_not_found／409 session_closed 才结束无冻结本机任务；其他错误和不匹配状态不能借此清除。25 项通过 24s（`/tmp/ft-import-task-results-second.log`），再补取消后本机清除失败与非协作迟到结果，27 项通过 5s（`/tmp/ft-import-task-results-edges.log`）。独立工程／并发静态复核无 P1／P2，建议的取消败给其他客户端提交场景及错误码／状态不匹配均已加入最后矩阵：保留恢复标识，刷新后读取确定收据。

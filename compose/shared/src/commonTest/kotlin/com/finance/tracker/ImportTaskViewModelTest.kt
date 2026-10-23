@@ -439,7 +439,7 @@ private class TaskRecovery : ImportRecoveryStore {
     }
 }
 
-private class TaskRepository : CashImportLifecycleRepository {
+internal class TaskRepository : CashImportLifecycleRepository {
     var current = ImportContext(TASK_SESSION, 2, "future", "open", emptyList(), emptyList(), ImportChoiceSet(), null, true, null)
     var contextReads = 0
     var failPreview = false
