@@ -1,3 +1,8 @@
+## RENAMED Requirements
+
+- FROM: `### Requirement: Compose cash import follows the confirmed secondary-page design`
+- TO: `### Requirement: Compose 现金导入使用完整任务页面`
+
 ## MODIFIED Requirements
 
 ### Requirement: 多文件导入选择保持跨端语义一致
@@ -20,6 +25,11 @@ Web、Android、iOS MUST 支持同次最多 20 文件、每份 100 MB、追加�
 - **THEN** 客户端保留各失败文件的安全原因并继续上传合法文件到同一会话，不伪造服务端文件引用；读取有明确上限，原字节不整批缓存或长期保存
 - **AND** 网络、权限或请求结果未知时保留已知会话并先核实，不当作普通文件失败跳过后继续写入
 
+#### Scenario: 普通微信账单无需账号输入
+
+- **WHEN** 用户导入没有本人微信号的普通微信账单
+- **THEN** 使用稳定默认单一来源，不要求补微信号或额外来源标识；多账号时才按需进入文件设置区分
+
 ### Requirement: 多文件导入使用相同的聚合状态和操作顺序
 
 Web、Android、iOS MUST 共享文件账户准备、一个预计流水列表与一次确认的合同，核对流水和关联为列表内子动作。部分完成、仅草稿、无新增、全局回滚和未知提交状态必须可区分；同键重试返回同一结果。不得按渠道或关系拆成多个必经确认。
@@ -34,9 +44,9 @@ Web、Android、iOS MUST 共享文件账户准备、一个预计流水列表与�
 - **WHEN** 服务端分别返回全局回滚或部分成功收据
 - **THEN** 两端分别显示未保存或实际成功，不混为全批失败
 
-### Requirement: Compose cash import follows the confirmed secondary-page design
+### Requirement: Compose 现金导入使用完整任务页面
 
-Compose 导入 MUST 沿用 FinanceTheme、Material 3、共享任务容器和输入方式对应焦点语义。COMPACT 单列全屏，REGULAR/WIDE 使用既有末端全高任务容器，顺序为标题及关闭、文件账户准备、预计流水列表、固定一次确认操作；不保留四步指示器或独立关系列表。详情按需展开，窄屏不横向滚动；账户表单最大 720 dp。浅夜间主题、模态焦点、Escape／系统返回及未完成退出合同跨端一致。
+Compose 导入 MUST 沿用 FinanceTheme、Material 3、现有配色字体及输入方式对应焦点语义；在主内容区提供完整任务页面，COMPACT 单列全屏，REGULAR/WIDE 利用主内容宽度呈现列表，不使用末端侧滑导入面板。区域顺序为标题与离开入口、文件账户准备或统一核对内容、当前主要操作及实际结果；不保留四步指示器或独立关系列表。详情按需展开，窄屏不横向滚动，账户表单最大宽度为 720 dp。浅／深色、键盘返回、系统返回及未完成退出合同跨端一致。
 
 #### Scenario: 三类窗口
 
@@ -46,7 +56,7 @@ Compose 导入 MUST 沿用 FinanceTheme、Material 3、共享任务容器和输�
 #### Scenario: 未确认关系
 
 - **WHEN** 两条正式流水只有待确认关系
-- **THEN** 列表保留两项待确认，确认导入可用，后续主页维护
+- **THEN** 尚未合入的正式流水保持独立，已有确认组不被拆开；当前计划可提交时确认导入可用，已保存的待确认关系以后在主页详情维护
 
 #### Scenario: 关闭任务
 

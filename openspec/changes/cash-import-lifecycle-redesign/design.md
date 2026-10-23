@@ -488,13 +488,9 @@ Agent 使用相同解析会话、完整替换预览和持久结果接口，用�
 
 取消接口先检查永久收据再检查临时会话，因而该命令明确返回 `410 session_expired`、`404 session_not_found` 或 `409 session_closed` 时，可以结束本机无冻结提交的任务；其他状态或读取收据 404 不能作为这个依据。取消响应丢失、存储清除失败均保持锁定，刷新取得当前状态后才能继续；不能因已经发过取消请求就丢弃恢复标识。
 
-### 6. Hallmark 方向及 Cross-platform Impact Check
+### 6. 客户端规划归属
 
-本轮显式调用 `$hallmark`，按仓库 `docs/ui-design-rules.md` 和既有 FinanceTheme、Material 3、token JSON 预检；继承现有视觉系统，不另建 palette 或网页原型。用户任务：准备文件及账户后看一个流水列表、确认导入、主页继续处理。`COMPACT` 单列全屏，`REGULAR/WIDE` 沿既有全高任务容器，信息顺序为文件账户准备、预计列表、固定最终操作。列表按需展开差异与组成流水；状态文字有语义标签，不只靠颜色。
-
-删除冗余：旧四步导航、独立关系清单、强制补齐映射、正常状态大段教学、逐条无编号身份问答及重复退出弹窗。相关文件为 `CashImportScreen.kt`、`CashImportUiState.kt`、`CashImportViewModel.kt`、`ImportWorkflow.kt`、`CashImportApi.kt`、`CashImportDtos.kt`、`CashLedgerScreen.kt`、`CashLedgerDetails.kt`、共享映射与演示；优先原位替换旧状态机，不删除无关页面。文案和可编辑性由共享层承载，Web、Android、iOS 均受影响，不能以共用代码代替客户端运行证据。
-
-预检自评（设计方向，尚无最终 UI）：Philosophy 5、Hierarchy 4、Execution 3、Specificity 5、Restraint 5、Variety 3。后续以实际 Compose 三尺寸审查和 Hallmark audit 为准；本分数不是 QA 通过。账户表单最大 720 px、窄屏无横向滚动，错误／空／提交中／部分完成／未知结果及键盘返回均须实际验收。
+页面方向与实施以 [导入任务](../compose-cash-import-workflow/design.md)、[账本与补处理](../compose-cash-ledger-maintenance/design.md)、[记账与编辑](../compose-cash-entry-editor/design.md) 为准。共享客户端基础及账户恢复机制保留本节合同，页面不在本变更重复实施或验收。后端、客户端基础完成不代表 Compose Web、Android 或 iOS 新流程可用。
 
 ## Risks / Trade-offs
 
@@ -530,8 +526,7 @@ Agent 使用相同解析会话、完整替换预览和持久结果接口，用�
 | `safe-cross-source-refund-replacement` | 新候选自动替换已确认关系及取代链行为 | 确定性结构化证据、最终图合法性和精确退款校验 |
 | `exclude-unallocated-components-from-import-relations` | 分摊未完成全批阻断、CLI 跳过、删除旧逐行 requirement 的 delta 操作 | 未完整组成项不能成为已确认关系端点 |
 | `route-batch-scan-through-import-session` | 密码重试从暂存原文件读取及全部文件就绪前置 | 统一多文件入口、来源结构探测、逐文件识别 |
-| `compose-cash-import-side-sheet` | 四步状态机、未完成退出不得保留独立账户 | 共享响应式任务容器、焦点及返回语义 |
-| `compose-cash-ledger-redesign` | 与旧导入流程、字段可编辑性冲突的部分 | 当前账本布局、详情和用户演示未完成项 |
+| `compose-cash-ledger-redesign` | 客户端编辑及关联规则由新前端 change 承接 | 账本布局、详情容器和原未完成演示 |
 
 关系组隔离采用主设计第 9.1 节的保守分组：按受影响既有组和共享端点归并，不求解最小依赖子集。
 
