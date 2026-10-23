@@ -130,10 +130,11 @@
 - [x] 4.11.4.3.3 运行双后端升级／回滚／工作区删除及当前收据 API 矩阵、原固定性能预算、构建和独立复核，记录发布与外部旧对象清理条件。
 - [x] 4.11.4.4 更新 Agent 导入技能和 API 参考，只使用新会话／计划／结果接口，不恢复 CLI，不增加逐条强制确认。
 - [ ] 4.12 用共享 DTO／ViewModel 测试驱动 Compose 统一列表与一次确认；实现状态标签、按需详情、主页草稿维护及账户独立表单和退出补偿。
-- [ ] 4.12.1 接入当前共享网络合同，以真实响应形状及 Ktor MockEngine 验证 multipart、修订、分页、一次确认和恢复控制字段，不从旧账户列表猜修订。
+- [x] 4.12.1 接入当前共享网络合同，以真实响应形状及 Ktor MockEngine 验证 multipart、修订、分页、一次确认和恢复控制字段，不从旧账户列表猜修订。
 - [x] 4.12.1.1 先接解析会话 DTO、multipart 上传／单文件重传、微信范围修改、移除及取消；验证部分失败继续、密码不在 URL／旧请求头、原始字节及精确修订，暂不改变页面。
 - [x] 4.12.1.1.1 关闭独立复核的两个 P2：本地文件失败独立结果并继续、有界读取且逐文件传输；验证取消、网络中断、实际读取上限和资源关闭，跨平台重验。
-- [ ] 4.12.1.2 接当前计划／详情／结果、核实及失败重试和独立账户命令；验证必填 null、空数组完整替换、字符串 ID、精确金额和安全错误恢复字段。
+- [x] 4.12.1.2 接当前计划／详情／结果、核实及失败重试和独立账户命令；验证必填 null、空数组完整替换、字符串 ID、精确金额和安全错误恢复字段。
+- [x] 4.12.1.2.1 关闭旧收据 Unicode 键的兼容 P2：按码点计数且拒绝未配对代理字符，补不发送错误请求及边界回归。
 - [ ] 4.12.2 用失败状态流测试替换旧四步与账户草稿；统一完整输入、分页、按需详情、失效选择及本地恢复标识。
 - [ ] 4.12.3 依既有 Hallmark 方向实现共享统一列表及一次确认、文件账户准备和状态；删除独立关联步骤及冗余说明。
 - [ ] 4.12.4 接主页当前详情、草稿保存／转正式、正式更新、来源问题及完整关联决定；保存后按稳定流水定位实际结果。
@@ -150,6 +151,13 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.12.1.2 共享计划／结果及账户网络（2026-10-23，HEAD／比较基线 `9d1c1e6`）：新增当前预览／分页／详情、一次确认、统一结果读取、同步核实、失败子集重试，以及独立账户列表／by-id／创建／修改／删除合同。预览必填 null 和三数组由独立序列化器显式发送，账户／候选及字段清空保持 null；金额、账户及结果 ID／after 都不经过浮点。账户列表不猜修订，by-id 读取配置及能力；写命令使用各自调用方提供的键和 CAS，不自动重试、更换键或从失败推断回滚。ApiFailure 仅增加已知 `commit_state`；安全代码及收据 ID 保留，技术消息不进入异常。
+- 测试先行：首次工作目录重复导致新测试未创建，不计业务红灯（`/tmp/ft-compose-import-plan-red.log`）；修正后新模型／方法缺失编译失败（3s，`/tmp/ft-compose-import-plan-corrected-red.log`）。最初 12 项网络合同通过（34s，`/tmp/ft-compose-import-plan-first.log`），补旧收据、网络丢失及畸形 ID 后通过；实际 Python 模型校验发现详情 next_action 不合法、会话缺三个必填 null，修正合成夹具后再次验证。最终 `/tmp/ft-compose-import-plan-wire-validation.log` 记录 6 个响应夹具和 8 个请求形状通过真实 Pydantic 结构，不代表发起真实 HTTP 或账本写入。
+- 独立工程／API／安全复核采纳 P2：UTF-16 长度误拒绝补充平面旧键，编码还可能替换未配对代理字符。新回归实际 1 failed（4s，`/tmp/ft-compose-import-plan-unicode-red.log`），修复为严格配对和码点计数，不修剪或改字符；覆盖 128／255／256 个 emoji、孤立及错误配对代理字符，非法输入不发请求。定向再验通过（24s，`/tmp/ft-compose-import-plan-unicode-fixed.log`）；随后补无 capabilities 的账户命令、删除成功及账户型统一收据，保留旧结果缺失状态／统计为未知。静态再复核确认 P2 及建议已关闭，无新增 P1／P2，复核者没有运行测试、数据库或构建。
+
+- 最终完整客户端命令在 `compose/` 执行 `CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' ./gradlew :shared:testAndroidHostTest :shared:wasmJsTest :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosArm64 :webApp:wasmJsBrowserDistribution --offline --no-configuration-cache` → BUILD SUCCESSFUL（3m 53s），160 host／163 Wasm、零失败／跳过；日志 `/tmp/ft-compose-import-plan-platform-matrix.log`，同时包含两目标 iOS 编译及 Web 生产构建。既有 Material 3 弃用、测试的非空断言及 webpack 动态依赖／产物体积警告保留，不作为编译或合同失败。OpenSpec strict、diff 空白检查通过。
+- Cross-platform Impact Check：新增合同位于共享数据层，Web、Android、iOS 均已编译并运行适用完整单测；没有修改页面、用户可见文案或操作，未将这一步当作共享状态／恢复 UI 已交付。功能地图保留 10 项及三端迁移与 QA TODO；浏览器页面、Native 交互、Hallmark 和用户演示仍待后续。没有新依赖、后端运行时／存储／schema 或真实财务数据写入，本步无需重复双后端成本矩阵。回退可移除尚未接页面的新网络接口；中间后端与旧客户端仍不得独立部署。反思：兼容旧数据时语言的字符串长度和 JSON 数字解析语义也属于公共合同，mock 成功必须与真实服务端模型交叉核对。
 
 - 4.12.1.1 共享会话网络与文件边界（2026-10-23，HEAD／比较基线 `4f5dcf8`）：接入当前会话 DTO、逐文件 multipart、单文件替换、来源范围、移除／取消和安全收据 ID；字符串账户 ID 不转数值，已消费会话允许缺修订／到期信息。以独立进度回调保留当前会话；本地不支持、大小未知、超限或读取异常逐文件保留安全代码并继续，取消传播，HTTP／网络结果未知则停止传输并保留当前会话和剩余引用，不盲目重试。逐个读取并发送，避免整批原始字节同时驻留；无原文件落盘或缓存。
 - 测试先行：首次路径写错、未收集到新测试，不计业务失败；正确测试缺少新 DTO／接口编译失败（`/tmp/ft-compose-import-context-corrected-red.log`）。畸形数字收据 ID 的失败回归后增加字符串校验；独立工程／资源复核采纳两个 P2（本地文件错误阻塞其他文件、整批无界读取），三项实际失败后改为有界端口和顺序传输（`/tmp/ft-compose-import-context-local-isolation-red.log`）。另以非法来源设置、负数读取上限及关闭资源的失败测试修复局部隔离／关闭边界。滚动 CAS 覆盖 `3 → 4 → 5`，读取和发送交替验证无整批预读，密码仅在 multipart 元数据；测试使用合成文件。

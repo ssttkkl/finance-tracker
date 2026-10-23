@@ -40,6 +40,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 旧导入结果通过 [迁移 49](../migrations/versions/20261023_49_unify_cash_import_receipts.py) 迁入同一命令收据，保留原归属、键、时间及真实业务计数，原技术正文不保留；有损降级拒绝。原用户可以通过 [安全查询合同](../tests/contract/test_cash_legacy_receipt_api.py) 按特殊旧键读取，日志不暴露键；[双后端迁移合同](../tests/contract/test_cash_legacy_receipt_migration.py) 覆盖碰撞、坏摘要、实际删表后回滚及工作区删除。Web、Native、共享 presentation 未在本步修改，不增加页面或移除客户端迁移与 QA 缺口。
 
+F-05 已补充 [当前计划与结果网络合同](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashImportPlanApi.kt)，包含统一列表／详情、一次确认、分页、未知结果核实及失败子集重试；[账户网络合同](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/ImportAccountApi.kt) 独立读写并携带当前修订。金额和不透明 ID 原样保留，旧结果按原键读取；这些接口尚未由共享状态和页面消费，不计作新的产品覆盖，三端切换及 QA TODO 保持。
+
 F-05 已补充 [共享会话网络合同](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashImportContextApi.kt) 及三端有界文件读取：本地单文件错误保留原因并继续，文件顺序上传，密码仅随 multipart 发送，按最新修订追加。会话恢复和文件设置使用当前 API；此为尚未接入页面的数据基础，旧页面读取行为保持。Web、Android、iOS 的统一流程、账户补偿和实际客户端 QA 缺口不变，页面总数仍为 10。
 
 F-05 的 [新会话 HTTP 入口](../src/ft/web/cash_import_routes.py) 已支持逐文件上传、密码重传、来源设置、移除、取消和安全会话读取；[协议与资源边界](../src/ft/web/cash_import_protocol.py) 不保留原文件，已提交结果优先按收据恢复。[计划及结果 HTTP](../src/ft/web/cash_plan_routes.py) 接入预计列表／详情、完整计划确认、持久收据与结果分页、未知结果核实和失败项重试会话。当前尚未接入 Compose，Web、Android、iOS 仍使用原流程，不据此增加共享页面数或移除三端 QA 缺口。

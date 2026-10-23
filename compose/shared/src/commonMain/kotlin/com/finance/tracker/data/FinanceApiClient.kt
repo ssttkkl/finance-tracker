@@ -86,7 +86,11 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
         }.getOrNull()
-        throw ApiFailure(code, response.status.value, importToken, receiptId)
+        val commitState = runCatching {
+            ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?.takeIf { it in setOf("unknown", "not_committed") }
+        }.getOrNull()
+        throw ApiFailure(code, response.status.value, importToken, receiptId, commitState)
     }
     if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
         @Suppress("UNCHECKED_CAST")
