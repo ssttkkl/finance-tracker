@@ -1,6 +1,6 @@
-# 现金导入接口、数据与客户端交互参考
+# 现金流水与导入：接口、数据与客户端交互参考
 
-完整阅读从 [现金账单导入流程](cash-import-flow.md) 开始；本文用于查阅精确 HTTP 协议、持久化约束和后续客户端交互。字段开放与来源对应等详细判定见 [业务规则](cash-import-redesign.md)。
+本文是现金流水维护与导入共用的详细参考。连贯讲解分别从 [现金流水的存储、展示与操作](cash-ledger.md) 和 [现金账单导入流程](cash-import-flow.md) 开始；此处查阅精确 HTTP 协议、持久化约束和后续客户端交互。字段开放与来源对应等详细判定见 [业务规则](cash-import-redesign.md)。
 
 ## 1. 交付边界与现状
 
@@ -337,17 +337,25 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 ### 3.5 后续维护与读取
 
+流水对象、投影及各操作的业务范围统一见 [现金流水说明](cash-ledger.md)，本节只列接口和执行约束。当前命令分为直接命令与维护计划，不能把所有写入都理解为同一种幂等／部分成功流程。
+
 | 方法与路径 | 输入与输出 |
 |---|---|
 | `GET /cash-projections?state=posted\|draft\|all&confirmation_status=confirmed\|pending&...` | 主页默认 `state=all`，待确认筛选使用 `confirmation_status=pending`；服务端返回投影及问题摘要，统计仍排除草稿 |
-| `GET /cash-projections/{projection_id}` | 展示结果、成员引用、当前问题；已失效投影返回可重新定位的安全结果 |
+| `GET /cash-projections/{projection_id}` | 当前展示结果、成员引用和问题；不再符合当前可维护条件时返回 `404 projection_not_found`，不返回旧分组或历史重定向 |
 | `GET /cash-records/{transaction_id}` | 详情维护字段、组成项、`row_revision`、`editable_fields`、当前问题和关联；不能被正常列表用来拼接统计 |
 | `GET /cash-records/{transaction_id}/projection` | 当前投影引用；合并／拆分后重新定位用 |
-| `PATCH /cash-records/{transaction_id}/draft` | `expected_revision` 与字段补丁；只保存草稿，即使完整也不转正式；返回详情和问题 |
+| `PATCH /cash-records/{transaction_id}/draft` | `expected_revision` 与字段补丁；只保存草稿，即使完整也不转正式；返回已提交收据及读取时当前详情状态，详情暂不可读不抹去成功事实 |
 | `POST /cash-mutations/plans` | 正式编辑、草稿转正式、当前问题处理或详情内关系维护；返回同类不可变计划 |
 | `GET /cash-mutations/plans/{plan_id}` 及 `/items`、`/items/{preview_item_id}` | 读取维护计划的预计流水结果及详情，权限、游标和到期规则与导入计划一致 |
 | `GET /cash-mutations/edit-contexts/{edit_context_id}/plan` | 重预览响应丢失时读取该上下文的当前计划；已消费返回原收据引用，不重新授权提交 |
 | `POST /cash-mutations/plans/{plan_id}/commit` | `Idempotency-Key`；统一字段约束及局部提交；返回 `MutationReceipt` 和最新定位 |
+| `GET /cash-records` | 活动父流水的辅助搜索，非主页投影列表，不授权任意新关系写入；支持搜索、日期及游标，最多每页 20 条 |
+| `POST /cash-records` | 手工新建正式流水的直接命令；公开字段见第 3.1 节，不创建维护计划，不承诺维护收据的重放语义 |
+| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_version/category_id`；批量另带明确 `projection_ids`，整项全部成员分类原子更新，清空同样建立人工保护 |
+| `DELETE /cash-records/{transaction_id}` | `mode=delete_current_dissolve`（默认）或 `delete_all`；前者只删当前，后者删已确认连通组；直接命令，当前不要求行修订或幂等键 |
+| `POST /cash-projections/delete-impact` | `projection_ids/projection_version`；只读返回展示项、成员及关联影响计数 |
+| `DELETE /cash-projections` | 同一投影选择和发布版本，`confirmed=true`；原子删除所选投影全部成员，失效选择拒绝，不删除未选的受影响重建组 |
 
 草稿补丁请求也使用幂等键与并发修订，避免响应丢失后误报冲突。`state` 不属于补丁字段，用户不能直接改为 `posted`。正式编辑补丁只能包含主设计白名单；固定字段实际变化拒绝该操作，原记录不动。
 
@@ -396,7 +404,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护计划的 `summary` 仅含非负、非布尔整数计数：`update_posted`、`finalize_draft`、`update_draft`、`resolve_issue`、`merge_draft`、`create_independent`、`duplicate`、`skip`、`relations_accepted`、`relations_deferred`、`relations_ignored`、`relations_removed`、`relations_failed`；不含错误文本或流水正文。未知键或错误类型在发布前拒绝，不能替换原计划。
 
-`maintain_relations` 从相关 `transaction_id` 出发提交当前建议或关系引用以及 `accept/defer/ignore/remove`；类型变化造成的系统解除由服务端计算，不作为客户端任意删除集合。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回新的关联解除或用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
+`maintain_relations` 从相关 `transaction_id` 出发，仅根据已保存关系及候选生成当前组，提交 `accept/defer/ignore/remove` 等服务端允许动作；不重新发现新候选，也不接收任意搜索两条流水后构造的新关系。类型变化造成的系统解除由服务端计算，不作为客户端任意删除集合。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回新的关联解除或用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
 
 当前关联同样先从计划取得完整 `suggestion_id` 和候选，再用完整输入重预览；不接受客户端构造的边或残缺成员集合。初次预览及未选择组保持各成员原状态，不算新确认或新延后，不刷新候选证明。当前组包含以前停用的成员供并发核对，维护不能自动复活它们；解除只停用仍活动的成员。已有候选按原证明修订、证据、端点当前状态及完整最终图校验，失效选择要求刷新，不改选其他对侧；多个关系必须共同生效时，每个 `candidate_id` 表示完整合法组合。没有组成项的草稿可继续延后、忽略或解除，仍不能确认合并。保存继续保留原关系 ID、锚点及决定组，成功后读取双方最新展示。
 
@@ -804,4 +812,4 @@ erDiagram
 - 提交未知时保留原请求并核实；结果展示真实收据，与预计列表分开。
 - Compose Web、Android、iOS 的正常、空、错误、加载及禁用状态；390／768／1440 px、键盘焦点、返回／Escape、真实浏览器及适用设备 QA、Hallmark audit 和用户演示。
 
-本次文档清理不实施 UI，不把已具备的共享基础或后端验收计作客户端完成。
+以上是后续 UI 验收范围，已具备的共享基础和后端验收不计作客户端完成。

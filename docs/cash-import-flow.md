@@ -6,6 +6,8 @@
 
 本文是现金导入的主阅读入口：先读第 1–5 节和例子了解业务，再读第 6–8 节理解后端执行、数据及一致性机制。字段边界和特殊场景查 [业务规则](cash-import-redesign.md)，请求、响应及表结构见 [接口与数据契约](cash-import-redesign-contracts.md)，实施和验证证据见 [OpenSpec 变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。
 
+入库后的流水模型、列表及统计、详情编辑、分类和删除，统一从 [现金流水：存储、展示与操作](cash-ledger.md) 阅读。本文中的后续补处理只解释导入与账本维护的衔接。
+
 | 阅读目标 | 入口 |
 |---|---|
 | 理解业务全过程 | [整体流程](#整体流程)、第 1–5 节、[完整例子](#一个例子) |

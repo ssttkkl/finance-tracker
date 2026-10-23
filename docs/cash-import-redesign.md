@@ -1,6 +1,6 @@
-# 现金导入业务规则与设计取舍
+# 现金流水与导入业务规则
 
-本文是详细业务规则参考，按字段、状态、来源对应及关系维护查阅。完整阅读从 [现金账单导入流程](cash-import-flow.md) 开始；接口、表结构和后续客户端交互查 [契约参考](cash-import-redesign-contracts.md)。当前后端已实现，UI 尚待接入，交付及验证状态统一见 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。
+本文是现金流水维护与账单导入共用的详细规则参考，字段、状态及关系维护规则不因入口不同而改变。连贯说明分别见 [现金流水的存储、展示与操作](cash-ledger.md) 和 [现金账单导入流程](cash-import-flow.md)；接口、表结构和后续客户端交互查 [契约参考](cash-import-redesign-contracts.md)。当前后端已实现，新 UI 尚待接入，交付及验证状态统一见 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。
 
 ## 1. 设计结论与范围
 

@@ -73,10 +73,11 @@ Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-
 |---|---|---|
 | 登录、注册、workspace、成员 | `/api/v1/auth/*` | Compose Multiplatform |
 | 账户管理 | `POST /api/v1/accounts`、`/api/v1/accounts/by-id/{account_id}`；写请求携带幂等键和所需修订 | Compose 查询已接入，独立编辑及导入退出补偿待接入 |
-| 收支浏览与证据 | `/api/v1/cash-projections`、`/api/v1/evidence/*` | Compose Multiplatform |
-| 手工流水、余额校准、转账 | `/api/v1/cashflow/*` 或 `/api/v1/cash-records` | Compose Multiplatform |
-| 账单扫描、映射、预览、确认 | `/api/v1/cash-import/*` | Compose Multiplatform |
-| 关系审查与事实删除 | `/api/v1/relations/*`、`/api/v1/cash-facts/*` | Compose Multiplatform |
+| 收支浏览、详情与证据 | `/api/v1/cash-projections`、`/api/v1/cash-records/{transaction_id}`、`/api/v1/evidence/*` | 既有列表基础保留，正式／草稿及新维护合同待接入 |
+| 手工流水、余额校准、转账 | `/api/v1/cashflow/*` 或 `POST /api/v1/cash-records` | 既有入口保留，不等同于新维护计划 |
+| 现金账单解析、统一预览和确认 | `/api/v1/cash-import/*` | 后端已完成，统一客户端流程待接入 |
+| 正式编辑、草稿补全与当前关联维护 | `/api/v1/cash-mutations/*`、`PATCH /api/v1/cash-records/{transaction_id}/draft` | 后端已完成，新详情与维护操作待接入 |
+| 分类与删除 | `/api/v1/cash-projections/*` 分类／删除命令、`DELETE /api/v1/cash-records/{transaction_id}` | 既有入口须按当前版本及目标范围合同验收 |
 | 投资查询与事件 | `/api/v1/investment-events`、`/api/v1/investment-portfolio` | Compose Multiplatform |
 | 报表与查询 | `/api/v1/queries/*`、`/api/v1/reports/*` | Compose Multiplatform |
 | 同步、投影运维 | `/api/v1/operations/*` | 仅管理员后端操作 |
@@ -90,15 +91,15 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
   -d '{"amount":"-12.50","counterparty":"Coffee","account":"Wallet","currency":"CNY"}'
 ```
 
-`viewer` 只能读取；所有写入仍经现有 Application Service 和 Unit of Work。手工写入首期 online-first，网络超时显示未确认，不自动重试；导入确认使用 `Idempotency-Key`。
+`viewer` 只能读取；所有写入经适用的应用服务和事务边界。手工新建及部分专用操作没有统一收据重放合同，网络超时不自动重试；导入确认、维护计划和草稿保存使用各自的 `Idempotency-Key` 与结果恢复合同。
 
 ## 账单导入
 
-Compose Web、Android、iOS 使用同一个导入流程：选择文件 → 识别/扫描 → 账户映射 → 预览 → 关系审查 → 确认。现金账单由账单字段和工作区映射路由；投资账单在确认时选择 `security` 或 `crypto` 账户。`convert` 不再是独立用户步骤，预览直接留在导入会话中。
+现金导入的目标流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。解析会话、不可变计划、持久收据和无文件维护后端已实现，Compose Web、Android、iOS 尚待接入新合同；旧四步页面不能代表当前链路可用。流程从 [现金账单导入](docs/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import-flow.md)。
 
 支持的来源包括：`alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit`、`icbc-asia`、`dfzq`、`ibkr`、`schwab`、`usmart-hk` / `usmart_hk`。交易所和 Polymarket 使用受控后端同步，不由客户端接触密钥。
 
-导入幂等权威为 `source_type` × `record_id`；重复行不会重复发布。原始来源保留在行内 `source_payload`，关系和映射由服务端最终校验。
+现金来源对应按工作区、来源范围、可靠业务编号或已验证的出现次数核对，不单靠文件摘要或可变内容散列。`source_payload` 保存当前单条来源内容；原文件和密码不留存，流水与配对决定在最终确认时一起保存，账户命令独立立即生效。
 
 ## 安全与权限
 
@@ -143,6 +144,7 @@ PYTHONPATH=tests:.:src uv run pytest
 | [Compose 功能地图](docs/feature-map.md) | Compose 页面、实现证据与当前覆盖缺口 |
 | [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
 | [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
+| [现金流水：存储、展示与操作](docs/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
 | [现金账单导入](docs/cash-import-flow.md) | 从业务到后端执行、接口与数据、一致性机制的主阅读入口；内含详细参考导航 |
 | [UI 设计约束](docs/ui-design-rules.md) | Compose UI 实现与审查约定 |
 | [OpenSpec](openspec/) | 行为规格、active changes 与归档 |
