@@ -19,12 +19,21 @@
 | [项目说明](../README.md) | 环境准备、后端、Compose 客户端、API 与开发验证 |
 | [Compose 功能地图](feature-map.md) | Compose 页面、实现证据与当前 QA 覆盖 |
 | [导入、关系与同步流程](import-flow.md) | 当前主要导入和数据提交流程 |
-| [现金账单导入流程](cash-import-flow.md) | 重构后从文件准备、统一核对到结果和后续补处理的完整说明，含流程图与例子 |
-| [现金导入业务规则](cash-import-redesign.md) | 字段更新、来源对应、草稿、联合确认及局部维护；保留设计取舍，不重复实施日志 |
-| [现金导入用户流程、接口与数据契约](cash-import-redesign-contracts.md) | 已实现后端的接口及持久化参考，以及待实现的统一列表和账户退出合同 |
-| [现金导入临时存储配置](cash-import-r2-staging.md) | R2 与内存暂存后端的配置和边界 |
+| [现金账单导入流程](cash-import-flow.md) | 现金导入主阅读入口：业务、后端执行、接口与数据衔接、局部重建及失败恢复 |
 | [UI 设计约束](ui-design-rules.md) | Compose UI 实现与审查规则 |
 | [设计系统组件登记](design-system/registry.yaml) | 当前共享展示辅助项 |
+
+## 现金账单导入阅读顺序
+
+先完整阅读 [现金账单导入流程](cash-import-flow.md)。业务部分解释用户的一次导入与后续补处理，技术部分解释后端如何承载这些规则；两部分在同一条链路中衔接。需要精确规则或参数时，再查以下参考。
+
+| 参考文档 | 只在这里维护的细节 |
+|---|---|
+| [业务规则与设计取舍](cash-import-redesign.md) | 字段白名单、流水与关系状态、来源身份和无编号匹配、维护规则、账单样本依据 |
+| [接口、数据与客户端交互参考](cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
+| [临时存储运行配置](cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
+
+详细参考不另写一套完整流程；实施计划、审查和测试日志仍保留在对应 OpenSpec 变更中。后续 UI 合同不是当前客户端完成状态，入口覆盖以 [功能地图](feature-map.md) 为准。
 
 ## OpenSpec
 
