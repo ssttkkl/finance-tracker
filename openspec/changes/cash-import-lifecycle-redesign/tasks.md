@@ -167,10 +167,10 @@
 - [x] 4.14.4 构建：合并人工冲突、选择确认、解除继承；手工财务及手工转账双端原子修改；公开 API 及安全错误。
 - [x] 4.14.5 审查：独立复核权限、财务一致性、工作区、CAS／幂等、保存点和迁移；P1/P2 已清零，文档事实复核无阻断问题。
 - [x] 4.14.6 验证：完整 SQLite 回归、显式专用 PostgreSQL 合同、编译／构建、千行及普通维护性能、OpenSpec strict／doctor 及 diff 检查完成；万行预览按用户确认移至 4.15，不计为通过。
-- [ ] 4.14.7 交付：文档修订与链接核对完成；按授权提交推送 `average-snail`，不操作真实库或部署。
+- [x] 4.14.7 交付：文档修订与链接核对完成；实现提交 `4606cd2` 已按授权推送 `origin/average-snail`，不操作真实库或部署。
 - [x] 4.14.8 反思：人工公共值与来源值分别断言；配对夹具显式构造导入事实；差量维护同时保护稳定对象及派生行身份，成功后清除旧失败状态。性能验证排除已核实的无关 CPU 竞争，原预算与未达标项保留。
 
-验证起点 `HEAD=249cc63`，功能比较基线 `5e6041b`，执行日期 2026-10-23；测试针对下表所述实现工作树。用户确认本次交付功能、性能独立处理。Cross-platform Impact Check：Web、Native 页面及共享 presentation 未修改；后端增加 `edit_entry`、公共值与继承合同，F-04／F-05 的三端接入继续登记为缺口。浏览器、Hallmark 和设备 QA 不适用于本次后端实施，不能据此宣称 UI 完成；整个混合变更不提前归档。
+交付实现 `HEAD=4606cd2`，完整回归起点 `249cc63`，功能比较基线 `5e6041b`，执行日期 2026-10-23；完整验证工作树与交付 Python 源文件逐字一致。用户确认本次交付功能、性能独立处理。Cross-platform Impact Check：Web、Native 页面及共享 presentation 未修改；后端增加 `edit_entry`、公共值与继承合同，F-04／F-05 的三端接入继续登记为缺口。浏览器、Hallmark 和设备 QA 不适用于本次后端实施，不能据此宣称 UI 完成；整个混合变更不提前归档。
 
 独立工程／财务／安全复核覆盖来源隔离、创建方式准入、对象 CAS、局部差量、迁移、必要关系组和手工转账保存点。已处理 P1：人工公共补丁误写来源、手工转账孤立单端财务旁路；已处理 P2：对象删除残留、根身份更新、预览与提交公共值不一致、公共决定冲突、同对象重复 CAS、来源修订误推进、重试证明及选择恢复遗漏、工作区删除的分类外键阻断；已处理 P3：原位更新未清旧失败状态。当前无未处理阻断 finding。退役的 `CashLedgerCommandService.update_record` 无生产调用且不在公开服务白名单，私有旧路径清理不在当前范围。
 
@@ -178,6 +178,7 @@
 
 | 当前检查 | 实际命令与结果 |
 |---|---|
+| 交付提交复验 | `HEAD=4606cd2` 显式配置同一专用 PostgreSQL，`PYTHONPATH=tests:tests/contract uv run pytest tests/contract/test_cash_entry_editing.py -q -k 'imported_type_is_fixed or public_edits_do_not_rewrite_sources or manual_transfer_finances_change_both_sides_atomically' --disable-warnings --tb=short` → 10 passed、48 deselected、无 skip（16.06 s），日志 `/tmp/ft-entry-postcommit-smoke.log`；文档测试 5 passed，OpenSpec strict、编译与 diff 检查通过 |
 | 核心与迁移双后端 | 显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_entry_test@127.0.0.1:55439/ft_cash_entry_test`，`PYTHONPATH=tests:tests/contract uv run pytest tests/contract/test_cash_entry_editing.py tests/contract/test_cash_entry_migration.py tests/contract/test_cash_mutation_commit.py tests/test_cash_import_choice_context.py tests/test_cash_maintenance_protocol.py -q --disable-warnings --tb=short --maxfail=10` → 119 passed、无 skip（159.09 s）；`/tmp/ft-entry-dual-final.log` |
 | 来源维护及清理双后端 | `uv run python /tmp/ft-entry-isolated-cost.py tests/contract/test_cash_source_issue_resolution.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_manual_classification.py tests/contract/test_cash_legacy_receipt_migration.py -q --disable-warnings --tb=short --maxfail=3`，脚本显式设置同一专用库 → 240 passed、无 skip（143.40 s）；`/tmp/ft-entry-dual-maintenance-green.log` |
 | 历史 schema 边界双后端 | 同一脚本运行 `tests/contract/test_cash_source_issue_resolution.py tests/contract/test_cash_projection_ownership.py tests/contract/test_cash_relation_storage.py -q -k 'source_type_conflict_cannot or ownership_migration or relation_migration_preserves' --disable-warnings --tb=short` → 26 passed、166 deselected、无 skip（15.86 s）；`/tmp/ft-entry-dual-boundaries-final.log` |
