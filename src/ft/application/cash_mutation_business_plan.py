@@ -15,13 +15,18 @@ from ft.domain.cash_record_policy import CashRecordPolicyError
 class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
     def __call__(self, *, session, preview_input, previous_plan, current_record=None):
         intent = preview_input["intent"]
-        if intent not in {"edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}:
+        if intent not in {"edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}:
             raise CashRecordMaintenanceError("plan_input_invalid")
         planner = CashRecordOperationPlanner(session, self.workspace_id)
         row = planner.record(_identifier(preview_input["transaction_id"]), current_record=current_record)
         current_records = {str(row.id): row}
         patch = preview_input["patch"]
-        if intent == "edit_record" and row.state != "posted":
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entry = CashEntryRepository(session, self.workspace_id).current(row.id)
+        if intent == "edit_entry" and (entry is None or entry.id != preview_input["entry_id"]
+            or entry.revision != preview_input["expected_entry_revision"]):
+            raise CashRecordPolicyError("entry_changed", ())
+        if intent in {"edit_entry", "edit_record"} and row.state != "posted":
             raise CashRecordMaintenanceError("posted_required")
         resolutions = preview_input.get("issue_resolutions", [])
         merging = any(choice["resolution"] == "merge_into" for choice in resolutions)
@@ -46,21 +51,25 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else
                 planner.prepare_draft(row, patch) if intent == "maintain_relations" and row.state == "draft" else planner.prepare_edit(row, patch))
         operations = [operation]
-        category_origin = operation.get("merge_draft", {}).get("category_origin")
-        category_members = self._category_members(session, row.id) if "category_id" in patch or category_origin else []
-        category_value = operation["values"]["category_id"]
-        for identifier in category_members:
-            if identifier != str(row.id):
-                member = planner.record(int(identifier))
-                current_records[identifier] = member
-                protected = bool((member.manual_overrides or {}).get("category_id"))
-                if "category_id" not in patch and protected:
-                    if category_origin == "human" and member.category_id != category_value:
-                        raise CashRecordPolicyError("source_resolution_conflict", ("category_id",))
-                    continue
-                operations.append(planner._prepare(member, {}, source_patch={"category_id": category_value})
-                    if "category_id" not in patch and category_origin == "source"
-                    else planner.prepare_edit(member, {"category_id": category_value}))
+        transfer_relations = []
+        member_patches = preview_input.get("member_patches", [])
+        if member_patches:
+            from ft.adapters.relational.models import CashEntryMemberModel
+            member_ids = set(session.scalars(select(CashEntryMemberModel.transaction_id).where(
+                CashEntryMemberModel.workspace_id == self.workspace_id, CashEntryMemberModel.entry_id == entry.id)))
+            if (row.record_origin != "manual_transfer" or len(member_ids) != 2
+                or len(member_patches) != 2 or {_identifier(item["transaction_id"]) for item in member_patches} != member_ids):
+                raise CashRecordPolicyError("field_not_editable", ())
+            from ft.application.cash_manual_transfer_edit import prepare_transfer_members
+            members, member_operations, relation_update = prepare_transfer_members(planner, row, member_patches)
+            transfer_relations.append(relation_update)
+            for member, extra in zip(members, member_operations):
+                if member.id == row.id:
+                    operation.update({key: value for key, value in extra.items() if key != "entry_edit"})
+                else:
+                    operations.append(extra)
+                    current_records[str(member.id)] = member
+        category_members = []
         scopes = self._source_scopes(session, {int(identifier) for identifier in current_records})
         for index, operation in enumerate(operations, 1):
             identifier, source = operation["transaction_id"], operation["values"]["source_type"]
@@ -72,22 +81,36 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         rows = [{"transaction_id": op["transaction_id"], "operation_ref": op["operation_ref"],
             "planned_action": op["planned_action"]} for op in operations]
         expected_count = len(operations)
+        def transform(snapshot, prepared):
+            if merging:
+                CashDraftMergePlanner.overlay(snapshot, prepared)
+            if transfer_relations:
+                from ft.application.cash_manual_transfer_edit import overlay_transfer
+                overlay_transfer(snapshot, transfer_relations)
         result = self.build_operations(session=session, operations=operations, rows=rows,
             relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True,
             current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes),
             additional_seed_ids=additional_seeds, decision_group_ids=decision_groups,
-            snapshot_transform=CashDraftMergePlanner.overlay if merging else None, current_relation_builder=current_relations)
+            snapshot_transform=transform if merging or transfer_relations else None, current_relation_builder=current_relations)
+        from ft.domain.cash_record_policy import COMMON_CASH_FIELDS
+        for group in result["relation_groups"]:
+            if group["action"] == "remove" and "inherit_common_fields" not in group:
+                for identifier in group.get("old_parent_ids", group["parent_ids"]):
+                    original_entry = CashEntryRepository(session, self.workspace_id).current(int(identifier))
+                    if original_entry and original_entry.manual_fields:
+                        raise CashRecordPolicyError("inheritance_required", ())
         if len(operations) != expected_count:
             # 一次维护意图不能只保存整笔分类的一部分。
             raise CashRecordPolicyError("relation_endpoint_incompatible", ("record_type", "record_subtype"))
         for detail in result["item_details"].values():
             for member in detail["members"]:
-                member["editable_fields"] = [field for field in member["editable_fields"] if field != "account_name"]
+                member["editable_fields"] = [] if len(detail["members"]) > 1 else [field for field in member["editable_fields"] if field != "account_name"]
                 member["allowed_actions"] = ["edit_record"] if member["transaction_id"] not in {
                     op["transaction_id"] for op in operations if op["current"]["state"] == "draft"} else ["save_draft", "finalize_draft"]
                 if merging and member["transaction_id"] == str(row.id) and row.state == "draft":
                     member["allowed_actions"] = ["save_draft"]
         result.update(can_commit=bool(operations), category_member_ids=category_members,
+            manual_transfer_relations=transfer_relations,
             mutation_units=[[op["operation_ref"] for op in operations]])
         result["summary"]["relations_removed"] = result["summary"].get("relations_removed", 0) + len(result["type_effects"]["removed_relation_ids"]) + len(result["type_effects"]["removed_funding_ids"])
         resolved_count = sum(len(op.get("resolved_issue_ids", [])) for op in operations)

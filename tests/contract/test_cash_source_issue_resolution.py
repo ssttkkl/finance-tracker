@@ -71,10 +71,12 @@ def test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content
 def test_source_adoption_is_read_only_until_commit_and_preserves_manual_note(context_runtime, protected, explicit, expected):
     runtime, identifier = context_runtime, _posted(context_runtime)
     with runtime.sessions.begin() as session:
+        from ft.adapters.relational.cash_entries import CashEntryRepository
         row = session.get(CashTransactionModel, int(identifier))
-        row.manual_overrides = {"note": True} if protected is not None else {}
         if protected is not None:
-            row.note = protected
+            entries = CashEntryRepository(session, runtime.workspace_id)
+            entry = entries.current(identifier)
+            entries.patch(identifier, {'note': protected}, expected_revision=entry.revision)
         row.relation_metadata = {"_source_account_identifier": "trusted-current-owner", "_refund_signal": "stale"}
     choice = _issue(runtime, identifier, fields={"counterparty": "来源新对方", "counterparty_account": "new-account",
         "counterparty_account_attrs": ["source-attribute"]}, payload={"备注": "来源新原文", "交易订单号": "source-only",
@@ -83,16 +85,21 @@ def test_source_adoption_is_read_only_until_commit_and_preserves_manual_note(con
     view = _preview(service, runtime, identifier, intent="resolve_issue", issue_resolutions=[choice],
         patch={"note": explicit} if explicit is not None else {})
     assert view["summary"]["resolve_issue"] == 1 and view["can_commit"]
-    assert _members(service, view)[identifier]["fields"]["note"] == expected
+    detail = service.item(view['plan_id'], view['items'][0]['preview_item_id'])
+    assert detail['entry']['fields']['note'] == expected
+    assert _members(service, view)[identifier]['fields']['note'] == '来源新原文'
     assert _records(runtime).read(identifier) == before
     receipt = _commit(service, view)
     after = _records(runtime).read(identifier)
     assert receipt["status"] == "completed" and receipt["summary"]["resolved_issues"] == 1
-    assert after["fields"]["note"] == expected and after["fields"]["counterparty"] == "来源新对方"
+    assert after['entry']["fields"]["note"] == expected and after["fields"]["counterparty"] == "来源新对方"
+    assert after['fields']['note'] == '来源新原文'
     assert after["fields"]["counterparty_account_attrs"] == ["source-attribute"] and after["issues"] == []
     with runtime.sessions() as session:
         row = session.get(CashTransactionModel, int(identifier))
-        assert bool(row.manual_overrides.get("note")) == (protected is not None or explicit is not None)
+        entry = CashEntryRepository(session, runtime.workspace_id).current(identifier)
+        assert ('note' in entry.manual_fields) == (protected is not None or explicit is not None)
+        assert not row.manual_overrides.get('note')
         assert not row.manual_overrides.get("category_id")
         assert row.relation_metadata["_source_account_identifier"] == "trusted-current-owner"
         assert "_refund_signal" not in row.relation_metadata
@@ -144,7 +151,7 @@ def test_unselected_identity_problem_still_blocks_same_plan_finalization(context
 
 
 @pytest.mark.parametrize("reset", [False, True])
-def test_relation_effects_compare_original_and_final_type_after_source_and_patch(context_runtime, reset):
+def test_source_type_conflict_cannot_be_hidden_by_a_reset_patch(context_runtime, reset):
     runtime = context_runtime
     with runtime.sessions.begin() as session:
         _, relation_id = _existing_mirror(session, runtime)
@@ -154,11 +161,12 @@ def test_relation_effects_compare_original_and_final_type_after_source_and_patch
     patch = {"note": "显式备注"}
     if reset:
         patch.update(record_type="consumption", record_subtype="not_applicable")
-    view = _preview(service, runtime, identifier, intent="resolve_issue", patch=patch, issue_resolutions=[choice])
-    receipt = _commit(service, view)
+    before = _records(runtime).read(identifier)
+    with pytest.raises(ValueError, match='fixed_field_conflict'):
+        _preview(service, runtime, identifier, intent="resolve_issue", patch=patch, issue_resolutions=[choice])
+    assert _records(runtime).read(identifier) == before
     with runtime.sessions() as session:
-        assert session.get(TransactionRelationModel, relation_id).active is reset
-    assert receipt["summary"]["relations_removed"] == int(not reset)
+        assert session.get(TransactionRelationModel, relation_id).active is True
 
 
 def test_source_fixed_conflict_cannot_be_hidden_by_explicit_patch(context_runtime):
@@ -265,7 +273,7 @@ def test_conflicting_source_choices_require_an_explicit_final_value(context_runt
         receipt = _commit(service, _preview(service, runtime, identifier, intent="resolve_issue",
             issue_resolutions=list(reversed(choices)), patch={"counterparty": "本次明确统一"}))
         assert receipt["summary"]["resolved_issues"] == 2
-        assert _records(runtime).read(identifier)["fields"]["counterparty"] == "本次明确统一"
+        assert _records(runtime).read(identifier)['entry']["fields"]["counterparty"] == "本次明确统一"
 
 
 @pytest.mark.parametrize("protected", [False, True])
@@ -274,16 +282,22 @@ def test_source_category_does_not_create_manual_protection_or_override_manual_cl
     runtime, identifier = context_runtime, _posted(context_runtime)
     category = CashCategoryService(runtime.sessions, runtime.workspace_id).create(name="来源分类")["id"]
     with runtime.sessions.begin() as session:
+        from ft.adapters.relational.cash_entries import CashEntryRepository
         row = session.get(CashTransactionModel, int(identifier))
         row.category_id = None
-        row.manual_overrides = {"category_id": True} if protected else {}
+        if protected:
+            repository = CashEntryRepository(session, runtime.workspace_id)
+            entry = repository.current(identifier)
+            repository.patch(identifier, {'category_id': None}, expected_revision=entry.revision)
     choice = _issue(runtime, identifier, fields={"category_id": category})
     service = _service(runtime)
     receipt = _commit(service, _preview(service, runtime, identifier, intent="resolve_issue", issue_resolutions=[choice]))
     with runtime.sessions() as session:
         row = session.get(CashTransactionModel, int(identifier))
-        assert row.category_id == (None if protected else category)
-        assert bool(row.manual_overrides.get("category_id")) is protected
+        assert row.category_id == category and not row.manual_overrides.get('category_id')
+        entry = CashEntryRepository(session, runtime.workspace_id).current(identifier)
+        assert entry.category_id == (None if protected else category)
+        assert ('category_id' in entry.manual_fields) is protected
     assert receipt["status"] == "completed" and receipt["summary"]["resolved_issues"] == 1
 
 
@@ -296,13 +310,16 @@ def test_issue_resolution_count_survives_whole_record_category_members(context_r
     category = CashCategoryService(runtime.sessions, runtime.workspace_id).create(name="整笔同时维护")["id"]
     choice, service = _issue(runtime, "1003", fields={"counterparty": "本次来源"}), _service(runtime)
     view = _preview(service, runtime, "1003", intent="resolve_issue", issue_resolutions=[choice], patch={"category_id": category})
-    assert view["summary"]["resolve_issue"] == 1 and view["summary"]["update_posted"] == 2
+    assert view["summary"]["resolve_issue"] == 1 and view["summary"]["update_posted"] == 1
     receipt = _commit(service, view)
     assert receipt["summary"]["resolved_issues"] == 1
     with runtime.sessions() as session:
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        assert entry.category_id == category and 'category_id' in entry.manual_fields
         for identifier in (1001, 1003):
             row = session.get(CashTransactionModel, identifier)
-            assert row.category_id == category and row.manual_overrides["category_id"]
+            assert row.category_id != category and not row.manual_overrides.get('category_id')
 
 
 def test_legacy_nonempty_body_is_adoptable_without_new_presence_metadata(context_runtime):

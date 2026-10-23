@@ -26,6 +26,8 @@ class RowChoiceInput(StrictInput):
 
 
 class RelationChoiceInput(StrictInput):
+    common_fields: dict[str, Any] | None = None
+    inherit_common_fields: bool | None = None
     suggestion_id: Reference
     action: Literal["accept", "defer", "ignore"]
     candidate_id: ShortReference | None = None
@@ -71,6 +73,9 @@ class DisplayView(Output):
     currency: str | None
     counterparty: str | None
     note: str | None
+    category_id: str | None = None
+    counterparty_account: str | None = None
+    counterparty_account_attrs: list[str] | None = None
     accounts: list[str]
 
 
@@ -166,6 +171,9 @@ class RelationCandidateView(Output):
 
 
 class RelationChoiceView(Output):
+    common_fields: dict[str, Any] = Field(default_factory=dict)
+    common_field_conflicts: dict[str, list[Any]] = Field(default_factory=dict)
+    inherit_common_fields: bool | None = None
     suggestion_id: str
     kind: str | None = None
     subtype: str | None = None
@@ -186,8 +194,14 @@ class RelationEffectView(Output):
     code: str | None = None
 
 
+class EntryPreviewView(Output):
+    fields: dict[str, Any]
+    editable_fields: list[str]
+
+
 class PlanItemDetailView(Output):
     preview_item_id: str
+    entry: EntryPreviewView | None = None
     members: list[MemberDetailView]
     field_diffs: list[FieldDiffView]
     issues: list[IssueView]

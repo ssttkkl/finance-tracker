@@ -26,10 +26,11 @@ class CurrentCashRelationContext:
     funding_versions: tuple
     funding_component_ids: frozenset[str]
     issue_versions: tuple = ()
+    entry_versions: tuple = ()
 
     @property
     def token(self):
-        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions, self.issue_versions,
+        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions, self.issue_versions, self.entry_versions,
             tuple((member.id, member.decision_group_id, member.row_revision, member.state, member.active) for member in self.joint_members))
         return sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 

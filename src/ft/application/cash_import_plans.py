@@ -13,7 +13,7 @@ from ft.application.cash_import_choice_context import (CashImportChoiceContextEr
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
-from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, MUTABLE_CASH_FIELDS
+from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, COMMON_CASH_FIELDS, MUTABLE_CASH_FIELDS
 
 
 class CashImportPlanError(ValueError):
@@ -43,6 +43,18 @@ def _choices(value, *, key, fields, actions=None):
                 raise CashImportPlanError("plan_input_invalid")
         if item.get("candidate_id") is not None and not _reference(item["candidate_id"], 128):
             raise CashImportPlanError("plan_input_invalid")
+        if "common_fields" in item:
+            from ft.domain.cash_record_policy import COMMON_CASH_FIELDS, _normalize
+            common = item["common_fields"]
+            if item['action'] != 'accept' or not isinstance(common, dict) or common.keys() - COMMON_CASH_FIELDS:
+                raise CashImportPlanError("plan_input_invalid")
+            try:
+                for field, field_value in common.items():
+                    _normalize(field, field_value)
+            except (ValueError, TypeError, ArithmeticError):
+                raise CashImportPlanError("plan_input_invalid") from None
+        if "inherit_common_fields" in item and type(item["inherit_common_fields"]) is not bool:
+            raise CashImportPlanError("plan_input_invalid")
         seen.add(item[key])
     return deepcopy(value)
 
@@ -53,7 +65,7 @@ def _preview_input(account_selections, row_choices, relation_choices):
             fields={"source_account_ref", "account_id", "expected_account_revision"}),
         "row_choices": _choices(row_choices, key="row_ref", fields={"row_ref", "action", "patch"},
             actions={"apply", "keep_existing", "defer"}),
-        "relation_choices": _choices(relation_choices, key="suggestion_id", fields={"suggestion_id", "action", "candidate_id"},
+        "relation_choices": _choices(relation_choices, key="suggestion_id", fields={"suggestion_id", "action", "candidate_id", "common_fields", "inherit_common_fields"},
             actions={"accept", "defer", "ignore"}),
     }
 
@@ -106,11 +118,12 @@ def _processing(value):
 
 
 def _display(value):
-    result = _only(value, {"occurred_at", "amount", "currency", "counterparty", "note", "accounts"})
+    result = _only(value, {"occurred_at", "amount", "currency", "counterparty", "note", "accounts",
+        "category_id", "counterparty_account", "counterparty_account_attrs"})
     accounts = result.setdefault("accounts", [])
     if not isinstance(accounts, list) or any(not isinstance(account, str) for account in accounts):
         raise CashImportPlanError("plan_build_failed")
-    for field in ("occurred_at", "amount", "currency", "counterparty", "note"):
+    for field in ("occurred_at", "amount", "currency", "counterparty", "note", "category_id", "counterparty_account"):
         if result.setdefault(field, None) is not None and not isinstance(result[field], str):
             raise CashImportPlanError("plan_build_failed")
     return result
@@ -126,7 +139,10 @@ def _public_item(item):
 
 
 def _public_detail(value, *, copy_values=True):
-    result = _only(value, {"members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
+    result = _only(value, {"entry", "members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
+    if 'entry' in result:
+        result['entry'] = _only(result['entry'], {'fields', 'editable_fields'}, copy_values=copy_values)
+        result['entry']['fields'] = _only(result['entry'].get('fields', {}), COMMON_CASH_FIELDS, copy_values=copy_values)
     members = _objects(result.get("members", []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"},
         copy_values=copy_values)
     for member in members:
@@ -140,7 +156,7 @@ def _public_detail(value, *, copy_values=True):
         {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"}, copy_values=copy_values)
     result["issues"] = _issues(result.get("issues", []))
     result["relation_choices"] = _objects(result.get("relation_choices", []),
-        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code"}, copy_values=copy_values)
+        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields"}, copy_values=copy_values)
     for choice in result["relation_choices"]:
         if "member_refs" in choice:
             choice["member_refs"] = _objects(choice["member_refs"], _REF_FIELDS, copy_values=copy_values)

@@ -180,7 +180,10 @@ def test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_bal
             assert identifier == repository.find(incoming[f"file_b:r{index + 1}"])
             parent = session.get(CashTransactionModel, identifier)
             assert parent.source_payload == {"synthetic_index": index} and parent.amount == Decimal(row.fields["amount"])
-            assert parent.note == f"人工备注{index}" and parent.manual_overrides["note"] is True
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            entry = CashEntryRepository(session, context_runtime.workspace_id).current(identifier)
+            assert parent.note == source.fields['note'] and not parent.manual_overrides.get('note')
+            assert entry.note == f"人工备注{index}" and 'note' in entry.manual_fields
             parts = list(session.scalars(select(CashTransactionComponentModel).where(
                 CashTransactionComponentModel.cash_transaction_id == identifier).order_by(CashTransactionComponentModel.ordinal)))
             assert [(str(part.account_id), part.amount, part.currency) for part in parts] == [
@@ -725,7 +728,7 @@ def test_draft_can_swap_component_ordinals_without_changing_component_identities
         assert current == {(part, account, 1 - ordinal) for part, account, ordinal in original}
 
 
-def test_type_update_keeps_old_members_current_and_only_publishes_final_projection(context_runtime, monkeypatch):
+def test_imported_type_conflict_preserves_members_and_existing_projection(context_runtime, monkeypatch):
     from ft.adapters.relational.projections import RelationalCashProjectionRepository
     from ft.adapters.relational.models import CashProjectionModel
     files = _mirror_files()
@@ -736,18 +739,19 @@ def test_type_update_keeps_old_members_current_and_only_publishes_final_projecti
     changed = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], fields={
         **file.document.rows[0].fields, "record_type": "transfer_out", "record_subtype": "ordinary_transfer"}),)))
     service, plan = _plan(context_runtime, (changed,))
-    assert len(plan["items"]) == 2
+    assert plan['items'] == [] and plan['summary']['skip'] == 1
     original, calls = RelationalCashProjectionRepository.replace_active_components, []
     def observe(self, *args, **kwargs):
         calls.append(1)
         return original(self, *args, **kwargs)
     monkeypatch.setattr(RelationalCashProjectionRepository, "replace_active_components", observe)
     receipt = _commit(service, plan, "type-update")
-    assert receipt["summary"]["updated_posted"] == 1 and len(calls) == 1
+    assert receipt["summary"]["updated_posted"] == 0 and calls == []
+    assert receipt['summary']['skipped'] == 1
     with context_runtime.sessions() as session:
         relation = session.scalar(select(TransactionRelationModel))
-        assert relation.active is False and relation.decision_reason == "record_type_changed"
-        assert len(session.scalars(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id.in_(ids))).all()) == 2
+        assert relation.active is True
+        assert len(session.scalars(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id.in_(ids))).all()) == 1
 
 
 @pytest.mark.parametrize("failed_file", [True, False])

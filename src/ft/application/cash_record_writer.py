@@ -33,11 +33,14 @@ class CashRecordWriter:
         before = deepcopy(operation["current"])
         was_posted = parent is not None and parent.state == "posted"
         old_context = (CashRelationGraphService(session, self._workspace_id).load({parent_id})
-            if parent is not None and parent.state == "posted" and operation["type_changed"] else None)
+            if parent is not None and parent.state == "posted" and operation["type_changed"] and parent.record_origin != "manual_transfer" else None)
         if parent is None:
-            parent = CashTransactionModel(workspace_id=self._workspace_id)
+            parent = CashTransactionModel(workspace_id=self._workspace_id, record_origin="import")
             session.add(parent)
-        if operation["planned_action"] != "duplicate":
+        source_changed = operation["planned_action"] != "duplicate" and (operation["values"] != operation["current"]
+            or bool(operation['manual_fields']) or bool(operation.get('merge_draft')) or 'source_explanation' in operation
+            and operation['source_explanation'] != (parent.relation_metadata or {}))
+        if source_changed:
             if parent_id is not None:
                 parent.row_revision += 1
             for key in (MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | {"state", "source_type", "record_id"}) - {"components", "account_name"}:
@@ -47,6 +50,10 @@ class CashRecordWriter:
             parent.manual_overrides = {**(parent.manual_overrides or {}), **{field: True for field in operation["manual_fields"]}}
             if "source_explanation" in operation and not operation["pending_fields"]:
                 parent.relation_metadata = deepcopy(operation["source_explanation"])
+        if operation.get("entry_edit"):
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            session.flush()
+            CashEntryRepository(session, self._workspace_id).apply_edit(parent.id, operation["entry_edit"])
         session.flush()
         mapping = self._save_components(session, parent, operation, values, before,
             existing=parent_id is not None, was_posted=was_posted)
@@ -61,7 +68,7 @@ class CashRecordWriter:
                 first_binding = False
         if parent_id is not None or operation["issues"]:
             self._row_issues(session, source, parent.id, operation)
-        if parent_id is not None and operation["planned_action"] != "duplicate":
+        if parent_id is not None and source_changed:
             CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale({parent.id})
         after = deepcopy(operation["values"])
         touched = set(old_context.transaction_ids) if old_context else set()

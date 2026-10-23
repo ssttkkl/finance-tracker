@@ -5,9 +5,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import select
 
-from ft.adapters.relational.cash_categories import set_manual_category
 from ft.adapters.relational.cash_projection_visibility import maintainable_projection_conditions
-from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
 from ft.adapters.relational.models import (
@@ -22,7 +20,7 @@ def _now() -> datetime:
 
 
 class CashClassificationService:
-    """以收支投影为边界同步其全部现金流水的收支分类。"""
+    """按当前展示选择修改稳定收支对象的公共分类。"""
 
     def __init__(self, sessions, workspace_id: str):
         self._sessions = sessions
@@ -70,8 +68,17 @@ class CashClassificationService:
             if not member_ids or len(member_ids) != sum(row.member_count for row in rows):
                 raise ValueError("projection.version_conflict")
 
-            changed = set_manual_category(session, self._workspace_id, member_ids, target.id if target else None)
-            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            entries = CashEntryRepository(session, self._workspace_id)
+            changed = set()
+            for row in rows:
+                entry = entries.current(row.root_cash_transaction_id)
+                if entry is None:
+                    raise ValueError("projection.version_conflict")
+                before = entry.revision
+                entries.patch(row.root_cash_transaction_id, {"category_id": target.id if target else None}, expected_revision=entry.revision)
+                if entry.revision != before:
+                    changed.add(entry.id)
             next_version = int(state.projection_version)
             category_value, category_path = (target.id, target.category_path) if target else (None, None)
             if changed or any(row.category_id != category_value or row.category_path != category_path for row in rows):

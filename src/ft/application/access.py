@@ -15,6 +15,8 @@ from ft.adapters.relational.models import (
     AccountModel,
     CashCategoryModel,
     CashCategoryStateModel,
+    CashEntryMemberModel,
+    CashEntryModel,
     CashInvestmentFundingRelationModel,
     CashProjectionDatasetModel,
     CashProjectionMemberModel,
@@ -251,6 +253,8 @@ class AccessService:
         for model in (CashProjectionMemberModel, CashProjectionRelationModel, CashProjectionModel):
             session.execute(delete(model).where(model.workspace_id == workspace_id))
         for model in (CashProjectionStateModel, CashProjectionDatasetModel):
+            session.execute(delete(model).where(model.workspace_id == workspace_id))
+        for model in (CashEntryMemberModel, CashEntryModel):
             session.execute(delete(model).where(model.workspace_id == workspace_id))
 
         # Relation/funding rows must be gone before their cash or investment

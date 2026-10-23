@@ -69,7 +69,7 @@ def test_unrelated_import_and_account_rename_do_not_invalidate_formal_note_edit(
     with runtime.sessions.begin() as session:
         session.get(AccountModel, 101).name = "后来重命名的账户"
     receipt = _commit(service, view)
-    assert receipt["summary"]["updated_posted"] == 1 and _records(runtime).read(identifier)["fields"]["note"] == "仍可保存"
+    assert receipt["summary"]["updated_posted"] == 1 and _records(runtime).read(identifier)['entry']["fields"]["note"] == "仍可保存"
 
 
 @pytest.mark.parametrize("draft", [False, True])

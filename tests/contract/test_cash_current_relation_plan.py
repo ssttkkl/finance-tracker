@@ -143,15 +143,15 @@ def test_stale_removal_choice_does_not_relabel_an_existing_confirmed_group_as_de
     assert item["confirmation_status"] == "confirmed" and len(item["member_refs"]) == 2
 
 
-def test_current_type_patch_invalidates_old_pair_choice_without_blocking_repreview(context_runtime):
+def test_current_imported_type_patch_is_rejected_without_changing_relation(context_runtime):
     runtime = context_runtime
     service, _ = _start(runtime)
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
-    selected = _choose(service, runtime, view, {"suggestion_id": group["suggestion_id"], "action": "accept"},
-        patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
-    assert selected["invalidated_choices"] == [{"kind": "relation", "reference": group["suggestion_id"], "code": "relation_context_changed"}]
-    assert selected["summary"]["relations_accepted"] == 0
+    with pytest.raises(ValueError):
+        _choose(service, runtime, view, {"suggestion_id": group["suggestion_id"], "action": "accept"},
+            patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    assert service.read_plan(view["plan_id"]) == view
     assert _records(runtime).read("1101")["fields"]["record_type"] == "consumption"
 
 

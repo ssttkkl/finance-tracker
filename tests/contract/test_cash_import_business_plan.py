@@ -211,15 +211,14 @@ def test_ordinary_source_update_shows_existing_projection_without_rediscovery(dr
         assert not session.new and not session.dirty
 
 
-def test_type_edit_previews_removal_and_all_old_members_without_writing(draft_runtime):
+def test_type_edit_skips_imported_record_without_removing_existing_relation(draft_runtime):
     with draft_runtime.sessions.begin() as session:
         file, relation_id = _existing_mirror(session, draft_runtime)
     with draft_runtime.sessions() as session:
         plan = _build(session, draft_runtime, (file,), mapped=False, rows=[{"row_ref": "file_a:r1", "action": "apply",
             "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
-        assert len(plan["items"]) == 2
-        effects = [effect for detail in plan["item_details"].values() for effect in detail["relation_effects"]]
-        assert any(effect["effect"] == "remove" and effect["relation_id"] == str(relation_id) for effect in effects)
+        assert plan["summary"]["skip"] == 1 and plan["operations"] == []
+        assert plan["type_effects"]["removed_relation_ids"] == []
         assert session.get(TransactionRelationModel, relation_id).active is True
         assert session.get(CashTransactionModel, 1003).record_type == "consumption"
 
@@ -533,7 +532,7 @@ def test_nonzero_choice_generation_survives_file_invalidation_and_blocks_old_fin
     choice0 = {"suggestion_id": initial["suggestion_id"], "action": "accept", "candidate_id": initial["candidates"][0]["candidate_id"]}
     with draft_runtime.sessions() as session:
         changed = _build(session, draft_runtime, (file,), previous=first, relations=[choice0],
-            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "第一次变化"}}])
+            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"source_payload": {"备注": "第一次来源变化"}}}])
     with draft_runtime.sessions() as session:
         returned = _build(session, draft_runtime, (file,), previous=changed, relations=[choice0])
         current = returned["relation_groups"][0]
@@ -543,7 +542,7 @@ def test_nonzero_choice_generation_survives_file_invalidation_and_blocks_old_fin
     proof = retained_choice_context(SimpleNamespace(plan=selected, context_data={}))[CONTEXT_KEY]
     with draft_runtime.sessions() as session:
         invalidated = _build(session, draft_runtime, (file,), previous=proof, relations=[choice1],
-            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "文件变化后再次变化"}}])
+            rows=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"source_payload": {"备注": "文件变化后再次来源变化"}}}])
     with draft_runtime.sessions() as session:
         final = _build(session, draft_runtime, (file,), previous=invalidated, relations=[choice1])
         assert final["relation_groups"][0]["action"] == "defer"

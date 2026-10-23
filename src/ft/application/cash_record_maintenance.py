@@ -17,7 +17,7 @@ from ft.application.cash_projections import CashProjectionService
 from ft.application.cash_record_writer import CashRecordWriter
 from ft.application.cash_record_operations import (CashRecordMaintenanceError, CashRecordOperationPlanner,
     _EDITABLE, _identifier, _request_digest)
-from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS, CashRecordPolicyError
+from ft.domain.cash_record_policy import COMMON_CASH_FIELDS, CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, CashRecordPolicyError
 
 
 def _receipt(value):
@@ -80,9 +80,24 @@ class CashRecordMaintenanceService:
             identity_resolutions = (planner.available_identity_resolutions(row,
                 candidate_ids={candidate["transaction_id"] for group in candidates.values() for candidate in group}) if editable
                 and any(issue.code == "source_identity_ambiguous" for issue in issues) else [])
-            return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision,
+            from ft.adapters.relational.cash_entries import CashEntryRepository, public_values
+            from ft.adapters.relational.models import CashEntryMemberModel
+            entry = CashEntryRepository(session, self._workspace_id).current(identifier)
+            member_count = len(list(session.scalars(select(CashEntryMemberModel.transaction_id).where(
+                CashEntryMemberModel.workspace_id == self._workspace_id, CashEntryMemberModel.entry_id == entry.id)))) if entry else 0
+            row_editable = (_EDITABLE if row.state == "draft" else
+                (MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS) - {"source_payload", "account_name"} if row.record_origin == "manual"
+                else frozenset())
+            if row.state == "posted" and member_count > 1:
+                row_editable = frozenset()
+            return {"transaction_id": str(identifier), "state": row.state, "row_revision": row.row_revision, "record_origin": row.record_origin,
+                "entry": {"entry_id": entry.id, "revision": entry.revision, "fields": _wire(public_values(entry)), "manual_fields": list(entry.manual_fields),
+                    "editable_fields": sorted((COMMON_CASH_FIELDS | CASH_FINANCIAL_FIELDS | {"record_type", "record_subtype"}) - {"account_name"}
+                        if row.record_origin == "manual" or row.record_origin == "manual_transfer" and member_count == 2
+                        else COMMON_CASH_FIELDS) if editable else [],
+                    "supports_transfer_edit": row.record_origin == "manual_transfer" and member_count == 2} if entry else None,
                 "confirmation_status": "pending" if row.state == "draft" or identifier in attention.transaction_ids else "confirmed",
-                "fields": _wire(fields), "editable_fields": sorted((_EDITABLE if row.state == "draft" else MUTABLE_CASH_FIELDS) if editable else ()),
+                "fields": _wire(fields), "editable_fields": sorted(row_editable if editable else ()),
                 "issues": [self._safe_issue(issue, allowed_resolutions=[] if not editable else
                     planner.available_source_resolutions(row, issue, existing_issues=issues) if issue.code == "source_update_pending" else
                     identity_resolutions if issue.code == "source_identity_ambiguous" else None)

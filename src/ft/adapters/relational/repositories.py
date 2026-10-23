@@ -692,6 +692,8 @@ class RelationalCashflowRepository:
             workspace_id=self._workspace_id,
             account_id=account.id,
             cash_granularity="atomic",
+            record_origin=row.get("record_origin", "import"),
+            manual_transfer_id=row.get("manual_transfer_id"),
             source_type=(source_type or None),
             record_id=record_id,
             source_payload=payload,
@@ -1151,6 +1153,8 @@ class RelationalCashflowRepository:
         return {
             "id": row.id,
             "state": row.state,
+            "record_origin": row.record_origin,
+            "manual_transfer_id": row.manual_transfer_id,
             "row_revision": row.row_revision,
             "record_id": row.record_id,
             "source_type": row.source_type or "",
@@ -1671,6 +1675,9 @@ class RelationalRelationRepository:
         return self._to_dicts(rows)
 
     def add(self, relation: dict):
+        from ft.adapters.relational.cash_relation_origin import assert_relation_origin
+        assert_relation_origin(self._session, self._workspace_id,
+            [relation.get("primary_fact_id"), relation.get("secondary_fact_id"), relation.get("anchor_fact_id")], kind=relation.get("kind"))
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
             secondary = None

@@ -6,14 +6,14 @@ from fastapi.testclient import TestClient
 import pytest
 
 
-def test_maintenance_openapi_has_four_strict_intents_and_self_contained_discriminators():
+def test_maintenance_openapi_has_five_strict_intents_and_self_contained_discriminators():
     from ft.web.cash_plan_routes import cash_plan_router
     app = FastAPI()
     app.include_router(cash_plan_router(SimpleNamespace()))
     document = TestClient(app).get("/openapi.json").json()
     schema = document["paths"]["/api/v1/cash-mutations/plans"]["post"]["requestBody"]["content"]["application/json"]["schema"]
     variants = {item["properties"]["intent"]["const"]: item for item in schema["oneOf"]}
-    assert set(variants) == {"edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
+    assert set(variants) == {"edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
     assert all(item["additionalProperties"] is False for item in variants.values())
     assert "issue_resolutions" not in variants["maintain_relations"]["properties"]
     assert variants["resolve_issue"]["properties"]["issue_resolutions"]["minItems"] == 1

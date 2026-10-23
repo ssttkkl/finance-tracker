@@ -336,6 +336,7 @@ class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
         CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_transactions_state"),
+        CheckConstraint("record_origin IN ('import', 'manual', 'manual_transfer', 'legacy')", name="ck_cash_transactions_record_origin"),
         CheckConstraint("row_revision >= 1", name="ck_cash_transactions_row_revision"),
         CheckConstraint(
             "state <> 'posted' OR (amount IS NOT NULL AND occurred_at IS NOT NULL "
@@ -407,6 +408,8 @@ class CashTransactionModel(Base):
     # rows are the authoritative account-level ledger entries.
     account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)
+    record_origin: Mapped[str] = mapped_column(String(24), default="legacy", server_default="legacy", nullable=False)
+    manual_transfer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     row_revision: Mapped[int] = mapped_column(
         BigInteger, default=1, server_default="1", onupdate=text("row_revision + 1"), nullable=False,
     )
@@ -620,6 +623,44 @@ class CashProjectionDatasetModel(Base):
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
+class CashEntryModel(Base):
+    """不随计算数据集替换的当前收支对象及公共属性。"""
+
+    __tablename__ = "cash_entries"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_entries_workspace_id"),
+        CheckConstraint("revision >= 1", name="ck_cash_entries_revision"),
+        ForeignKeyConstraint(["workspace_id", "category_id"], ["cash_categories.workspace_id", "cash_categories.id"], ondelete="RESTRICT"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    root_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+    category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    counterparty_account: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    counterparty_account_attrs: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    manual_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    split_inherit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+
+class CashEntryMemberModel(Base):
+    """当前归属及拆分恢复值；不是历史版本。"""
+
+    __tablename__ = "cash_entry_members"
+    __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "entry_id"], ["cash_entries.workspace_id", "cash_entries.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE"),
+        Index("ix_cash_entry_members_entry", "workspace_id", "entry_id"),
+    )
+    workspace_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True)
+    entry_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    standalone_values: Mapped[dict] = mapped_column(JSON, nullable=False)
+    standalone_manual_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+
+
 class CashProjectionModel(Base):
     """活动数据集内的一条收支投影。"""
 
@@ -654,6 +695,7 @@ class CashProjectionModel(Base):
     workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[str] = mapped_column(String(64), nullable=False)
     projection_id: Mapped[str] = mapped_column(String(96), nullable=False)
+    entry_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     root_cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     funding_relation_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)

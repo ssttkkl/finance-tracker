@@ -161,15 +161,37 @@
 
 ### 4.14 创建方式与收支对象后端
 
-- [x] 4.14.1 思考／计划：通过 `grill-me → grilling` 确认字段白名单、手工转账例外、公共值冲突与解除继承；不实施 Compose，三个新 change 未落盘。
-- [x] 4.14.2 任务一致性：修订 proposal、delta、design，独立工程／财务复核；失败测试先覆盖创建方式、组公共编辑、重建保留与局部差量。
-  - 独立计划复核覆盖来源权限、唯一公共属性、成员恢复值、迁移保全、对象 CAS 及完整依赖组；旧自动拆组和成员回写条款均原位替换，已知阻断 finding 已修正。新增合同先复现缺失行为；OpenSpec strict 和 `git diff --check` 通过。
-- [ ] 4.14.3 构建：schema 迁移与明确创建方式；手工／导入字段约束和配对准入；稳定收支对象、编辑及派生增量。
-- [ ] 4.14.4 构建：合并人工冲突、选择确认、解除继承；手工财务及手工转账双端原子修改；公开 API 及安全错误。
-- [ ] 4.14.5 审查：独立复核权限、财务一致性、工作区、CAS／幂等、保存点和迁移，清除阻断 finding。
-- [ ] 4.14.6 验证：SQLite 回归、显式专用 PostgreSQL 同一合同、类型／构建、性能、OpenSpec strict／doctor 及 diff 检查，记录命令和证据。
-- [ ] 4.14.7 发布准备：原位更新词表、当前业务／技术文档、API、功能地图及技能；核对链接；小步提交推送当前分支，不操作真实库或部署。Web／Native／共享 presentation 未实施，客户端接入登记缺口，无 UI QA 完成声明。
-- [ ] 4.14.8 反思：记录保护公共人工值、来源准入及差量写入的防回归覆盖；保持本节结论与最终实现一致。
+- [x] 4.14.1 思考／计划：通过 `grill-me → grilling` 确认字段白名单、手工转账例外、公共值冲突与解除继承；范围仅含后端及说明文档，Compose 独立处理。
+- [x] 4.14.2 任务一致性：proposal、delta 和 design 与已确认规则一致；失败反例覆盖创建方式、公共编辑、合并／拆分、事务、迁移保全与重建身份。
+- [x] 4.14.3 构建：schema 迁移与固定创建方式；手工／导入字段约束和配对准入；稳定收支对象、编辑及派生增量。
+- [x] 4.14.4 构建：合并人工冲突、选择确认、解除继承；手工财务及手工转账双端原子修改；公开 API 及安全错误。
+- [x] 4.14.5 审查：独立复核权限、财务一致性、工作区、CAS／幂等、保存点和迁移；P1/P2 已清零，文档事实复核无阻断问题。
+- [x] 4.14.6 验证：完整 SQLite 回归、显式专用 PostgreSQL 合同、编译／构建、千行及普通维护性能、OpenSpec strict／doctor 及 diff 检查完成；万行预览按用户确认移至 4.15，不计为通过。
+- [ ] 4.14.7 交付：文档修订与链接核对完成；按授权提交推送 `average-snail`，不操作真实库或部署。
+- [x] 4.14.8 反思：人工公共值与来源值分别断言；配对夹具显式构造导入事实；差量维护同时保护稳定对象及派生行身份，成功后清除旧失败状态。性能验证排除已核实的无关 CPU 竞争，原预算与未达标项保留。
+
+验证起点 `HEAD=249cc63`，功能比较基线 `5e6041b`，执行日期 2026-10-23；测试针对下表所述实现工作树。用户确认本次交付功能、性能独立处理。Cross-platform Impact Check：Web、Native 页面及共享 presentation 未修改；后端增加 `edit_entry`、公共值与继承合同，F-04／F-05 的三端接入继续登记为缺口。浏览器、Hallmark 和设备 QA 不适用于本次后端实施，不能据此宣称 UI 完成；整个混合变更不提前归档。
+
+独立工程／财务／安全复核覆盖来源隔离、创建方式准入、对象 CAS、局部差量、迁移、必要关系组和手工转账保存点。已处理 P1：人工公共补丁误写来源、手工转账孤立单端财务旁路；已处理 P2：对象删除残留、根身份更新、预览与提交公共值不一致、公共决定冲突、同对象重复 CAS、来源修订误推进、重试证明及选择恢复遗漏、工作区删除的分类外键阻断；已处理 P3：原位更新未清旧失败状态。当前无未处理阻断 finding。退役的 `CashLedgerCommandService.update_record` 无生产调用且不在公开服务白名单，私有旧路径清理不在当前范围。
+
+文档收尾覆盖词表、导入主流程、账本存储／展示／操作、详细规则、接口／表结构、功能地图及导入技能；主流程第 3 章以总流程、配对示例和提交事务图串联九个环节，正文说明业务决定与异常出口，字段和协议细节通过参考链接查阅。已明确合法草稿关系可维护，而未留下关系／候选的配对发现或保存失败没有独立重新发现入口；没有把该能力写成已实现。两份独立事实复核均无 P1/P2，字段名、文件结果归属、修订及收据响应细节已核对。
+
+| 当前检查 | 实际命令与结果 |
+|---|---|
+| 核心与迁移双后端 | 显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_entry_test@127.0.0.1:55439/ft_cash_entry_test`，`PYTHONPATH=tests:tests/contract uv run pytest tests/contract/test_cash_entry_editing.py tests/contract/test_cash_entry_migration.py tests/contract/test_cash_mutation_commit.py tests/test_cash_import_choice_context.py tests/test_cash_maintenance_protocol.py -q --disable-warnings --tb=short --maxfail=10` → 119 passed、无 skip（159.09 s）；`/tmp/ft-entry-dual-final.log` |
+| 来源维护及清理双后端 | `uv run python /tmp/ft-entry-isolated-cost.py tests/contract/test_cash_source_issue_resolution.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_manual_classification.py tests/contract/test_cash_legacy_receipt_migration.py -q --disable-warnings --tb=short --maxfail=3`，脚本显式设置同一专用库 → 240 passed、无 skip（143.40 s）；`/tmp/ft-entry-dual-maintenance-green.log` |
+| 历史 schema 边界双后端 | 同一脚本运行 `tests/contract/test_cash_source_issue_resolution.py tests/contract/test_cash_projection_ownership.py tests/contract/test_cash_relation_storage.py -q -k 'source_type_conflict_cannot or ownership_migration or relation_migration_preserves' --disable-warnings --tb=short` → 26 passed、166 deselected、无 skip（15.86 s）；`/tmp/ft-entry-dual-boundaries-final.log` |
+| 完整普通 SQLite 回归 | `PYTHONPATH=tests:tests/contract uv run pytest tests --ignore=tests/contract -q -m 'not performance' -k 'not test_mobile_ci_builds_release_like_artifacts_with_embedded_js and not test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts' --disable-warnings --tb=short --maxfail=10` → 2134 passed、111 skipped、73 deselected（524.94 s）；`/tmp/ft-entry-unit-final.log`。两项 Expo 文档断言是已在基线复现的范围外问题，其他 deselect 为性能项；不把后端 skip 计为双后端通过 |
+| 完整 SQLite 合同回归 | `uv run python /tmp/ft-entry-contract-final-shards.py` 将全部 67 个 `tests/contract/test_*.py` 文件分为三个互不重叠进程，显式移除 PostgreSQL 环境，各执行 `python -m pytest <文件列表> -q -m 'not performance' --disable-warnings --tb=short --maxfail=10` → 1221 passed、1162 skipped、0 failed。三份结果为 429/388、396/397、396/377（passed/skipped），均 exit 0，最长 323.79 s；日志 `/tmp/ft-entry-contract-final.log` 和 `/tmp/ft-entry-contract-shard-{0,1,2}.log`，精确文件列表同名前缀 `.txt` |
+| 千行及普通维护性能双后端 | `uv run python /tmp/ft-entry-isolated-cost.py tests/test_cash_import_performance.py tests/test_cash_mutation_plan_performance.py tests/test_cash_mutation_commit_performance.py tests/test_cash_record_maintenance_performance.py -q -s -m performance -k 'not fixed_10k_current_import_preview' --disable-warnings --tb=short` → 10 passed、2 deselected、无 skip（123.04 s）；千行预览 SQLite／PostgreSQL 1.317／1.977 s，提交 1.815／6.306 s，来源更新往返 3.262／8.717 s，完整正式维护 P95 11.56／31.00 ms，草稿保存加读取 P95 7.64／21.66 ms；`/tmp/ft-entry-cost-final.log` |
+| 万行预览独立待办 | 同一脚本仅运行 `tests/test_cash_import_performance.py -q -s -k fixed_10k -m performance --disable-warnings --tb=short` → 2 failed：SQLite 5.612 s、PostgreSQL 6.184 s；RSS 高水位增量约 221.1／94.0 MiB，内存通过、5 s 时间未通过。对照 `249cc63` 为 4.985／5.111 s；日志 `/tmp/ft-entry-10k-clean-isolated.log`、`/tmp/ft-entry-10k-clean-baseline.log`。用户已确认移至 4.15，不降低预算或计为通过 |
+| 构建及仓库校验 | `uv build --out-dir /tmp/ft-entry-release-dist` 成功，wheel 的 179 个 Python 源文件与当前实现逐字一致；`openspec validate --all --strict --json` → 35/35 有效；`openspec doctor --json` healthy；`uv run python -m compileall -q src/ft migrations/versions/20261023_50_cash_entries.py` 与 `git diff --check` 通过；变更 Markdown 本地链接及锚点核对通过；`uv run pytest tests/test_runtime_docs.py -q --disable-warnings --tb=short` → 5 passed；三张流程图经独立图文一致性复核，无阻断问题 |
+
+隔离脚本仅在执行期间暂停两枚已核实 PPID=1 的孤立模拟器上报进程，在 `finally` 全部恢复，不停止模拟器或其他工作进程。所有数据库均为专用测试库，无真实账本写入。迁移发布需要停写、备份并检查无损降级条件；新人工公共值或新创建方式不能无损回映时拒绝降级，优先前滚修复。真实迁移、部署和外部对象清理不在当前授权内。
+
+### 4.15 万行导入预览性能独立待办
+
+- [ ] 在独立后端任务中优化万行预览；两个后端均使用相同固定分布、完整当前计划和原 5 s／256 MiB 预算验收。必须保留权限、来源隔离、完整图校验、JSON 预算、CAS、TTL、幂等和逐项结果，不缩减业务输出或安全校验。当前未通过结果见 4.14；本项不计入本次功能交付完成范围。
 
 ## 5. 审查
 

@@ -56,8 +56,9 @@ class CashflowService:
                 "category_id": category_id,
                 "account_name": account_name,
                 "source": source,
-                "source_type": bill_source or source or "",
-                "record_id": record_id,
+                "source_type": "",
+                "record_origin": "manual",
+                "record_id": "",
             }
             fact_id = uow.cashflows.add(account.type, row)
             snap = uow.snapshot.load(lock=True)
@@ -107,6 +108,7 @@ class CashflowService:
                 "account_name": account_name,
                 "source": "手动",
                 "source_type": "",
+                "record_origin": "legacy",
                                 "locked": "",
             }
             fact_id = uow.cashflows.add(account.type, row)
@@ -183,6 +185,9 @@ class TransferService:
             to_row = _transfer_event(
                 date_str, real_to, to_acct, from_acct, to_currency, from_currency, "in", note
             )
+            from uuid import uuid4
+            transfer_id = str(uuid4())
+            from_row["manual_transfer_id"] = to_row["manual_transfer_id"] = transfer_id
             from_fact_id = _stage_transfer_event(uow, from_acct, from_row)
             to_fact_id = _stage_transfer_event(uow, to_acct, to_row)
             if from_fact_id is not None and to_fact_id is not None:
@@ -204,10 +209,11 @@ class TransferService:
             _apply_transfer_snapshot(snap, to_acct, to_currency, real_to)
             snap["updated_at"] = date
             uow.snapshot.save(snap)
-            if from_fact_id is not None and to_fact_id is not None:
+            cash_ids = {int(identifier) for identifier in (from_fact_id, to_fact_id) if identifier is not None}
+            if cash_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(
-                    uow._state().session, uow.workspace_id, {int(from_fact_id), int(to_fact_id)},
+                    uow._state().session, uow.workspace_id, cash_ids,
                 )
             uow.commit()
 
@@ -240,6 +246,7 @@ def _transfer_row(date_str: str, amount: Decimal, currency: str, note: str,
         "record_subtype": default_cash_record_subtype(record_type),
         "account_name": account_name,
         "source_type": "",
+                "record_origin": "legacy",
     }
 
 
@@ -286,7 +293,7 @@ def _stage_transfer_event(uow: UnitOfWork, account, row: dict) -> str | None:
     if account.type in {"security", "crypto"}:
         uow.investments.add(account.type, row)
         return None
-    return uow.cashflows.add(account.type, row)
+    return uow.cashflows.add(account.type, {**row, "record_origin": "manual_transfer"})
 
 
 def _ambiguous_investment_account_name(uow: UnitOfWork, *accounts):

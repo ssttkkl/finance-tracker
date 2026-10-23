@@ -76,6 +76,10 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
                                 CashDraftMergeWriter(session, self._workspace_id).prepare_record_updates(operation)
                         for operation in unit:
                             saved.append((operation, self._save_row(session, operation, {})))
+                        if plan.get('manual_transfer_relations'):
+                            from ft.application.cash_manual_transfer_edit import save_transfer_relations
+                            save_transfer_relations(session, self._workspace_id, plan['manual_transfer_relations'],
+                                {int(operation['transaction_id']) for operation in unit})
                         for operation, result in saved:
                             if operation.get("merge_draft"):
                                 result[4].update(CashDraftMergeWriter(session, self._workspace_id).save(operation))
@@ -165,7 +169,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
         if (len(old) != len(new) or any(left["operation_ref"] != right["operation_ref"]
             or _operation_fingerprint(left) != _operation_fingerprint(right) for left, right in zip(old, new))):
             raise CashMutationConflict("record_changed")
-        if any(plan.get(key) != fresh.get(key) for key in ("category_member_ids", "mutation_units", "dependencies",
+        if any(plan.get(key) != fresh.get(key) for key in ("category_member_ids", "mutation_units", "manual_transfer_relations", "dependencies",
             "type_effects", "relation_groups", "relation_failures")):
             raise CashMutationConflict("relation_context_changed")
 

@@ -55,36 +55,27 @@ def test_new_record_has_fields_without_fabricated_update_differences(draft_runti
 
 
 @pytest.mark.parametrize("protected,explicit,expected", [(False, None, "人工修改的来源原文"), (True, None, "人工旧备注"), (False, "", "")])
-def test_import_manual_source_patch_rederives_note_and_explanation(draft_runtime, protected, explicit, expected):
+def test_import_user_source_payload_patch_is_rejected_without_partial_public_edit(draft_runtime, protected, explicit, expected):
     runtime, file = draft_runtime, _file()
     with runtime.sessions.begin() as session:
         _bind_existing(session, runtime, file, note="人工旧备注" if protected else None)
-    patch = {"source_payload": {"备注": "人工修改的来源原文", "交易状态": "交易成功", "交易订单号": "raw-new"}}
+    patch = {"source_payload": {"备注": "伪造来源原文"}}
     if explicit is not None:
         patch["note"] = explicit
     with runtime.sessions() as session:
         prepared = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
-        operation, = prepared.operations
-        assert operation["values"]["note"] == expected
-        assert operation["source_explanation"]["txn_id"] == "raw-new"
-        assert operation["manual_fields"] == (["note"] if explicit is not None else [])
+        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
         assert session.get(CashTransactionModel, 1003).source_payload != patch["source_payload"]
 
 
-def test_metadata_only_manual_source_patch_is_an_update(draft_runtime):
+def test_posted_user_source_payload_noop_is_still_not_an_editable_field(draft_runtime):
     runtime, file = draft_runtime, _file()
-    payload = {"备注": "原始备注", "交易订单号": "current-source-id", "交易状态": "交易成功"}
-    file = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0],
-        fields={**file.document.rows[0].fields, "source_payload": payload}),)))
     with runtime.sessions.begin() as session:
         _bind_existing(session, runtime, file)
-        session.get(CashTransactionModel, 1003).relation_metadata = {}
     with runtime.sessions() as session:
-        operation, = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"source_payload": payload}}]).operations
-        assert operation["values"] == operation["current"]
-        assert operation["planned_action"] == "update_posted"
-        assert operation["source_explanation"]["txn_id"] == "current-source-id"
+        prepared = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+            "patch": {"source_payload": file.document.rows[0].fields["source_payload"]}}])
+        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
 
 
 def _bind_existing(session, runtime, file, *, note=None):
@@ -143,10 +134,10 @@ def test_source_changes_preserve_manual_note_and_do_not_require_active_account_m
         prepared = _prepare(session, runtime, (changed,))
         operation, = prepared.operations
         assert operation["planned_action"] == "update_posted" and operation["transaction_id"] == "1003"
-        assert operation["values"]["counterparty"] == "当前商户" and operation["values"]["note"] == "人工备注"
+        assert operation["values"]["counterparty"] == "当前商户" and operation["values"]["note"] == "新来源备注"
         assert operation["values"]["account_id"] == "101"
         assert operation["values"]["source_payload"] == changed.document.rows[0].fields["source_payload"]
-        assert any(diff["field"] == "note" and diff["resolution"] == "protected" for diff in operation["field_diffs"])
+        assert any(diff["field"] == "note" and diff["resolution"] == "apply" for diff in operation["field_diffs"])
 
 
 def test_fixed_amount_conflict_skips_only_one_row_without_partial_mutable_updates(draft_runtime):
@@ -169,7 +160,7 @@ def test_explicit_same_value_note_is_a_manual_decision_even_when_source_is_dupli
     with runtime.sessions() as session:
         prepared = _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "原始备注"}}])
         operation, = prepared.operations
-        assert operation["planned_action"] == "update_posted" and operation["manual_fields"] == ["note"]
+        assert operation["planned_action"] == "update_posted" and operation["entry_edit"]["patch"] == {"note": "原始备注"}
 
 
 def test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_rejected(draft_runtime):
@@ -178,9 +169,9 @@ def test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_reject
         _bind_existing(session, runtime, first, note="人工备注")
     with runtime.sessions() as session:
         cleared = _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": ""}}])
-        assert cleared.operations[0]["values"]["note"] == "" and cleared.operations[0]["manual_fields"] == ["note"]
+        assert cleared.operations[0]["entry_edit"]["patch"] == {"note": ""} and cleared.operations[0]["values"]["note"] == "原始备注"
         rejected = _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"amount": "-100"}}])
-        assert rejected.rows[0]["code"] == "fixed_field_conflict" and not rejected.operations
+        assert rejected.rows[0]["code"] == "field_not_editable" and not rejected.operations
 
 
 def test_duplicate_keeps_result_and_binding_work_but_does_not_claim_record_update(draft_runtime):
@@ -274,14 +265,14 @@ def test_bad_category_shape_is_row_failure_and_foreign_category_is_not_assignabl
         assert not prepared.operations
 
 
-def test_plain_type_edit_is_planned_without_searching_or_writing_current_relations(draft_runtime):
+def test_posted_type_edit_is_skipped_without_changing_current_record(draft_runtime):
     file = _file()
     with draft_runtime.sessions.begin() as session:
         _bind_existing(session, draft_runtime, file)
     with draft_runtime.sessions() as session:
-        operation, = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}]).operations
-        assert operation["type_changed"] is True and operation["values"]["record_type"] == "transfer_out"
+        prepared = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+            "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
+        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
         assert session.get(CashTransactionModel, 1003).record_type == "consumption"
         assert not session.new and not session.dirty
 

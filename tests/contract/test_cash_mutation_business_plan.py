@@ -58,7 +58,7 @@ def test_posted_edit_on_inactive_account_is_a_read_only_real_preview_without_dis
     view = _preview(service, runtime, identifier, patch={"note": "明确人工备注"})
     assert view["summary"]["update_posted"] == 1 and view["can_commit"]
     member = _members(service, view)[identifier]
-    assert member["fields"]["note"] == "明确人工备注" and member["fields"]["state"] == "posted"
+    assert view['items'][0]['display']['note'] == '明确人工备注' and member["fields"]["state"] == "posted"
     assert "amount" not in member["editable_fields"] and "account_name" not in member["editable_fields"]
     assert _plan_data(service, view)["dependencies"]["discovery_seeds"] == []
     assert _records(runtime).read(identifier) == before
@@ -131,7 +131,7 @@ def test_unbound_internal_business_identifiers_do_not_become_refund_proof(contex
     assert all(len(item["member_refs"]) == 1 for item in view["items"])
 
 
-def test_type_split_and_whole_projection_category_keep_member_notes_separate(context_runtime):
+def test_common_entry_preview_keeps_sources_readonly_and_relationship_unchanged(context_runtime):
     from ft.application.cash_categories import CashCategoryService
     runtime = context_runtime
     with runtime.sessions.begin() as session:
@@ -141,20 +141,17 @@ def test_type_split_and_whole_projection_category_keep_member_notes_separate(con
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     category = CashCategoryService(runtime.sessions, runtime.workspace_id).create(name="维护分类")["id"]
     service = _service(runtime)
-    view = _preview(service, runtime, "1003", patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer",
-        "category_id": category, "note": "只改成员甲"})
-    assert len(view["items"]) == 2 and view["summary"]["update_posted"] == 2
+    view = _preview(service, runtime, "1001", patch={"category_id": category, "note": "整笔备注"})
+    assert len(view["items"]) == 1 and view["summary"]["update_posted"] == 1
+    assert view["items"][0]["display"]["note"] == "整笔备注"
+    assert view["items"][0]["display"]["category_id"] == category
     members = _members(service, view)
-    assert {member["fields"]["category_id"] for member in members.values()} == {category}
-    assert members["1003"]["fields"]["note"] == "只改成员甲" and members["1001"]["fields"]["note"] == "成员乙"
+    assert members["1003"]["fields"]["note"] == "成员甲" and members["1001"]["fields"]["note"] == "成员乙"
     data = _plan_data(service, view)
-    assert all("category_id" in operation["manual_fields"] for operation in data["operations"])
-    assert data["category_member_ids"] == ["1001", "1003"]
-    effects = [effect for item in view["items"] for effect in service.item(view["plan_id"], item["preview_item_id"])["relation_effects"]]
-    assert any(effect["relation_id"] == str(relation_id) and effect["effect"] == "remove" for effect in effects)
+    assert len(data["operations"]) == 1 and data["operations"][0]["entry_edit"]["patch"]["category_id"] == category
+    assert data["category_member_ids"] == [] and data["type_effects"]["removed_relation_ids"] == []
     with runtime.sessions() as session:
         assert session.get(TransactionRelationModel, relation_id).active
-        assert session.get(CashTransactionModel, 1003).note == "成员甲"
 
 
 def test_retained_source_issue_is_visible_but_not_scheduled_for_rewrite(context_runtime):

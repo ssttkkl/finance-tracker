@@ -17,7 +17,7 @@ from ft.application.cash_import_plans import CashImportPlanError, _preview_input
 from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_source_candidate_sets import SourceCandidateSets
 from ft.domain.cash_record_policy import (
-    CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, MUTABLE_CASH_FIELDS, CashRecordPolicyError,
+    CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, COMMON_CASH_FIELDS, MUTABLE_CASH_FIELDS, CashRecordPolicyError,
     _normalize, prepare_cash_record_update, validate_cash_record_for_posting,
 )
 from ft.domain.cash_source_matching import allocate_source_record_id
@@ -93,6 +93,11 @@ class CashImportOperationPlanner:
         funding = {row.row_ref: row for row in resolve_cash_funding(scan,
             selections=selections, accounts=accounts)}
         records = {record.transaction_id: record for record in source.records}
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entries = CashEntryRepository(self.session, self.workspace_id)
+        entry_members, entry_rows = entries.for_transactions(records)
+        self._entries = {str(identifier): entry_rows[member.entry_id] for identifier, member in entry_members.items()}
+        self._entry_snapshots = {str(item[0]): (item,) for item in entries.snapshot(records)}
         targets, saved_issues = self._current_targets(records)
         source_results = {row.row_ref: row for row in source.plan.rows}
         groups = {group.group_ref: group for group in source.plan.groups}
@@ -181,6 +186,24 @@ class CashImportOperationPlanner:
         for ref, row in all_rows.items():
             if ref not in decisions:
                 decisions[ref] = self._skip(ref, row.error_code or "row_unreadable")
+        shared = defaultdict(list)
+        for operation in operations:
+            edit = operation.get('entry_edit')
+            if edit and edit['entry_id'] is not None:
+                shared[edit['entry_id']].append(operation)
+        for entry_id, members in shared.items():
+            if len(members) < 2:
+                continue
+            public = {}
+            for operation in members:
+                for field, value in operation['entry_edit']['patch'].items():
+                    if field in public and public[field] != value:
+                        raise CashImportPlanError('plan_input_invalid')
+                    public[field] = value
+                operation['entry_edit_group'] = entry_id
+            members[0]['entry_edit']['patch'] = public
+            for operation in members[1:]:
+                operation.pop('entry_edit')
         return PreparedCashImportOperations(tuple(decisions[ref] for ref in all_rows), tuple(operations), source, scan, candidate_sets.values)
 
     def _accounts(self, selections, records, choices):
@@ -279,19 +302,28 @@ class CashImportOperationPlanner:
             protected_fields=record.protected_fields if record else frozenset())
         source_values = {**current, **source_update.values}
         manual = choice.get("patch", {})
-        manual_values = prepare_cash_record_update(source_values, manual).values if manual else {}
+        if is_posted and manual.keys() - COMMON_CASH_FIELDS:
+            raise CashRecordPolicyError("field_not_editable", tuple(sorted(manual.keys() - COMMON_CASH_FIELDS)))
+        public_patch = {field: value for field, value in manual.items() if field in COMMON_CASH_FIELDS}
+        if public_patch:
+            public_patch = prepare_cash_record_update({'state': 'draft'}, public_patch).values
+        source_manual = {field: value for field, value in manual.items() if field not in COMMON_CASH_FIELDS}
+        manual_values = prepare_cash_record_update(source_values, source_manual).values if source_manual else {}
+        entry = self._entries.get(record.transaction_id) if record else None
+        entry_edit = {"entry_id": entry.id if entry else None, "revision": entry.revision if entry else None,
+            "patch": public_patch} if public_patch else None
         if "components" in manual:
             _validate_component_ids(current["components"], _normalize("components", manual["components"]))
         if manual.get("category_id") is not None and manual["category_id"] not in categories:
             raise CashRecordPolicyError("category_unavailable", ("category_id",))
         values = {**source_values, **manual_values}
-        values, manual_explanation = prepare_cash_source_effects(values, manual, source_type=occurrence.source_type,
+        values, manual_explanation = prepare_cash_source_effects(values, source_manual, source_type=occurrence.source_type,
             source_explanation=explanation, protected_fields=record.protected_fields if record else frozenset())
         if manual_explanation is not None:
             explanation = manual_explanation
         if any("ordinal" not in part for part in values["components"]):
             raise CashRecordPolicyError("invalid_field", ("components",))
-        protected = sorted(set(manual) & {"note", "category_id"})
+        protected = []
         issues = []
         pending = {}
         expected_accounts = []
@@ -299,6 +331,7 @@ class CashImportOperationPlanner:
             pending = {key: value for key, value in values.items() if value != current.get(key)}
             values = deepcopy(current)
             protected = []
+            entry_edit = None
             if pending:
                 issues.append(_issue("source_update_pending"))
         elif not is_posted:
@@ -324,7 +357,7 @@ class CashImportOperationPlanner:
             action = "create_" + values["state"]
         elif current["state"] == "draft" and values["state"] == "posted":
             action = "finalize_draft"
-        elif values != current or protected or pending or (choice["action"] != "defer" and explanation != (target.relation_metadata or {})):
+        elif values != current or entry_edit or pending or (choice["action"] != "defer" and explanation != (target.relation_metadata or {})):
             action = "update_" + current["state"]
         else:
             action = "duplicate"
@@ -349,7 +382,9 @@ class CashImportOperationPlanner:
                 used = [{"source_account_ref": group, "source_type": occurrence.source_type, "account_id": account}
                     for group, account in funding.selected_groups
                     if required[account].issubset(accounts[account]["currencies"] or ())]
-        return {"transaction_id": record.transaction_id if record else None,
+        return {**({"entry_edit": entry_edit} if entry_edit else {}),
+            "entry_snapshot": self._entry_snapshots.get(record.transaction_id, ()) if record else (),
+            "transaction_id": record.transaction_id if record else None,
             "expected_revision": record.row_revision if record else None, "planned_action": action,
             "current": current if record else None, "values": values, "manual_fields": protected,
             "field_diffs": diffs, "issues": list({(item["code"], item["field_path"]): item for item in issues}.values()),

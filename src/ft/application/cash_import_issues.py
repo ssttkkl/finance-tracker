@@ -3,6 +3,10 @@ import re
 
 
 _REASONS = {
+    "entry_changed": ("这笔收支已变化，请刷新后重试", "open_record"),
+    "common_field_conflict": ("合并信息存在不同的人工修改，请确认", "review_relation"),
+    "inheritance_required": ("请选择是否保留整笔修改", "review_relation"),
+    "manual_relation_forbidden": ("手工流水不能与其他流水合并", "review_relation"),
     "account_missing": ("尚未选择账户", "edit"),
     "account_unavailable": ("账户暂不可用", "edit"),
     "account_changed": ("账户信息已变化，请重新选择", "edit"),

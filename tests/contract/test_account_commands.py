@@ -283,7 +283,7 @@ def test_account_revision_migration_preserves_populated_accounts_and_references(
         command.upgrade(config, "head")
         for table in tables:
             after = connection.execute(text(f"SELECT * FROM {table} ORDER BY 1")).mappings().all()
-            normalized = [{key: value for key, value in row.items() if not (table == "accounts" and key == "revision")} for row in after]
+            normalized = [{key: value for key, value in row.items() if key in (before[table][0].keys() if before[table] else ()) and not (table == "accounts" and key == "revision")} for row in after]
             assert normalized == [dict(row) for row in before[table]]
         assert all(row[0] == 1 for row in connection.execute(text("SELECT revision FROM accounts")))
 
@@ -299,7 +299,7 @@ def test_account_revision_migration_refuses_to_drop_used_concurrency_tokens(acco
             command.downgrade(_migration_config(connection), "20261021_40")
         connection.rollback()
         assert connection.scalar(text("SELECT revision FROM accounts WHERE id=101")) == 2
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261023_49"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261023_50"
 
 
 def test_sqlite_account_migration_keeps_deleted_id_high_watermark(cash_web_runtime):

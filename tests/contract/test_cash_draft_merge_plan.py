@@ -122,13 +122,15 @@ def test_both_human_notes_including_cleared_source_need_explicit_value(context_r
     source, target = _pair(runtime)
     with runtime.sessions.begin() as session:
         for identifier, note in ((source, ""), (target, "目标人工备注")):
-            row = session.get(CashTransactionModel, int(identifier))
-            row.note, row.manual_overrides = note, {"note": True}
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            entries = CashEntryRepository(session, runtime.workspace_id)
+            entry = entries.current(int(identifier))
+            entries.patch(int(identifier), {'note': note}, expected_revision=entry.revision)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     before, service = _current(runtime, source, target), _service(runtime)
     if explicit:
         view = _merge(service, runtime, source, target, patch={"note": ""})
-        assert _members(service, view)[target]["fields"]["note"] == ""
+        assert view['items'][0]['display']['note'] == ""
     else:
         with pytest.raises(ValueError) as error:
             _merge(service, runtime, source, target)
@@ -243,7 +245,7 @@ def test_explicit_patch_unifies_multiple_adopted_notes_while_merging(context_run
         _issue(runtime, source, key="source:second", fields={"note": "来源乙"})]
     service = _service(runtime)
     view = _preview(service, runtime, source, intent="resolve_issue", patch={"note": "明确统一"}, issue_resolutions=choices)
-    assert _members(service, view)[target]["fields"]["note"] == "明确统一"
+    assert view['items'][0]['display']['note'] == "明确统一"
     assert view["summary"]["resolve_issue"] == 3
 
 
@@ -284,7 +286,13 @@ def test_category_merge_protects_target_group_human_decisions(context_runtime, h
     with runtime.sessions.begin() as session:
         source_row, other = session.get(CashTransactionModel, int(source)), session.get(CashTransactionModel, 1001)
         source_row.category_id, source_row.manual_overrides = category, {"category_id": True} if human_source else {}
-        other.category_id, other.manual_overrides = None, {"category_id": True}
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entry_repository = CashEntryRepository(session, runtime.workspace_id)
+        entry = entry_repository.current(other.id)
+        entry_repository.patch(other.id, {'category_id': None}, expected_revision=entry.revision)
+        if human_source:
+            entry = entry_repository.current(source_row.id)
+            entry_repository.patch(source_row.id, {'category_id': category}, expected_revision=entry.revision)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     service = _service(runtime)
     if human_source and not explicit:
@@ -293,11 +301,10 @@ def test_category_merge_protects_target_group_human_decisions(context_runtime, h
         assert error.value.code == "source_resolution_conflict" and "category_id" in error.value.fields
     else:
         view = _merge(service, runtime, source, target, patch={"category_id": category} if explicit else {})
-        members = _members(service, view)
-        assert members[target]["fields"]["category_id"] == category
-        assert members["1001"]["fields"]["category_id"] == (category if explicit else None)
+        assert view['items'][0]['display']['category_id'] == (category if explicit else None)
         operations = _plan_data(service, view)["operations"]
-        assert all(("category_id" in operation["manual_fields"]) == explicit for operation in operations)
+        assert len(operations) == 1
+        assert ('category_id' in operations[0].get('entry_edit', {}).get('patch', {})) == explicit
 
 
 def test_existing_confirmed_group_keeps_legally_deactivated_member(context_runtime):

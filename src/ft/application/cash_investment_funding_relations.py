@@ -133,6 +133,7 @@ class CashInvestmentFundingRelationService:
                 CashTransactionModel.workspace_id == self._workspace_id,
                 CashTransactionModel.deleted_at.is_(None),
                 CashTransactionModel.state == "posted",
+                CashTransactionModel.record_origin.in_(("import", "legacy")),
                 AccountModel.type == "cash",
                 CashTransactionModel.record_type.in_(expected_types),
             ).order_by(CashTransactionModel.occurred_at, CashTransactionModel.id)
@@ -368,6 +369,7 @@ class CashInvestmentFundingRelationService:
             CashTransactionModel.id == component.cash_transaction_id,
             CashTransactionModel.deleted_at.is_(None),
             CashTransactionModel.state == "posted",
+                CashTransactionModel.record_origin.in_(("import", "legacy")),
         ))
         cash = None if parent is None else SimpleNamespace(
             id=component.id, parent_id=parent.id, account_id=component.account_id,

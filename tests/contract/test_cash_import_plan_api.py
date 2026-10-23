@@ -113,8 +113,10 @@ def test_http_repreview_uses_complete_inputs_and_old_plan_cannot_commit(context_
     assert _commit(client, first).status_code == 409
     assert _commit(client, changed.json()).status_code == 200
     with context_runtime.sessions() as session:
-        saved = session.scalar(select(CashTransactionModel).where(CashTransactionModel.note == "人工备注"))
-        assert saved.manual_overrides["note"] is True
+        from ft.adapters.relational.models import CashEntryModel
+        saved = session.scalar(select(CashEntryModel).where(CashEntryModel.note == "人工备注"))
+        assert 'note' in saved.manual_fields
+        assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.note == "人工备注")) is None
 
 
 def test_http_known_rollback_and_lost_commit_response_have_distinct_recovery(context_runtime, monkeypatch):

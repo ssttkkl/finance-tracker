@@ -261,6 +261,9 @@ class CurrentCashRelationRepository:
             or result["anchor_transaction_id"] not in {result["primary_transaction_id"], result["secondary_transaction_id"]}
             or result["anchor_component_id"] is not None and result["anchor_component_id"] not in {result["primary_component_id"], result["secondary_component_id"]}):
             raise CashRelationError("relation_endpoint_incompatible")
+        if result["active"] and result["state"] != "ignored":
+            from ft.adapters.relational.cash_relation_origin import assert_relation_origin
+            assert_relation_origin(self._session, self._workspace_id, parents, kind=result["kind"])
         if result["state"] == "confirmed" and result["active"]:
             endpoints = []
             for role in ("primary", "secondary"):
@@ -324,6 +327,9 @@ class CurrentCashRelationRepository:
         component_ids = {entry[1] for entry in entries} - {None}
         components = {component.id: component for component in self._session.scalars(select(CashTransactionComponentModel).where(
             CashTransactionComponentModel.workspace_id == self._workspace_id, CashTransactionComponentModel.id.in_(component_ids)))} if component_ids else {}
+        from ft.adapters.relational.cash_relation_origin import assert_relation_origin
+        if entries:
+            assert_relation_origin(self._session, self._workspace_id, set(parents) | {row.anchor_transaction_id}, kind=row.kind)
         prepared = []
         for parent_id, component_id, revision, value in entries:
             parent, component = parents.get(parent_id), components.get(component_id)

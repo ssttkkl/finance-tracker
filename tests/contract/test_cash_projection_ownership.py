@@ -270,12 +270,13 @@ def test_ownership_migration_preserves_current_ids_and_removes_only_retired_copi
     runtime = draft_runtime
     _mirror(runtime)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    _migrate(runtime, "20261021_44", downgrade=True)
     with runtime.sessions.begin() as session:
         _dataset(session, runtime, "old-derived")
         repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
         repository.replace_dataset("old-derived", build_cash_projections(*repository.read_sources()), projection_version=1)
-        session.get(CashProjectionDatasetModel, "old-derived").state = "retired"
+    _migrate(runtime, "20261021_44", downgrade=True)
+    with runtime.sessions.begin() as session:
+        session.get(CashProjectionDatasetModel, 'old-derived').state = 'retired'
     before = _snapshot(runtime, current_only=True)
     # 只核对本次归属迁移；后续显示规则迁移可以合法推进规则元数据。
     _migrate(runtime, "20261021_45")
@@ -327,12 +328,13 @@ def test_ownership_migration_ddl_failure_restores_deleted_derived_copies(draft_r
     runtime = draft_runtime
     _mirror(runtime)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    _migrate(runtime, "20261021_44", downgrade=True)
     with runtime.sessions.begin() as session:
         _dataset(session, runtime, "old-derived")
         repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
         repository.replace_dataset("old-derived", build_cash_projections(*repository.read_sources()), projection_version=1)
-        session.get(CashProjectionDatasetModel, "old-derived").state = "retired"
+    _migrate(runtime, "20261021_44", downgrade=True)
+    with runtime.sessions.begin() as session:
+        session.get(CashProjectionDatasetModel, 'old-derived').state = 'retired'
     before = _snapshot(runtime)
     batch = op.batch_alter_table
 

@@ -36,7 +36,8 @@ def _old(runtime, rows):
 
 def _contents(runtime):
     with _engine(runtime).connect() as connection:
-        return {table: sorted([tuple((key, str(value)) for key, value in row._mapping.items())
+        return {table: sorted([tuple((key, str(value)) for key, value in row._mapping.items()
+                if key not in {'record_origin', 'manual_transfer_id'})
             for row in connection.execute(text(f"SELECT * FROM {table}"))], key=repr)
             for table in ("cash_transactions", "cash_transaction_components", "transaction_relations",
                 "cash_source_bindings", "ledger_snapshots", "statement_account_mappings")}
@@ -157,12 +158,14 @@ def test_downgrade_with_migrated_legacy_result_refuses_before_any_schema_change(
     runtime = mutation_runtime
     _old(runtime, [{}])
     _revision(runtime, "head")
+    with runtime.sessions() as session:
+        head = session.scalar(text('SELECT version_num FROM alembic_version'))
     with pytest.raises(ValueError, match="refusing a lossy"):
         _revision(runtime, OLD, downgrade=True)
     assert "cash_import_commits" not in inspect(_engine(runtime)).get_table_names()
     with runtime.sessions() as session:
         assert _repo(session, runtime).get("fixture-user", "legacy-one") is not None
-        assert session.scalar(text("SELECT version_num FROM alembic_version")) == NEW
+        assert session.scalar(text("SELECT version_num FROM alembic_version")) == head
 
 
 def test_empty_legacy_downgrade_restores_only_empty_old_table_and_keeps_current_receipts(mutation_runtime):

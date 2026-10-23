@@ -85,7 +85,14 @@ def test_joint_refund_confirmation_and_dissolution_relocate_every_stable_member(
     assert merged.json()["projection"]["confirmation_status"] == "confirmed"
     assert all(client.get("/api/v1/cash-projections/" + item["projection_id"]).status_code == 404
         for item in initial if item["projection_id"] != current[0]["projection_id"])
-    response = _preview(client, context_runtime, "1101", patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    editing = _preview(client, context_runtime, '1101', intent='maintain_relations').json()
+    choices = {}
+    for item in editing['items']:
+        detail = client.get('/api/v1/cash-mutations/plans/' + editing['plan_id'] + '/items/' + item['preview_item_id']).json()
+        choices.update((group['suggestion_id'], {'suggestion_id': group['suggestion_id'], 'action': 'remove'})
+            for group in detail['relation_choices'] if 'remove' in group['allowed_actions'])
+    response = _preview(client, context_runtime, '1101', intent='maintain_relations', edit_context_id=editing['edit_context_id'],
+        previous_plan_id=editing['plan_id'], expected_plan_revision=editing['plan_revision'], relation_choices=list(choices.values()))
     assert response.status_code == 200 and _commit(client, response.json(), "split-current-projection").status_code == 200
     after = [_locate(client, identifier).json() for identifier in range(1101, 1105)]
     assert len({item["projection_id"] for item in after}) > 1

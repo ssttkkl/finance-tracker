@@ -324,6 +324,7 @@ class CashLedgerCommandService:
                 "record_type": record_type,
                 "record_subtype": record_subtype,
                 "source_type": "",
+                "record_origin": "manual",
                 "record_id": "",
                 "source_payload": None,
             }

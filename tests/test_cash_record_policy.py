@@ -91,12 +91,12 @@ def test_same_rules_allow_explicit_manual_change_of_protected_values():
     assert prepare_cash_record_update(_record(note=""), {"note": "手动备注"}).values == {"note": "手动备注"}
 
 
-def test_type_change_requires_legal_pair_and_signals_relation_revalidation():
+def test_manual_type_change_requires_legal_type_pair():
     from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
     with pytest.raises(CashRecordPolicyError) as error:
-        prepare_cash_record_update(_record(), {"record_type": "transfer_out"})
+        prepare_cash_record_update(_record(record_origin="manual"), {"record_type": "transfer_out"})
     assert error.value.code == "invalid_record_type"
-    result = prepare_cash_record_update(_record(), {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    result = prepare_cash_record_update(_record(record_origin="manual"), {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
     assert result.type_changed
     assert result.values == {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}
 

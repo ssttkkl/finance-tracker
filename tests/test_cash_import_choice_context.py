@@ -91,3 +91,22 @@ def test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups(action
         "old": {"choice": stale, "member_refs": [{"transaction_id": "t1"}]}}}
     CashImportBusinessPlanBuilder._apply_choices(groups, [stale, {"suggestion_id": "new-a", "action": action}], previous)
     assert [group["action"] for group in groups] == [action, "defer", "accept"]
+
+
+def test_common_decision_survives_file_invalidation_and_continued_restore():
+    current = _context()
+    choice = current.plan['invalidated_relation_choices']['sg_stale']['choice']
+    choice['common_fields'] = {'note': '', 'counterparty': '共同对方', 'category_id': None}
+    retained = retained_choice_context(current)
+    for _ in range(3):
+        current = SimpleNamespace(plan=None, context_data=retained)
+        assert previous_choice_context(current)['invalidated_relation_choices']['sg_stale']['choice'] == choice
+        retained = retained_choice_context(current)
+
+
+@pytest.mark.parametrize('patch', [{'amount': '-1'}, {'note': 1}, {'counterparty_account_attrs': [1]}])
+def test_invalidated_common_decision_rejects_non_public_or_invalid_values(patch):
+    current = _context()
+    current.plan['invalidated_relation_choices']['sg_stale']['choice']['common_fields'] = patch
+    with pytest.raises(CashImportChoiceContextError):
+        retained_choice_context(current)

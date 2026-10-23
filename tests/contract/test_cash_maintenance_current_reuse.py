@@ -90,7 +90,7 @@ def test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_membe
         assert bool(scopes) is root_bound
 
 
-def test_posted_type_change_keeps_component_identity_and_still_removes_invalid_relation(context_runtime):
+def test_posted_import_type_change_is_rejected_without_changing_members_or_relation(context_runtime):
     from ft.application.cash_projections import CashProjectionService
     from tests.contract.test_cash_import_business_plan import _existing_mirror
     from tests.contract.test_cash_mutation_business_plan import _preview
@@ -102,12 +102,12 @@ def test_posted_type_change_keeps_component_identity_and_still_removes_invalid_r
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     before = records(runtime).read("1003")["fields"]["components"]
     service = _service(runtime)
-    receipt = _commit(service, _preview(service, runtime, "1003", patch={
-        "record_type": "transfer_out", "record_subtype": "ordinary_transfer"}))
-    assert receipt["summary"]["relations_removed"] == 1
+    with pytest.raises(ValueError, match='field_not_editable'):
+        _preview(service, runtime, "1003", patch={
+            "record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
     assert records(runtime).read("1003")["fields"]["components"] == before
     with runtime.sessions() as session:
-        assert not session.get(TransactionRelationModel, relation_id).active
+        assert session.get(TransactionRelationModel, relation_id).active
 
 
 def test_component_change_without_parent_revision_still_invalidates_confirmation(context_runtime):

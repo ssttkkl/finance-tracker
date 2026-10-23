@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from alembic import command
-from sqlalchemy import delete, event, select, text
+from sqlalchemy import delete, event, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 
 from ft.adapters.relational import create_relational_engine, create_session_factory, ensure_workspace
@@ -27,7 +27,7 @@ SOURCES = ("cash_transactions", "cash_transaction_components", "transaction_rela
 def legacy_sqlite(tmp_path):
     engine = create_relational_engine(f"sqlite+pysqlite:///{tmp_path / 'identity-before-46.db'}")
     with engine.connect() as connection:
-        command.upgrade(_migration_config(connection), "20261021_45")
+        command.upgrade(_migration_config(connection), "head")
         connection.commit()
     sessions = create_session_factory(engine)
     workspace = "identity-migration"
@@ -44,6 +44,10 @@ def legacy_sqlite(tmp_path):
             session.flush()
             session.add(CashTransactionComponentModel(id=identifier, workspace_id=workspace, cash_transaction_id=identifier,
                 account_id=account, amount=Decimal(amount), currency="CNY", ordinal=0))
+    # 当前工厂只在当前 schema 使用；目标迁移前恢复真实 45 schema。
+    with engine.connect() as connection:
+        command.downgrade(_migration_config(connection), "20261021_45")
+        connection.commit()
     try:
         yield SimpleNamespace(sessions=sessions, workspace_id=workspace, engine=engine)
     finally:
@@ -51,6 +55,9 @@ def legacy_sqlite(tmp_path):
 
 
 def _dependencies(runtime):
+    with runtime.engine.connect() as connection:
+        command.upgrade(_migration_config(connection), "head")
+        connection.commit()
     with runtime.sessions.begin() as session:
         workspace = runtime.workspace_id
         repository = CurrentCashRelationRepository(session, workspace)
@@ -72,14 +79,17 @@ def _dependencies(runtime):
         session.add(CashInvestmentFundingRelationModel(workspace_id=workspace, cash_transaction_component_id=1001,
             investment_event_id=investment.id, direction="cash_to_investment", status="accepted", active_slot="active", rule_id="fixture"))
     CashProjectionService(runtime.sessions, workspace).rebuild()
+    with runtime.engine.connect() as connection:
+        command.downgrade(_migration_config(connection), "20261021_45")
+        connection.commit()
     return mirror
 
 
-def _snapshot(connection):
+def _snapshot(connection, columns=None):
     tables = (*SOURCES, "cash_source_bindings", "cash_transaction_issues", "cash_issue_candidates", "cash_relation_candidates",
         "cash_projection_datasets", "cash_projections", "cash_projection_members", "cash_projection_relations", "cash_projection_states",
         "cash_investment_funding_relations", "investment_events")
-    return {table: connection.execute(text(f"SELECT * FROM {table} ORDER BY " + (
+    return {table: connection.execute(text(f"SELECT {','.join(columns[table]) if columns else '*'} FROM {table} ORDER BY " + (
         "workspace_id" if table == "cash_projection_states" else "id"))).all() for table in tables}
 
 
@@ -87,13 +97,17 @@ def test_identity_migration_preserves_populated_current_references(legacy_sqlite
     runtime = legacy_sqlite
     mirror = _dependencies(runtime)
     with runtime.engine.connect() as connection:
+        columns = {table: [column['name'] for column in inspect(connection).get_columns(table)] for table in _snapshot(connection)}
         before = _snapshot(connection)
+        connection.commit()
+        command.upgrade(_migration_config(connection), "20261021_46")
+        connection.commit()
+        assert _snapshot(connection, columns) == before
+        assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
+        assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
         connection.commit()
         command.upgrade(_migration_config(connection), "head")
         connection.commit()
-        assert _snapshot(connection) == before
-        assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-        assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
     # 不能仅依赖索引名称；反向镜像及重复开放锚点仍必须真正拒绝。
     with pytest.raises(IntegrityError), runtime.sessions.begin() as session:
         session.add(TransactionRelationModel(workspace_id=runtime.workspace_id, kind="payment_mirror", state="draft",

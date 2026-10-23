@@ -46,8 +46,7 @@ def _category_plan(runtime, *, split=True):
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     category = CashCategoryService(runtime.sessions, runtime.workspace_id).create(name="整笔分类")["id"]
     service = _service(runtime)
-    view = _preview(service, runtime, "1003", patch={"category_id": category, "note": "只改成员甲",
-        **({"record_type": "transfer_out", "record_subtype": "ordinary_transfer"} if split else {})})
+    view = _preview(service, runtime, "1003", patch={"category_id": category, "note": "整笔备注"})
     return service, view, relation_id, category
 
 
@@ -61,7 +60,7 @@ def test_posted_edit_commits_once_and_replays_after_context_and_target_are_gone(
     after = _records(runtime).read(identifier)
     assert receipt["committed"] and receipt["status"] == "completed" and receipt["operation_kind"] == "mutation"
     assert receipt["summary"]["updated_posted"] == 1
-    assert after["fields"]["note"] == "明确保存" and after["row_revision"] > before["row_revision"]
+    assert after["entry"]["fields"]["note"] == "明确保存" and after["row_revision"] == before["row_revision"]
     assert _snapshot(runtime) == balances
     service._staging._entries.clear()
     with runtime.sessions.begin() as session:
@@ -92,30 +91,22 @@ def test_complete_draft_finalizes_same_identity_and_changes_balances_only_once(c
     assert _commit(service, view) == receipt and _snapshot(runtime) == actual
 
 
-@pytest.mark.parametrize("split", [False, True])
-def test_type_split_and_category_save_all_old_members_but_only_selected_note(context_runtime, split):
+def test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group(context_runtime):
     runtime = context_runtime
-    service, view, relation_id, category = _category_plan(runtime, split=split)
+    service, view, relation_id, category = _category_plan(runtime)
     balances = _snapshot(runtime)
     receipt = _commit(service, view)
-    assert receipt["summary"]["updated_posted"] == 2 and receipt["summary"]["relations_removed"] == int(split)
+    assert receipt["summary"]["updated_posted"] == 1 and receipt["summary"]["relations_removed"] == 0
     with runtime.sessions() as session:
         first, second = (session.get(CashTransactionModel, identifier) for identifier in (1003, 1001))
-        assert first.note == "只改成员甲" and second.note == "成员乙"
-        assert first.category_id == second.category_id == category
-        assert all(row.manual_overrides["category_id"] for row in (first, second))
-        assert session.get(TransactionRelationModel, relation_id).active is not split
-        account = session.get(AccountModel, first.account_id)
-        kind, name = account.type, account.name
+        assert first.note == "成员甲" and second.note == "成员乙"
+        assert (first.category_id, second.category_id) == ('category-food', 'category-income')
+        assert session.get(TransactionRelationModel, relation_id).active
+    entry = _records(runtime).read("1003")["entry"]
+    assert entry["fields"]["note"] == "整笔备注" and entry["fields"]["category_id"] == category
     page = service.results(receipt["receipt_id"], result_kind="row")
-    assert len(page["items"]) == 2 and len({ref["projection_id"] for ref in page["projection_refs"]}) == (2 if split else 1)
-    actual = _snapshot(runtime)
-    if split:
-        # 既有余额口径排除转账，消费改为转账须撤销原消费影响。
-        old = Decimal(balances.get("accounts", {}).get(kind, {}).get(name, {}).get("CNY", "0"))
-        assert Decimal(actual["accounts"][kind][name]["CNY"]) - old == Decimal("12.5")
-    else:
-        assert actual == balances
+    assert len(page["items"]) == 1
+    assert _snapshot(runtime) == balances
 
 
 def test_failure_after_second_category_member_rolls_back_the_entire_record_unit(context_runtime, monkeypatch):
@@ -128,12 +119,12 @@ def test_failure_after_second_category_member_rolls_back_the_entire_record_unit(
     def fail(self, session, operation, source_rows):
         result = original(self, session, operation, source_rows)
         attempted.append(operation["transaction_id"])
-        if len(attempted) == 2:
+        if len(attempted) == 1:
             raise RuntimeError("synthetic private second member failure")
         return result
     monkeypatch.setattr(CashRecordWriter, "save", fail)
     receipt = _commit(service, view)
-    assert len(attempted) == 2 and receipt["status"] == "failed" and receipt["summary"]["skipped"] == 2
+    assert len(attempted) == 1 and receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
     assert receipt["summary"]["updated_posted"] == 0 and receipt["summary"]["relations_removed"] == 0
     assert {identifier: _records(runtime).read(identifier) for identifier in before} == before
     with runtime.sessions() as session:
@@ -214,25 +205,18 @@ def test_new_relation_failure_keeps_finalized_record_and_visible_current_problem
     assert "synthetic private" not in str(receipt) + str(_results(service, receipt))
 
 
-def test_source_text_edit_keeps_confirmed_zero_refund_and_does_not_protect_automatic_note(context_runtime):
+def test_posted_source_text_user_edit_is_rejected_and_full_refund_stays_confirmed(context_runtime):
     from tests.contract.test_cash_import_commit import _refund_bundle
     runtime = context_runtime
     importer, plan = _plan(runtime, _refund_bundle())
     imported = _import_commit(importer, plan)
     identifier = _results(importer, imported, "row")[0]["transaction_id"]
-    service = _service(runtime)
     before = _records(runtime).read(identifier)
-    view = _preview(service, runtime, identifier, patch={"source_payload": {"备注": "更新后的来源原文", "交易状态": "交易成功"}})
-    assert len(view["items"]) == 1 and Decimal(view["items"][0]["display"]["amount"]) == 0
-    receipt = _commit(service, view)
-    current = _records(runtime).read(identifier)
-    assert current["fields"]["note"] == "更新后的来源原文" and current["confirmation_status"] == "confirmed"
-    assert all(current["fields"][key] == before["fields"][key] for key in ("amount", "currency", "occurred_at", "account_id", "components"))
-    assert receipt["summary"]["relations_removed"] == 0
-    with runtime.sessions() as session:
-        assert not session.get(CashTransactionModel, int(identifier)).manual_overrides.get("note")
-        assert {row.state for row in session.scalars(select(TransactionRelationModel).where(TransactionRelationModel.active))} == {"confirmed"}
-    unchanged = _preview(service, runtime, identifier)
+    with pytest.raises(ValueError):
+        _preview(_service(runtime), runtime, identifier,
+            patch={"source_payload": {"备注": "伪造来源原文"}})
+    assert _records(runtime).read(identifier) == before
+    unchanged = _preview(_service(runtime), runtime, identifier)
     assert len(unchanged["items"]) == 1 and Decimal(unchanged["items"][0]["display"]["amount"]) == 0
 
 

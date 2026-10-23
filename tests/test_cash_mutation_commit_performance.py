@@ -46,9 +46,11 @@ def test_posted_maintenance_preview_and_commit_in_10k_ledger_meet_edit_budget(pe
         ended = time.perf_counter_ns()
         assert receipt["status"] == "completed" and receipt["summary"]["updated_posted"] == 1
         with sessions() as session:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
             current = session.get(CashTransactionModel, int(identifier))
-            assert current.note == note and current.row_revision > revision and current.manual_overrides["note"]
-            revision = current.row_revision
+            entry = CashEntryRepository(session, WORKSPACE).current(identifier)
+            assert current.note == '' and current.row_revision == revision and not current.manual_overrides.get('note')
+            assert entry.note == note and 'note' in entry.manual_fields
         if sample >= EDIT_WARMUPS:
             combined.append(ended - started)
             commits.append(ended - committing)

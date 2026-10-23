@@ -64,8 +64,8 @@
 | 缺账户、金额、时间或分摊的草稿 | 在同一流水详情补字段和关联；“保存待确认”；完整后“确认保存” | 前者保持草稿；后者在当前详情内预览变化并联合保存成为正式流水，保留原身份，不跳到独立配对步骤 |
 | 正式流水的来源更新待处理项 | 查看已有值与当前待处理值；应用或保留现有 | 应用仍遵守统一字段约束并保护人工覆盖；保留现有只结束当前问题 |
 | 无法自动确定身份的少数草稿 | 查看候选，在确有需要时确认独立记录或对应已有流水 | 只有用户主动进入该问题才提供选择；合并不相加金额，来源对应随之转移 |
-| 尚未确认的关联 | 在流水详情展开相关记录并确认、拒绝或继续暂存 | 未确认继续分别显示；确认后按当前合法图合并 |
-| 正式流水编辑 | 展示可编辑字段；固定字段只读 | 修改类型时展示将解除的关联，点击保存一并确认；不寻找替代配对 |
+| 尚未确认的关联 | 在流水详情展开相关记录并确认、拒绝或继续暂存 | 未确认保持当前展示；确认后按当前合法图合并 |
+| 正式流水编辑 | 展示可编辑字段；固定字段只读 | 导入流水只改公共字段，合并后整笔编辑；手工流水按创建方式允许修改，手工转账双端共同保存 |
 
 已经完整的草稿仍可“保存待确认”，不会因为一次普通保存意外进入统计。用户选择“确认保存”才转换状态。更新来源补足草稿时，导入最终确认可以同时承担这个确认，无须再打开详情操作一次。
 
@@ -352,7 +352,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `POST /cash-mutations/plans/{plan_id}/commit` | `Idempotency-Key`；统一字段约束及局部提交；返回 `MutationReceipt` 和最新定位 |
 | `GET /cash-records` | 活动父流水的辅助搜索，非主页投影列表，不授权任意新关系写入；支持搜索、日期及游标，最多每页 20 条 |
 | `POST /cash-records` | 手工新建正式流水的直接命令；公开字段见第 3.1 节，不创建维护计划，不承诺维护收据的重放语义 |
-| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_version/category_id`；批量另带明确 `projection_ids`，整项全部成员分类原子更新，清空同样建立人工保护 |
+| `PUT /cash-projections/{projection_id}/category`、`PUT /cash-projections/categories` | `projection_version/category_id`；批量另带明确 `projection_ids`，所选稳定收支对象的公共分类原子更新，来源成员不变，清空同样建立人工保护 |
 | `DELETE /cash-records/{transaction_id}` | `mode=delete_current_dissolve`（默认）或 `delete_all`；前者只删当前，后者删已确认连通组；直接命令，当前不要求行修订或幂等键 |
 | `POST /cash-projections/delete-impact` | `projection_ids/projection_version`；只读返回展示项、成员及关联影响计数 |
 | `DELETE /cash-projections` | 同一投影选择和发布版本，`confirmed=true`；原子删除所选投影全部成员，失效选择拒绝，不删除未选的受影响重建组 |
@@ -384,9 +384,13 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 }
 ```
 
-`intent` 可选 `edit_record/finalize_draft/resolve_issue/maintain_relations`。前 3 种意图可提供 `issue_resolutions` 数组；每项包含 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用。`resolve_issue` 至少提供一项，不接受同一问题的重复决定；允许值由当前问题返回。先应用所选来源决定，再应用本次显式 `patch`，最后验证最终状态及生成预计列表；`finalize_draft` 可在同次确认中解决来源阻断并转正式，单独 `resolve_issue` 不自动转正式。不能将固定字段冲突用 `apply_source` 或后续补丁掩盖。`merge_into` 是保留目标身份的终结动作，必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
+`intent` 可选 `edit_entry/edit_record/finalize_draft/resolve_issue/maintain_relations`。前 4 种意图可提供 `issue_resolutions` 数组；每项包含 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用。`resolve_issue` 至少提供一项，不接受同一问题的重复决定；允许值由当前问题返回。先应用所选来源决定，再应用本次显式 `patch`，最后验证最终状态及生成预计列表；`finalize_draft` 可在同次确认中解决来源阻断并转正式，单独 `resolve_issue` 不自动转正式。不能将固定字段冲突用 `apply_source` 或后续补丁掩盖。`merge_into` 是保留目标身份的终结动作，必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
 
-请求仅接受当前意图的字段；`patch`、`issue_resolutions`、`relation_choices` 省略时为空，`maintain_relations` 不携带来源问题决定。`expected_revision`、每项 `expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。每次最多处理 100 个当前问题；问题必须属于当前流水。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标字段；同次只能有一个合并目标，不能同时要求 `finalize_draft` 或 `create_independent`，也不隐式转正式目标草稿。关联决定沿用 `suggestion_id/action/candidate_id`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
+请求仅接受当前意图的字段；`patch`、`issue_resolutions`、`relation_choices` 省略时为空，`maintain_relations` 不携带来源问题决定。`expected_revision`、每项 `expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。每次最多处理 100 个当前问题；问题必须属于当前流水。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标字段；同次只能有一个合并目标，不能同时要求 `finalize_draft` 或 `create_independent`，也不隐式转正式目标草稿。关联决定使用 `suggestion_id/action/candidate_id/common_fields/inherit_common_fields`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
+
+`edit_entry` 使用 `transaction_id/expected_revision` 定位当前成员，同时必须携带 `entry_id/expected_entry_revision` 校验稳定对象。导入独立与合并收支的 `patch` 均只允许公共字段；保留的 `edit_record` 也执行相同权限。`GET /cash-records/{transaction_id}` 返回 `record_origin` 与 `entry`（标识、修订、公共字段、人工字段、可编辑字段及 `supports_transfer_edit`），来源 `fields` 与公共值分别返回。计划单项详情的 `entry.fields/editable_fields` 表达预计公共值，正式导入来源成员的字段只读；预计 `display` 包含公共分类和对方账户信息。
+
+手工转账的财务修改使用 `edit_entry.member_patches`，恰含内部双端各一项 `transaction_id/patch`；公共属性仍放顶层 `patch`，不接受两端分别指定不同公共值。账户、币种、类型和完整最终图共同校验；两端、内部关系和余额同一事务保存，不能以单端补丁绕过。普通手工流水可修改全部合法业务字段，不能填写外部身份或参与配对。
 
 身份问题详情可提供 `candidates`，每项包含 `transaction_id`、当前 `row_revision`、`state` 和与预览一致的 `display`。只返回同工作区、当前可访问的活动候选，不修改库中候选证明；这些候选只在使用者主动处理该问题时展示，不增加导入核对步骤。合并计划按实际选择的目标及其当前修订完整验证，不能把旧候选修订当作目标尚未变化的证明。
 
@@ -404,7 +408,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护计划的 `summary` 仅含非负、非布尔整数计数：`update_posted`、`finalize_draft`、`update_draft`、`resolve_issue`、`merge_draft`、`create_independent`、`duplicate`、`skip`、`relations_accepted`、`relations_deferred`、`relations_ignored`、`relations_removed`、`relations_failed`；不含错误文本或流水正文。未知键或错误类型在发布前拒绝，不能替换原计划。
 
-`maintain_relations` 从相关 `transaction_id` 出发，仅根据已保存关系及候选生成当前组，提交 `accept/defer/ignore/remove` 等服务端允许动作；不重新发现新候选，也不接收任意搜索两条流水后构造的新关系。类型变化造成的系统解除由服务端计算，不作为客户端任意删除集合。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回新的关联解除或用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
+`maintain_relations` 从相关 `transaction_id` 出发，仅根据已保存关系及候选生成当前组，提交 `accept/defer/ignore/remove` 等服务端允许动作；不重新发现新候选，也不接收任意搜索两条流水后构造的新关系。导入正式类型不可由用户修改，公共编辑不自动拆组。实际公共人工值冲突以 `common_field_conflicts` 返回，明确选择放入 `common_fields`；存在人工公共值的解除必须携带布尔 `inherit_common_fields`。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
 
 当前关联同样先从计划取得完整 `suggestion_id` 和候选，再用完整输入重预览；不接受客户端构造的边或残缺成员集合。初次预览及未选择组保持各成员原状态，不算新确认或新延后，不刷新候选证明。当前组包含以前停用的成员供并发核对，维护不能自动复活它们；解除只停用仍活动的成员。已有候选按原证明修订、证据、端点当前状态及完整最终图校验，失效选择要求刷新，不改选其他对侧；多个关系必须共同生效时，每个 `candidate_id` 表示完整合法组合。没有组成项的草稿可继续延后、忽略或解除，仍不能确认合并。保存继续保留原关系 ID、锚点及决定组，成功后读取双方最新展示。
 
@@ -451,6 +455,9 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 ```mermaid
 erDiagram
+    cash_entries ||--|{ cash_entry_members : owns
+    cash_transactions ||--o| cash_entry_members : belongs_to
+    cash_entries ||--o{ cash_projections : calculated_as
     cash_transactions ||--o{ cash_transaction_components : contains
     cash_transactions ||--o{ cash_source_bindings : identified_by
     cash_transactions ||--o{ cash_transaction_issues : needs_attention
@@ -469,24 +476,33 @@ erDiagram
 |---|---|---|
 | `id/workspace_id/created_at` | 沿用，非空 | 系统维护 |
 | `state` | `draft/posted`，非空 | 只能由对应命令转换 |
-| `row_revision` | 正整数，非空 | 业务字段、人工保护或组成项变化时推进；问题和关系分别使用各自实例／修订，维护计划联合校验 |
+| `record_origin/manual_transfer_id` | 固定创建方式／可空内部转账标识 | 服务端设置 `import/manual/manual_transfer/legacy`；手工转账双端共用标识，缺证历史保守限制权限 |
+| `row_revision` | 正整数，非空 | 来源字段、组成项或身份对应变化时推进；公共对象编辑不推进父修订；问题和关系分别使用各自实例／修订，维护计划联合校验 |
 | `source_type/record_id` | 导入记录非空；手工记录沿用现状 | 活动记录业务身份唯一；无编号时一次生成合成标识，不能使用会变化的描述哈希 |
-| `source_payload` | JSON，可空 | 导入记录保存当前原始来源列；手工记录可空，用户允许更新 |
+| `source_payload` | JSON，可空 | 导入记录保存当前原始来源列；手工记录可空；正式来源正文只通过来源更新写入 |
 | `source_fingerprint` | 文本，可空 | 当前来源内容摘要，不是完整记录版本 |
 | `relation_metadata` | JSON，可空 | 当前逐行来源解释，跨行选择放关系／候选中 |
-| `manual_overrides` | JSON，非空，默认 `{}` | 记录 `note/category_id` 是否人工覆盖，包含明确清空；客户端不可直接写 |
-| `occurred_at/amount/currency` | 草稿可空 | 正式必须完整，正式后固定；未知金额不写 `0` |
-| `cash_granularity` | `atomic/aggregate`，非空，默认 `atomic` | 正式 `atomic` 对应唯一组成项和一致账户；正式后固定 |
+| `manual_overrides` | JSON，非空，默认 `{}` | 保留草稿及迁移所需来源侧标记；正式公共人工值权威为 `cash_entries.manual_fields`，客户端不可直接写 |
+| `occurred_at/amount/currency` | 草稿可空 | 正式必须完整；导入／缺证历史正式后固定，普通手工及完整手工转账按对应命令校验更新；未知金额不写 `0` |
+| `cash_granularity` | `atomic/aggregate`，非空，默认 `atomic` | 正式 `atomic` 对应唯一组成项和一致账户；导入／缺证历史正式后固定 |
 | `account_id` | 可空 | 草稿可尚未确定账户；正式 `atomic` 必填，`aggregate` 不填伪造的单一账户 |
 | `record_type/record_subtype` | 草稿可空 | 正式非空且组合合法；已填草稿值同样必须合法，原始非法输入保留在来源行和问题中 |
-| `counterparty/counterparty_account/note` | 文本，非空默认 `""` | 按统一字段白名单更新，备注不截断或合成 |
+| `counterparty/counterparty_account/note` | 文本，非空默认 `""` | 来源当前值，备注不截断或合成；用户公共值另存稳定对象 |
 | `counterparty_account_attrs` | JSON 数组，默认 `[]` | 仅基本结构检查，不做账号语义校验 |
-| `category_id` | 可空，工作区内分类外键 | 人工分类保护独立于类型 |
+| `category_id` | 可空，工作区内分类外键 | 来源默认分类；用户公共分类及保护另存稳定对象 |
 | `deleted_at/deleted_by/delete_reason` | 沿用 | 逻辑删除后退出活动唯一性、关系与投影，不物理删除原记录 |
 
 正式必填检查形如 `state <> 'posted' OR (amount IS NOT NULL AND occurred_at IS NOT NULL AND currency IS NOT NULL AND record_type IS NOT NULL AND record_subtype IS NOT NULL)`，不能只比较字段值而放过 SQL `NULL`。金额有限、日期可解析和类型组合由共享领域校验，双方后端一致。
 
 活动记录按 `(workspace_id,source_type,record_id)` 唯一。来源候选查询使用不可变候选字段，**不能设为唯一键**，同秒同额真实交易允许存在多条；具体查询索引以 ORM 和迁移为准，不在本文维护列顺序副本。
+
+### 4.2.1 `cash_entries/cash_entry_members`
+
+`cash_entries` 保存 `id/workspace_id/root_transaction_id/revision`，以及 `category_id/note/counterparty/counterparty_account/counterparty_account_attrs` 和 `manual_fields`。修订为正整数；分类为当前工作区外键；人工字段包含明确清空。`split_inherit` 仅传递同事务拆分决定，维护完成后清空。
+
+`cash_entry_members` 以 `(workspace_id,transaction_id)` 唯一，引用同工作区的来源父记录及收支对象；`standalone_values/standalone_manual_fields` 保存该成员的一份当前独立恢复值。它不是历史版本；未保护字段随来源刷新，明确继承时将整笔人工值写入拆出的恢复值。来源成员不接受公共属性批量回写。
+
+合并采用展示基准所在对象；拆分优先让包含原基准的结果保留对象 ID，其他结果创建对象。删除旧基准但保留其他成员时同步根引用。全量派生替换不删除稳定对象；实际流水删除时清理成员及空对象。迁移保留当前展示公共值和各成员已有不同人工值，缺证创建方式保持 `legacy`；有损降级拒绝，使用升级前备份恢复。
 
 ### 4.3 `cash_transaction_components`
 
@@ -494,7 +510,7 @@ erDiagram
 
 组成项不另存 `state`，继承父记录状态。正式父记录至少一个完整组成项，与父流水同币种、同方向且精确合计正确；零父金额的组成项均为零。`atomic` 恰一个，`aggregate` 按已确认分摊保存。跨表约束由共享服务在锁内校验；余额查询必须连接活动正式父记录，不能只看组成项金额非空。
 
-正式组成项字段按主设计固定。草稿删除组成项前，清理对应候选，关联草稿退回父锚点；禁止通过级联删除留下错误关系。调整顺序不替换组成项主键。
+导入／缺证历史正式组成项字段固定；普通手工可改，完整手工转账在同一操作更新双端并校验最终图。草稿删除组成项前，清理对应候选，关联草稿退回父锚点；禁止通过级联删除留下错误关系。调整顺序不替换组成项主键。
 
 ### 4.4 `cash_source_bindings`
 
@@ -587,27 +603,27 @@ erDiagram
 | `transfer_pair/currency_exchange` | `fx_out` → `fx_in`，或同账户的 `transfer_out` → `transfer_in`，币种不同 | 沿用明确换汇或内部账户转账路径 |
 | `transfer_pair/cross_currency_remittance` | `cross_border_remittance` 的 `transfer_out` → `transfer_in`，币种不同 | 沿用跨境汇款路径 |
 
-既有关系的 `expense` 角色在普通退款关系中兼容负向 `consumption/refund/investment_out`，镜像关系中只兼容前两者；该规则不重新读取后来修改的订单或原消费提示。类型更新只校验现有端点角色和上述结构，不将当前角色迁给新候选。金额、额度、镜像折叠、互斥和最终图继续由完整财务校验负责；角色通过不能替代图校验。现金关系与现金—投资资金关系保持不同端点合同。
+既有关系的 `expense` 角色在普通退款关系中兼容负向 `consumption/refund/investment_out`，镜像关系中只兼容前两者；该规则不重新读取后来修改的订单或原消费提示。手工转账整笔修改时校验双端最终类型、角色及上述结构；导入正式类型固定，不迁移当前角色或寻找新候选。金额、额度、镜像折叠、互斥和最终图继续由完整财务校验负责；角色通过不能替代图校验。现金关系与现金—投资资金关系保持不同端点合同。
 
 既有普通退款的同账户、同币种且两端父流水总额均为零的 `0 → 0` 场景保留消费／退款角色及零净额证据；单边零退款、跨币种零退款和零金额转账仍不合法。不同支付组成项的真实退款分配必须累计，仅有已确认镜像证明的同一部分可去重，不能仅用父流水及金额判断重复。明确分配金额不能因原关系来自非基准来源而丢失或回退为父退款总额。
 
-现金—投资关系继续使用 `cash_investment_funding_relations` 及明确的投资端点。现金类型更新或删除必须在本次闭包内校验其现金端兼容性并清理失效关联、刷新资金关系影响的读取结果；不扫描或改写投资事件、不重建投资历史。
+现金—投资关系继续使用 `cash_investment_funding_relations` 及明确的投资端点。导入正式现金类型固定；删除在本次闭包内清理失效关联并刷新资金关系影响的读取结果；不扫描或改写投资事件、不重建投资历史。
 
-关系校验拆成三个职责：发现候选时判断当前来源证据；类型更新时判断现有关系的类型及角色兼容性；关系写入时判断最终图和金额约束。类型校验输入必须带两端最终 `record_type`、`record_subtype`、方向、组成项及关系角色，不能直接复用没有类型字段的投影事实对象。类型及角色兼容矩阵见本节上表，覆盖消费／退款镜像、退款抵扣、转账／换汇／还款，不通过账号、名称再验证恢复已取消的限制。
+关系校验拆成三个职责：发现候选时判断创建方式和当前来源证据；手工转账整笔修改时判断内部双端兼容性；关系写入时判断最终图和金额约束。类型校验输入必须带两端最终 `record_type`、`record_subtype`、方向、组成项及关系角色，不能直接复用没有类型字段的投影事实对象。类型及角色兼容矩阵见本节上表，覆盖消费／退款镜像、退款抵扣、转账／换汇／还款，不通过账号、名称再验证恢复已取消的限制。
 
-`relation_metadata` 只保存当前可重算的来源解释，不保存“已经选择了哪条对侧”的决定。导入和手动修改来源行走同一派生过程：受影响键替换或清空，不与旧字典盲目合并；跨行计算出的候选分组、对侧和置信信息转入本次关系计划或当前候选，不当作长期有效的流水身份。仅改备注或分类不重算来源证据；只改类型则更新与类型有关的解释，但不隐式修改来源行。
+`relation_metadata` 只保存当前可重算的来源解释，不保存“已经选择了哪条对侧”的决定。导入来源更新和草稿的来源行补充使用同一派生过程：受影响键替换或清空，不与旧字典盲目合并；跨行计算出的候选分组、对侧和置信信息进入关系计划或当前候选，不当作流水身份。公共备注或分类编辑不重算来源证据；导入正式类型和来源原文不向用户开放编辑。
 
-非类型来源更新可以使未来匹配证据变化，却不能因此解除已确认关系。已有关系的端点角色随关系保存，类型更新再以新类型判断该角色是否仍允许；不能因当前来源不再含旧退款提示而撤销原决定。来源判定的“负向退款类型代表原消费”须在角色兼容矩阵中明确覆盖，不能让旧 `offset_group` 或文本提示偷偷决定类型是否合法。新关系的角色仍须由当前类型和来源证据建立，不能从任意旧配对缓存继承。
+来源更新不因名称或描述变化解除已确认关系。导入正式类型固定；普通手工不参与任何现金或现金—投资关联。手工转账只维护自身内部双端关系，其金额、币种、账户、类型及余额变化通过同一维护单元验证、保存；无完整内部现金双端时不开放单端财务编辑。
 
 ### 4.7 投影及发布状态
 
-`cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。当前投影具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
+`cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。当前投影通过 `entry_id` 关联稳定对象，具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
 
 排序字段 `sort_at` 仅供索引及游标使用：有发生时间取发生时间，否则取父流水创建时间。它不作为账单日期展示，也不参与按发生日期统计；重建时保持相同来源，不能把重建时间当成草稿的新发生时间。
 
 每条活动流水恰属于一个当前投影；当前成员以工作区、流水主键唯一。物理数据集仅保留暂存和唯一活动集合，成员及关系引用以工作区、数据集和投影行的复合外键约束归属；成功切换活动指针后同事务移除旧派生副本，源流水及当前引用不变。草稿投影只含该草稿，正式投影成员全为正式记录。统计只读取当前投影并要求 `state=posted` 及既有统计资格，不只依赖客户端筛选。若物理实现保留数据集字段，仅用于维护切换，不能让旧数据集加入当前查询。
 
-发布状态保留工作区写锁及 `source_revision/projection_version`。一次成功变更更新受影响旧、新组的投影和成员，同一事务发布；闭包外行不动，`attention_count` 随问题和草稿关系变更更新。增加按状态、待处理计数、时间及投影标识的查询索引；空时间草稿在待补充列表按创建时间稳定排序，不能因日期过滤缺失永远不可见。
+发布状态保留工作区写锁及 `source_revision/projection_version`。一次成功变更只计算受影响旧、新组；成员、角色、关系不变时原地更新变化列，结构变化时仅替换相关组，同一事务发布；闭包外行不动，`attention_count` 随问题和草稿关系变更更新。增加按状态、待处理计数、时间及投影标识的查询索引；空时间草稿在待补充列表按创建时间稳定排序，不能因日期过滤缺失永远不可见。
 
 来源候选失效、关系草稿变化虽然不改金额，也必须刷新相关详情修订和待处理标识；不能只发布财务变化。
 
@@ -666,10 +682,10 @@ erDiagram
 | 100 元组合支付只知道两个账户 | 一条草稿、两个未完成组成项；补为 30 元和 70 元后同一记录转正式 |
 | 分摊合计为 99 元 | 不允许转正式，也不把父金额改成 99 元 |
 | 同一资金账户名称重复出现 | 规范账户身份，不人为增加无法解释的分摊 |
-| 正式流水总额不变，但尝试重分摊 | 拒绝，正式组成项金额也固定 |
+| 导入正式流水总额不变，但尝试重分摊 | 拒绝，导入正式组成项金额固定 |
 | 正式流水修改分类或用户备注 | 保存成功，金额与关系集合不变，相关展示更新 |
 | 正式流水修改时间、账户或币种 | 拒绝，不隐式解除关系或降为草稿 |
-| 正式流水资金账户映射或分摊有误 | 不因此开放固定字段修改；由用户手动删除后新建，导入不自动代办 |
+| 导入正式流水资金账户映射或分摊有误 | 不开放固定字段修改；由用户手动删除后新建，导入不自动代办 |
 | 修改备注包含“退款”等词 | 不隐式改变流水类型，不触发配对或修改已有关系 |
 | 平台和银行各有 100 元正式支出，配对为草稿 | 两个正式投影，按既有口径分别统计；确认后只显示一个合并结果 |
 | 草稿关系的一端仍是草稿流水 | 允许保存待处理决定，禁止关系正式生效 |
@@ -686,10 +702,10 @@ erDiagram
 | 用户明确清空备注后重导入 | 保留人工清空，来源行可以更新 |
 | 同编号仅来源状态由等待确认收货变为交易成功 | 作为 `source_payload` 更新，不增加独立状态字段或额外更新门槛 |
 | 先导入后导出的账单，再导入早导出的账单 | 后一次仍视为最新来源，允许确认后覆盖可更新字段，不比较导出时间 |
-| 类型更新后部分关系失效 | 保留合法关系，解除失效关系，重建旧组全部成员的投影，不自动补配 |
-| 类型更新后的类型与子类型组合非法 | 该条更新失败，恢复原流水、关系和投影，其他导入继续 |
-| 类型更新后的局部关系图校验失败 | 该条更新及关系清理回滚，其他可独立处理项继续；若失败发生于最终统一投影发布，则整个请求回滚 |
-| 同一旧组多条流水依次更新类型 | 按预览确定顺序处理；每条基于前序成功状态校验，后续不自动恢复已解除关系 |
+| 导入正式类型修改 | 跳过该条，已有流水和关系保持原状 |
+| 手工类型／子类型组合非法 | 拒绝整笔修改，原财务值保持不变 |
+| 手工转账最终图不合法 | 双端、内部关系与余额共同回滚；其他可独立处理项继续 |
+| 手工转账两端同时修改金额／币种／账户 | 同一维护单元验证完整双端与内部关系，不保存单端结果 |
 | 来源名称变化同时伴随金额变化 | 整条冲突跳过，不更新名称或来源行，其余流水继续 |
 | 全部来源行都是完全重复 | 显示处理完成、无新增流水和重复数量，不误报导入失败 |
 | 1,000 行中有 1 行解析器异常 | 该行跳过并给出业务说明，其余 999 行继续处理 |

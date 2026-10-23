@@ -38,7 +38,7 @@ def _operation_fingerprint(operation):
     keys = {"occurrence_key", "transaction_id", "expected_revision", "planned_action", "current", "values",
         "manual_fields", "field_diffs", "pending_fields", "source_updates", "issues", "expected_issues",
         "retained_issue_ids", "expected_accounts", "source_explanation", "source_scope_key", "candidate_ids", "candidate_set_ref",
-        "type_changed", "preview_transaction_id", "preview_components", "issue_resolutions", "resolved_issue_ids", "expected_source_bindings", "merge_draft"}
+        "entry_edit", "entry_edit_group", "entry_snapshot", "type_changed", "preview_transaction_id", "preview_components", "issue_resolutions", "resolved_issue_ids", "expected_source_bindings", "merge_draft"}
     return _digest({key: operation[key] for key in keys if key in operation})
 
 def _receipt_view(receipt):
@@ -182,6 +182,11 @@ class CashPlanWriteOperations:
         service = CashRelationGraphService(session, self._workspace_id)
         context = service.load(parents)
         prepared = service.validate(context, additions=additions, evidence_by_relation=proof)
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        for group in members:
+            if group["action"] == "accept":
+                CashEntryRepository(session, self._workspace_id).choose_common(
+                    [parent(value) for value in group["parent_ids"]], group.get("common_fields", {}))
         resolved = {edge.id: edge for edge in prepared.relations}
         repository, written = CurrentCashRelationRepository(session, self._workspace_id), {}
         for original in additions:
@@ -254,7 +259,25 @@ class CashPlanWriteOperations:
     def _balances(self, uow, changes):
         def finances(row):
             return [(part["account_id"], part["amount"], part["currency"]) for part in row["components"]] if counts_toward_balance(row) else []
-        relevant = [(before, after) for before, after in changes if finances(before) != finances(after)]
+        transfer_changes = [(before, after) for before, after in changes
+            if (after or {}).get("record_origin") == "manual_transfer"
+            and (before or {}).get("components") != (after or {}).get("components")]
+        if transfer_changes:
+            from ft.application.cashflow import _apply_transfer_snapshot
+            session = uow._state().session
+            snapshot = uow.snapshot.load(lock=True)
+            for before, after in transfer_changes:
+                for value, sign in ((before, -1), (after, 1)):
+                    if not value:
+                        continue
+                    for part in value["components"]:
+                        account = session.get(AccountModel, int(part["account_id"]))
+                        amount = _normalize("amount", part["amount"])
+                        _apply_transfer_snapshot(snapshot, account, part["currency"], amount if sign == 1 else amount.copy_negate())
+            snapshot["updated_at"] = transfer_changes[-1][1]["occurred_at"]
+            uow.snapshot.save(snapshot)
+        relevant = [(before, after) for before, after in changes
+            if (after or before or {}).get("record_origin") != "manual_transfer" and finances(before) != finances(after)]
         if not relevant:
             return
         session = uow._state().session

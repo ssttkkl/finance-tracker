@@ -26,7 +26,7 @@ class CashImportNewRowsRepository:
                 if key in (MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | {"state", "source_type", "record_id"}) - {"components", "account_name"}}
             if parent.get("account_id") is not None:
                 parent["account_id"] = int(parent["account_id"])
-            parent.update(workspace_id=self.workspace_id,
+            parent.update(workspace_id=self.workspace_id, record_origin="import",
                 manual_overrides={field: True for field in operation["manual_fields"]},
                 relation_metadata=operation["source_explanation"])
             parents.append(parent)
@@ -62,6 +62,11 @@ class CashImportNewRowsRepository:
                         "stable_evidence_key": evidence if spec.scope_kind == "account" else None}
         if bindings:
             self.session.execute(insert(CashSourceBindingModel), list(bindings.values()))
+        from .cash_entries import CashEntryRepository
+        entry_repository = CashEntryRepository(self.session, self.workspace_id)
+        for identifier, (operation, _rows) in zip(identifiers, entries):
+            if operation.get('entry_edit'):
+                entry_repository.apply_edit(identifier, operation['entry_edit'])
         return [(identifier, {str(part["component_id"]): str(actual_parts[index, part["ordinal"]])
             for part in operation["preview_components"]}, None, operation["values"], set())
             for index, (identifier, (operation, _rows)) in enumerate(zip(identifiers, entries))]

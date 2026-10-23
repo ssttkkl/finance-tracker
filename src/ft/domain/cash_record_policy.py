@@ -22,8 +22,9 @@ CASH_FINANCIAL_FIELDS = frozenset({
     "components", "cash_granularity",
 })
 CASH_SOURCE_IDENTITY_FIELDS = frozenset({
-    "record_id", "source_type", "source_scope_key", "source_account_key",
+    "record_id", "source_type", "source_scope_key", "source_account_key", "record_origin", "manual_transfer_id",
 })
+COMMON_CASH_FIELDS = frozenset({"category_id", "note", "counterparty", "counterparty_account", "counterparty_account_attrs"})
 _TEXT_FIELDS = frozenset({"counterparty", "counterparty_account", "note"})
 
 
@@ -175,7 +176,9 @@ def prepare_cash_record_update(
             normalized[field] = _normalize(field, value)
         except (ValueError, TypeError, ArithmeticError):
             raise CashRecordPolicyError("invalid_field", (field,)) from None
-    fixed = CASH_SOURCE_IDENTITY_FIELDS | (CASH_FINANCIAL_FIELDS if state == "posted" else frozenset())
+    fixed = CASH_SOURCE_IDENTITY_FIELDS
+    if state == "posted" and current.get("record_origin", "legacy") not in {"manual", "manual_transfer"}:
+        fixed |= CASH_FINANCIAL_FIELDS | {"record_type", "record_subtype"}
     conflicts = []
     for field in sorted(fixed & normalized.keys()):
         try:

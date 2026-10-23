@@ -337,6 +337,13 @@ class RelationalCashProjectionRepository:
 
     def replace_dataset(self, dataset_id: str, build: CashProjectionBuild, *, projection_version: int) -> None:
         self._staging_dataset(dataset_id)
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        from ft.adapters.relational.models import CashEntryMemberModel
+        live = {member.id for projection in build.projections for member, _ in projection.members}
+        existing = set(self._session.scalars(select(CashEntryMemberModel.transaction_id).where(
+            CashEntryMemberModel.workspace_id == self._workspace_id)))
+        CashEntryRepository(self._session, self._workspace_id).remove_members(existing - live)
+        self._reconcile_entries(build.projections)
         for model in (CashProjectionRelationModel, CashProjectionMemberModel, CashProjectionModel):
             self._session.execute(delete(model).where(model.workspace_id == self._workspace_id, model.dataset_id == dataset_id))
         self._insert_projections(dataset_id, build.projections, projection_version)
@@ -400,11 +407,20 @@ class RelationalCashProjectionRepository:
         self._execute_batches(insert(CashProjectionMemberModel), member_mappings)
         self._execute_batches(insert(CashProjectionRelationModel), relation_mappings)
 
+    def _reconcile_entries(self, projections):
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        self._entry_rows = CashEntryRepository(self._session, self._workspace_id).reconcile(projections)
+
     def _projection_mapping(self, dataset_id: str, projection, projection_version: int) -> dict:
+        entry = getattr(self, "_entry_rows", {}).get(projection.projection_id)
+        if entry is None:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            entry = CashEntryRepository(self._session, self._workspace_id).current(projection.primary_record.id)
         return {
             "workspace_id": self._workspace_id,
             "dataset_id": dataset_id,
             "projection_id": projection.projection_id,
+            "entry_id": entry.id if entry else None,
             "root_cash_transaction_id": projection.primary_record.id,
             "funding_relation_id": projection.funding_relation_id,
             "state": projection.state,
@@ -418,10 +434,10 @@ class RelationalCashProjectionRepository:
             "currency": projection.primary_record.currency,
             "occurred_at": projection.primary_record.occurred_at,
             "account_id": projection.primary_record.account_id,
-            "counterparty": projection.primary_record.counterparty,
-            "category_id": projection.primary_record.category_id,
-            "category_path": self._category_path(projection.primary_record.category_id),
-            "note": projection.primary_record.note,
+            "counterparty": entry.counterparty if entry else projection.primary_record.counterparty,
+            "category_id": entry.category_id if entry else projection.primary_record.category_id,
+            "category_path": self._category_path(entry.category_id if entry else projection.primary_record.category_id),
+            "note": entry.note if entry else projection.primary_record.note,
             "source_type": projection.primary_record.source_type,
             "record_id": projection.primary_record.record_id,
             "visible": projection.visible,
@@ -502,6 +518,10 @@ class RelationalCashProjectionRepository:
         known_new_fact_ids: set[int] | None = None,
     ) -> dict:
         state = state or self.require_ready_state_lock()
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        visible_members = {member.id for projection in build.projections for member, _ in projection.members}
+        CashEntryRepository(self._session, self._workspace_id).remove_members(set(affected_fact_ids) - visible_members)
+        self._reconcile_entries(build.projections)
         dataset_id = state.active_dataset_id
         lookup_fact_ids = set(affected_fact_ids) - {
             int(item) for item in (known_new_fact_ids or set())
@@ -596,6 +616,29 @@ class RelationalCashProjectionRepository:
             state.last_error_summary = None
             return self._status_for_state(state)
 
+        old_by_projection = {row.projection_id: row for row in old_rows}
+        if set(old_by_projection) == {item.projection_id for item in replacement_projections}:
+            stored_members = {row.id: [] for row in old_rows}
+            stored_relations = {row.id: [] for row in old_rows}
+            for member in self._session.scalars(select(CashProjectionMemberModel).where(CashProjectionMemberModel.projection_row_id.in_(old_ids)).order_by(CashProjectionMemberModel.ordinal)):
+                stored_members[member.projection_row_id].append((member.cash_transaction_id, member.roles_json))
+            for relation in self._session.scalars(select(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id.in_(old_ids)).order_by(CashProjectionRelationModel.ordinal)):
+                stored_relations[relation.projection_row_id].append((relation.transaction_relation_id, relation.kind, relation.subtype))
+            if all(stored_members[old_by_projection[item.projection_id].id] == [(member.id, list(roles)) for member, roles in item.members]
+                and stored_relations[old_by_projection[item.projection_id].id] == [(relation.id, relation.kind, relation.subtype) for relation in item.relations]
+                for item in replacement_projections):
+                for item in replacement_projections:
+                    row = old_by_projection[item.projection_id]
+                    for field, value in self._projection_mapping(dataset_id, item, next_version).items():
+                        if getattr(row, field) != value:
+                            setattr(row, field, value)
+                state.projection_version = next_version
+                state.source_revision += 1
+                state.last_build_status = "succeeded"
+                state.last_error_code = None
+                state.last_error_summary = None
+                return self._status_for_state(state)
+
         if old_ids:
             self._session.execute(delete(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id.in_(old_ids)))
             self._session.execute(delete(CashProjectionMemberModel).where(CashProjectionMemberModel.projection_row_id.in_(old_ids)))
@@ -645,6 +688,7 @@ class RelationalCashProjectionRepository:
         state = state or self.require_ready_state_lock()
         build = build_cash_projections((self._fact_from_model(row),), ())
         projection = build.projections[0]
+        self._reconcile_entries(build.projections)
         mapping = self._projection_mapping(
             state.active_dataset_id, projection, state.projection_version + 1,
         )
@@ -700,6 +744,8 @@ class RelationalCashProjectionRepository:
     def remove_active_components(self, affected_fact_ids: set[int], *, state=None) -> dict:
         """Remove standalone active projection rows before source deletion."""
         state = state or self.require_ready_state_lock()
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        CashEntryRepository(self._session, self._workspace_id).remove_members(affected_fact_ids)
         if len(affected_fact_ids) == 1:
             # The common unrelated-delete path is rooted by the fact itself.
             # Avoid the member reverse-join, whose PostgreSQL planner can

@@ -1,4 +1,4 @@
-"""文件变化后的最小选择重验证明；不包含可执行计划或财务原文。"""
+"""文件变化后的选择重验证明；保留失效决定，不包含可执行计划或来源正文。"""
 from copy import deepcopy
 import re
 
@@ -53,10 +53,16 @@ def _validated(value):
                 or not _members(item["member_refs"]) or not isinstance(item["choice"], dict)):
                 raise ValueError
             choice = item["choice"]
-            if (not {"suggestion_id", "action"} <= choice.keys() or set(choice) - {"suggestion_id", "action", "candidate_id"}
+            if (not {"suggestion_id", "action"} <= choice.keys() or set(choice) - {"suggestion_id", "action", "candidate_id", "common_fields"}
                 or choice["suggestion_id"] != identifier or choice["action"] not in {"accept", "defer", "ignore"}
                 or choice.get("candidate_id") is not None and not _reference(choice["candidate_id"])):
                 raise ValueError
+            if 'common_fields' in choice:
+                from ft.domain.cash_record_policy import COMMON_CASH_FIELDS, prepare_cash_record_update
+                common = choice['common_fields']
+                if choice['action'] != 'accept' or not isinstance(common, dict) or common.keys() - COMMON_CASH_FIELDS:
+                    raise ValueError
+                prepare_cash_record_update({'state': 'draft'}, common)
         if any(not _reference(key) or type(generation) is not int or not 0 <= generation < 2 ** 63
             for key, generation in generations.items()):
             raise ValueError

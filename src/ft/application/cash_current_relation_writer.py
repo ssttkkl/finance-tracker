@@ -131,6 +131,8 @@ class CashCurrentRelationWriter:
         for batch in _batches(updated):
             revisions.update(self.session.execute(select(CashTransactionModel.id, CashTransactionModel.row_revision).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.id.in_(batch))).all())
+        updated = {int(operation['transaction_id']) for operation in operations
+            if revisions.get(int(operation['transaction_id'])) != operation['expected_revision']}
         for identifier, original in originals.items():
             row, expected = actual[identifier], deepcopy(original)
             for key in _GRAPH:
@@ -182,6 +184,13 @@ class CashCurrentRelationWriter:
                 if group["action"] == "accept":
                     evidence[edge.id] = RelationRoleEvidence(**group["evidence"][str(edge.id)])
         prepared = service.validate(context, updates=changes, evidence_by_relation=evidence, cleanup_group_ids=cleanup)
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entries = CashEntryRepository(self.session, self.workspace_id)
+        for group in groups:
+            if group["action"] == "accept":
+                entries.choose_common(group["parent_ids"], group.get("common_fields", {}))
+            elif group["action"] == "remove":
+                entries.prepare_split(group.get("old_parent_ids", group["parent_ids"]), group.get("inherit_common_fields"))
         resolved = {edge.id: edge for edge in prepared.relations}
         written = {}
         for group in groups:

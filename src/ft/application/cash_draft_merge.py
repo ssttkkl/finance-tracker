@@ -13,7 +13,7 @@ from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches, _wire
 from ft.application.cash_source_issue_resolutions import _pending_patch, prepare_source_issue_resolutions
 from ft.application.cash_draft_merge_writer import prepare_merge_references
-from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS, CashRecordPolicyError, _normalize
+from ft.domain.cash_record_policy import MUTABLE_CASH_FIELDS, COMMON_CASH_FIELDS, CashRecordPolicyError, _normalize
 from ft.domain.cash_relation_policy import CashRelationError
 from ft.domain.cash_source_matching import _digest
 
@@ -133,6 +133,8 @@ class CashDraftMergePlanner:
     def prepare(self, source, choices, patch):
         choice, = [choice for choice in choices if choice["resolution"] == "merge_into"]
         target = self.planner.record(int(choice["target_transaction_id"]))
+        if target.record_origin not in {"import", "legacy"}:
+            raise CashRecordPolicyError("manual_relation_forbidden", ())
         if target.row_revision != choice["expected_target_revision"]:
             raise CashMutationConflict("record_changed")
         bindings = CashSourceRepository(self.session, self.workspace_id).validate_draft_merge(source.id, target.id)
@@ -146,6 +148,13 @@ class CashDraftMergePlanner:
             raise CashRecordPolicyError("issue_resolution_invalid", ())
         source_protected = {key for key, value in (source.manual_overrides or {}).items() if value}
         target_protected = {key for key, value in (target.manual_overrides or {}).items() if value}
+        from ft.adapters.relational.cash_entries import CashEntryRepository, public_values
+        entries = CashEntryRepository(self.session, self.workspace_id)
+        source_entry, target_entry = entries.current(source.id), entries.current(target.id)
+        source_public = public_values(source_entry) if source_entry else {field: source_fields.get(field) for field in COMMON_CASH_FIELDS}
+        target_public = public_values(target_entry) if target_entry else {field: target_fields.get(field) for field in COMMON_CASH_FIELDS}
+        source_protected |= set(source_entry.manual_fields) if source_entry else set()
+        target_protected |= set(target_entry.manual_fields) if target_entry else set()
         others = [item for item in choices if item is not choice]
         source_patch, resolved = prepare_source_issue_resolutions(source_fields, source_issues, others, patch, protected_fields=source_protected)
         by_id = {str(issue.id): issue for issue in source_issues}
@@ -161,8 +170,8 @@ class CashDraftMergePlanner:
             and (value is not None or key in source_protected)}
         incoming.update((field, effective[field]) for field in ("amount", "currency", "occurred_at", "account_id")
             if target_fields.get(field) is None and effective.get(field) is not None)
-        conflicts = tuple(sorted(key for key in {"note", "category_id"} & source_protected & target_protected
-            if incoming.get(key) != _wire(target_fields.get(key)) and key not in patch))
+        conflicts = tuple(sorted(key for key in COMMON_CASH_FIELDS & source_protected & target_protected
+            if source_public.get(key) != target_public.get(key) and key not in patch))
         if conflicts:
             raise CashRecordPolicyError("source_resolution_conflict", conflicts)
         # 来源人工值只在目标未保护时采用；明确补丁始终走同一字段约束。
@@ -170,8 +179,13 @@ class CashDraftMergePlanner:
             current_fields=target_fields)
         effective_map = _components(effective["components"], operation["values"]["components"], reject_conflicts=False)
         component_map = {part["component_id"]: effective_map.get(part["component_id"]) for part in source_fields["components"]}
-        inherited = (source_protected - target_protected) & {"note", "category_id"}
-        operation["manual_fields"] = sorted(set(operation["manual_fields"]) | inherited)
+        inherited = (source_protected - target_protected) & COMMON_CASH_FIELDS
+        public_patch = {field: source_public[field] for field in inherited}
+        public_patch.update({field: value for field, value in patch.items() if field in COMMON_CASH_FIELDS})
+        if target_entry and public_patch:
+            operation["entry_edit"] = {"entry_id": target_entry.id, "revision": target_entry.revision, "patch": public_patch}
+        if target.state == "draft":
+            operation["manual_fields"] = sorted(set(operation["manual_fields"]) | inherited)
         resolved.append({**choice, "body_digest": _digest(selected.code, selected.field_path,
             selected.pending_fields, selected.pending_source_payload, selected.origin)})
         operation.update(issue_resolutions=resolved, resolved_issue_ids=sorted(item["issue_id"] for item in resolved))

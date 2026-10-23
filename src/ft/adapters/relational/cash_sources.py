@@ -136,7 +136,7 @@ class CashSourceRepository:
             return None
         active = self.session.scalars(select(CashTransactionModel.id).where(
             CashTransactionModel.workspace_id == self.workspace_id,
-            CashTransactionModel.id.in_(ids), CashTransactionModel.deleted_at.is_(None),
+            CashTransactionModel.id.in_(ids), CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_origin.in_(("import", "legacy")),
         )).all()
         if len(active) > 1:
             raise SourceBindingConflict("source_binding_ambiguous")
@@ -215,14 +215,14 @@ class CashSourceRepository:
         by_id = {}
         for offset in range(0, max(len(direct_ids), len(times), len(legacy_numbers)), 250):
             for parent in self.session.scalars(select(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.deleted_at.is_(None),
+                CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashTransactionModel.source_type.in_({row.source_type for row in rows}),
                 or_(CashTransactionModel.id.in_(direct_ids[offset:offset + 250]), CashTransactionModel.occurred_at.in_(times[offset:offset + 250]),
                     and_(CashTransactionModel.source_type == "wechat", CashTransactionModel.record_id.startswith("wechat_", autoescape=True),
                         func.trim(func.substr(CashTransactionModel.record_id, 8), _ID_WHITESPACE).in_(legacy_numbers[offset:offset + 250]))),
             )):
                 by_id[parent.id] = parent
-        parents = list(by_id.values())
+        parents = [parent for parent in by_id.values() if parent.record_origin in {"import", "legacy"}]
         if not parents:
             return []
         ids = [parent.id for parent in parents]
@@ -263,7 +263,7 @@ class CashSourceRepository:
                 provider_binding_key=next((key.key for key in keys if key.identity_kind == "provider_id"), None),
                 stable_evidence_binding_key=next((binding.stable_evidence_key for binding in aliases if binding.stable_evidence_key), None),
                 row_revision=parent.row_revision,
-                protected_fields=frozenset(name for name in ("note", "category_id") if (parent.manual_overrides or {}).get(name)),
+                protected_fields=frozenset(),
                 document_evidence=tuple(SourceDocumentEvidence(binding.source_type, binding.strategy_version,
                     SourceCoverage(**binding.coverage)) for binding in verified if binding.coverage.get("document_key")),
             ))
@@ -279,7 +279,7 @@ class CashSourceRepository:
                 CashTransactionModel.id == CashSourceBindingModel.transaction_id,
             )).where(
                 CashSourceBindingModel.workspace_id == self.workspace_id,
-                CashTransactionModel.deleted_at.is_(None),
+                CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashSourceBindingModel.source_scope_kind == "file_local",
                 CashSourceBindingModel.identity_kind == "file_occurrence",
                 tuple_(CashSourceBindingModel.source_type, CashSourceBindingModel.source_scope_key).in_(scopes[offset:offset + 250]),
@@ -308,7 +308,7 @@ class CashSourceRepository:
                 CashTransactionModel.id == CashSourceBindingModel.transaction_id,
             )).where(
                 CashSourceBindingModel.workspace_id == self.workspace_id,
-                CashTransactionModel.deleted_at.is_(None),
+                CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashSourceBindingModel.source_type == row.source_type,
                 CashSourceBindingModel.source_scope_kind == "file_local",
                 CashSourceBindingModel.source_scope_key == row.document_page_scope_key,

@@ -1,6 +1,8 @@
 """US9 cross-batch seed tests."""
 from __future__ import annotations
 
+from test_transaction_relations_support import add_imported_transaction
+
 from decimal import Decimal
 
 import pytest
@@ -19,7 +21,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     # Both rows belong to the same card account; platform bill_source remains alipay.
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
     # batch A: bank only
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
         currency="CNY", date="2026-06-10 12:00:00", note="快捷支付 尾号9999",
         category="expense", bill_source="icbc", source="icbc",
@@ -30,7 +32,7 @@ def test_cross_batch_seed_matches_prior_facts(relation_runtime):
     # no platform yet
     services.relations.check(seed_fact_ids=bank_ids)
     # batch B: platform view of same card payment
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-88.00"), counterparty="盒马", account_name="建行储蓄",
         currency="CNY", date="2026-06-10 12:00:03", note="付款方式 尾号9999",
         category="expense", bill_source="alipay", source="alipay",
@@ -50,12 +52,12 @@ def test_human_rejected_payment_mirror_blocks_future_reconciliation(relation_run
     services = relation_runtime.services
     assert services.accounts.create_account("人工拒绝账户", "cash", "CNY").ok
     common = dict(account_name="人工拒绝账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-20.00"), counterparty="商户", note="消费",
         source="wechat", bill_source="wechat", date="2026-06-10 12:00:00",
         record_id="human-reject-platform", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-20.00"), counterparty="商户", note="消费",
         source="icbc_debit", bill_source="icbc_debit", date="2026-06-10 12:00:03",
         record_id="human-reject-bank", record_type="consumption", **common,
@@ -102,7 +104,7 @@ def test_human_payment_mirror_supersedes_competing_system_edge(relation_runtime)
         ("human-select-bank-old", "icbc_debit", "2026-06-10 12:00:03"),
         ("human-select-bank-new", "icbc_debit", "2026-06-10 12:00:04"),
     ):
-        services.cashflow.add_manual_transaction(
+        add_imported_transaction(services,
             amount=Decimal("-20.00"), counterparty="商户", note="消费",
             source=source, bill_source=source, date=timestamp,
             record_id=record_id, record_type="consumption", **common,
@@ -143,17 +145,17 @@ def test_cross_batch_refund_does_not_cross_match_same_amount_different_merchant(
     services = relation_runtime.services
     assert services.accounts.create_account("重叠账户", "cash", "CNY").ok
     common = dict(account_name="重叠账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="高德", note="消费",
         source="alipay", bill_source="alipay", date="2024-04-18 10:00:00",
         record_id="alipay-gaode-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="北京市玉渊潭公园管理处", note="消费",
         source="wechat", bill_source="wechat", date="2024-04-20 10:00:00",
         record_id="wechat-yuyuantan-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="高德", note="消费",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-17 10:00:00",
         record_id="ccb-gaode-expense", record_type="consumption", **common,
@@ -176,7 +178,7 @@ def test_cross_batch_refund_does_not_cross_match_same_amount_different_merchant(
             "rule_id": "test.accepted-overlap", "created_by": "test",
         })
         uow.commit()
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="高德", note="消费退货",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-20 11:00:00",
         record_id="ccb-gaode-refund", record_type="refund", **common,
@@ -243,13 +245,13 @@ def test_reverse_order_bank_refund_remains_on_its_merchant_after_platform_mirror
             record_id="reverse-bank-refund", record_type="refund",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     assert services.relations.check(
         seed_fact_ids=[ids["reverse-bank-refund"]], trigger="import_batch",
     ).ok
 
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家A", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-04-18 10:00:00",
         record_id="reverse-platform-expense", record_type="consumption", **common,
@@ -279,12 +281,12 @@ def test_reverse_order_platform_refund_supersedes_prior_system_bank_refund(
     services = relation_runtime.services
     assert services.accounts.create_account("逆序退款账户", "cash", "CNY").ok
     common = dict(account_name="逆序退款账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家A", note="消费",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-17 10:00:00",
         record_id="reverse-system-bank-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家A", note="消费退货",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-20 11:00:00",
         record_id="reverse-system-bank-refund", record_type="refund", **common,
@@ -301,12 +303,12 @@ def test_reverse_order_platform_refund_supersedes_prior_system_bank_refund(
             if int(row["secondary_fact_id"] or 0) == int(ids["reverse-system-bank-refund"])
         )
 
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家A", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-04-17 10:00:03",
         record_id="reverse-platform-order", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家A", note="退款",
         source="alipay", bill_source="alipay", date="2024-04-20 11:00:03",
         record_id="reverse-platform-order_refund", record_type="refund", **common,
@@ -344,17 +346,17 @@ def test_platform_refund_replacement_retires_bank_edge_before_persisting(relatio
     services = relation_runtime.services
     assert services.accounts.create_account("退款替换容量账户", "cash", "CNY").ok
     common = dict(account_name="退款替换容量账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家", note="银行消费",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-17 10:00:00",
         record_id="capacity-bank-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家", note="银行退款",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-20 11:00:00",
         record_id="capacity-bank-refund", record_type="refund", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-04-17 10:00:03",
         record_id="capacity-platform-order", record_type="consumption", **common,
@@ -374,7 +376,7 @@ def test_platform_refund_replacement_retires_bank_edge_before_persisting(relatio
             "applied_amount": Decimal("10.00"),
         })
         uow.commit()
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家", note="平台退款",
         source="alipay", bill_source="alipay", date="2024-04-20 11:00:03",
         record_id="capacity-platform-order_refund", record_type="refund", **common,
@@ -423,7 +425,7 @@ def test_platform_refund_does_not_replace_multiple_equally_matching_bank_refunds
     services = relation_runtime.services
     assert services.accounts.create_account("歧义退款账户", "cash", "CNY").ok
     common = dict(account_name="歧义退款账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-30.00"), counterparty="商家", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-09-10 10:00:00",
         record_id="ambiguous-platform-expense", record_type="consumption", **common,
@@ -432,12 +434,12 @@ def test_platform_refund_does_not_replace_multiple_equally_matching_bank_refunds
         ("ambiguous-bank-refund-one", "2024-09-12 11:00:00"),
         ("ambiguous-bank-refund-two", "2024-09-13 11:00:00"),
     ):
-        services.cashflow.add_manual_transaction(
+        add_imported_transaction(services,
             amount=Decimal("10.00"), counterparty="商家", note="银行退款",
             source="ccb_debit", bill_source="ccb_debit", date=date,
             record_id=record_id, record_type="refund", **common,
         )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家", note="平台退款",
         source="alipay", bill_source="alipay", date="2024-09-12 11:00:03",
         record_id="ambiguous-platform-refund", record_type="refund", **common,
@@ -516,7 +518,7 @@ def test_cached_refund_replacement_requires_a_cached_platform_pair(relation_runt
             record_id="cached-boundary-platform-refund", record_type="refund",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         bank_relation_id = uow.relations.add({
@@ -572,17 +574,17 @@ def test_pending_platform_refund_does_not_replace_automatic_bank_refund(
     services = relation_runtime.services
     assert services.accounts.create_account("待审核退款保护账户", "cash", "CNY").ok
     common = dict(account_name="待审核退款保护账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-20.00"), counterparty="商家", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-10-01 10:00:00",
         record_id="pending-platform-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家", note="银行退款",
         source="ccb_debit", bill_source="ccb_debit", date="2024-10-02 11:00:00",
         record_id="pending-bank-refund", record_type="refund", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家", note="平台退款",
         source="alipay", bill_source="alipay", date="2024-10-02 11:00:03",
         record_id="pending-platform-refund", record_type="refund", **common,
@@ -641,12 +643,12 @@ def test_later_platform_evidence_reselects_system_bank_refund(
     services = relation_runtime.services
     assert services.accounts.create_account("退款证据账户", "cash", "CNY").ok
     common = dict(account_name="退款证据账户", currency="CNY")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家A", note="消费",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-17 10:00:00",
         record_id="evidence-bank-expense", record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("10.00"), counterparty="商家A", note="消费退货",
         source="ccb_debit", bill_source="ccb_debit", date="2024-04-20 11:00:00",
         record_id="evidence-bank-refund", record_type="refund", **common,
@@ -663,7 +665,7 @@ def test_later_platform_evidence_reselects_system_bank_refund(
             if int(row["secondary_fact_id"] or 0) == int(ids["evidence-bank-refund"])
         )
 
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10.00"), counterparty="商家A", note="平台消费",
         source="alipay", bill_source="alipay", date="2024-04-20 10:59:00",
         record_id="evidence-platform-expense", record_type="consumption", **common,
@@ -689,12 +691,12 @@ def test_single_source_refund_pairing_is_unchanged(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("单来源账户", "cash", "CNY").ok
     common = dict(account_name="单来源账户", currency="CNY", source="ccb_debit", bill_source="ccb_debit")
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-28.00"), counterparty="商家C", note="消费",
         date="2024-05-01 10:00:00", record_id="single-expense",
         record_type="consumption", **common,
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("28.00"), counterparty="商家C", note="消费退货",
         date="2024-05-02 10:00:00", record_id="single-refund",
         record_type="refund", **common,
@@ -733,7 +735,7 @@ def test_refund_rescan_is_idempotent_with_an_accepted_expense_mirror(relation_ru
             record_id="rescan-bank-refund", record_type="refund",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         uow.relations.add({
@@ -780,7 +782,7 @@ def test_accepted_refund_mirror_does_not_create_a_second_refund_offset(relation_
             record_id="mirror-bank-refund", record_type="refund",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         uow.relations.add({
@@ -836,7 +838,7 @@ def test_invalid_payment_mirror_replacement_keeps_old_relation_untouched(
             record_id="atomic-new-bank-expense", record_type="consumption",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         old_id = uow.relations.add({
@@ -897,7 +899,7 @@ def test_valid_payment_mirror_replacement_persists_after_one_batch_validation(
             record_id="batch-new-bank-expense", record_type="consumption",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         old_id = uow.relations.add({
@@ -962,7 +964,7 @@ def test_invalid_refund_replacement_keeps_old_relation_untouched(
             record_id="atomic-refund-platform-expense", record_type="consumption",
         ),
     ):
-        services.cashflow.add_manual_transaction(**row, **common)
+        add_imported_transaction(services, **row, **common)
     ids = _ids_by_record(services)
     with services.uow as uow:
         old_id = uow.relations.add({

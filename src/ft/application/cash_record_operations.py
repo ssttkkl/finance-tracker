@@ -10,8 +10,8 @@ from ft.adapters.relational.cash_sources import CashSourceRepository, SourceBind
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches, _draft_accounts, _remaining_funding_issues, _validate_component_ids, _wire
 from ft.application.parsed_import_staging import ParsedImportDataError, _json_budget, _json_bytes
-from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS,
-    CashRecordPolicyError, prepare_cash_record_update, validate_cash_record_for_posting)
+from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, COMMON_CASH_FIELDS,
+    CashRecordPolicyError, _normalize, prepare_cash_record_update, validate_cash_record_for_posting)
 from ft.domain.cash_source_matching import _digest
 
 
@@ -73,7 +73,7 @@ class CashRecordOperationPlanner:
 
     def fields(self, row):
         fields = {key: deepcopy(getattr(row, key)) for key in _EDITABLE - {"components"}}
-        fields.update(state=row.state, source_type=row.source_type, record_id=row.record_id)
+        fields.update(state=row.state, source_type=row.source_type, record_id=row.record_id, record_origin=row.record_origin, manual_transfer_id=row.manual_transfer_id)
         fields["components"] = [{"component_id": str(part.id), "ordinal": part.ordinal,
             "account_id": str(part.account_id) if part.account_id is not None else None,
             "amount": part.amount, "currency": part.currency} for part in self.session.scalars(select(CashTransactionComponentModel).where(
@@ -121,7 +121,7 @@ class CashRecordOperationPlanner:
         if not isinstance(patch, dict) or set(patch) - _EDITABLE:
             raise CashRecordPolicyError("field_not_editable", ())
         existing = self.issues(row.id) if existing_issues is None else existing_issues
-        protected = {key for key, value in (row.manual_overrides or {}).items() if value}
+        protected = {key for key, value in (row.manual_overrides or {}).items() if value} - COMMON_CASH_FIELDS
         current = self.fields(row)
         source_patch, resolutions = prepare_source_issue_resolutions(current, existing, choices, patch, protected_fields=protected)
         operation = self._prepare(row, patch, source_patch=source_patch, resolutions=resolutions,
@@ -148,11 +148,11 @@ class CashRecordOperationPlanner:
             return ["keep_existing"]
         return ["apply_source", "keep_existing"]
 
-    def _prepare(self, row, patch, *, source_patch=None, resolutions=(), existing_issues=None, current_fields=None):
+    def _prepare(self, row, patch, *, source_patch=None, resolutions=(), existing_issues=None, current_fields=None, allow_group_financial=False):
         if not isinstance(patch, dict) or set(patch) - _EDITABLE:
             raise CashRecordPolicyError("field_not_editable", ())
         current = self.fields(row) if current_fields is None else current_fields
-        protected = {key for key, value in (row.manual_overrides or {}).items() if value}
+        protected = {key for key, value in (row.manual_overrides or {}).items() if value} - COMMON_CASH_FIELDS
         source_update, explanation = None, None
         base = current
         if source_patch:
@@ -160,7 +160,37 @@ class CashRecordOperationPlanner:
             base = {**deepcopy(current), **source_update.values}
             base, explanation = prepare_cash_source_effects(base, source_patch, source_type=row.source_type,
                 source_explanation=row.relation_metadata, protected_fields=protected)
-        prepared = prepare_cash_record_update(base, patch)
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entries = CashEntryRepository(self.session, self.workspace_id)
+        entry = entries.current(row.id)
+        entry_edit = None
+        policy_patch = dict(patch)
+        if row.state == "posted":
+            if row.record_origin == "manual_transfer" and not allow_group_financial and patch.keys() - COMMON_CASH_FIELDS:
+                raise CashRecordPolicyError("field_not_editable", tuple(sorted(patch.keys() - COMMON_CASH_FIELDS)))
+            if "source_payload" in patch:
+                raise CashRecordPolicyError("field_not_editable", ("source_payload",))
+            if entry is not None:
+                members, _ = entries.for_transactions({row.id})
+                from ft.adapters.relational.models import CashEntryMemberModel
+                group_size = len(list(self.session.scalars(select(CashEntryMemberModel.transaction_id).where(
+                    CashEntryMemberModel.workspace_id == self.workspace_id, CashEntryMemberModel.entry_id == entry.id))))
+                if group_size > 1 and not allow_group_financial and patch.keys() - COMMON_CASH_FIELDS:
+                    raise CashRecordPolicyError("field_not_editable", tuple(sorted(patch.keys() - COMMON_CASH_FIELDS)))
+        public_patch = prepare_cash_record_update({'state': 'draft'},
+            {field: value for field, value in patch.items() if field in COMMON_CASH_FIELDS}).values
+        if public_patch and entry is not None:
+            if public_patch.get("category_id") is not None and self.session.scalar(select(CashCategoryModel.id).where(
+                CashCategoryModel.workspace_id == self.workspace_id, CashCategoryModel.id == public_patch["category_id"])) is None:
+                raise CashRecordPolicyError("category_unavailable", ("category_id",))
+            entry_edit = {"entry_id": entry.id, "revision": entry.revision, "patch": public_patch}
+            if row.state == "posted":
+                policy_patch = {key: value for key, value in patch.items() if key not in COMMON_CASH_FIELDS}
+        if (row.record_origin in {"manual", "manual_transfer"} and row.cash_granularity == "atomic"
+            and "components" not in policy_patch and policy_patch.keys() & {"amount", "currency", "account_id"}):
+            policy_patch["components"] = [{**part, **{field: policy_patch[field] for field in ("amount", "currency", "account_id")
+                if field in policy_patch}} for part in current["components"]]
+        prepared = prepare_cash_record_update(base, policy_patch)
         values = {**deepcopy(base), **prepared.values}
         values, manual_explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
             source_explanation=explanation if explanation is not None else row.relation_metadata, protected_fields=protected)
@@ -180,7 +210,7 @@ class CashRecordOperationPlanner:
         remaining_issues = [issue for issue in existing if str(issue.id) not in resolved]
         issues, dependencies = [], []
         external = remaining_issues
-        if row.state == "draft":
+        if row.state == "draft" or row.record_origin in {"manual", "manual_transfer"} and patch.keys() & CASH_FINANCIAL_FIELDS:
             references = {part.get("account_id") for part in values["components"]} | {values.get("account_id")}
             identifiers = {_identifier(value, code="record_input_invalid") for value in references if value is not None}
             accounts = {}
@@ -198,9 +228,9 @@ class CashRecordOperationPlanner:
             parsed = [issue for issue in remaining_issues if issue.code in _PARSED_FIELD_ISSUES and issue not in external]
             remaining = set(_remaining_funding_issues([issue.code for issue in parsed], values, {**(source_patch or {}), **patch}))
             issues.extend(cash_import_issue(issue.code, field_path=issue.field_path) for issue in parsed if issue.code in remaining)
-        manual = sorted(set(patch) & {"note", "category_id"})
+        manual = sorted(set(patch) & COMMON_CASH_FIELDS) if row.state == "draft" else []
         explanation_changed = explanation is not None and explanation != (row.relation_metadata or {})
-        action = "update_" + row.state if values != current or manual or explanation_changed else "duplicate"
+        action = "update_" + row.state if values != current or manual or entry_edit or explanation_changed else "duplicate"
         diffs = {field: {"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),
             "effective": _wire(values.get(field)), "resolution": "protected" if source_update and field in source_update.protected_fields
                 and field not in patch else "apply"} for field, value in (source_patch or {}).items()
@@ -208,7 +238,15 @@ class CashRecordOperationPlanner:
         diffs.update({field: {"field": field, "current": _wire(current.get(field)), "incoming": _wire(value),
             "effective": _wire(values.get(field)), "resolution": "apply"} for field, value in values.items()
             if value != current.get(field) and field in _EDITABLE and (field in patch or field not in diffs)})
-        return {**({"source_explanation": explanation} if explanation is not None else {}),
+        if entry_edit:
+            for field, value in entry_edit["patch"].items():
+                diffs[field] = {"field": field, "current": _wire(getattr(entry, field)),
+                    "incoming": _wire(value), "effective": _wire(value), "resolution": "apply"}
+        if row.state == "posted" and issues:
+            issue = issues[0]
+            raise CashRecordPolicyError(issue["code"], ())
+        return {**({"entry_edit": entry_edit} if entry_edit else {}),
+            "entry_snapshot": entries.snapshot({row.id}), **({"source_explanation": explanation} if explanation is not None else {}),
             **({"issue_resolutions": list(resolutions), "resolved_issue_ids": sorted(resolved)} if resolutions else {}),
             "transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
             "current": _wire(current), "values": _wire(values), "manual_fields": manual,

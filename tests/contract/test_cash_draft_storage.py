@@ -164,6 +164,7 @@ def test_draft_migration_round_trip_preserves_populated_ledger(draft_runtime):
         return {table: sorted([
             tuple((key, str(value)) for key, value in row._mapping.items()
                   if not (table == "cash_transactions" and key in {"state", "row_revision"})
+                  and not (table == "cash_projections" and key == "entry_id")
                   and not (table == "cash_projection_states" and key == "availability"))
             for row in connection.execute(text(f"SELECT * FROM {table}"))
         ], key=repr) for table in tables}

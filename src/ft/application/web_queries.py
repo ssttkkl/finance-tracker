@@ -56,6 +56,7 @@ class ProjectionDTO:
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
     state: str = "posted"; statistics_eligible: bool = True; attention_count: int = 0
     confirmation_status: str = "confirmed"; projection_version: int = 0
+    entry_id: str | None = None
 
 
 @dataclass(frozen=True)

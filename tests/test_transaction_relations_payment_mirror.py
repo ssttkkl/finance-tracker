@@ -1,6 +1,8 @@
 """US1 payment_mirror tests."""
 from __future__ import annotations
 
+from test_transaction_relations_support import add_imported_transaction
+
 from dataclasses import replace
 from decimal import Decimal
 
@@ -746,13 +748,13 @@ def test_payment_mirror_persisted_via_service(relation_runtime):
     services = relation_runtime.services
     # Both rows belong to the same card account, as required for payment_mirror.
     assert services.accounts.create_account("建行储蓄", "cash", "CNY").ok
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-30.00"), counterparty="麦当劳", account_name="建行储蓄",
         currency="CNY", date="2026-06-13 23:15:00", note="付款方式 尾号1234",
             category="expense", bill_source="alipay", source="alipay",
             record_type="consumption",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-30.00"), counterparty="支付宝-麦当劳", account_name="建行储蓄",
         currency="CNY", date="2026-06-13 23:15:05", note="快捷支付 尾号1234",
             category="expense", bill_source="icbc", source="icbc",

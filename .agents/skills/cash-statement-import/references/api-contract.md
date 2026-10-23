@@ -92,7 +92,7 @@ POST /api/v1/cash-import/sessions/{session_id}/plans
 
 所有五个顶层字段都必填。选择数组是完整替换输入，最多各 100,000 项。恢复任务先保留当前 `selection/last_preview_input` 的有效决定，只给尚未选择项补建议；空数组不是增量“保持不变”。文件或来源变化后按服务端失效结果重核，不能将旧行位置的选择移到新文件。账户未选择可省略该项，或传 `account_id: null` 且修订为 `null`；不要求全部账户完成。引用真实账户时必须带其当前修订。
 
-行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段由后端按行反馈。组成项金额必须精确等于总额；正式金额、币种、发生时间、资金账户、组成项和来源身份固定，不能借导入修改。可变字段包括交易对方、对方账号和属性、备注、分类、类型／子类型及来源行。人工备注、分类与清空值受保护。
+行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段由后端按行反馈。组成项金额必须精确等于总额；导入正式金额、币种、发生时间、资金账户、组成项、类型／子类型和来源身份固定，不能借导入修改。用户只编辑收支公共属性：交易对方、对方账号和属性、备注、分类；来源行只由来源更新刷新。公共人工值和明确清空受保护。来源成员只读，计划详情 `entry.fields/editable_fields` 提供预计公共值。实际人工冲突按服务端 `common_field_conflicts` 保留待确认，只有用户明确选择后才提交 `common_fields`，不能替用户猜值。
 
 关联选择为 `{"suggestion_id": "sg_example", "action": "defer", "candidate_id": null}`，动作只允许 `accept/defer/ignore`。首次可留空使用后端默认；调整时从上一计划的单项详情取得完整建议和候选，禁止自造关系或拆开联合决定组。`defer` 是待确认，`ignore` 是明确忽略，不能混用。选项变化后带最新会话修订及 `previous_plan_id` 重预览，成功得到新计划和递增修订，旧计划不可执行。
 

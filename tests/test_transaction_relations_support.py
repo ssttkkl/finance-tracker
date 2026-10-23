@@ -28,52 +28,36 @@ def add_cash_fact(
     note = description or ""
     source_type = bill_source or source or ""
     del category
-    result = services.cashflow.add_manual_transaction(
-        amount=Decimal(str(amount)),
-        counterparty=counterparty,
-        account_name=account_name,
-        currency=currency,
-        date=date,
-        note=note,
-        source=source_type,
-        bill_source=source_type,
-        record_id=record_id,
-        record_type=record_type,
-    )
-    assert result.ok, result.message
+    from ft.application.cashflow import _ensure_snapshot_account
+    from ft.application.cash_projections import CashProjectionService
     with services.uow as uow:
-        # Prefer latest matching detailed row
+        account = uow.accounts.find(account_name)
+        assert account is not None
+        identifier = uow.cashflows.add(account.type, {
+            "occurred_at": utc(date), "amount": Decimal(str(amount)), "currency": currency,
+            "counterparty": counterparty, "note": note, "record_type": record_type,
+            "account_name": account_name, "source_type": source_type, "record_id": record_id,
+            "record_origin": "import"})
+        snapshot = uow.snapshot.load(lock=True)
+        _ensure_snapshot_account(snapshot, account.type, account_name, currency)
+        uow.snapshot.update_balance(snapshot, account_name, account.type, currency, Decimal(str(amount)))
+        uow.snapshot.save(snapshot)
+        CashProjectionService.maintain_if_ready_in_session(uow._state().session, uow.workspace_id, {int(identifier)})
         rows = uow.cashflows.list_detailed()
-        # If source_type persisted, stamp it when manual path ignored kwargs
-        matches = [
-            r for r in rows
-            if r["account_name"] == account_name
-            and Decimal(str(r["amount"])) == Decimal(str(amount))
-            and counterparty in (r.get("counterparty") or "")
-        ]
-    assert matches, "fact not found after insert"
-    parent_id = matches[-1]["id"]
-    components = matches[-1].get("components") or []
-    assert len(components) == 1, "relation fixture expects one atomic component"
-    fact_id = components[0]["id"]
-    if source_type:
-        # Ensure identity fields for relations routing via direct repo update if needed
-        with services.uow as uow:
-            from ft.adapters.relational.models import CashTransactionModel
-            from sqlalchemy import select
-            row = uow._state().session.scalar(  # type: ignore[attr-defined]
-                select(CashTransactionModel).where(CashTransactionModel.id == parent_id)
-            ) if hasattr(uow, "_state") else None
-            # fallback: use list_detailed payload already has source_type from add
-            if row is not None and not row.source_type:
-                row.source_type = source_type
-                if not row.record_id and record_id:
-                    row.record_id = record_id
-                uow.commit()
-            else:
-                uow.rollback()
+        row = next(row for row in rows if str(row["id"]) == str(identifier))
+        components = row.get("components") or []
+        assert len(components) == 1, "relation fixture expects one atomic component"
+        fact_id = components[0]["id"]
+        uow.commit()
     return fact_id
 
 
 def utc(dt: str) -> str:
     return dt if " " in dt or "T" in dt else f"{dt} 12:00:00"
+
+
+def add_imported_transaction(services, *, note='', category_id=None, **values):
+    """配对夹具从导入事实创建，避免借用禁止配对的手工入口。"""
+    from ft.domain.cashflow import CashflowResult
+    identifier = add_cash_fact(services, description=note, **values)
+    return CashflowResult.success(row={'id': identifier})

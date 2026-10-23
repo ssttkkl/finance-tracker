@@ -138,36 +138,8 @@ class CashProjectionService:
 
     @staticmethod
     def _synchronize_component_categories(session, workspace_id: str, build) -> None:
-        """同步展示基准分类，保留成员已有的人工分类和明确清空。"""
-        from sqlalchemy import select
-        from sqlalchemy.orm import load_only
-        from ft.adapters.relational.cash_relations import CurrentCashRelationRepository, _batches
-        from ft.adapters.relational.models import CashTransactionModel
-
-        changed = set()
-        for projection in build.projections:
-            category_id = projection.primary_record.category_id
-            member_ids = [
-                member.id
-                for member, _roles in projection.members
-                if member.category_id != category_id
-            ]
-            if not member_ids:
-                continue
-            for batch in _batches(member_ids):
-                rows = session.scalars(select(CashTransactionModel).where(
-                    CashTransactionModel.workspace_id == workspace_id,
-                    CashTransactionModel.id.in_(batch),
-                    CashTransactionModel.deleted_at.is_(None),
-                ).options(load_only(CashTransactionModel.id, CashTransactionModel.category_id,
-                    CashTransactionModel.manual_overrides)))
-                for row in rows:
-                    if "category_id" not in (row.manual_overrides or {}) and row.category_id != category_id:
-                        row.category_id = category_id
-                        changed.add(row.id)
-        if changed:
-            session.flush()
-            CurrentCashRelationRepository(session, workspace_id).mark_candidates_stale(changed)
+        """公共分类保存在稳定收支对象，来源成员不回写。"""
+        return None
 
     @staticmethod
     def maintain_if_ready_in_session(
@@ -183,6 +155,13 @@ class CashProjectionService:
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.ready_state_lock_or_none()
         if state is None:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            component_ids = repository.confirmed_transaction_closure(affected_fact_ids)
+            facts, relations = repository.read_sources_for_facts(component_ids)
+            build = build_cash_projections(facts, relations)
+            entries = CashEntryRepository(session, workspace_id)
+            entries.remove_members(set(affected_fact_ids) - {member.id for projection in build.projections for member, _ in projection.members})
+            entries.reconcile(build.projections)
             return None
         component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         if known_component_ids is not None:
@@ -206,10 +185,11 @@ class CashProjectionService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
+        build = build_cash_projections((repository._fact_from_model(row),), ())
+        repository._reconcile_entries(build.projections)
         state = repository.ready_state_lock_or_none()
         if state is None:
             return None
-        build = build_cash_projections((repository._fact_from_model(row),), ())
         return repository.replace_active_components(
             build,
             {int(row.id)},
@@ -255,5 +235,7 @@ class CashProjectionService:
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.ready_state_lock_or_none()
         if state is None:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            CashEntryRepository(session, workspace_id).remove_members(affected_fact_ids)
             return None
         return repository.remove_active_components(affected_fact_ids, state=state)

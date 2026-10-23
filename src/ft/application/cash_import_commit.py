@@ -86,8 +86,48 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             candidate_models, candidate_epoch = {}, 0
             bulk = self._new_batches(session, plan["operations"], fresh_ops, sources.rows, dependencies, failed_namespaces)
             failures, validated = set(), set()
+            shared_units = {}
+            for operation in plan['operations']:
+                if operation.get('entry_edit_group'):
+                    shared_units.setdefault(operation['entry_edit_group'], []).append(operation)
             for operation in plan["operations"]:
                 ref = operation["operation_ref"]
+                if ref in actual:
+                    continue
+                if operation.get('entry_edit_group'):
+                    unit = shared_units[operation['entry_edit_group']]
+                    try:
+                        saved = []
+                        with session.begin_nested():
+                            for member in unit:
+                                candidate = fresh_ops.get(member['occurrence_key'])
+                                if candidate is None or _operation_fingerprint(member) != _operation_fingerprint(candidate):
+                                    raise _RowChanged
+                                if any(dependencies.get(row, set()).intersection(failed_namespaces) for row in member['row_refs']):
+                                    raise _RowChanged
+                            validated.update(member['operation_ref'] for member in unit)
+                            for member in unit:
+                                resolved = self._candidate_operation(session, member, candidate_sets, candidate_models, candidate_epoch)
+                                saved.append((member, self._save_row(session, resolved, sources.rows)))
+                            session.flush()
+                    except Exception as error:
+                        if not _recoverable(error):
+                            raise
+                        session.expire_all()
+                        candidate_epoch += 1
+                        for member in unit:
+                            failures.add(member['preview_transaction_id'])
+                            actual[member['operation_ref']] = {'outcome': 'skipped', 'transaction_id': member['transaction_id'],
+                                'code': _reason(error, 'row_save_failed')}
+                    else:
+                        for member, (identifier, mapping, before, after, touched) in saved:
+                            validated.add(member['operation_ref'])
+                            identity[member['preview_transaction_id']] = str(identifier)
+                            component_ids.update(mapping)
+                            actual[member['operation_ref']] = {'outcome': self._row_outcome(member), 'transaction_id': str(identifier)}
+                            affected.update(touched | {identifier})
+                            changes.append((before, after))
+                    continue
                 candidate = fresh_ops.get(operation["occurrence_key"])
                 try:
                     if any(dependencies.get(row, set()).intersection(failed_namespaces) for row in operation["row_refs"]):

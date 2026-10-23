@@ -75,7 +75,10 @@ def test_retry_derivation_is_idempotent_and_preserves_failed_user_choices(contex
     with context_runtime.sessions() as session:
         identifier = _results(service, saved, "row")[0]["transaction_id"]
         parent = session.get(CashTransactionModel, int(identifier))
-        assert parent.note == "人工补充" and parent.manual_overrides["note"] is True
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        entry = CashEntryRepository(session, context_runtime.workspace_id).current(identifier)
+        assert parent.note == 'failed-private-body' and not parent.manual_overrides.get('note')
+        assert entry.note == "人工补充" and 'note' in entry.manual_fields
 
 
 def test_replaying_derivation_after_child_commit_returns_consumer_without_body(context_runtime, monkeypatch):

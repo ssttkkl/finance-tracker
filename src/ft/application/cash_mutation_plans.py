@@ -17,10 +17,10 @@ class CashMutationPlanError(CashRecordMaintenanceError):
     pass
 
 
-_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions"}
+_COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches"}
 _META = {"edit_context_id", "previous_plan_id", "expected_plan_revision"}
 _ISSUE = {"issue_id", "expected_issue_revision", "resolution", "target_transaction_id", "expected_target_revision"}
-_INTENTS = {"edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
+_INTENTS = {"edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
 _SUMMARY_COUNTS = {"update_posted", "finalize_draft", "update_draft", "resolve_issue", "merge_draft",
     "create_independent", "duplicate", "skip", "relations_accepted", "relations_deferred",
     "relations_ignored", "relations_removed", "relations_failed"}
@@ -77,12 +77,20 @@ def _input(value):
     data["transaction_id"] = str(_identifier(value.get("transaction_id"), code="plan_input_invalid"))
     data.setdefault("patch", {})
     data["relation_choices"] = _choices(value.get("relation_choices", []), key="suggestion_id",
-        fields={"suggestion_id", "action", "candidate_id"}, actions={"accept", "defer", "ignore", "remove"})
+        fields={"suggestion_id", "action", "candidate_id", "common_fields", "inherit_common_fields"}, actions={"accept", "defer", "ignore", "remove"})
     data["issue_resolutions"] = _issue_resolutions(value.get("issue_resolutions", []))
     merges = [choice for choice in data["issue_resolutions"] if choice["resolution"] == "merge_into"]
     if (intent == "resolve_issue" and not data["issue_resolutions"] or intent == "maintain_relations" and data["issue_resolutions"]
         or len(merges) > 1 or merges and (intent == "finalize_draft"
             or any(choice["resolution"] == "create_independent" for choice in data["issue_resolutions"]))):
+        raise CashMutationPlanError("plan_input_invalid")
+    if intent == "edit_entry" and (not _reference(value.get("entry_id"), 64) or not _revision(value.get("expected_entry_revision"))):
+        raise CashMutationPlanError("plan_input_invalid")
+    member_patches = value.get("member_patches", [])
+    if (not isinstance(member_patches, list) or len(member_patches) > 2 or any(not isinstance(item, dict)
+        or set(item) != {"transaction_id", "patch"} or not isinstance(item["patch"], dict) for item in member_patches)):
+        raise CashMutationPlanError("plan_input_invalid")
+    if member_patches and intent != "edit_entry":
         raise CashMutationPlanError("plan_input_invalid")
     metadata = {key: value.get(key) for key in _META}
     context = metadata["edit_context_id"]

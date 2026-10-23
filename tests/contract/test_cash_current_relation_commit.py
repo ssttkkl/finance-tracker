@@ -158,7 +158,7 @@ def test_same_command_note_patch_can_confirm_the_prechecked_candidate_without_re
     plan = _selection(service, runtime, candidate=True, patch={"note": "本次明确备注"})
     receipt = _commit(service, plan)
     assert receipt["summary"]["updated_posted"] == receipt["summary"]["relations_confirmed"] == 1
-    assert _records(runtime).read("1101")["fields"]["note"] == "本次明确备注"
+    assert _records(runtime).read("1101")["entry"]["fields"]["note"] == "本次明确备注"
     with runtime.sessions() as session:
         row = session.get(TransactionRelationModel, relation)
         assert row.state == "confirmed" and row.active
@@ -254,57 +254,44 @@ def test_failed_candidate_only_record_blocks_the_related_current_group(context_r
     assert _rows(runtime) == before
 
 
-def test_type_invalidated_choice_can_be_repreviewed_and_committed_without_reusing_authority(context_runtime):
+def test_imported_type_patch_rejected_without_mutating_prechecked_relation(context_runtime):
     runtime = context_runtime
     service, _ = _start(runtime)
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
     choice = {"suggestion_id": group["suggestion_id"], "action": "accept"}
-    patch = {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}
-    changed = _choose(service, runtime, view, choice, patch=patch)
-    again = _choose(service, runtime, changed, choice, patch=patch)
-    assert again["invalidated_choices"] == changed["invalidated_choices"]
-    assert "invalidated_relation_choices" not in again
-    receipt = _commit(service, again)
-    assert receipt["summary"]["updated_posted"] == 1 and receipt["summary"]["relations_confirmed"] == 0
-    assert _records(runtime).read("1101")["fields"]["record_type"] == "transfer_out"
-    row, = _rows(runtime)
-    assert row["state"] == "draft" and row["active"]
+    before = _rows(runtime)
+    with pytest.raises(ValueError):
+        _choose(service, runtime, view, choice,
+            patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    assert _rows(runtime) == before
+    valid = _choose(service, runtime, view, choice)
+    assert _commit(service, valid)["summary"]["relations_confirmed"] == 1
 
 
 @pytest.mark.parametrize("change", [{"action": "remove"}, {"candidate_id": "forged-old-candidate"}])
-def test_invalidated_old_reference_cannot_authorize_another_action_or_candidate(context_runtime, change):
+def test_unknown_reference_cannot_authorize_another_action_or_candidate(context_runtime, change):
     runtime = context_runtime
     service, _ = _start(runtime)
     view = _preview(service, runtime, "1101", intent="maintain_relations")
-    group, = _groups(service, view)
-    choice = {"suggestion_id": group["suggestion_id"], "action": "accept"}
-    patch = {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}
-    changed = _choose(service, runtime, view, choice, patch=patch)
+    choice = {"suggestion_id": "sg_forged_old_reference", "action": "accept"}
     with pytest.raises(ValueError) as error:
-        _choose(service, runtime, changed, choice | change, patch=patch)
+        _choose(service, runtime, view, choice | change)
     assert error.value.code == "plan_input_invalid"
 
 
 @pytest.mark.parametrize("reselect", [False, True])
-def test_restoring_a_patch_does_not_restore_the_invalidated_choice_authority(context_runtime, reselect):
+def test_rejected_type_patch_preserves_existing_context_without_implicit_confirmation(context_runtime, reselect):
     runtime = context_runtime
     service, _ = _start(runtime)
     view = _preview(service, runtime, "1101", intent="maintain_relations")
     group, = _groups(service, view)
-    old_choice = {"suggestion_id": group["suggestion_id"], "action": "accept"}
-    changed = _choose(service, runtime, view, old_choice,
-        patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
-    restored = _choose(service, runtime, changed, old_choice)
-    restored = _choose(service, runtime, restored, old_choice)
-    assert restored["invalidated_choices"] == changed["invalidated_choices"]
-    current, = _groups(service, restored)
-    assert current["suggestion_id"] != group["suggestion_id"]
-    assert current["action"] == "defer" and restored["summary"]["relations_accepted"] == 0
-    if reselect:
-        restored = _choose(service, runtime, restored, {"suggestion_id": current["suggestion_id"], "action": "accept"})
-        assert not restored["invalidated_choices"]
-    receipt = _commit(service, restored)
+    choice = {"suggestion_id": group["suggestion_id"], "action": "accept"}
+    with pytest.raises(ValueError):
+        _choose(service, runtime, view, choice,
+            patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    current = _choose(service, runtime, view, choice) if reselect else view
+    receipt = _commit(service, current)
     assert receipt["summary"]["relations_confirmed"] == int(reselect)
     row, = _rows(runtime)
     assert row["state"] == ("confirmed" if reselect else "draft")

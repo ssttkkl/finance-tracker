@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select
 
 from ft.adapters.relational.cash_sources import CashSourceRepository
-from ft.adapters.relational.models import (CashIssueCandidateModel, CashMutationReceiptModel, CashRelationCandidateModel,
+from ft.adapters.relational.models import (CashEntryModel, CashEntryMemberModel, CashIssueCandidateModel, CashMutationReceiptModel, CashRelationCandidateModel,
     CashSourceBindingModel, CashTransactionComponentModel, CashTransactionIssueModel, CashTransactionModel, TransactionRelationModel)
 from ft.application.cash_import_operations import _wire
 from tests.contract.test_cash_draft_merge_plan import _pair, _merge, _choice
@@ -22,10 +22,10 @@ from tests.contract.test_parsed_cash_import_context import context_runtime
 
 def _business(runtime):
     models = (CashTransactionModel, CashTransactionComponentModel, CashSourceBindingModel, CashTransactionIssueModel,
-        CashIssueCandidateModel, TransactionRelationModel, CashRelationCandidateModel)
+        CashIssueCandidateModel, TransactionRelationModel, CashRelationCandidateModel, CashEntryModel, CashEntryMemberModel)
     with runtime.sessions() as session:
         return {model.__tablename__: _wire([{column.name: deepcopy(getattr(row, column.name)) for column in model.__table__.columns}
-            for row in session.scalars(select(model).where(model.workspace_id == runtime.workspace_id).order_by(model.id))]) for model in models}
+            for row in session.scalars(select(model).where(model.workspace_id == runtime.workspace_id).order_by(*model.__table__.primary_key.columns))]) for model in models}
 
 
 @pytest.mark.parametrize("draft_target", [False, True])
@@ -41,7 +41,7 @@ def test_merge_keeps_target_identity_balance_and_permanent_replay(context_runtim
     assert receipt["status"] == "completed" and receipt["summary"]["merged_draft"] == 1
     assert receipt["retained_transaction_id"] == target and receipt["summary"]["resolved_issues"] == 1
     current = _records(runtime).read(target)
-    assert current["state"] == ("draft" if draft_target else "posted") and current["fields"]["note"] == ""
+    assert current["state"] == ("draft" if draft_target else "posted") and current["entry"]["fields"]["note"] == ""
     assert _snapshot(runtime) == before_balance
     with pytest.raises(ValueError) as error:
         _records(runtime).read(source)
@@ -50,7 +50,7 @@ def test_merge_keeps_target_identity_balance_and_permanent_replay(context_runtim
         assert session.get(CashTransactionModel, int(source)).deleted_at is not None
         assert not CashSourceRepository(session, runtime.workspace_id).bindings_for(source)
         assert CashSourceRepository(session, runtime.workspace_id).bindings_for(target)
-        assert session.get(CashTransactionModel, int(target)).manual_overrides["note"]
+        assert 'note' in session.get(CashEntryModel, current['entry']['entry_id']).manual_fields
     result, = service.results(receipt["receipt_id"], result_kind="row")["items"]
     assert result["item_ref"] == source and result["transaction_id"] == target and result["outcome"] == "merged_draft"
     service._staging._entries.clear()
@@ -60,7 +60,7 @@ def test_merge_keeps_target_identity_balance_and_permanent_replay(context_runtim
     if not draft_target:
         importer, repeated = _plan(runtime, (_file(letter="c"),))
         assert _results(importer, _import_commit(importer, repeated, "reimport-after-merge"), "row")[0]["transaction_id"] == target
-        assert _records(runtime).read(target)["fields"]["note"] == ""
+        assert _records(runtime).read(target)["entry"]["fields"]["note"] == ""
 
 
 def test_merge_preserves_issue_instances_bodies_candidates_and_same_key_collision(context_runtime):
@@ -285,17 +285,14 @@ def test_pending_source_component_reference_remains_maintainable_after_move(cont
     assert _commit(service, view, "resolve-moved-body")["summary"]["resolved_issues"] == 1
 
 
-def test_merge_does_not_reactivate_relation_removed_by_target_type_update(context_runtime):
+def test_merge_rejects_posted_target_type_change_and_preserves_group(context_runtime):
     runtime = context_runtime
     source, target = _pair(runtime, mirror_target=True)
-    service = _service(runtime)
-    view = _merge(service, runtime, source, target, patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
-    assert view["summary"]["relations_removed"] == 1
-    receipt = _commit(service, view)
-    assert receipt["status"] == "completed" and receipt["summary"]["relations_removed"] == 1
-    with runtime.sessions() as session:
-        relation = session.scalar(select(TransactionRelationModel).where(TransactionRelationModel.primary_transaction_id == int(target)))
-        assert relation.state == "confirmed" and not relation.active
+    before, balances = _business(runtime), _snapshot(runtime)
+    with pytest.raises(ValueError):
+        _merge(_service(runtime), runtime, source, target,
+            patch={"record_type": "transfer_out", "record_subtype": "ordinary_transfer"})
+    assert _business(runtime) == before and _snapshot(runtime) == balances
 
 
 def test_category_member_failure_rolls_back_earlier_target_and_prepared_candidates(context_runtime, monkeypatch):
@@ -310,12 +307,12 @@ def test_category_member_failure_rolls_back_earlier_target_and_prepared_candidat
     original = CashRecordWriter.save
     def failed(self, session, operation, source_rows):
         saved = original(self, session, operation, source_rows)
-        if operation["transaction_id"] == "1001":
-            raise RuntimeError("synthetic second category member failure")
+        if operation["transaction_id"] == target:
+            raise RuntimeError("synthetic public attribute failure after write")
         return saved
     monkeypatch.setattr(CashRecordWriter, "save", failed)
     receipt = _commit(service, view)
-    assert receipt["status"] == "failed" and receipt["summary"]["skipped"] == 2
+    assert receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
     assert receipt["retained_transaction_id"] == source and _business(runtime) == before and _snapshot(runtime) == balances
 
 
@@ -352,4 +349,4 @@ def test_merge_applies_multiple_source_decisions_with_final_patch_in_one_receipt
     view = _preview(service, runtime, source, intent="resolve_issue", patch={"note": "最后明确值"}, issue_resolutions=choices)
     receipt = _commit(service, view)
     assert receipt["status"] == "completed" and receipt["summary"]["resolved_issues"] == 3
-    assert _records(runtime).read(target)["fields"]["note"] == "最后明确值"
+    assert _records(runtime).read(target)["entry"]["fields"]["note"] == "最后明确值"

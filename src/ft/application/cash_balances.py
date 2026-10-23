@@ -6,7 +6,8 @@ from ft.domain.decimal import exact_decimal
 
 def counts_toward_balance(row: dict | None) -> bool:
     return bool(row and row.get("state", "posted") == "posted" and not row.get("deleted_at")
-        and not row.get("deleted") and str(row.get("record_type") or "other") not in {"transfer_in", "transfer_out"})
+        and not row.get("deleted") and (row.get("record_origin") == "manual"
+            or str(row.get("record_type") or "other") not in {"transfer_in", "transfer_out"}))
 
 
 def apply_snapshot_components(snapshot, uow, row: dict, multiplier) -> None:

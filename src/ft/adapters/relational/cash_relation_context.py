@@ -8,6 +8,7 @@ from ft.domain.cash_relation_graph import CashRelationGraphEdge, JointRelationMe
 from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint
 from .cash_relations import CurrentCashRelationRepository, _batches, _id
 from .cash_attention import read_cash_attention
+from .cash_entries import CashEntryRepository
 from .models import CashInvestmentFundingRelationModel, CashTransactionComponentModel, CashTransactionModel
 
 
@@ -100,6 +101,7 @@ class RelationalCashRelationContextRepository:
                 for row in sorted(component_rows.values(), key=lambda value: value["id"])),
             relation_revisions=tuple((row["id"], row["row_revision"]) for row in ordered),
             issue_versions=attention.issue_versions,
+            entry_versions=CashEntryRepository(self._session, self._workspace_id).snapshot(closure),
             relation_groups=tuple((row["id"], row["decision_group_id"]) for row in ordered if row["decision_group_id"] is not None),
             funding_versions=tuple((row["id"], row["cash_transaction_component_id"], row["investment_event_id"], row["direction"]) for row in sorted(funding.values(), key=lambda value: value["id"])),
             funding_component_ids=frozenset(str(row["cash_transaction_component_id"]) for row in funding.values()

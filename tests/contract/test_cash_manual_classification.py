@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy import event, select
 
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+from ft.adapters.relational.cash_entries import CashEntryRepository
 from ft.adapters.relational.cash_sources import CashSourceRepository
 from ft.adapters.relational.models import AccountModel, CashProjectionModel, CashTransactionComponentModel, CashTransactionModel
 from ft.adapters.relational.uow import RelationalUnitOfWork
@@ -29,7 +30,7 @@ def _mirror(runtime):
 
 
 @pytest.mark.parametrize("category", ["category-food", None])
-def test_explicit_projection_category_protects_every_member_including_same_value_and_clear(draft_runtime, category):
+def test_explicit_projection_category_protects_entry_including_same_value_and_clear(draft_runtime, category):
     runtime = draft_runtime
     _mirror(runtime)
     with runtime.sessions.begin() as session:
@@ -42,10 +43,12 @@ def test_explicit_projection_category_protects_every_member_including_same_value
     CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
         projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id=category)
     with runtime.sessions() as session:
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        assert entry.category_id == category and 'category_id' in entry.manual_fields
         for identifier in (1002, 1003):
             row = session.get(CashTransactionModel, identifier)
             assert row.category_id == category
-            assert row.manual_overrides["category_id"]["value"] == category
+            assert 'category_id' not in row.manual_overrides
             assert row.manual_overrides["note"] == {"value": "已有人工备注"}
 
 
@@ -270,7 +273,7 @@ def test_category_propagation_invalidates_only_members_that_really_changed(draft
         assert current["candidates"][0]["validity"] == "valid"
 
 
-def test_automatic_category_sync_invalidates_changed_member_candidates(draft_runtime):
+def test_projection_rebuild_preserves_source_category_and_candidate_proof(draft_runtime):
     runtime = draft_runtime
     _mirror(runtime)
     with runtime.sessions.begin() as session:
@@ -278,10 +281,11 @@ def test_automatic_category_sync_invalidates_changed_member_candidates(draft_run
     relation = _candidate_on(runtime, 1002)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     with runtime.sessions() as session:
-        assert session.get(CashTransactionModel, 1002).category_id == "category-food"
+        assert session.get(CashTransactionModel, 1002).category_id == "category-daily"
+        assert CashEntryRepository(session, runtime.workspace_id).current(1002).category_id == 'category-food'
         current = CurrentCashRelationRepository(session, runtime.workspace_id).get(relation["id"])
-        assert current["row_revision"] == relation["row_revision"] + 1
-        assert current["candidates"][0]["validity"] == "stale"
+        assert current["row_revision"] == relation["row_revision"]
+        assert current["candidates"][0]["validity"] == "valid"
 
 
 def test_classification_write_failure_rolls_back_protection_candidates_and_projection(draft_runtime):
@@ -291,7 +295,10 @@ def test_classification_write_failure_rolls_back_protection_candidates_and_proje
     relation = _candidate_on(runtime, 1002)
     with runtime.sessions() as session:
         before = {identifier: (session.get(CashTransactionModel, identifier).row_revision,
-            session.get(CashTransactionModel, identifier).manual_overrides) for identifier in (1002, 1003)}
+            session.get(CashTransactionModel, identifier).manual_overrides,
+            session.get(CashTransactionModel, identifier).category_id) for identifier in (1002, 1003)}
+        entry_before = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        entry_snapshot = (entry_before.id, entry_before.revision, entry_before.category_id, list(entry_before.manual_fields))
     def fail_projection(_connection, _cursor, statement, _parameters, _context, _executemany):
         if statement.lower().startswith("update cash_projections "):
             raise RuntimeError("injected projection failure")
@@ -307,8 +314,9 @@ def test_classification_write_failure_rolls_back_protection_candidates_and_proje
     with runtime.sessions() as session:
         for identifier in (1002, 1003):
             row = session.get(CashTransactionModel, identifier)
-            assert (row.row_revision, row.manual_overrides) == before[identifier]
-            assert row.category_id == "category-food"
+            assert (row.row_revision, row.manual_overrides, row.category_id) == before[identifier]
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        assert (entry.id, entry.revision, entry.category_id, entry.manual_fields) == entry_snapshot
         current = CurrentCashRelationRepository(session, runtime.workspace_id).get(relation["id"])
         assert current["row_revision"] == relation["row_revision"]
         assert current["candidates"][0]["validity"] == "valid"

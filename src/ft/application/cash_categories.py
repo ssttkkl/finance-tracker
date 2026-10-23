@@ -7,7 +7,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
-from ft.adapters.relational.models import CashCategoryModel, CashCategoryStateModel, CashTransactionModel, WorkspaceModel
+from ft.adapters.relational.models import CashCategoryModel, CashCategoryStateModel, CashTransactionModel, CashEntryModel, CashEntryMemberModel, WorkspaceModel
 from ft.adapters.relational.cash_categories import clear_manual_category
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.workspace_lock import lock_workspace
@@ -218,11 +218,8 @@ class CashCategoryService:
                 CashCategoryModel.workspace_id == self._workspace_id,
                 CashCategoryModel.parent_id == category.id,
             ))
-            usage_count = session.scalar(select(func.count()).select_from(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.category_id == category.id,
-                CashTransactionModel.deleted_at.is_(None),
-            ))
+            usage_count = session.scalar(select(func.count()).select_from(CashEntryModel).where(
+                CashEntryModel.workspace_id == self._workspace_id, CashEntryModel.category_id == category.id))
             state = self._state(session)
             return {
                 "category_id": category.id,
@@ -254,18 +251,26 @@ class CashCategoryService:
                 raise ValueError("category.has_children")
             if int(category.revision) != int(expected_category_revision):
                 raise ValueError("category.impact_changed")
-            usage_count = session.scalar(select(func.count()).select_from(CashTransactionModel).where(
-                CashTransactionModel.workspace_id == self._workspace_id,
-                CashTransactionModel.category_id == category.id,
-                CashTransactionModel.deleted_at.is_(None),
-            )) or 0
+            usage_count = session.scalar(select(func.count()).select_from(CashEntryModel).where(
+                CashEntryModel.workspace_id == self._workspace_id, CashEntryModel.category_id == category.id)) or 0
             if int(usage_count) != int(expected_usage_count):
                 raise ValueError("category.impact_changed")
             if usage_count and not confirmed:
                 raise ValueError("category.delete_confirmation_required")
+            entry_roots = set()
+            for entry in session.scalars(select(CashEntryModel).where(CashEntryModel.workspace_id == self._workspace_id,
+                CashEntryModel.category_id == category.id)):
+                entry.category_id = None
+                entry.manual_fields = sorted(set(entry.manual_fields) | {"category_id"})
+                entry.revision += 1
+                entry_roots.add(entry.root_transaction_id)
+            for member in session.scalars(select(CashEntryMemberModel).where(CashEntryMemberModel.workspace_id == self._workspace_id)):
+                if member.standalone_values.get("category_id") == category.id:
+                    member.standalone_values = {**member.standalone_values, "category_id": None}
+                    member.standalone_manual_fields = sorted(set(member.standalone_manual_fields) | {"category_id"})
             changed = clear_manual_category(session, self._workspace_id, category.id)
             CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
-            affected_ids = {identifier for identifier, live in changed.items() if live}
+            affected_ids = {identifier for identifier, live in changed.items() if live} | entry_roots
             if affected_ids:
                 from ft.application.cash_projections import CashProjectionService
                 CashProjectionService.maintain_if_ready_in_session(
@@ -326,6 +331,9 @@ class CashCategoryService:
             CashTransactionModel.category_id.in_(subtree_ids),
             CashTransactionModel.deleted_at.is_(None),
         )).all()) if subtree_ids else set()
+        if subtree_ids:
+            affected_ids.update(session.scalars(select(CashEntryModel.root_transaction_id).where(
+                CashEntryModel.workspace_id == self._workspace_id, CashEntryModel.category_id.in_(subtree_ids))))
         if any(new_depth + (row.depth - category.depth) > MAX_DEPTH for row in subtree):
             raise ValueError("category.depth_limit")
         new_parent_path = parent.category_path if parent else ""

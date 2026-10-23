@@ -37,6 +37,9 @@ class MaintenanceInput(StrictInput):
     transaction_id: Identifier
     expected_revision: Revision
     patch: dict[str, Any] = Field(default_factory=dict)
+    entry_id: ShortReference | None = None
+    expected_entry_revision: Revision | None = None
+    member_patches: list[dict[str, Any]] = Field(default_factory=list, max_length=2)
     relation_choices: list[MaintenanceRelationChoiceInput] = Field(default_factory=list, max_length=100_000)
     edit_context_id: EditContextReference | None = None
     previous_plan_id: ShortReference | None = None
@@ -58,6 +61,12 @@ class EditRecordInput(IssueMaintenanceInput):
     intent: Literal["edit_record"]
 
 
+class EditEntryInput(EditRecordInput):
+    intent: Literal["edit_entry"]
+    entry_id: ShortReference
+    expected_entry_revision: Revision
+
+
 class FinalizeDraftInput(IssueMaintenanceInput):
     intent: Literal["finalize_draft"]
 
@@ -72,7 +81,7 @@ class MaintainRelationsInput(MaintenanceInput):
 
 
 class MutationPreviewInput(RootModel[Annotated[
-    EditRecordInput | FinalizeDraftInput | ResolveIssueInput | MaintainRelationsInput, Field(discriminator="intent")]]):
+    EditEntryInput | EditRecordInput | FinalizeDraftInput | ResolveIssueInput | MaintainRelationsInput, Field(discriminator="intent")]]):
     pass
 
 
@@ -119,6 +128,8 @@ class CurrentProjectionRef(Output):
 
 
 class CashRecordView(Output):
+    record_origin: str
+    entry: dict[str, Any] | None
     transaction_id: str
     state: Literal["draft", "posted"]
     row_revision: Revision

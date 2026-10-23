@@ -12,6 +12,7 @@ from sqlalchemy import and_, exists, func, or_, select
 
 from ft.adapters.cash_statement_evidence import extract_source_explanation
 from ft.adapters.cash_statement_effects import cash_source_note
+from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import (AccountAliasModel, AccountModel, CashSourceBindingModel,
     CashTransactionComponentModel, CashTransactionModel)
 from ft.application.cash_import_issues import cash_import_issue
@@ -20,7 +21,7 @@ from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.application.relations import plan_relation_proposals
 from ft.domain.cash_projection import CashProjectionBuild, CashProjectionFact, build_cash_projections
-from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, _normalize
+from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, COMMON_CASH_FIELDS, _normalize
 from ft.domain.cash_relation_graph import CashRelationGraphEdge, build_cash_relation_graph
 from ft.domain.cash_relation_policy import (CashRelationError, RelationEndpoint, RelationLink, RelationRoleEvidence,
     cash_funding_role_compatible, discover_relation_roles, relation_commit_groups, validate_relation_roles)
@@ -161,6 +162,20 @@ class CashImportBusinessPlanBuilder:
             groups.extend(current_relation_builder(snapshot, accounts))
         failures.extend(conversion_failures)
         invalidated, invalidated_sources, choice_generations = self._apply_choices(groups, relation_choices, previous_plan)
+        split_groups = [group for group in groups
+            if group["action"] == "remove" and group.get("inherit_common_fields") is False]
+        if split_groups:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            recovery, _entry_rows = CashEntryRepository(session, self.workspace_id).for_transactions(context.transaction_ids)
+            for group in split_groups:
+                old_group = {parent for identifier in group.get("old_parent_ids", group["parent_ids"])
+                    for parent in CurrentCashRelationRepository(session, self.workspace_id).confirmed_closure({int(identifier)})}
+                for identifier in old_group:
+                    member = recovery.get(identifier)
+                    if member is not None and str(identifier) in snapshot.facts:
+                        snapshot.entry_public[str(identifier)]['values'] = deepcopy(member.standalone_values)
+                        snapshot.facts[str(identifier)] = replace(snapshot.facts[str(identifier)], **{
+                            field: member.standalone_values[field] for field in ("note", "counterparty", "category_id")})
         relation_failures = self._apply_groups(snapshot, groups)
         failures.extend(relation_failures)
         unique_failures = {}
@@ -207,6 +222,7 @@ class CashImportBusinessPlanBuilder:
         for batch in _batches(merged, 100):
             result.update(session.scalars(select(CashTransactionModel.id).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.state == "posted",
+                CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashTransactionModel.deleted_at.is_(None), or_(*(and_(CashTransactionModel.occurred_at >= start,
                     CashTransactionModel.occurred_at <= end) for start, end in batch)))))
         result.update(self._hard_key_ids(session, operations, source_rows))
@@ -244,11 +260,13 @@ class CashImportBusinessPlanBuilder:
                         CashSourceBindingModel.workspace_id == self.workspace_id, CashSourceBindingModel.source_type == source,
                         CashSourceBindingModel.source_scope_kind == "account", CashSourceBindingModel.source_scope_key == scope,
                         CashSourceBindingModel.identity_kind == "provider_id", CashSourceBindingModel.identity_key.in_(batch),
+                        CashTransactionModel.record_origin.in_(("import", "legacy")),
                         CashTransactionModel.state == "posted", CashTransactionModel.deleted_at.is_(None))))
             # 商家订单／旧来源行按明确账户及来源限域，只返回键匹配的当前记录。
             if source not in legacy_sources:
                 legacy_sources[source] = session.scalar(select(CashTransactionModel.id).where(
                     CashTransactionModel.workspace_id == self.workspace_id,
+                    CashTransactionModel.record_origin.in_(("import", "legacy")),
                     CashTransactionModel.source_type == source, CashTransactionModel.state == "posted",
                     CashTransactionModel.deleted_at.is_(None)).limit(1)) is not None
             if not legacy_sources[source]:
@@ -274,6 +292,7 @@ class CashImportBusinessPlanBuilder:
                         for value in batch if value in request["txn"] for suffix in ("_", "*"))
                 result.update(session.scalars(select(CashTransactionModel.id).where(
                     CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.source_type == source,
+                    CashTransactionModel.record_origin.in_(("import", "legacy")),
                     CashTransactionModel.id.in_(account_parents), CashTransactionModel.state == "posted",
                     CashTransactionModel.deleted_at.is_(None), *scope_terms, or_(*terms))))
         return result
@@ -310,7 +329,7 @@ class CashImportBusinessPlanBuilder:
         for parent in current.values():
             values[str(parent.id)] = {field: _normalize(field, getattr(parent, field)) for field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
                 if hasattr(parent, field)} | {"source_type": parent.source_type, "record_id": parent.record_id,
-                "state": parent.state, "created_at": parent.created_at,
+                "state": parent.state, "created_at": parent.created_at, "record_origin": parent.record_origin, "manual_transfer_id": parent.manual_transfer_id,
                 "source_explanation": extract_source_explanation(parent.relation_metadata)}
             values[str(parent.id)]["source_scope_key"] = scopes.get((str(parent.id), parent.source_type),
                 self._fallback_scope(parent.source_type, parent.id))
@@ -335,6 +354,7 @@ class CashImportBusinessPlanBuilder:
             # 操作已按共同规则验证；只恢复计算所需的财务类型，来源原文只读复用。
             value = dict(op["values"])
             value.update({field: _normalize(field, value[field]) for field in CASH_FINANCIAL_FIELDS & value.keys()})
+            value.setdefault("record_origin", values.get(identifier, {}).get("record_origin", "import"))
             value["created_at"] = values.get(identifier, {}).get("created_at", self._clock())
             value["source_explanation"] = op.get("source_explanation", values.get(identifier, {}).get("source_explanation", {}))
             value["source_scope_key"] = op["source_scope_key"]
@@ -343,7 +363,7 @@ class CashImportBusinessPlanBuilder:
                 part.setdefault("component_id", str(_virtual("component", identifier, part["ordinal"])))
                 if part["component_id"] is None:
                     part["component_id"] = str(_virtual("component", identifier, part["ordinal"]))
-            type_update = op.get("type_changed") and op.get("transaction_id") and value["state"] == "posted"
+            type_update = op.get("type_changed") and op.get("transaction_id") and value["state"] == "posted" and value.get("record_origin") != "manual_transfer"
             previous = self._capture(snapshot, identifier) if type_update else None
             for part in snapshot.values.get(identifier, {}).get("components", []):
                 snapshot.components.pop(part["component_id"], None)
@@ -367,6 +387,36 @@ class CashImportBusinessPlanBuilder:
             snapshot.parent_ops[identifier] = op
             op["preview_components"] = [{"ordinal": part["ordinal"], "component_id": part["component_id"]}
                 for part in value["components"]]
+        from ft.adapters.relational.cash_entries import CashEntryRepository, public_values
+        entry_repo = CashEntryRepository(session, self.workspace_id)
+        member_entries, entries = entry_repo.for_transactions(current)
+        public_patches = {}
+        for identifier, operation in snapshot.parent_ops.items():
+            member = member_entries.get(int(identifier))
+            if member is not None:
+                public_patches.setdefault(member.entry_id, {}).update(operation.get("entry_edit", {}).get("patch", {}))
+        snapshot.entry_public = {}
+        for identifier, fact in tuple(snapshot.facts.items()):
+            member = member_entries.get(int(identifier))
+            entry = entries.get(member.entry_id) if member else None
+            if entry is not None:
+                root_values = snapshot.values.get(str(entry.root_transaction_id), snapshot.values[identifier])
+                public = {field: deepcopy(getattr(entry, field) if field in entry.manual_fields else root_values.get(field))
+                    for field in COMMON_CASH_FIELDS}
+                operation = snapshot.parent_ops.get(identifier, {})
+                public.update(public_patches.get(entry.id, {}))
+                snapshot.entry_public[identifier] = {"entry_id": entry.id, "values": public,
+                    "manual_fields": sorted(set(entry.manual_fields) | set(public_patches.get(entry.id, {})))}
+                snapshot.facts[identifier] = replace(fact, **{field: public[field] for field in ("counterparty", "note", "category_id")})
+        for identifier, operation in snapshot.parent_ops.items():
+            if identifier not in snapshot.entry_public:
+                public = {field: snapshot.values[identifier].get(field) for field in COMMON_CASH_FIELDS}
+                public.update(operation.get("entry_edit", {}).get("patch", {}))
+                snapshot.entry_public[identifier] = {"entry_id": "new:" + identifier,
+                    "values": public,
+                    "manual_fields": sorted(set(operation.get("manual_fields", [])) | set(operation.get("entry_edit", {}).get("patch", {})))}
+                snapshot.facts[identifier] = replace(snapshot.facts[identifier], **{field: public[field]
+                    for field in ("counterparty", "note", "category_id")})
         return snapshot
 
     @staticmethod
@@ -442,11 +492,16 @@ class CashImportBusinessPlanBuilder:
             metadata.get("_wechat_direction", metadata.get("direction", "")), metadata.get("platform_status", metadata.get("status", "")))
 
     def _discover(self, snapshot, seeds, accounts, session):
-        facts = self._matching_facts(snapshot, accounts)
+        facts = [fact for fact in self._matching_facts(snapshot, accounts)
+            if snapshot.values[fact.parent_id].get('record_origin', 'legacy') in {'import', 'legacy'}]
+        eligible = {fact.id for fact in facts}
+        seeds = set(seeds) & eligible
+        if not seeds:
+            return [], []
         accepted = [{"id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
             "primary_fact_id": edge.primary_component_id, "secondary_fact_id": edge.secondary_component_id,
             "status": "accepted", "applied_amount": edge.applied_amount} for edge in snapshot.edges.values()
-            if edge.active and edge.state == "confirmed"]
+            if edge.active and edge.state == "confirmed" and edge.primary_component_id in eligible and edge.secondary_component_id in eligible]
         tails, identifiers = defaultdict(list), defaultdict(list)
         for alias in session.scalars(select(AccountAliasModel).where(AccountAliasModel.workspace_id == self.workspace_id)):
             if alias.alias_type == "card_tail":
@@ -687,6 +742,14 @@ class CashImportBusinessPlanBuilder:
                         current[identifier][key] = deepcopy(confirmation[key])
                 elif action == "accept" and any(edge["secondary_transaction_id"] is None for edge in current[identifier]["edges"]):
                     raise CashImportPlanError("plan_input_invalid")
+                if "common_fields" in choice:
+                    if action != "accept":
+                        raise CashImportPlanError("plan_input_invalid")
+                    current[identifier]["common_fields"] = deepcopy(choice["common_fields"])
+                if "inherit_common_fields" in choice:
+                    if action != "remove":
+                        raise CashImportPlanError("plan_input_invalid")
+                    current[identifier]["inherit_common_fields"] = choice["inherit_common_fields"]
                 current[identifier]["action"] = action
                 explicit.add(identifier)
                 if current[identifier].get("origin") == "current":
@@ -725,6 +788,50 @@ class CashImportBusinessPlanBuilder:
                 parents = {parent for group in related.values() for identifier in group["parent_ids"]
                     for parent in old_closures.get(identifier, (identifier,))}
                 build = snapshot.build(parents)
+                common_conflicts = {}
+                decisions = {}
+                for group in related.values():
+                    for field, value in group.get("common_fields", {}).items():
+                        if field in decisions and decisions[field] != value:
+                            common_conflicts[field] = [decisions[field], value]
+                        else:
+                            decisions[field] = value
+                for projection in build.projections:
+                    if not any(group["action"] == "accept" for group in related.values()) or len(projection.member_ids) < 2:
+                        continue
+                    by_field = {}
+                    seen_entries = set()
+                    for member_id in projection.member_ids:
+                        value = snapshot.entry_public.get(str(member_id))
+                        if value is None or value["entry_id"] in seen_entries:
+                            continue
+                        seen_entries.add(value["entry_id"])
+                        for field in value["manual_fields"]:
+                            if field in COMMON_CASH_FIELDS:
+                                by_field.setdefault(field, {})[_digest(value["values"].get(field))] = value["values"].get(field)
+                    for field, variants in by_field.items():
+                        if field not in decisions:
+                            if len(variants) > 1:
+                                common_conflicts[field] = list(variants.values())
+                            else:
+                                decisions[field] = next(iter(variants.values()))
+                    if not common_conflicts:
+                        root = str(projection.primary_record.id)
+                        if root in snapshot.entry_public:
+                            snapshot.entry_public[root]['values'].update(deepcopy(decisions))
+                        snapshot.facts[root] = replace(snapshot.facts[root], **{field: value for field, value in decisions.items()
+                            if field in {"note", "category_id", "counterparty"}})
+                if common_conflicts:
+                    for group in related.values():
+                        if group["action"] == "accept":
+                            group.update(action="defer", common_field_conflicts=common_conflicts, code="common_field_conflict")
+                            for edge in edges_by_group[group["suggestion_id"]]:
+                                snapshot.edges[edge.id] = replace(snapshot.edges[edge.id], state="draft")
+                    build = snapshot.build(parents)
+                else:
+                    for group in related.values():
+                        if group["action"] == "accept":
+                            group["common_fields"] = deepcopy(decisions)
                 applied = {edge.id: edge.applied_amount for projection in build.projections for edge in projection.relations}
                 for edge in edges:
                     if edge.id in applied:
@@ -766,6 +873,7 @@ class CashImportBusinessPlanBuilder:
                     if parent is not None:
                         old_edges[parent][edge.id] = edge
         items, details, detail_values = [], {}, {}
+        by_suggestion = {group["suggestion_id"]: group for group in groups}
         for index, projection in enumerate(projections):
             identifier = f"pi_{index + 1}"
             parents = {str(parent) for parent in projection.member_ids}
@@ -779,6 +887,9 @@ class CashImportBusinessPlanBuilder:
                 "anticipated_state": projection.state, "statistics_eligible": projection.statistics_eligible,
                 "display": {"occurred_at": projection.occurred_at, "amount": projection.net_amount, "currency": projection.primary_record.currency,
                     "counterparty": projection.primary_record.counterparty, "note": projection.primary_record.note,
+                    "category_id": projection.primary_record.category_id,
+                    **{field: deepcopy(snapshot.entry_public.get(str(projection.primary_record.id), {}).get('values', {}).get(field))
+                        for field in ('counterparty_account', 'counterparty_account_attrs')},
                     "accounts": list(dict.fromkeys(accounts[part["account_id"]]["name"] for parent in sorted(parents)
                         for part in snapshot.values[parent]["components"] if part.get("account_id") in accounts))},
                 "member_refs": [self._ref(snapshot, parent) for parent in sorted(parents)],
@@ -790,8 +901,10 @@ class CashImportBusinessPlanBuilder:
                 value = snapshot.values[parent]
                 members.append({**self._ref(snapshot, parent), "planned_action": operation["planned_action"] if operation else "duplicate",
                     "fields_ref": {"operation_ref": operation["operation_ref"]} if operation else {"transaction_id": parent},
-                    "editable_fields": sorted(MUTABLE_CASH_FIELDS | (CASH_FINANCIAL_FIELDS if operation and (
-                        operation["transaction_id"] is None or operation.get("current", {}).get("state") == "draft") else set())),
+                    "editable_fields": sorted(((MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS) -
+                        ({'source_payload', 'account_name'} if value['state'] == 'posted' else set()))
+                        if value['state'] == 'draft' or operation and operation.get('transaction_id') is None
+                        or value.get('record_origin') == 'manual' and len(parents) == 1 else set()),
                     "allowed_actions": ["apply", "keep_existing", "defer"] if operation else [],
                     "row_revision": operation.get("expected_revision") if operation else dict(snapshot.context.transaction_revisions).get(int(parent))})
                 if not operation:
@@ -805,7 +918,14 @@ class CashImportBusinessPlanBuilder:
                     key=lambda edge: old_edge_order[edge.id])]
             choices = [{key: group[key] for key in ("suggestion_id", "action", "candidate_id", "candidates", "member_refs", "allowed_actions")}
                 | {"kind": group["edges"][0]["kind"], "subtype": group["edges"][0]["subtype"]} for group in relevant]
-            details[identifier] = {"members": members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}
+            for choice in choices:
+                group = by_suggestion[choice["suggestion_id"]]
+                choice.update({key: deepcopy(group[key]) for key in ("common_field_conflicts", "common_fields", "inherit_common_fields") if key in group})
+            root = str(projection.primary_record.id)
+            public = deepcopy(snapshot.entry_public.get(root, {}).get('values', {}))
+            public.update({field: getattr(projection.primary_record, field) for field in ('note', 'counterparty', 'category_id')})
+            details[identifier] = {"entry": {'fields': public, 'editable_fields': sorted(COMMON_CASH_FIELDS)},
+                "members": members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}
         counts = dict(Counter(op["planned_action"] for op in operations))
         counts.update({"duplicate": sum(row["planned_action"] in {"duplicate", "duplicate_in_batch"} for row in rows),
             "skip": sum(row["planned_action"] == "skip" for row in rows),

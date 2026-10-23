@@ -119,7 +119,8 @@ def test_current_source_issue_and_manual_patch_share_one_http_confirmation(conte
     committed = _commit(client, response.json())
     assert committed.status_code == 200 and committed.json()["summary"]["resolved_issues"] == 1
     after = client.get("/api/v1/cash-records/" + identifier).json()
-    assert after["fields"]["note"] == "" and after["fields"]["counterparty"] == "待采用的对方"
+    assert after['entry']['fields']['note'] == '' and after["fields"]["counterparty"] == "待采用的对方"
+    assert after['fields']['note'] == '来源原文'
     assert after["issues"] == [] and after["confirmation_status"] == "confirmed"
 
 
@@ -161,7 +162,7 @@ def test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance
     assert replay.status_code == 200, replay.text
     receipt = replay.json()["receipt"] if operation == "draft" else replay.json()
     assert client.get("/api/v1/cash-mutations/receipts/by-key/fault-http").json() == receipt
-    assert _records(context_runtime).read(identifier)["fields"]["note"] == "已保存"
+    assert _records(context_runtime).read(identifier)['entry']["fields"]["note"] == "已保存"
 
 
 @pytest.mark.parametrize("operation", ["draft", "mutation"])

@@ -41,13 +41,17 @@ def test_draft_source_edits_share_note_derivation_without_changing_binding(conte
         row.relation_metadata = {"_source_account_identifier": "trusted-owner", "_refund_signal": "alipay_status"}
         bindings = [(item.id, item.transaction_id, item.identity_key) for item in session.scalars(select(CashSourceBindingModel))]
     service = _service(runtime)
+    if protected:
+        service.save_draft(identifier, expected_revision=service.read(identifier)['row_revision'], patch={'note': ''},
+            idempotency_key='synthetic-draft-protected-note')
     before = service.read(identifier)
     patch = {"source_payload": {"备注": "来源新原文", "交易订单号": "different-explanation-only", "交易状态": "交易成功"}}
     if explicit is not None:
         patch["note"] = explicit
     final = service.save_draft(identifier, expected_revision=before["row_revision"], patch=patch,
         idempotency_key="synthetic-draft-source-edit")["current_record"]
-    assert final["fields"]["note"] == expected and final["state"] == "draft"
+    assert final['entry']["fields"]["note"] == expected and final["state"] == "draft"
+    assert final['fields']['note'] == (explicit if explicit is not None else '来源新原文')
     with runtime.sessions() as session:
         row = session.get(CashTransactionModel, int(identifier))
         assert row.relation_metadata["txn_id"] == "different-explanation-only"
@@ -65,10 +69,13 @@ def test_same_source_payload_repairs_current_explanation_and_advances_parent_rev
         row.source_payload, row.relation_metadata = payload, {"_refund_signal": "alipay_status"}
         row.note, row.manual_overrides = "", {"note": True}
     service = _service(runtime)
+    service.save_draft(identifier, expected_revision=service.read(identifier)['row_revision'], patch={'note': ''},
+        idempotency_key='synthetic-current-protected-note')
     before = service.read(identifier)
     final = service.save_draft(identifier, expected_revision=before["row_revision"], patch={"source_payload": payload},
         idempotency_key="synthetic-current-explanation")["current_record"]
-    assert final["row_revision"] > before["row_revision"] and final["fields"]["note"] == ""
+    assert final["row_revision"] > before["row_revision"] and final['entry']["fields"]["note"] == ""
+    assert final['fields']['note'] == '来源原文'
     with runtime.sessions() as session:
         evidence = session.get(CashTransactionModel, int(identifier)).relation_metadata
         assert evidence["txn_id"] == "current-source-id" and "_refund_signal" not in evidence
@@ -158,7 +165,10 @@ def test_stale_revision_and_viewer_cannot_change_draft(context_runtime):
     with pytest.raises(ValueError):
         service.save_draft(identifier, expected_revision=before["row_revision"], patch={"note": "不应保存"},
             idempotency_key="synthetic-viewer-draft")
-    assert service.read(identifier) == {**before, "editable_fields": []}
+    expected = deepcopy(before)
+    expected['editable_fields'] = []
+    expected['entry']['editable_fields'] = []
+    assert service.read(identifier) == expected
 
 
 def test_committed_draft_is_not_retried_when_current_detail_cannot_be_read(context_runtime, monkeypatch):
