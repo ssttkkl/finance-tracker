@@ -43,6 +43,8 @@ fun ApiFailure.toDomainFailure(): DomainFailure = DomainFailure(
     code = code,
     status = status,
     category = if (status in 400..599) FailureCategory.RECOVERABLE else FailureCategory.UNKNOWN,
+    receiptId = receiptId,
+    commitState = commitState,
     importToken = importToken.takeIf { code.startsWith("import_") || code == "relation_impact_required" },
 )
 

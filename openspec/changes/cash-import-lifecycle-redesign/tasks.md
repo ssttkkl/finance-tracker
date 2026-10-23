@@ -136,6 +136,9 @@
 - [x] 4.12.1.2 接当前计划／详情／结果、核实及失败重试和独立账户命令；验证必填 null、空数组完整替换、字符串 ID、精确金额和安全错误恢复字段。
 - [x] 4.12.1.2.1 关闭旧收据 Unicode 键的兼容 P2：按码点计数且拒绝未配对代理字符，补不发送错误请求及边界回归。
 - [ ] 4.12.2 用失败状态流测试替换旧四步与账户草稿；统一完整输入、分页、按需详情、失效选择及本地恢复标识。
+- [x] 4.12.2.1 先接当前领域模型、完整选择和 Repository 映射，保留 null／原始金额／恢复控制字段，测试取消和安全错误；暂不接页面。
+- [ ] 4.12.2.2 用失败测试落实共享状态的预览、完整组决定、一次确认、结果核实、分页与失效选择，随后替换旧 ViewModel。
+- [ ] 4.12.2.3 实现按用户／工作区隔离的最小恢复标识，不持久保存密码、原文件、账户旧值或财务正文。
 - [ ] 4.12.3 依既有 Hallmark 方向实现共享统一列表及一次确认、文件账户准备和状态；删除独立关联步骤及冗余说明。
 - [ ] 4.12.4 接主页当前详情、草稿保存／转正式、正式更新、来源问题及完整关联决定；保存后按稳定流水定位实际结果。
 - [ ] 4.12.5 实现独立账户表单、修订链、未知结果核实及退出一次询问和安全逆序补偿；刷新不伪造原值。
@@ -151,6 +154,12 @@
 - [ ] 5.4 最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 
 ## 6. 测试与 QA
+
+- 4.12.2.1 当前领域／Repository（2026-10-23，HEAD／比较基线 `d7ad1f3`）：新增专用领域合同和 Ktor 实现，覆盖解析会话、完整选择、预期列表／详情、确认／核实／结果、失败派生和独立账户。传输 JSON 只在数据边界，详情转为既有 StructuredValue；金额及数字词法值保持文本，显式清空与未选择分开，非法恢复输入拒绝而非静默清空。DomainFailure 传递安全收据与提交状态，不带技术消息或 cause；取消继续传播。
+- 测试先行：六项 Repository 测试因新模块／类型缺失编译失败（4s，`/tmp/ft-compose-import-domain-red.log`），实现后六项通过（26s，`/tmp/ft-compose-import-domain-first.log`）。补深层字段／差异／完整候选及关系变化、收据／核实／当前结果引用、账户修订／false patch、本地文件失败与上传进度后通过（5s，`/tmp/ft-compose-import-domain-second.log`），最终再覆盖第三份请求中断时最新修订和剩余槽位保留，共新增 11 项。四个合成响应夹具通过当前 Pydantic 模型校验，日志 `/tmp/ft-compose-import-domain-wire-validation.log`。
+- 最终完整命令在 `compose/` 执行 `CHROME_BIN='/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' ./gradlew :shared:testAndroidHostTest :shared:wasmJsTest :shared:compileKotlinIosSimulatorArm64 :shared:compileKotlinIosArm64 :webApp:wasmJsBrowserDistribution --offline --no-configuration-cache` → BUILD SUCCESSFUL（3m 33s），171 host／174 Wasm、零失败／跳过，含两目标 iOS 编译及 Web 生产构建，日志 `/tmp/ft-compose-import-domain-platform-matrix.log`。既有 Material 3 弃用、测试非空断言和 webpack 动态依赖／体积警告保留。独立工程／边界静态复核未发现本步映射 P1／P2，建议的详情、结果、账户与上传回归均补齐；复核者没有执行测试、数据库或构建。
+- Cross-platform Impact Check：三端共享领域和数据适配受影响，旧页面／ViewModel 尚未切换，没有可见文案、布局或操作变更；功能地图仍 10 项，三端恢复／草稿／账户补偿、真实 UI QA、Hallmark 与用户演示缺口保留。本步无新依赖、后端运行时／存储／schema 或真实账本写入，不重复双后端成本矩阵；中间版本仍不可独立部署。OpenSpec strict、空白检查通过。回退仅移除未被页面消费的领域边界；反思：恢复输入必须严格保留人工决定，不能通过容错解析得到空选择。
+- 下一状态流设计的独立复核另外确认两项既有后端 P2，单独 Flow-Back 修复，不计为本步映射已覆盖：旧失效关系选择会覆盖同次合法重选；文件变更清空可执行计划却保留选择、丢失重验证明，使后续预览整体报错。不得通过清空全部选择绕过；后续须保留私有单份重验上下文、当前组显式重选优先及原固定财务校验，再推进页面状态流。
 
 - 4.12.1.2 共享计划／结果及账户网络（2026-10-23，HEAD／比较基线 `9d1c1e6`）：新增当前预览／分页／详情、一次确认、统一结果读取、同步核实、失败子集重试，以及独立账户列表／by-id／创建／修改／删除合同。预览必填 null 和三数组由独立序列化器显式发送，账户／候选及字段清空保持 null；金额、账户及结果 ID／after 都不经过浮点。账户列表不猜修订，by-id 读取配置及能力；写命令使用各自调用方提供的键和 CAS，不自动重试、更换键或从失败推断回滚。ApiFailure 仅增加已知 `commit_state`；安全代码及收据 ID 保留，技术消息不进入异常。
 - 测试先行：首次工作目录重复导致新测试未创建，不计业务红灯（`/tmp/ft-compose-import-plan-red.log`）；修正后新模型／方法缺失编译失败（3s，`/tmp/ft-compose-import-plan-corrected-red.log`）。最初 12 项网络合同通过（34s，`/tmp/ft-compose-import-plan-first.log`），补旧收据、网络丢失及畸形 ID 后通过；实际 Python 模型校验发现详情 next_action 不合法、会话缺三个必填 null，修正合成夹具后再次验证。最终 `/tmp/ft-compose-import-plan-wire-validation.log` 记录 6 个响应夹具和 8 个请求形状通过真实 Pydantic 结构，不代表发起真实 HTTP 或账本写入。
