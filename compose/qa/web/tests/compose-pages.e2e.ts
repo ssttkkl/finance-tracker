@@ -25,6 +25,36 @@ const accountMappingRunScreenshotDir = process.env.FT_COMPOSE_COLOR_SCHEME === "
   : accountMappingScreenshotDir;
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
 
+async function screenshotRgbAt(page: Page, x: number, y: number): Promise<[number, number, number]> {
+  const screenshot = (await page.screenshot()).toString("base64");
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Missing Playwright viewport");
+  return page.evaluate(async ({ screenshot, x, y, viewportWidth, viewportHeight }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${screenshot}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Unable to inspect the rendered screenshot");
+    context.drawImage(image, 0, 0);
+    const pixel = context.getImageData(
+      Math.floor(x * image.naturalWidth / viewportWidth),
+      Math.floor(y * image.naturalHeight / viewportHeight),
+      1,
+      1,
+    ).data;
+    return [pixel[0], pixel[1], pixel[2]];
+  }, {
+    screenshot,
+    x,
+    y,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+  });
+}
+
 async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yRatio = 0.5): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
   const bounds = await locator.boundingBox();
@@ -1147,6 +1177,18 @@ test("F-03 FAB 覆盖列表，月份头部固定且桌面表格行内缩", async
     expect(filterBounds).not.toBeNull();
     expect(Math.abs(stickyBounds!.y - listBounds!.y)).toBeLessThanOrEqual(2);
     expect(stickyBounds!.y).toBeGreaterThanOrEqual(filterBounds!.y + filterBounds!.height - 2);
+    const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+    const scrollbarTrack = page.locator('[id="ledger.scrollbar.track"]').last();
+    await expect(scrollbar).toBeVisible();
+    await expect(scrollbarTrack).toBeVisible();
+    const scrollbarTrackBounds = await scrollbarTrack.boundingBox();
+    expect(scrollbarTrackBounds).not.toBeNull();
+    const overlapY = stickyBounds!.y + stickyBounds!.height * 0.8;
+    const trackCenterX = scrollbarTrackBounds!.x + scrollbarTrackBounds!.width / 2;
+    const trackPixel = await screenshotRgbAt(page, trackCenterX, overlapY);
+    const adjacentPixel = await screenshotRgbAt(page, trackCenterX - 8, overlapY);
+    const trackContrast = Math.max(...trackPixel.map((channel, index) => Math.abs(channel - adjacentPixel[index])));
+    expect(trackContrast, `the visible scrollbar track must cross the sticky summary at ${width}px`).toBeGreaterThan(10);
     if (width >= 600) {
       const filterCardRight = filterBounds!.x + filterBounds!.width + 16;
       expect(Math.abs(stickyBounds!.x + stickyBounds!.width - filterCardRight)).toBeLessThanOrEqual(2);
@@ -1275,7 +1317,7 @@ test("F-03 窄滚动条轨道和滑块贴齐列表并按尺寸显示", async ({ 
     expect(Math.abs(trackBounds!.width - 4)).toBeLessThanOrEqual(1);
     expect(Math.abs(thumbBounds!.width - 4)).toBeLessThanOrEqual(1);
     const listRight = listBounds!.x + listBounds!.width;
-    const expectedTrackRight = listRight - (sizeName === "compact" ? 0 : 16);
+    const expectedTrackRight = listRight;
     expect(Math.abs(trackBounds!.x + trackBounds!.width - expectedTrackRight)).toBeLessThanOrEqual(2);
     expect(Math.abs(thumbBounds!.x + thumbBounds!.width - (trackBounds!.x + trackBounds!.width))).toBeLessThanOrEqual(1);
     if (sizeName !== "compact") {
@@ -1360,6 +1402,12 @@ test("F-03 滚动条拖动后定位到未加载流水", async ({ page }) => {
     await page.mouse.down();
     await page.mouse.move(x, railBounds!.y + railBounds!.height * 0.4, { steps: 12 });
     await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(requestsBeforeDrag);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await mkdir(cashLedgerScreenshotDir, { recursive: true });
+      await page.screenshot({
+        path: path.join(cashLedgerScreenshotDir, `ledger-scrollbar-drag-active-${sizeName}-${width}.png`),
+      });
+    }
     await page.mouse.up();
     await expect(page.locator('[id="ledger.record-cash-scroll-2-14"]').last()).toBeVisible({ timeout: 20_000 });
     await captureLedgerScene(page, `ledger-scrollbar-drag-${sizeName}`, width, height);

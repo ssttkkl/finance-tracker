@@ -123,12 +123,12 @@ internal fun Scrollbar(
                 .align(androidx.compose.ui.Alignment.Center)
                 .width(style.thickness)
                 .fillMaxHeight()
+                .offset(x = visualOffsetX)
                 .graphicsLayer {
                     clip = true
                     shape = style.trackStyle.shape
                 }
-                .drawBehind { drawRect(if (isVisible) trackColor else Color.Transparent) }
-                .offset(x = visualOffsetX),
+                .drawBehind { drawRect(if (isVisible) trackColor else Color.Transparent) },
         )
     }
 
