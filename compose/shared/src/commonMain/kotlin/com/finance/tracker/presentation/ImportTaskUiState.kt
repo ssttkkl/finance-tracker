@@ -12,6 +12,7 @@ data class ImportTaskUiState(
     val requestSequence: Long = 0,
     val activeRequest: ImportTaskRequest? = null,
     val resultFiles: List<ImportPlanFile> = emptyList(),
+    val cancelledTaskId: Long? = null,
     val phase: ImportTaskPhase = ImportTaskPhase.PREPARE,
     val context: ImportContext? = null,
     val plan: ImportPlan? = null,
@@ -43,6 +44,10 @@ data class ImportTaskUiState(
 
     private fun requestStarted(): ImportTaskUiState = copy(requestSequence = requestSequence + 1,
         activeRequest = ImportTaskRequest(taskId, requestSequence + 1), busy = true)
+
+    fun beginCancellation(): ImportTaskUiState = if (!recoveryReady || busy || receipt != null || receiptToFetch != null ||
+        frozenCommand != null && submission != ImportSubmissionState.RETRY_ORIGINAL) this
+        else requestStarted().copy(needsContextRefresh = true)
 
     fun beginRequest(): ImportTaskUiState = if (busy || frozenCommand != null) this else requestStarted()
     fun finishRequest(request: ImportTaskRequest): ImportTaskUiState = if (activeRequest != request) this else copy(activeRequest = null, busy = false)

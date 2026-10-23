@@ -9,6 +9,112 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun definiteRollbackCanCancelOnlyAfterServerAndLocalRecoveryClear() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.confirm(); advanceUntilIdle()
+        assertEquals(ImportSubmissionState.RETRY_ORIGINAL, vm.state.value.submission)
+        val taskId = vm.state.value.taskId
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(1, repo.cancelCalls)
+        assertNull(store.pointer)
+        assertNull(vm.state.value.frozenCommand)
+        assertNotEquals(taskId, vm.state.value.taskId)
+        assertEquals(taskId, vm.state.value.cancelledTaskId)
+    } }
+
+    @Test fun resolveRetryOriginalAlsoAllowsCancellingRecoveredFrozenRequest() = runTest { task { vm, repo, store ->
+        store.pointer = ImportRecoveryPointer.Submission(TASK_SESSION, ImportFrozenCommand(TASK_PLAN, 2, "original"))
+        repo.resolutions.add(ImportResolveResult("retry_original", null))
+        vm.restore(); advanceUntilIdle()
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(1, repo.cancelCalls)
+        assertNull(store.pointer)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun lostCancellationAfterDefiniteRollbackRetainsOriginalSubmissionUntilResolved() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.confirm(); advanceUntilIdle()
+        val pointer = store.pointer
+        repo.failCancel = true
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(1, repo.cancelCalls)
+        assertEquals(pointer, store.pointer)
+        assertEquals(ImportSubmissionState.UNKNOWN, vm.state.value.submission)
+        assertNull(vm.state.value.cancelledTaskId)
+        repo.resolutions.add(ImportResolveResult("not_committed", null))
+        vm.resolve(); advanceUntilIdle()
+        assertEquals("cancelled", vm.state.value.context?.state)
+        assertNotNull(store.pointer)
+        repo.failCancel = false
+        vm.cancel(); advanceUntilIdle()
+        assertNull(store.pointer)
+    } }
+
+    @Test fun concurrentCommitWinningCancellationRetainsOriginalThenPublishesActualReceipt() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.confirm(); advanceUntilIdle()
+        val pointer = store.pointer
+        repo.cancelFailure = DomainFailure("session_committed", 409, FailureCategory.RECOVERABLE, receiptId = "receipt1")
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(1, repo.cancelCalls)
+        assertEquals(pointer, store.pointer)
+        assertNull(vm.state.value.receipt)
+        repo.resolutions.add(ImportResolveResult("committed", taskReceipt()))
+        vm.resolve(); advanceUntilIdle()
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertEquals("receipt1", vm.state.value.receipt?.receiptId)
+        assertNull(vm.state.value.cancelledTaskId)
+    } }
+
+    @Test fun localClearFailureAfterCancellingFrozenRequestDoesNotPretendExitSucceeded() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
+        vm.confirm(); advanceUntilIdle()
+        val pointer = store.pointer
+        store.failClear = true
+        vm.cancel(); advanceUntilIdle()
+        assertEquals("cancelled", repo.current.state)
+        assertEquals(pointer, store.pointer)
+        assertNull(vm.state.value.cancelledTaskId)
+        assertNotNull(vm.state.value.frozenCommand)
+        assertFalse(vm.state.value.canEdit)
+    } }
+
+    @Test fun oldPlanNotCommittedDoesNotAuthorizeExitUntilOpenReplacementSessionIsCancelled() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE) }
+        vm.confirm(); advanceUntilIdle()
+        repo.current = repo.current.copy(lastPlanId = "ip_$TASK_SESSION.${"z".repeat(16)}", revision = 4)
+        repo.resolutions.add(ImportResolveResult("not_committed", null))
+        vm.resolve(); advanceUntilIdle()
+        assertEquals("open", vm.state.value.context?.state)
+        assertNull(vm.state.value.cancelledTaskId)
+        assertNotNull(store.pointer)
+        val sourceTask = vm.state.value.taskId
+        vm.cancel(); advanceUntilIdle()
+        assertEquals("cancelled", repo.current.state)
+        assertEquals(sourceTask, vm.state.value.cancelledTaskId)
+        assertNull(store.pointer)
+    } }
+
+    @Test fun cancellationDoesNotPublishCompletionWhileLocalClearIsStillInFlight() = runTest { task { vm, _, store ->
+        vm.restore(); advanceUntilIdle()
+        val started = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        store.beforeClear = { started.complete(Unit); release.await() }
+        val sourceTask = vm.state.value.taskId
+        vm.cancel(); started.await()
+        assertTrue(vm.state.value.busy)
+        assertNull(vm.state.value.cancelledTaskId)
+        assertNotNull(store.pointer)
+        release.complete(Unit); advanceUntilIdle()
+        assertEquals(sourceTask, vm.state.value.cancelledTaskId)
+        assertNull(store.pointer)
+    } }
+
     @Test fun cancellationLosingRaceToCommitPreservesRecoveryUntilActualReceipt() = runTest { task { vm, repo, store ->
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
         repo.current = repo.current.copy(state = "committed", revision = null, canPreview = false, lastPlanId = null, receiptId = "receipt1")
@@ -423,6 +529,7 @@ private class TaskRecovery : ImportRecoveryStore {
     var pointer: ImportRecoveryPointer? = ImportRecoveryPointer.Session(TASK_SESSION)
     var failLoad = false; var failSave = false
     var failClear = false
+    var beforeClear: suspend () -> Unit = {}
     var beforeSave: suspend (ImportRecoveryPointer) -> Unit = {}
     override suspend fun load(): ImportRecoveryPointer? {
         if (failLoad) throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
@@ -434,6 +541,7 @@ private class TaskRecovery : ImportRecoveryStore {
         pointer = value
     }
     override suspend fun clear() {
+        beforeClear()
         if (failClear) throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE)
         pointer = null
     }

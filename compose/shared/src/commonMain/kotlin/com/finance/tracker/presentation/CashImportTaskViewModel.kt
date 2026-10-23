@@ -213,9 +213,10 @@ class CashImportTaskViewModel(
 
     fun cancel() {
         val before = state.value
-        if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null || before.receiptToFetch != null) return
+        val started = before.beginCancellation()
+        if (started === before) return
         val sessionId = before.context?.sessionId ?: recoverySessionId
-        execute(before.beginRequest().copy(needsContextRefresh = true)) { request ->
+        execute(started) { request ->
             if (sessionId != null) {
                 try {
                     val cancelled = repository.cancel(sessionId)
@@ -228,7 +229,7 @@ class CashImportTaskViewModel(
                     if (!gone) throw failure
                 }
             }
-            clearTask(request)
+            clearTask(request, cancelled = true)
         }
     }
 
@@ -239,12 +240,12 @@ class CashImportTaskViewModel(
         execute(before.beginRequest()) { clearTask(it) }
     }
 
-    private suspend fun clearTask(request: ImportTaskRequest) {
+    private suspend fun clearTask(request: ImportTaskRequest, cancelled: Boolean = false) {
         if (!current(request)) return
         recovery.clear()
         if (!current(request)) return
         recoverySessionId = null
-        mutableState.value = ImportTaskUiState(recoveryReady = true)
+        mutableState.value = ImportTaskUiState(recoveryReady = true, cancelledTaskId = request.taskId.takeIf { cancelled })
     }
 
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
