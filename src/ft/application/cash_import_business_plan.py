@@ -15,7 +15,7 @@ from ft.adapters.cash_statement_effects import cash_source_note
 from ft.adapters.relational.models import (AccountAliasModel, AccountModel, CashSourceBindingModel,
     CashTransactionComponentModel, CashTransactionModel)
 from ft.application.cash_import_issues import cash_import_issue
-from ft.application.cash_import_operations import CashImportOperationPlanner, _batches, _wire
+from ft.application.cash_import_operations import CashImportOperationPlanner, _batches, _wire, _wire_in_place
 from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.application.relations import plan_relation_proposals
@@ -127,12 +127,13 @@ class CashImportBusinessPlanBuilder:
         prepared = CashImportOperationPlanner(session, self.workspace_id).prepare(files,
             account_selections=preview_input["account_selections"], row_choices=preview_input["row_choices"], record_ids=record_ids,
             source_plan=source_plan)
-        operations = deepcopy(list(prepared.operations))
+        # 规划器每次生成独占对象，不再为同一次构建保留完整副本。
+        operations = list(prepared.operations)
         for operation in operations:
             source = prepared.source_plan.rows[operation["row_refs"][0]]
             operation["source_scope_key"] = source.account_scope_key or "file:" + source.file_scope_key
             operation["matching_record_id"] = operation["values"]["record_id"] if source.provider_id else "occurrence:" + source.occurrence_key
-        rows = deepcopy(list(prepared.rows))
+        rows = list(prepared.rows)
         return self.build_operations(session=session, files=files, operations=operations, rows=rows,
             source_rows=prepared.source_plan.rows, relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
             source_candidate_sets=prepared.candidate_sets)
@@ -177,13 +178,15 @@ class CashImportBusinessPlanBuilder:
             include_unchanged=include_unchanged)
         result.update(invalidated_choices=invalidated, invalidated_relation_choices=invalidated_sources,
             relation_choice_generations=choice_generations,
-            operations=operations, row_decisions=rows,
             source_candidate_sets=source_candidate_sets or {},
             relation_groups=_wire(groups), relation_failures=failures, dependencies={"seed_ids": sorted(context.seed_ids), "token": context.token,
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
             type_effects={"removed_relation_ids": sorted(snapshot.removed_relations),
                 "removed_funding_ids": sorted(snapshot.removed_funding)})
-        return _wire(result)
+        _wire_in_place(result)
+        # 两个共享操作规划器已经转换过这些值；只转换本阶段新生成的内容。
+        result.update(operations=operations, row_decisions=rows)
+        return result
 
     def _accounts(self, session):
         return {str(account.id): {"name": account.name, "type": account.type, "revision": account.revision}
@@ -226,6 +229,7 @@ class CashImportBusinessPlanBuilder:
                 if isinstance(value, str) and value.strip():
                     request[key].add(value.strip())
         result = set()
+        legacy_sources = {}
         for (source, scope, accounts), request in requests.items():
             txn_keys = set(request["txn"])
             if source == "alipay":
@@ -242,6 +246,13 @@ class CashImportBusinessPlanBuilder:
                         CashSourceBindingModel.identity_kind == "provider_id", CashSourceBindingModel.identity_key.in_(batch),
                         CashTransactionModel.state == "posted", CashTransactionModel.deleted_at.is_(None))))
             # 商家订单／旧来源行按明确账户及来源限域，只返回键匹配的当前记录。
+            if source not in legacy_sources:
+                legacy_sources[source] = session.scalar(select(CashTransactionModel.id).where(
+                    CashTransactionModel.workspace_id == self.workspace_id,
+                    CashTransactionModel.source_type == source, CashTransactionModel.state == "posted",
+                    CashTransactionModel.deleted_at.is_(None)).limit(1)) is not None
+            if not legacy_sources[source]:
+                continue
             account_parents = select(CashTransactionComponentModel.cash_transaction_id).where(
                 CashTransactionComponentModel.workspace_id == self.workspace_id,
                 CashTransactionComponentModel.account_id.in_(accounts))
@@ -321,7 +332,9 @@ class CashImportBusinessPlanBuilder:
         for op in tuple(operations):
             identifier = op["transaction_id"] or str(_virtual("transaction", op["occurrence_key"]))
             op["preview_transaction_id"] = identifier
-            value = {field: _normalize(field, item) for field, item in op["values"].items()}
+            # 操作已按共同规则验证；只恢复计算所需的财务类型，来源原文只读复用。
+            value = dict(op["values"])
+            value.update({field: _normalize(field, value[field]) for field in CASH_FINANCIAL_FIELDS & value.keys()})
             value["created_at"] = values.get(identifier, {}).get("created_at", self._clock())
             value["source_explanation"] = op.get("source_explanation", values.get(identifier, {}).get("source_explanation", {}))
             value["source_scope_key"] = op["source_scope_key"]
@@ -413,7 +426,7 @@ class CashImportBusinessPlanBuilder:
             result.append(FactView(part.component_id, part.amount, part.currency, part.account_id,
                 account_name=account["name"], account_type=account["type"], occurred_at=value["occurred_at"],
                 counterparty=value["counterparty"], counterparty_account=value["counterparty_account"],
-                counterparty_account_attrs=value["counterparty_account_attrs"], payment_method=metadata.get("payment_method", ""),
+                counterparty_account_attrs=list(value["counterparty_account_attrs"]), payment_method=metadata.get("payment_method", ""),
                 note=cash_source_note(value["source_type"], value.get("source_payload")), record_type=part.record_type, record_subtype=part.record_subtype,
                 bill_source=value["source_type"], source=value["source_type"], record_id=value.get("matching_record_id", value["record_id"]),
                 source_identity=value.get("source_scope_key", ""),
@@ -743,6 +756,13 @@ class CashImportBusinessPlanBuilder:
         projections = [item for item in build.projections if any(str(identifier) in touched for identifier in item.member_ids)
             and (include_unchanged or item.visible or item.confirmation_status == "pending")]
         projections.sort(key=lambda item: (item.sort_at, item.primary_record.id), reverse=True)
+        old_edges = defaultdict(dict)
+        old_edge_order = {edge.id: index for index, edge in enumerate(snapshot.context.relations)}
+        for edge in snapshot.context.relations:
+            if edge.active and edge.state == "confirmed":
+                for parent in (edge.primary_transaction_id, edge.secondary_transaction_id):
+                    if parent is not None:
+                        old_edges[parent][edge.id] = edge
         items, details, detail_values = [], {}, {}
         for index, projection in enumerate(projections):
             identifier = f"pi_{index + 1}"
@@ -779,8 +799,8 @@ class CashImportBusinessPlanBuilder:
             effects = [{"relation_id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
                 "effect": "remove" if edge.id in snapshot.removed_relations or not snapshot.edges[edge.id].active else "keep",
                 "member_refs": [self._ref(snapshot, parent) for parent in (edge.primary_transaction_id, edge.secondary_transaction_id) if parent in snapshot.values]}
-                for edge in snapshot.context.relations if edge.active and edge.state == "confirmed"
-                and parents.intersection((edge.primary_transaction_id, edge.secondary_transaction_id))]
+                for edge in sorted({edge.id: edge for parent in parents for edge in old_edges[parent].values()}.values(),
+                    key=lambda edge: old_edge_order[edge.id])]
             choices = [{key: group[key] for key in ("suggestion_id", "action", "candidate_id", "candidates", "member_refs", "allowed_actions")}
                 | {"kind": group["edges"][0]["kind"], "subtype": group["edges"][0]["subtype"]} for group in relevant]
             details[identifier] = {"members": members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}

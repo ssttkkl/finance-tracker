@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from threading import Event, Lock, Thread, current_thread
 
-from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+from ft.application.cash_import_errors import ImportSessionStorageUnavailable
 
 
 class ParsedImportCleanup:

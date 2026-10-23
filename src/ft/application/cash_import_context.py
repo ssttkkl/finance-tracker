@@ -15,7 +15,7 @@ from ft.adapters.cash_statement_rows import ParsedCashDocument, parse_cash_state
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.models import WorkspaceMembershipModel
 from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
-from ft.application.cash_import_staging import ImportSessionNotFound
+from ft.application.cash_import_errors import ImportSessionNotFound
 from ft.application.parsed_import_staging import (
     ImportSessionClosed, ImportSessionRevisionConflict, ParsedImportDataError,
     ParsedImportFile, ParsedImportSession,

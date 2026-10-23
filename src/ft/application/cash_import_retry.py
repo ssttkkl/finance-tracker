@@ -12,7 +12,7 @@ from ft.application.cash_import_funding import scan_cash_funding
 from ft.application.cash_import_plans import CashImportPlanError, _reference
 from ft.application.cash_import_retry_sources import build_retry_proofs
 from ft.application.cash_import_retry_validation import retry_data as _data
-from ft.application.cash_import_staging import (ImportSessionExpired, ImportSessionNotFound,
+from ft.application.cash_import_errors import (ImportSessionExpired, ImportSessionNotFound,
     ImportSessionStorageUnavailable)
 from ft.domain.cash_source_matching import _digest
 

@@ -5,7 +5,7 @@ from dataclasses import asdict
 import pytest
 
 from ft.application.cash_import_retry_validation import retry_data
-from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+from ft.application.cash_import_errors import ImportSessionStorageUnavailable
 from ft.domain.cash_source_matching import SourceCoverage
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from itertools import islice
 import json
 import math
 import re
@@ -15,7 +16,7 @@ from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.cash_statement_evidence import valid_source_explanation
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
-from ft.application.cash_import_staging import (
+from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
 )
@@ -106,6 +107,11 @@ def _valid_files(files):
             doc = item.document
             if not isinstance(doc.rows, tuple) or len(doc.rows) > 100_000 or not isinstance(doc.coverage, SourceCoverage) or type(doc.coverage.complete) is not bool:
                 raise ParsedImportDataError("import_session_document_invalid")
+            try:
+                # frozen 的页面证明仍含可变映射，写入时重验构造器合同。
+                SourceCoverage(**{field.name: getattr(doc.coverage, field.name) for field in fields(SourceCoverage)})
+            except (TypeError, ValueError):
+                raise ParsedImportDataError("import_session_document_invalid") from None
             positions = set()
             for row in doc.rows:
                 if (not isinstance(row, ParsedCashRow) or type(row.position) is not int or not 1 <= row.position <= 200_000
@@ -216,6 +222,51 @@ def _json_bytes(value):
         separators=(",", ":")).encode()
 
 
+def _json_chunks(value):
+    """大容器分块交给相同 JSON 编码器，限制 Unicode 中间字符串的体积。"""
+    if isinstance(value, dict):
+        yield b'{'
+        entries = iter(value.items())
+        first = True
+        if len(value) > 128:
+            while batch := dict(islice(entries, 128)):
+                if not first:
+                    yield b','
+                first = False
+                yield _json_bytes(batch)[1:-1]
+        else:
+            for key, item in entries:
+                if not first:
+                    yield b','
+                first = False
+                yield _json_bytes(key)
+                yield b':'
+                yield from _json_chunks(item)
+        yield b'}'
+    elif isinstance(value, (list, tuple)) and len(value) > 128:
+        yield b'['
+        for offset in range(0, len(value), 128):
+            if offset:
+                yield b','
+            yield _json_bytes(value[offset:offset + 128])[1:-1]
+        yield b']'
+    else:
+        yield _json_bytes(value)
+
+
+def _valid_session_metadata(value):
+    if (type(value.revision) is not int or value.revision < 1 or type(value.cancelled) is not bool
+        or not isinstance(value.created_at, datetime) or not isinstance(value.expires_at, datetime)
+        or value.created_at.tzinfo is None or value.expires_at.tzinfo is None
+        or not 0 < (value.expires_at - value.created_at).total_seconds() <= 1800
+        or not isinstance(value.workflow_kind, str) or value.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
+        or value.workflow_kind == "mutation" and bool(value.files)
+        or not isinstance(value.context_data, dict)
+        or not isinstance(value.preview_input, dict) or value.plan is not None and not isinstance(value.plan, dict)
+        or any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (value.workspace_id, value.user_id))):
+        raise ParsedImportDataError("import_session_json_invalid")
+
+
 class _ParsedImportStore:
     def __init__(self, *, ttl_seconds=1800, clock=_now, max_bytes=64 * 1024 * 1024, max_parsed_bytes=25 * 1024 * 1024):
         if (type(ttl_seconds) is not int or not 1 <= ttl_seconds <= 1800
@@ -237,31 +288,28 @@ class _ParsedImportStore:
 
     def _encode(self, session):
         _valid_files(session.files)
-        if (not isinstance(session.preview_input, dict) or session.plan is not None and not isinstance(session.plan, dict)
-            or not isinstance(session.workflow_kind, str) or session.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
-            or session.workflow_kind == "mutation" and bool(session.files)
-            or not isinstance(session.context_data, dict)):
-            raise ParsedImportDataError("import_session_json_invalid")
+        _valid_session_metadata(session)
         parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
-        _json_budget(session.files, [parsed_maximum])
+        # 文件在持久 JSON 根对象下占一层，须与解码侧使用相同深度。
+        _json_budget(session.files, [parsed_maximum], depth=1)
         try:
             parsed = _json_bytes(session.files)
         except (TypeError, ValueError, RecursionError):
             raise ParsedImportDataError("import_session_json_invalid") from None
-        if len(parsed) > parsed_maximum:
+        parsed_size = len(parsed)
+        if parsed_size > parsed_maximum:
             raise ParsedImportDataError("import_session_draft_too_large")
+        del parsed
         value = {field.name: getattr(session, field.name) for field in fields(session) if field.name != "files"}
         value["session_digest"] = _hash(value.pop("session_id"))
         value["created_at"] = session.created_at.isoformat()
         value["expires_at"] = session.expires_at.isoformat()
-        _json_budget(value, [self._max_bytes - len(parsed) - 9])
+        _json_budget(value, [self._max_bytes - parsed_size - 9])
+        value["files"] = session.files
         try:
-            body = _json_bytes(value)
+            content = b''.join(_json_chunks(value))
         except (TypeError, ValueError, RecursionError):
             raise ParsedImportDataError("import_session_json_invalid") from None
-        if len(body) + len(parsed) + 9 > self._max_bytes:
-            raise ParsedImportDataError("import_session_draft_too_large")
-        content = body[:-1] + b',"files":' + parsed + b'}'
         if len(content) > self._max_bytes:
             raise ParsedImportDataError("import_session_draft_too_large")
         return content
@@ -278,17 +326,8 @@ class _ParsedImportStore:
             value["created_at"] = datetime.fromisoformat(value["created_at"])
             value["expires_at"] = datetime.fromisoformat(value["expires_at"])
             result = ParsedImportSession(session_id=session_id, files=files, **value)
-            if (type(result.revision) is not int or result.revision < 1 or type(result.cancelled) is not bool
-                or result.created_at.tzinfo is None or result.expires_at.tzinfo is None
-                or not 0 < (result.expires_at - result.created_at).total_seconds() <= 1800
-                or not isinstance(result.workflow_kind, str) or result.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
-                or result.workflow_kind == "mutation" and bool(result.files)
-                or not isinstance(result.context_data, dict)
-                or any(not isinstance(owner, str) or not owner or len(owner) > 128 for owner in (result.workspace_id, result.user_id))):
-                raise ValueError
+            _valid_session_metadata(result)
             _valid_files(result.files)
-            if not isinstance(result.preview_input, dict) or result.plan is not None and not isinstance(result.plan, dict):
-                raise ValueError
             return result
         except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
             raise ImportSessionStorageUnavailable from None
@@ -354,7 +393,10 @@ class _ParsedImportStore:
             self._delete_raw(session.session_id)
             raise ImportSessionExpired
 
-    def replace(self, session_id, *, workspace_id, user_id, expected_revision, files, preview_input, plan, context_data=None):
+    def replace(self, session_id, *, workspace_id, user_id, expected_revision, files, preview_input, plan, context_data=None,
+                return_session=True):
+        if type(return_session) is not bool:
+            raise ParsedImportDataError("import_session_json_invalid")
         current, etag = self._read(session_id, workspace_id=workspace_id, user_id=user_id)
         if type(expected_revision) is not int or expected_revision != current.revision:
             raise ImportSessionRevisionConflict
@@ -363,7 +405,8 @@ class _ParsedImportStore:
         updated = replace(current, revision=current.revision + 1, files=files, preview_input=preview_input, plan=plan,
             context_data=current.context_data if context_data is None else context_data)
         content = self._encode(updated)
-        decoded = self._validate_roundtrip(session_id, content)
+        # 编码前已通过同一元数据、文件及 JSON 校验；不回传时无需物化完整副本。
+        decoded = self._validate_roundtrip(session_id, content) if return_session else None
         self._publish(updated, content, expected=etag)
         return decoded
 

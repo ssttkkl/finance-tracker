@@ -21,7 +21,7 @@ def test_workspace_cash_dispatch_preserves_explicit_current_commands(monkeypatch
 
 
 def test_parsed_import_factory_requires_parsed_store_instead_of_original_file_session():
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     service = web_app.WorkspaceServices(None, ContextVar("workspace_id", default="workspace-a"))
     with pytest.raises(ImportSessionStorageUnavailable):
         service.parsed_import_context()

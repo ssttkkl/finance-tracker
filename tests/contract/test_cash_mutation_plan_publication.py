@@ -185,7 +185,7 @@ def test_import_cannot_read_or_confirm_mutation_context_and_commit_loader_checks
     from ft.application.cash_import_context import CashImportContextService
     from ft.application.cash_import_commit import CashImportCommandService
     from ft.application.cash_import_plans import CashImportPlanError
-    from ft.application.cash_import_staging import ImportSessionNotFound
+    from ft.application.cash_import_errors import ImportSessionNotFound
     from ft.application.cash_mutation_plans import CashMutationPlanError
     runtime = context_runtime
     service = _service(runtime)
@@ -223,7 +223,7 @@ def test_private_or_invalid_summary_never_publishes_or_replaces_current_plan(con
 
 
 def test_another_member_cannot_read_or_cancel_owned_edit_context(context_runtime):
-    from ft.application.cash_import_staging import ImportSessionForbidden
+    from ft.application.cash_import_errors import ImportSessionForbidden
     runtime = context_runtime
     service = _service(runtime)
     plan = service.preview(_input(runtime))

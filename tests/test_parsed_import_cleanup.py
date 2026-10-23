@@ -35,7 +35,7 @@ def test_cleanup_worker_visits_next_pages_without_user_requests_and_stops():
 
 
 def test_first_page_failure_prevents_start_without_leaking_provider_details():
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     from ft.application.parsed_import_cleanup import ParsedImportCleanup
     store = Store(); store.failed = True
     worker = ParsedImportCleanup(store)
@@ -119,7 +119,7 @@ def test_runtime_lifespan_starts_and_stops_required_cleanup(cash_web_runtime, mo
 
 def test_runtime_startup_refuses_unavailable_cleanup(cash_web_runtime, monkeypatch):
     from fastapi.testclient import TestClient
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     from ft.application.parsed_import_cleanup import ParsedImportCleanup
     from ft.application.parsed_import_staging import InMemoryParsedImportStore
     import ft.web.app as module

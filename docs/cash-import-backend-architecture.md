@@ -1,5 +1,7 @@
 # 现金账单导入后端：当前链路、问题与重构计划
 
+本文保留重构前的分析背景。当前合同与实施分别见 [现金导入新设计](cash-import-redesign.md)、[跨层合同](cash-import-redesign-contracts.md) 和 [实施任务](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)；原文件会话已退役，相关旧代码链接固定到历史提交。
+
 记录日期：2026-10-18
 
 本文梳理 Compose 多文件现金账单导入的当前后端实现，并列出已观察到的架构问题和建议的重构顺序。证券账单不在本文范围内。文中“重构计划”是后续工作的建议，不代表已批准或已实施的代码变更；可执行行为仍以 `openspec/specs/` 和代码为准。
@@ -91,7 +93,7 @@ Compose 实际调用位置见 [`CashImportViewModel.kt`](../compose/shared/src/c
 | [`CashImportViewModel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportViewModel.kt#L100)、[`CashImportApi.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashImportApi.kt#L24) | 驱动扫描、映射、预览、关系审核和确认请求。 | 客户端要维持多个摘要、映射和关系状态；请求合同必须与服务端的临时会话状态同步。 |
 | [`routes.py`](../src/ft/web/routes.py#L446) | 解析请求格式、密码和确认参数，将请求分发给应用层。 | 一个路由按内容类型、`batch` 和 `import_token` 多路分派；参数校验和兼容分支交织。 |
 | [`app.py`](../src/ft/web/app.py#L172) | `WorkspaceServices.__getattr__` 动态构造服务，并通过方法名白名单将导入方法转交给会话服务。 | 路由依赖隐式属性分派；新增方法时需要同步维护白名单，漏配会表现为运行时错误。 |
-| [`cash_import_session.py`](../src/ft/application/cash_import_session.py#L16)、[`cash_import_staging.py`](../src/ft/application/cash_import_staging.py#L16) | 按工作区和用户保存短期文件、扫描结果、预览、结果；校验会话并维护密码重试与幂等流程。 | 会话服务管理流程状态，同时又负责调用业务服务、摘要校验和清理；扫描、预览、提交的职责边界较宽。 |
+| [`cash_import_session.py`](https://github.com/ssttkkl/finance-tracker/blob/1762b7b/src/ft/application/cash_import_session.py#L16)、[`cash_import_staging.py`](https://github.com/ssttkkl/finance-tracker/blob/1762b7b/src/ft/application/cash_import_staging.py#L16) | 按工作区和用户保存短期文件、扫描结果、预览、结果；校验会话并维护密码重试与幂等流程。 | 会话服务管理流程状态，同时又负责调用业务服务、摘要校验和清理；扫描、预览、提交的职责边界较宽。 |
 | [`cash_ledger.py`](../src/ft/application/cash_ledger.py#L1658) | 解析批次、账户映射、预览、关系计划及最终写入。文件约 3,047 行，也包含现金账本其他命令。 | 导入工作流与账本命令、关系和投影逻辑集中在同一大型服务中；单文件与批次路径并存。 |
 | [`statement_import.py`](../src/ft/application/statement_import.py#L91)、[`statement_import.py`](../src/ft/adapters/statement_import.py#L216) | 将解析器输出的规范化流水写入账本，并处理幂等、来源快照及关系决定。 | 批次提交通过局部 `MappedParser` 和 `_ActiveUowProxy` 适配已有导入服务，暴露了调用方与被调用方的内部实现耦合。 |
 | [`relations.py`](../src/ft/application/relations.py#L1511) | 规划候选、校验关系图、应用交易关系并维护收支投影。 | 导入预览计划、导入确认和独立关系 API 都涉及关系规则；需要明确共享的规划与应用合同。 |

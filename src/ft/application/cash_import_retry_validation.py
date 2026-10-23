@@ -3,7 +3,7 @@ from dataclasses import fields
 import re
 
 from ft.application.cash_import_plans import _reference
-from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+from ft.application.cash_import_errors import ImportSessionStorageUnavailable
 from ft.application.cash_source_candidate_sets import frozen_source_candidate_sets
 from ft.domain.cash_source_matching import SourceCoverage
 

@@ -184,7 +184,7 @@ def test_resolve_propagates_non_lock_storage_errors(context_runtime, monkeypatch
 
 def test_commit_and_replay_recheck_current_editor_and_private_owner(context_runtime):
     from ft.application.access import PermissionDenied
-    from ft.application.cash_import_staging import ImportSessionForbidden
+    from ft.application.cash_import_errors import ImportSessionForbidden
     runtime, identifier = context_runtime, _posted(context_runtime)
     service = _service(runtime)
     view = _preview(service, runtime, identifier, patch={"note": "私有维护"})

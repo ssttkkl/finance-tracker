@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 
 from ft.adapters.relational.models import CashTransactionModel, UserModel, WorkspaceMembershipModel
 from ft.adapters.relational.uow import RelationalUnitOfWork
-from ft.application.cash_import_staging import ImportSessionForbidden
+from ft.application.cash_import_errors import ImportSessionForbidden
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_parsed_cash_import_context import USER, _document, _upload, context_runtime, _consume
 

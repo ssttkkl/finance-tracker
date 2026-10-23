@@ -5,6 +5,7 @@ from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from hashlib import sha256
+from functools import cached_property
 import json
 import re
 from typing import Any, Mapping, Sequence
@@ -94,7 +95,7 @@ class SourceBindingKey:
     identity_kind: str
     identity_key: str
 
-    @property
+    @cached_property
     def key(self) -> str:
         return _digest(self.source_type, self.scope_kind, self.scope_key, self.identity_kind, self.identity_key)
 
@@ -151,13 +152,13 @@ class SourceOccurrence:
     def document_page_scope_key(self) -> str | None:
         return _digest("source-document-page-v1", self.document_scope_key, self.document_page[1]) if self.document_page else None
 
-    @property
+    @cached_property
     def occurrence_key(self) -> str:
         if self.source_type == "wechat" and self.source_account_key:
             return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version, self.table_key, self.position)
         return _digest(self.source_type, self.file_digest, self.parser_version, self.table_key, self.position)
 
-    @property
+    @cached_property
     def file_scope_key(self) -> str:
         if self.source_type == "wechat" and self.source_account_key:
             return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version)
@@ -167,17 +168,17 @@ class SourceOccurrence:
     def account_scope_key(self) -> str | None:
         return self.source_account_key or None
 
-    @property
+    @cached_property
     def file_binding_key(self) -> str:
         return SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key).key
 
-    @property
+    @cached_property
     def provider_binding_key(self) -> str | None:
         if self.provider_id and self.account_scope_key:
             return _digest(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id))
         return None
 
-    @property
+    @cached_property
     def stable_evidence_binding_key(self) -> str | None:
         if self.stable_evidence and self.source_account_key:
             return _digest(self.source_type, self.source_account_key, "verified", self.stable_evidence)
@@ -187,14 +188,20 @@ class SourceOccurrence:
     def binding_keys(self) -> tuple[str, ...]:
         return tuple(spec.key for spec in self.binding_specs)
 
-    @property
-    def binding_specs(self) -> tuple[SourceBindingKey, ...]:
+    @cached_property
+    def _identity_binding_specs(self) -> tuple[SourceBindingKey, ...]:
         specs = []
         if self.account_scope_key:
             if self.provider_id:
                 specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id)))
             specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "file_occurrence", self.occurrence_key))
         specs.append(SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key))
+        return tuple(specs)
+
+    @property
+    def binding_specs(self) -> tuple[SourceBindingKey, ...]:
+        # 页面认证映射仍可变，只缓存由不可变身份字段组成的基础绑定。
+        specs = list(self._identity_binding_specs)
         if self.document_occurrence_key:
             specs.append(SourceBindingKey(self.source_type, "file_local", self.document_scope_key, "file_occurrence", self.document_occurrence_key))
             specs.append(SourceBindingKey(self.source_type, "file_local", self.document_page_scope_key, "file_occurrence", self.document_occurrence_key))

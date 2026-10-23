@@ -10,7 +10,7 @@ from secrets import token_urlsafe
 
 from ft.application.cash_import_context import CashImportContextService
 from ft.application.cash_import_issues import cash_import_issue
-from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
 from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, MUTABLE_CASH_FIELDS
 
@@ -64,16 +64,16 @@ def _session_id(plan_id):
     return match[1]
 
 
-def _only(value, fields):
+def _only(value, fields, *, copy_values=True):
     if not isinstance(value, dict):
         raise CashImportPlanError("plan_build_failed")
-    return {key: deepcopy(item) for key, item in value.items() if key in fields}
+    return {key: deepcopy(item) if copy_values else item for key, item in value.items() if key in fields}
 
 
-def _objects(value, fields):
+def _objects(value, fields, *, copy_values=True):
     if not isinstance(value, list):
         raise CashImportPlanError("plan_build_failed")
-    return [_only(item, fields) for item in value]
+    return [_only(item, fields, copy_values=copy_values) for item in value]
 
 
 _ISSUE_FIELDS = {"code", "message", "field_path", "blocking_scope", "next_action", "after_import_action"}
@@ -117,42 +117,44 @@ def _display(value):
 
 def _public_item(item):
     result = _only(item, {"preview_item_id", "confirmation_status", "anticipated_state", "display", "statistics_eligible",
-        "member_refs", "attention_reasons", "detail_available"})
+        "member_refs", "attention_reasons", "detail_available"}, copy_values=False)
     result["display"] = _display(result.get("display"))
     result["member_refs"] = _objects(result.get("member_refs", []), _REF_FIELDS)
     result["attention_reasons"] = _issues(result.get("attention_reasons", []))
     return result
 
 
-def _public_detail(value):
-    result = _only(value, {"members", "field_diffs", "issues", "relation_choices", "relation_effects"})
-    members = _objects(result.get("members", []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"})
+def _public_detail(value, *, copy_values=True):
+    result = _only(value, {"members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
+    members = _objects(result.get("members", []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"},
+        copy_values=copy_values)
     for member in members:
         if "fields" in member:
-            member["fields"] = _only(member["fields"], MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state", "row_revision"})
+            member["fields"] = _only(member["fields"], MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state", "row_revision"}, copy_values=False)
             if "components" in member["fields"]:
                 member["fields"]["components"] = _objects(member["fields"]["components"],
-                    {"component_id", "account_id", "amount", "currency", "ordinal"})
+                    {"component_id", "account_id", "amount", "currency", "ordinal"}, copy_values=copy_values)
     result["members"] = members
     result["field_diffs"] = _objects(result.get("field_diffs", []),
-        {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"})
+        {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"}, copy_values=copy_values)
     result["issues"] = _issues(result.get("issues", []))
     result["relation_choices"] = _objects(result.get("relation_choices", []),
-        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code"})
+        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code"}, copy_values=copy_values)
     for choice in result["relation_choices"]:
         if "member_refs" in choice:
-            choice["member_refs"] = _objects(choice["member_refs"], _REF_FIELDS)
+            choice["member_refs"] = _objects(choice["member_refs"], _REF_FIELDS, copy_values=copy_values)
         if "candidates" in choice:
-            choice["candidates"] = _objects(choice["candidates"], {"candidate_id", "display", "member_refs", "code"})
+            choice["candidates"] = _objects(choice["candidates"], {"candidate_id", "display", "member_refs", "code"}, copy_values=copy_values)
             for candidate in choice["candidates"]:
                 if "display" in candidate:
                     candidate["display"] = _display(candidate["display"])
                 if "member_refs" in candidate:
-                    candidate["member_refs"] = _objects(candidate["member_refs"], _REF_FIELDS)
-    result["relation_effects"] = _objects(result.get("relation_effects", []), {"relation_id", "kind", "subtype", "effect", "member_refs", "code"})
+                    candidate["member_refs"] = _objects(candidate["member_refs"], _REF_FIELDS, copy_values=copy_values)
+    result["relation_effects"] = _objects(result.get("relation_effects", []), {"relation_id", "kind", "subtype", "effect", "member_refs", "code"},
+        copy_values=copy_values)
     for effect in result["relation_effects"]:
         if "member_refs" in effect:
-            effect["member_refs"] = _objects(effect["member_refs"], _REF_FIELDS)
+            effect["member_refs"] = _objects(effect["member_refs"], _REF_FIELDS, copy_values=copy_values)
     return result
 
 
@@ -169,12 +171,16 @@ def _operation_index(plan):
     return result
 
 
-def _resolve_detail(plan, value, *, operations=None):
+def _resolve_detail(plan, value, *, operations=None, copy_values=True):
     """只恢复当前计划的一项冻结详情；引用不越过本计划，也不访问实时库。"""
     operations = _operation_index(plan) if operations is None else operations
-    result = deepcopy(value)
+    if not isinstance(value, dict):
+        raise CashImportPlanError("plan_build_failed")
+    result = deepcopy(value) if copy_values else dict(value)
     if not isinstance(result, dict) or not isinstance(result.get("members", []), list):
         raise CashImportPlanError("plan_build_failed")
+    if not copy_values:
+        result["members"] = [dict(member) if isinstance(member, dict) else member for member in result.get("members", [])]
     for member in result.get("members", []):
         if not isinstance(member, dict):
             raise CashImportPlanError("plan_build_failed")
@@ -197,10 +203,14 @@ def _resolve_detail(plan, value, *, operations=None):
             if not isinstance(key, str) or key not in plan.get("detail_values", {}) or member.get("transaction_id") != key:
                 raise CashImportPlanError("plan_build_failed")
             fields = plan["detail_values"][key]
-        member["fields"] = _only(fields, MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"})
+        member["fields"] = _only(fields, MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"},
+            copy_values=copy_values)
         components = member["fields"].get("components", [])
         if not isinstance(components, list) or any(not isinstance(part, dict) for part in components):
             raise CashImportPlanError("plan_build_failed")
+        if not copy_values:
+            components = [dict(part) for part in components]
+            member["fields"]["components"] = components
         for part in components:
             identifier = part.get("component_id")
             if identifier is not None and str(identifier).isdigit() and int(identifier) >= 2 ** 63:
@@ -227,7 +237,8 @@ def _validate_readable(plan):
             raise CashImportPlanError("plan_build_failed")
     operations = _operation_index(plan)
     for detail in details.values():
-        _public_detail(_resolve_detail(plan, detail, operations=operations))
+        # 校验只读取叶子值；会被修改的成员／组成项容器仍单独复制。
+        _public_detail(_resolve_detail(plan, detail, operations=operations, copy_values=False), copy_values=False)
     _processing(plan.get("processing_details", []))
     _file_results(plan.get("file_results", []))
     _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"})
@@ -309,7 +320,8 @@ class CashImportPlanService(CashImportContextService):
                 _validate_readable(plan)
                 view = self._view(plan)
                 self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                    expected_revision=current.revision, files=current.files, preview_input=preview_input, plan=plan)
+                    expected_revision=current.revision, files=current.files, preview_input=preview_input, plan=plan,
+                    return_session=False)
                 uow.commit()
                 return view
         except (ImportSessionRevisionConflict, ImportSessionClosed):

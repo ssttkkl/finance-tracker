@@ -46,6 +46,23 @@ def _wire(value):
     return deepcopy(value)
 
 
+def _wire_in_place(value):
+    """转换调用内独占的计划；输入和公开返回的复制边界仍由调用方保留。"""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            value[key] = _wire_in_place(item)
+        return value
+    if isinstance(value, list):
+        for index, item in enumerate(value):
+            value[index] = _wire_in_place(item)
+        return value
+    if isinstance(value, tuple):
+        return [_wire_in_place(item) for item in value]
+    if value is None or type(value) in (str, int, bool, float):
+        return value
+    return _wire(value)
+
+
 def _issue(code, field=None):
     return cash_import_issue(code, field_path=field, after_import_action="open_home_item")
 
@@ -262,12 +279,12 @@ class CashImportOperationPlanner:
             protected_fields=record.protected_fields if record else frozenset())
         source_values = {**current, **source_update.values}
         manual = choice.get("patch", {})
-        manual_update = prepare_cash_record_update(source_values, manual)
+        manual_values = prepare_cash_record_update(source_values, manual).values if manual else {}
         if "components" in manual:
             _validate_component_ids(current["components"], _normalize("components", manual["components"]))
         if manual.get("category_id") is not None and manual["category_id"] not in categories:
             raise CashRecordPolicyError("category_unavailable", ("category_id",))
-        values = {**source_values, **manual_update.values}
+        values = {**source_values, **manual_values}
         values, manual_explanation = prepare_cash_source_effects(values, manual, source_type=occurrence.source_type,
             source_explanation=explanation, protected_fields=record.protected_fields if record else frozenset())
         if manual_explanation is not None:

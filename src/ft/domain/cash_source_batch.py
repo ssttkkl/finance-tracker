@@ -167,7 +167,9 @@ def resolve_source_batch(
                 output[ref] = SourceBatchResolution(ref, "pending", reason="source_identity_ambiguous", group_ref=shared_group(ids=sorted_ids))
             failed = True
         else:
-            combined = replace(first, provider_id=next(iter(providers), None), stable_evidence=next(iter(evidence), None))
+            provider, proof = next(iter(providers), None), next(iter(evidence), None)
+            combined = (first if (first.provider_id, first.stable_evidence) == (provider, proof)
+                else replace(first, provider_id=provider, stable_evidence=proof))
             certain = bool(ids or combined.provider_binding_key or combined.stable_evidence_binding_key)
             unit = _Unit(refs[0], tuple(refs), combined, contents[refs[0]], certain, ids,
                          frozenset(rows[ref].observation_scope_key for ref in refs))
@@ -314,7 +316,11 @@ def resolve_source_batch(
 
     ordered = sorted(canonical)
     known_targets = {unit.row.occurrence_key: unit.targets for unit in canonical.values() if unit.targets}
-    resolved = dict(zip(ordered, _resolve_source_rows([canonical[ref].row for ref in ordered], active, targets_by_occurrence=known_targets)))
+    # 这些规范单元已经通过上面的字段、身份、页面及次数检查。
+    # 没有活动旧记录时不再重复执行同一单文件校验与空候选匹配。
+    resolved = (dict(zip(ordered, _resolve_source_rows([canonical[ref].row for ref in ordered], active,
+        targets_by_occurrence=known_targets))) if active else {
+            ref: SourceResolution(canonical[ref].row.occurrence_key, "new", bind=True) for ref in ordered})
     evaluations = {}
     for unit in units.values():
         if unit.ref in output:

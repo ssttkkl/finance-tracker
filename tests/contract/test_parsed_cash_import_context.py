@@ -74,7 +74,7 @@ def test_each_file_parsed_once_and_only_parsed_rows_survive(context_runtime):
 
 @pytest.mark.parametrize("kind", ["retry_capsule", "retry"])
 def test_private_or_unregistered_retry_context_is_not_a_public_import(context_runtime, kind):
-    from ft.application.cash_import_staging import ImportSessionNotFound
+    from ft.application.cash_import_errors import ImportSessionNotFound
     from ft.application.parsed_import_staging import InMemoryParsedImportStore
     from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService
     from ft.adapters.relational.uow import RelationalUnitOfWork

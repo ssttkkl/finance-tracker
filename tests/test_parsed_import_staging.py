@@ -131,13 +131,13 @@ def test_retry_context_inherits_original_lifetime_and_clears_private_data_on_can
         user_id=child.user_id, expected_revision=changed.revision)
     assert closed.context_data == {} and closed.files == () and closed.cancelled
     now[0] = original.expires_at
-    from ft.application.cash_import_staging import ImportSessionExpired
+    from ft.application.cash_import_errors import ImportSessionExpired
     with pytest.raises(ImportSessionExpired):
         _get(store, closed)
 
 
 def test_mutation_context_has_no_files_and_keeps_owner_cas_and_original_ttl(staging):
-    from ft.application.cash_import_staging import ImportSessionForbidden
+    from ft.application.cash_import_errors import ImportSessionForbidden
     from ft.application.parsed_import_staging import ImportSessionRevisionConflict
     store, now, _ = staging
     current = store.create(workspace_id="workspace-a", user_id="user-a", files=(),
@@ -328,7 +328,7 @@ def test_invalid_row_level_scope_is_rejected_without_corrupting_session(staging,
 
 @pytest.mark.parametrize("changes", [{"workspace_id": "workspace-b"}, {"user_id": "user-b"}])
 def test_parsed_session_is_bound_to_workspace_and_user(staging, changes):
-    from ft.application.cash_import_staging import ImportSessionForbidden
+    from ft.application.cash_import_errors import ImportSessionForbidden
     store, _now, _client = staging
     session = _create(store)
     with pytest.raises(ImportSessionForbidden):
@@ -382,7 +382,7 @@ def test_cancel_clears_financial_body_and_cannot_be_reopened_by_stale_publish(st
 
 
 def test_revision_changes_never_extend_ttl_and_expiry_deletes_body(staging):
-    from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+    from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
     store, now, client = staging
     first = _create(store)
     now[0] += timedelta(seconds=59)
@@ -397,7 +397,7 @@ def test_revision_changes_never_extend_ttl_and_expiry_deletes_body(staging):
 
 
 def test_foreign_user_cannot_delete_expired_body(staging):
-    from ft.application.cash_import_staging import ImportSessionForbidden, ImportSessionExpired
+    from ft.application.cash_import_errors import ImportSessionForbidden, ImportSessionExpired
     store, now, _client = staging
     first = _create(store)
     now[0] += timedelta(seconds=60)
@@ -438,7 +438,7 @@ def test_file_limits_and_unique_references_are_checked_before_write(staging, fil
 
 def test_r2_uncertain_write_is_never_retried_as_unconditional_put():
     from ft.application.parsed_import_staging import R2ParsedImportStore, ImportSessionRevisionConflict
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     client = ConditionalS3()
     store = R2ParsedImportStore(client, bucket="private-imports")
     first = _create(store)
@@ -454,7 +454,7 @@ def test_r2_uncertain_write_is_never_retried_as_unconditional_put():
 
 def test_r2_corrupt_or_oversized_response_never_returns_partial_state():
     from ft.application.parsed_import_staging import R2ParsedImportStore
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     client = ConditionalS3()
     store = R2ParsedImportStore(client, bucket="private-imports")
     first = _create(store)
@@ -490,7 +490,7 @@ def test_nested_invalid_json_is_rejected_without_leaking_a_recursion_error(stagi
 
 
 def test_publish_that_crosses_expiry_never_returns_a_successful_expired_session(staging, monkeypatch):
-    from ft.application.cash_import_staging import ImportSessionExpired, ImportSessionNotFound
+    from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
     store, now, _client = staging
     first = _create(store)
     original = store._write_raw
@@ -567,7 +567,7 @@ def test_r2_sweep_ignores_unrelated_keys_and_can_clean_pre_metadata_objects():
 
 
 def test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects(staging, monkeypatch):
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     store, _now, client = staging
     if not isinstance(store, __import__("ft.application.parsed_import_staging", fromlist=["R2ParsedImportStore"]).R2ParsedImportStore):
         return
@@ -590,7 +590,7 @@ def test_sweep_rejects_unbounded_or_malformed_page_size(staging, limit):
 
 def test_r2_body_close_failure_is_still_a_safe_storage_error():
     from ft.application.parsed_import_staging import R2ParsedImportStore
-    from ft.application.cash_import_staging import ImportSessionStorageUnavailable
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
     class FailingBody(BytesIO):
         def close(self):
             super().close()
@@ -649,3 +649,53 @@ def test_json_scalar_depth_boundary_is_preserved(staging, container):
     with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
         _replace(store, accepted, plan={"nested": value})
     assert _get(store, accepted) == accepted
+
+
+def test_publish_without_echo_keeps_roundtrip_isolation_and_cas(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, _now, _client = staging
+    first = _create(store)
+    plan = {"details": [{"amount": "-1", "note": "来源说明"}]}
+    result = store.replace(first.session_id, workspace_id="workspace-a", user_id="user-a",
+        expected_revision=first.revision, files=first.files, preview_input={}, plan=plan, return_session=False)
+    assert result is None
+    plan["details"][0]["note"] = "调用方修改"
+    saved = _get(store, first)
+    assert saved.revision == first.revision + 1 and saved.plan["details"][0]["note"] == "来源说明"
+    with pytest.raises(ImportSessionRevisionConflict):
+        store.replace(first.session_id, workspace_id="workspace-a", user_id="user-a",
+            expected_revision=first.revision, files=first.files, preview_input={}, plan={}, return_session=False)
+    assert _get(store, first) == saved
+
+
+@pytest.mark.parametrize("invalid", [float("nan"), {"bad": "\ud800"}, {"bad": object()}])
+def test_publish_without_echo_rejects_invalid_json_without_replacing(staging, invalid):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    with pytest.raises(ParsedImportDataError):
+        store.replace(first.session_id, workspace_id="workspace-a", user_id="user-a",
+            expected_revision=first.revision, files=first.files, preview_input={}, plan={"value": invalid}, return_session=False)
+    assert _get(store, first) == first
+
+
+@pytest.mark.parametrize("failure", ["file_depth", "page_proof"])
+def test_publish_without_echo_cannot_save_files_that_fail_readback_validation(staging, failure):
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    store, _now, _client = staging
+    first = _create(store)
+    file = first.files[0]
+    if failure == "file_depth":
+        nested = "合法标量"
+        for _ in range(58):
+            nested = [nested]
+        row = replace(file.document.rows[0], fields={"nested": nested})
+        file = replace(file, document=replace(file.document, rows=(row,)))
+    else:
+        coverage = SourceCoverage(document_key="a" * 64, page_total=1, page_fingerprints={"1": "b" * 64})
+        coverage.page_fingerprints["1"] = "invalid-page-proof"
+        file = replace(file, document=replace(file.document, coverage=coverage))
+    with pytest.raises(ParsedImportDataError):
+        store.replace(first.session_id, workspace_id="workspace-a", user_id="user-a",
+            expected_revision=first.revision, files=(file,), preview_input={}, plan={}, return_session=False)
+    assert _get(store, first) == first

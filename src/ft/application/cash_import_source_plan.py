@@ -29,7 +29,8 @@ class CashImportSourcePlanner:
         saved = self._documents.read(files, candidate_evidence=candidates)
         evidence = (*file_document_evidence(files), *saved, *candidates)
         completeness = document_completeness(evidence)
-        rows = source_batch_rows(files, resolved_fields=resolved_fields, known_document_evidence=saved)
+        if saved:
+            rows = source_batch_rows(files, resolved_fields=resolved_fields, known_document_evidence=saved)
         lifted = []
         for record in records:
             regular = tuple(coverage for coverage in record.coverages if not coverage.document_key)

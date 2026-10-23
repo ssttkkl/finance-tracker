@@ -9,7 +9,7 @@ from ft.adapters.relational.cash_mutations import CashMutationConflict
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError
 from ft.application.cash_import_context import CashImportPermissionDenied
-from ft.application.cash_import_staging import (
+from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
 )

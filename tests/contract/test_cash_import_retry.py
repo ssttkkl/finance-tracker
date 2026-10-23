@@ -10,7 +10,7 @@ from ft.adapters.relational.cash_sources import CashSourceRepository
 from ft.adapters.relational.models import AccountModel, CashTransactionModel
 from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.application.cash_import_plans import CashImportPlanError
-from ft.application.cash_import_staging import ImportSessionNotFound, ImportSessionStorageUnavailable
+from ft.application.cash_import_errors import ImportSessionNotFound, ImportSessionStorageUnavailable
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from ft.domain.cash_source_matching import SourceCoverage
 from tests.contract.test_cash_import_commit import configured, _service, _plan, _commit, _results

@@ -101,6 +101,12 @@ class CashSourceRepository:
         return self._for_keys(keys, evidence_keys)
 
     def _for_keys(self, keys, evidence_keys):
+        if not keys and not evidence_keys:
+            return []
+        # 没有任何本工作区绑定时，不为一整批未命中的身份逐片往返数据库。
+        if len(keys) + len(evidence_keys) > 125 and self.session.scalar(select(CashSourceBindingModel.id).where(
+            CashSourceBindingModel.workspace_id == self.workspace_id).limit(1)) is None:
+            return []
         result = []
         # 每个独立身份最多六个参数，另留一片证据，兼容 999 参数上限。
         for offset in range(0, max(len(keys), len(evidence_keys)), 125):
