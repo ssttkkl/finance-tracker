@@ -143,7 +143,8 @@ PYTHONPATH=tests:.:src uv run pytest
 | [Compose 功能地图](docs/feature-map.md) | Compose 页面、实现证据与当前覆盖缺口 |
 | [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
 | [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
-| [现金导入后端架构](docs/cash-import-backend-architecture.md) | Compose 多文件现金导入链路与重构计划 |
+| [现金导入业务规则](docs/cash-import-redesign.md) | 字段更新、草稿、来源对应和联合确认 |
+| [现金导入接口与数据契约](docs/cash-import-redesign-contracts.md) | 当前后端接口及后续 UI 合同 |
 | [现金导入临时存储](docs/cash-import-r2-staging.md) | 导入会话暂存配置与安全边界 |
 | [UI 设计约束](docs/ui-design-rules.md) | Compose UI 实现与审查约定 |
 | [OpenSpec](openspec/) | 行为规格、active changes 与归档 |
