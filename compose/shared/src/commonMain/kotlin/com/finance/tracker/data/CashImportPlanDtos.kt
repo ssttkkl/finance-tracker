@@ -22,11 +22,16 @@ data class CashImportRowInput(
     val action: CashImportRowAction,
     val patch: JsonObject = JsonObject(emptyMap()),
 )
+@OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
 @Serializable
 data class CashImportRelationInput(
     @SerialName("suggestion_id") val suggestionId: String,
     val action: CashImportRelationAction,
     @SerialName("candidate_id") val candidateId: String? = null,
+    @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.NEVER)
+    @SerialName("common_fields") val commonFields: JsonObject? = null,
+    @kotlinx.serialization.EncodeDefault(kotlinx.serialization.EncodeDefault.Mode.NEVER)
+    @SerialName("inherit_common_fields") val inheritCommonFields: Boolean? = null,
 )
 @Serializable
 data class CashImportPreviewInput(
@@ -47,6 +52,9 @@ data class CashPlanDisplayDto(
     @SerialName("occurred_at") val occurredAt: String?,
     val amount: String?, val currency: String?, val counterparty: String?, val note: String?,
     val accounts: List<String>,
+    @SerialName("category_id") val categoryId: String? = null,
+    @SerialName("counterparty_account") val counterpartyAccount: String? = null,
+    @SerialName("counterparty_account_attrs") val counterpartyAccountAttrs: List<String>? = null,
 )
 @Serializable
 data class CashPlanItemDto(
@@ -134,6 +142,9 @@ data class CashPlanRelationChoiceDto(
     val candidates: List<CashPlanRelationCandidateDto>,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
     @SerialName("allowed_actions") val allowedActions: List<String>, val code: String? = null,
+    @SerialName("common_field_conflicts") val commonFieldConflicts: Map<String, List<JsonElement>> = emptyMap(),
+    @SerialName("common_fields") val commonFields: JsonObject? = null,
+    @SerialName("inherit_common_fields") val inheritCommonFields: Boolean? = null,
 )
 @Serializable
 data class CashPlanRelationEffectDto(
@@ -142,6 +153,8 @@ data class CashPlanRelationEffectDto(
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>, val code: String? = null,
 )
 @Serializable
+data class CashPlanEntryDto(val fields: JsonObject, @SerialName("editable_fields") val editableFields: List<String>)
+@Serializable
 data class CashPlanItemDetailDto(
     @SerialName("preview_item_id") val previewItemId: String,
     val members: List<CashPlanMemberDto>,
@@ -149,6 +162,7 @@ data class CashPlanItemDetailDto(
     val issues: List<CashImportIssueDto>,
     @SerialName("relation_choices") val relationChoices: List<CashPlanRelationChoiceDto>,
     @SerialName("relation_effects") val relationEffects: List<CashPlanRelationEffectDto>,
+    val entry: CashPlanEntryDto? = null,
 )
 
 @Serializable

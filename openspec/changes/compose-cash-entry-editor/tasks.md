@@ -42,4 +42,4 @@
 
 - [ ] 8.1 记录可复用防复发测试与必要规则，保持文档只表述当前结论；完成后再按实际依赖同步 delta，未实现内容不提前归档。
 
-规划起点 `HEAD=a05d593`；仅完成 artifacts，未修改应用代码或运行 UI QA。独立复核、finding 处置、37/37 strict、doctor、链接与 diff 证据见 [共同规划验证](../compose-cash-ledger-maintenance/tasks.md#当前规划证据)；本变更审查无剩余阻断，实施证据在各阶段原位填写。
+规划起点 `HEAD=a05d593`；仅完成 artifacts，未修改应用代码或运行 UI QA。独立复核、finding 处置、37/37 strict、doctor、链接与 diff 证据见 [共同规划验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)；本变更审查无剩余阻断，实施证据在各阶段原位填写。

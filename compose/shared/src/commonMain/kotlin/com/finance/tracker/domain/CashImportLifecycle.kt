@@ -8,7 +8,8 @@ data class ImportFrozenCommand(val planId: String, val revision: Long, val idemp
 data class ImportAccountTarget(val accountId: String?, val revision: Long?)
 data class ImportAccountSelection(val sourceAccountRef: String, val target: ImportAccountTarget)
 data class ImportRecordChoice(val rowRef: String, val action: ImportRowDecision, val patch: StructuredObject = StructuredObject(emptyMap()))
-data class ImportPairChoice(val suggestionId: String, val action: ImportPairDecision, val candidateId: String? = null)
+data class ImportPairChoice(val suggestionId: String, val action: ImportPairDecision, val candidateId: String? = null,
+    val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null)
 data class ImportChoiceSet(
     val accountSelections: List<ImportAccountSelection> = emptyList(),
     val rows: List<ImportRecordChoice> = emptyList(),
@@ -48,6 +49,7 @@ data class ImportMemberRef(val rowRef: String?, val transactionId: String?)
 data class ImportDisplay(
     val occurredAt: String?, val amount: String?, val currency: String?, val counterparty: String?,
     val note: String?, val accounts: List<String>,
+    val categoryId: String? = null, val counterpartyAccount: String? = null, val counterpartyAccountAttrs: List<String>? = null,
 )
 data class ImportProjectedItem(
     val itemId: String, val confirmationStatus: String, val anticipatedState: String, val display: ImportDisplay,
@@ -83,11 +85,15 @@ data class ImportPairCandidate(val candidateId: String, val display: ImportDispl
 data class ImportPairOption(
     val suggestionId: String, val kind: String?, val subtype: String?, val action: String, val candidateId: String?,
     val candidates: List<ImportPairCandidate>, val members: List<ImportMemberRef>, val allowedActions: List<String>, val code: String?,
+    val commonFieldConflicts: Map<String, List<StructuredValue>> = emptyMap(),
+    val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
 )
 data class ImportPairEffect(val relationId: String, val kind: String, val subtype: String?, val effect: String, val members: List<ImportMemberRef>, val code: String?)
+data class ImportEntryFields(val fields: StructuredObject, val editableFields: List<String>)
 data class ImportItemDetail(
     val itemId: String, val members: List<ImportMemberDetail>, val fieldDiffs: List<ImportFieldDiff>,
     val issues: List<ImportIssue>, val relationChoices: List<ImportPairOption>, val relationEffects: List<ImportPairEffect>,
+    val entry: ImportEntryFields? = null,
 )
 data class ImportAccountListItem(val id: String, val name: String, val type: String, val active: Boolean, val currencies: List<String>?)
 data class ImportAccount(

@@ -23,17 +23,17 @@ internal fun CashImportSessionDto.toDomain() = ImportContext(
         val value = apiJson.decodeFromJsonElement<RestoredImportChoicesDto>(input)
         ImportChoiceSet(value.accounts.map { ImportAccountSelection(it.sourceAccountRef, ImportAccountTarget(it.accountId, it.expectedAccountRevision)) },
             value.rows.map { ImportRecordChoice(it.rowRef, ImportRowDecision.valueOf(it.action.name), it.patch.toStructuredObject()) },
-            value.relations.map { ImportPairChoice(it.suggestionId, ImportPairDecision.valueOf(it.action.name), it.candidateId) })
+            value.relations.map { ImportPairChoice(it.suggestionId, ImportPairDecision.valueOf(it.action.name), it.candidateId, it.commonFields?.toStructuredObject(), it.inheritCommonFields) })
     }, lastPlanId, canPreview, receiptId,
 )
 internal fun ImportChoiceSet.toDto(revision: Long, previousPlanId: String?) = CashImportPreviewInput(
     revision, previousPlanId,
     accountSelections.map { CashImportAccountInput(it.sourceAccountRef, it.target.accountId, it.target.revision) },
     rows.map { CashImportRowInput(it.rowRef, CashImportRowAction.valueOf(it.action.name), it.patch.toJsonObject()) },
-    relations.map { CashImportRelationInput(it.suggestionId, CashImportRelationAction.valueOf(it.action.name), it.candidateId) },
+    relations.map { CashImportRelationInput(it.suggestionId, CashImportRelationAction.valueOf(it.action.name), it.candidateId, it.commonFields?.toJsonObject(), it.inheritCommonFields) },
 )
 internal fun CashPlanMemberRefDto.toDomain() = ImportMemberRef(rowRef, transactionId)
-internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, currency, counterparty, note, accounts)
+internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, currency, counterparty, note, accounts, categoryId, counterpartyAccount, counterpartyAccountAttrs)
 internal fun CashPlanItemDto.toDomain() = ImportProjectedItem(previewItemId, confirmationStatus, anticipatedState, display.toDomain(), statisticsEligible,
     memberRefs.map(CashPlanMemberRefDto::toDomain), attentionReasons.map(CashImportIssueDto::toDomain), detailAvailable)
 internal fun CashImportPlanDto.toDomain() = ImportPlan(planId, sessionId, sessionRevision, expiresAt, summary, itemCounts, canCommit,
@@ -47,8 +47,10 @@ internal fun CashPlanItemDetailDto.toDomain() = ImportItemDetail(previewItemId,
     issues.map(CashImportIssueDto::toDomain),
     relationChoices.map { option -> ImportPairOption(option.suggestionId, option.kind, option.subtype, option.action, option.candidateId,
         option.candidates.map { ImportPairCandidate(it.candidateId, it.display?.toDomain(), it.memberRefs.map(CashPlanMemberRefDto::toDomain), it.code) },
-        option.memberRefs.map(CashPlanMemberRefDto::toDomain), option.allowedActions, option.code) },
-    relationEffects.map { ImportPairEffect(it.relationId, it.kind, it.subtype, it.effect, it.memberRefs.map(CashPlanMemberRefDto::toDomain), it.code) })
+        option.memberRefs.map(CashPlanMemberRefDto::toDomain), option.allowedActions, option.code,
+        option.commonFieldConflicts.mapValues { (_, values) -> values.map { it.toStructuredValue() } }, option.commonFields?.toStructuredObject(), option.inheritCommonFields) },
+    relationEffects.map { ImportPairEffect(it.relationId, it.kind, it.subtype, it.effect, it.memberRefs.map(CashPlanMemberRefDto::toDomain), it.code) },
+    entry?.let { ImportEntryFields(it.fields.toStructuredObject(), it.editableFields) })
 internal fun ImportAccountListItemDto.toDomain() = ImportAccountListItem(id, name, type, active, currencies)
 internal fun ImportAccountDto.toDomain() = ImportAccount(accountId, name, type, active, currencies, accountRevision, deleted, capabilities, receiptId, committed)
 internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId, operationKind, committed, createdAt, status, summary, legacyByAccount,

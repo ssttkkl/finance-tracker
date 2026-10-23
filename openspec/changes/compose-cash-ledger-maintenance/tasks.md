@@ -9,8 +9,10 @@
 
 ## 3. 任务拆分与一致性
 
-- [ ] 3.1 先补当前读取、`entry`／来源权限、维护所有意图、公共冲突／继承、草稿保存、计划／收据／核实的协议失败测试；验证 null、清空、修订、字符串金额和工作区隔离。
-- [ ] 3.2 实现可编译的公共 DTO／domain／Repository、读取及维护 API，提供编辑宿主和稳定定位合同；冻结集中声明的文件归属。
+- [x] 3.1 先补当前读取、`entry`／来源权限、维护所有意图、公共冲突／继承、草稿保存、计划／收据／核实的协议失败测试；验证 null、清空、修订、字符串金额和工作区隔离。
+- [ ] 3.2 完成公共基础与宿主：
+  - [x] 3.2.1 当前 DTO／domain／Repository、读取及维护 API、公共冲突和定位引用通过测试与构建。
+  - [ ] 3.2.2 接入编辑宿主和稳定定位行为，冻结集中声明的文件归属。
 - [ ] 3.3 提交公共基础小步，让导入和编辑模块基于同一版本开发；合成合同夹具、语义 ID／文案与最终 App 集成接口分别登记所有者。
 
 ## 4. 构建
@@ -43,13 +45,18 @@
 
 - [ ] 8.1 记录可复用防复发测试与必要规则，保持文档只表述当前结论；完成后再按实际依赖同步 delta，未实现内容不提前归档。
 
-### 当前规划证据
+### 当前审查与验证
 
-规划起点 `HEAD=a05d593`，2026-10-24；未修改应用代码、依赖或数据库，未进行 UI QA。三个 change 的真实实现和演示均未开始，实施证据在各阶段原位填写。
+2026-10-24，公共协议小步代码基线 `HEAD=3f10e40`，比较基线 `8aa0b40`。仅新增维护协议客户端与模型、补齐导入公共对象／冲突选择；运行入口和 UI 尚未切换。Web、Android、iOS 消费共享协议，真实页面覆盖未提升。
 
-| 检查 | 当前结论 |
+| 范围／命令 | 当前结论 |
 |---|---|
-| 独立产品／范围与工程复核 | 覆盖当前 Compose 入口、现有底层能力、API 边界、三模块任务及并行归属；代码盘点无遗漏的阻断项。已补普通微信无需账号输入的显式场景 |
-| 独立合同及同步复核 | 已关闭 P2：重命名必须引用主规格原名；新建转账不返回稳定 ID 且同币种仅单联动金额；旧 M3 导入容器／独立关联任务冲突。相关 delta、design 和 tasks 已原位修订，复查无剩余阻断 |
-| 静态验证 | `openspec validate --all --strict --json`：37/37 有效；`openspec doctor --json` healthy；变更 Markdown 含新增文件的本地目标及锚点通过；`git diff --check` 通过。报告 `/tmp/ft-compose-plans-validation.json`、`/tmp/ft-compose-plans-doctor.json` |
-| 文档及跨端检查 | 功能地图登记三个实施模块，页面数与完成覆盖未提升；导入合同改为主内容完整任务页。词表无新概念，沿用现有术语并按中文规范复核。应用未改，构建、浏览器、设备和最终 Hallmark audit 留实施阶段，不将其计为本轮已执行 |
+| 产品与合同独立复核 | 用户逐轮确认复用主页表格／详情、待确认优先、零待确认自动全部、文件上账户下、警示卡片、一次保存、摘要结果及统一提交异常返回。旧结果明细／失败派生任务和原命令重放措辞已修正并独立重审关闭 |
+| 工程独立复核 | 当前详情形状、origin／权限、稳定公共对象、草稿收据、上下文三字段、精确金额／ID、公共冲突及字段清空均通过。阻断项：可选公共决定缺省 null 被后端拒绝；HTTP 回归先失败（274 项中 1 失败）再以定向省略修复，保留明确清空及 false。after_import_action 和公共展示字段已完整映射 |
+| 失败测试 | `/tmp/ft-compose-maintenance-red.log`：缺维护接口；`/tmp/ft-compose-public-fields-red.log`：缺公共对象／冲突字段；`/tmp/ft-compose-choice-null-red.log`：可选 null 的实际出站请求失败 |
+| `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :webApp:wasmJsBrowserDistribution --no-configuration-cache` | 通过，Wasm 274／Android 269 项，0 失败、0 skip；Web production 构建通过。报告 `/tmp/ft-compose-foundation-verified.log` |
+| `npm run test:node` | 3 项通过，`/tmp/ft-compose-cash-node-tests.log` |
+| OpenSpec／静态检查 | `openspec validate --all --strict --json` 37/37；`openspec doctor --json` healthy；`git diff --check` 通过 |
+| 文档与词表 | 已核对当前接口、README 和功能地图；协议文件和字段引用正确，页面入口与使用方式尚未改变，README 无需改动。功能地图仅登记协议基础完成，页面与双端 TODO 保留。沿用 `DOMAIN_GLOSSARY.md`，无新概念，按中文规范复核 |
+| 专项门禁 | 本协议小步不改后端、数据库或 UI，存储矩阵与视觉 QA 不适用；页面接入后必须继续真实 API／双后端联调、390／768／1440 浏览器与设备验证、Hallmark audit 和用户演示。iOS 编译待本轮共享基础后补跑；不能据共享代码认为设备通过 |
+| 回退与观察 | 当前为 additive 接口，原页面未切换；回退该小步不改变存量数据。后续集成时不恢复已关闭写入口；关注明确清空和原键恢复 |

@@ -10,6 +10,23 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportPlanApiTest {
+    @Test fun optionalCommonDecisionsAreOmittedWhileExplicitClearsAndFalseArePreserved() = runTest {
+        val calls = mutableListOf<JsonObject>()
+        val api = client(PLAN) { calls += json(it) }
+        api.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), listOf(CashImportRelationInput("sg", CashImportRelationAction.DEFER))))
+        val omitted = calls.single()["relation_choices"]!!.jsonArray.single().jsonObject
+        assertFalse("common_fields" in omitted)
+        assertFalse("inherit_common_fields" in omitted)
+        assertEquals(JsonNull, calls.single()["previous_plan_id"])
+        api.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), listOf(CashImportRelationInput("sg", CashImportRelationAction.ACCEPT,
+            commonFields = buildJsonObject { put("category_id", JsonNull); put("note", "") }, inheritCommonFields = false))))
+        val explicit = calls.last()["relation_choices"]!!.jsonArray.single().jsonObject
+        assertEquals(JsonNull, explicit["common_fields"]!!.jsonObject["category_id"])
+        assertEquals("", explicit["common_fields"]!!.jsonObject["note"]!!.jsonPrimitive.content)
+        assertEquals(false, explicit["inherit_common_fields"]!!.jsonPrimitive.boolean)
+        api.close()
+    }
+
     @Test fun firstPreviewSendsRequiredNullAndAllReplacementArrays() = runTest {
         var call: HttpRequestData? = null
         val client = client(PLAN) { call = it }
