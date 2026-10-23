@@ -36,6 +36,8 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 旧 `CashLedgerCommandService` 导入、原文件会话及原文件暂存实现已退役；当前解析、计划、提交和维护共用独立错误模块。批量预览减少内部副本和空绑定查询，保留输入隔离、完整校验及原固定成本门槛。旧收据表已移除，安全摘要及原键查询由统一结果承接，投资导入及其共享服务保留；这不代表所有历史内部导入类或外部旧对象已清理。三端客户端迁移与 QA 缺口保持。
 
+[Agent 导入技能](../.agents/skills/cash-statement-import/SKILL.md) 和 [API 参考](../.agents/skills/cash-statement-import/references/api-contract.md) 已切换到解析会话、统一计划及持久结果，支持部分文件／流水继续、待确认项延后、独立账户及未知结果核实。此为同一后端的 Agent 调用指引，不新增产品入口，也不替代 F-04／F-05 的共享 Compose 实现及真实客户端 QA。
+
 旧导入结果通过 [迁移 49](../migrations/versions/20261023_49_unify_cash_import_receipts.py) 迁入同一命令收据，保留原归属、键、时间及真实业务计数，原技术正文不保留；有损降级拒绝。原用户可以通过 [安全查询合同](../tests/contract/test_cash_legacy_receipt_api.py) 按特殊旧键读取，日志不暴露键；[双后端迁移合同](../tests/contract/test_cash_legacy_receipt_migration.py) 覆盖碰撞、坏摘要、实际删表后回滚及工作区删除。Web、Native、共享 presentation 未在本步修改，不增加页面或移除客户端迁移与 QA 缺口。
 
 F-05 的 [新会话 HTTP 入口](../src/ft/web/cash_import_routes.py) 已支持逐文件上传、密码重传、来源设置、移除、取消和安全会话读取；[协议与资源边界](../src/ft/web/cash_import_protocol.py) 不保留原文件，已提交结果优先按收据恢复。[计划及结果 HTTP](../src/ft/web/cash_plan_routes.py) 接入预计列表／详情、完整计划确认、持久收据与结果分页、未知结果核实和失败项重试会话。当前尚未接入 Compose，Web、Android、iOS 仍使用原流程，不据此增加共享页面数或移除三端 QA 缺口。
