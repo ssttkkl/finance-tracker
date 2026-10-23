@@ -25,6 +25,7 @@ data class ImportTaskUiState(
     val processingNextCursor: String? = null,
     val processingInitialized: Boolean = false,
     val receipt: ImportReceipt? = null,
+    val resultPages: Map<ImportResultKind, ImportResultPage> = emptyMap(),
     val receiptToFetch: String? = null,
     val frozenCommand: ImportFrozenCommand? = null,
     val submission: ImportSubmissionState = ImportSubmissionState.IDLE,

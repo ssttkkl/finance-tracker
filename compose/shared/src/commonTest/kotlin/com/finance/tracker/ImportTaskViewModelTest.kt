@@ -9,6 +9,149 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun cancellationLosingRaceToCommitPreservesRecoveryUntilActualReceipt() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.current = repo.current.copy(state = "committed", revision = null, canPreview = false, lastPlanId = null, receiptId = "receipt1")
+        repo.cancelFailure = DomainFailure("session_committed", 409, FailureCategory.RECOVERABLE, receiptId = "receipt1")
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(ImportRecoveryPointer.Session(TASK_SESSION), store.pointer)
+        assertFalse(vm.state.value.canEdit)
+        vm.refresh(); advanceUntilIdle()
+        assertEquals(ImportTaskPhase.RESULT, vm.state.value.phase)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        assertTrue(repo.confirmations.isEmpty())
+    } }
+
+    @Test fun mismatchedCancellationStatusNeverDiscardsRecovery() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle()
+        repo.cancelFailure = DomainFailure("session_expired", 503, FailureCategory.RECOVERABLE)
+        vm.cancel(); advanceUntilIdle()
+        assertNotNull(store.pointer)
+        assertNotNull(vm.state.value.context)
+        assertFalse(vm.state.value.canEdit)
+    } }
+
+    @Test fun lateResultPageCannotRepopulateDetachedTask() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle(); vm.confirm(); advanceUntilIdle()
+        val started = CompletableDeferred<Unit>(); val release = CompletableDeferred<Unit>()
+        repo.beforeResults = { withContext(NonCancellable) { started.complete(Unit); release.await() } }
+        repo.resultPages.add(ImportResultPage(listOf(taskResult("1", "101")), null, listOf(ImportProjectionRef("101", "projection")), 10))
+        vm.loadResults(ImportResultKind.ROW); started.await()
+        vm.detach(); release.complete(Unit); advanceUntilIdle()
+        assertTrue(vm.state.value.resultPages.isEmpty())
+        assertNull(vm.state.value.receipt)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+    } }
+
+    @Test fun failedLocalClearAfterServerCancellationCannotPretendTaskIsGone() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        store.failClear = true
+        vm.cancel(); advanceUntilIdle()
+        assertEquals("cancelled", repo.current.state)
+        assertNotNull(store.pointer)
+        assertFalse(vm.state.value.canEdit)
+        vm.refresh(); advanceUntilIdle()
+        assertEquals("cancelled", vm.state.value.context?.state)
+        store.failClear = false
+        vm.startNew(); advanceUntilIdle()
+        assertNull(store.pointer)
+        assertTrue(vm.state.value.canEdit)
+    } }
+
+    @Test fun cancelledSessionAlreadyGoneCanClearOnlyItsLocalRecoveryPointer() = runTest { task { _, _, _ ->
+        for (code in listOf("session_expired", "session_not_found", "session_closed")) {
+            val repo = TaskRepository()
+            val store = TaskRecovery()
+            val vm = CashImportTaskViewModel(repo, store)
+            vm.restore(); advanceUntilIdle()
+            repo.cancelFailure = DomainFailure(code, when (code) { "session_not_found" -> 404; "session_closed" -> 409; else -> 410 }, FailureCategory.RECOVERABLE)
+            vm.cancel(); advanceUntilIdle()
+            assertNull(store.pointer)
+            assertEquals(1, repo.cancelCalls)
+            assertTrue(vm.state.value.canEdit)
+        }
+    } }
+
+    @Test fun actualResultsAccumulateOutcomesButOnlyKeepLatestProjectionReferences() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle(); vm.confirm(); advanceUntilIdle()
+        repo.resultPages.addAll(listOf(
+            ImportResultPage(listOf(taskResult("1", "101")), "9007199254740993", listOf(ImportProjectionRef("101", "old")), 10),
+            ImportResultPage(listOf(taskResult("2", "102")), null, listOf(ImportProjectionRef("102", "new")), 11),
+            ImportResultPage(emptyList(), null, emptyList(), 12)))
+        vm.loadResults(ImportResultKind.ROW); advanceUntilIdle()
+        vm.loadResults(ImportResultKind.ROW, append = true); advanceUntilIdle()
+        val rows = assertNotNull(vm.state.value.resultPages[ImportResultKind.ROW])
+        assertEquals(listOf("1", "2"), rows.items.map { it.resultId })
+        assertEquals(listOf(ImportProjectionRef("102", "new")), rows.projectionRefs)
+        assertEquals(listOf("0", "9007199254740993"), repo.resultCalls.map { it.third })
+        vm.loadResults(ImportResultKind.RELATION); advanceUntilIdle()
+        assertTrue(vm.state.value.resultPages[ImportResultKind.ROW]!!.projectionRefs.isEmpty())
+        assertEquals(12, vm.state.value.resultPages[ImportResultKind.ROW]!!.projectionVersion)
+        assertTrue(vm.state.value.items.isEmpty())
+    } }
+
+    @Test fun staleResultVersionCannotReplaceCurrentNavigationReferences() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle(); vm.confirm(); advanceUntilIdle()
+        repo.resultPages.addAll(listOf(
+            ImportResultPage(listOf(taskResult("1", "101")), null, listOf(ImportProjectionRef("101", "new")), 10),
+            ImportResultPage(emptyList(), null, listOf(ImportProjectionRef("101", "old")), 9)))
+        vm.loadResults(ImportResultKind.ROW); advanceUntilIdle()
+        vm.loadResults(ImportResultKind.ROW); advanceUntilIdle()
+        assertEquals(listOf(ImportProjectionRef("101", "new")), vm.state.value.resultPages[ImportResultKind.ROW]!!.projectionRefs)
+        assertEquals("request_failed", vm.state.value.errorCode)
+    } }
+
+    @Test fun confirmedCancellationClearsRecoveryAndStartsFreshTask() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        val before = vm.state.value.taskId
+        vm.cancel(); advanceUntilIdle()
+        assertEquals(1, repo.cancelCalls)
+        assertNull(store.pointer)
+        assertNull(vm.state.value.context)
+        assertNotEquals(before, vm.state.value.taskId)
+        assertTrue(vm.state.value.canEdit)
+    } }
+
+    @Test fun unknownSubmissionCannotBeDiscardedByCancelOrStartNew() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.beforeConfirm = { throw DomainFailure("commit_state_unknown", 0, FailureCategory.RECOVERABLE) }
+        vm.confirm(); advanceUntilIdle()
+        val pointer = store.pointer
+        vm.cancel(); vm.startNew(); advanceUntilIdle()
+        assertEquals(pointer, store.pointer)
+        assertEquals(0, repo.cancelCalls)
+        assertEquals(ImportSubmissionState.UNKNOWN, vm.state.value.submission)
+    } }
+
+    @Test fun definiteResultStartsNewOnlyAfterRecoveryClearSucceeds() = runTest { task { vm, _, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle(); vm.confirm(); advanceUntilIdle()
+        store.failClear = true
+        vm.startNew(); advanceUntilIdle()
+        assertNotNull(vm.state.value.receipt)
+        assertEquals(ImportRecoveryPointer.Receipt("receipt1"), store.pointer)
+        store.failClear = false
+        vm.startNew(); advanceUntilIdle()
+        assertNull(store.pointer)
+        assertNull(vm.state.value.receipt)
+        assertTrue(vm.state.value.canEdit)
+    } }
+
+    @Test fun lostCancellationResponseRequiresRefreshBeforeStartingNew() = runTest { task { vm, repo, store ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        repo.failCancel = true
+        vm.cancel(); advanceUntilIdle()
+        assertFalse(vm.state.value.canEdit)
+        assertFalse(vm.state.value.canConfirm)
+        vm.startNew(); advanceUntilIdle()
+        assertNotNull(store.pointer)
+        repo.failCancel = false
+        vm.refresh(); advanceUntilIdle()
+        assertEquals("cancelled", vm.state.value.context?.state)
+        vm.startNew(); advanceUntilIdle()
+        assertNull(store.pointer)
+        assertTrue(vm.state.value.canEdit)
+    } }
+
     @Test fun lostFileCommandResponseLocksBothRemoveAndScopeUntilRefresh() = runTest { task { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
         for (scopeChange in listOf(false, true)) {
@@ -274,10 +417,12 @@ private fun taskFile() = object : FileSource {
     override suspend fun read() = byteArrayOf(1)
 }
 private fun taskItem(id: String) = ImportProjectedItem(id, "pending", "draft", ImportDisplay(null, null, null, null, null, emptyList()), false, emptyList(), emptyList(), true)
+private fun taskResult(id: String, transactionId: String) = ImportResultItem(id, "row", "f:r$id", "created_posted", null, null, null, transactionId, null, null)
 
 private class TaskRecovery : ImportRecoveryStore {
     var pointer: ImportRecoveryPointer? = ImportRecoveryPointer.Session(TASK_SESSION)
     var failLoad = false; var failSave = false
+    var failClear = false
     var beforeSave: suspend (ImportRecoveryPointer) -> Unit = {}
     override suspend fun load(): ImportRecoveryPointer? {
         if (failLoad) throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
@@ -288,7 +433,10 @@ private class TaskRecovery : ImportRecoveryStore {
         if (failSave) throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE)
         pointer = value
     }
-    override suspend fun clear() { pointer = null }
+    override suspend fun clear() {
+        if (failClear) throw DomainFailure("import_recovery_unavailable", 0, FailureCategory.RECOVERABLE)
+        pointer = null
+    }
 }
 
 private class TaskRepository : CashImportLifecycleRepository {
@@ -296,6 +444,12 @@ private class TaskRepository : CashImportLifecycleRepository {
     var contextReads = 0
     var failPreview = false
     var failFileMutation = false
+    var failCancel = false
+    var cancelFailure: DomainFailure? = null
+    var cancelCalls = 0
+    val resultPages = ArrayDeque<ImportResultPage>()
+    val resultCalls = mutableListOf<Triple<String, ImportResultKind, String>>()
+    var beforeResults: suspend () -> Unit = {}
     var contextFailure: DomainFailure? = null
     var receiptFailure: DomainFailure? = null
     var uploadAction: (suspend (suspend (ImportContext) -> Unit) -> ImportUploadBatch)? = null
@@ -333,7 +487,13 @@ private class TaskRepository : CashImportLifecycleRepository {
         if (failFileMutation) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         return current
     }
-    override suspend fun cancel(sessionId: String): ImportContext = error("unused")
+    override suspend fun cancel(sessionId: String): ImportContext {
+        cancelCalls++
+        cancelFailure?.let { throw it }
+        current = current.copy(state = "cancelled", canPreview = false, files = emptyList(), lastPlanId = null)
+        if (failCancel) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+        return current
+    }
     override suspend fun plan(planId: String): ImportPlan = error("unused")
     override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String): ImportItemPage {
         assertEquals(TASK_PLAN, planId); pageCalls += cursor to confirmationStatus; return pages.removeFirst()
@@ -343,7 +503,11 @@ private class TaskRepository : CashImportLifecycleRepository {
         emptyList(), emptyList(), listOf(ImportPairOption("sg_one", "refund_offset", null, "defer", null, emptyList(), emptyList(), listOf("accept", "defer", "ignore"), null)), emptyList())
     override suspend fun processing(planId: String, cursor: String?, limit: Int): ImportProcessingPage = error("unused")
     override suspend fun receiptByKey(key: String): ImportReceipt = error("unused")
-    override suspend fun results(receiptId: String, kind: ImportResultKind, after: String, limit: Int): ImportResultPage = error("unused")
+    override suspend fun results(receiptId: String, kind: ImportResultKind, after: String, limit: Int): ImportResultPage {
+        resultCalls += Triple(receiptId, kind, after)
+        beforeResults()
+        return resultPages.removeFirst()
+    }
     override suspend fun retry(receiptId: String, idempotencyKey: String, rowRefs: List<String>?): ImportContext = error("unused")
     override suspend fun accounts(): List<ImportAccountListItem> = error("unused")
     override suspend fun account(accountId: String): ImportAccount = error("unused")

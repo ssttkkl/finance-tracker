@@ -42,7 +42,7 @@ F-03／F-04 的整笔分类及明确备注保存已在后端保护同值和清�
 
 F-05 的 [关系选择重验](../src/ft/application/cash_import_choice_context.py) 在文件变化后仅私有保留最小证明，旧计划仍不可执行；完整恢复输入能保留未受影响的延后／忽略，当前组合法重选能生效，其他失效组继续待确认。非零确认代数保持，旧指纹恢复不能自动重新确认；[恢复合同](../tests/contract/test_cash_import_choice_recovery.py) 覆盖连续文件操作和失败发布。此为共享流程接入前的后端修复，无客户端页面或三端覆盖变化，QA 缺口保持。
 
-F-05 的 [共享确认状态核心](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportTaskUiState.kt) 已实现准备／统一核对／结果、完整决定、冻结请求和四态核实的纯转换；迟到响应按任务和请求隔离，成功后不复用预计列表。[新任务 ViewModel](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskViewModel.kt) 已消费该状态、当前 Repository 和恢复接口，执行逐文件上传、完整选择、预览／详情及确认恢复；会话命令响应不确定时先刷新。尚未替换旧入口，账户、取消、实际结果分页和页面继续后续步骤，Web、Android、iOS 的真实用户流程和 QA TODO 不变。
+F-05 的 [共享确认状态核心](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportTaskUiState.kt) 已实现准备／统一核对／结果、完整决定、冻结请求和四态核实的纯转换；迟到响应按任务和请求隔离，成功后不复用预计列表。[新任务 ViewModel](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskViewModel.kt) 已消费该状态、当前 Repository 和恢复接口，执行逐文件上传、完整选择、预览／详情及确认恢复；会话命令响应不确定时先刷新。实际结果分页隔离当前引用版本，取消及重新开始不能丢弃未知提交。尚未替换旧入口，账户、失败子集入口和页面继续后续步骤，Web、Android、iOS 的真实用户流程和 QA TODO 不变。
 
 F-05 的 [最小恢复存储](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/ImportRecoveryStore.kt) 按后端、使用者和工作区隔离，仅保存会话、冻结请求或确定结果标识；四平台适配已编译，真实 Chrome 覆盖存储异常。逐文件进度允许挂起保存后再继续。新任务 ViewModel 已接存储接口，产品入口的使用者范围绑定及页面尚未切换，三端功能覆盖及 QA TODO 保持，不把此基础能力计作用户已能恢复导入。
 

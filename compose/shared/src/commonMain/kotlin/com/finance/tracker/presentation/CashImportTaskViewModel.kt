@@ -189,6 +189,64 @@ class CashImportTaskViewModel(
         execute(state.value.beginResolution()) { resolveRequest(it, command) }
     }
 
+    fun loadResults(kind: ImportResultKind, append: Boolean = false) {
+        val before = state.value
+        val receiptId = before.receipt?.receiptId ?: return
+        val previous = before.resultPages[kind]
+        if (before.busy || append && previous?.nextAfter == null) return
+        val after = if (append) previous?.nextAfter ?: return else "0"
+        execute(before.beginRequest()) { request ->
+            val page = repository.results(receiptId, kind, after)
+            if (!current(request) || state.value.receipt?.receiptId != receiptId) return@execute
+            val latestVersion = state.value.resultPages.values.maxOfOrNull { it.projectionVersion } ?: 0
+            if (page.projectionVersion < latestVersion) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+            val old = previous.takeIf { append }
+            val refs = (old?.projectionRefs?.takeIf { old.projectionVersion == page.projectionVersion }.orEmpty() + page.projectionRefs)
+                .distinctBy { it.transactionId }
+            val combined = page.copy(items = (old?.items.orEmpty() + page.items).distinctBy { it.resultId }, projectionRefs = refs)
+            val pages = state.value.resultPages.mapValues { (_, value) ->
+                if (value.projectionVersion == page.projectionVersion) value else value.copy(projectionRefs = emptyList(), projectionVersion = page.projectionVersion)
+            }
+            mutableState.value = state.value.copy(resultPages = pages + (kind to combined), errorCode = null)
+        }
+    }
+
+    fun cancel() {
+        val before = state.value
+        if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null || before.receiptToFetch != null) return
+        val sessionId = before.context?.sessionId ?: recoverySessionId
+        execute(before.beginRequest().copy(needsContextRefresh = true)) { request ->
+            if (sessionId != null) {
+                try {
+                    val cancelled = repository.cancel(sessionId)
+                    if (!current(request)) return@execute
+                    if (cancelled.sessionId != sessionId || cancelled.state != "cancelled") invalidTask()
+                } catch (failure: DomainFailure) {
+                    val gone = failure.code == "session_expired" && failure.status == 410 ||
+                        failure.code == "session_not_found" && failure.status == 404 ||
+                        failure.code == "session_closed" && failure.status == 409
+                    if (!gone) throw failure
+                }
+            }
+            clearTask(request)
+        }
+    }
+
+    fun startNew() {
+        val before = state.value
+        if (before.busy || before.frozenCommand != null || before.receiptToFetch != null ||
+            before.receipt == null && before.context?.state != "cancelled") return
+        execute(before.beginRequest()) { clearTask(it) }
+    }
+
+    private suspend fun clearTask(request: ImportTaskRequest) {
+        if (!current(request)) return
+        recovery.clear()
+        if (!current(request)) return
+        recoverySessionId = null
+        mutableState.value = ImportTaskUiState(recoveryReady = true)
+    }
+
     private suspend fun resolveRequest(request: ImportTaskRequest, command: ImportFrozenCommand) {
         val result = repository.resolve(command.planId, command.idempotencyKey)
         if (!current(request)) return
@@ -237,7 +295,7 @@ class CashImportTaskViewModel(
                 if (current(request)) {
                     val failure = cause.safeFailure()
                     mutableState.value = if (state.value.frozenCommand != null) state.value.confirmationFailed(request, failure)
-                    else state.value.copy(errorCode = failure.code, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_revision_conflict"))
+                    else state.value.copy(errorCode = failure.code, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
                 }
             } finally {
                 mutableState.value = state.value.finishRequest(request)
