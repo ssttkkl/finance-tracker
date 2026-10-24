@@ -21,6 +21,19 @@ def _locate(client, identifier):
     return client.get("/api/v1/cash-records/" + str(identifier) + "/projection")
 
 
+def test_list_has_internal_transaction_reference_distinct_from_source_number(context_runtime, monkeypatch):
+    identifier = _draft(context_runtime)
+    client, _ = _client(context_runtime, monkeypatch)
+    location = _locate(client, identifier).json()
+    item = next(item for item in client.get("/api/v1/cash-projections").json()["items"] if item["projection_id"] == location["projection_id"])
+    assert item["transaction_id"] == identifier and item["record_id"] != identifier
+    assert client.get("/api/v1/cash-records/" + item["transaction_id"]).status_code == 200
+    detail = client.get("/api/v1/cash-projections/" + item["projection_id"]).json()
+    assert detail["projection"]["transaction_id"] == identifier
+    evidence = client.get("/api/v1/evidence/cash-projections/" + item["projection_id"]).json()
+    assert evidence["projection"]["transaction_id"] == identifier
+
+
 def test_unknown_draft_without_components_has_one_current_projection_and_no_statistics(context_runtime, monkeypatch):
     identifier = _draft(context_runtime)
     records = _records(context_runtime)
@@ -82,6 +95,9 @@ def test_joint_refund_confirmation_and_dissolution_relocate_every_stable_member(
     merged = client.get("/api/v1/cash-projections/" + current[0]["projection_id"])
     assert merged.status_code == 200 and Decimal(merged.json()["projection"]["amount"]) == 0
     assert merged.json()["projection"]["visible"] and len(merged.json()["members"]) == 4
+    root = merged.json()["projection"]["transaction_id"]
+    assert root in {member["transaction_id"] for member in merged.json()["members"]}
+    assert client.get("/api/v1/cash-records/" + root).status_code == 200
     assert merged.json()["projection"]["confirmation_status"] == "confirmed"
     assert all(client.get("/api/v1/cash-projections/" + item["projection_id"]).status_code == 404
         for item in initial if item["projection_id"] != current[0]["projection_id"])

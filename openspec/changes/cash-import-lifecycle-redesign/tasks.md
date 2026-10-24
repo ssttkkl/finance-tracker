@@ -269,6 +269,21 @@
 | 文档／验证／回退 | 接口参考、delta、设计、技能与功能地图同组核对；词表已有支付组成项及现金粒度，无新概念，README 配置／启动未变。OpenSpec strict 37/37、doctor healthy、链接与 diff 检查。无 schema／依赖变化，回退该策略会恢复旧标量限制，不恢复已关闭写入口；未操作真实库、部署或迁移 |
 | 跨端／专项／反思 | Web、Android、iOS 共用草稿补丁，客户端只发实际字段，UI 与设备 QA 继续由三个前端变更承担。该后端小步不提升页面覆盖；10k 性能独立待办范围不变。防复发以来源显式未知／清空与用户标量组合为契约，不扩大客户端兼容路径 |
 
+### 4.20 当前列表的稳定流水引用
+
+- [x] 4.20.1 思考／计划：真实 API 联调证明 `record_id` 是来源编号，新增明确 `transaction_id`，禁止前端猜测或解析展示 ID；A 类只读公共合同，无迁移和金额行为变化。
+- [x] 4.20.2 任务拆分／测试先行：列表、展示详情、来源证据引用一致，真实内部详情可打开，来源编号不变，合并及隔离边界。
+- [x] 4.20.3 构建：当前 DTO／单一序列化入口提供明确引用；Compose 字段、点击及夹具已在开发工作树接入，由前端 change 独立交付，不计本后端小步完成。
+- [x] 4.20.4 独立产品／工程／安全范围复核无 blocking／major；最终提交集合在暂存后核对。
+- [x] 4.20.5 SQLite／显式专用 PostgreSQL、完整回归及 wheel 构建通过；客户端共享测试、生产 Web 与真实浏览器三宽度 API QA 由 `compose-cash-ledger-maintenance` 独立验收，不作为后端提交范围。
+- [x] 4.20.6 文档／功能地图／技能收尾与发布准备完成；按已有授权单独提交推送后端 4.20，UI 整体和 Native 演示不因此完成。
+- [x] 4.20.7 反思：列表测试必须用不同的来源编号和内部引用，禁止同值夹具掩盖接线错误。
+
+
+4.20 后端验证（2026-10-24，执行 `HEAD=948e322`、比较基线相同）：列表 HTTP 失败回归由缺少引用先失败再通过；显式专用 PostgreSQL 的当前展示 API／一致性／归属／Web API 矩阵 121 passed、无 skip，`/tmp/ft-cash-list-reference-dual.log`；新增合并根断言最终双后端 2 passed、无 skip，`/tmp/ft-cash-list-reference-merged-final.log`。完整 SQLite 四分片回归 3389 passed、1295 skipped、73 deselected、四项 exit 0，`/tmp/ft-list-reference-full-{0,1,2,3}.log`；skip 不作为 PostgreSQL 证据，仅排除已在旧基线复现的两项废弃 Expo CI 断言及独立 performance。实际命令记录于同名 `.json`，入口 `/tmp/ft-list-reference-full-regression.py`。
+
+`uv build --wheel --out-dir /tmp/ft-cash-list-reference-dist` 通过，包内两处查询源文件与当前源码逐字节一致；无 sdist 通过声明。OpenSpec strict 37/37、doctor healthy、文档／功能地图／协议／skill 与 diff 检查通过，无新领域术语、迁移、财务计算或依赖。部署顺序为后端先于新客户端；旧客户端可忽略新增字段，新客户端不回退猜测目标。后端小步不包含未完成 UI；浏览器／Hallmark／Native／演示确认由前端 change 保持未完成，未操作真实账本或部署。
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。

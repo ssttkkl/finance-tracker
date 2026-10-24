@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import base64
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -57,6 +57,7 @@ class ProjectionDTO:
     state: str = "posted"; statistics_eligible: bool = True; attention_count: int = 0
     confirmation_status: str = "confirmed"; projection_version: int = 0
     entry_id: str | None = None
+    transaction_id: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)

@@ -380,6 +380,8 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护结构错误返回 `422`，当前流水修订变化返回 `409 record_changed`，不可见目标返回 `404`。统一字段规则拒绝固定字段变化时返回 `422 fixed_field_conflict`；可定位错误的 `field_errors` 项包含 `field/code/message`，只回传已知字段名，不附输入值。尚未补齐但不能定位到单一字段的原因仍通过安全消息和当前详情的问题表达，不伪造字段位置。允许来源的浏览器可读取认证错误；其他编辑者不能读取或提交本人的临时维护计划。
 
+列表展示对象新增 `transaction_id`，直接引用当前根流水，供客户端打开详情及维护；`record_id` 保留账单来源编号。客户端只使用明确引用，不解析展示标识或猜测来源编号。该字段与列表其他值来自同一读取快照，工作区可见性不变。
+
 当前投影详情返回 `projection_version/projection/members/issues`：展示结果 `projection` 与列表字段一致，成员为 `transaction_id/row_revision/state/confirmation_status`，问题带所属流水、实例／修订及安全原因，不返回来源正文或旧关系历史。整份响应使用同一读取快照。标识仍属于当前结果时返回最新成员及版本，不保证旧分组不变；标识退出当前数据集或不可见时返回 `404 projection_not_found` 并重载列表，不保留历史分组映射。稳定流水重新定位返回 `transaction_id/projection_id/attention_count/projection_version`，数据集未就绪或活动流水缺少当前归属返回 `503`，不能返回旧位置；已删除流水返回不可见。
 
 草稿保存响应区分 `receipt` 与 `current_record`，后者带 `current_record_status=available/deleted/unavailable`，明确是读取时的当前详情。幂等重放返回原收据，再读取当前详情，不保存或重放流水正文；提交后详情暂不可读仍返回已提交收据及 `unavailable`，不能误报保存失败并重跑写入。普通详情中的父 `row_revision` 不是整个维护视图的版本，问题实例／修订和关系修订分别参与相关决定及维护计划校验。

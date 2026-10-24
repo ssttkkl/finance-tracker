@@ -308,7 +308,7 @@ class RelationalCashLedgerQueryRepository:
         account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)
         return ProjectionDTO(row.projection_id,row.occurred_at.isoformat() if row.occurred_at is not None else None,account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer,
             state=row.state, statistics_eligible=row.statistics_eligible, attention_count=row.attention_count,
-            confirmation_status="pending" if row.state == "draft" or row.attention_count else "confirmed", projection_version=projection_version, entry_id=row.entry_id)
+            confirmation_status="pending" if row.state == "draft" or row.attention_count else "confirmed", projection_version=projection_version, entry_id=row.entry_id, transaction_id=str(row.root_cash_transaction_id))
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
