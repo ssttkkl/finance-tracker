@@ -9,6 +9,25 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashRecordTaskViewModelTest {
+    @Test fun supportedTransferLoadsBothConfirmedMembersBeforeFinancialEditing() = runTest { task { vm, repo, _ ->
+        repo.transferPair = true
+        vm.open("11"); advanceUntilIdle()
+        assertEquals(listOf("11", "12"), repo.reads)
+        assertEquals(listOf("11", "12"), vm.state.value.transferMembers.map { it.transactionId })
+        assertTrue(vm.state.value.pendingMembers.isEmpty()); assertTrue(repo.previews.isEmpty()); assertTrue(repo.commits.isEmpty())
+    } }
+    @Test fun changedTransferMemberRequiresReadRetryInsteadOfOpeningStalePair() = runTest { task { vm, repo, _ ->
+        repo.transferPair = true; repo.memberRevision = 4
+        vm.open("11"); advanceUntilIdle()
+        assertNull(vm.state.value.record); assertTrue(vm.state.value.transferMembers.isEmpty())
+        assertEquals("record_changed", vm.state.value.errorCode)
+    } }
+    @Test fun transferWithoutFullCapabilityOnlyReadsItsPublicDetail() = runTest { task { vm, repo, _ ->
+        repo.transferPair = true; repo.transferCapability = false
+        vm.open("11"); advanceUntilIdle()
+        assertEquals(listOf("11"), repo.reads); assertNotNull(vm.state.value.record)
+        assertTrue(vm.state.value.transferMembers.isEmpty()); assertTrue(vm.state.value.pendingMembers.isEmpty())
+    } }
     @Test fun cancelledEditCannotSubmitItsPreviousImpactPlan() = runTest { task { vm, repo, _ ->
         vm.open("11"); advanceUntilIdle()
         vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); advanceUntilIdle()
@@ -245,11 +264,13 @@ private class DetailStore : CashMaintenanceRecoveryStore {
     override suspend fun clear() { pointer = null }
 }
 private class DetailRepo : CashMaintenanceRepository {
+    var transferPair = false; var transferCapability = true
     var delayPreview: CompletableDeferred<Unit>? = null
     var grouped = false; var failGroupRead = false; var groupVersion = 7L; var memberRevision = 3L
     override suspend fun currentGroup(projectionId: String): CashCurrentGroup {
         if (failGroupRead) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
-        return CashCurrentGroup(groupVersion, listOf(CashCurrentMember("11", 3, "confirmed"), CashCurrentMember("12", memberRevision, "pending"), CashCurrentMember("13", 3, "confirmed")))
+        return CashCurrentGroup(groupVersion, if (transferPair) listOf(CashCurrentMember("11", 3, "confirmed"), CashCurrentMember("12", memberRevision, "confirmed"))
+            else listOf(CashCurrentMember("11", 3, "confirmed"), CashCurrentMember("12", memberRevision, "pending"), CashCurrentMember("13", 3, "confirmed")))
     }
     override suspend fun sources(projectionId: String): CashSourceEvidence = error("unused")
     var missingEffects = false; var emergingConflict = false; var latestChoices = emptyList<CashRelationDecision>(); var emptyEffects = false; var paged = false; var detailFailure = false; val itemPages = mutableListOf<String?>()
@@ -258,7 +279,13 @@ private class DetailRepo : CashMaintenanceRepository {
     val commits = mutableListOf<ImportFrozenCommand>(); var previewFailure: DomainFailure? = null
     var commitFailure: DomainFailure? = null; var currentUnavailable = false; var commitReceipt = detailReceipt()
     var resolution = ImportResolveResult("pending", null)
-    override suspend fun record(transactionId: String): CashCurrentRecord { reads += transactionId; if (ignoreReadCancellation) withContext(NonCancellable) { delayRead?.await() } else delayRead?.await(); if (currentUnavailable) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE); return detailRecord().copy(transactionId = transactionId,
+    override suspend fun record(transactionId: String): CashCurrentRecord { reads += transactionId; if (ignoreReadCancellation) withContext(NonCancellable) { delayRead?.await() } else delayRead?.await(); if (currentUnavailable) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
+        if (transferPair) return detailRecord().copy(transactionId = transactionId, recordOrigin = "manual_transfer", state = "posted", confirmationStatus = "confirmed",
+            entry = CashPublicEntry("pair-entry", 7, StructuredObject(emptyMap()), emptyList(), cashPublicEntryFields.toList() + cashTransferFinancialFields, transferCapability),
+            fields = StructuredObject(mapOf("amount" to StructuredText(if (transactionId == "11") "-1.00" else "1.00"),
+                "manual_transfer_id" to StructuredText("pair-one"), "currency" to StructuredText("CNY"))),
+            projectionRef = CashCurrentProjectionRef(transactionId, "group-one", 0, 7))
+        return detailRecord().copy(transactionId = transactionId,
         state = if (grouped) "posted" else "draft",
         confirmationStatus = if (grouped && transactionId == "11") "confirmed" else "pending",
         projectionRef = if (grouped) CashCurrentProjectionRef(transactionId, "group-one", 1, 7) else null,

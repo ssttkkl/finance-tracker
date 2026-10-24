@@ -685,4 +685,6 @@
     <string name="cash_invalid_account">Choose valid accounts and transfer direction.</string>
     <string name="cash_create_unknown">The save result is unknown. Return to the ledger and check before recording again.</string>
     <string name="cash_create_invalid_amount">Amounts cannot be negative. Transfers must be greater than zero.</string>
+    <string name="cash_transfer_out">From</string>
+    <string name="cash_transfer_in">To</string>
 </resources>

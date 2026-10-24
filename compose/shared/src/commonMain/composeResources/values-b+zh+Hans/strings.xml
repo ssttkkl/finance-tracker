@@ -685,4 +685,6 @@
     <string name="cash_invalid_account">请选择有效的账户和转账方向。</string>
     <string name="cash_create_unknown">暂时无法确认是否已保存，请返回账本核对后再记账。</string>
     <string name="cash_create_invalid_amount">金额不能为负数，转账金额须大于零。</string>
+    <string name="cash_transfer_out">转出</string>
+    <string name="cash_transfer_in">转入</string>
 </resources>

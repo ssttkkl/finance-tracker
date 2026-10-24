@@ -299,6 +299,40 @@ class DemoFinanceRepository : FinanceRepository {
         projectionVersion++
     }
 
+    internal fun prepareTransferMembers(id: String, patches: List<CashMemberPatch>): List<CashRecord> {
+        val ids = transferMembers(id)
+        val allowed = setOf("amount", "currency", "account_id", "occurred_at")
+        if (ids.size != 2 || patches.size != 2 || patches.map { it.transactionId }.toSet() != ids.toSet()) throw demoFailure("invalid_transfer_members", 422)
+        val next = ids.map { memberId ->
+            val row = findRecord(memberId); val patch = patches.single { it.transactionId == memberId }.patch.fields
+            if (patch.keys.any { it !in allowed } || patch.values.any { it !is StructuredText }) throw demoFailure("field_not_editable", 422)
+            fun value(key: String, fallback: String) = (patch[key] as? StructuredText)?.value ?: fallback
+            val account = accounts.singleOrNull { it.id.toString() == value("account_id", row.accountId.toString()) && it.active && it.type == "cash" }
+                ?: throw demoFailure("invalid_account", 422)
+            val currency = value("currency", row.currency); val amount = value("amount", row.amount)
+            val time = value("occurred_at", row.occurredAt)
+            if (currency !in account.currencies.orEmpty() || !isExactDecimalString(amount) || amount.none { it in '1'..'9' } ||
+                !Regex("\\d{4}-\\d{2}-\\d{2}T.*Z").matches(time)) throw demoFailure("invalid_record", 422)
+            row.copy(amount = amount, currency = currency, occurredAt = time, accountId = account.id, accountName = account.name, accountType = account.type)
+        }
+        if (!next[0].amount.startsWith('-') || next[1].amount.startsWith('-')) throw demoFailure("invalid_amount", 422)
+        val exchange = next[0].currency != next[1].currency
+        if (!exchange && (next[0].accountId == next[1].accountId || compareDemoDecimals(next[0].amount.removePrefix("-"), next[1].amount) != 0))
+            throw demoFailure("invalid_transfer_amount", 422)
+        return next.mapIndexed { index, row -> row.copy(recordType = if (exchange) { if (index == 0) "fx_out" else "fx_in" }
+            else { if (index == 0) "transfer_out" else "transfer_in" }, recordSubtype = if (exchange) "currency_exchange" else "ordinary_transfer") }
+    }
+    internal fun saveTransferMembers(id: String, patches: List<CashMemberPatch>): List<String> {
+        val next = prepareTransferMembers(id, patches)
+        val changed = next.filter { it != findRecord(it.id) }.map { it.id }
+        next.forEach { row -> records[records.indexOfFirst { it.id == row.id }] = row }
+        relations.indices.filter { relations[it].primaryRecord?.id == next[0].id && relations[it].secondaryRecord?.id == next[1].id }.forEach { index ->
+            relations[index] = relations[index].copy(primaryRecord = next[0], secondaryRecord = next[1], subtype = next[0].recordSubtype)
+        }
+        projectionVersion++
+        return changed
+    }
+
     override suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail {
         val index = records.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_record_not_found", 404)

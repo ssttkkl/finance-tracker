@@ -19,6 +19,7 @@ data class CashRecordTaskState(
     val affectedRecords: Map<String, CashCurrentRecord> = emptyMap(),
     val selectionPlan: Boolean = false,
     val pendingMembers: List<CashCurrentRecord> = emptyList(),
+    val transferMembers: List<CashCurrentRecord> = emptyList(),
 ) {
     val unresolved: Boolean get() = frozenCommand != null
 }
@@ -62,7 +63,9 @@ class CashRecordTaskViewModel(
                 catch (failure: Exception) { if (savedReceipt == null) throw failure else return@execute }
             currentCoroutineContext().ensureActive()
             if (record.transactionId != transactionId) invalid("request_failed")
-            mutableState.value = state.value.copy(record = record, pendingMembers = members, currentRecordStatus = "available")
+            mutableState.value = state.value.copy(record = record, pendingMembers = members.filter { it.confirmationStatus == "pending" },
+                transferMembers = if (record.recordOrigin == "manual_transfer" && record.entry?.supportsTransferEdit == true) listOf(record) + members else emptyList(),
+                currentRecordStatus = "available")
         }
     }
     fun close(): Boolean {
@@ -237,18 +240,20 @@ class CashRecordTaskViewModel(
         val members = group.members
         if (members.none { it.transactionId == transactionId } || members.map { it.transactionId }.distinct().size != members.size) invalid("record_changed")
         if (members.single { it.transactionId == transactionId }.rowRevision != record.rowRevision) invalid("record_changed")
-        val pending = members.filter { it.transactionId != transactionId && it.confirmationStatus == "pending" }.map {
+        val completeTransfer = record.recordOrigin == "manual_transfer" && record.entry?.supportsTransferEdit == true
+        val related = members.filter { it.transactionId != transactionId && (it.confirmationStatus == "pending" || completeTransfer) }.map {
             val member = repository.record(it.transactionId)
             if (member.transactionId != it.transactionId || member.rowRevision != it.rowRevision ||
                 member.projectionRef?.projectionId != ref.projectionId || member.projectionRef.projectionVersion != group.projectionVersion) invalid("record_changed")
             member
         }
-        return record to pending
+        return record to related
     }
     private suspend fun acceptReceipt(receipt: ImportReceipt, status: String, record: CashCurrentRecord?, members: List<CashCurrentRecord>) {
         currentCoroutineContext().ensureActive()
         if (!receipt.committed) invalid("request_failed")
-        mutableState.value = state.value.copy(receipt = receipt, currentRecordStatus = status, record = record, pendingMembers = members,
+        mutableState.value = state.value.copy(receipt = receipt, currentRecordStatus = status, record = record, pendingMembers = members.filter { it.confirmationStatus == "pending" },
+            transferMembers = if (record?.recordOrigin == "manual_transfer" && record.entry?.supportsTransferEdit == true) listOf(record) + members else emptyList(),
             transactionId = receipt.retainedTransactionId ?: record?.transactionId ?: state.value.input?.transactionId ?: state.value.transactionId,
             frozenCommand = null, retryOriginalAllowed = false, plan = null, details = emptyList(), input = null,
             savedRevision = state.value.savedRevision + 1,

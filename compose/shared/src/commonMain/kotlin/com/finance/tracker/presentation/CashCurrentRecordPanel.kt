@@ -96,7 +96,8 @@ internal fun CashCurrentRecordPanel(
             }
             if (record != null) {
                 val common = record.entry?.fields?.fields ?: record.fields.fields
-                val editingFields = if (entryEditing) cashEntryEditableFields(record).toSet() else emptySet()
+                val editingFields = if (entryEditing) cashEntryEditableFields(record).toSet() +
+                    (if (cashTransferEntryMembers(record, state.transferMembers) != null) cashTransferFinancialFields else emptyList()) else emptySet()
                 if ("amount" !in editingFields) Text(projection?.let(::cashProjectionAmountLabel) ?: listOfNotNull(record.fields.fields["amount"].cashText() ?: "—", record.fields.fields["currency"].cashText()).joinToString(" "),
                     style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("cash.current.amount"))
                 if ("counterparty" !in editingFields) common["counterparty"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
@@ -112,7 +113,8 @@ internal fun CashCurrentRecordPanel(
                 }
                 if (entryEditing && onSaveEntry != null) {
                     CashEntryEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
-                        state.busy || state.unresolved || state.plan != null, onInput = { entryDirty = it }, onCancel = requestCancelEntry, onSave = onSaveEntry)
+                        state.busy || state.unresolved || state.plan != null, onInput = { entryDirty = it }, onCancel = requestCancelEntry, onSave = onSaveEntry,
+                        transferMembers = state.transferMembers)
                     if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan)
                 } else {
                     if (record.state == "draft") {
