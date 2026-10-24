@@ -10,10 +10,12 @@ data class ImportAccountSelection(val sourceAccountRef: String, val target: Impo
 data class ImportRecordChoice(val rowRef: String, val action: ImportRowDecision, val patch: StructuredObject = StructuredObject(emptyMap()))
 data class ImportPairChoice(val suggestionId: String, val action: ImportPairDecision, val candidateId: String? = null,
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null)
+data class ImportEntryChoice(val editRef: String, val patch: StructuredObject)
 data class ImportChoiceSet(
     val accountSelections: List<ImportAccountSelection> = emptyList(),
     val rows: List<ImportRecordChoice> = emptyList(),
     val relations: List<ImportPairChoice> = emptyList(),
+    val entries: List<ImportEntryChoice> = emptyList(),
 )
 data class ImportIssue(
     val code: String, val message: String, val fieldPath: String?, val blockingScope: String,
@@ -89,7 +91,7 @@ data class ImportPairOption(
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
 )
 data class ImportPairEffect(val relationId: String, val kind: String, val subtype: String?, val effect: String, val members: List<ImportMemberRef>, val code: String?)
-data class ImportEntryFields(val fields: StructuredObject, val editableFields: List<String>)
+data class ImportEntryFields(val fields: StructuredObject, val editableFields: List<String>, val editRef: String? = null)
 data class ImportItemDetail(
     val itemId: String, val members: List<ImportMemberDetail>, val fieldDiffs: List<ImportFieldDiff>,
     val issues: List<ImportIssue>, val relationChoices: List<ImportPairOption>, val relationEffects: List<ImportPairEffect>,

@@ -21,7 +21,7 @@ def cash_import_file_view(file):
 def cash_import_session_view(current, groups, suggestions):
     files = [cash_import_file_view(file) for file in current.files]
     inputs = {key: deepcopy(value) for key, value in current.preview_input.items()
-        if key in {"account_selections", "row_choices", "relation_choices"}}
+        if key in {"account_selections", "row_choices", "relation_choices", "entry_choices"}}
     selected = {item["source_account_ref"]: item for item in inputs.get("account_selections", [])}
     return {"session_id": current.session_id, "session_revision": current.revision,
         "expires_at": current.expires_at.isoformat(), "state": "cancelled" if current.cancelled else "open",

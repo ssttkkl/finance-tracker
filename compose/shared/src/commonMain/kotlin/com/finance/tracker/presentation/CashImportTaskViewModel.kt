@@ -110,7 +110,21 @@ class CashImportTaskViewModel(
 
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
     fun editRow(choice: ImportRecordChoice) = edit { it.editRow(choice) }
+    fun editEntry(choice: ImportEntryChoice) = edit { it.editEntry(choice) }
     fun editPair(choice: ImportPairChoice) = edit { it.editPair(choice) }
+
+    fun restartPreview() {
+        val before = state.value
+        val sessionId = before.context?.sessionId ?: recoverySessionId ?: return
+        if (!before.recoveryReady || before.busy || before.frozenCommand != null || before.receipt != null) return
+        execute(before.beginRequest().copy(needsContextRefresh = true)) { request ->
+            loadContext(request, sessionId)
+            if (current(request) && state.value.receipt == null && state.value.context?.state == "open" && state.value.context?.canPreview == true) {
+                mutableState.value = state.value.copy(choices = state.value.choices.copy(entries = emptyList(), relations = emptyList()))
+                buildPlan(request)
+            }
+        }
+    }
 
     fun preview() {
         if (!state.value.canEdit || state.value.context?.canPreview != true) return

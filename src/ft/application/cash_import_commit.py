@@ -50,8 +50,13 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
         boundary = CashCommitBoundary()
         with boundary.guard((CashImportPlanError, CashImportPermissionDenied, CashMutationConflict,
             ImportSessionExpired, ImportSessionForbidden, ImportSessionNotFound)):
-            return self._commit(plan_id, expected_session_revision=expected_session_revision,
-                idempotency_key=idempotency_key, boundary=boundary)
+            try:
+                return self._commit(plan_id, expected_session_revision=expected_session_revision,
+                    idempotency_key=idempotency_key, boundary=boundary)
+            except CashImportPlanError as error:
+                if boundary.commit_state == "not_committed":
+                    error.commit_state = "not_committed"
+                raise
 
     def _commit(self, plan_id, *, expected_session_revision, idempotency_key, boundary):
         if type(expected_session_revision) is not int or expected_session_revision < 1:
@@ -77,6 +82,8 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             sources = self._prepare_sources(uow, current)
             fresh = self._builder(session=session, files=current.files, preview_input=current.preview_input,
                 previous_plan=plan, plan_id=plan_id, source_plan=sources)
+            if _digest(plan.get("entry_edits", [])) != _digest(fresh.get("entry_edits", [])):
+                raise CashImportPlanError("plan_changed")
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()
             failed_namespaces = self._save_evidence(session, current.files)
             execution_reasons = {commit_failure_reason(code, "source_evidence_save_failed") for code in failed_namespaces.values()}
@@ -207,10 +214,14 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             if affected:
                 # 只从成功操作及关系触及的旧／新当前成员展开；不全库重建。
                 CashProjectionService.maintain_in_session(session, self._workspace_id, affected)
+            from ft.application.cash_import_entry_choices import save_entry_choices
+            edited_entries = save_entry_choices(session, self._workspace_id, plan.get("entry_edits", []), identity, failures, groups)
             session.flush()
             summary = Counter({key: 0 for key in ("created_posted", "updated_posted", "saved_draft",
                 "finalized_draft", "duplicate", "skipped", "relations_confirmed", "relations_deferred", "relations_ignored", "relations_failed")})
             summary.update(item["outcome"] for item in actual.values())
+            if edited_entries:
+                summary["updated_entries"] = edited_entries
             for item in rows:
                 if item.get("operation_ref") is None:
                     summary[item["outcome"]] += 1
@@ -235,6 +246,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                 or any(item["outcome"] == "failed" for item in groups) or any(item["outcome"] == "skipped" for item in file_results))
             succeeded = any(item["outcome"] not in {"skipped", "failed"} for item in (*rows, *groups))
             written = any(item["outcome"] not in {"skipped", "duplicate", "duplicate_in_batch"} for item in actual.values())
+            written = written or bool(edited_entries)
             written = written or any(item["outcome"] in {"confirmed", "deferred", "ignored"} for item in groups)
             status = "partial" if problem and succeeded else "failed" if problem else "completed" if written else "no_changes"
             from ft.application.cash_import_retry import CashImportRetryService, prepare_retry_context

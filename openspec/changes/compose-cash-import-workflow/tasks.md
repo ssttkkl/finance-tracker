@@ -9,7 +9,7 @@
 
 ## 3. 任务拆分与一致性
 
-- [ ] 3.1 在维护模块公共基础合入后，核对公共字段／关系选择及宿主合同；先补真实响应 DTO 解码失败测试，覆盖 `entry`、权限、公共冲突与明确清空。
+- [x] 3.1 在维护模块公共基础合入后，核对公共字段／关系选择及宿主合同；先补真实响应 DTO 解码失败测试，覆盖 `entry`、权限、公共冲突与明确清空。
 - [ ] 3.2 先补状态及页面失败测试：部分文件继续、未映射草稿、完整组、计划失效、结果摘要与提交异常统一返回、原命令未知与账户退出；与 requirement 逐项对应。
 
 ## 4. 构建
@@ -53,3 +53,7 @@
 核对列表筛选基础已完成，页面尚未接线。默认待确认读取独立分页，零待确认自动全部，用户主动筛选保留至重新预览；初始页失败禁止确认。测试先红：`/tmp/ft-cash-import-pending-red.log` 55 项中 3 失败；首分页失败反例 `/tmp/ft-cash-import-pending-first-page-red.log` 56 项中 1 失败。2026-10-24 基线 `5966cd4`，`./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 最终成功（59 秒，`/tmp/ft-cash-import-pending-final-matrix.log`）；Wasm 377／Android 372 项，无失败或跳过。iOS 平台单测及设备 QA 依本轮用户决定未运行，不记为通过。
 
 独立工程复核覆盖筛选、游标、迟到响应、恢复及确认资格；首分页失败仍可确认的 major 已修复并回查关闭，其余无 blocking／major。本小步没有新用户入口或渲染变化，浏览器冒烟留至统一导入页面接线后；现有线上页面仍为旧导入，不以状态机测试宣称可用。共用层三端受影响，未改持久化、金额或原生命令。八阶段中思考／计划沿用本 change，当前小步测试先行、构建及独立审查完成；交付保留旧入口事实，不提前归档；防复发由专属分页与首次读取失败测试保证。
+
+预计整笔公共编辑协议与客户端已补齐，生产页面仍待接入。`entry.edit_ref` 与 `entry_choices` 独立于来源选择；目标变化需用户明确重新核对，重新读取的服务器行选择保留，旧整笔／关联决定清除，未成功预览的本地输入不迁移。测试先红覆盖缺少 `edit_ref`、客户端丢字段和确定未提交标志。2026-10-24 比较基线 `fc21c41`：显式专用 `_test` PostgreSQL 与 SQLite 最终定向合同 89 passed，无 skip（`/tmp/ft-cash-import-entry-confirmed-dual.log`）；此前大矩阵 390 passed／2 个旧输入形状断言失败，断言按新增空数组修正后已包含在最终 89 项中；跨工作区分类夹具的 PostgreSQL 前置工作区缺失也已修正，不把前次失败计通过。
+
+共享矩阵 `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 成功，Wasm 380／Android 375 项，无失败或跳过，日志 `/tmp/ft-cash-import-entry-ready-matrix.log`；测试、编译范围按默认策略，iOS 平台单测本轮未运行。独立工程／DX／安全复核的分类预检、关系依赖失败回滚、失效引用循环三项 major 均已修复并回查关闭；无新增 blocking／major。该小步不改页面，Web 冒烟随真实入口接线执行；已开始完整后端回归 `/tmp/ft-cash-import-entry-full-regression.log`，尚未完成，不以定向合同代替整体完成。后端普通预览性能与最终收尾仍需检查。账本表格复用、金额显示和通用输入取值的下一步改动不包含在此协议小步或本次已验证矩阵中。编辑目标索引按局部成员构建，全局版本、旧边及组只遍历一次，并保留原次序；千独立目标成本回归通过。排序及补丁定位索引的最终双后端增量 29 passed，无 skip（`/tmp/ft-cash-import-entry-indexed-final-dual.log`），不重复未变化的其余合同。

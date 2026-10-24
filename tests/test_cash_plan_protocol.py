@@ -94,3 +94,14 @@ def test_json_validation_does_not_block_other_requests_on_the_event_loop():
         answer, _ = await asyncio.gather(json_input(request, Model), other_request())
         return answer
     assert asyncio.run(exercise()) is True
+
+
+def test_known_entry_target_refusal_exposes_only_authoritative_no_commit_state():
+    from ft.application.cash_import_plans import CashImportPlanError
+    from ft.web.cash_plan_routes import plan_failure
+    error = CashImportPlanError('plan_changed')
+    assert 'commit_state' not in json.loads(plan_failure(error).body)
+    error.commit_state = 'not_committed'
+    response = plan_failure(error)
+    assert response.status_code == 409
+    assert json.loads(response.body)['commit_state'] == 'not_committed'

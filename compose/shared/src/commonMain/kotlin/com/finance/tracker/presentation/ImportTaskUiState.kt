@@ -93,6 +93,16 @@ data class ImportTaskUiState(
         return copy(choices = choices.copy(rows = choices.rows.filterNot { it.rowRef == choice.rowRef } + choice), previewDirty = true, errorCode = null)
     }
 
+    fun editEntry(choice: ImportEntryChoice): ImportTaskUiState {
+        if (!canEdit) return this
+        val entry = details.values.mapNotNull { it.entry }.firstOrNull { it.editRef == choice.editRef } ?: invalidTaskChoice()
+        if (choice.patch.fields.keys.any { it !in entry.editableFields || it !in cashPublicEntryFields }) invalidTaskChoice()
+        val previous = choices.entries.firstOrNull { it.editRef == choice.editRef }?.patch?.fields.orEmpty()
+        val updated = choice.copy(patch = StructuredObject(previous + choice.patch.fields))
+        return copy(choices = choices.copy(entries = choices.entries.filterNot { it.editRef == choice.editRef } + updated),
+            previewDirty = true, errorCode = null)
+    }
+
     fun editPair(choice: ImportPairChoice): ImportTaskUiState {
         if (!canEdit) return this
         val group = details.values.flatMap { it.relationChoices }.firstOrNull { it.suggestionId == choice.suggestionId } ?: invalidTaskChoice()

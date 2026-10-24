@@ -59,8 +59,12 @@ def _choices(value, *, key, fields, actions=None):
     return deepcopy(value)
 
 
-def _preview_input(account_selections, row_choices, relation_choices):
+def _preview_input(account_selections, row_choices, relation_choices, entry_choices=None):
+    entries = _choices([] if entry_choices is None else entry_choices, key="edit_ref", fields={"edit_ref", "patch"})
+    if any(not isinstance(item.get("patch"), dict) or item["patch"].keys() - COMMON_CASH_FIELDS for item in entries):
+        raise CashImportPlanError("plan_input_invalid")
     return {
+        "entry_choices": entries,
         "account_selections": _choices(account_selections, key="source_account_ref",
             fields={"source_account_ref", "account_id", "expected_account_revision"}),
         "row_choices": _choices(row_choices, key="row_ref", fields={"row_ref", "action", "patch"},
@@ -141,7 +145,7 @@ def _public_item(item):
 def _public_detail(value, *, copy_values=True):
     result = _only(value, {"entry", "members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
     if 'entry' in result:
-        result['entry'] = _only(result['entry'], {'fields', 'editable_fields'}, copy_values=copy_values)
+        result['entry'] = _only(result['entry'], {'fields', 'editable_fields', 'edit_ref'}, copy_values=copy_values)
         result['entry']['fields'] = _only(result['entry'].get('fields', {}), COMMON_CASH_FIELDS, copy_values=copy_values)
     members = _objects(result.get("members", []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"},
         copy_values=copy_values)
@@ -301,11 +305,11 @@ class CashImportPlanService(CashImportContextService):
         self._builder = builder
 
     def preview(self, session_id, *, expected_session_revision, previous_plan_id=None,
-                account_selections=None, row_choices=None, relation_choices=None):
+                account_selections=None, row_choices=None, relation_choices=None, entry_choices=None):
         if type(expected_session_revision) is not int or expected_session_revision < 1:
             raise CashImportPlanError("plan_changed")
         preview_input = _preview_input(account_selections if account_selections is not None else [],
-            row_choices if row_choices is not None else [], relation_choices if relation_choices is not None else [])
+            row_choices if row_choices is not None else [], relation_choices if relation_choices is not None else [], entry_choices)
         try:
             with self._uow as uow:
                 current = self._current(uow, session_id, expected_session_revision)
@@ -313,7 +317,7 @@ class CashImportPlanService(CashImportContextService):
                     preview_input = _preview_input(
                         current.preview_input.get("account_selections", []) if account_selections is None else account_selections,
                         current.preview_input.get("row_choices", []) if row_choices is None else row_choices,
-                        current.preview_input.get("relation_choices", []) if relation_choices is None else relation_choices)
+                        current.preview_input.get("relation_choices", []) if relation_choices is None else relation_choices, entry_choices)
                 previous = current.plan
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")

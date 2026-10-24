@@ -90,9 +90,9 @@ POST /api/v1/cash-import/sessions/{session_id}/plans
 }
 ```
 
-所有五个顶层字段都必填。选择数组是完整替换输入，最多各 100,000 项。恢复任务先保留当前 `selection/last_preview_input` 的有效决定，只给尚未选择项补建议；空数组不是增量“保持不变”。文件或来源变化后按服务端失效结果重核，不能将旧行位置的选择移到新文件。账户未选择可省略该项，或传 `account_id: null` 且修订为 `null`；不要求全部账户完成。引用真实账户时必须带其当前修订。
+上述五个基础字段均必填；整笔编辑另传 `entry_choices`。选择数组是完整替换输入，最多各 100,000 项。恢复任务先保留当前 `selection/last_preview_input` 的有效决定，只给尚未选择项补建议；空数组不是增量“保持不变”。文件或来源变化后按服务端失效结果重核，不能将旧行位置的选择移到新文件。账户未选择可省略该项，或传 `account_id: null` 且修订为 `null`；不要求全部账户完成。引用真实账户时必须带其当前修订。
 
-行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段由后端按行反馈。组成项金额必须精确等于总额；导入正式金额、币种、发生时间、资金账户、组成项、类型／子类型和来源身份固定，不能借导入修改。用户只编辑收支公共属性：交易对方、对方账号和属性、备注、分类；来源行只由来源更新刷新。公共人工值和明确清空受保护。来源成员只读，计划详情 `entry.fields/editable_fields` 提供预计公共值。实际人工冲突按服务端 `common_field_conflicts` 保留待确认，只有用户明确选择后才提交 `common_fields`，不能替用户猜值。
+行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段由后端按行反馈。组成项金额必须精确等于总额；导入正式金额、币种、发生时间、资金账户、组成项、类型／子类型和来源身份固定，不能借导入修改。用户只编辑收支公共属性：交易对方、对方账号和属性、备注、分类；来源行只由来源更新刷新。公共人工值和明确清空受保护。来源成员只读，计划详情 `entry.fields/editable_fields/edit_ref` 提供预计公共值及明确编辑目标。整笔公共补丁放入完整替换数组 `entry_choices`，格式为 `{"edit_ref":"ie_current","patch":{"note":"","category_id":null}}`；未编辑时可省略或传空数组。不挑首个来源行、不改变其来源决定。文件变化清除计划时清除旧整笔选择，派生重试不继承旧目标；目标失效须重新核对，不能迁移补丁。实际人工冲突按服务端 `common_field_conflicts` 保留待确认，只有用户明确选择后才提交 `common_fields`，不能替用户猜值。
 
 关联选择为 `{"suggestion_id": "sg_example", "action": "defer", "candidate_id": null}`，动作只允许 `accept/defer/ignore`。首次可留空使用后端默认；调整时从上一计划的单项详情取得完整建议和候选，禁止自造关系或拆开联合决定组。`defer` 是待确认，`ignore` 是明确忽略，不能混用。选项变化后带最新会话修订及 `previous_plan_id` 重预览，成功得到新计划和递增修订，旧计划不可执行。
 
@@ -120,9 +120,11 @@ Idempotency-Key: synthetic-confirm-example
 {"expected_session_revision": 2}
 ```
 
+整笔公共编辑的目标依赖失败或最终完整成员不符时整次命令拒绝并回滚，不发布成功收据；没有整笔选择仍保持既有局部失败隔离。已权威排除原消费且提交尚未开始的拒绝返回 `commit_state=not_committed`；未取得该证明不推断未提交。
+
 `200` 返回持久收据，即使部分失败或没有新增，也表示该次处理结果已确定。收据含 `receipt_id`、`plan_id`、`operation_kind`、`committed: true`、时间、`status`（`completed/partial/no_changes/failed`）、`summary`、待确认计数和可用时的重试状态／到期时间。内部上下文 ID、请求摘要及完整结果数组不公开。
 
-当前导入摘要包括 `created_posted`、`updated_posted`、`saved_draft`、`finalized_draft`、`duplicate`、`skipped`，以及 `relations_confirmed/deferred/ignored/failed`。新增／更新按实际保存操作计数，重复和跳过按来源出现计数，不能把全部数字相加当作新增流水。`needs_attention_count` 按有当前问题的唯一流水计数；`pending_item_count` 按最终可见的待确认列表项计数，均不混作失败数量。
+当前导入摘要包括 `created_posted`、`updated_posted`、`saved_draft`、`finalized_draft`、可选的 `updated_entries`、`duplicate`、`skipped`，以及 `relations_confirmed/deferred/ignored/failed`。新增／更新按实际保存操作计数，重复和跳过按来源出现计数，不能把全部数字相加当作新增流水。`needs_attention_count` 按有当前问题的唯一流水计数；`pending_item_count` 按最终可见的待确认列表项计数，均不混作失败数量。
 
 | 结果读取 | 说明 |
 |---|---|

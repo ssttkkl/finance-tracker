@@ -12,7 +12,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 |---|---|---|
 | 多文件解析与临时内容 | [会话服务](../src/ft/application/cash_import_context.py)、[会话 HTTP](../src/ft/web/cash_import_routes.py)、[解析及清扫配置](cash-import-r2-staging.md)；一次解析，不留原文件，单文件错误可继续 | 文件选择、密码重传及文件设置待接入新会话 |
 | 来源对应与资金账户 | [来源规划](../src/ft/application/cash_import_source_plan.py)、[资金桥接](../src/ft/application/cash_import_funding.py)、[账户映射](../src/ft/application/cash_import_account_mappings.py)；默认微信来源、无编号出现次数、重复／更新及删除重导 | 来源账户选择及补充分摊待接入 |
-| 统一预览与一次确认 | [业务计划](../src/ft/application/cash_import_business_plan.py)、[联合提交](../src/ft/application/cash_import_commit.py)、[计划 HTTP](../src/ft/web/cash_plan_routes.py)；唯一预计列表、差异及完整关联组，逐流水／组隔离失败 | 旧四步页面保留，统一核对列表尚未实现 |
+| 统一预览与一次确认 | [业务计划](../src/ft/application/cash_import_business_plan.py)、[联合提交](../src/ft/application/cash_import_commit.py)、[计划 HTTP](../src/ft/web/cash_plan_routes.py)；唯一预计列表、差异、完整关联组及明确的整笔公共编辑目标；无整笔编辑时逐流水／组隔离失败，被编辑目标失败时整命令拒绝 | 旧四步页面保留，统一核对列表尚未实现 |
 | 结果及失败恢复 | [失败项派生](../src/ft/application/cash_import_retry.py)、[命令收据](../src/ft/adapters/relational/cash_mutations.py)、[旧收据迁移](../migrations/versions/20261023_49_unify_cash_import_receipts.py)；实际结果分页、未知核实、限时失败补处理 | 结果摘要、统一错误及原请求恢复待接入，不提供逐项失败处理入口 |
 | 草稿及正式流水维护 | [当前详情／草稿保存](../src/ft/application/cash_record_maintenance.py)、[维护规划](../src/ft/application/cash_mutation_business_plan.py)、[维护提交](../src/ft/application/cash_mutation_commit.py)；创建方式权限、稳定公共属性整笔编辑、来源问题及身份合并；原子草稿仅联动实际财务修改，保留来源明确组成项 | F-04 已接当前详情、普通草稿保存、分摊编辑、明确转正式和只读账单原文；公共属性整笔编辑已接入并通过真实 API 冒烟；来源问题已有接线，最终身份问题及演示验收待完成 |
 | 关系及当前展示 | [最终图校验](../src/ft/domain/cash_relation_graph.py)、[稳定对象](../src/ft/adapters/relational/cash_entries.py)、[当前查询](../src/ft/adapters/relational/web_queries.py)；待确认不合并，人工冲突延后、解除明确继承，只差量更新受影响闭包，全额退款净额 `0` 可见；列表直接返回根流水 `transaction_id`，来源编号保持独立 | 正式／草稿列表、未知值和待确认筛选已接共享入口；关系维护已展示完整候选成员，选择失效须重新核对；完整组、公共冲突及解除继承已通过真实 API 冒烟；旧任意关联写入已移除，不新增关系一级入口 |
@@ -29,7 +29,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 | 前端 change | 功能边界 | 已有基础与待补内容 |
 |---|---|---|
-| [账单导入](../openspec/changes/compose-cash-import-workflow/proposal.md) | 文件／独立账户准备、统一核对、确认、真实结果、重试与退出恢复 | 会话／计划／收据客户端、任务与账户 VM 已有；生产页面仍用旧流程，新公共对象字段、真实入口和相称验证待完成 |
+| [账单导入](../openspec/changes/compose-cash-import-workflow/proposal.md) | 文件／独立账户准备、统一核对、确认、真实结果、重试与退出恢复 | 会话／计划／收据客户端、任务与账户 VM 已有；默认待确认分页和明确整笔编辑客户端已补；生产页面仍用旧流程，真实入口和页面验证待完成 |
 | [账本与补处理](../openspec/changes/compose-cash-ledger-maintenance/proposal.md) | 当前列表／详情、草稿、来源问题、已保存关系组、分类与删除 | 当前列表／详情、状态筛选和草稿维护已接入；来源问题已接线；关系完整组、公共冲突及解除继承已通过真实 API 验收，最终演示待确认 |
 | [记账与编辑](../openspec/changes/compose-cash-entry-editor/proposal.md) | 公共属性整笔编辑、普通手动记账、同入口转账及双端编辑 | 公共整笔编辑及创建方式权限已接入；普通记账、转账创建及模式输入保留已接入；完整转账在同表单编辑双端，缺少完整组能力时只改公共字段 |
 

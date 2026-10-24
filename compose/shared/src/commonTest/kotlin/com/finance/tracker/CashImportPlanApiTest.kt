@@ -10,6 +10,17 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportPlanApiTest {
+    @Test fun explicitEntryTargetAndClearArePreserved() = runTest {
+        val input = apiJson.parseToJsonElement(DETAIL).jsonObject.toMutableMap()
+        input["entry"] = buildJsonObject {
+            put("edit_ref", "ie_whole"); put("fields", buildJsonObject { put("note", "original") })
+            put("editable_fields", JsonArray(listOf(JsonPrimitive("note"))))
+        }
+        val detail = apiJson.decodeFromJsonElement<CashPlanItemDetailDto>(JsonObject(input))
+        val encoded = apiJson.encodeToJsonElement(detail).jsonObject["entry"]!!.jsonObject
+        assertEquals(JsonPrimitive("ie_whole"), encoded["edit_ref"])
+    }
+
     @Test fun receiptCommitOutcomeDistinguishesNewErrorsAndPreservesLegacyAbsence() {
         val legacy = apiJson.decodeFromString<CashMutationReceiptDto>(RECEIPT).toDomain()
         assertNull(legacy.commitOutcome)
@@ -48,9 +59,9 @@ class CashImportPlanApiTest {
         val plan = client.previewCashImport("s1", CashImportPreviewInput(3, null, emptyList(), emptyList(), emptyList()))
         assertEquals("/api/v1/cash-import/sessions/s1/plans", call!!.url.encodedPath)
         val body = json(call!!)
-        assertEquals(setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices"), body.keys)
+        assertEquals(setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices", "entry_choices"), body.keys)
         assertEquals(JsonNull, body["previous_plan_id"])
-        for (key in listOf("account_selections", "row_choices", "relation_choices")) assertEquals(JsonArray(emptyList()), body[key])
+        for (key in listOf("account_selections", "row_choices", "relation_choices", "entry_choices")) assertEquals(JsonArray(emptyList()), body[key])
         assertEquals(4L, plan.sessionRevision)
         assertTrue(plan.canCommit)
         assertEquals("0.00", plan.items.single().display.amount)

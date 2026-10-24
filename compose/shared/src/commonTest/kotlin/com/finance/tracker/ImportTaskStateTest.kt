@@ -5,6 +5,20 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun wholeEntryEditUsesOnlyItsExplicitTargetAndPreservesSourceDecisions() {
+        val entry = ImportEntryFields(StructuredObject(mapOf("note" to StructuredText("original"))), listOf("note", "category_id"), "ie_whole")
+        val original = prepared().loadedDetail("ip_one", detail().copy(entry = entry))
+            .editRow(ImportRecordChoice("f:r1", ImportRowDecision.DEFER))
+        val edited = original.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("note" to StructuredText("")))))
+            .editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("category_id" to StructuredNull))))
+        assertEquals(original.choices.rows, edited.choices.rows)
+        assertEquals(StructuredText(""), edited.choices.entries.single().patch.fields["note"])
+        assertEquals(StructuredNull, edited.choices.entries.single().patch.fields["category_id"])
+        assertTrue(edited.previewDirty)
+        assertFailsWith<DomainFailure> { original.editEntry(ImportEntryChoice("invented", StructuredObject(emptyMap()))) }
+        assertFailsWith<DomainFailure> { original.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("amount" to StructuredText("1"))))) }
+    }
+
     @Test fun pendingDefaultNeverReusesTheAllItemsPageOrCursor() {
         val initial = prepared().loadedPlan(plan().copy(itemCounts = mapOf("pending" to 2L)), ImportChoiceSet())
         assertEquals("pending", initial.filter)

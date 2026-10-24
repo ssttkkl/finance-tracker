@@ -42,7 +42,7 @@ def test_plan_publication_increments_revision_keeps_ttl_and_never_writes_ledger(
     assert plan["pages"]["items"] and "operations" not in plan
     current = service.get(created.session_id).session
     assert current.revision == 2 and current.plan["plan_id"] == plan["plan_id"]
-    assert current.files == created.files and current.preview_input == {"account_selections": [], "row_choices": [], "relation_choices": []}
+    assert current.files == created.files and current.preview_input == {"account_selections": [], "row_choices": [], "relation_choices": [], "entry_choices": []}
     with context_runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
 

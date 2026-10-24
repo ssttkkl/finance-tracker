@@ -158,7 +158,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 `PreviewInput` 使用完整替换的选择集合，避免省略和撤销混淆：
 
-三类选择数组均须提供；第一次 `previous_plan_id` 为 `null`。JSON 请求最多 64 MiB，结构及修订严格校验；行内补丁的业务字段问题仍逐行返回。分页大小默认 50、最大 200；收据结果的 `result_id/next_after` 为十进制字符串，后一值为空表示结束。查询参数不接受重复键。
+账户、行与关系三类数组均须提供；整笔公共修改使用 `entry_choices`，无选择时可省略或传空数组。第一次 `previous_plan_id` 为 `null`。JSON 请求最多 64 MiB，结构及修订严格校验；行内补丁的业务字段问题仍逐行返回。分页大小默认 50、最大 200；收据结果的 `result_id/next_after` 为十进制字符串，后一值为空表示结束。查询参数不接受重复键。
 
 ```json
 {
@@ -175,6 +175,9 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
   "relation_choices": [
     {"suggestion_id": "sg_1", "action": "defer"},
     {"suggestion_id": "sg_2", "action": "accept", "candidate_id": "candidate_7"}
+  ],
+  "entry_choices": [
+    {"edit_ref": "ie_current_entry", "patch": {"note": "整理后的备注", "category_id": null}}
   ]
 }
 ```
@@ -182,6 +185,10 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 未出现在 `row_choices` 的行采用服务端默认：完整新增、合法更新拟应用，不完整新增拟草稿，重复不改写，冲突跳过。未出现在 `relation_choices` 的建议：唯一强证据拟接受，其余拟暂存；最终仍由用户确认整个计划。客户端可选 `apply/keep_existing/defer`，其中 `defer` 只允许服务端声明可保存的草稿或当前问题，不允许将固定字段冲突转成更新草稿。
 
 用户直接编辑 `note` 的补丁与来源解析值分开提交，前者设置人工覆盖；客户端不可提交 `manual_overrides`。请求体字段未被该行 `editable_fields` 允许时，该行返回字段问题；JSON 结构本身不合法才拒绝整个请求。
+
+整笔公共编辑使用当前详情 `entry.edit_ref`，`entry_choices[].patch` 仅接受 `category_id/note/counterparty/counterparty_account/counterparty_account_attrs`。补丁与来源行的采用、保留或延后独立；不改写来源原文。引用由服务器限定完整预计成员及当前依赖，只有上一计划实际授权的目标可编辑，不能从 `preview_item_id` 或首个成员推测。目标变化须重新核对；文件／来源设置改变而清除计划时，整笔选择同步清除，派生重试不继承旧目标。相同有效计划可从会话恢复该选择。
+
+整笔编辑提交前重建并校验冻结目标，保存后再次核对完整成员；该目标的必要流水或关系保存失败时整次命令拒绝并回滚。没有整笔编辑时保持既有局部失败合同。成功修改计入收据 `summary.updated_entries` 和 `commit_outcome.has_business_writes`，来源行和关系数量不伪增。
 
 同一计划中的联合建议通过 `suggestion_id` 引用完整组，不能用单条边绕过。`candidate_id` 只能来自服务端当前候选；改类型、对侧或成员后重新预览。映射或流水修改使旧建议失效时，返回失效选择列表，不静默改对侧。
 
@@ -202,7 +209,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `pages` | 投影项及处理明细的分页游标 |
 | `invalidated_choices[]` | 失效选择的 `kind/reference/code`，不能静默换成另一候选 |
 
-`GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。它们从属于这一项详情，不是另一份顶层关系列表。
+`GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `entry`（公共字段、可编辑字段及 `edit_ref`）、`members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。它们从属于这一项详情，不是另一份顶层关系列表。
 
 成员内部 `planned_action` 为 `create_posted/create_draft/update_posted/update_draft/finalize_draft/duplicate/skip`；实际结果另用 `outcome`，不拿计划状态冒充已保存。只要与本次成功操作相关的完整投影需要展示已有对侧，就将该已有成员纳入当前预览项，但不把它算成新增或主动更新。
 

@@ -33,12 +33,18 @@ class RelationChoiceInput(StrictInput):
     candidate_id: ShortReference | None = None
 
 
+class EntryChoiceInput(StrictInput):
+    edit_ref: Reference
+    patch: dict[str, Any]
+
+
 class ImportPreviewInput(StrictInput):
     expected_session_revision: Revision
     previous_plan_id: ShortReference | None
     account_selections: list[AccountSelectionInput] = Field(max_length=100_000)
     row_choices: list[RowChoiceInput] = Field(max_length=100_000)
     relation_choices: list[RelationChoiceInput] = Field(max_length=100_000)
+    entry_choices: list[EntryChoiceInput] = Field(default_factory=list, max_length=100_000)
 
 
 class ImportCommitInput(StrictInput):
@@ -195,6 +201,7 @@ class RelationEffectView(Output):
 
 
 class EntryPreviewView(Output):
+    edit_ref: str | None = None
     fields: dict[str, Any]
     editable_fields: list[str]
 

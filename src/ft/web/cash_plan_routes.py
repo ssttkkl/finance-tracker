@@ -34,6 +34,7 @@ _PLAN_ERRORS = {
     "retry_context_expired": (410, "可重试内容已过期，请重新选择账单。"),
     "retry_context_unavailable": (410, "请重新选择账单处理未导入项。"),
     "retry_context_limit": (409, "请使用已经打开的重试内容。"),
+    "category_unavailable": (422, "分类已不可用，请重新选择。"),
     "plan_build_failed": (503, "暂时无法准备核对内容，请稍后重试。"),
 }
 _CONFLICTS = {
@@ -74,7 +75,8 @@ def plan_failure(error):
         return _error("workspace_forbidden", 403, "当前用户无权处理这些记录。")
     if isinstance(error, (CashImportPlanError, CashMutationPlanError)) and error.code in _PLAN_ERRORS:
         status, message = _PLAN_ERRORS[error.code]
-        return _error(error.code, status, message)
+        return _error(error.code, status, message,
+            **({"commit_state": "not_committed"} if getattr(error, "commit_state", None) == "not_committed" else {}))
     if isinstance(error, CashRecordMaintenanceError):
         code = error.code if error.code in _RECORD_ERRORS else "record_input_invalid"
         status, message = _RECORD_ERRORS[code]

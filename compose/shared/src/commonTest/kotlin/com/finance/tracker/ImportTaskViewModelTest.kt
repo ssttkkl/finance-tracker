@@ -9,6 +9,22 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun explicitRestartDiscardsOldEntryTargetBeforeRebuildingTheCurrentPlan() = runTest { task { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        vm.loadDetail("one"); advanceUntilIdle()
+        vm.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("note" to StructuredText("old target")))))
+        vm.preview(); advanceUntilIdle()
+        assertTrue(vm.state.value.choices.entries.isNotEmpty())
+        repo.previewFailure = DomainFailure("plan_changed", 409, FailureCategory.RECOVERABLE)
+        vm.preview(); advanceUntilIdle()
+        assertTrue(vm.state.value.needsContextRefresh)
+        repo.previewFailure = null
+        vm.restartPreview(); advanceUntilIdle()
+        assertTrue(assertNotNull(repo.lastChoices).entries.isEmpty())
+        assertTrue(vm.state.value.choices.entries.isEmpty())
+        assertTrue(vm.state.value.canConfirm)
+    } }
+
     @Test fun pendingFirstPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, store ->
         repo.pendingCount = 1
         repo.pageFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
@@ -589,6 +605,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
     var pageFailure: DomainFailure? = null
     var pendingCount = 0L
     var latestPlan: ImportPlan? = null
+    var previewFailure: DomainFailure? = null
     var failPreview = false
     var failFileMutation = false
     var failCancel = false
@@ -610,6 +627,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
     var beforeConfirm: suspend (ImportFrozenCommand) -> Unit = {}
     override suspend fun context(sessionId: String): ImportContext { contextReads++; contextFailure?.let { throw it }; return current }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan {
+        previewFailure?.let { throw it }
         events += "preview:$revision"; lastChoices = choices
         current = current.copy(revision = revision + 1, lastPlanId = TASK_PLAN, lastChoices = choices)
         if (failPreview) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
@@ -647,7 +665,8 @@ internal class TaskRepository : CashImportLifecycleRepository {
     }
     override suspend fun item(planId: String, itemId: String) = ImportItemDetail(itemId,
         listOf(ImportMemberDetail("f:r1", null, "create_draft", StructuredObject(emptyMap()), listOf("note"), listOf("apply", "defer"), null)),
-        emptyList(), emptyList(), listOf(ImportPairOption("sg_one", "refund_offset", null, "defer", null, emptyList(), emptyList(), listOf("accept", "defer", "ignore"), null)), emptyList())
+        emptyList(), emptyList(), listOf(ImportPairOption("sg_one", "refund_offset", null, "defer", null, emptyList(), emptyList(), listOf("accept", "defer", "ignore"), null)), emptyList(),
+        ImportEntryFields(StructuredObject(mapOf("note" to StructuredText("original"))), listOf("note"), "ie_whole"))
     override suspend fun processing(planId: String, cursor: String?, limit: Int): ImportProcessingPage = error("unused")
     override suspend fun receiptByKey(key: String): ImportReceipt = error("unused")
     override suspend fun results(receiptId: String, kind: ImportResultKind, after: String, limit: Int): ImportResultPage {

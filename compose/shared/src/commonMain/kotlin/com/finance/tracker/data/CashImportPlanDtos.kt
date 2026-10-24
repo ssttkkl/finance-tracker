@@ -34,12 +34,15 @@ data class CashImportRelationInput(
     @SerialName("inherit_common_fields") val inheritCommonFields: Boolean? = null,
 )
 @Serializable
+data class CashImportEntryInput(@SerialName("edit_ref") val editRef: String, val patch: JsonObject)
+@Serializable
 data class CashImportPreviewInput(
     @SerialName("expected_session_revision") val expectedSessionRevision: Long,
     @SerialName("previous_plan_id") val previousPlanId: String?,
     @SerialName("account_selections") val accountSelections: List<CashImportAccountInput>,
     @SerialName("row_choices") val rowChoices: List<CashImportRowInput>,
     @SerialName("relation_choices") val relationChoices: List<CashImportRelationInput>,
+    @SerialName("entry_choices") val entryChoices: List<CashImportEntryInput> = emptyList(),
 )
 
 @Serializable
@@ -153,7 +156,8 @@ data class CashPlanRelationEffectDto(
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>, val code: String? = null,
 )
 @Serializable
-data class CashPlanEntryDto(val fields: JsonObject, @SerialName("editable_fields") val editableFields: List<String>)
+data class CashPlanEntryDto(val fields: JsonObject, @SerialName("editable_fields") val editableFields: List<String>,
+    @SerialName("edit_ref") val editRef: String? = null)
 @Serializable
 data class CashPlanItemDetailDto(
     @SerialName("preview_item_id") val previewItemId: String,

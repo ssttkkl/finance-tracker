@@ -185,6 +185,7 @@ class CashImportContextService:
     @staticmethod
     def _invalidate_input(current, obsolete_refs):
         inputs = deepcopy(current.preview_input)
+        inputs.pop("entry_choices", None)
         if isinstance(inputs.get("row_choices"), list):
             inputs["row_choices"] = [choice for choice in inputs["row_choices"] if isinstance(choice, dict)
                 and not any(str(choice.get("row_ref", "")).startswith(ref + ":") for ref in obsolete_refs)]

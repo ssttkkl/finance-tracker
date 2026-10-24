@@ -137,13 +137,19 @@ class CashImportBusinessPlanBuilder:
         rows = list(prepared.rows)
         return self.build_operations(session=session, files=files, operations=operations, rows=rows,
             source_rows=prepared.source_plan.rows, relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
-            source_candidate_sets=prepared.candidate_sets)
+            source_candidate_sets=prepared.candidate_sets, entry_choices=preview_input.get("entry_choices", []))
 
     def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
         files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
         current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None,
-        current_relation_builder=None):
+        current_relation_builder=None, entry_choices=()):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
+        retained_entry_parents = set()
+        for choice in entry_choices:
+            target = (previous_plan or {}).get("entry_targets", {}).get(choice["edit_ref"])
+            if target is None:
+                raise CashImportPlanError("plan_changed")
+            retained_entry_parents.update(target["parent_ids"])
         accounts = self._accounts(session)
         new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
         candidates = self._candidate_ids(session, new, source_rows or {})
@@ -190,7 +196,7 @@ class CashImportBusinessPlanBuilder:
                     snapshot.facts[parent] = replace(snapshot.facts[parent], needs_attention=True)
         build = snapshot.build()
         result = self._present(files, operations, rows, snapshot, build, groups, failures, accounts,
-            include_unchanged=include_unchanged)
+            include_unchanged=include_unchanged, entry_parent_ids=retained_entry_parents)
         result.update(invalidated_choices=invalidated, invalidated_relation_choices=invalidated_sources,
             relation_choice_generations=choice_generations,
             source_candidate_sets=source_candidate_sets or {},
@@ -198,6 +204,8 @@ class CashImportBusinessPlanBuilder:
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
             type_effects={"removed_relation_ids": sorted(snapshot.removed_relations),
                 "removed_funding_ids": sorted(snapshot.removed_funding)})
+        from ft.application.cash_import_entry_choices import apply_entry_choices
+        apply_entry_choices(result, entry_choices, previous_plan, session, self.workspace_id)
         _wire_in_place(result)
         # 两个共享操作规划器已经转换过这些值；只转换本阶段新生成的内容。
         result.update(operations=operations, row_decisions=rows)
@@ -851,9 +859,9 @@ class CashImportBusinessPlanBuilder:
         operation = snapshot.parent_ops.get(identifier)
         return {"row_ref": operation["row_refs"][0]} if operation else {"transaction_id": identifier}
 
-    def _present(self, files, operations, rows, snapshot, build, groups, failures, accounts, *, include_unchanged=False):
+    def _present(self, files, operations, rows, snapshot, build, groups, failures, accounts, *, include_unchanged=False, entry_parent_ids=()):
         changed = {parent for parent, operation in snapshot.parent_ops.items() if operation["planned_action"] != "duplicate"}
-        touched = set(changed)
+        touched = set(changed) | set(entry_parent_ids)
         if include_unchanged:
             touched.update(snapshot.parent_ops)
         touched.update(parent for group in groups for parent in group["parent_ids"])
@@ -872,8 +880,10 @@ class CashImportBusinessPlanBuilder:
                 for parent in (edge.primary_transaction_id, edge.secondary_transaction_id):
                     if parent is not None:
                         old_edges[parent][edge.id] = edge
-        items, details, detail_values = [], {}, {}
+        items, details, detail_values, entry_targets = [], {}, {}, {}
         by_suggestion = {group["suggestion_id"]: group for group in groups}
+        from ft.application.cash_import_entry_choices import entry_target, entry_target_index
+        target_index = entry_target_index(snapshot, groups)
         for index, projection in enumerate(projections):
             identifier = f"pi_{index + 1}"
             parents = {str(parent) for parent in projection.member_ids}
@@ -924,7 +934,9 @@ class CashImportBusinessPlanBuilder:
             root = str(projection.primary_record.id)
             public = deepcopy(snapshot.entry_public.get(root, {}).get('values', {}))
             public.update({field: getattr(projection.primary_record, field) for field in ('note', 'counterparty', 'category_id')})
-            details[identifier] = {"entry": {'fields': public, 'editable_fields': sorted(COMMON_CASH_FIELDS)},
+            edit_ref, target = entry_target(snapshot, parents, target_index)
+            entry_targets[edit_ref] = target
+            details[identifier] = {"entry": {'fields': public, 'editable_fields': sorted(COMMON_CASH_FIELDS), 'edit_ref': edit_ref},
                 "members": members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}
         counts = dict(Counter(op["planned_action"] for op in operations))
         counts.update({"duplicate": sum(row["planned_action"] in {"duplicate", "duplicate_in_batch"} for row in rows),
@@ -944,7 +956,7 @@ class CashImportBusinessPlanBuilder:
         from ft.application.cash_import_session_view import cash_import_file_view
         file_results = [{key: value for key, value in cash_import_file_view(file).items()
             if key in {"file_ref", "display_name", "status", "recognized_row_count", "issues", "can_retry"}} for file in files]
-        return {"items": items, "item_details": details, "detail_values": detail_values, "processing_details": processing,
+        return {"items": items, "item_details": details, "detail_values": detail_values, "entry_targets": entry_targets, "processing_details": processing,
             "file_results": file_results, "summary": counts, "can_commit": any(file.status == "parsed" for file in files)}
 
     @staticmethod

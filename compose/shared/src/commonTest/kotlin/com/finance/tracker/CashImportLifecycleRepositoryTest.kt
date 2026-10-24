@@ -22,6 +22,8 @@ class CashImportLifecycleRepositoryTest {
         assertEquals(ImportRowDecision.APPLY, choices.rows.single().action)
         assertEquals(StructuredNull, choices.rows.single().patch.fields["note"])
         assertEquals(ImportPairDecision.DEFER, choices.relations.single().action)
+        assertEquals("ie_whole", choices.entries.single().editRef)
+        assertEquals(StructuredNull, choices.entries.single().patch.fields["category_id"])
         api.close()
     }
 
@@ -45,9 +47,14 @@ class CashImportLifecycleRepositoryTest {
         val choices = ImportChoiceSet(
             listOf(ImportAccountSelection("src1", ImportAccountTarget(null, null))),
             listOf(ImportRecordChoice("f1:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("note" to StructuredNull)))),
-            listOf(ImportPairChoice("sg_group", ImportPairDecision.DEFER)))
+            listOf(ImportPairChoice("sg_group", ImportPairDecision.DEFER)),
+            listOf(ImportEntryChoice("ie_whole", StructuredObject(mapOf("category_id" to StructuredNull, "note" to StructuredText(""))))))
         KtorCashImportLifecycleRepository(api).preview("s1", 3, null, choices)
         val body = assertNotNull(sent)
+        val entry = body["entry_choices"]!!.jsonArray.single().jsonObject
+        assertEquals("ie_whole", entry["edit_ref"]!!.jsonPrimitive.content)
+        assertEquals(JsonNull, entry["patch"]!!.jsonObject["category_id"])
+        assertEquals("", entry["patch"]!!.jsonObject["note"]!!.jsonPrimitive.content)
         assertEquals(JsonNull, body["previous_plan_id"])
         assertEquals(JsonNull, body["account_selections"]!!.jsonArray.single().jsonObject["account_id"])
         assertEquals(JsonNull, body["row_choices"]!!.jsonArray.single().jsonObject["patch"]!!.jsonObject["note"])
@@ -183,7 +190,7 @@ private class LifecycleTokenStore : TokenStore {
     override suspend fun set(value: String) = Unit
     override suspend fun clear() = Unit
 }
-private const val CONTEXT = """{"session_id":"s1","session_revision":3,"expires_at":"2099-01-01T00:00:00Z","state":"open","files":[],"source_accounts":[{"source_account_ref":"src1","source_type":"wechat","display_name":"零钱","currencies":["CNY"],"row_count":1,"suggestion":{"account_id":"9007199254740993","expected_account_revision":7,"basis":"confirmed_mapping"},"selection":{"account_id":null,"expected_account_revision":null}}],"last_preview_input":{"account_selections":[{"source_account_ref":"src1","account_id":null,"expected_account_revision":null}],"row_choices":[{"row_ref":"f1:r1","action":"apply","patch":{"note":null}}],"relation_choices":[{"suggestion_id":"sg_group","action":"defer","candidate_id":null}]},"last_plan_id":null,"can_preview":true,"receipt_id":null}"""
+private const val CONTEXT = """{"session_id":"s1","session_revision":3,"expires_at":"2099-01-01T00:00:00Z","state":"open","files":[],"source_accounts":[{"source_account_ref":"src1","source_type":"wechat","display_name":"零钱","currencies":["CNY"],"row_count":1,"suggestion":{"account_id":"9007199254740993","expected_account_revision":7,"basis":"confirmed_mapping"},"selection":{"account_id":null,"expected_account_revision":null}}],"last_preview_input":{"account_selections":[{"source_account_ref":"src1","account_id":null,"expected_account_revision":null}],"row_choices":[{"row_ref":"f1:r1","action":"apply","patch":{"note":null}}],"relation_choices":[{"suggestion_id":"sg_group","action":"defer","candidate_id":null}],"entry_choices":[{"edit_ref":"ie_whole","patch":{"category_id":null}}]},"last_plan_id":null,"can_preview":true,"receipt_id":null}"""
 private const val PLAN = """{"plan_id":"ip_one","session_id":"s1","session_revision":4,"expires_at":"2099-01-01T00:00:00Z","summary":{"saved_draft":1},"item_counts":{"pending":1,"confirmed":0},"can_commit":true,"items":[{"preview_item_id":"item1","confirmation_status":"pending","anticipated_state":"draft","display":{"occurred_at":null,"amount":"12345678901234567890.0100","currency":"CNY","counterparty":null,"note":null,"accounts":[]},"statistics_eligible":false,"member_refs":[{"row_ref":"f1:r1"}],"attention_reasons":[],"detail_available":true}],"file_results":[],"pages":{"items":"next/+?&","processing_details":null},"invalidated_choices":[]}"""
 private const val DETAIL = """{"preview_item_id":"item1","members":[{"row_ref":"f1:r1","planned_action":"save_draft","fields":{"amount":"12345678901234567890.0100","note":null,"source_snapshot":{"number":9007199254740993}},"editable_fields":["note","record_type"],"allowed_actions":["apply","defer"]}],"field_diffs":[{"row_ref":"f1:r1","field":"note","current":"人工","incoming":"来源","effective":null,"resolution":"protected"}],"issues":[],"relation_choices":[{"suggestion_id":"sg_joint","action":"defer","candidates":[{"candidate_id":"candidate1","member_refs":[{"transaction_id":"t2"}]}],"member_refs":[{"row_ref":"f1:r1"},{"row_ref":"f1:r2"}],"allowed_actions":["accept","defer","ignore"]}],"relation_effects":[{"relation_id":"rel1","kind":"refund_offset","effect":"removed","member_refs":[{"transaction_id":"t1"}]}]}"""
 private const val RECEIPT = """{"receipt_id":"receipt1","plan_id":"ip_one","operation_kind":"import","committed":true,"created_at":"2026-01-01T00:00:00Z","status":"partial","summary":{"created_posted":1,"skipped":1},"needs_attention_count":2,"pending_item_count":2,"projection_version":9,"retry_context_status":"available","retry_context_expires_at":"2099-01-01T00:00:00Z"}"""
