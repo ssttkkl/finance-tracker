@@ -40,9 +40,17 @@ def test_monthly_summaries_follow_requested_browser_timezone():
 
     utc = RelationalCashLedgerQueryRepository._monthly_summaries(rows, "UTC")
     tokyo = RelationalCashLedgerQueryRepository._monthly_summaries(rows, "Asia/Tokyo")
+    _, utc_positions = RelationalCashLedgerQueryRepository._monthly_summary_data(rows, "UTC")
+    _, tokyo_positions = RelationalCashLedgerQueryRepository._monthly_summary_data(rows, "Asia/Tokyo")
 
     assert [summary.month for summary in utc] == ["2026-06"]
     assert [summary.month for summary in tokyo] == ["2026-07"]
+    assert [(position.month, position.start_index, position.end_index) for position in utc_positions] == [
+        ("2026-06", 0, 1),
+    ]
+    assert [(position.month, position.start_index, position.end_index) for position in tokyo_positions] == [
+        ("2026-07", 0, 1),
+    ]
 
 
 def test_monthly_summaries_keep_full_money_precision_under_a_small_caller_context():
@@ -64,6 +72,171 @@ def test_projection_page_filters_and_stable_cursor(cash_web_runtime):
     assert [x.projection_id for x in service.list_cash_projections(economic_type="income").items]==["cash:1001"]
     with pytest.raises(ValueError,match="invalid_cursor"):service.list_cash_projections(cursor=first.next_cursor,category_id="category-food")
     with pytest.raises(ValueError,match="invalid_cursor"):service.list_cash_projections(cursor=first.next_cursor,timezone="Asia/Tokyo")
+
+
+def test_projection_page_supports_absolute_index_and_filtered_total(cash_web_runtime):
+    service = _service(cash_web_runtime)
+
+    first = service.list_cash_projections(limit=1, start_index=0)
+    middle = service.list_cash_projections(
+        limit=1,
+        start_index=1,
+        projection_version=first.projection_version,
+    )
+    last = service.list_cash_projections(
+        limit=1,
+        start_index=2,
+        projection_version=first.projection_version,
+    )
+    food = service.list_cash_projections(
+        limit=5,
+        start_index=0,
+        category_id="category-food",
+    )
+    empty = service.list_cash_projections(
+        limit=5,
+        start_index=0,
+        counterparty="不存在的交易对方",
+    )
+
+    assert [first.items[0].projection_id, middle.items[0].projection_id, last.items[0].projection_id] == [
+        "cash:1003", "cash:1002", "cash:1001",
+    ]
+    assert (first.total_count, middle.total_count, last.total_count) == (3, 3, 3)
+    assert (first.start_index, middle.start_index, last.start_index) == (0, 1, 2)
+    assert (first.items_before, first.items_after) == (0, 2)
+    assert (middle.items_before, middle.items_after) == (1, 1)
+    assert (last.items_before, last.items_after) == (2, 0)
+    assert [item.projection_id for item in food.items] == ["cash:1003"]
+    assert food.total_count == 1
+    assert empty.items == ()
+    assert empty.total_count == 0
+    assert empty.month_positions == ()
+
+
+def test_indexed_page_returns_month_positions_once_for_the_snapshot(cash_web_runtime, monkeypatch):
+    from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
+    from sqlalchemy import select
+
+    service = _service(cash_web_runtime)
+    with cash_web_runtime.sessions.begin() as session:
+        state = session.scalar(select(CashProjectionStateModel).where(CashProjectionStateModel.workspace_id == cash_web_runtime.workspace_id))
+        session.add_all((
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-income",
+                root_cash_transaction_id=1001, economic_type="income", transfer_subtype=None, net_amount=Decimal("10"), currency="USD",
+                occurred_at=datetime(2026, 6, 30, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月收入",
+                category_id="category-income", category_path="/category-income/", note="", source_type="fixture", record_id="month-june-income", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+            CashProjectionModel(
+                workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-expense",
+                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="USD",
+                occurred_at=datetime(2026, 6, 29, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月支出",
+                category_id="category-daily", category_path="/category-daily/", note="", source_type="fixture", record_id="month-june-expense", visible=True,
+                hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
+            ),
+        ))
+
+    repository = service._repository
+    aggregate = repository._monthly_summary_data
+    aggregate_calls = 0
+
+    def count_aggregate_calls(rows, timezone_name):
+        nonlocal aggregate_calls
+        aggregate_calls += 1
+        return aggregate(rows, timezone_name)
+
+    monkeypatch.setattr(repository, "_monthly_summary_data", count_aggregate_calls)
+    first = service.list_cash_projections(limit=1, start_index=0)
+    following = service.list_cash_projections(
+        limit=1,
+        start_index=1,
+        projection_version=first.projection_version,
+    )
+
+    assert first.total_count == 5
+    assert [(position.month, position.start_index, position.end_index) for position in first.month_positions] == [
+        ("2026-07", 0, 3),
+        ("2026-06", 3, 5),
+    ]
+    assert first.monthly_summaries
+    assert following.month_positions == ()
+    assert following.monthly_summaries == ()
+    assert aggregate_calls == 1
+
+
+def test_projection_index_count_and_rows_are_workspace_scoped(cash_web_runtime):
+    from ft.adapters.relational.models import CashTransactionComponentModel, CashTransactionModel
+    from ft.adapters.relational.uow import ensure_workspace
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import CashLedgerQueryService
+
+    main_service = _service(cash_web_runtime)
+    other_workspace = "other-workspace"
+    ensure_workspace(cash_web_runtime.sessions, other_workspace)
+    with cash_web_runtime.sessions.begin() as session:
+        session.add(CashTransactionModel(
+            id=2001,
+            workspace_id=other_workspace,
+            account_id=104,
+            occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("UTC")),
+            amount=Decimal("-5"),
+            currency="CNY",
+            counterparty="另一工作区流水",
+            category_id=None,
+            source_type="fixture",
+            record_id="other-workspace-cash-001",
+        ))
+        session.flush()
+        session.add(CashTransactionComponentModel(
+            id=2001,
+            workspace_id=other_workspace,
+            cash_transaction_id=2001,
+            account_id=104,
+            amount=Decimal("-5"),
+            currency="CNY",
+            ordinal=0,
+        ))
+    CashProjectionService(cash_web_runtime.sessions, other_workspace).rebuild()
+    other_service = CashLedgerQueryService(cash_web_runtime.sessions, other_workspace)
+
+    main_page = main_service.list_cash_projections(start_index=0, limit=10)
+    other_page = other_service.list_cash_projections(start_index=0, limit=10)
+
+    assert main_page.total_count == 3
+    assert [item.counterparty for item in main_page.items] == ["咖啡店", "超市", "工资"]
+    assert other_page.total_count == 1
+    assert [item.counterparty for item in other_page.items] == ["另一工作区流水"]
+
+
+def test_projection_index_rejects_cursor_combination_and_invalid_values(cash_web_runtime):
+    service = _service(cash_web_runtime)
+    cursor = service.list_cash_projections(limit=1).next_cursor
+
+    initial_seek = service.list_cash_projections(limit=1, start_index=1)
+    assert initial_seek.items[0].projection_id == "cash:1002"
+    assert initial_seek.projection_version > 0
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(limit=1, start_index=0, cursor=cursor)
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(limit=1, start_index=-1, projection_version=1)
+
+
+def test_old_version_index_requires_refresh(cash_web_runtime):
+    from ft.application.cash_projections import CashProjectionService
+    from ft.application.web_queries import ProjectionUpdatedError
+
+    service = _service(cash_web_runtime)
+    first = service.list_cash_projections(limit=1, start_index=0)
+    CashProjectionService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).rebuild()
+
+    with pytest.raises(ProjectionUpdatedError):
+        service.list_cash_projections(
+            limit=1,
+            start_index=1,
+            projection_version=first.projection_version,
+        )
 
 def test_projection_page_returns_monthly_summaries_for_all_filtered_rows(cash_web_runtime):
     from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
@@ -402,3 +575,59 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
     assert CashProjectionService(runtime.sessions, runtime.workspace_id).status()["projection_version"] == baseline_version + 1
     with pytest.raises(ProjectionUpdatedError):
         baseline.list_cash_projections(limit=2, cursor=page.next_cursor)
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics(request, runtime_name):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashProjectionModel
+    from ft.application.web_queries import CashLedgerQueryService
+
+    runtime = request.getfixturevalue(runtime_name)
+    service = _service(runtime)
+    with runtime.sessions.begin() as session:
+        rows = {row.projection_id: row for row in session.scalars(select(CashProjectionModel).where(
+            CashProjectionModel.workspace_id == runtime.workspace_id)).all()}
+        for key, day in [("cash:1003", 31), ("cash:1002", 30), ("cash:1001", 29)]:
+            rows[key].sort_at = datetime(2026, 10, day, tzinfo=ZoneInfo("UTC"))
+            rows[key].occurred_at = rows[key].sort_at
+        draft = rows["cash:1002"]
+        draft.state = "draft"
+        draft.occurred_at = None
+        draft.statistics_eligible = False
+        draft.attention_count = 1
+        draft.economic_type = None
+
+    first = service.list_cash_projections(start_index=0, limit=1)
+    middle = service.list_cash_projections(start_index=1, limit=1, projection_version=first.projection_version)
+    cold_middle = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=1, limit=1, projection_version=first.projection_version)
+    assert cold_middle.items == middle.items
+    assert cold_middle.total_count == 3 and cold_middle.pending_item_count == 1
+    assert cold_middle.month_positions == cold_middle.monthly_summaries == ()
+    cold_empty = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=0, projection_version=first.projection_version, counterparty="no-matching-counterparty")
+    assert not cold_empty.items and cold_empty.total_count == cold_empty.pending_item_count == 0
+    cold_beyond = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=99, projection_version=first.projection_version)
+    assert not cold_beyond.items and cold_beyond.total_count == 3 and cold_beyond.pending_item_count == 1
+    end = service.list_cash_projections(start_index=2, limit=1, projection_version=first.projection_version)
+    cursor_first = service.list_cash_projections(limit=1)
+    cursor_second = service.list_cash_projections(limit=1, cursor=cursor_first.next_cursor)
+    cursor_last = service.list_cash_projections(limit=1, cursor=cursor_second.next_cursor)
+    assert [row.transaction_id for page in (first, middle, end) for row in page.items] == [
+        row.transaction_id for page in (cursor_first, cursor_second, cursor_last) for row in page.items]
+    assert [(p.month, p.start_index, p.end_index) for p in first.month_positions] == [
+        ("2026-10", 0, 1), ("unknown", 1, 2), ("2026-10", 2, 3)]
+    assert [(p.total_count, p.pending_item_count) for p in (first, middle, end)] == [(3, 1)] * 3
+    assert middle.items[0].occurred_at is None
+    assert middle.items[0].statistics_eligible is False
+    assert middle.month_positions == end.month_positions == ()
+    assert middle.monthly_summaries == end.monthly_summaries == ()
+    currencies = first.monthly_summaries[0].currencies
+    assert sum(Decimal(row.expense) for row in currencies) == Decimal(first.items[0].amount)
+    assert sum(Decimal(row.income) for row in currencies) == Decimal(end.items[0].amount)
+    pending = service.list_cash_projections(start_index=0, state="draft", confirmation_status="pending", limit=1)
+    assert pending.total_count == pending.pending_item_count == 1
+    assert pending.monthly_summaries == ()
+    assert [(p.month, p.start_index, p.end_index) for p in pending.month_positions] == [("unknown", 0, 1)]

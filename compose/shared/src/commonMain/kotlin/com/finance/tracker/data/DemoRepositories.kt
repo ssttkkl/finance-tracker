@@ -1,5 +1,6 @@
 package com.finance.tracker.data
 
+import com.finance.tracker.core.getLocalDateForInstant
 import com.finance.tracker.domain.*
 
 private const val DEMO_WORKSPACE_ID = "demo-workspace"
@@ -206,18 +207,32 @@ class DemoFinanceRepository : FinanceRepository {
     private var nextCategoryNumber = 1
     private var nextRelationNumber = 1
 
-    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
+    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage {
         if (listOfNotNull(filters.amountMin, filters.amountMax).any { !isExactDecimalString(it) }) {
             throw demoFailure("invalid_filter", 400)
         }
         val filtered = records.filter { transferRoot(it.id) == it.id }.filter { row ->
             (transferMembers(row.id).ifEmpty { listOf(row.id) }).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
+        }.sortedWith(compareByDescending<CashRecord> { it.occurredAt }.thenByDescending { it.id })
+        if (projectionVersion != null && projectionVersion != this.projectionVersion) {
+            throw demoFailure("read_snapshot_changed", 409)
         }
-        val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
-        val page = filtered.drop(offset).take(DEMO_PAGE_SIZE)
-        val next = (offset + page.size).takeIf { it < filtered.size }?.toString()
+        val offset = (startIndex ?: cursor?.toIntOrNull() ?: 0).coerceAtLeast(0)
+        val page = filtered.drop(offset).take(limit.coerceIn(1, DEMO_PAGE_SIZE))
+        val next = (offset + page.size).takeIf { startIndex == null && it < filtered.size }?.toString()
+        val monthPositions = if (startIndex != null && projectionVersion == null) {
+            val positions = mutableListOf<CashMonthPosition>()
+            filtered.forEachIndexed { index, record ->
+                val month = projection(record).occurredAt?.let { getLocalDateForInstant(it).take(7) } ?: "unknown"
+                if (positions.lastOrNull()?.month == month) {
+                    val previous = positions.removeAt(positions.lastIndex)
+                    positions += previous.copy(endIndex = index + 1)
+                } else positions += CashMonthPosition(month, index, index + 1)
+            }
+            positions
+        } else emptyList()
         return CashPage(
-            projectionVersion = projectionVersion,
+            projectionVersion = this.projectionVersion,
             items = page.map(::projection),
             nextCursor = next,
             pageSize = page.size,
@@ -227,7 +242,17 @@ class DemoFinanceRepository : FinanceRepository {
                 currencies = listOf("CNY", "USD"),
                 economicTypes = listOf(CashEconomicTypeFilterOption("income"), CashEconomicTypeFilterOption("expense")),
             ),
-            monthlySummaries = listOf(CashMonthlySummary("2026-10", listOf(CashMonthlyCurrencySummary("CNY", "12000.00", "44.00")))),
+            monthlySummaries = if (startIndex == null || projectionVersion == null) {
+                listOf(CashMonthlySummary("2026-10", listOf(CashMonthlyCurrencySummary("CNY", "12000.00", "44.00"))))
+            } else {
+                emptyList()
+            },
+            pendingItemCount = filtered.count { projection(it).attentionCount > 0 }.toLong(),
+            monthPositions = monthPositions,
+            startIndex = startIndex,
+            totalCount = filtered.size.takeIf { startIndex != null },
+            itemsBefore = startIndex?.coerceAtMost(filtered.size),
+            itemsAfter = startIndex?.let { (filtered.size - it - page.size).coerceAtLeast(0) },
         )
     }
 

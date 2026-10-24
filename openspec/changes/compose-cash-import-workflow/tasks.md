@@ -44,14 +44,10 @@
 
 - [ ] 8.1 记录可复用防复发测试与必要规则，保持文档只表述当前结论；完成后再按实际依赖同步 delta，未实现内容不提前归档。
 
-### 当前实施与验证
+### 当前审查与验证
 
-2026-10-25，验证 `HEAD=5b42f96` 加本次工作树，生产比较基线 `099dfaa`、用户认可视觉基线 `8aa0b40`。本模块恢复文件在上、来源账户集中在下的准备页，以及与账本共用的流水摘要和补充字段布局。不改变财务、权限、状态机、请求或存储合同。
+2026-10-25，当前合并树以 `bb66b38` 为第一父提交、`origin/main=adcb081` 为第二父提交。保留完整导入任务、待确认默认筛选、文件上账户下、统一核对、摘要结果和通用提交错误；返回账本后使用主分支管理导航和索引列表。当前依赖未升级，退役协议未恢复。
 
-Cross-platform Impact Check：共享页面和浅深主题语义色影响 Web、Android、iOS。Wasm 388／Android 主机 383 项无失败或 skip，Web／Android 构建及 iOS 共享编译通过；本轮 iOS 平台单测及设备／应用包 QA 按用户决定未执行。Chromium 当前 HTTP 合同 21 个用例覆盖（整轮 20 通过、测试输入同步修正后原请求断言独立 1/1），离线 Demo 7/7；代表视口 1440×900，布局补验 390×844／768×900、改色补验深色。当前夹具冒烟不称作本轮真实 API 验收，既有证据见下文。
+实际命令、当前编译／单测、Web 合同与演示、双库回归、性能、独立审查、文档收尾和风险集中见 [共同当前审查与验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)。共享层影响 Web、Android、iOS；默认 Web 冒烟，Android 编译和主机单测，iOS 仅共享编译，本轮平台单测及应用包／设备 QA 按用户决定不执行。当前合并的受影响验证与实际截图复核已通过，账户表单三窗口主操作顺序已回归；用户演示确认仍未取得。
 
-测试先行、实际命令／日志、截图、独立工程／设计复核、官方阅读、配色对比度、文档收尾及回退证据集中见 [共同当前审查与验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)。本轮最终实际截图 Hallmark audit／独立设计复核 0 critical／0 major／0 minor。未新增领域概念，README／业务接口／配置迁移说明无需改动；功能地图和相关 design／delta 已同组更新。
-
-Compose 1.12.1 已登记无障碍树及输入镜像缺陷仍保留，物理交互通过不记屏幕阅读器通过。演示 `http://127.0.0.1:5309/w/demo-workspace/` 只写合成内存数据，完整用户确认尚未取得，6.5／7.2／8.1 保持未完成，不归档。
-
-既有业务验收：共享 `CashImportTaskScreen` 已替换旧四步及 scan／preview／commit 客户端；待确认优先、零待确认显示全部、文件上账户下、统一核对、摘要结果及通用提交错误已接真实 App／Graph。合成 SQLite API `58792` 的上传／公共备注／账户退出 3/3（22.1s），消费退款完整候选延后 1/1（11.2s），重复导入原文差异采用 1/1（11.6s）；日志 `/tmp/ft-cash-import-retired-real-browser.log`、`/tmp/ft-cash-import-refund-mapped-browser.log`、`/tmp/ft-cash-import-source-update-rendered-browser.log`，本轮不冒充重跑。后端双库当前合同矩阵 329 passed、暂存单测 153 passed，日志 `/tmp/ft-cash-plan-cache-final-{dual,unit}.log`；整笔公共目标双库 89 passed、只读候选成员 205 passed，见父 change。千行性能及 publication 双库 54 passed，SQLite／PostgreSQL 预览 2.46／2.61s、提交 4.68／10.65s、同页热读 p95 约 14.3ms，冷读与万行独立待办不变（`/tmp/ft-cash-import-final-performance.log`）。密码重传、复杂分摊、来源设置及账户未知分支已有共享合同测试，本轮未穷举 Web；6.5 演示确认未取得。
+Compose 1.12.1 已登记无障碍缺陷保留；演示 `http://127.0.0.1:5309/w/demo-workspace/` 仅使用合成内存数据，完整用户确认尚未取得。6.5／7.2／8.1 保持未完成，不归档，不声称已合入 main 或部署。

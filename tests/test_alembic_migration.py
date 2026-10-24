@@ -544,7 +544,7 @@ def test_cash_record_subtype_migration_keeps_active_identity_partial_index(tmp_p
         engine.dispose()
 
 
-def test_icbc_asia_source_type_migration_renames_active_business_identity(tmp_path):
+def test_icbc_asia_source_type_migration_and_head_downgrade_boundary(tmp_path):
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
@@ -578,7 +578,10 @@ def test_icbc_asia_source_type_migration_renames_active_business_identity(tmp_pa
             )).one()
         assert values == ("icbc_asia", "icbc_asia_abc")
 
-        with pytest.raises(NotImplementedError, match="restore from backup"):
+        with pytest.raises(
+            NotImplementedError,
+            match="wealth-attribution retirement deletes source snapshots and results",
+        ):
             command.downgrade(config, "20260804_19")
     finally:
         engine.dispose()
@@ -713,7 +716,7 @@ def test_open_leg_candidate_migration_defaults_existing_relations_to_empty_list(
 
 
 def test_initial_revision_upgrades_dedicated_postgresql():
-    """Head schema is executable on the real test server (multi-currency is one-shot)."""
+    """Head schema runs on PostgreSQL and refuses to erase retired source history."""
     url = os.environ.get("FT_TEST_POSTGRES_URL")
     if not url:
         pytest.skip("set FT_TEST_POSTGRES_URL to run PostgreSQL migration parity")
@@ -775,8 +778,12 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             assert "candidate_fact_ids" not in rel_cols
             assert "cash_relation_candidates" in tables
             assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(rel_cols)
-            # Wealth retirement is the first irreversible revision from head.
-            with pytest.raises(NotImplementedError, match="restore from backup"):
+            # The current head removes wealth-attribution source snapshots and results.
+            # Downgrading across it must require a backup restore.
+            with pytest.raises(
+                NotImplementedError,
+                match="wealth-attribution retirement deletes source snapshots and results",
+            ):
                 command.downgrade(config, "20260722_06")
             # Reset and re-upgrade proves head is re-applicable on a clean schema.
             test_conftest.reset_postgres_schema(url)

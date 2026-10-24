@@ -5,8 +5,8 @@ import com.finance.tracker.data.mapping.toStructuredObject
 import kotlinx.coroutines.CancellationException
 
 class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRepository {
-    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage = guarded {
-        apiClient.fetchCashPage(filters.toDto(), cursor).toDomain()
+    override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage = guarded {
+        apiClient.fetchCashPage(filters.toDto(), cursor, startIndex, projectionVersion, limit).toDomain()
     }
 
     override suspend fun fetchCashAccounts(): List<Account> = guarded { apiClient.fetchCashAccounts().map { it.toDomain() } }

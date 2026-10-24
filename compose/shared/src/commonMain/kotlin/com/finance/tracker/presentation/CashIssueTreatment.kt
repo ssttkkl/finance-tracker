@@ -215,12 +215,17 @@ private fun cashHasUnresolvedEffects(state: CashRecordTaskState): Boolean =
     state.plan?.additionalEffects.orEmpty().any { cashEffectTargets(it, state.details, state.input).isEmpty() }
 
 @Composable
-internal fun CashMaintenanceConfirmationActions(state: CashRecordTaskState, onConfirm: () -> Unit, onCancel: () -> Unit) {
+internal fun CashMaintenanceConfirmationActions(state: CashRecordTaskState, onConfirm: () -> Unit, onCancel: () -> Unit, sideSheet: Boolean = false) {
     val plan = state.plan ?: return
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (!sideSheet) {
         TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
+        }
         Button(onClick = onConfirm, enabled = !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty(),
             modifier = Modifier.testTag("cash.maintenance.confirm")) { Text(localizedText("cash_confirm_save")) }
+        if (sideSheet) {
+        TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
+        }
     }
 }
 

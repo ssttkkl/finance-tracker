@@ -114,6 +114,13 @@ data class CashMonthlyCurrencySummaryDto(val currency: String, val income: Strin
 data class CashMonthlySummaryDto(val month: String, val currencies: List<CashMonthlyCurrencySummaryDto> = emptyList())
 
 @Serializable
+data class CashMonthPositionDto(
+    val month: String,
+    @SerialName("start_index") val startIndex: Int,
+    @SerialName("end_index") val endIndex: Int,
+)
+
+@Serializable
 data class CashPageDto(
     @SerialName("projection_version") val projectionVersion: Long,
     val items: List<CashProjectionDto> = emptyList(),
@@ -123,6 +130,11 @@ data class CashPageDto(
     @SerialName("filter_options") val filterOptions: CashFilterOptionsDto = CashFilterOptionsDto(),
     @SerialName("monthly_summaries") val monthlySummaries: List<CashMonthlySummaryDto> = emptyList(),
     @SerialName("pending_item_count") val pendingItemCount: Long = 0,
+    @SerialName("month_positions") val monthPositions: List<CashMonthPositionDto> = emptyList(),
+    @SerialName("start_index") val startIndex: Int? = null,
+    @SerialName("total_count") val totalCount: Int? = null,
+    @SerialName("items_before") val itemsBefore: Int? = null,
+    @SerialName("items_after") val itemsAfter: Int? = null,
 )
 
 @Serializable
@@ -257,6 +269,7 @@ data class EvidenceDto(
 @Serializable
 data class CashRecordDto(
     val id: String,
+    @SerialName("component_id") val componentId: String? = null,
     @SerialName("occurred_at") val occurredAt: String,
     val amount: String,
     val currency: String,
@@ -284,6 +297,9 @@ data class CashRelationDto(
     val status: String,
     @SerialName("primary_record") val primaryRecord: CashRecordDto? = null,
     @SerialName("secondary_record") val secondaryRecord: CashRecordDto? = null,
+    @SerialName("primary_component_id") val primaryComponentId: Long? = null,
+    @SerialName("secondary_component_id") val secondaryComponentId: Long? = null,
+    @SerialName("applied_amount") val appliedAmount: String? = null,
 )
 
 @Serializable

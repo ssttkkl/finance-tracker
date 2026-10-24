@@ -72,6 +72,29 @@ async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = fal
   await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("待核对商户");
 }
 
+for (const width of [390, 768, 1440]) {
+  test(`import account task keeps responsive actions and readable fields ${width}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    const calls = await setup(page);
+    calls.context.source_accounts.push({ source_account_ref: "source-account", source_type: "alipay",
+      display_name: "账单账户", currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" } });
+    await uploadAndReview(page, false, true);
+    await press(page, "cash.import.create-account");
+    const footer = page.locator('[id="ledger.record-panel.footer"]:visible');
+    const save = await page.locator('[id="cash.import.account-form.save"]:visible').boundingBox();
+    const cancel = await footer.getByRole("button", { name: "取消", exact: true }).boundingBox();
+    const field = await page.locator('[id="cash.import.account-form.name"]:visible').boundingBox();
+    const area = await footer.boundingBox();
+    expect(save).not.toBeNull(); expect(cancel).not.toBeNull(); expect(field).not.toBeNull(); expect(area).not.toBeNull();
+    expect(field!.width).toBeLessThanOrEqual(720);
+    expect(area!.height).toBe(width < 600 ? 56 : 112);
+    if (width < 600) expect(cancel!.x).toBeLessThan(save!.x);
+    else expect(save!.x).toBeLessThan(cancel!.x);
+    await page.screenshot({ path: info.outputPath(`account-task-${width}.png`) });
+    expect(calls.fixtures.calls.filter(call => call.method === "POST" && call.path === "/api/v1/accounts")).toHaveLength(0);
+  });
+}
+
 test("cash import reviews pending pages in the main task and shows only the actual result summary", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const diagnostics = captureBrowserDiagnostics(page);
@@ -158,8 +181,8 @@ test("a completed import reloads the cached ledger even after visiting another p
   expect(before).toBeGreaterThan(0);
   await press(page, "cash.import.confirm");
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("导入完成");
-  await press(page, "navigation-item-cash-categories");
-  await expect(page).toHaveURL(/cash-categories$/);
+  await press(page, "navigation-item-workspace-management");
+  await expect(page).toHaveURL(/workspace-management$/);
   await press(page, "navigation-item-cash-ledger");
   await expect(page).toHaveURL(/workspace-1\/$/);
   await expect.poll(reads).toBeGreaterThan(before);

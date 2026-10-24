@@ -198,8 +198,15 @@ def test_full_refund_stays_visible_without_overriding_explicit_filters_or_deleti
     assert page.items[0].amount == "0" and page.items[0].attention_count == 1 and page.items[0].statistics_eligible
     for filters in ({"currency": "USD"}, {"amount_min": "1"}, {"date_from": "2026-02-01"}):
         assert not service.list_cash_projections(confirmation_status="pending", **filters).items
+    indexed = service.list_cash_projections(confirmation_status="pending", start_index=0, limit=1)
+    assert indexed.total_count == 1 and indexed.pending_item_count == 1
+    assert sum(item.end_index - item.start_index for item in indexed.month_positions) == 1
     with runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1103).deleted_at = CREATED
+    hidden = service.list_cash_projections(confirmation_status="pending", start_index=0, limit=1)
+    assert hidden.projection_version == indexed.projection_version
+    assert hidden.total_count == hidden.pending_item_count == 0
+    assert not hidden.items and not hidden.month_positions and not hidden.monthly_summaries
     assert not service.list_cash_projections(confirmation_status="pending").items
 
 

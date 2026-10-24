@@ -33,7 +33,7 @@
 ## 6. 测试与 QA
 
 - [x] 6.1 在 `compose/` 执行 Wasm 和 Android 主机单测、Web 开发／QA 构建、Android 包及 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测及设备／应用包 QA 按用户明确决定不执行。
-- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在代表视口以真实 API 冒烟受影响主流程、关键交互和直接相关复现分支，记录浏览器、URL、步骤、必要截图及 console／network；不默认穷举状态、主题或三类窗口。
+- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在代表视口冒烟受影响主流程、关键交互和直接相关复现分支，区分 HTTP 合同夹具、真实后端合同与离线演示证据，记录浏览器、URL、步骤、必要截图及 console／network；不默认穷举状态、主题或三类窗口。
 - [x] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在本次验收范围，不以未执行阻断，也不记为通过。
 - [x] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
 - [ ] 6.5 在 Compose 演示模式以 Web 代表视口交付受影响流程，取得用户演示确认后才勾选 UI 完成；执行 OpenSpec strict、链接和 `git diff --check`。
@@ -49,32 +49,55 @@
 
 ### 当前审查与验证
 
-2026-10-25，当前验证 `HEAD=5b42f96` 加本次工作树；生产代码比较基线 `099dfaa`，用户认可的视觉基线 `8aa0b40`（详情最近布局提交 `d0b15a9`）。本小步恢复现金 UI 层级和表单布局，并按用户确认调整交互蓝；不改变 VM、请求构造、财务运算、权限、存储或依赖。完整 change 的演示确认未取得，不归档。
+2026-10-25，验证对象为 `average-snail` 的当前合并树：提交前 `HEAD=bb66b38`，合入 `origin/main=adcb081`，共同基线 `5b41517`。保留用户认可的视觉基线 `8aa0b40` 和本分支恢复后的信息卡、业务分组及交互蓝，接入主分支索引滚动、刷新、管理导航和 M3 容器测量；不恢复旧详情／任意关系写入，不升级依赖。完整 change 尚未取得用户演示确认，不归档。
 
-Cross-platform Impact Check：共享详情、编辑／创建表单、导入准备和浅深主题语义色影响 Web、Android、iOS。Web 用 Chromium 真实操作当前 Compose；主流程 1440×900，金额／币种及表单布局补验 390×844、768×900，改色补验深色 1440×900。Android 编译及主机单测；iOS 仅共享编译，本轮平台单测、设备与应用包 QA 按用户决定不执行，不记通过。
+Cross-platform Impact Check：共享列表、详情／编辑宿主、创建表单、索引读取和导航影响 Web、Android、iOS。Web 用 Chromium 在 `http://127.0.0.1:5308` 验证当前 HTTP 合同夹具和受影响主分支流程，代表视口 1440×900，直接相关响应式补验 390×844、768×1024、1440×1000；演示使用 `5309` 的合成内存数据。Android 编译、主机单测及设备测试源码编译；iOS 仅共享编译，本轮平台单测、应用包及设备 QA 按用户决定不执行，不记通过。
 
 | 验证 | 当前结果与证据 |
 |---|---|
-| 测试先行 | 金额／币种拆行、非空账号属性缺失、重复保存栏、确认摘要重复三次及旧配色对比度分别先失败再修复。日志 `/tmp/ft-cash-ui-{restore-red,attrs-red,confirm-red,confirm-duplicate-red}.log`、`/tmp/ft-cash-interaction-blue-red.log`；永久回归位于 `compose-cash-manual.e2e.ts` 和 `FinanceTokensTest.kt` |
-| 共享回归及构建 | `FT_COMPOSE_DEMO_MODE=false FT_API_ORIGIN=http://127.0.0.1:58792 ./compose/gradlew -p compose :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache` 成功，1m17；Wasm 388／Android 主机 383 项，零失败、错误及 skip。日志 `/tmp/ft-cash-ui-reviewed-matrix.log` |
-| 当前 HTTP 合同 Web 冒烟 | `playwright test --config=/tmp/ft-cash-current-contract.config.cjs`，Chromium、1440×900、`http://127.0.0.1:5308`，源码／产物指纹一致。entry／import／manual／relations 共 21 用例，整轮 20 通过；entry 用例因测试输入尾字未同步即保存失败，改为失焦、等待 Compose 输入同步并检查完整值后，原精确请求断言独立 1/1 通过（6.2s），未修改产品输入或放宽断言。日志 `/tmp/ft-cash-ui-final-contract.log`、`/tmp/ft-cash-ui-final-entry.log`。这些用例使用当前 HTTP 合同夹具，不称作本轮真实后端验收；之前真实 API 业务证据见下文 |
-| 直接相关状态 | 实际滚动完整表单，金额与币种同排，固定保存位置不变；非法金额显示文字、保存拒绝且零请求；非空账号属性保留；出现实际影响后仅显示确认正文和一组固定操作，取消后输入仍在，再保存一次提交；同笔商户摘要严格一次。来源／成员只读、普通及转账模式留输入、忙碌防重、放弃无写入、导入异常只错误／原因／返回等原合同回归保留。fixture 浏览器无新增 console error、failed request 或静态资源 HTTP 错误 |
-| 当前演示 | `FT_COMPOSE_DEMO_MODE=true FT_API_ORIGIN='' ./compose/gradlew -p compose :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache` 构建成功 26s，输入／产物指纹一致；`playwright test --config=/tmp/ft-cash-ui-restored.config.cjs` 7/7 passed，34.7s，日志 `/tmp/ft-cash-ui-final-demo{,-build}.log`。URL `http://127.0.0.1:5309/w/demo-workspace/`；实际导入准备→统一核对→摘要→返回、详情编辑保存、普通／转账创建及三窗口金额布局走通，完整主流程零 API 请求和 JS 异常。截图 `/tmp/ft-cash-ui-restored/offline-*-1440.png`、`booking-{compact,regular,dark}.png`、`transfer-{compact,regular,dark}.png`，确认及校验截图位于 `/tmp/ft-cash-current-contract-results/`。演示为合成内存数据，不写真实账本，不实现完整后端关系引擎，不替代真实 API 合同验收 |
-| 对比度／生成 | `python3 scripts/generate_ui_tokens.py` 真实生成并重复运行字节一致；浅色交互蓝 `#0A63B8` 对白色 6.02:1；深色原蓝 `#0485F7` 对深色按钮文字 5.50:1、页面 surface 4.81:1。自动回归覆盖按钮、页面文字与焦点边界，分别至少 4.5:1、3:1；不在页面硬编码 |
-| 工具／链接 | Node `npm run test:node` 3/3，日志 `/tmp/ft-cash-ui-restore-node.log`。OpenSpec strict 37/37、doctor healthy，日志 `/tmp/ft-cash-ui-restored-{specs,doctor}.json`；当前所属 13 个 Markdown 文件链接／锚点及 `git diff --check` 通过；新增文案仅记账信息／对方信息／确认保存，范围搜索无新增实现术语或教学文字 |
-| 独立审查 | 工程／范围最终 diff 无新增 blocking／major，保留输入 remember、原 modal key 和全部确认门禁；不同目标／字段／影响没有被去重丢失。最终实际 10 张截图独立 Hallmark audit／设计复核 0 critical／0 major／0 minor；包括确认、详情、编辑、准备、普通／转账、compact／regular／dark。下表全部发现修复后重审关闭，不沿用旧截图结论 |
-| 限制／回退 | Compose `1.12.1`／Material3 `1.12.0-alpha03` 未升级；已登记弹层关闭后语义树停更及禁用状态缺陷保留，画布操作通过不代表屏幕阅读器通过，输入 supporting text 的 DOM 镜像缺失也不宣称无障碍通过。回退只撤回本小步展示及 token，不恢复旧协议。无后端／存储改动，不重跑未受影响双库、性能与后端完整矩阵 |
+| 测试先行 | 同版本删除非根来源后的月份缓存双库回归先失败 2/2；opaque 来源组成项映射先出现 JSON 解码失败；账户任务主操作顺序先出现浏览器几何断言失败。永久回归位于 `test_cash_projection_lifecycle_reads.py`、`FinanceModelMapperTest.kt` 及 `compose-cash-import.e2e.ts`。未放宽读取／金额／请求断言 |
+| 共享回归及构建 | Wasm 401／Android 主机 396 项，零失败、错误或 skip；最终账户表单修复后 Web、Android Debug 包、Android 设备测试源码和 iOS Simulator Arm64 共享编译通过，1m13。命令见下文，日志 `/tmp/ft-main-merge-account-matrix.log`；演示构建采用相同任务并设置 `FT_COMPOSE_DEMO_MODE=true FT_API_ORIGIN=''` |
+| 当前 HTTP 合同 Web 冒烟 | entry／import／manual／relations 21/21，2.0m，日志 `/tmp/ft-main-merge-contract-final.log`。覆盖统一核对／摘要结果、实际影响确认／取消保输入、普通及转账模式、防重／退出、当前关系成员及安全重读。最终账户局部布局另以三窗口回归 3/3，12.4s，日志 `/tmp/ft-main-merge-account-api.log`；源码／产物指纹一致，不重跑未受影响流程。使用当前 HTTP 合同夹具，不称为真实后端端到端验收 |
+| 主分支受影响 Web 冒烟 | 当前详情、管理导航／旧分类链接、FAB／吸顶／行内缩、索引跳转、重载／错误及下拉共 12/12，1.6m；下拉触控额外连续三轮 3/3，1.0m。日志 `/tmp/ft-main-merge-extra-final-reviewed.log`、`/tmp/ft-main-merge-refresh-final.log`。原鼠标后切 CDP 触控序列不稳定，当前用全触控完成选择／取消／下拉并保留原请求、非顶部与多选断言；该测试序列局限不认定为上游缺陷，不增加产品兼容路径 |
+| 后端回归 | SQLite／显式专用 PostgreSQL 受影响全集 294/294，392.00s，日志 `/tmp/ft-main-merge-backend-reviewed.log`；最后冷页单次聚合调整再执行全部查询及生命周期读取 96/96，118.96s，日志 `/tmp/ft-main-merge-cold-read-reviewed.log`，包含新服务中页、空筛选、越界空页及同版本软删除。全仓 4770 项的无关扩展未完成，不宣称全仓回归通过 |
+| 读取性能 | 固定万行同服务热读预算及索引查询计划 4/4，121.54s；SQLite 浅／中／深索引页 p95 32.0／61.6／84.0ms，PostgreSQL 61.2／69.9／80.6ms；原 100ms 门槛未放宽。日志 `/tmp/ft-main-merge-read-performance-direct.log`。冷请求聚合以双库功能合同验证，不宣称 HTTP 冷请求延迟已通过同一性能预算；未扩入独立导入写性能待办 |
+| 当前演示 | 最终源码离线构建及产物指纹一致；原流程与新增账户三窗口共 10/10，45.8s，日志 `/tmp/ft-main-merge-demo-reviewed.log`。真实走通导入准备→核对→结果、详情编辑保存、普通／转账创建及账户表单；截图 `/tmp/ft-cash-ui-restored/*.png`，确认图位于 `/tmp/ft-cash-current-contract-results/`。只使用合成内存数据，主流程零 API 请求和 JS 异常，不写真实账本，不替代后端合同；用户尚未确认 |
+| 工具与文档 | Node 3/3，日志 `/tmp/ft-main-merge-node.log`；OpenSpec strict 35/35、doctor healthy，当前非归档 Markdown 链接／锚点通过。当前范围术语与可见文字自检无新增实现术语／教学说明；最终 diff 检查在提交前执行 |
+| 独立审查 | 当前协议／工程、冷请求分支及 delta 回查无 blocking／major。来源 ID 自动合并退化、旧平铺及任意关系操作、账户操作区遗漏均已修复并重审关闭。当前实际普通／转账、详情／编辑、导入、确认及账户三窗口截图的 Hallmark audit／独立设计复核为 0 critical／0 major／0 minor。保留字段分组、配色与唯一主要操作；不将规划自查算实际审查 |
+| 限制与回退 | Compose `1.12.1`／Material3 `1.12.0-alpha03` 不升级。已登记弹层后无障碍树停更、禁用语义及输入镜像缺陷仍保留，画布交互通过不代表屏幕阅读器通过。回退只撤销本次集成，不恢复退役写入口；未合入 main、未部署、未归档 |
 
-当前 Hallmark audit 与独立设计 finding：
+当前范围 finding 与处置：
 
-| 严重度／位置 | 发现及处置 | 当前状态 |
+| 严重度／位置 | 处置与回写 | 状态 |
 |---|---|---|
-| major，字段与详情层级 | 金额／币种拆散、详情缺少语义色及标签值信息卡；恢复修改前邻近关系、金额／对方层级及单主题卡，所有实际可编辑字段按记账／对方分组展开 | 已修复，最终实际截图独立重审关闭 |
-| major，编辑及确认 | 长表单操作滚走、额外影响埋在表单后、双保存栏及同笔摘要三次；正文独立滚动，确认替换正文及页脚，每笔摘要一次紧接实际旧／新值 | 已修复，当前合同浏览器及最终实际截图独立重审关闭 |
-| major，准备页 | 文件、账户和操作散落；文件在上、来源账户集中在下，相关操作紧邻，表单上限 720 px | 已修复，最终实际截图独立重审关闭 |
-| major，主题 | 浅色旧蓝白字 3.68:1；按用户确认分别配置浅深配对及焦点，保留蓝色风格、字体与组件 | 自动回归及最终深浅截图独立重审关闭 |
-| minor，表单顺序 | 分配控件落在对方组之后；归回记账组，仅具当前组成权限时显示 | 已修复 |
+| major，索引读取与月份元数据 | 保留 `sort_at`、正式／草稿和统计资格；完整连续月份段与精确删除来源签名进入有界聚合缓存。携版本冷页一次 SQL 聚合数量，空页不伪装不可用；双库及性能证据见上表 | 已修复并独立重审关闭 |
+| major，来源 DTO 映射 | 组成项／来源流水标识恢复字符串直传，保留 main 组成项与双端字段；opaque 标识回归先失败再通过 | 已修复并独立重审关闭 |
+| major，独立账户侧板操作区 | 主操作在 Regular／Wide 左侧，Compact 保留取消／保存，移除额外水平内缩；浏览器先失败，三窗口及实际截图重审通过 | 已修复并独立重审关闭 |
+| P2，UI delta 取代关系 | 用完整 `MODIFIED` 保留 main 有效测量，移除旧平铺详情、成员编辑、独立关系创建及冲突的忙碌／退出断言 | 独立回查无阻断同步项 |
+| 测试局限，混合输入序列 | 鼠标后切 CDP 触控未确认可稳定执行；全触控及独立鼠标流程分别验证，不把工具序列问题当上游缺陷或增加产品兼容路径 | 保留准确限制 |
 
-文档收尾：三个 design／相关 delta、功能地图及 Compose Material3／OpenSpec apply 技能已原位对齐。本轮实际读取官方正文及采用规则见 [官方 Material3 页面复核](../compose-cash-ledger-maintenance/design.md#官方-material-3-页面复核)，修正失效 Expressive 链接；未造新视觉系统。README 启动命令、业务／接口文档、配置、迁移与词表不因本步改变，无新领域概念，无需重复修改。防复发由实际浏览器几何／确认／请求断言和 token 对比度回归承载。
+实际编译及单测命令：
 
-既有业务验收：当前列表／详情／草稿／来源基础 `0e523a1`，完整候选与失效处理 `2d800f3`。合成 SQLite API `58792` 的多候选完整成员选择 1/1（9.7s），来源更新与明确身份合并 2/2（14.8s），联合必要组／人工公共冲突／明确解除继承 1/1（20.2s）；日志 `/tmp/ft-cash-relations-layout-real-web.log`、`/tmp/ft-cash-final-issues-confirmed-browser.log`、`/tmp/ft-cash-joint-real-web.log`。单候选读取失败、失效重读无决定重放及残余公共冲突回归保留。以上为既有业务证据，本轮不冒充重跑。并发仅最小原键核实及提示用户重试，不增加自动合并／重放。用户确认仍由 6.5 承载。
+```sh
+FT_COMPOSE_DEMO_MODE=false FT_API_ORIGIN=http://127.0.0.1:58792 ./compose/gradlew -p compose :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 :shared:compileAndroidDeviceTest :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache
+```
+
+后端受影响全集使用人工准备的 `_test` 数据库，测试进程顺序运行，不自动探测／启动数据库：
+
+```sh
+FT_TEST_POSTGRES_URL='postgresql+psycopg://ft_entry_test@127.0.0.1:55439/ft_cash_entry_test' FT_REQUIRE_POSTGRES=1 PYTHONPATH=tests:tests/contract uv run pytest tests/test_application_web_queries.py tests/test_cash_ledger_management.py tests/contract/test_web_api.py tests/test_alembic_migration.py tests/test_runtime_docs.py tests/test_ci_workflow_contracts.py tests/contract/test_cash_entry_editing.py tests/contract/test_cash_current_projection_api.py tests/contract/test_cash_projection_lifecycle_reads.py tests/contract/test_cash_projection_graph_reads.py tests/contract/test_cash_projection_parity.py -q --disable-warnings --tb=short
+```
+
+Web 实际命令使用本机 QA 配置及合成凭据，缓存和截图均不进入 Git：
+
+```sh
+npx --prefix compose/qa/web playwright test --config /tmp/ft-cash-current-contract.config.cjs
+npx --prefix compose/qa/web playwright test --config /tmp/ft-cash-current-contract.config.cjs --grep 'import account task'
+npx --prefix compose/qa/web playwright test --config /tmp/ft-main-merge-extra.config.cjs --grep 'F-04 当前详情|管理共用目录|旧分类链接|F-03 (滚动条拖动后定位到未加载流水|首次和完整重载|下拉刷新|FAB 覆盖列表)'
+npx --prefix compose/qa/web playwright test --config /tmp/ft-main-merge-extra.config.cjs --grep '下拉刷新只响应' --repeat-each 3
+npx --prefix compose/qa/web playwright test --config /tmp/ft-cash-ui-restored.config.cjs
+```
+
+最后冷请求分支重验的实际后端命令为同一数据库配置下的 `uv run pytest tests/test_application_web_queries.py tests/contract/test_cash_projection_lifecycle_reads.py -q --disable-warnings --tb=short`。性能专项为同一配置下的 `uv run pytest tests/test_cash_projection_performance.py::test_fixed_10k_cash_read_paths_meet_100ms_budget tests/test_cash_projection_performance.py::test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes -q -s --disable-warnings --tb=short`。
+
+文档收尾范围：当前列表协议／UI delta、三个 change、功能地图、UI 规范、AGENTS 和 apply 技能已对齐；主分支归档保留历史事实，不把历史截图当当前完成证据。现金账本说明补索引、未知月份和统计资格；README 保持现金流程主入口及主分支投资架构入口，修复失效链接。不新增领域概念、依赖或迁移，无需另改金额、记账与权限合同。完整 UI 的 6.5／7.2／8.1 保持未完成，用户确认后再收尾。

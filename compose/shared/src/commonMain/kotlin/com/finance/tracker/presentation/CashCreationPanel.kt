@@ -21,16 +21,23 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
     CashRecordModalPanel(sizeClass, localizedText("copy_1f62e3f53f"), compactFullScreen = true,
         semanticStateKey = "cash-creation", onDismiss = requestClose, onBack = requestClose,
         footer = {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
+                if (sizeClass == WindowSizeClass.COMPACT) {
                 TextButton(onClick = requestClose, enabled = !state.busy, modifier = Modifier.testTag("cash.create.cancel")) {
                     Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
+                }
                 }
                 if (!state.unknown) Button(onClick = onSave, enabled = !state.busy, modifier = Modifier.testTag("cash.create.save")) {
                     Text(localizedText(if (state.busy) "copy_6644f06197" else "copy_fadf24dbc5"))
                 }
+                if (sizeClass != WindowSizeClass.COMPACT) {
+                TextButton(onClick = requestClose, enabled = !state.busy, modifier = Modifier.testTag("cash.create.cancel")) {
+                    Text(localizedText(if (state.unknown) "copy_855fa817d2" else "copy_4d0b4688c7"))
+                }
+                }
             }
         }) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 16.dp).testTag("cash.create.form"),
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.create.form"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for ((mode, label) in listOf(CashCreationMode.ORDINARY to "cash_ordinary_booking", CashCreationMode.TRANSFER to "ledger_quick_transfer")) {

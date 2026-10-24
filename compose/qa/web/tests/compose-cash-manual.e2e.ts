@@ -59,6 +59,7 @@ async function currentManual(page: Page, withEffects = false, accountAttributes:
   await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
     items: [{ projection_id: "manual-11", record_id: "source-11", transaction_id: "11", ...display(), account: { id: 1, name: "日常账户", type: "cash" },
       economic_type: "expense", state: "posted", statistics_eligible: true, confirmation_status: "confirmed", attention_count: 0 }],
+    start_index: 0, total_count: 1, items_before: 0, items_after: 0, month_positions: [],
     next_cursor: null, projection_version: saved ? 10 : 9, pending_item_count: 0, page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
   } }));
   await page.route(/\/api\/v1\/cash-records\/11$/, route => route.fulfill({ json: {

@@ -115,9 +115,19 @@ class CashMonthlySummaryDTO:
     month: str
     currencies: tuple[CashMonthlyCurrencySummaryDTO, ...]
 @dataclass(frozen=True)
+class CashMonthPositionDTO:
+    month: str
+    start_index: int
+    end_index: int
+@dataclass(frozen=True)
 class ProjectionPageDTO:
     projection_version: int; items: tuple[ProjectionDTO, ...]; next_cursor: str | None; page_size: int; filters: dict[str, str | None]; filter_options: CashFilterOptionsDTO; monthly_summaries: tuple[CashMonthlySummaryDTO, ...] = ()
     pending_item_count: int = 0
+    start_index: int | None = None
+    total_count: int | None = None
+    month_positions: tuple[CashMonthPositionDTO, ...] = ()
+    items_before: int | None = None
+    items_after: int | None = None
 
 @dataclass(frozen=True)
 class ProjectionReadPage:
@@ -127,6 +137,8 @@ class ProjectionReadPage:
     filter_options: CashFilterOptionsDTO
     monthly_summaries: tuple[CashMonthlySummaryDTO, ...]
     pending_item_count: int
+    total_count: int | None = None
+    month_positions: tuple[CashMonthPositionDTO, ...] = ()
 
 @dataclass(frozen=True)
 class ProjectionFilters:
@@ -247,13 +259,26 @@ class CashLedgerQueryService:
         from ft.adapters.relational.web_queries import RelationalCashLedgerQueryRepository
         self._repository, self._workspace_id = RelationalCashLedgerQueryRepository(session_factory, workspace_id), workspace_id
     def list_accounts(self): return self._repository.list_accounts()
-    def list_cash_projections(self, *, cursor=None, limit=50, **values):
+    def list_cash_projections(self, *, cursor=None, limit=50, start_index=None, projection_version=None, **values):
         if not isinstance(limit, int) or not 1 <= limit <= 50: raise ValueError("invalid_filter")
+        indexed = start_index is not None
+        if indexed:
+            if type(start_index) is not int or start_index < 0 or cursor is not None:
+                raise ValueError("invalid_cursor")
+            if projection_version is not None and (type(projection_version) is not int or projection_version < 0):
+                raise ValueError("invalid_cursor")
+        elif projection_version is not None:
+            raise ValueError("invalid_cursor")
         filters = normalize_filters(**values)
-        page = self._repository.list_projection_page(filters, cursor, limit + 1)
+        page = self._repository.list_projection_page(filters, cursor, limit if indexed else limit + 1,
+            start_index=start_index, expected_version=projection_version)
         items = page.items[:limit]
-        next_cursor = _encode(self._workspace_id, page.projection_version, filters, *page.positions[limit - 1]) if len(page.items) > limit else None
-        return ProjectionPageDTO(page.projection_version, items, next_cursor, limit, filters.as_cursor_data(), page.filter_options, page.monthly_summaries, page.pending_item_count)
+        next_cursor = _encode(self._workspace_id, page.projection_version, filters, *page.positions[limit - 1]) if not indexed and len(page.items) > limit else None
+        return ProjectionPageDTO(page.projection_version, items, next_cursor, limit, filters.as_cursor_data(),
+            page.filter_options, page.monthly_summaries, page.pending_item_count, start_index=start_index,
+            total_count=page.total_count, items_before=min(start_index, page.total_count) if indexed else None,
+            items_after=max(0, page.total_count - start_index - len(items)) if indexed else None,
+            month_positions=page.month_positions)
     def get_projection_evidence(self, projection_id): return self._repository.get_evidence(projection_id)
     def get_cash_projection(self, projection_id):
         if not isinstance(projection_id, str) or not 1 <= len(projection_id) <= 128:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
@@ -12,7 +12,7 @@ from ft.adapters.relational.cash_attention import read_cash_attention
 from ft.adapters.relational.cash_relations import _batches
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashMonthPositionDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
 from ft.domain.queries import FlowDTO
 from ft.application.cash_import_issues import cash_import_issue
 from ft.application.web_queries import CurrentProjectionRefDTO, ProjectionDetailDTO, ProjectionIssueDTO, ProjectionMemberDTO
@@ -479,8 +479,8 @@ class RelationalCashLedgerQueryRepository:
     def _active_source_conditions(self, dataset_id):
         return active_source_conditions(self._workspace_id, dataset_id)
 
-    def _filter_options(self, session, dataset_id, *, version=None, categories=None):
-        cache_key = (dataset_id, version)
+    def _filter_options(self, session, dataset_id, *, version=None, categories=None, deleted_sources=()):
+        cache_key = (dataset_id, version, deleted_sources)
         cached = self._filter_options_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -553,9 +553,32 @@ class RelationalCashLedgerQueryRepository:
                 )
                 for month in sorted(months, reverse=True)
             )
-    def list_projection_page(self, filters, cursor, limit):
+    @staticmethod
+    def _monthly_summary_data(rows, timezone_name):
+        from zoneinfo import ZoneInfo
+        summaries = RelationalCashLedgerQueryRepository._monthly_summaries(
+            [row[:4] for row in rows if len(row) < 5 or row[4]], timezone_name)
+        zone = ZoneInfo(timezone_name)
+        positions = []
+        for index, row in enumerate(rows):
+            occurred_at = row[0]
+            month = "unknown" if occurred_at is None else (
+                occurred_at.replace(tzinfo=timezone.utc) if occurred_at.tzinfo is None else occurred_at
+            ).astimezone(zone).strftime("%Y-%m")
+            if positions and positions[-1].month == month:
+                previous = positions[-1]
+                positions[-1] = CashMonthPositionDTO(month, previous.start_index, index + 1)
+            else:
+                positions.append(CashMonthPositionDTO(month, index, index + 1))
+        return summaries, tuple(positions)
+
+    def list_projection_page(self, filters, cursor, limit, *, start_index=None, expected_version=None):
         from ft.application.web_queries import _decode
+        indexed = start_index is not None
         with self._read_snapshot() as s:
+            snapshot_state = self._active(s) if indexed else None
+            if expected_version is not None and snapshot_state.projection_version != expected_version:
+                raise ProjectionUpdatedError()
             cursor_version, position = (None, None)
             if cursor:
                 cursor_version, *position = _decode(cursor, self._workspace_id, filters)
@@ -565,10 +588,11 @@ class RelationalCashLedgerQueryRepository:
                 CashProjectionStateModel.active_dataset_id.label("active_dataset_id"),
                 CashProjectionStateModel.availability.label("availability"),
             ).where(CashProjectionStateModel.workspace_id==self._workspace_id).cte("active_state")
+            page_dataset = snapshot_state.active_dataset_id if indexed else state.c.active_dataset_id
             filter_conditions=[
                 CashProjectionModel.workspace_id==self._workspace_id,
                 or_(CashProjectionModel.visible.is_(True), CashProjectionModel.attention_count > 0),
-                *self._active_source_conditions(state.c.active_dataset_id),
+                *self._active_source_conditions(page_dataset),
             ]
             if filters.state != "all":
                 filter_conditions.append(CashProjectionModel.state == filters.state)
@@ -630,17 +654,59 @@ class RelationalCashLedgerQueryRepository:
             elif filters.composition=="payment_mirror":filter_conditions.append(CashProjectionModel.has_payment_mirror)
             elif filters.composition=="refund_offset":filter_conditions.append(CashProjectionModel.has_refund_offset)
             elif filters.composition=="combined":filter_conditions.append(or_(and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_refund_offset),and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_transfer_pair),and_(CashProjectionModel.has_refund_offset,CashProjectionModel.has_transfer_pair)))
-            conditions = [CashProjectionModel.dataset_id==state.c.active_dataset_id, *filter_conditions]
+            conditions = [CashProjectionModel.dataset_id==page_dataset, *filter_conditions]
             if cursor_version is not None: conditions.append(state.c.projection_version==cursor_version)
             if position:conditions.append(or_(CashProjectionModel.sort_at<position[0],and_(CashProjectionModel.sort_at==position[0],CashProjectionModel.projection_id<position[1])))
-            page=select(
+            # Soft-deleted members must disappear even before the next publication.
+            deleted_sources = tuple(s.scalars(select(CashTransactionModel.id).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_not(None),
+            ).order_by(CashTransactionModel.id)))
+
+            def monthly_data(dataset_id, version):
+                key = (dataset_id, version, deleted_sources, tuple(sorted(filters.as_cursor_data().items())))
+                cached = self._monthly_summary_cache.get(key)
+                if cached is None and expected_version is not None:
+                    # HTTP requests may use a fresh service. Versioned pages omit
+                    # month metadata, so count in SQL rather than loading all rows.
+                    total, pending = s.execute(select(
+                        func.count(),
+                        func.coalesce(func.sum(case((CashProjectionModel.attention_count > 0, 1), else_=0)), 0),
+                    ).where(CashProjectionModel.dataset_id == dataset_id, *filter_conditions)).one()
+                    return (), (), total, pending
+                if cached is None:
+                    summary_rows = s.execute(select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type,
+                        CashProjectionModel.net_amount, CashProjectionModel.currency, CashProjectionModel.statistics_eligible,
+                        CashProjectionModel.attention_count).where(
+                        CashProjectionModel.dataset_id == dataset_id, *filter_conditions).order_by(
+                        CashProjectionModel.sort_at.desc(), CashProjectionModel.projection_id.desc())).all()
+                    summaries, months = self._monthly_summary_data(summary_rows, filters.timezone)
+                    cached = (summaries, months, len(summary_rows), sum(row[5] > 0 for row in summary_rows))
+                    self._monthly_summary_cache[key] = cached
+                    if len(self._monthly_summary_cache) > 16:
+                        self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
+                return cached
+
+            page_query=select(
                 state.c.projection_version,
                 state.c.active_dataset_id,
                 state.c.availability,
                 CashProjectionModel.id.label("projection_row_id"),
             ).select_from(
                 state.outerjoin(CashProjectionModel,and_(*conditions))
-            ).order_by(CashProjectionModel.sort_at.desc(),CashProjectionModel.projection_id.desc()).limit(limit).cte("projection_page")
+            ).order_by(CashProjectionModel.sort_at.desc(),CashProjectionModel.projection_id.desc())
+            if indexed:
+                # The state was read in this same snapshot. Bind its dataset directly
+                # so deep pages can use the projection sort index before joining details.
+                page_query = select(
+                    literal(snapshot_state.projection_version).label("projection_version"),
+                    literal(snapshot_state.active_dataset_id).label("active_dataset_id"),
+                    literal(snapshot_state.availability).label("availability"),
+                    CashProjectionModel.id.label("projection_row_id"),
+                ).where(*conditions).order_by(
+                    CashProjectionModel.sort_at.desc(), CashProjectionModel.projection_id.desc(),
+                ).offset(start_index)
+            page = page_query.limit(limit).cte("projection_page")
             q=select(
                 page.c.projection_version,
                 page.c.active_dataset_id,
@@ -666,7 +732,7 @@ class RelationalCashLedgerQueryRepository:
                 # The outer join has no row to carry the state in that case, so
                 # read the state explicitly instead of treating an empty
                 # workspace as an unavailable projection.
-                empty_state = s.scalar(
+                empty_state = snapshot_state or s.scalar(
                     select(CashProjectionStateModel).where(
                         CashProjectionStateModel.workspace_id == self._workspace_id,
                     )
@@ -675,31 +741,21 @@ class RelationalCashLedgerQueryRepository:
                     raise ProjectionUnavailableError()
                 if cursor_version is not None and cursor_version != empty_state.projection_version:
                     raise ProjectionUpdatedError()
+                if expected_version is not None and expected_version != empty_state.projection_version:
+                    raise ProjectionUpdatedError()
+                summaries, months, total, pending = monthly_data(empty_state.active_dataset_id, empty_state.projection_version)
+                if expected_version is not None:
+                    summaries, months = (), ()
                 return ProjectionReadPage(empty_state.projection_version, (), (), self._filter_options(
-                    s, empty_state.active_dataset_id, version=empty_state.projection_version, categories={}), (), 0)
+                    s, empty_state.active_dataset_id, version=empty_state.projection_version, categories=categories or {}, deleted_sources=deleted_sources),
+                    summaries, pending, total if indexed else None, months if indexed else ())
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
-            summary_key = (
-                dataset_id,
-                version,
-                tuple(sorted(filters.as_cursor_data().items())),
-            )
-            monthly_summaries = self._monthly_summary_cache.get(summary_key)
-            if monthly_summaries is None:
-                summary_rows = s.execute(
-                    select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
-                        CashProjectionModel.dataset_id == dataset_id,
-                        CashProjectionModel.statistics_eligible.is_(True),
-                        *filter_conditions,
-                    )
-                ).all()
-                monthly_summaries = self._monthly_summaries(summary_rows, filters.timezone)
-                self._monthly_summary_cache[summary_key] = monthly_summaries
-                if len(self._monthly_summary_cache) > 16:
-                    self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
-            pending_item_count = s.scalar(select(func.count()).select_from(CashProjectionModel).where(
-                CashProjectionModel.dataset_id == dataset_id, *filter_conditions, CashProjectionModel.attention_count > 0))
+            if expected_version is not None and expected_version != version: raise ProjectionUpdatedError()
+            monthly_summaries, month_positions, total_count, pending_item_count = monthly_data(dataset_id, version)
+            if expected_version is not None:
+                monthly_summaries, month_positions = (), ()
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue
@@ -725,7 +781,7 @@ class RelationalCashLedgerQueryRepository:
             return ProjectionReadPage(version,
                 tuple(self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories, projection_version=version) for row,account in rows),
                 tuple((row.sort_at.isoformat(), row.projection_id) for row, _account in rows),
-                self._filter_options(s, dataset_id, version=version, categories=categories), monthly_summaries, pending_item_count)
+                self._filter_options(s, dataset_id, version=version, categories=categories, deleted_sources=deleted_sources), monthly_summaries, pending_item_count, total_count if indexed else None, month_positions if indexed else ())
     def get_evidence(self, projection_id):
         with self._read_snapshot() as s:
             state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id, *self._active_source_conditions(state.active_dataset_id)))

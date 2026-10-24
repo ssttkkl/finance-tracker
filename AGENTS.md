@@ -54,7 +54,7 @@
 ## UI 与跨平台门禁
 
 - 任何 UI 设计、原型、实现或审查前，必须读取并遵守 [UI 设计规范](docs/ui-design-rules.md) 与现有 token；视觉、组件、文案、尺寸及响应式细则只在该文件维护，违反硬约束不得进入实现或 PR。按钮／输入直接用 Material 3，禁止 Finance 或 Compose Unstyled 重复包装。
-- A 类 UI 或重大 UI 变更实施前，按用户任务明确并提交信息架构、验收和将删除的冗余信息；显式调用仓库 Hallmark 做预检、设计方向及自查，写入 design 后直接实现 Compose，不另造视觉系统。Compose 是结构／样式事实源，OpenSpec 保存行为与验收，Git token JSON 是唯一 token 输入，`GeneratedTokens.kt` 是消费副本；截图仅作 QA 证据，不维护 Pen 变量、节点映射、重复页面 YAML、HTML 原型或实现前原型确认产物。代码生成必须有已验证生成器，不能虚称自动生成。
+- A 类 UI 或重大 UI 变更实施前，按用户任务明确并提交信息架构、验收和将删除的冗余信息；显式调用仓库 Hallmark 做预检、设计方向及自查，写入 design 后直接实现 Compose，不另造视觉系统。Compose 是结构／样式事实源，OpenSpec 保存行为与验收，Git token JSON 是唯一 token 输入，`GeneratedTokens.kt` 是消费副本；截图仅作本机 QA 证据，保存在 Git 忽略目录或仓库外，不提交截图文件；不维护 Pen 变量、节点映射、重复页面 YAML、HTML 原型或实现前原型确认产物。代码生成必须有已验证生成器，不能虚称自动生成。
 - 所有最终 UI 必须做可见文字必要性自检、范围化术语搜索、`$hallmark audit` 及独立设计复核，对照 OpenSpec、实际页面和截图，检查层级、几何／间距、排版、颜色、组件、状态、无障碍和响应式。响应式实现遵守 COMPACT／REGULAR／WIDE 合同；默认复核 Web 冒烟选定的代表视口，不强制追加三类窗口或原生端截图。用户要求扩展时记录相应目标、状态／视口、发现和处置。critical、major 或阻断项修复后重审，未清零不得通过设计 QA、提交或发布。Hallmark 不可用须记录并按技能 audit 参考完成人工替代，不得声称已执行。
 - 重大 UI 必须在开发／QA Compose 演示模式交付受影响流程，默认以 Web 代表视口演示，用户确认后才可标完成；范围或核心任务变化先回写 OpenSpec。
 - 任何 Web／Mobile 页面、文案、交互、表单校验、弹层、状态或响应式变化都必须执行 Cross-platform Impact Check，在 tasks 写明 Web、Native、共享层是否受影响及理由，不得默认另一端无影响；影响分析不扩大默认验证范围，Android、iOS 仍仅编译和单元测试。Web compact 与 Native Phone 共用产品合同，Native regular／wide 按逻辑宽度适配 Android 多形态、iPhone 和 iPad，wide 保持 Web 大屏导航层级、区域顺序及筛选／详情／操作关系。共享文案、状态、语义 ID、操作、响应式与确认／错误／结果语义，渲染控件可不同；差异须明确登记于 `presentation` 合同或 OpenSpec，否则按 defect。未覆盖 Native 页面登记缺口，不用伪页面或静默跳转掩盖。当前 Web／QA 位于 `compose/`，旧 `web/src` 仅作迁移参考。

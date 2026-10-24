@@ -20,6 +20,7 @@ test("imported entry edits only common fields and saves once in the current deta
   await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
     items: [{ projection_id: "entry-11", record_id: "source-11", transaction_id: "11", ...source,
       economic_type: "expense", state: "posted", statistics_eligible: true, confirmation_status: "confirmed", attention_count: 0 }],
+    start_index: 0, total_count: 1, items_before: 0, items_after: 0, month_positions: [],
     next_cursor: null, projection_version: saved ? 10 : 9, pending_item_count: 0,
     page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
   } }));

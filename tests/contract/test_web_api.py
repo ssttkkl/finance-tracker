@@ -194,6 +194,44 @@ def test_projection_api_has_stable_errors(cash_web_runtime):
     assert client.get("/api/v1/evidence/cash-projections/cash:999").status_code==404
 
 
+def test_projection_api_supports_versioned_index_reads(cash_web_runtime):
+    client = _client(cash_web_runtime)
+
+    first_response = client.get(
+        "/api/v1/cash-projections",
+        params={"start_index": 0, "limit": 1},
+    )
+    first = first_response.json()
+    last_response = client.get(
+        "/api/v1/cash-projections",
+        params={
+            "start_index": 2,
+            "limit": 1,
+            "projection_version": first["projection_version"],
+        },
+    )
+    last = last_response.json()
+
+    assert first_response.status_code == 200
+    assert first["total_count"] == 3
+    assert first["start_index"] == 0
+    assert first["items_before"] == 0
+    assert first["items_after"] == 2
+    assert first["month_positions"] == [{"month": "2026-07", "start_index": 0, "end_index": 3}]
+    assert last_response.status_code == 200
+    assert [item["projection_id"] for item in last["items"]] == ["cash:1001"]
+    assert last["items_before"] == 2
+    assert last["items_after"] == 0
+    assert last["month_positions"] == []
+
+    invalid = client.get(
+        "/api/v1/cash-projections",
+        params={"start_index": 0, "cursor": first.get("next_cursor") or "unused"},
+    )
+    assert invalid.status_code == 400
+    assert invalid.json()["error"]["code"] == "invalid_cursor"
+
+
 def test_projection_evidence_api_returns_the_projection_envelope(cash_web_runtime):
     client = _client(cash_web_runtime)
 
@@ -210,6 +248,10 @@ def test_projection_evidence_api_returns_the_projection_envelope(cash_web_runtim
     assert payload["accepted_relations"] == []
     assert payload["inactive_relation_hints"] == []
     assert payload["refund_timeline"] == []
+    components = payload["root_record"]["components"]
+    assert components
+    assert isinstance(components[0]["id"], str)
+    assert isinstance(components[0]["cash_transaction_id"], str)
 
 
 def test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts(cash_web_runtime):

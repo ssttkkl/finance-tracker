@@ -70,12 +70,12 @@ internal fun CashCurrentRecordPanel(
     CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
         semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
         footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved && state.plan == null) ({
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
                 Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy && state.plan == null, modifier = Modifier.testTag("cash.current.edit")) { Text(localizedText("copy_a7f814c0a4")) }
             }
         }) else null,
     ) {
-        Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(vertical = 16.dp).testTag("cash.current.detail"),
+        Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = if (entryEditing) 0.dp else 16.dp).testTag("cash.current.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (state.busy && record == null) CircularProgressIndicator(Modifier.testTag("cash.current.loading"))
             if (state.unresolved) {
@@ -104,7 +104,7 @@ internal fun CashCurrentRecordPanel(
                         transferMembers = state.transferMembers, modifier = Modifier.weight(1f),
                         summary = { CashCurrentRecordSummary(record, projection, editingFields, accounts, categories, options) },
                         confirmation = { if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false) },
-                        actions = if (state.plan != null && !state.unresolved) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan) }) else null)
+                        actions = if (state.plan != null && !state.unresolved) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan, sideSheet = sizeClass != WindowSizeClass.COMPACT) }) else null)
                 } else {
                     if (record.state == "draft") {
                         val problems = cashDraftEditingIssues(record)

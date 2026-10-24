@@ -4,6 +4,7 @@ import com.finance.tracker.app.createDemoFinanceTrackerGraph
 import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.domain.CashRecordWrite
 import com.finance.tracker.domain.CashFilters
+import com.finance.tracker.domain.CashMonthPosition
 import com.finance.tracker.domain.DomainFailure
 import com.finance.tracker.domain.WorkspaceRole
 import kotlinx.coroutines.test.runTest
@@ -81,6 +82,23 @@ class ComposeDemoModeTest {
         assertEquals(listOf("demo-record-1"), betweenNegativeBounds.items.map { it.recordId })
         assertEquals(listOf("demo-record-3"), minimumOnly.items.map { it.recordId })
         assertEquals("invalid_filter", (invalidFilter as? DomainFailure)?.code)
+    }
+
+    @Test
+    fun demoIndexedLedgerReturnsMonthPositionsOnlyWithTheInitialPage() = runTest {
+        val repository = createDemoFinanceTrackerGraph().financeRepository
+
+        val first = repository.fetchCashPage(CashFilters(), startIndex = 0, limit = 2)
+        val next = repository.fetchCashPage(
+            CashFilters(),
+            startIndex = 2,
+            projectionVersion = first.projectionVersion,
+            limit = 2,
+        )
+
+        assertEquals(3, first.totalCount)
+        assertEquals(listOf(CashMonthPosition("2026-10", 0, 3)), first.monthPositions)
+        assertTrue(next.monthPositions.isEmpty())
     }
 
     @Test

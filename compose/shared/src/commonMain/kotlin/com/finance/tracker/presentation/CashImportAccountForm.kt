@@ -28,13 +28,21 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
     CashRecordModalPanel(sizeClass, localizedText(if (account == null) "cash_import_create_account" else "cash_import_edit_account"), true,
         semanticStateKey = "import-account-${account?.accountId ?: "new"}", onDismiss = onClose, onBack = onClose,
         footer = {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
-                TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp,
+                if (sizeClass == WindowSizeClass.COMPACT) Alignment.End else Alignment.Start)) {
+                if (sizeClass == WindowSizeClass.COMPACT) {
+                    TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+                }
                 Button(onClick = { onSave(name.trim(), type, codes, active) }, enabled = !loading && !busy && valid && dirty,
                     modifier = Modifier.testTag("cash.import.account-form.save")) { Text(localizedText("copy_fadf24dbc5")) }
+                if (sizeClass != WindowSizeClass.COMPACT) {
+                    TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
+                }
             }
         }) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("cash.import.account-form"),
+        Column(Modifier.fillMaxHeight().widthIn(max = 720.dp).fillMaxWidth().verticalScroll(rememberScrollState())
+            .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 24.dp)
+            .testTag("cash.import.account-form"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (loading || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }

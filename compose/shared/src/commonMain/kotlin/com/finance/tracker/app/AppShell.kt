@@ -14,6 +14,7 @@ import com.finance.tracker.resources.ic_keyboard_arrow_down
 import com.finance.tracker.resources.ic_label
 import com.finance.tracker.resources.ic_logout
 import com.finance.tracker.resources.ic_menu
+import com.finance.tracker.resources.ic_checklist
 import com.finance.tracker.resources.ic_pie_chart
 import com.finance.tracker.resources.ic_settings
 
@@ -101,6 +102,7 @@ import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.window.PopupProperties
 import com.finance.tracker.core.design.GeneratedTokens
 import org.jetbrains.compose.resources.painterResource
@@ -959,6 +961,25 @@ internal fun DestinationScaffold(
     state: DestinationState,
     modifier: Modifier = Modifier,
 ) {
+    val managementOwner = remember(state.session.activeWorkspaceId) {
+        object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
+    }
+    DisposableEffect(managementOwner) { onDispose { managementOwner.viewModelStore.clear() } }
+    val directoryFocus = remember { FocusRequester() }
+    var directoryOpen by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
+    var restoreDirectoryFocus by remember(state.session.activeWorkspaceId) { mutableStateOf(false) }
+    val directoryWindowInfo = LocalWindowInfo.current
+    val closeDirectory: (Boolean) -> Unit = { restoreFocus ->
+        directoryOpen = false
+        restoreDirectoryFocus = restoreFocus
+    }
+    LaunchedEffect(restoreDirectoryFocus, directoryOpen, directoryWindowInfo.isWindowFocused) {
+        if (restoreDirectoryFocus && !directoryOpen && directoryWindowInfo.isWindowFocused) {
+            androidx.compose.runtime.withFrameNanos { }
+            directoryFocus.requestFocus()
+            restoreDirectoryFocus = false
+        }
+    }
     val canWrite = state.session.workspaces.firstOrNull { it.id == state.session.activeWorkspaceId }?.role?.canWrite == true
     val shellColors = LocalFinanceColorRoles.current
     Scaffold(
@@ -975,6 +996,14 @@ internal fun DestinationScaffold(
                     actionIconContentColor = shellColors.foreground,
                 ),
                 actions = {
+                    if (primaryPageFor(state.route.page) == AppPage.WORKSPACE_MANAGEMENT && state.sizeClass == WindowSizeClass.COMPACT) {
+                        IconButton(
+                            onClick = { directoryOpen = true },
+                            modifier = Modifier.focusRequester(directoryFocus).testTag("management.directory.open"),
+                        ) {
+                            Icon(painterResource(Res.drawable.ic_checklist), localizedText("management_open_directory"))
+                        }
+                    }
                     if (state.canNavigateBack) {
                         TextButton(onClick = state.onNavigateBack) { Text(localizedText("copy_11d0241540")) }
                     }
@@ -1002,13 +1031,7 @@ internal fun DestinationScaffold(
                 AppPage.CASH_IMPORT -> CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
                     state.importRecovery, state.importAccountRecovery, state.session.activeWorkspaceId.orEmpty(),
                     state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
-                AppPage.CASH_CATEGORIES -> CashCategoryScreen(
-                    repository = state.financeRepository,
-                    workspaceId = state.session.activeWorkspaceId.orEmpty(),
-                    sizeClass = state.sizeClass,
-                    canWrite = canWrite,
-                    diagnostics = state.diagnosticLogger,
-                )
+                AppPage.CASH_CATEGORIES -> Unit
                 AppPage.INVESTMENT_HOLDINGS -> InvestmentHoldingsScreen(
                     state.financeRepository,
                     state.session.activeWorkspaceId.orEmpty(),
@@ -1021,15 +1044,23 @@ internal fun DestinationScaffold(
                     state.sizeClass,
                     state.diagnosticLogger,
                 )
-                AppPage.WORKSPACE_MANAGEMENT -> WorkspaceManagementScreen(
+                AppPage.WORKSPACE_MANAGEMENT -> androidx.compose.runtime.key(state.session.activeWorkspaceId) {
+                  CompositionLocalProvider(LocalViewModelStoreOwner provides managementOwner) {
+                    WorkspaceManagementScreen(
                     repository = state.sessionRepository,
+                    categoryRepository = state.financeRepository,
                     workspaceId = state.session.activeWorkspaceId.orEmpty(),
                     session = state.session,
+                    initialSection = initialManagementSection(state.route.page),
+                    directoryOpen = directoryOpen,
+                    onCloseDirectory = closeDirectory,
                     sizeClass = state.sizeClass,
                     onSessionUpdated = state.onSessionUpdated,
                     onWorkspaceDeleted = state.onWorkspaceDeleted,
                     diagnostics = state.diagnosticLogger,
                 )
+                  }
+                }
                 AppPage.INVITATION -> InvitationScreen(
                     repository = state.sessionRepository,
                     token = state.route.invitationToken.orEmpty(),

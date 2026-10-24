@@ -65,9 +65,15 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
             }
         }
         HorizontalDivider()
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.End) {
+        val sideSheet = sizeClass != WindowSizeClass.COMPACT
+        if (sideSheet) Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth().height(if (sideSheet) 72.dp else 56.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End) {
             if (actions != null) actions() else {
+                if (!sideSheet) {
                 TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
+                }
                 Button(onClick = {
                     val request = try {
                         if (pair != null) cashTransferEntryRequest(record, transferMembers, changes, outgoing, incoming, zone)
@@ -75,7 +81,11 @@ internal fun CashEntryEditor(record: CashCurrentRecord, savedRevision: Int, acco
                     } catch (failure: DomainFailure) { error = failure.code; return@Button }
                     onSave(request)
                 }, enabled = !busy && dirty, modifier = Modifier.testTag("cash.entry.save")) { Text(localizedText("copy_fadf24dbc5")) }
+                if (sideSheet) {
+                TextButton(onClick = onCancel, enabled = !busy, modifier = Modifier.testTag("cash.entry.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
+                }
             }
         }
+        if (sideSheet) Spacer(Modifier.height(24.dp))
     }
 }

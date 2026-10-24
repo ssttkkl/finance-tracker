@@ -9,7 +9,13 @@ interface FileSource {
 }
 
 interface CashLedgerRepository {
-    suspend fun fetchCashPage(filters: CashFilters, cursor: String? = null): CashPage
+    suspend fun fetchCashPage(
+        filters: CashFilters,
+        cursor: String? = null,
+        startIndex: Int? = null,
+        projectionVersion: Long? = null,
+        limit: Int = 20,
+    ): CashPage
     suspend fun fetchCashAccounts(): List<Account>
     suspend fun fetchEvidence(id: String): Evidence
     suspend fun fetchLedgerOptions(): LedgerOptions

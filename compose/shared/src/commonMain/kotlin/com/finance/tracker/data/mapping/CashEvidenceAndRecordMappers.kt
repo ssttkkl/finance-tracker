@@ -238,10 +238,12 @@ fun CashRecordDto.toDomain(): CashRecord = CashRecord(
     sourceType = sourceType,
     cashGranularity = cashGranularity,
     components = components?.map { it.toDomain() },
+    componentId = componentId,
 )
 
 fun CashRecord.toDto(): CashRecordDto = CashRecordDto(
     id = id,
+    componentId = componentId,
     occurredAt = occurredAt,
     amount = amount,
     currency = currency,
@@ -268,6 +270,9 @@ fun CashRelationDto.toDomain(): CashRelation = CashRelation(
     status = status,
     primaryRecord = primaryRecord?.toDomain(),
     secondaryRecord = secondaryRecord?.toDomain(),
+    primaryComponentId = primaryComponentId?.toString(),
+    secondaryComponentId = secondaryComponentId?.toString(),
+    appliedAmount = appliedAmount,
 )
 
 fun CashRelation.toDto(): CashRelationDto = CashRelationDto(
@@ -278,6 +283,9 @@ fun CashRelation.toDto(): CashRelationDto = CashRelationDto(
     status = status,
     primaryRecord = primaryRecord?.toDto(),
     secondaryRecord = secondaryRecord?.toDto(),
+    primaryComponentId = primaryComponentId?.toLongOrNull(),
+    secondaryComponentId = secondaryComponentId?.toLongOrNull(),
+    appliedAmount = appliedAmount,
 )
 
 fun CashRecordDetailDto.toDomain(): CashRecordDetail = CashRecordDetail(

@@ -21,6 +21,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -141,6 +143,10 @@ private fun InvitationContent(
 @Composable
 internal fun WorkspaceManagementScreen(
     repository: SessionRepository,
+    categoryRepository: CashCategoryRepository,
+    initialSection: ManagementSection,
+    directoryOpen: Boolean,
+    onCloseDirectory: (Boolean) -> Unit,
     workspaceId: String,
     session: Session,
     sizeClass: WindowSizeClass,
@@ -176,152 +182,158 @@ internal fun WorkspaceManagementScreen(
     val deleteName = state.deleteName
     val deleteError = state.deleteErrorCode?.let { workspaceErrorText(it) }
     val deleting = state.deleting
-    FeaturePage(localizedText("copy_e0617c59d4"), SemanticIds.workspaceManagementScreen, showTitle = false) {
-        if (loading && details == null) StateMessage(localizedText("copy_bac3e13248"))
-        if (error != null && details == null) StateMessage(error.orEmpty(), isError = true) { TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) } }
-        details?.let { current ->
-            SectionCard {
-                Text(localizedText("copy_b9add18dda"), style = MaterialTheme.typography.titleLarge)
-                val saveWorkspaceName: () -> Unit = { viewModel.saveName(isAdmin) }
-                val copyWorkspaceId: () -> Unit = {
-                    scope.launch {
-                        viewModel.setFeedback(if (copyTextToClipboard(current.workspace.id)) "workspace_copied" else "copy_failed")
-                    }
+    ManagementLayout(
+        sizeClass, isAdmin, initialSection, !loading, directoryOpen, onCloseDirectory,
+        status = {
+            if (details != null) {
+                InlineError(error)
+                feedback?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+            }
+        },
+    ) { section ->
+        if (section == ManagementSection.CATEGORIES) {
+            CashCategoryScreen(categoryRepository, workspaceId, sizeClass, activeWorkspace?.role?.canWrite == true, diagnostics)
+        } else if (details == null) {
+            ManagementSectionContent {
+                Text(localizedText(section.titleKey), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                if (loading) StateMessage(localizedText("copy_bac3e13248"))
+                else StateMessage(error.orEmpty(), isError = true) {
+                    TextButton(onClick = viewModel::load) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
-                if (sizeClass == WindowSizeClass.COMPACT) {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(
-                            value = name,
-                            onValueChange = viewModel::updateName,
-                            modifier = Modifier.testTag(SemanticIds.workspaceManagementName)
-                                .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
-                            label = { Text(localizedText("copy_3a0522a8a9")) },
-                            enabled = isAdmin,
-                            singleLine = true,
-                        )
-                        Button(
-                            onClick = saveWorkspaceName,
-                            enabled = isAdmin && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
-                        ) { Text(localizedText("copy_fadf24dbc5")) }
-                        Text(localizedText("copy_b387059362"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(current.workspace.id, style = MaterialTheme.typography.bodyMedium)
-                        TextButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
+            }
+        } else {
+            val current = details
+            when (section) {
+                ManagementSection.WORKSPACE -> ManagementSectionContent {
+                    Text(localizedText("management_basic_info"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                    val saveWorkspaceName: () -> Unit = { viewModel.saveName(isAdmin) }
+                    val copyWorkspaceId: () -> Unit = {
+                        scope.launch {
+                            viewModel.setFeedback(if (copyTextToClipboard(current.workspace.id)) "workspace_copied" else "copy_failed")
+                        }
                     }
-                } else {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ManagementSettingRow(localizedText("copy_3a0522a8a9"), sizeClass) {
+                        val nameField: @Composable (Modifier) -> Unit = { fieldModifier ->
                             OutlinedTextField(
-                                value = name,
-                                onValueChange = viewModel::updateName,
-                                modifier = Modifier.weight(1f).testTag(SemanticIds.workspaceManagementName)
+                                value = name, onValueChange = viewModel::updateName,
+                                modifier = fieldModifier.testTag(SemanticIds.workspaceManagementName)
                                     .accessibleTextFieldLabel(localizedText("copy_3a0522a8a9")),
-                                label = { Text(localizedText("copy_3a0522a8a9")) },
-                                enabled = isAdmin,
-                                singleLine = true,
+                                enabled = isAdmin, singleLine = true,
                             )
+                        }
+                        val saveName: @Composable (Modifier) -> Unit = { buttonModifier ->
                             Button(
                                 onClick = saveWorkspaceName,
                                 enabled = isAdmin && name.trim().isNotEmpty() && name.trim() != current.workspace.name,
+                                modifier = buttonModifier.testTag("management.save-name"),
                             ) { Text(localizedText("copy_fadf24dbc5")) }
                         }
-                        Column(Modifier.weight(0.8f)) {
-                            Text(localizedText("copy_b387059362"), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(current.workspace.id, style = MaterialTheme.typography.bodyMedium)
-                                TextButton(onClick = copyWorkspaceId) { Text(localizedText("copy_ba4ba33f86")) }
-                            }
-                        }
-                    }
-                }
-            }
-            SectionCard {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(localizedText("copy_c1ee9f0190"), style = MaterialTheme.typography.titleLarge)
-                    Text(localizedText("copy_e3fcffbd56", current.members.size))
-                }
-                if (current.members.none { !it.isSelf }) Text(localizedText("copy_a72c953809"))
-                current.members.forEach { member ->
-                    val controls: @Composable () -> Unit = {
-                        if (isAdmin && !member.isSelf) {
-                            ChoicePicker(
-                                label = localizedText("copy_560165a6d7"),
-                                value = member.role.name.lowercase(),
-                                options = listOf("admin" to localizedText("copy_ef84e765e0"), "editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
-                                modifier = Modifier.widthIn(max = 220.dp),
-                                enabled = busyMember != member.userId,
-                                semanticId = SemanticIds.workspaceManagementMemberRole,
-                                onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), isAdmin) },
-                            )
-                            TextButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
+                        if (sizeClass == WindowSizeClass.COMPACT) {
+                            nameField(Modifier.fillMaxWidth())
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) { saveName(Modifier) }
                         } else {
-                            Text(workspaceRoleLabel(member.role), modifier = Modifier.padding(top = 14.dp))
-                        }
-                    }
-                    if (sizeClass == WindowSizeClass.COMPACT) {
-                        Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(if (member.isSelf) localizedText("copy_5630b886f9") else member.email, style = MaterialTheme.typography.titleMedium)
-                            if (member.isSelf) Text(member.email, style = MaterialTheme.typography.bodySmall)
-                            controls()
-                        }
-                    } else {
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Column(Modifier.weight(1f)) {
-                                Text(if (member.isSelf) localizedText("copy_5630b886f9") else member.email, style = MaterialTheme.typography.titleMedium)
-                                if (member.isSelf) Text(member.email, style = MaterialTheme.typography.bodySmall)
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                nameField(Modifier.weight(1f).alignByBaseline())
+                                saveName(Modifier.alignByBaseline())
                             }
-                            controls()
                         }
                     }
-                    HorizontalDivider()
-                }
-            }
-            SectionCard {
-                Text(localizedText("copy_37f99c470a"), style = MaterialTheme.typography.titleLarge)
-                val createInvite: () -> Unit = {
-                    viewModel.createInvitation(isAdmin, getConfiguredWebOrigin(), getBrowserLocation()?.pathname)
-                }
-                ChoicePicker(
-                    label = localizedText("copy_560165a6d7"),
-                    value = invitationRole.name.lowercase(),
-                    options = listOf("editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
-                    onSelected = { viewModel.setInvitationRole(WorkspaceRole.valueOf(it.uppercase())) },
-                    enabled = isAdmin,
-                    semanticId = SemanticIds.workspaceManagementInvitationRole,
-                )
-                Button(onClick = createInvite, enabled = isAdmin, modifier = Modifier.fillMaxWidth().testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
-                if (invitationLink.isNotEmpty()) {
-                    OutlinedTextField(
-                        value = invitationLink,
-                        onValueChange = {},
-                        modifier = Modifier.testTag(SemanticIds.workspaceManagementInviteLink)
-                            .accessibleTextFieldLabel(localizedText("copy_8a8f47d4d5")),
-                        label = { Text(localizedText("copy_8a8f47d4d5")) },
-                        enabled = false,
-                        singleLine = true,
-                    )
-                    TextButton(onClick = {
-                        scope.launch {
-                            viewModel.setFeedback(if (copyTextToClipboard(invitationLink)) "workspace_copied" else "copy_failed")
+
+                    ManagementSettingRow(localizedText("copy_b387059362"), sizeClass) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Text(current.workspace.id, modifier = Modifier.weight(1f).alignByBaseline(), style = MaterialTheme.typography.bodyLarge)
+                            TextButton(onClick = copyWorkspaceId, modifier = Modifier.alignByBaseline()) { Text(localizedText("copy_ba4ba33f86")) }
                         }
-                    }) { Text(localizedText("copy_abb22bd95c")) }
+                    }
                 }
-            }
-            if (isAdmin) {
-                SectionCard {
-                    Text(localizedText("copy_91b31b846d"), style = MaterialTheme.typography.titleLarge)
-                    Button(
-                    onClick = viewModel::openDeleteDialog,
-                    modifier = Modifier.testTag("workspace.management.delete"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError,
-                        ),
+
+                ManagementSection.MEMBERS -> ManagementSectionContent {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(localizedText("management_members"), Modifier.weight(1f).alignByBaseline().semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                        Text(localizedText("copy_e3fcffbd56", current.members.size), Modifier.alignByBaseline(), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (current.members.none { !it.isSelf }) Text(localizedText("copy_a72c953809"))
+                    current.members.forEachIndexed { memberIndex, member ->
+                        val controls: @Composable () -> Unit = {
+                            if (isAdmin && !member.isSelf) {
+                                ChoicePicker(
+                                    label = localizedText("copy_560165a6d7"),
+                                    value = member.role.name.lowercase(),
+                                    options = listOf("admin" to localizedText("copy_ef84e765e0"), "editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
+                                    modifier = Modifier.widthIn(max = 220.dp),
+                                    enabled = busyMember != member.userId,
+                                    semanticId = SemanticIds.workspaceManagementMemberRole,
+                                    onSelected = { role -> viewModel.updateMember(member.userId, WorkspaceRole.valueOf(role.uppercase()), isAdmin) },
+                                )
+                                TextButton(onClick = { viewModel.removeMember(member.userId, isAdmin) }, enabled = busyMember != member.userId) { Text(localizedText("copy_2f752c005e")) }
+                            } else {
+                                Text(workspaceRoleLabel(member.role), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        if (sizeClass != WindowSizeClass.WIDE) {
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(if (member.isSelf) localizedText("copy_5630b886f9") else member.email, style = MaterialTheme.typography.bodyLarge)
+                                if (member.isSelf) Text(member.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                controls()
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(if (member.isSelf) localizedText("copy_5630b886f9") else member.email, style = MaterialTheme.typography.bodyLarge)
+                                    if (member.isSelf) Text(member.email, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                                controls()
+                            }
+                        }
+                        if (memberIndex < current.members.lastIndex) HorizontalDivider()
+                    }
+                }
+                ManagementSection.INVITATIONS -> ManagementSectionContent {
+                    Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        Text(localizedText("copy_37f99c470a"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                        val createInvite: () -> Unit = {
+                            viewModel.createInvitation(isAdmin, getConfiguredWebOrigin(), getBrowserLocation()?.pathname)
+                        }
+                        ChoicePicker(
+                            label = localizedText("copy_560165a6d7"),
+                            value = invitationRole.name.lowercase(),
+                            options = listOf("editor" to localizedText("copy_bff55f2cd9"), "viewer" to localizedText("copy_16df9ebf26")),
+                            onSelected = { viewModel.setInvitationRole(WorkspaceRole.valueOf(it.uppercase())) },
+                            enabled = isAdmin,
+                            semanticId = SemanticIds.workspaceManagementInvitationRole,
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            Button(onClick = createInvite, enabled = isAdmin, modifier = Modifier.testTag(SemanticIds.workspaceManagementInvite)) { Text(localizedText("copy_286539ed41")) }
+                        }
+                        if (invitationLink.isNotEmpty()) {
+                            OutlinedTextField(
+                                value = invitationLink,
+                                onValueChange = {},
+                                modifier = Modifier.testTag(SemanticIds.workspaceManagementInviteLink)
+                                    .accessibleTextFieldLabel(localizedText("copy_8a8f47d4d5")),
+                                label = { Text(localizedText("copy_8a8f47d4d5")) },
+                                enabled = false,
+                                singleLine = true,
+                            )
+                            TextButton(onClick = {
+                                scope.launch {
+                                    viewModel.setFeedback(if (copyTextToClipboard(invitationLink)) "workspace_copied" else "copy_failed")
+                                }
+                            }) { Text(localizedText("copy_abb22bd95c")) }
+                        }
+                    }
+                }
+                ManagementSection.DANGER -> ManagementSectionContent {
+                    Text(localizedText("management_danger"), Modifier.semantics { heading() }, style = MaterialTheme.typography.titleMedium)
+                    androidx.compose.material3.OutlinedButton(
+                        onClick = viewModel::openDeleteDialog,
+                        modifier = Modifier.testTag("workspace.management.delete"),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     ) { Text(localizedText("copy_91b31b846d")) }
                 }
+                ManagementSection.CATEGORIES -> Unit
             }
         }
-        InlineError(error)
-        feedback?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
     }
 
     PlatformModalEscapeHandler(

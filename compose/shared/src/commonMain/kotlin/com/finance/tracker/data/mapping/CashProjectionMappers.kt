@@ -102,6 +102,18 @@ fun CashMonthlySummary.toDto(): CashMonthlySummaryDto = CashMonthlySummaryDto(
     currencies = currencies.map { it.toDto() },
 )
 
+fun CashMonthPositionDto.toDomain(): CashMonthPosition = CashMonthPosition(
+    month = month,
+    startIndex = startIndex,
+    endIndex = endIndex,
+)
+
+fun CashMonthPosition.toDto(): CashMonthPositionDto = CashMonthPositionDto(
+    month = month,
+    startIndex = startIndex,
+    endIndex = endIndex,
+)
+
 fun CashPageDto.toDomain(): CashPage = CashPage(
     projectionVersion = projectionVersion,
     items = items.map { it.toDomain() },
@@ -111,6 +123,11 @@ fun CashPageDto.toDomain(): CashPage = CashPage(
     filterOptions = filterOptions.toDomain(),
     monthlySummaries = monthlySummaries.map { it.toDomain() },
     pendingItemCount = pendingItemCount,
+    monthPositions = monthPositions.map { it.toDomain() },
+    startIndex = startIndex,
+    totalCount = totalCount,
+    itemsBefore = itemsBefore,
+    itemsAfter = itemsAfter,
 )
 
 fun CashPage.toDto(): CashPageDto = CashPageDto(
@@ -122,6 +139,11 @@ fun CashPage.toDto(): CashPageDto = CashPageDto(
     filterOptions = filterOptions.toDto(),
     monthlySummaries = monthlySummaries.map { it.toDto() },
     pendingItemCount = pendingItemCount,
+    monthPositions = monthPositions.map { it.toDto() },
+    startIndex = startIndex,
+    totalCount = totalCount,
+    itemsBefore = itemsBefore,
+    itemsAfter = itemsAfter,
 )
 
 fun CashProjectionDeleteImpactDto.toDomain(): CashProjectionDeleteImpact = CashProjectionDeleteImpact(

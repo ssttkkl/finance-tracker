@@ -34,23 +34,45 @@ class CashLedgerViewModel(
         .distinctUntilChanged()
         .flatMapLatest { (filters, revision) ->
             Pager(
-                config = PagingConfig(pageSize = 20, prefetchDistance = 5, enablePlaceholders = false),
+                config = PagingConfig(
+                    pageSize = 20,
+                    initialLoadSize = 20,
+                    prefetchDistance = 5,
+                    enablePlaceholders = true,
+                    jumpThreshold = 20,
+                ),
                 pagingSourceFactory = {
-                    CashProjectionPagingSource(repository, filters, diagnostics,
+                    CashProjectionPagingSource(
+                        repository = repository,
+                        filters = filters,
+                        diagnostics = diagnostics,
+                        onPageLoaded = { page, firstPage ->
+                            if (firstPage && mutableState.value.filters == filters && mutableState.value.listRevision == revision) {
+                                mutableState.value = mutableState.value.copy(
+                                    selectedIds = mutableState.value.selectedIds.takeIf { mutableState.value.projectionVersion == 0L || mutableState.value.projectionVersion == page.projectionVersion }.orEmpty(),
+                                    page = page.copy(items = emptyList()),
+                                    filterOptions = page.filterOptions,
+                                    projectionVersion = page.projectionVersion,
+                                    listLoadErrorCode = null,
+                                )
+                            }
+                        },
                         onSnapshotInvalidated = {
                             if (mutableState.value.filters == filters && mutableState.value.listRevision == revision)
                                 mutableState.value = mutableState.value.copy(selectedIds = emptySet())
                         },
-                    ) { page, firstPage ->
-                        if (firstPage && mutableState.value.filters == filters && mutableState.value.listRevision == revision) {
-                            mutableState.value = mutableState.value.copy(
-                                selectedIds = mutableState.value.selectedIds.takeIf { mutableState.value.projectionVersion == 0L || mutableState.value.projectionVersion == page.projectionVersion }.orEmpty(),
-                                page = page.copy(items = emptyList()),
-                                filterOptions = page.filterOptions,
-                                projectionVersion = page.projectionVersion,
-                            )
+                        onFirstPageError = { cause ->
+                            val current = mutableState.value
+                            if (current.filters == filters && current.listRevision == revision) {
+                                mutableState.value = current.copy(
+                                    selectedIds = emptySet(),
+                                    page = null,
+                                    projectionVersion = 0,
+                                    listLoadErrorCode = cause.safeErrorCode(),
+                                )
+                            }
                         }
-                    }
+                    )
                 },
             ).flow
         }
@@ -103,6 +125,7 @@ class CashLedgerViewModel(
             filters = filters,
             page = null,
             projectionVersion = 0,
+            listLoadErrorCode = null,
             selectedIds = emptySet(),
             listRevision = mutableState.value.listRevision + 1,
         )
@@ -115,6 +138,12 @@ class CashLedgerViewModel(
     fun clearFilters() = updateFilters(CashFilters())
 
     fun reload() = refreshListing(clearSelection = true)
+
+    fun clearListLoadError() {
+        if (mutableState.value.listLoadErrorCode != null) {
+            mutableState.value = mutableState.value.copy(listLoadErrorCode = null)
+        }
+    }
 
     fun reloadAfterImport() {
         if (!initialized) {
@@ -221,6 +250,7 @@ class CashLedgerViewModel(
         mutableState.value = current.copy(
             page = null,
             projectionVersion = 0,
+            listLoadErrorCode = null,
             selectedIds = if (clearSelection) emptySet() else current.selectedIds,
             listRevision = current.listRevision + 1,
         )

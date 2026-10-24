@@ -21,6 +21,7 @@
 | [现金流水：存储、展示与操作](cash-ledger.md) | 从业务对象、展示与操作顺序到存储职责、API 和一致性边界 |
 | [导入、关系与同步流程](import-flow.md) | 当前主要导入和数据提交流程 |
 | [现金账单导入流程](cash-import-flow.md) | 现金导入主阅读入口：业务、后端执行、接口与数据衔接、局部重建及失败恢复 |
+| [投资管理架构](investment-management-architecture.md) | 手工写入、账单导入、连接器同步、事件查询、组合估值和现金—投资资金关系的当前模型与 API 契约 |
 | [UI 设计约束](ui-design-rules.md) | Compose UI 实现与审查规则 |
 | [设计系统组件登记](design-system/registry.yaml) | 当前共享展示辅助项 |
 

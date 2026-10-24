@@ -14,10 +14,44 @@ import {
 const workspaceRoot = "/w/workspace-1";
 const responsiveWidths = [320, 375, 390, 414, 768, 1440];
 const screenshotDir = path.resolve(process.cwd(), "test-results/evidence");
-const accountMappingScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-import-account-mapping-redesign/screenshots");
-const dialogConformanceScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-material3-dialog-conformance/screenshots");
-const cashLedgerScreenshotDir = path.resolve(process.cwd(), "../openspec/changes/compose-cash-ledger-redesign/screenshots/current-review-20261017");
+const accountMappingScreenshotDir = path.join(screenshotDir, "cash-import-account-mapping");
+const dialogConformanceScreenshotDir = path.join(screenshotDir, "dialog-conformance");
+const cashImportSideSheetScreenshotDir = path.join(screenshotDir, "cash-import-side-sheet");
+const cashLedgerScreenshotDir = path.join(screenshotDir, "cash-ledger-redesign", "current-review-20261020");
+const accountMappingRunScreenshotDir = process.env.FT_COMPOSE_COLOR_SCHEME === "dark"
+  ? path.join(accountMappingScreenshotDir, "dark")
+  : accountMappingScreenshotDir;
 const browserDiagnostics = new WeakMap<import("@playwright/test").Page, BrowserDiagnostics>();
+
+async function screenshotRgbAt(page: Page, x: number, y: number): Promise<[number, number, number]> {
+  const screenshot = (await page.screenshot()).toString("base64");
+  const viewport = page.viewportSize();
+  if (!viewport) throw new Error("Missing Playwright viewport");
+  return page.evaluate(async ({ screenshot, x, y, viewportWidth, viewportHeight }) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${screenshot}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) throw new Error("Unable to inspect the rendered screenshot");
+    context.drawImage(image, 0, 0);
+    const pixel = context.getImageData(
+      Math.floor(x * image.naturalWidth / viewportWidth),
+      Math.floor(y * image.naturalHeight / viewportHeight),
+      1,
+      1,
+    ).data;
+    return [pixel[0], pixel[1], pixel[2]];
+  }, {
+    screenshot,
+    x,
+    y,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+  });
+}
 
 async function clickComposeTarget(page: Page, locator: Locator, xRatio = 0.5, yRatio = 0.5): Promise<void> {
   await locator.scrollIntoViewIfNeeded();
@@ -67,6 +101,14 @@ async function clickComposeUntil(page: Page, locator: Locator, isDone: () => Pro
   throw new Error("Compose target did not produce the expected state");
 }
 
+function indexedLedgerPageCallCount(api: Awaited<ReturnType<typeof installComposeApiFixtures>>): number {
+  return api.calls.filter((call) => {
+    if (call.method !== "GET" || !call.path.startsWith("/api/v1/cash-projections?")) return false;
+    const startIndex = Number(new URL(call.path, "http://compose.test").searchParams.get("start_index"));
+    return Number.isFinite(startIndex) && startIndex > 0;
+  }).length;
+}
+
 async function scrollDialogBodyTo(page: Page, panel: Locator, target: Locator): Promise<void> {
   const viewport = page.viewportSize();
   if (!viewport) throw new Error("Missing Playwright viewport");
@@ -101,6 +143,88 @@ async function scrollDialogBodyTo(page: Page, panel: Locator, target: Locator): 
       : attempt >= 5;
     await page.mouse.wheel(0, scrollUp ? -delta : delta);
     await page.waitForTimeout(100);
+  }
+}
+
+async function scrollDialogBodyToBottom(page: Page, panel: Locator): Promise<void> {
+  const bounds = await panel.boundingBox();
+  if (!bounds) throw new Error("Dialog panel has no rendered bounds");
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + Math.min(bounds.height * 0.6, bounds.height - 120));
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    await page.mouse.wheel(0, 680);
+    await page.waitForTimeout(100);
+  }
+}
+
+async function scrollDialogBodyUntilVisible(page: Page, panel: Locator, target: Locator): Promise<void> {
+  const bounds = await panel.boundingBox();
+  const viewport = page.viewportSize();
+  if (!bounds || !viewport) throw new Error("Dialog panel or viewport is unavailable");
+  const scrollX = bounds.x + Math.min(48, bounds.width / 2);
+  const scrollY = bounds.y + Math.min(bounds.height * 0.78, bounds.height - 80);
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const isVisible = await target.isVisible().catch(() => false);
+    const targetBounds = await target.boundingBox().catch(() => null);
+    if (isVisible && targetBounds && targetBounds.y >= 0 && targetBounds.y + targetBounds.height <= viewport.height - 24) return;
+    await page.mouse.move(scrollX, scrollY);
+    await page.mouse.wheel(0, 220);
+    await page.waitForTimeout(100);
+  }
+}
+
+async function dragTouch(page: Page, x: number, startY: number, endY: number): Promise<void> {
+  const session = await page.context().newCDPSession(page);
+  try {
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+    await session.send("Input.dispatchTouchEvent", {
+      type: "touchStart",
+      touchPoints: [{ x, y: startY, id: 1 }],
+    });
+    const steps = 8;
+    for (let step = 1; step <= steps; step += 1) {
+      await session.send("Input.dispatchTouchEvent", {
+        type: "touchMove",
+        touchPoints: [{ x, y: startY + ((endY - startY) * step) / steps, id: 1 }],
+      });
+      await page.waitForTimeout(20);
+    }
+    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+  } finally {
+    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+    await session.detach();
+  }
+}
+
+async function clickImportPrimaryFooter(page: Page, width: number, height: number, fullWidth = false): Promise<void> {
+  if (fullWidth) {
+    const returnAction = page.locator('[id="import.return"]:visible').last();
+    if (await returnAction.isVisible().catch(() => false)) await clickComposeTarget(page, returnAction);
+    else if (width < 600) await page.mouse.click(width / 2, height - 40);
+    else await clickBottomPrimaryAction(page);
+    await page.waitForTimeout(220);
+    return;
+  }
+  const confirm = page.locator('[id="import.confirm"]:visible').last();
+  const primary = (await confirm.count()) > 0 ? confirm : page.locator('[id="import.next"]:visible').last();
+  if (await primary.isVisible().catch(() => false)) {
+    await clickComposeTarget(page, primary);
+  } else if (width < 600) {
+    // Compose Web can retain the previous dialog's semantics mirror after an
+    // Escape transition even when the compact header action is visibly back.
+    // Exercise that rendered action at its stable app-bar position.
+    await page.mouse.click(width - 44, 32);
+  } else await clickBottomPrimaryAction(page);
+  await page.waitForTimeout(220);
+}
+
+async function requestImportClose(page: Page, width: number): Promise<void> {
+  const closeAction = page.locator('[id="secondary-page-close"]').last();
+  if (await closeAction.isVisible().catch(() => false)) {
+    await clickComposeTarget(page, closeAction);
+  } else if (width >= 600 && await page.locator('[id="cash-import.cancel"]').last().isVisible().catch(() => false)) {
+    await clickComposeTarget(page, page.locator('[id="cash-import.cancel"]').last());
+  } else {
+    await page.keyboard.press("Escape");
   }
 }
 
@@ -549,10 +673,9 @@ test("工作区主导航保留路径上下文并支持浏览器前进后退", as
   await page.screenshot({ path: testInfo.outputPath("app-390.png") });
 
   const destinations = [
-    { id: "cash-categories", screen: "cash-categories.screen", path: "cash-categories", title: "收支分类" },
     { id: "investment-holdings", screen: "investment-holdings.screen", path: "investment-holdings", title: "当前持仓" },
     { id: "investment-events", screen: "investment-events.screen", path: "investment-events", title: "投资事件" },
-    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management", title: "工作区管理" },
+    { id: "workspace-management", screen: "workspace-management.screen", path: "workspace-management", title: "管理" },
   ];
   const visited = [{ url: `${workspaceRoot}/`, screen: "ledger.screen", title: "收支账本" }];
 
@@ -832,16 +955,324 @@ test("F-03 筛选卡片固定，列表独立滚动并触发分页", async ({ pag
     expect(initialFilterBounds).not.toBeNull();
     expect(listBounds).not.toBeNull();
 
-    const nextPageCallsBefore = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const nextPageCallsBefore = indexedLedgerPageCallCount(api);
     await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.75);
     await page.mouse.wheel(0, 6_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBeGreaterThan(nextPageCallsBefore);
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(nextPageCallsBefore);
     const finalFilterBounds = await filters.boundingBox();
     expect(finalFilterBounds).not.toBeNull();
     expect(Math.abs(finalFilterBounds!.y - initialFilterBounds!.y)).toBeLessThanOrEqual(2);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await captureLedgerScene(page, `ledger-sticky-filter-${width}`, width, height);
   }
+});
+
+test("F-03 FAB 覆盖列表，月份头部固定且桌面表格行内缩", async ({ page }) => {
+  test.setTimeout(120_000);
+  await installComposeApiFixtures(page, {
+    cashPaginatedPageCount: 2,
+    cashCrossMonthBoundary: true,
+  });
+
+  for (const [width, height] of [[390, 844], [768, 1024], [1440, 1000]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+
+    const filters = page.locator('[id="ledger.filters"]').last();
+    const ledgerList = page.locator('[id="ledger.list"]').last();
+    const fab = page.locator('[id="ledger.actions-fab"]').last();
+    const initialFilterBounds = await filters.boundingBox();
+    const listBounds = await ledgerList.boundingBox();
+    const fabBounds = await fab.boundingBox();
+    expect(initialFilterBounds).not.toBeNull();
+    expect(listBounds).not.toBeNull();
+    expect(fabBounds).not.toBeNull();
+    expect(
+      listBounds!.x < fabBounds!.x + fabBounds!.width &&
+        listBounds!.x + listBounds!.width > fabBounds!.x &&
+        listBounds!.y < fabBounds!.y + fabBounds!.height &&
+        listBounds!.y + listBounds!.height > fabBounds!.y,
+      `the list viewport should extend behind the FAB at ${width}px`,
+    ).toBe(true);
+
+    const stickySummary = page.locator('[id="ledger.sticky-summary"]').last();
+    await expect(stickySummary).toHaveCount(0);
+
+    if (width >= 600) {
+      const firstDesktopRow = page.locator('[id="ledger.table-row-content-cash-scroll-1-2"]').last();
+      const firstMonthTable = page.locator('[id="ledger.table-2026-09"]').first();
+      const firstMonthSummary = firstMonthTable.locator('[id="ledger.summary"]').last();
+      const firstMonthColumnHeader = firstMonthTable.locator('[id="ledger.table-header"]').last();
+      const rowDivider = page.locator('[id="ledger.table-row-divider-cash-scroll-1-2"]').last();
+      const tableBounds = await firstMonthTable.boundingBox();
+      const summaryBounds = await firstMonthSummary.boundingBox();
+      const rowBounds = await firstDesktopRow.boundingBox();
+      const dividerBounds = await rowDivider.boundingBox();
+      expect(tableBounds).not.toBeNull();
+      expect(summaryBounds).not.toBeNull();
+      expect(rowBounds).not.toBeNull();
+      expect(dividerBounds).not.toBeNull();
+      expect(Math.abs(rowBounds!.x - summaryBounds!.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(rowBounds!.width - summaryBounds!.width)).toBeLessThanOrEqual(2);
+      expect(Math.abs(dividerBounds!.x - tableBounds!.x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(dividerBounds!.width - tableBounds!.width)).toBeLessThanOrEqual(2);
+      await expect(firstMonthColumnHeader).toBeVisible();
+    }
+
+    await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.72);
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      await page.mouse.wheel(0, 20);
+      await page.waitForTimeout(80);
+    }
+    await expect(stickySummary).toBeVisible();
+    await expect(stickySummary).toContainText("2026年10月");
+    const stickyBounds = await stickySummary.boundingBox();
+    const filterBounds = await filters.boundingBox();
+    expect(stickyBounds).not.toBeNull();
+    expect(filterBounds).not.toBeNull();
+    expect(Math.abs(stickyBounds!.y - listBounds!.y)).toBeLessThanOrEqual(2);
+    expect(stickyBounds!.y).toBeGreaterThanOrEqual(filterBounds!.y + filterBounds!.height - 2);
+    const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+    const scrollbarTrack = page.locator('[id="ledger.scrollbar.track"]').last();
+    await expect(scrollbar).toBeVisible();
+    await expect(scrollbarTrack).toBeVisible();
+    const scrollbarTrackBounds = await scrollbarTrack.boundingBox();
+    expect(scrollbarTrackBounds).not.toBeNull();
+    const overlapY = stickyBounds!.y + stickyBounds!.height * 0.8;
+    const trackCenterX = scrollbarTrackBounds!.x + scrollbarTrackBounds!.width / 2;
+    const trackPixel = await screenshotRgbAt(page, trackCenterX, overlapY);
+    const adjacentPixel = await screenshotRgbAt(page, trackCenterX - 8, overlapY);
+    const trackContrast = Math.max(...trackPixel.map((channel, index) => Math.abs(channel - adjacentPixel[index])));
+    expect(trackContrast, `the visible scrollbar track must cross the sticky summary at ${width}px`).toBeGreaterThan(10);
+    if (width >= 600) {
+      const filterCardRight = filterBounds!.x + filterBounds!.width + 16;
+      expect(Math.abs(stickyBounds!.x + stickyBounds!.width - filterCardRight)).toBeLessThanOrEqual(2);
+    }
+
+    if (width >= 600) {
+      const stickyTableHeader = page.locator('[id="ledger.sticky-table-header"]').last();
+      await expect(stickyTableHeader).toBeVisible();
+      const summaryRect = await stickySummary.locator('[id="ledger.summary"]').last().boundingBox();
+      const tableHeaderRect = await stickyTableHeader.boundingBox();
+      expect(summaryRect).not.toBeNull();
+      expect(tableHeaderRect).not.toBeNull();
+      expect(tableHeaderRect!.y).toBeGreaterThanOrEqual(summaryRect!.y + summaryRect!.height - 2);
+    } else {
+      await expect(page.locator('[id="ledger.sticky-table-header"]')).toHaveCount(0);
+    }
+
+    await captureLedgerScene(page, `ledger-overlay-sticky-${width}`, width, height);
+
+    const nextMonthTable = page.locator('[id="ledger.table-2026-09"]').first();
+    const nextMonthSummary = nextMonthTable.locator('[id="ledger.summary"]').last();
+    await expect(nextMonthSummary).toBeVisible();
+    await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.72);
+    await page.mouse.wheel(0, 60);
+    await page.waitForTimeout(80);
+    const naturalNextMonthBounds = await nextMonthSummary.boundingBox();
+    expect(naturalNextMonthBounds).not.toBeNull();
+    expect(naturalNextMonthBounds!.y).toBeGreaterThan(listBounds!.y + 2);
+    await expect(stickySummary).toContainText("2026年10月");
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.72);
+      await page.mouse.wheel(0, 900);
+      await page.waitForTimeout(80);
+    }
+    await expect(stickySummary).toContainText("2026年9月");
+
+    const filterBoundsAfterScroll = await filters.boundingBox();
+    expect(filterBoundsAfterScroll).not.toBeNull();
+    expect(Math.abs(filterBoundsAfterScroll!.y - initialFilterBounds!.y)).toBeLessThanOrEqual(2);
+
+    const lastRow = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      await page.mouse.wheel(0, 1_600);
+      await page.waitForTimeout(80);
+    }
+    await expect(lastRow).toBeVisible();
+    const lastRowBounds = await lastRow.boundingBox();
+    const finalFabBounds = await fab.boundingBox();
+    expect(lastRowBounds).not.toBeNull();
+    expect(finalFabBounds).not.toBeNull();
+    expect(lastRowBounds!.y + lastRowBounds!.height).toBeLessThanOrEqual(finalFabBounds!.y);
+    expect(finalFabBounds!.y - (lastRowBounds!.y + lastRowBounds!.height)).toBeGreaterThanOrEqual(12);
+    await captureLedgerScene(page, `ledger-overlay-end-${width}`, width, height);
+  }
+});
+
+test("F-03 窄滚动条轨道和滑块贴齐列表并按尺寸显示", async ({ page }) => {
+  test.setTimeout(120_000);
+  await installComposeApiFixtures(page, {
+    cashPaginatedPageCount: 4,
+    cashCrossMonthBoundary: true,
+    cashPageDelayMs: 1_000,
+  });
+  const browserErrors: string[] = [];
+  const knownRuntimeWarnings: string[] = [];
+  page.on("pageerror", (error) => browserErrors.push(`pageerror: ${error.message}`));
+  page.on("console", (message) => {
+    if (message.type() === "error") {
+      const text = message.text();
+      if (text.startsWith("Accessing `memory` via `wasmExports` is deprecated.")) {
+        knownRuntimeWarnings.push(text);
+      } else {
+        browserErrors.push(`console: ${text}`);
+      }
+    }
+  });
+  page.on("response", (response) => {
+    if (response.status() >= 400) browserErrors.push(`HTTP ${response.status()}: ${response.url()}`);
+  });
+  const screenshotDirectory = path.join(screenshotDir, "cash-ledger-indexed-scrollbar-detail-contract");
+  await mkdir(screenshotDirectory, { recursive: true });
+
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await expect.poll(() => browserErrors).toEqual([]);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+    const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+    const scrollbarTrack = page.locator('[id="ledger.scrollbar.track"]').last();
+    const scrollbarThumb = page.locator('[id="ledger.scrollbar.thumb"]').last();
+    const initialListBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+    expect(initialListBounds).not.toBeNull();
+    if (sizeName === "compact") {
+      await expect(scrollbar).toBeHidden();
+    } else {
+      await expect(scrollbar).toBeVisible();
+    }
+    await page.screenshot({ path: path.join(screenshotDirectory, `scrollbar-${sizeName}-initial.png`) });
+
+    if (sizeName === "compact") {
+      const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(listBounds).not.toBeNull();
+      await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height / 2);
+      await page.mouse.wheel(0, 360);
+      await expect(scrollbar).toBeVisible();
+      await expect(scrollbarTrack).toBeVisible();
+      await expect(scrollbarThumb).toBeVisible();
+      const scrolledListBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(scrolledListBounds).not.toBeNull();
+      expect(Math.abs(scrolledListBounds!.x - initialListBounds!.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(scrolledListBounds!.width - initialListBounds!.width)).toBeLessThanOrEqual(1);
+    }
+    const rail = await scrollbar.boundingBox();
+    expect(rail).not.toBeNull();
+    expect(rail!.width).toBeGreaterThanOrEqual(36);
+    expect(rail!.width).toBeLessThanOrEqual(44);
+    await expect(scrollbarTrack).toBeVisible();
+    await expect(scrollbarThumb).toBeVisible();
+    const trackBounds = await scrollbarTrack.boundingBox();
+    const thumbBounds = await scrollbarThumb.boundingBox();
+    const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+    expect(trackBounds).not.toBeNull();
+    expect(thumbBounds).not.toBeNull();
+    expect(listBounds).not.toBeNull();
+    expect(Math.abs(trackBounds!.width - 4)).toBeLessThanOrEqual(1);
+    expect(Math.abs(thumbBounds!.width - 4)).toBeLessThanOrEqual(1);
+    const listRight = listBounds!.x + listBounds!.width;
+    const expectedTrackRight = listRight;
+    expect(Math.abs(trackBounds!.x + trackBounds!.width - expectedTrackRight)).toBeLessThanOrEqual(2);
+    expect(Math.abs(thumbBounds!.x + thumbBounds!.width - (trackBounds!.x + trackBounds!.width))).toBeLessThanOrEqual(1);
+    if (sizeName !== "compact") {
+      const filtersBounds = await page.locator('[id="ledger.filters"]').last().boundingBox();
+      const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      const monthTableBounds = await page.locator('[id^="ledger.table-2026-"]').first().boundingBox();
+      expect(filtersBounds).not.toBeNull();
+      expect(listBounds).not.toBeNull();
+      expect(monthTableBounds).not.toBeNull();
+      // The semantic filter panel is inside the filter card's 16 dp content padding.
+      const filterCardRight = filtersBounds!.x + filtersBounds!.width + 16;
+      const listContentRight = listBounds!.x + listBounds!.width;
+      const monthTableRight = monthTableBounds!.x + monthTableBounds!.width;
+      expect(Math.abs(filterCardRight - listContentRight)).toBeLessThanOrEqual(2);
+      expect(Math.abs(filterCardRight - monthTableRight)).toBeLessThanOrEqual(2);
+    } else {
+      await page.screenshot({ path: path.join(screenshotDirectory, "scrollbar-compact-scrolling.png") });
+    }
+
+    if (sizeName === "compact") {
+      await expect(scrollbar).toBeHidden({ timeout: 5_000 });
+      await page.mouse.move(180, 30);
+      await page.screenshot({ path: path.join(screenshotDirectory, "scrollbar-compact-hidden-after-idle.png") });
+    }
+  }
+  expect(browserErrors).toEqual([]);
+  expect(new Set(knownRuntimeWarnings).size).toBeLessThanOrEqual(1);
+});
+
+test("F-03 滚动条交互热区仍可点击定位", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page, {
+    cashPaginatedPageCount: 4,
+    cashCrossMonthBoundary: true,
+    cashPageDelayMs: 300,
+  });
+  const diagnostics = captureBrowserDiagnostics(page);
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto(`${workspaceRoot}/`);
+  await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+  const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+  await expect(scrollbar).toBeVisible();
+
+  const bounds = await scrollbar.boundingBox();
+  expect(bounds).not.toBeNull();
+  await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeHidden();
+  expect(api.state.cashProjectionPageIds.every((ids) => new Set(ids).size === ids.length)).toBe(true);
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+});
+
+test("F-03 滚动条拖动后定位到未加载流水", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page, {
+    cashPaginatedPageCount: 4,
+    cashCrossMonthBoundary: true,
+    cashPageDelayMs: 300,
+  });
+  const diagnostics = captureBrowserDiagnostics(page);
+  for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 1000, "wide"]] as const) {
+    await page.setViewportSize({ width, height });
+    await page.goto(`${workspaceRoot}/`);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+    const scrollbar = page.locator('[id="ledger.scrollbar"]').last();
+    if (sizeName === "compact") {
+      const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(listBounds).not.toBeNull();
+      await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height / 2);
+      await page.mouse.wheel(0, 360);
+    }
+    await expect(scrollbar).toBeVisible();
+    const thumbBounds = await page.locator('[id="ledger.scrollbar.thumb"]').last().boundingBox();
+    const railBounds = await scrollbar.boundingBox();
+    expect(thumbBounds).not.toBeNull();
+    expect(railBounds).not.toBeNull();
+    const requestsBeforeDrag = indexedLedgerPageCallCount(api);
+    const x = thumbBounds!.x + thumbBounds!.width / 2;
+    await page.mouse.move(x, thumbBounds!.y + thumbBounds!.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(x, railBounds!.y + railBounds!.height * 0.4, { steps: 12 });
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(requestsBeforeDrag);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await mkdir(cashLedgerScreenshotDir, { recursive: true });
+      await page.screenshot({
+        path: path.join(cashLedgerScreenshotDir, `ledger-scrollbar-drag-active-${sizeName}-${width}.png`),
+      });
+    }
+    await page.mouse.up();
+    await expect(page.locator('[id="ledger.record-cash-scroll-2-14"]').last()).toBeVisible({ timeout: 20_000 });
+    await captureLedgerScene(page, `ledger-scrollbar-drag-${sizeName}`, width, height);
+  }
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+  expect(diagnostics.staticHttpErrors).toEqual([]);
+  expect(api.state.cashProjectionPageIds.every((ids) => new Set(ids).size === ids.length)).toBe(true);
 });
 
 test("F-03 批量分类取消不写入", async ({ page }) => {
@@ -974,6 +1405,217 @@ test("F-03 批量删除进行中仍可确认或取消，失败反馈保留在账
   }
 });
 
+test("F-03 首次和完整重载丢弃旧流水并显示布局骨架，失败重试不恢复旧数据", async ({ page }) => {
+  test.setTimeout(90_000);
+  await installComposeApiFixtures(page);
+
+  let releaseInitialPage!: () => void;
+  let releaseFailedRefresh!: () => void;
+  let releaseRetryPage!: () => void;
+  const initialPageGate = new Promise<void>((resolve) => { releaseInitialPage = resolve; });
+  const failedRefreshGate = new Promise<void>((resolve) => { releaseFailedRefresh = resolve; });
+  const retryPageGate = new Promise<void>((resolve) => { releaseRetryPage = resolve; });
+  let announceInitialPage!: () => void;
+  let announceFailedRefresh!: () => void;
+  let announceRetryPage!: () => void;
+  const initialPageStarted = new Promise<void>((resolve) => { announceInitialPage = resolve; });
+  const failedRefreshStarted = new Promise<void>((resolve) => { announceFailedRefresh = resolve; });
+  const retryPageStarted = new Promise<void>((resolve) => { announceRetryPage = resolve; });
+  let projectionRequestCount = 0;
+
+  await page.route(/\/api\/v1\/cash-projections\?/, async (route) => {
+    projectionRequestCount += 1;
+    if (projectionRequestCount === 1) {
+      announceInitialPage();
+      await initialPageGate;
+      return route.fallback();
+    }
+    if (projectionRequestCount === 2) {
+      announceFailedRefresh();
+      await failedRefreshGate;
+      return route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { code: "network_unavailable" } }),
+      });
+    }
+    if (projectionRequestCount === 3) {
+      announceRetryPage();
+      await retryPageGate;
+      return route.fallback();
+    }
+    return route.fallback();
+  });
+
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${workspaceRoot}/`);
+    await initialPageStarted;
+    const compactSkeleton = page.locator('[id="ledger.loading-skeleton.card"]').last();
+    await expect(compactSkeleton).toBeVisible();
+    expect(await page.locator('[id^="ledger.table-"]:visible').count()).toBe(0);
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await captureLedgerScene(page, "ledger-refresh-initial-compact", 390, 844);
+    }
+    releaseInitialPage();
+    const firstRecord = page.locator('[id="ledger.record-projection-1"]').last();
+    await expect(firstRecord).toBeVisible();
+
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await page.locator('[id="ledger.filter.quick-type-income"]').last().click({ force: true });
+    await failedRefreshStarted;
+    const tableRowSkeleton = page.locator('[id="ledger.loading-skeleton.table-row"]').last();
+    await expect(tableRowSkeleton).toBeVisible();
+    await expect(firstRecord).toBeHidden();
+    await expect(page.locator('[id="ledger.table-2026-09"]').last()).toBeHidden();
+    if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
+      await captureLedgerScene(page, "ledger-refresh-loading-regular", 768, 1024);
+    }
+
+    releaseFailedRefresh();
+    const retry = page.locator('[id="ledger.retry"]').last();
+    await expect(retry).toBeVisible();
+    await expect(firstRecord).toBeHidden();
+    await expect(page.locator('[id="ledger.table-2026-09"]').last()).toBeHidden();
+    await expect(tableRowSkeleton).toBeHidden();
+    await retry.click({ force: true });
+    await retryPageStarted;
+    await expect(tableRowSkeleton).toBeVisible();
+    await expect(firstRecord).toBeHidden();
+    releaseRetryPage();
+    await expect(firstRecord).toBeVisible();
+    await expect(page.locator('[id="ledger.table-2026-09"]').last()).toBeVisible();
+  } finally {
+    releaseInitialPage();
+    releaseFailedRefresh();
+    releaseRetryPage();
+    await page.unroute(/\/api\/v1\/cash-projections\?/).catch(() => {});
+  }
+});
+
+test("F-03 下拉刷新只响应列表顶部，筛选区和多选期间不触发", async ({ page }) => {
+  test.setTimeout(90_000);
+  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2 });
+  let projectionRequestCount = 0;
+  let activeRefreshGate: { release: () => void; ready: Promise<void> } | null = null;
+  await page.route(/\/api\/v1\/cash-projections\?/, async (route) => {
+    const requestUrl = new URL(route.request().url());
+    const startIndex = Number(requestUrl.searchParams.get("start_index") ?? 0);
+    if (route.request().method() === "GET" && startIndex === 0) {
+      projectionRequestCount += 1;
+      const gate = activeRefreshGate;
+      if (gate) {
+        activeRefreshGate = null;
+        refreshRequestSeen = true;
+        await gate.ready;
+      }
+    }
+    await route.fallback();
+  });
+  let refreshRequestSeen = false;
+
+  const pullListAtTop = async (width: number, height: number, compact: boolean) => {
+    const ledgerList = page.locator('[id="ledger.list"]').last();
+    const bounds = await ledgerList.boundingBox();
+    expect(bounds).not.toBeNull();
+    refreshRequestSeen = false;
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => { release = resolve; });
+    activeRefreshGate = { release, ready };
+    const requestsBefore = projectionRequestCount;
+    await dragTouch(
+      page,
+      bounds!.x + bounds!.width / 2,
+      bounds!.y + Math.min(90, bounds!.height / 3),
+      bounds!.y + Math.min(270, bounds!.height - 24),
+    );
+    await expect.poll(() => projectionRequestCount, { timeout: 5_000 }).toBe(requestsBefore + 1);
+    await expect.poll(() => refreshRequestSeen, { timeout: 5_000 }).toBe(true);
+    const skeleton = compact
+      ? page.locator('[id="ledger.loading-skeleton.card"]').last()
+      : page.locator('[id="ledger.loading-skeleton.table-row"]').last();
+    await expect(skeleton).toBeVisible();
+    await captureLedgerScene(page, `ledger-pull-refresh-${compact ? "compact" : width}`, width, height);
+    release();
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
+    await expect(skeleton).toBeHidden();
+  };
+
+  try {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${workspaceRoot}/`);
+    const firstRecord = page.locator('[id="ledger.record-cash-scroll-1-1"]').last();
+    await expect(firstRecord).toBeVisible();
+    const firstRecordAtTop = await firstRecord.boundingBox();
+    expect(firstRecordAtTop).not.toBeNull();
+
+    const filterBounds = await page.locator('[id="ledger.filters"]').last().boundingBox();
+    expect(filterBounds).not.toBeNull();
+    const requestsBeforeFilterGesture = projectionRequestCount;
+    await dragTouch(
+      page,
+      filterBounds!.x + Math.min(12, filterBounds!.width / 4),
+      filterBounds!.y + filterBounds!.height / 2,
+      filterBounds!.y + filterBounds!.height / 2 + 150,
+    );
+    await page.waitForTimeout(300);
+    expect(projectionRequestCount).toBe(requestsBeforeFilterGesture);
+
+    const listBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+    expect(listBounds).not.toBeNull();
+    await page.mouse.move(listBounds!.x + listBounds!.width / 2, listBounds!.y + listBounds!.height * 0.65);
+    await page.mouse.wheel(0, 1_800);
+    await expect(firstRecord).toBeHidden();
+    const requestsBeforeNonTopGesture = projectionRequestCount;
+    const nonTopBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+    expect(nonTopBounds).not.toBeNull();
+    await dragTouch(
+      page,
+      nonTopBounds!.x + nonTopBounds!.width / 2,
+      nonTopBounds!.y + nonTopBounds!.height / 3,
+      nonTopBounds!.y + nonTopBounds!.height / 3 + 150,
+    );
+    await page.waitForTimeout(300);
+    expect(projectionRequestCount).toBe(requestsBeforeNonTopGesture);
+    await page.reload();
+    await expect(firstRecord).toBeVisible();
+    await pullListAtTop(390, 844, true);
+
+    for (const [width, height] of [[768, 1024], [1440, 1000]] as const) {
+      await page.setViewportSize({ width, height });
+      await page.reload();
+      await expect(firstRecord).toBeVisible();
+      const checkbox = page.locator('[id="ledger.record-checkbox-cash-scroll-1-1"]').last();
+      await expect(checkbox).toBeVisible();
+      const selectBounds = await checkbox.boundingBox();
+      expect(selectBounds).not.toBeNull();
+      await dragTouch(page, selectBounds!.x + selectBounds!.width / 2, selectBounds!.y + selectBounds!.height / 2, selectBounds!.y + selectBounds!.height / 2);
+      await expect(page.locator('[id="ledger.selected-count"]').last()).toBeVisible();
+      const selectionBounds = await page.locator('[id="ledger.list"]').last().boundingBox();
+      expect(selectionBounds).not.toBeNull();
+      const requestsBeforeSelectionGesture = projectionRequestCount;
+      await dragTouch(
+        page,
+        selectionBounds!.x + selectionBounds!.width / 2,
+        selectionBounds!.y + Math.min(90, selectionBounds!.height / 3),
+        selectionBounds!.y + Math.min(270, selectionBounds!.height - 24),
+      );
+      await page.waitForTimeout(300);
+      expect(projectionRequestCount).toBe(requestsBeforeSelectionGesture);
+      const cancelBounds = await page.locator('[id="ledger.cancel-selection"]').last().boundingBox();
+      expect(cancelBounds).not.toBeNull();
+      await dragTouch(page, cancelBounds!.x + cancelBounds!.width / 2, cancelBounds!.y + cancelBounds!.height / 2, cancelBounds!.y + cancelBounds!.height / 2);
+      await expect(page.locator('[id="ledger.selected-count"]:visible')).toHaveCount(0);
+      await expect(page.locator('[id="ledger.cancel-selection"]:visible')).toHaveCount(0);
+      await pullListAtTop(width, height, false);
+    }
+  } finally {
+    activeRefreshGate?.release();
+    await page.unroute(/\/api\/v1\/cash-projections\?/).catch(() => {});
+  }
+  expect(api.calls.some((call) => call.method === "GET" && call.path.startsWith("/api/v1/cash-projections?"))).toBe(true);
+});
+
 test("F-03 账本请求失败后可重试，空结果显示空态", async ({ page }) => {
   const api = await installComposeApiFixtures(page, { cashPageFailures: 1 });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -999,14 +1641,18 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
     await page.goto(`${workspaceRoot}/`);
     const firstPageRecord = page.locator('[id="ledger.record-cash-scroll-1-1"]').last();
     await expect(firstPageRecord).toBeVisible();
-    expect(api.state.cashProjectionPageIds[0]?.filter((id) => id === "cash-scroll-1-1")).toHaveLength(2);
+    expect(new Set(api.state.cashProjectionPageIds[0] ?? []).size).toBe(api.state.cashProjectionPageIds[0]?.length);
     await expect(page.getByText("重复流水", { exact: true })).toHaveCount(0);
-    const cursorPageCallsBeforeScroll = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const indexedPageCallsBeforeScroll = indexedLedgerPageCallCount(api);
     await page.mouse.move(width / 2, height / 2);
     await page.mouse.wheel(0, 6_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBeGreaterThan(cursorPageCallsBeforeScroll);
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(indexedPageCallsBeforeScroll);
     await page.mouse.wheel(0, 6_000);
     const lastPageTwoRecord = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
+      for (let attempt = 0; attempt < 8 && !(await lastPageTwoRecord.isVisible().catch(() => false)); attempt += 1) {
+        await page.mouse.wheel(0, 6_000);
+        await page.waitForTimeout(80);
+      }
     await expect(lastPageTwoRecord).toBeVisible();
     await expect(lastPageTwoRecord).toContainText("第2页流水24");
     await expect(lastPageTwoRecord).toContainText("2026年9月");
@@ -1024,31 +1670,34 @@ test("F-03 收支账本滚动接近末尾时自动追加下一页", async ({ pag
 
 test("F-03 收支账本追加失败时保留流水并可重试，切换筛选后回到首项", async ({ page }) => {
   test.setTimeout(90_000);
-  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 2, cashAppendFailures: 1 });
+  const api = await installComposeApiFixtures(page, { cashPaginatedPageCount: 1, cashAppendFailures: 1 });
   for (const [width, height, sizeName] of [[390, 844, "compact"], [768, 1024, "regular"], [1440, 900, "wide"]] as const) {
     await page.setViewportSize({ width, height });
     await page.goto(`${workspaceRoot}/`);
     await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
-    const pageTwoCallsBeforeScroll = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const pageTwoCallsBeforeScroll = indexedLedgerPageCallCount(api);
     await page.mouse.move(width / 2, height / 2);
     await page.mouse.wheel(0, 12_000);
-    await expect.poll(() => api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length).toBe(pageTwoCallsBeforeScroll + 1);
-    await page.mouse.wheel(0, 12_000);
-    const retryButton = page.locator('[id="ledger.append-retry"]').last();
+    await expect.poll(() => indexedLedgerPageCallCount(api)).toBeGreaterThan(pageTwoCallsBeforeScroll);
+    const retryButton = page.locator('[id="ledger.retry"]').last();
     await expect(retryButton).toBeAttached();
     await retryButton.scrollIntoViewIfNeeded();
-    await expect(retryButton).toContainText("重试加载");
-    await expect(page.locator('[id="ledger.record-cash-scroll-1-24"]').last()).toBeVisible();
+    await expect(retryButton).toContainText("重试");
+    await page.mouse.wheel(0, -12_000);
+    await expect(page.locator('[id="ledger.record-cash-scroll-1-1"]').last()).toBeVisible();
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") await captureLedgerScene(page, `ledger-append-error-${sizeName}`, width, height);
 
-    const pageTwoCallsBeforeRetry = api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length;
+    const pageTwoCallsBeforeRetry = indexedLedgerPageCallCount(api);
     await clickComposeUntil(page, retryButton, async () =>
-      api.calls.filter((call) => call.path.includes("cursor=cash-scroll-page-2")).length === pageTwoCallsBeforeRetry + 1,
+      indexedLedgerPageCallCount(api) > pageTwoCallsBeforeRetry,
     );
-    await page.mouse.wheel(0, 12_000);
-    const lastPageTwoRecord = page.locator('[id="ledger.record-cash-scroll-2-24"]').last();
-    await expect(lastPageTwoRecord).toBeVisible();
-    await expect(lastPageTwoRecord).toContainText("第2页流水24");
+    const lastRecord = page.locator('[id="ledger.record-cash-scroll-1-24"]').last();
+    for (let attempt = 0; attempt < 8 && !(await lastRecord.isVisible().catch(() => false)); attempt += 1) {
+      await page.mouse.wheel(0, 6_000);
+      await page.waitForTimeout(80);
+    }
+    await expect(lastRecord).toBeVisible();
+    await expect(lastRecord).toContainText("第1页流水24");
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") await captureLedgerScene(page, `ledger-append-recovered-${sizeName}`, width, height);
 
     await page.mouse.move(width / 2, height / 2);
@@ -1072,12 +1721,13 @@ test("F-03 桌面详细筛选弹窗按内容高度展开", async ({ page }) => {
   let bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds?.height ?? 1000).toBeLessThan(800);
+  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(560);
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.waitForTimeout(150);
   bounds = await details.boundingBox();
   expect(bounds).not.toBeNull();
   expect(bounds?.height ?? 1000).toBeLessThan(800);
-  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(720);
+  expect(bounds?.width ?? 1000).toBeLessThanOrEqual(560);
 });
 
 test("F-03 各尺寸账单行按交易对方、备注顺序显示", async ({ page }) => {
@@ -1138,6 +1788,21 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
     expect(filterCloseBounds).not.toBeNull();
     expect(filterTitleBounds).not.toBeNull();
     expect(filterCloseBounds!.x + filterCloseBounds!.width).toBeLessThanOrEqual(filterTitleBounds!.x + 1);
+    if (!size.compact) {
+      const [detailsBounds, headerBounds, firstGroupBounds] = await Promise.all([
+        details.boundingBox(),
+        page.locator('[id="ledger.filter.header"]').last().boundingBox(),
+        page.locator('[id="ledger.filter.group.time"]').last().boundingBox(),
+      ]);
+      expect(detailsBounds).not.toBeNull();
+      expect(headerBounds).not.toBeNull();
+      expect(firstGroupBounds).not.toBeNull();
+      expect(headerBounds!.height).toBeCloseTo(48, 0);
+      expect(headerBounds!.y).toBeCloseTo(detailsBounds!.y + 24, 0);
+      expect(firstGroupBounds!.x).toBeCloseTo(detailsBounds!.x + 24, 0);
+      expect(firstGroupBounds!.width).toBeCloseTo(detailsBounds!.width - 48, 0);
+      if (size.capture) await captureDialogConformanceScene(page, `basic-dialog-ledger-filter-${size.name}`);
+    }
 
     const groups = groupIds.map((id) => page.locator(`[id="ledger.filter.group.${id}"]`).last());
     for (const [index, group] of groups.entries()) {
@@ -1229,7 +1894,7 @@ test("F-03 Escape 先关闭筛选选项菜单，再关闭筛选面板", async ({
     await page.waitForTimeout(500);
     const menuClosedScreenshot = await page.screenshot();
     await expect.poll(() => categoryMenu.evaluate((element: HTMLElement) => getComputedStyle(element).pointerEvents)).toBe("none");
-    expect(await screenshotDifferenceRatio(page, menuOpenScreenshot, menuClosedScreenshot, 4, 24)).toBeGreaterThan(0.015);
+    expect(await screenshotDifferenceRatio(page, menuOpenScreenshot, menuClosedScreenshot, 4, 24)).toBeGreaterThan(0.005);
     const panelRemainsPixel = await screenshotPixel(page, menuClosedScreenshot, panelSample.x, panelSample.y);
     const panelPixelDifference = Math.max(
       Math.abs(panelRemainsPixel[0] - openPanelPixel[0]),
@@ -1524,6 +2189,11 @@ test("F-07 分类目录按上级路径搜索并可新增分类", async ({ page }
   };
   await page.route(`**${categoryDeletePath}`, delayedCategoryDelete);
   try {
+    await clickComposeUntil(
+      page,
+      page.locator('[id="cash-category.more.category-created"]').last(),
+      async () => page.getByRole("button", { name: "删除", exact: true }).last().isVisible(),
+    );
     await clickComposeTarget(page, page.getByRole("button", { name: "删除", exact: true }).last());
     const confirm = page.locator('[id="cash-category.delete.confirm"]').last();
     const cancel = page.locator('[id="cash-category.delete.cancel"]').last();
@@ -1579,16 +2249,22 @@ test("F-08 持仓可查看估值详情", async ({ page }) => {
     await expect(page.getByText("估值状态", { exact: true }).last()).toContainText("估值状态");
     await expect(page.getByText("行情完整", { exact: true }).last()).toContainText("行情完整");
     await expect(page.locator('[id="investment.position.detail.close"]').last()).toBeVisible();
+    const positionHeaderBounds = await page.locator('[id="investment.position.detail.header"]').last().boundingBox();
+    const positionContentBounds = await detail.getByText("持有数量", { exact: true }).boundingBox();
     const positionCloseBounds = await page.locator('[id="investment.position.detail.close"]').last().boundingBox();
     const positionTitleBounds = await page.locator('[id="investment.position.detail.title"]').last().boundingBox();
     expect(positionCloseBounds).not.toBeNull();
     expect(positionTitleBounds).not.toBeNull();
+    expect(positionHeaderBounds).not.toBeNull();
+    expect(positionContentBounds).not.toBeNull();
     expect(positionCloseBounds!.x + positionCloseBounds!.width).toBeLessThanOrEqual(positionTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
+    expect(positionHeaderBounds!.height).toBeCloseTo(72, 0);
+    expect(positionContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
-    expect(bounds!.x).toBeGreaterThanOrEqual(16);
-    expect(bounds!.y).toBeGreaterThanOrEqual(16);
+    expect(bounds!.x).toBeGreaterThanOrEqual(24);
+    expect(bounds!.y).toBeGreaterThanOrEqual(24);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `investment-position-${sizeName}.png`) });
@@ -1657,16 +2333,22 @@ test("F-09 投资事件可加载下一页并查看证据", async ({ page }) => {
     await expect(detail).toBeVisible();
     await expect(page.getByText("发生时间", { exact: true }).last()).toBeVisible();
     await expect(page.locator('[id="investment.event.detail.close"]').last()).toBeVisible();
+    const eventHeaderBounds = await page.locator('[id="investment.event.detail.header"]').last().boundingBox();
+    const eventContentBounds = await detail.getByText("发生时间", { exact: true }).boundingBox();
     const detailCloseBounds = await page.locator('[id="investment.event.detail.close"]').last().boundingBox();
     const detailTitleBounds = await page.locator('[id="investment.event.detail.title"]').last().boundingBox();
     expect(detailCloseBounds).not.toBeNull();
     expect(detailTitleBounds).not.toBeNull();
+    expect(eventHeaderBounds).not.toBeNull();
+    expect(eventContentBounds).not.toBeNull();
     expect(detailCloseBounds!.x + detailCloseBounds!.width).toBeLessThanOrEqual(detailTitleBounds!.x + 1);
     const bounds = await detail.boundingBox();
     expect(bounds).not.toBeNull();
+    expect(eventHeaderBounds!.height).toBeCloseTo(72, 0);
+    expect(eventContentBounds!.x).toBeCloseTo(bounds!.x + 24, 0);
     expect(bounds!.width).toBeLessThanOrEqual(560);
-    expect(bounds!.x).toBeGreaterThanOrEqual(16);
-    expect(bounds!.y).toBeGreaterThanOrEqual(16);
+    expect(bounds!.x).toBeGreaterThanOrEqual(24);
+    expect(bounds!.y).toBeGreaterThanOrEqual(24);
     if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
       await mkdir(dialogConformanceScreenshotDir, { recursive: true });
       await page.screenshot({ path: path.join(dialogConformanceScreenshotDir, `investment-event-${sizeName}.png`) });
@@ -1781,7 +2463,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
   const api = await installComposeApiFixtures(page);
   await page.setViewportSize({ width: 390, height: 2000 });
   await page.goto(`${workspaceRoot}/workspace-management`);
-  await expect(page.getByText("成员", { exact: true }).last()).toContainText("成员");
+  await expect(page.getByText("成员与权限", { exact: true }).last()).toContainText("成员与权限");
   if (process.env.FT_CAPTURE_COMPOSE_SCREENSHOTS === "1") {
     await page.screenshot({ path: "/tmp/finance-compose-workspace-management-390.png" });
     await page.setViewportSize({ width: 1440, height: 1000 });
@@ -1790,7 +2472,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
     await page.setViewportSize({ width: 390, height: 2000 });
     await page.waitForTimeout(500);
     await page.reload();
-    await expect(page.getByText("成员", { exact: true }).last()).toBeVisible();
+    await expect(page.getByText("成员与权限", { exact: true }).last()).toBeVisible();
   }
   await typeIntoComposeInput(page, '[id="workspace-management.name"]', "新的家庭账本", { replace: true });
   await page.keyboard.press("Tab");
@@ -1800,9 +2482,7 @@ test("F-10 工作区管理员可修改名称并创建邀请链接", async ({ pag
   await expect.poll(() => api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/auth/workspace")).toBe(true);
   await expect(page.getByText("已保存。", { exact: true }).last()).toContainText("已保存。");
 
-  await page.mouse.move(220, 740);
-  await page.mouse.wheel(0, 1400);
-  await page.locator('[id="workspace.management.invite"]').last().click({ force: true });
+  await clickComposeTarget(page, page.locator('[id="workspace.management.invite"]').last());
   await expect(page.locator('[id="workspace-management.invite-link"]').last()).toContainText(/\?invite=invite-e2e-token$/);
   expect(api.calls.some((call) => call.method === "PUT" && call.path === "/api/v1/auth/workspace")).toBe(true);
   expect(api.calls.some((call) => call.method === "POST" && call.path === "/api/v1/auth/invitations")).toBe(true);

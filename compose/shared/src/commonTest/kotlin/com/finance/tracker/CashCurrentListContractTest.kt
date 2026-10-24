@@ -3,6 +3,7 @@ package com.finance.tracker
 import com.finance.tracker.core.TokenStore
 import com.finance.tracker.data.*
 import com.finance.tracker.domain.*
+import com.finance.tracker.presentation.cashLedgerMonthPositionForOrdinal
 import com.finance.tracker.presentation.cashProjectionAmountLabel
 import com.finance.tracker.presentation.CashProjectionPagingSource
 import androidx.paging.PagingSource
@@ -30,6 +31,12 @@ class CashCurrentListContractTest {
         assertEquals(1L, page.pendingItemCount)
         assertEquals("—", cashProjectionAmountLabel(draft))
     }
+    @Test fun repeatedMonthAfterUnknownKeepsItsOwnAbsoluteStart() {
+        val positions = listOf(CashMonthPosition("2026-10", 0, 1), CashMonthPosition("unknown", 1, 2), CashMonthPosition("2026-10", 2, 3))
+        assertEquals(2, cashLedgerMonthPositionForOrdinal(positions, 2)?.startIndex)
+        assertEquals("unknown", cashLedgerMonthPositionForOrdinal(positions, 1)?.month)
+        assertNull(cashLedgerMonthPositionForOrdinal(positions, 3))
+    }
     @Test fun zeroRefundIsStillARealVisibleAmount() {
         val draft = apiJson.decodeFromString<CashPageDto>(PAGE).toDomain().items.single()
         val refund = draft.copy(amount = "0.00", currency = "CNY", state = "posted", statisticsEligible = true)
@@ -37,11 +44,11 @@ class CashCurrentListContractTest {
     }
     @Test fun changedSnapshotInvalidatesInsteadOfOfferingAppendRetry() = runTest {
         val repository = object : CashLedgerRepository by DemoFinanceRepository() {
-            override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage =
+            override suspend fun fetchCashPage(filters: CashFilters, cursor: String?, startIndex: Int?, projectionVersion: Long?, limit: Int): CashPage =
                 throw DomainFailure("read_snapshot_changed", 409, FailureCategory.RECOVERABLE)
         }
         val source = CashProjectionPagingSource(repository, CashFilters(), onPageLoaded = { _, _ -> })
-        assertTrue(source.load(PagingSource.LoadParams.Append("old", 20, false)) is PagingSource.LoadResult.Invalid)
+        assertTrue(source.load(PagingSource.LoadParams.Append(20, 20, true)) is PagingSource.LoadResult.Invalid)
     }
     @Test fun stateFilterKeepsOtherFiltersAndCurrentCursor() = runTest {
         var call: HttpRequestData? = null

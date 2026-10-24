@@ -489,7 +489,7 @@
     <string name="navigation_investment_holdings">Holdings</string>
     <string name="navigation_invitation">Accept invitation</string>
     <string name="navigation_not_found">Page not found</string>
-    <string name="navigation_workspace_management">Workspace settings</string>
+    <string name="navigation_workspace_management">Management</string>
     <string name="display_not_provided">Not provided</string>
     <string name="display_time_not_provided">Time not provided</string>
     <string name="display_date_full">%2$d/%3$d/%1$d</string>
@@ -583,6 +583,7 @@
     <string name="ledger_action_delete">Delete</string>
     <string name="ledger_action_cancel_selection">Cancel selection</string>
     <string name="ledger_selection_count">%1$s selected</string>
+    <string name="ledger_scrollbar_description">Jump to a transaction position</string>
     <string name="ledger_category_dialog_title">Set category</string>
     <string name="ledger_category_label">Category</string>
     <string name="ledger_category_cancel">Cancel</string>
@@ -758,4 +759,13 @@
     <string name="cash_booking_information">Booking information</string>
     <string name="cash_counterparty_information">Counterparty information</string>
     <string name="cash_confirm_save">Confirm save</string>
+    <string name="management_workspace">Workspace</string>
+    <string name="management_basic_info">Basic info</string>
+    <string name="management_access">Access</string>
+    <string name="management_members">Members</string>
+    <string name="management_danger">Danger zone</string>
+    <string name="management_directory">Management directory</string>
+    <string name="management_open_directory">Open management directory</string>
+    <string name="management_category_more">Category actions</string>
+    <string name="management_category_has_children">Delete (move children first)</string>
 </resources>

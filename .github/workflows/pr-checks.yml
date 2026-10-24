@@ -56,14 +56,16 @@ jobs:
         run: ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache
 
       - name: Verify normal Web build keeps demo mode off
-        run: grep -Fq 'COMPOSE_DEMO_MODE: Boolean = false' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
+        run: >-
+          grep -Fq 'COMPOSE_DEMO_MODE: Boolean = false' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
 
       - name: Build Compose offline demo distribution
         working-directory: compose
         run: FT_COMPOSE_DEMO_MODE=true ./gradlew :webApp:wasmJsBrowserDistribution --no-configuration-cache
 
       - name: Verify Web demo build enables demo mode
-        run: grep -Fq 'COMPOSE_DEMO_MODE: Boolean = true' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
+        run: >-
+          grep -Fq 'COMPOSE_DEMO_MODE: Boolean = true' compose/shared/build/generated/source/buildkonfig/commonMain/com/finance/tracker/shared/ComposeBuildConfig.kt
 
       - name: Check production Compose Web demo boundary
         run: python3 compose/tests/test_build_wasm_web.py

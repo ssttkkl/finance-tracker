@@ -27,6 +27,7 @@ test("single relation candidate shows every actual member and invalidated choice
   await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
     items: [{ projection_id: "relation-11", transaction_id: "11", record_id: "11", ...fields("11"), economic_type: "expense",
       state: "posted", confirmation_status: "pending", statistics_eligible: true, attention_count: 1 }],
+    start_index: 0, total_count: 1, items_before: 0, items_after: 0, month_positions: [],
     next_cursor: null, projection_version: 9, pending_item_count: 1, page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
   } }));
   await page.route(/\/api\/v1\/cash-records\/(11|21|22)$/, route => {
