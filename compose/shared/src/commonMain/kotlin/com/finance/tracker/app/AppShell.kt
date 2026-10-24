@@ -996,6 +996,7 @@ internal fun DestinationScaffold(
                     state.diagnosticLogger,
                     state.cashLedgerReloadRevision,
                     maintenanceRepository = state.cashMaintenanceRepository,
+                    creationRepository = state.cashCreationRepository,
                     maintenanceRecovery = state.cashMaintenanceRecovery,
                 )
                 AppPage.CASH_IMPORT -> Unit

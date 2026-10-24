@@ -29,11 +29,16 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
             "counterparty" to text(row.counterparty), "counterparty_account" to text(row.counterpartyAccount), "note" to text(row.note),
             "account_id" to (row.accountId?.let { text(it.toString()) } ?: StructuredNull), "account_name" to text(row.accountName),
             "category_id" to (row.categoryId?.let(::text) ?: StructuredNull), "record_type" to text(row.recordType), "record_subtype" to text(row.recordSubtype)))
-        val editable = listOf("occurred_at", "amount", "currency", "account_id", "counterparty", "counterparty_account", "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype")
+        val root = finance.transferRoot(transactionId)
+        val isTransfer = finance.transferMembers(transactionId).isNotEmpty()
+        val editable = if (isTransfer) common.toList() else listOf("occurred_at", "amount", "currency", "account_id", "counterparty", "counterparty_account", "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype")
         val revision = revisions[transactionId] ?: 1
         val projectionVersion = finance.fetchEvidence("projection-$transactionId").projectionVersion
-        return CashCurrentRecord("manual", CashPublicEntry("demo-entry-$transactionId", entryRevisions[transactionId] ?: 1, StructuredObject(fields.fields + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), editable, false),
-            transactionId, "posted", revision, "confirmed", fields, editable, emptyList(), emptyList(), CashCurrentProjectionRef(transactionId, "projection-$transactionId", 0, projectionVersion))
+        val entryFields = if (isTransfer) finance.fetchCashRecord(root).record.let { source -> mapOf(
+            "note" to text(source.note), "counterparty" to text(source.counterparty), "counterparty_account" to text(source.counterpartyAccount),
+            "counterparty_account_attrs" to StructuredArray(emptyList()), "category_id" to (source.categoryId?.let(::text) ?: StructuredNull)) } else fields.fields
+        return CashCurrentRecord(if (isTransfer) "manual_transfer" else "manual", CashPublicEntry("demo-entry-$root", entryRevisions[root] ?: 1, StructuredObject(entryFields + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), editable, false),
+            transactionId, "posted", revision, "confirmed", fields, editable, emptyList(), emptyList(), CashCurrentProjectionRef(transactionId, "projection-$root", 0, projectionVersion))
     }
     override suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan {
         val current = record(input.transactionId)
@@ -80,7 +85,7 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
             value("counterparty_account"), value("note"), account?.name ?: value("account_name"), value("record_type"), value("record_subtype"), value("category_id").ifEmpty { null }))
         if (input.patch.fields.keys.any { it !in common }) revisions[current.transactionId] = current.rowRevision + 1
         finance.saveCommonFields(current.transactionId, input.patch.fields.filterKeys { it in common })
-        entryRevisions[current.transactionId] = current.entry!!.revision + 1
+        entryRevisions[finance.transferRoot(current.transactionId)] = current.entry!!.revision + 1
         val receipt = ImportReceipt("demo-receipt-${++counter}", command.planId, "mutation", true, "2026-10-24T00:00:00Z", "completed",
             mapOf("updated_posted" to 1L), emptyMap(), 0, 0, null, null, null, current.transactionId, null, null, null)
         receipts[command.idempotencyKey] = receipt

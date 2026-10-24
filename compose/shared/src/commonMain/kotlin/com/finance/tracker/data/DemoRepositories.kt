@@ -132,7 +132,7 @@ class DemoSessionRepository : SessionRepository {
 /** All records are owned by this instance and disappear when the app process creates a new graph. */
 class DemoFinanceRepository : FinanceRepository {
     private val cashAccount = Account(1, "日常账户", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
-    private val cardAccount = Account(2, "银行卡", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
+    private val cardAccount = Account(2, "银行卡", "cash", currencies = listOf("CNY", "USD")) // i18n-allow: demo-fixture
     private val investmentAccount = Account(3, "证券账户", "investment", currencies = listOf("USD")) // i18n-allow: demo-fixture
     private val accounts = mutableListOf(cashAccount, cardAccount, investmentAccount)
     private val categories = mutableListOf(
@@ -146,13 +146,17 @@ class DemoFinanceRepository : FinanceRepository {
         demoRecord("demo-record-1", "2026-10-08T18:15:00Z", "-16.00", "城市交通", "地铁出行", "consumption", "transport"), // i18n-allow: demo-fixture
     )
     private val relations = mutableListOf<CashRelation>()
+    private val manualTransfers = mutableMapOf<String, List<String>>()
+    internal fun transferMembers(id: String): List<String> = manualTransfers.values.firstOrNull { id in it }.orEmpty()
+    internal fun transferRoot(id: String): String = transferMembers(id).firstOrNull() ?: id
     private val committedImportTokens = mutableSetOf<String>()
     private val commonFields = mutableMapOf<String, Map<String, StructuredValue>>()
-    internal fun currentCommonFields(id: String): Map<String, StructuredValue> = commonFields[id].orEmpty()
+    internal fun currentCommonFields(id: String): Map<String, StructuredValue> = commonFields[transferRoot(id)].orEmpty()
     internal fun saveCommonFields(id: String, patch: Map<String, StructuredValue>) {
         findRecord(id)
         require(patch.keys.all { it in setOf("note", "counterparty", "counterparty_account", "counterparty_account_attrs", "category_id") })
-        commonFields[id] = commonFields[id].orEmpty() + patch
+        val root = transferRoot(id)
+        commonFields[root] = commonFields[root].orEmpty() + patch
         if (patch.isNotEmpty()) projectionVersion++
     }
     private fun effectiveRecord(row: CashRecord): CashRecord {
@@ -173,7 +177,9 @@ class DemoFinanceRepository : FinanceRepository {
         if (listOfNotNull(filters.amountMin, filters.amountMax).any { !isExactDecimalString(it) }) {
             throw demoFailure("invalid_filter", 400)
         }
-        val filtered = records.filter { recordMatches(effectiveRecord(it), filters) }
+        val filtered = records.filter { transferRoot(it.id) == it.id }.filter { row ->
+            (transferMembers(row.id).ifEmpty { listOf(row.id) }).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
+        }
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val page = filtered.drop(offset).take(DEMO_PAGE_SIZE)
         val next = (offset + page.size).takeIf { it < filtered.size }?.toString()
@@ -195,15 +201,18 @@ class DemoFinanceRepository : FinanceRepository {
     override suspend fun fetchCashAccounts(): List<Account> = accounts.filter { it.type == "cash" }
 
     override suspend fun fetchEvidence(id: String): Evidence {
-        val record = findRecord(id.removePrefix("projection-"))
+        val record = findRecord(transferRoot(id.removePrefix("projection-")))
+        val members = transferMembers(record.id).ifEmpty { listOf(record.id) }.map(::findRecord)
         val item = projection(record)
         val evidence = evidenceRecord(record)
         return Evidence(
             projectionVersion = projectionVersion,
             projection = item,
             rootRecord = evidence,
-            members = listOf(evidenceMember(record)),
-            acceptedRelations = emptyList(),
+            members = members.map(::evidenceMember),
+            acceptedRelations = relations.filter { it.kind == "transfer_pair" && it.primaryRecord?.id == record.id }.map {
+                AcceptedEvidenceRelation(it.id, it.kind, primaryRecord = it.primaryRecord?.let(::evidenceRecord), secondaryRecord = it.secondaryRecord?.let(::evidenceRecord))
+            },
             inactiveRelationHints = emptyList(),
         )
     }
@@ -221,21 +230,25 @@ class DemoFinanceRepository : FinanceRepository {
     }
 
     override suspend fun fetchCashProjectionDeleteImpact(ids: List<String>, projectionVersion: Long): CashProjectionDeleteImpact {
-        val selected = ids.map { it.removePrefix("projection-") }.toSet()
+        val roots = ids.map { it.removePrefix("projection-") }.toSet()
+        val selected = roots.flatMap { transferMembers(it).ifEmpty { listOf(it) } }.toSet()
         return CashProjectionDeleteImpact(
-            projectionCount = selected.count { id -> records.any { it.id == id } },
+            projectionCount = roots.count { id -> records.any { it.id == id } },
             transactionCount = selected.count { id -> records.any { it.id == id } },
             relationGroupCount = relations.count { it.primaryRecord?.id in selected || it.secondaryRecord?.id in selected },
         )
     }
 
     override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult {
-        val selected = ids.map { it.removePrefix("projection-") }.toSet()
+        val roots = ids.map { it.removePrefix("projection-") }.toSet()
+        val selected = roots.flatMap { transferMembers(it).ifEmpty { listOf(it) } }.toSet()
+        val groupCount = relations.count { it.primaryRecord?.id in selected || it.secondaryRecord?.id in selected }
         val removed = records.filter { it.id in selected }
         records.removeAll { it.id in selected }
         relations.removeAll { it.primaryRecord?.id in selected || it.secondaryRecord?.id in selected }
+        manualTransfers.entries.removeAll { it.key in selected }
         this.projectionVersion++
-        return CashProjectionDeleteResult(removed.size, removed.size, 0, removed.isNotEmpty(), this.projectionVersion)
+        return CashProjectionDeleteResult(roots.count { root -> removed.any { it.id == root } }, removed.size, groupCount, removed.isNotEmpty(), this.projectionVersion)
     }
 
     override suspend fun fetchCashRecord(id: String): CashRecordDetail = recordDetail(findRecord(id))
@@ -263,6 +276,27 @@ class DemoFinanceRepository : FinanceRepository {
         records.add(0, record)
         projectionVersion++
         return recordDetail(record)
+    }
+
+    internal fun createDemoCashTransfer(input: StructuredObject) {
+        fun text(key: String) = (input.fields[key] as? StructuredText)?.value.orEmpty()
+        val from = accounts.singleOrNull { it.name == text("from_account") && it.active } ?: throw demoFailure("invalid_account", 422)
+        val to = accounts.singleOrNull { it.name == text("to_account") && it.active } ?: throw demoFailure("invalid_account", 422)
+        val fromCurrency = text("from_currency"); val toCurrency = text("to_currency")
+        val exchange = fromCurrency != toCurrency
+        val amount = text("amount"); val toAmount = if (exchange) text("to_amount") else amount
+        if (fromCurrency !in from.currencies.orEmpty() || toCurrency !in to.currencies.orEmpty() ||
+            !isExactDecimalString(amount) || !isExactDecimalString(toAmount) || amount.startsWith('-') || toAmount.startsWith('-') ||
+            amount.none { it in '1'..'9' } || toAmount.none { it in '1'..'9' } || from.id == to.id && !exchange) throw demoFailure("invalid_record", 422)
+        val time = text("date") + "T" + text("time") + "Z"
+        val subtype = if (exchange) "currency_exchange" else "ordinary_transfer"
+        val outgoing = recordFromWrite("demo-record-${nextRecordNumber++}", CashRecordWrite(time, "-" + amount.removePrefix("+"), fromCurrency,
+            to.name, note = text("note"), accountName = from.name, recordType = if (exchange) "fx_out" else "transfer_out", recordSubtype = subtype))
+        val incoming = recordFromWrite("demo-record-${nextRecordNumber++}", CashRecordWrite(time, toAmount.removePrefix("+"), toCurrency,
+            from.name, note = text("note"), accountName = to.name, recordType = if (exchange) "fx_in" else "transfer_in", recordSubtype = subtype))
+        records.addAll(0, listOf(outgoing, incoming)); manualTransfers[outgoing.id] = listOf(outgoing.id, incoming.id)
+        relations += CashRelation("demo-relation-${nextRelationNumber++}", "transfer_pair", "", subtype = subtype, status = "accepted", primaryRecord = outgoing, secondaryRecord = incoming)
+        projectionVersion++
     }
 
     override suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail {
@@ -565,7 +599,10 @@ class DemoFinanceRepository : FinanceRepository {
     }
 
     private fun projection(source: CashRecord): CashProjection {
-        val record = effectiveRecord(source)
+        val record = effectiveRecord(findRecord(transferRoot(source.id)))
+        val pair = transferMembers(record.id).map(::findRecord)
+        val transfer = if (pair.size == 2) CashTransfer(accountById(pair[0].accountId)!!, pair[0].amount, pair[0].currency,
+            accountById(pair[1].accountId)!!, pair[1].amount, pair[1].currency) else null
         return CashProjection(
         projectionId = "projection-${record.id}",
         occurredAt = record.occurredAt,
@@ -575,8 +612,11 @@ class DemoFinanceRepository : FinanceRepository {
         note = record.note,
         amount = record.amount,
         currency = record.currency,
-        economicType = if (record.recordType == "income") "income" else if (record.recordType == "transfer") "transfer" else "expense",
-        transferSubtype = record.recordSubtype.takeIf { record.recordType == "transfer" },
+        economicType = if (transfer != null) "internal_transfer" else if (record.recordType == "transfer") "transfer" else if (record.recordType == "income") "income" else "expense",
+        transferSubtype = record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
+        transfer = transfer,
+        memberCount = pair.size.takeIf { it > 0 } ?: 1,
+        statisticsEligible = true,
         composition = if (record.components.isNullOrEmpty()) listOf("single") else listOf("combined"),
         recordId = record.id,
         transactionId = record.id,
@@ -615,7 +655,7 @@ class DemoFinanceRepository : FinanceRepository {
     )
 
     private fun evidenceMember(record: CashRecord) = EvidenceMember(
-        id = "fact-${record.id}",
+        id = record.id,
         occurredAt = record.occurredAt,
         account = accountById(record.accountId),
         accountName = record.accountName,

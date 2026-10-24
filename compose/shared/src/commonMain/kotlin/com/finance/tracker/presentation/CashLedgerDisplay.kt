@@ -35,7 +35,7 @@ internal fun cashProjectionEconomicTypeResourceKey(item: CashProjection): String
     item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.economicType == "expense" -> "cash_type_expense"
     item.economicType == "income" -> "cash_type_income"
-    item.economicType == "internal_transfer" -> "cash_type_merged"
+    item.economicType == "internal_transfer" -> "ledger_quick_transfer"
     else -> "display_not_provided"
 }
 

@@ -11,6 +11,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class CashLedgerDisplayTest {
+    @Test fun internalTransferIsLabeledAsTransferRatherThanItsMergeState() {
+        for (subtype in listOf("ordinary_transfer", "currency_exchange", "credit_repayment")) {
+            assertEquals("ledger_quick_transfer", cashProjectionEconomicTypeResourceKey(
+                projection(amount = "0", economicType = "internal_transfer", transferSubtype = subtype)))
+        }
+    }
     @Test
     fun projectionRowsKeepFullCategoryPathAndBusinessLabels() {
         val category = CashCategory(

@@ -677,4 +677,12 @@
     <string name="cash_allocation_add">添加分摊</string>
     <string name="cash_allocation_remove">移除分摊</string>
     <string name="cash_edit_entry">编辑收支</string>
+    <string name="cash_ordinary_booking">普通记账</string>
+    <string name="cash_from_account">转出账户</string>
+    <string name="cash_to_account">转入账户</string>
+    <string name="cash_from_amount">转出金额</string>
+    <string name="cash_to_amount">转入金额</string>
+    <string name="cash_invalid_account">请选择有效的账户和转账方向。</string>
+    <string name="cash_create_unknown">暂时无法确认是否已保存，请返回账本核对后再记账。</string>
+    <string name="cash_create_invalid_amount">金额不能为负数，转账金额须大于零。</string>
 </resources>

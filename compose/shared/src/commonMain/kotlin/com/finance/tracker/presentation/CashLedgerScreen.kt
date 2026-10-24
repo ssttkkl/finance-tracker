@@ -113,6 +113,7 @@ internal fun CashLedgerScreen(
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
     cashLedgerReloadRevision: Int = 0,
     maintenanceRepository: CashMaintenanceRepository,
+    creationRepository: CashCreationRepository,
     maintenanceRecovery: CashMaintenanceRecoveryStore,
 ) {
     val viewModel: CashLedgerViewModel = viewModel(
@@ -120,6 +121,12 @@ internal fun CashLedgerScreen(
         factory = viewModelFactory { initializer { CashLedgerViewModel(repository, repository, diagnostics = diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val creationTask: CashCreationViewModel = viewModel(
+        key = "cash-creation:${session.user.email}:${session.activeWorkspaceId}:${creationRepository.hashCode()}",
+        factory = viewModelFactory { initializer { CashCreationViewModel(creationRepository) } },
+    )
+    val creationState by creationTask.state.collectAsStateWithLifecycle()
+    LaunchedEffect(creationState.savedRevision) { if (creationState.savedRevision > 0) viewModel.reload() }
     val currentTask: CashRecordTaskViewModel = viewModel(
         key = "cash-current:${session.user.email}:${session.activeWorkspaceId}:${maintenanceRepository.hashCode()}",
         factory = viewModelFactory { initializer { CashRecordTaskViewModel(maintenanceRepository, maintenanceRecovery) } },
@@ -398,7 +405,7 @@ internal fun CashLedgerScreen(
                 FloatingActionButtonMenuItem(
                     onClick = {
                         actionsMenuExpanded = false
-                        if (canWrite) viewModel.startNewRecord(localDateTimeForInput())
+                        if (canWrite) creationTask.open(state.accounts, localDateTimeForInput())
                     },
                     icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
                     text = { Text(localizedText("copy_1f62e3f53f")) },
@@ -596,6 +603,10 @@ internal fun CashLedgerScreen(
             }
         }
     }
+
+    if (creationState.draft != null) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass,
+        onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
+        onSave = { if (canWrite) creationTask.save(state.accounts, getLocalTimeZoneId()) })
 
     if (showRelationComposer) {
         val compactFullScreen = sizeClass == WindowSizeClass.COMPACT

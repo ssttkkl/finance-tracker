@@ -677,4 +677,12 @@
     <string name="cash_allocation_add">Add allocation</string>
     <string name="cash_allocation_remove">Remove allocation</string>
     <string name="cash_edit_entry">Edit entry</string>
+    <string name="cash_ordinary_booking">Record</string>
+    <string name="cash_from_account">From account</string>
+    <string name="cash_to_account">To account</string>
+    <string name="cash_from_amount">Amount sent</string>
+    <string name="cash_to_amount">Amount received</string>
+    <string name="cash_invalid_account">Choose valid accounts and transfer direction.</string>
+    <string name="cash_create_unknown">The save result is unknown. Return to the ledger and check before recording again.</string>
+    <string name="cash_create_invalid_amount">Amounts cannot be negative. Transfers must be greater than zero.</string>
 </resources>
