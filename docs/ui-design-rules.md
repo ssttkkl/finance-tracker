@@ -1,11 +1,11 @@
 # UI 设计必须约束
 
-本文件是 Finance Tracker 的 UI 设计规范事实源。凡是新增或重大调整页面、表单、弹窗、导航、信息架构、视觉层级或响应式行为，都必须遵守本文件；不符合这些约束的设计不得进入实现、评审或 PR。
+本文件是 Finance Tracker 的 UI 设计规范事实源。凡是新增或重大调整页面、表单、弹窗、导航、信息架构、视觉层级或响应式行为，都必须遵守本文件；第 4.1 节技能门禁和第 5 节审计适用于所有 Compose UI 改动，包括小范围修复。不符合这些约束的设计不得进入实现、评审或 PR。
 
 ## 1. 先理解任务，再设计界面
 
 - UI 必须围绕用户当前要完成的任务组织，不得按数据库表、领域对象、服务边界、接口结构或开发文档章节组织。
-- UI 实施前，必须先提交信息架构，以及明确列出将删除的冗余信息；涉及页面结构、核心流程或视觉层级的重大变更，还须记录 Hallmark 设计方向和自查，再直接实现 Compose。
+- UI 实施前，必须先提交信息架构，并明确列出将删除的冗余信息。
 - 页面首屏只保留完成当前任务必需的信息和操作。不要添加“功能介绍”“操作影响”“设计优势”“适用场景”等教学区。
 
 ## 2. 用户可见内容约束
@@ -40,25 +40,27 @@
 
 - 桌面端单项任务表单最大宽度为 720 px，标签与控件对齐；信息管理、数据表格等确实需要横向空间的页面，可以按信息架构铺开，不得为了套用窄表单而压缩信息。
 - 移动端使用单列布局，不允许横向滚动、逐字换行或把桌面多栏硬挤到一行。
-- 响应式实现采用 Compose `WindowSizeClass` 的 `COMPACT`、`REGULAR`、`WIDE`，代表宽度为 390 px、768 px、1440 px。默认验证遵循 [AGENTS.md](../AGENTS.md#审查验证与证据)：Web 选代表视口做冒烟，Android、iOS 只编译和单元测试；不强制三类窗口逐一截图。用户明确追加时，再验证相应窗口或原生端交互。
+- 响应式实现采用 Compose `WindowSizeClass` 的 `COMPACT`、`REGULAR`、`WIDE`，代表宽度为 390 px、768 px、1440 px；验证范围遵循第 7 节和 [AGENTS.md](../AGENTS.md#审查验证与证据)。
 - 页面内容区、侧边导航和移动顶栏的滚动边界必须明确；瀑布流内容不得带着固定导航或账户区一起滚动。
 
-## 4. Hallmark 方向与 Compose 实现门禁
+## 4. Material 3、Hallmark 与 Compose 实现门禁
 
-### 4.1 Hallmark 设计方向
+### 4.1 必须参考 Compose Material 3 技能
 
-A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按当前项目的设计 token、组件库和任务范围调用 `$hallmark` 设计动作。Hallmark 用于形成视觉层级、信息结构和交互方向，并执行设计自检；它不能覆盖本文件、现有品牌或 token 事实源，也不能单独成为待实现的视觉规格。Hallmark 的预检、设计选择和自评记录到 OpenSpec `design.md`。
+- 所有 Compose UI 的设计、原型、实现和审查都必须先参考 [`compose-material3` 技能](../.agents/skills/compose-material3/SKILL.md)，包括小范围修复；自动触发或显式调用 `$compose-material3` 均可。
+- 按任务读取技能中的主题参考：组件改动查 `Components`，布局、状态或无障碍改动查 `Foundations`，视觉样式改动查 `Styles`；所有 UI 改动查 `Expressive`，涉及 API 或平台行为时查 `Compose Multiplatform`。
+- Material 3 官方站点是设计依据；Compose API、稳定状态和平台可用性须结合当前仓库依赖、源码集及 JetBrains / AndroidX 文档核实。Material 3 Expressive 是所有触及 UI 改动（含小修复）的默认视觉方向。
+- 可使用当前依赖已提供的实验 API，但须记录对应 API、版本、稳定状态及跨端风险；不得仅为追随官方新特性而自动新增或升级依赖。
+- 技能建议不得覆盖本文件、OpenSpec 行为合同、FinanceTheme 和 Git token；平台范围限于 Compose Multiplatform 的 Android、iOS、Web，不据此扩展其他 UI 技术栈。
 
-### 4.2 代码即视觉事实源
+### 4.2 Hallmark 设计方向
 
-- Compose 实现是页面结构与样式的事实源。OpenSpec 保存用户任务、信息架构、验收标准、状态和平台不变量；Git token JSON 是设计 token 的事实源。
-- A 类 UI 和重大 UI 变更在对应 OpenSpec `design.md` 记录 Hallmark 方向、自查和实现选择后直接进入 Compose 实现；不要求 Pen 文件、Pen 节点映射、HTML 原型或实现前设计稿确认。
+A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按当前项目的设计 token、组件库和任务范围调用 `$hallmark` 设计动作。Hallmark 用于形成视觉层级、信息结构和交互方向，并执行设计自检；它不能覆盖本文件、现有品牌或 token 事实源，也不能单独成为待实现的视觉规格。将预检、设计选择、自评和实现选择记录到 OpenSpec `design.md`。
+
+### 4.3 重大 UI 的实现与演示
+
+- A 类 UI 和重大 UI 变更完成设计门禁后直接进入 Compose 实现；不要求 Pen 文件、Pen 节点映射、HTML 原型或实现前设计稿确认。
 - 重大 UI 变更在开发/QA Compose 演示模式中评审。评审覆盖受影响流程，默认使用 Web 代表视口，不默认追加原生端交互或三类窗口截图；用户确认演示结果后，才能把变更标记完成。
-- 生产页面或演示截图是 QA 证据，不是独立设计稿；页面调整后以 OpenSpec 验收和实际 Compose 行为复核。
-
-### 4.3 Hallmark 审计
-
-任何等级的 UI 改动在最终 UI 形成后都必须调用 `$hallmark audit`，审查实际 Compose 页面并对照 OpenSpec 验收。critical、major finding 修复后重新 audit；无 finding 也须在 `tasks.md` 记录审查范围和结论。若当前运行时未提供 Hallmark，记录技能不可用并按 `.agents/skills/hallmark/references/verbs/audit.md` 完成替代审查，不得声称执行了 Hallmark。
 
 ## 5. 实现后自检和独立审查
 
@@ -69,7 +71,9 @@ A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按�
 - 是否为新增或修改的用户可见字符串运行范围化静态搜索。
 - 是否存在只在开发环境成立的布局、路径或浏览器行为。
 
-最终 UI 必须调用 Hallmark `audit`，并对照 OpenSpec 验收、实际页面和演示截图执行独立设计复核；在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由和修复结果。critical、major 或阻断性 finding 修复后必须重新 audit/复核；没有 finding 也记录范围和结论。
+- 任何等级的 UI 改动完成后，都必须调用 Hallmark `audit` 审查最终 Compose 页面，并对照 OpenSpec 验收和实际页面执行独立设计复核。
+- 在对应 OpenSpec `tasks.md` 记录审查范围、按严重级别排序的 finding、采纳或拒绝理由及修复结果；没有 finding 也记录范围和结论。critical、major 或阻断性 finding 未清零前不得通过设计 QA、提交或发布；修复后重新 audit/复核。
+- 若当前运行时未提供 Hallmark，记录技能不可用，并按 `.agents/skills/hallmark/references/verbs/audit.md` 完成人工替代审查，不得声称执行了 Hallmark。
 
 ## 6. OpenSpec、Git token 与 Compose
 
@@ -84,4 +88,4 @@ A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按�
 
 - 使用开发/QA 演示构建或适用的生产预览，在 Web 冒烟选定的代表视口验证受影响流程、关键交互及直接相关状态，不默认穷举所有窗口、主题和状态。Android、iOS 默认只执行编译和单元测试；用户明确要求时再追加设备、模拟器、交互或截图 QA。
 - 在上述验证范围内检查区域层级、位置、宽高、间距、对齐、字体规格、token 颜色、边框/圆角、阴影、文案和状态；发现响应式或视觉缺陷时修复 Compose 实现并复核受影响部分。
-- `tasks.md` 保存状态与视口、截图路径、差异与修复记录、无障碍和独立设计复核结论。截图作为证据，不替代行为、键盘焦点、状态和真实浏览器检查；重大 finding 未清零时设计 QA 不得通过，也不得提交或发布。
+- `tasks.md` 保存状态与视口、截图路径、差异与修复记录及无障碍检查结果。截图是运行和 QA 证据，不是独立设计稿，也不替代行为、键盘焦点、状态和真实浏览器检查。
