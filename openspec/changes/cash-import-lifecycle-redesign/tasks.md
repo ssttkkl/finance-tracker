@@ -235,7 +235,7 @@
 - [x] 4.18.2 测试先行／构建：覆盖非空原文、明确清空、旧缺省及坏存在性；补 HTTP、共享模型，供 UI 读取。
 - [x] 4.18.3 独立范围／工程／安全及最终 diff 复核；影响只读事实，不重定义来源处理。
 - [x] 4.18.4 SQLite 与显式专用 PostgreSQL 受影响来源／维护读取矩阵、共享测试、编译及严格校验。
-- [ ] 4.18.5 文档及功能地图收尾、发布准备和小步提交；页面与三端 QA 保持对应前端变更负责。
+- [x] 4.18.5 文档及功能地图收尾、发布准备和小步提交 `9d6a326`，已推送 `average-snail`；页面与三端 QA 保持对应前端变更负责。
 - [x] 4.18.6 反思：存在性与内容分开验证，旧缺省不冒充明确清空。
 
 4.18 当前证据：2026-10-24，`HEAD=ce2512d`，比较基线同一提交；该小步只补读取事实和共享解码，不包含当前未提交 UI。
@@ -247,6 +247,27 @@
 | 完整回归 | `uv run python /tmp/ft-source-presence-full-regression.py`，排序 contract 文件三等分及独立非 contract；`-q -m 'not performance' --disable-warnings --tb=short --maxfail=5`，清除 PostgreSQL 环境，仅排除两项已确认旧 Expo 断言。3378 passed、1284 skipped、73 deselected，四进程 exit 0；参数和日志 `/tmp/ft-source-presence-full-{0,1,2,3}.{json,log}`。全量启动后的存在性兼容精修及新反例由最终 131 项矩阵重验，skip 不算 PostgreSQL 通过 |
 | 客户端／构建 | `CashSourcePresenceApiTest` 通过真实 Repository→API 解码覆盖旧缺省、false、true及明确 null 正文；最近共享回归 Wasm 315／Android 310 均零失败、零 skip（`/tmp/ft-cash-source-presence-client-final.log`），含本字段；后续 UI 新反例另行验证，不借此声称 UI 通过。iOS 共享编译通过 `ft-cash-relations-ui-green.log`；`uv build --out-dir /tmp/ft-cash-source-presence-dist` 成功 |
 | 验证／文档／跨端／回退 | OpenSpec strict、doctor、链接与 diff 检查；接口参考、技能、功能地图同组更新，词表已有“来源原文”，README 启动／配置未变。Web／Android／iOS 共享解码受影响，当前小步无页面变化，UI QA 不适用；保留旧缺省未知及既有决定权限，无 schema／迁移／依赖变化。字段 additive 可回退忽略，不写真实账本或部署 |
+
+### 4.19 原子草稿的显式财务字段联动
+
+- [x] 4.19.1 思考／计划：客户端旧完整组成项会覆盖同次采用的来源金额／币种；客户端只表达实际标量修改，后端在来源有效值上联动原子草稿唯一现金部分。分摊及显式组成项不隐式重写。
+- [x] 4.19.2 任务拆分／测试先行：账户单改并采用来源新金额／币种、普通草稿保存、明确组成项优先及分摊不联动反例。
+- [x] 4.19.3 构建：同一字段归一／草稿规划路径处理，普通保存／转正式／来源处理一致，保留人工值、精度、身份及事务边界。
+- [x] 4.19.4 独立产品／工程／安全及最终 diff 复核；财务阻断修复后重审。
+- [x] 4.19.5 SQLite 开发、显式 `_test` PostgreSQL 契约矩阵、完整回归、共享测试、构建及 OpenSpec 验证。
+- [x] 4.19.6 文档、接口示例、词表及功能地图核对，页面三端 QA 由前端变更负责；按授权小步交付，不写真实账本或部署。
+- [x] 4.19.7 反思：省略值保持来源有效值，禁止客户端把旧财务字段扩成显式决定；记录防复发回归。
+
+4.19 当前证据：2026-10-24，`HEAD=9d6a326`，比较基线同一提交；后端策略、六个契约场景及协议说明独立交付，未提交的 Compose 页面不计入该小步。
+
+| 范围 | 当前结论 |
+|---|---|
+| 测试先行／独立审查 | 账户单改采用新来源金额／币种、显式来源非空和空组成项分别先失败后修复。独立财务／工程／安全复核关闭显式来源部分被父金额覆盖及空列表被重造的 major；显式用户组成项、分摊、正式导入财务保护不变，无剩余 blocking／major |
+| 双后端 | 显式人工专用 UTF-8 `ft_cash_linkage_test` PostgreSQL，设置 `FT_TEST_POSTGRES_URL`、`FT_REQUIRE_TEST_POSTGRES=1`、`PYTHONPATH=tests:tests/contract`。`uv run python /tmp/ft-cash-draft-linkage-dual.py` 七文件 318 passed，无 skip（945.25 s）；最终空列表保护及持久账户断言后 `uv run python /tmp/ft-cash-draft-scalar-final-dual.py` 六场景双后端 12 passed，无 skip（30.35 s）。日志为对应脚本同名 `.log`；最终持久金额用 Decimal 等值检查，预览保留原精确字符串 |
+| 完整回归 | `uv run python /tmp/ft-draft-linkage-full-regression.py`，contract 三分片与独立非 contract，清除 PG 环境，`-q -m 'not performance' --disable-warnings --tb=short --maxfail=5`，仅排除两项已登记旧 Expo 断言。3385 passed、1291 skipped、73 deselected，四片 exit 0；完整参数及日志 `/tmp/ft-draft-linkage-full-{0,1,2,3}.{json,log}`。运行后最后来源细化由最终 12 项重验，skip 不算 PG 通过 |
+| 客户端／构建 | `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache`：Wasm 322、Android 317 零失败零 skip，iOS 共享编译通过，`/tmp/ft-cash-personal-retry-client.log`。`uv build --wheel --out-dir /tmp/ft-cash-draft-scalar-dist` 通过，并核对 wheel 中当前策略文件。sdist 未完成：默认收集包含 Compose 生成目录，已停止本次打包；源码包排除配置不在本步范围，不声称其通过 |
+| 文档／验证／回退 | 接口参考、delta、设计、技能与功能地图同组核对；词表已有支付组成项及现金粒度，无新概念，README 配置／启动未变。OpenSpec strict 37/37、doctor healthy、链接与 diff 检查。无 schema／依赖变化，回退该策略会恢复旧标量限制，不恢复已关闭写入口；未操作真实库、部署或迁移 |
+| 跨端／专项／反思 | Web、Android、iOS 共用草稿补丁，客户端只发实际字段，UI 与设备 QA 继续由三个前端变更承担。该后端小步不提升页面覆盖；10k 性能独立待办范围不变。防复发以来源显式未知／清空与用户标量组合为契约，不扩大客户端兼容路径 |
 
 ## 5. 审查
 

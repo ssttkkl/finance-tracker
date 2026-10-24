@@ -186,17 +186,25 @@ class CashRecordOperationPlanner:
             entry_edit = {"entry_id": entry.id, "revision": entry.revision, "patch": public_patch}
             if row.state == "posted":
                 policy_patch = {key: value for key, value in patch.items() if key not in COMMON_CASH_FIELDS}
-        if (row.record_origin in {"manual", "manual_transfer"} and row.cash_granularity == "atomic"
-            and "components" not in policy_patch and policy_patch.keys() & {"amount", "currency", "account_id"}):
-            policy_patch["components"] = [{**part, **{field: policy_patch[field] for field in ("amount", "currency", "account_id")
-                if field in policy_patch}} for part in current["components"]]
+        financial = {"amount", "currency", "account_id"}
+        linked = set(policy_patch) & financial
+        if row.state == "draft" and "components" not in (source_patch or {}):
+            linked |= set(source_patch or {}) & financial
+        parts = base["components"]
+        if (linked and "components" not in policy_patch
+            and not ("components" in (source_patch or {}) and not parts)
+            and policy_patch.get("cash_granularity", base.get("cash_granularity")) == "atomic"
+            and (row.state == "draft" and len(parts) <= 1 or row.state == "posted" and row.record_origin in {"manual", "manual_transfer"})):
+            effective = {**base, **policy_patch}
+            parts = parts or [{"ordinal": 0, **{field: effective.get(field) for field in financial}}]
+            policy_patch["components"] = [{**part, **{field: effective.get(field) for field in linked}} for part in parts]
         prepared = prepare_cash_record_update(base, policy_patch)
         values = {**deepcopy(base), **prepared.values}
         values, manual_explanation = prepare_cash_source_effects(values, patch, source_type=row.source_type,
             source_explanation=explanation if explanation is not None else row.relation_metadata, protected_fields=protected)
         if manual_explanation is not None:
             explanation = manual_explanation
-        if "components" in patch or "components" in (source_patch or {}):
+        if "components" in policy_patch or "components" in (source_patch or {}):
             _validate_component_ids(current["components"], values["components"])
         if any("ordinal" not in part for part in values["components"]):
             raise CashRecordPolicyError("invalid_field", ("components",))
