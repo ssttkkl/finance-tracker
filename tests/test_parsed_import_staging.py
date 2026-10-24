@@ -699,3 +699,144 @@ def test_publish_without_echo_cannot_save_files_that_fail_readback_validation(st
         store.replace(first.session_id, workspace_id="workspace-a", user_id="user-a",
             expected_revision=first.revision, files=(file,), preview_input={}, plan={}, return_session=False)
     assert _get(store, first) == first
+
+
+def test_plan_snapshot_reads_do_not_restore_unrelated_files_and_remain_isolated(staging, monkeypatch):
+    import ft.application.parsed_import_staging as module
+    store, _now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    plan = {"plan_id": "synthetic-plan", "items": [{"value": "original"}]}
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=1,
+        files=value.files, preview_input={}, plan=plan)
+    monkeypatch.setattr(module, "_restore_file", lambda _: pytest.fail("plan-only read restored unrelated source rows"))
+    first = store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
+    assert first.files == () and first.plan == plan and first.revision == 2
+    first.plan["items"][0]["value"] = "changed"
+    assert store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u").plan == plan
+    with pytest.raises(module.ImportSessionForbidden):
+        store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="other")
+    with pytest.raises(module.ImportSessionForbidden):
+        store.get_plan_snapshot(value.session_id, workspace_id="other", user_id="u")
+
+
+def test_plan_snapshot_still_observes_expiry_replacement_and_cancellation(staging):
+    from ft.application.parsed_import_staging import ImportSessionExpired
+    store, now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    updated = store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=1,
+        files=value.files, preview_input={}, plan={"plan_id": "one"})
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=updated.revision,
+        files=value.files, preview_input={}, plan={"plan_id": "two"})
+    snapshot = store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
+    assert snapshot.plan == {"plan_id": "two"}
+    store.cancel(value.session_id, workspace_id="w", user_id="u", expected_revision=snapshot.revision)
+    snapshot = store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
+    assert snapshot.cancelled and snapshot.plan is None
+    now[0] += timedelta(seconds=61)
+    with pytest.raises(ImportSessionExpired):
+        store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
+
+
+@pytest.mark.parametrize("change", [
+    {"session_digest": "wrong"}, {"revision": True}, {"workspace_id": None},
+    {"created_at": "2026-10-21T12:00:00"}, {"plan": []}, {"files": {}},
+])
+def test_plan_snapshot_rejects_corrupt_metadata(staging, monkeypatch, change):
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
+    store, _now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    content, etag = store._read_raw(value.session_id)
+    damaged = json.loads(content)
+    damaged.update(change)
+    monkeypatch.setattr(store, "_read_raw", lambda _: (json.dumps(damaged).encode(), etag))
+    with pytest.raises(ImportSessionStorageUnavailable):
+        store.get_plan_snapshot(value.session_id, workspace_id="w", user_id="u")
+
+
+def test_public_plan_page_cache_is_bounded_by_current_object_owner_and_lifetime(staging):
+    from ft.application.parsed_import_staging import ImportSessionForbidden, ImportSessionExpired
+    store, now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=1,
+        files=value.files, preview_input={}, plan={"plan_id": "one", "items": [{"value": "original"}]})
+    calls = []
+    def page(snapshot):
+        calls.append(snapshot.revision)
+        return {"items": snapshot.plan["items"]}
+    def read(owner="u"):
+        return store.read_plan_projection(value.session_id, workspace_id="w", user_id=owner,
+            projection_key=("one", "items", None, 50, "all"), project=page)
+    first = read()
+    first["items"][0]["value"] = "changed"
+    assert read() == {"items": [{"value": "original"}]} and calls == [2]
+    with pytest.raises(ImportSessionForbidden):
+        read("other")
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=2,
+        files=value.files, preview_input={}, plan={"plan_id": "one", "items": [{"value": "current"}]})
+    assert read() == {"items": [{"value": "current"}]} and calls == [2, 3]
+    now[0] += timedelta(seconds=61)
+    with pytest.raises(ImportSessionExpired):
+        read()
+
+
+def test_retry_plan_pages_never_cache_root_receipt_dependent_results(staging):
+    store, _now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),), workflow_kind="retry")
+    calls = []
+    def page(_snapshot):
+        calls.append(1)
+        return {"count": len(calls)}
+    def read():
+        return store.read_plan_projection(value.session_id, workspace_id="w", user_id="u", projection_key=("items",), project=page)
+    assert read() == {"count": 1}
+    assert read() == {"count": 2}
+
+
+def test_public_plan_cache_never_hides_storage_failures_and_bounds_payloads(staging, monkeypatch):
+    from ft.application.cash_import_errors import ImportSessionStorageUnavailable
+    store, _now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=1,
+        files=value.files, preview_input={}, plan={"plan_id": "one", "operations": [{"private": "source"}]})
+    def read(index, payload="public"):
+        return store.read_plan_projection(value.session_id, workspace_id="w", user_id="u", projection_key=("one", index),
+            project=lambda _: {"value": payload})
+    for index in range(20):
+        assert read(index) == {"value": "public"}
+    assert len(store._plan_read_cache) == 16
+    assert sum(len(item[-1]) for item in store._plan_read_cache.values()) <= 4 * 1024 * 1024
+    assert all(b"private" not in item[-1] for item in store._plan_read_cache.values())
+    read("too-large", "x" * (4 * 1024 * 1024))
+    assert len(store._plan_read_cache) == 16
+    def unavailable(_):
+        raise ImportSessionStorageUnavailable
+    monkeypatch.setattr(store, "_read_raw", unavailable)
+    with pytest.raises(ImportSessionStorageUnavailable):
+        read(19)
+
+
+def test_late_old_page_fill_cannot_replace_a_new_revision_response(staging):
+    from threading import Event
+    store, _now, _client = staging
+    value = store.create(workspace_id="w", user_id="u", files=(_file(),))
+    store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=1,
+        files=value.files, preview_input={}, plan={"plan_id": "one"})
+    entered, release = Event(), Event()
+    def page(snapshot):
+        if snapshot.revision == 2:
+            entered.set()
+            assert release.wait(5)
+        return {"revision": snapshot.revision}
+    def read():
+        return store.read_plan_projection(value.session_id, workspace_id="w", user_id="u", projection_key=("one", "items"), project=page)
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        old = pool.submit(read)
+        try:
+            assert entered.wait(5)
+            store.replace(value.session_id, workspace_id="w", user_id="u", expected_revision=2,
+                files=value.files, preview_input={}, plan={"plan_id": "one"})
+            assert read() == {"revision": 3}
+        finally:
+            release.set()
+        assert old.result() == {"revision": 2}
+    assert read() == {"revision": 3}

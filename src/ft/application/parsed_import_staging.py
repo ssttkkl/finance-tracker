@@ -1,6 +1,7 @@
 """仅保存解析内容的短期会话；对象 CAS 不能代替应用层工作区锁。"""
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
@@ -273,6 +274,8 @@ class _ParsedImportStore:
             or type(max_bytes) is not int or max_bytes < 1 or type(max_parsed_bytes) is not int or max_parsed_bytes < 1):
             raise ValueError("import_session_storage_config_invalid")
         self._ttl, self._clock, self._max_bytes, self._max_parsed_bytes = ttl_seconds, clock, max_bytes, max_parsed_bytes
+        self._plan_read_cache = OrderedDict()
+        self._plan_read_cache_lock = RLock()
 
     def validate_file(self, item):
         _valid_files((item,))
@@ -378,6 +381,80 @@ class _ParsedImportStore:
 
     def get(self, session_id, *, workspace_id, user_id):
         return self._read(session_id, workspace_id=workspace_id, user_id=user_id)[0]
+
+    def get_plan_snapshot(self, session_id, *, workspace_id, user_id):
+        """Read the current private plan without materializing unrelated parsed files."""
+        if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", session_id):
+            raise ImportSessionNotFound
+        content, _etag = self._read_raw(session_id)
+        if len(content) > self._max_bytes:
+            raise ImportSessionStorageUnavailable
+        return self._decode_plan_snapshot(session_id, content, workspace_id=workspace_id, user_id=user_id)
+
+    def _decode_plan_snapshot(self, session_id, content, *, workspace_id, user_id):
+        try:
+            def reject_constant(_value):
+                raise ValueError
+            value = json.loads(content, parse_constant=reject_constant)
+            if value.pop("session_digest") != _hash(session_id):
+                raise ValueError
+            source_files = value.pop("files")
+            if not isinstance(source_files, list) or len(source_files) > 20:
+                raise ValueError
+            plan = value.pop("plan")
+            # Full plan and source budgets were checked at publication. Reads validate
+            # the metadata and requested public projection; writes still decode all files.
+            _json_budget(value, [self._max_bytes])
+            value["created_at"] = datetime.fromisoformat(value["created_at"])
+            value["expires_at"] = datetime.fromisoformat(value["expires_at"])
+            result = ParsedImportSession(session_id=session_id, files=(), plan=plan, **value)
+            _valid_session_metadata(result)
+        except (TypeError, ValueError, KeyError, AttributeError, RecursionError, ParsedImportDataError):
+            raise ImportSessionStorageUnavailable from None
+        if result.workspace_id != workspace_id or result.user_id != user_id:
+            raise ImportSessionForbidden
+        if self._clock() >= result.expires_at:
+            self._delete_raw(session_id)
+            raise ImportSessionExpired
+        return result
+
+    def read_plan_projection(self, session_id, *, workspace_id, user_id, projection_key, project):
+        """Cache only public response bytes, fenced by a fresh private object read."""
+        if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", session_id):
+            raise ImportSessionNotFound
+        content, etag = self._read_raw(session_id)
+        if len(content) > self._max_bytes:
+            raise ImportSessionStorageUnavailable
+        cache_key = (session_id, etag, sha256(content).digest(), tuple((type(value), repr(value)) for value in projection_key))
+        with self._plan_read_cache_lock:
+            cached = self._plan_read_cache.get(cache_key)
+            if cached is not None:
+                owner_workspace, owner_user, expires_at, plan_id, response = cached
+                if owner_workspace != workspace_id or owner_user != user_id:
+                    raise ImportSessionForbidden
+                if self._clock() >= expires_at:
+                    self._plan_read_cache.pop(cache_key)
+                    self._delete_raw(session_id)
+                    raise ImportSessionExpired
+                if projection_key[0] != plan_id:
+                    raise ImportSessionRevisionConflict
+                self._plan_read_cache.move_to_end(cache_key)
+                return json.loads(response)
+        # A different revision or a cold page never reuses a decoded executable plan.
+        current = self._decode_plan_snapshot(session_id, content, workspace_id=workspace_id, user_id=user_id)
+        result = project(current)
+        if (current.workflow_kind != "import" or current.cancelled or current.plan is None
+            or not projection_key or projection_key[0] != current.plan.get("plan_id") or len(repr(projection_key)) > 8192):
+            return result
+        _json_budget(result, [self._max_bytes])
+        response = _json_bytes(result)
+        if len(response) <= 4 * 1024 * 1024:
+            with self._plan_read_cache_lock:
+                self._plan_read_cache[cache_key] = (current.workspace_id, current.user_id, current.expires_at, current.plan["plan_id"], response)
+                self._plan_read_cache.move_to_end(cache_key)
+                while len(self._plan_read_cache) > 16 or sum(len(item[-1]) for item in self._plan_read_cache.values()) > 4 * 1024 * 1024:
+                    self._plan_read_cache.popitem(last=False)
+        return json.loads(response)
 
     def _validate_roundtrip(self, session_id, content):
         try:

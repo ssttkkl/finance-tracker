@@ -358,7 +358,7 @@ class CashImportPlanService(CashImportContextService):
         except (ImportSessionExpired, ImportSessionNotFound):
             raise CashImportPlanError("plan_expired") from None
 
-    def _read_plan(self, plan_id):
+    def _read_plan(self, plan_id, *, project=None, projection_key=None):
         session_id = _session_id(plan_id)
         try:
             with self._uow as uow:
@@ -367,11 +367,19 @@ class CashImportPlanService(CashImportContextService):
                 if receipt:
                     from ft.adapters.relational.cash_mutations import CashMutationConflict
                     raise CashMutationConflict("session_committed", receipt["receipt_id"])
-                current = self._read_context(uow, session_id)
-                if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
-                    raise CashImportPlanError("plan_changed")
-                # 暂存已为本次读取解码出独占对象；公开页仍只复制实际返回字段。
-                return current.plan
+                def render(current):
+                    if current.workflow_kind == "retry":
+                        current = self._read_context(uow, session_id)
+                    elif current.workflow_kind != "import":
+                        raise ImportSessionNotFound
+                    if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
+                        raise CashImportPlanError("plan_changed")
+                    return project(current.plan) if project is not None else current.plan
+                if project is not None:
+                    return self._staging.read_plan_projection(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
+                        projection_key=(plan_id, *projection_key), project=render)
+                current = self._staging.get_plan_snapshot(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
+                return render(current)
         except (ImportSessionExpired, ImportSessionNotFound):
             raise CashImportPlanError("plan_expired") from None
 
@@ -386,13 +394,15 @@ class CashImportPlanService(CashImportContextService):
             }
 
     def read_plan(self, plan_id):
-        return self._view(self._read_plan(plan_id))
+        return self._read_plan(plan_id, project=self._view, projection_key=("plan",))
 
     def items(self, plan_id, *, cursor=None, limit=50, confirmation_status=None):
-        return _page(self._read_plan(plan_id), "items", cursor=cursor, limit=limit, confirmation_status=confirmation_status)
+        return self._read_plan(plan_id, project=lambda plan: _page(plan, "items", cursor=cursor, limit=limit, confirmation_status=confirmation_status),
+            projection_key=("items", cursor, limit, confirmation_status))
 
     def processing_details(self, plan_id, *, cursor=None, limit=50):
-        return _page(self._read_plan(plan_id), "processing_details", cursor=cursor, limit=limit)
+        return self._read_plan(plan_id, project=lambda plan: _page(plan, "processing_details", cursor=cursor, limit=limit),
+            projection_key=("processing", cursor, limit))
 
     def item(self, plan_id, preview_item_id):
         plan = self._read_plan(plan_id)

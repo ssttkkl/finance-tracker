@@ -450,3 +450,35 @@ def test_http_duplicates_plus_a_new_failure_do_not_claim_business_writes(context
     assert receipt["status"] == "partial"
     assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["row_save_failed"]}
     assert "private" not in str(receipt["commit_outcome"])
+
+
+def test_public_plan_reads_do_not_materialize_unrelated_parsed_documents(context_runtime, monkeypatch):
+    client, store, view = _setup(context_runtime, monkeypatch, files=(_rows(3),))
+    response = _preview(client, view)
+    assert response.status_code == 200
+    plan = response.json()
+    monkeypatch.setattr(store, "get", lambda *_args, **_kwargs: pytest.fail("plan read decoded source documents"))
+    path = "/api/v1/cash-import/plans/" + plan["plan_id"]
+    assert client.get(path).status_code == 200
+    assert client.get(path + "/items").status_code == 200
+    assert client.get(path + "/processing-details").status_code == 200
+    assert client.get(path + "/items/" + plan["items"][0]["preview_item_id"]).status_code == 200
+
+
+def test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters(context_runtime, monkeypatch):
+    client, _store, view = _setup(context_runtime, monkeypatch, files=(_rows(3),))
+    plan = _preview(client, view).json()
+    path = "/api/v1/cash-import/plans/" + plan["plan_id"]
+    first = client.get(path + "/items?limit=1").json()
+    assert len(first["items"]) == 1
+    assert client.get(path + "/items?limit=1").json() == first
+    assert len(client.get(path + "/items?limit=2").json()["items"]) == 2
+    assert client.get(path + "/items?limit=1&confirmation_status=pending").json()["items"] == []
+    second = client.get(path + "/items", params={"limit": 1, "cursor": first["next_cursor"]}).json()
+    assert second["items"][0] != first["items"][0]
+    forged = plan["plan_id"].split(".")[0] + "." + "x" * 16
+    response = client.get("/api/v1/cash-import/plans/" + forged + "/items?limit=1")
+    assert response.status_code == 409 and response.json()["error"]["code"] == "plan_changed"
+    _commit(client, plan)
+    response = client.get(path + "/items?limit=1")
+    assert response.status_code == 409 and response.json()["error"]["code"] == "session_committed"
