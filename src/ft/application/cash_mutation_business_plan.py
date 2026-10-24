@@ -15,7 +15,7 @@ from ft.domain.cash_record_policy import CashRecordPolicyError
 class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
     def __call__(self, *, session, preview_input, previous_plan, current_record=None):
         intent = preview_input["intent"]
-        if intent not in {"edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}:
+        if intent not in {"save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}:
             raise CashRecordMaintenanceError("plan_input_invalid")
         planner = CashRecordOperationPlanner(session, self.workspace_id)
         row = planner.record(_identifier(preview_input["transaction_id"]), current_record=current_record)
@@ -49,7 +49,7 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             operation = planner.prepare_resolving(row, patch, resolutions, finalize=intent == "finalize_draft")
         else:
             operation = (planner.prepare_finalize(row, patch) if intent == "finalize_draft" else
-                planner.prepare_draft(row, patch) if intent == "maintain_relations" and row.state == "draft" else planner.prepare_edit(row, patch))
+                planner.prepare_draft(row, patch) if intent == "save_draft" or intent == "maintain_relations" and row.state == "draft" else planner.prepare_edit(row, patch))
         operations = [operation]
         transfer_relations = []
         member_patches = preview_input.get("member_patches", [])
@@ -119,6 +119,16 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         independent = sum(any(choice["resolution"] == "create_independent" for choice in op.get("issue_resolutions", [])) for op in operations)
         if independent:
             result["summary"]["create_independent"] = independent
+        from ft.application.cash_maintenance_effects import additional_effects
+        from ft.adapters.relational.models import CashTransactionIssueModel
+        from ft.application.cash_import_operations import _batches
+        affected = {int(parent) for failure in result.get("relation_failures", []) for parent in failure.get("parent_ids", []) if 0 < int(parent) < 2 ** 63}
+        baseline = []
+        for batch in _batches(affected):
+            baseline.extend({"transaction_id": str(issue.transaction_id), "issue_key": issue.issue_key, "code": issue.code}
+                for issue in session.scalars(select(CashTransactionIssueModel).where(
+                    CashTransactionIssueModel.workspace_id == self.workspace_id, CashTransactionIssueModel.transaction_id.in_(batch))))
+        result["additional_effects"] = additional_effects(preview_input, result, baseline_issues=baseline)
         return result
 
     @staticmethod

@@ -17,7 +17,8 @@ suspend fun FinanceApiClient.saveCashDraft(transactionId: String, revision: Long
 
 suspend fun FinanceApiClient.previewCashMaintenance(input: CashMaintenanceInput): CashMaintenancePlanDto {
     requireCashRevision(input.expectedRevision)
-    if (input.intent !in setOf("edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations")) invalidCashInput()
+    if (input.intent !in setOf("save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations")) invalidCashInput()
+    if (input.intent == "save_draft" && (!input.issueResolutions.isNullOrEmpty() || input.relationChoices.isNotEmpty())) invalidCashInput()
     if (input.intent == "edit_entry" && (input.entryId == null || input.expectedEntryRevision == null)) invalidCashInput()
     input.expectedEntryRevision?.let(::requireCashRevision)
     val context = listOf(input.editContextId, input.previousPlanId, input.expectedPlanRevision)

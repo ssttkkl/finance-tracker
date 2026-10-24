@@ -170,7 +170,7 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             or _operation_fingerprint(left) != _operation_fingerprint(right) for left, right in zip(old, new))):
             raise CashMutationConflict("record_changed")
         if any(plan.get(key) != fresh.get(key) for key in ("category_member_ids", "mutation_units", "manual_transfer_relations", "dependencies",
-            "type_effects", "relation_groups", "relation_failures")):
+            "type_effects", "relation_groups", "relation_failures", "additional_effects")):
             raise CashMutationConflict("relation_context_changed")
 
     def receipt(self, receipt_id):

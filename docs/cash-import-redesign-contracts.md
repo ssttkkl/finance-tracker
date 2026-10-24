@@ -401,7 +401,9 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 }
 ```
 
-`intent` 可选 `edit_entry/edit_record/finalize_draft/resolve_issue/maintain_relations`。前 4 种意图可提供 `issue_resolutions` 数组；每项包含 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用。`resolve_issue` 至少提供一项，不接受同一问题的重复决定；允许值由当前问题返回。先应用所选来源决定，再应用本次显式 `patch`，最后验证最终状态及生成预计列表；`finalize_draft` 可在同次确认中解决来源阻断并转正式，单独 `resolve_issue` 不自动转正式。不能将固定字段冲突用 `apply_source` 或后续补丁掩盖。`merge_into` 是保留目标身份的终结动作，必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
+`intent` 可选 `save_draft/edit_entry/edit_record/finalize_draft/resolve_issue/maintain_relations`。`save_draft` 只接受当前草稿的字段补丁，不处理来源问题／关系决定、不转正式；复用维护计划及其可终结的原命令核实。`edit_entry/edit_record/finalize_draft/resolve_issue` 可提供 `issue_resolutions` 数组；每项包含 `issue_id`、`expected_issue_revision`、`resolution=apply_source/keep_existing/merge_into/create_independent` 及适用的目标引用。`resolve_issue` 至少提供一项，不接受同一问题的重复决定；允许值由当前问题返回。先应用所选来源决定，再应用本次显式 `patch`，最后验证最终状态及生成预计列表；`finalize_draft` 可在同次确认中解决来源阻断并转正式，单独 `resolve_issue` 不自动转正式。不能将固定字段冲突用 `apply_source` 或后续补丁掩盖。`merge_into` 是保留目标身份的终结动作，必须保护已有正式值及人工覆盖，冲突时保留问题，不能静默拼接金额。
+
+维护计划顶层 `additional_effects` 完整列出本次明确输入之外的实际影响，不随 `items` 分页截断。每项为 `kind/reference` 及适用的 `field`；`kind` 为 `field_value_changed`、`relation_changed`、`funding_relation_removed`、`choice_changed` 或 `new_attention`，只给授权对象引用和安全字段，不回传内部执行正文。明确公共清空、来源决定、完整关系决定及转账双端联动不重复确认；原有问题及保持的关系也不算新增影响。空数组表示可以在本次保存动作内继续提交；非空先向用户说明影响并确认同一计划修订。旧计划缺省时不能推断为空。提交重新构建并比较完整影响，不能沿用旧确认。
 
 请求仅接受当前意图的字段；`patch`、`issue_resolutions`、`relation_choices` 省略时为空，`maintain_relations` 不携带来源问题决定。`expected_revision`、每项 `expected_issue_revision` 和计划修订必须是受支持的正整数，不接受布尔或浮点数。每次最多处理 100 个当前问题；问题必须属于当前流水。`merge_into` 的目标字段是 `target_transaction_id/expected_target_revision`，其他问题决定不带目标字段；同次只能有一个合并目标，不能同时要求 `finalize_draft` 或 `create_independent`，也不隐式转正式目标草稿。关联决定使用 `suggestion_id/action/candidate_id/common_fields/inherit_common_fields`，实际允许动作和候选以该维护计划返回为准，不能由客户端构造执行清单。
 

@@ -67,6 +67,10 @@ class EditEntryInput(EditRecordInput):
     expected_entry_revision: Revision
 
 
+class SaveDraftPlanInput(MaintenanceInput):
+    intent: Literal["save_draft"]
+
+
 class FinalizeDraftInput(IssueMaintenanceInput):
     intent: Literal["finalize_draft"]
 
@@ -81,7 +85,7 @@ class MaintainRelationsInput(MaintenanceInput):
 
 
 class MutationPreviewInput(RootModel[Annotated[
-    EditEntryInput | EditRecordInput | FinalizeDraftInput | ResolveIssueInput | MaintainRelationsInput, Field(discriminator="intent")]]):
+    EditEntryInput | EditRecordInput | SaveDraftPlanInput | FinalizeDraftInput | ResolveIssueInput | MaintainRelationsInput, Field(discriminator="intent")]]):
     pass
 
 
@@ -151,6 +155,12 @@ class MutationPages(Output):
     items: str | None
 
 
+class AdditionalEffectView(Output):
+    kind: Literal["field_value_changed", "relation_changed", "funding_relation_removed", "choice_changed", "new_attention"]
+    reference: str
+    field: str | None = None
+
+
 class MutationPlanView(Output):
     plan_id: str
     edit_context_id: str
@@ -162,3 +172,4 @@ class MutationPlanView(Output):
     items: list[PreviewItemView]
     pages: MutationPages
     invalidated_choices: list[InvalidatedChoiceView]
+    additional_effects: list[AdditionalEffectView] | None = None

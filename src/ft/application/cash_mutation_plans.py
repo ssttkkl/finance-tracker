@@ -20,7 +20,7 @@ class CashMutationPlanError(CashRecordMaintenanceError):
 _COMMON = {"intent", "transaction_id", "expected_revision", "patch", "relation_choices", "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches"}
 _META = {"edit_context_id", "previous_plan_id", "expected_plan_revision"}
 _ISSUE = {"issue_id", "expected_issue_revision", "resolution", "target_transaction_id", "expected_target_revision"}
-_INTENTS = {"edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
+_INTENTS = {"save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations"}
 _SUMMARY_COUNTS = {"update_posted", "finalize_draft", "update_draft", "resolve_issue", "merge_draft",
     "create_independent", "duplicate", "skip", "relations_accepted", "relations_deferred",
     "relations_ignored", "relations_removed", "relations_failed"}
@@ -83,6 +83,8 @@ def _input(value):
     if (intent == "resolve_issue" and not data["issue_resolutions"] or intent == "maintain_relations" and data["issue_resolutions"]
         or len(merges) > 1 or merges and (intent == "finalize_draft"
             or any(choice["resolution"] == "create_independent" for choice in data["issue_resolutions"]))):
+        raise CashMutationPlanError("plan_input_invalid")
+    if intent == "save_draft" and (data["issue_resolutions"] or data["relation_choices"]):
         raise CashMutationPlanError("plan_input_invalid")
     if intent == "edit_entry" and (not _reference(value.get("entry_id"), 64) or not _revision(value.get("expected_entry_revision"))):
         raise CashMutationPlanError("plan_input_invalid")
@@ -172,7 +174,8 @@ class CashMutationPlanService(CashRecordMaintenanceService):
         return {key: deepcopy(plan[key]) for key in ("plan_id", "edit_context_id", "plan_revision",
             "expires_at", "item_counts", "can_commit")} | {"summary": _summary(plan["summary"]), "items": page["items"],
                 "pages": {"items": page["next_cursor"]},
-                "invalidated_choices": _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"})}
+                "invalidated_choices": _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"}),
+                **({"additional_effects": deepcopy(plan["additional_effects"])} if "additional_effects" in plan else {})}
 
     def preview(self, value):
         data, metadata = _input(value)

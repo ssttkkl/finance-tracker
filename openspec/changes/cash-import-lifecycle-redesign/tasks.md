@@ -206,6 +206,29 @@
 | 构建及静态 | `uv build --out-dir /tmp/ft-cash-commit-outcome-dist` 成功；OpenSpec strict 37/37、diff 空白检查通过。首次三文件 SQLite 命令因缺少 tests/contract 的 PYTHONPATH 有一项夹具导入失败，已用上述完整命令修正，不计首次为通过 |
 | 文档、跨端及回退 | 词表、接口参考、主流程及功能地图同组更新；README 的启动和配置未变，无需修改。Web／Android／iOS 共享收据解码受影响，页面接线和演示仍待前端 change；本收据小步无页面／文案修改，浏览器和设备 UI QA 不适用。additive JSON 回退可忽略新字段，既有收据保留，禁止从旧 status 补造 commit_outcome；不写真实账本或部署 |
 
+### 4.17 Compose 普通保存与额外影响
+
+- [x] 4.17.1 思考／计划：按已确认一次保存及恢复合同，补普通草稿计划意图和完整影响归属，保留直接 PATCH 兼容；无财务规则或 schema 变化。
+- [x] 4.17.2 测试先行：覆盖草稿保持状态／身份、完整原命令恢复、公共清空无额外确认、关系与资金关联自动解除、明确决定不重复确认、失效决定和分页隐藏影响。
+- [x] 4.17.3 构建：后端规范化输入、构建器、计划读取／提交重验、HTTP 与共享 DTO／domain 一致。
+- [x] 4.17.4 独立范围、工程、安全和最终 diff 复核；阻断项修复后重审。
+- [x] 4.17.5 SQLite 开发验证后显式专用 PostgreSQL 契约矩阵、完整回归、构建与 OpenSpec 检查；记录当前证据。
+- [x] 4.17.6 同组核对接口参考、主流程、词表、功能地图和技能；前端接入及三端 QA 归对应 change。
+- [ ] 4.17.7 发布准备及 additive 合同回退边界已核对；相称检查后按已授权分支提交推送，记录实际提交，不部署或写真实账本。
+- [x] 4.17.8 沉淀状态失效和额外影响防复发反例；未实现页面不计完成。
+
+4.17 当前验证：2026-10-24，`HEAD=18bb6f1`，比较基线同一提交；本步补维护计划及客户端协议，不包含详情、编辑或导入 UI 完成。普通草稿保存仍排除余额和统计，无 schema／迁移／依赖变化。
+
+| 范围 | 实际证据 |
+|---|---|
+| 测试先行 | `/tmp/ft-maintenance-effects-red.log` 8 failed（缺普通草稿意图／影响合同），随后 8 passed；既有关系问题和计划 skip 整组表达的新增反例各先失败再修复。覆盖明确清空、来源问题、完整关系决定、资金关联解除、失效决定、首屏之外影响及原计划恢复 |
+| 独立复核 | 产品／工程／安全复核关闭既有关系问题误报，基线按工作区分批覆盖无直接 operation 的成员，使用稳定 issue key。计划 skip 由完整关系组表达，避免按旧 failure 父集合复制不精确问题。当前无阻断／major；额外字段不公开执行正文或来源内容 |
+| 双后端 | `uv run python /tmp/ft-maintenance-effects-matrix.py` 显式设置人工专用 `_test` PostgreSQL、`FT_REQUIRE_TEST_POSTGRES=1` 和 `PYTHONPATH=tests:tests/contract`；effect／协议、真实维护 HTTP／业务计划／提交／恢复／发布及稳定对象编辑 8 文件 → 最终 254 passed、无 skip（468.45 s），`/tmp/ft-maintenance-effects-dual.log` |
+| 完整回归 | `uv run python /tmp/ft-maintenance-full-regression.py` 将全部 contract 文件按排序分为 3 个互不重叠进程，另运行 tests 且 ignore contract；各使用 `-q -m 'not performance' --disable-warnings --tb=short --maxfail=5`，显式移除 PostgreSQL 环境，普通 tests 仅排除两项已在基线复现的旧 Expo 断言。3377 passed、1284 skipped、73 deselected，四进程均 exit 0；分项 437/396、397/398、398/379、2145/111（passed/skipped），精确参数与日志 `/tmp/ft-maintenance-full-{0,1,2,3}.{json,log}`。此后只修正计划 skip 的影响摘要并增加一项纯回归；最终由上述双后端 254 项及纯 9 项重验，不把 PostgreSQL skip 算作通过 |
+| 共享协议与构建 | 最终客户端回归 Wasm 295／Android 290 项通过（0 失败、0 skip），`/tmp/ft-maintenance-save-plan-client.log`；新增独立 3 项覆盖 save_draft 请求、明确清空、混入决定不出网及 additional_effects 缺省／null／空列表区别。iOS Simulator 共享编译通过，`/tmp/ft-compose-current-sources-verified.log`。`uv build --out-dir /tmp/ft-cash-maintenance-effects-dist` 成功；OpenSpec strict 37/37、doctor healthy、链接及 diff 空白检查通过 |
+| 文档与跨端 | 原位更新词表、维护接口参考、账本、导入主流程、功能地图及 apply 技能；README 启动方式／配置未变，无需修改。Web、Android、iOS 消费同一协议；真实接线、浏览器与设备 QA 仍由前端 tasks 继续，不能据协议测试标 UI 完成 |
+| 回退与反思 | 原直接 PATCH 保持兼容；旧计划缺省 additional_effects 不推定为空。回退前停止新 save_draft 计划或等待活动上下文终结，保留未知原键，不能通过清理指针假定未保存；永久收据仍可核实。不恢复旧写旁路，不部署或写真实账本。前端复用原计划核实，选择变化即使预览失败也禁止提交旧计划 |
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。

@@ -336,3 +336,21 @@ def test_incomplete_draft_stays_editable_and_does_not_publish_finalize_plan(cont
     assert response.status_code == 422 and response.json()["error"]["code"] == "account_missing"
     assert "账户" in response.json()["error"]["message"]
     assert _records(context_runtime).read(identifier) == before and store._entries == {}
+
+
+def test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_is_gone(context_runtime, monkeypatch):
+    identifier = _draft(context_runtime)
+    client, store = _client(context_runtime, monkeypatch)
+    before = _records(context_runtime).read(identifier)
+    response = _preview(client, context_runtime, identifier, intent="save_draft", patch=_complete(before, note=""))
+    assert response.status_code == 200, response.text
+    plan = response.json()
+    assert plan["additional_effects"] == []
+    assert plan["summary"]["update_draft"] == 1
+    assert client.get("/api/v1/cash-mutations/plans/" + plan["plan_id"]).json()["additional_effects"] == []
+    saved = _commit(client, plan)
+    assert saved.status_code == 200, saved.text
+    assert client.get("/api/v1/cash-records/" + identifier).json()["state"] == "draft"
+    store._entries.clear()
+    resolved = client.post("/api/v1/cash-mutations/resolve", json={"plan_id": plan["plan_id"], "idempotency_key": "synthetic-maintenance-confirm"})
+    assert resolved.json() == {"status": "committed", "receipt": saved.json()}

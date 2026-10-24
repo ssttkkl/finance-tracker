@@ -32,7 +32,8 @@ internal fun CashCurrentRecordDto.toDomain() = CashCurrentRecord(recordOrigin,
     relations.map { CashSavedRelation(it.relationId, it.kind, it.subtype, it.state, it.active, it.rowRevision, it.decisionGroupId) },
     projectionRef?.let { CashCurrentProjectionRef(it.transactionId, it.projectionId, it.attentionCount, it.projectionVersion) })
 internal fun CashMaintenancePlanDto.toDomain() = CashMaintenancePlan(planId, editContextId, planRevision, expiresAt, summary, itemCounts, canCommit,
-    items.map(CashPlanItemDto::toDomain), pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) })
+    items.map(CashPlanItemDto::toDomain), pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) },
+    additionalEffects?.map { CashAdditionalEffect(it.kind, it.reference, it.field) })
 internal fun CashMaintenanceRequest.toDto() = CashMaintenanceInput(intent, transactionId, expectedRevision, patch.toJsonObject(), entryId, expectedEntryRevision,
     memberPatches.map { CashMemberPatchInput(it.transactionId, it.patch.toJsonObject()) },
     relationChoices.map { CashMaintenanceRelationInput(it.suggestionId, it.action, it.candidateId, it.commonFields?.toJsonObject(), it.inheritCommonFields) },

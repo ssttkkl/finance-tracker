@@ -166,7 +166,7 @@ flowchart TD
 | 收支详情／来源证据 | `GET /cash-projections/{projection_id}`；证据为 `GET /evidence/cash-projections/{projection_id}` |
 | 维护详情及重新定位 | `GET /cash-records/{transaction_id}`；`GET /cash-records/{transaction_id}/projection` |
 | 辅助搜索／手工新建 | `GET /cash-records`／`POST /cash-records`；新建是直接命令 |
-| 保存草稿 | `PATCH /cash-records/{transaction_id}/draft`；期望行修订、补丁和幂等键 |
+| 保存草稿 | `save_draft` 维护计划及原命令核实；直接 `PATCH /cash-records/{transaction_id}/draft` 保持兼容，均需要期望行修订和补丁，保持草稿 |
 | 正式编辑、转正式、问题与关联维护 | `POST /cash-mutations/plans` → 读取或重预览 → `POST /cash-mutations/plans/{plan_id}/commit` |
 | 单项／批量分类 | `PUT /cash-projections/{projection_id}/category`／`PUT /cash-projections/categories`；版本化的原子直接命令 |
 | 单条或确认连通组删除 | `DELETE /cash-records/{transaction_id}`；明确删除模式 |

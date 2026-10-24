@@ -39,10 +39,12 @@ data class CashMaintenanceRequest(
     val issueResolutions: List<CashIssueResolution>? = null,
     val editContextId: String? = null, val previousPlanId: String? = null, val expectedPlanRevision: Long? = null,
 )
+data class CashAdditionalEffect(val kind: String, val reference: String, val field: String? = null)
 data class CashMaintenancePlan(
     val planId: String, val editContextId: String, val revision: Long, val expiresAt: String,
     val summary: Map<String, Long>, val itemCounts: Map<String, Long>, val canCommit: Boolean,
     val items: List<ImportProjectedItem>, val nextCursor: String?, val invalidatedChoices: List<ImportInvalidatedChoice>,
+    val additionalEffects: List<CashAdditionalEffect>? = null,
 )
 data class CashDraftSaveResult(val receipt: ImportReceipt, val currentRecordStatus: String, val currentRecord: CashCurrentRecord?)
 

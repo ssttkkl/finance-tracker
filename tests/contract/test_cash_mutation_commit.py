@@ -95,6 +95,7 @@ def test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group(contex
     runtime = context_runtime
     service, view, relation_id, category = _category_plan(runtime)
     balances = _snapshot(runtime)
+    assert view["additional_effects"] == []
     receipt = _commit(service, view)
     assert receipt["summary"]["updated_posted"] == 1 and receipt["summary"]["relations_removed"] == 0
     with runtime.sessions() as session:

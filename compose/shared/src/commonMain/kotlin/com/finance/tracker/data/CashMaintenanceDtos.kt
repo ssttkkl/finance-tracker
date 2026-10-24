@@ -97,6 +97,8 @@ data class CashMaintenanceInput(
 @Serializable
 data class CashMaintenancePagesDto(val items: String?)
 @Serializable
+data class CashAdditionalEffectDto(val kind: String, val reference: String, val field: String? = null)
+@Serializable
 data class CashMaintenancePlanDto(
     @SerialName("plan_id") val planId: String,
     @SerialName("edit_context_id") val editContextId: String,
@@ -107,6 +109,7 @@ data class CashMaintenancePlanDto(
     @SerialName("can_commit") val canCommit: Boolean,
     val items: List<CashPlanItemDto>, val pages: CashMaintenancePagesDto,
     @SerialName("invalidated_choices") val invalidatedChoices: List<CashInvalidatedChoiceDto>,
+    @SerialName("additional_effects") val additionalEffects: List<CashAdditionalEffectDto>? = null,
 )
 @Serializable
 data class CashDraftSaveDto(
