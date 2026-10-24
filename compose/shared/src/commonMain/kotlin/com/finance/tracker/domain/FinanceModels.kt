@@ -62,14 +62,14 @@ data class CashTransfer(
 
 data class CashProjection(
     val projectionId: String,
-    val occurredAt: String,
+    val occurredAt: String?,
     val account: Account? = null,
     val counterparty: String = "",
     val category: CashCategory? = null,
     val note: String = "",
-    val amount: String,
-    val currency: String,
-    val economicType: String,
+    val amount: String?,
+    val currency: String?,
+    val economicType: String?,
     val transferSubtype: String? = null,
     val composition: List<String> = emptyList(),
     val memberCount: Int = 1,
@@ -80,6 +80,13 @@ data class CashProjection(
     val visible: Boolean = true,
     val hiddenReason: String? = null,
     val transfer: CashTransfer? = null,
+    val state: String = "posted",
+    val statisticsEligible: Boolean = true,
+    val attentionCount: Long = 0,
+    val confirmationStatus: String = "confirmed",
+    val projectionVersion: Long? = null,
+    val entryId: String? = null,
+    val transactionId: String,
 )
 
 data class CashEconomicTypeFilterOption(
@@ -112,6 +119,7 @@ data class CashPage(
     val filters: Map<String, String?> = emptyMap(),
     val filterOptions: CashFilterOptions = CashFilterOptions(),
     val monthlySummaries: List<CashMonthlySummary> = emptyList(),
+    val pendingItemCount: Long = 0,
 )
 
 data class CashProjectionDeleteImpact(
@@ -506,6 +514,8 @@ data class CashFilters(
     val economicType: String? = null,
     val transferSubtype: String? = null,
     val composition: String? = null,
+    val state: String? = null,
+    val confirmationStatus: String? = null,
 )
 
 data class AccountList(

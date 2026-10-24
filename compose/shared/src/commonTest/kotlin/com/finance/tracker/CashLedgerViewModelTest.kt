@@ -162,7 +162,7 @@ class CashLedgerViewModelTest {
             val viewModel = CashLedgerViewModel(repository, repository)
             viewModel.initialize()
             advanceUntilIdle()
-            viewModel.openRow(CashProjection("first", "2026-09-26T09:00:00Z", amount = "-10", currency = "CNY", economicType = "expense", recordId = "record-first"))
+            viewModel.openRow(CashProjection("first", "2026-09-26T09:00:00Z", amount = "-10", currency = "CNY", economicType = "expense", recordId = "record-first", transactionId = "record-first"))
             advanceUntilIdle()
 
             viewModel.openRelationComposer()
@@ -275,6 +275,7 @@ private class FakeCashLedgerRepository(
         currency = "CNY",
         economicType = "expense",
         recordId = "record-$id",
+        transactionId = "record-$id",
     )
 
     private fun cashRecord(id: String) = CashRecord(

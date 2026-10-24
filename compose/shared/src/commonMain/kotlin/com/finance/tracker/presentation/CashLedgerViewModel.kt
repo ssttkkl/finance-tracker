@@ -52,9 +52,15 @@ class CashLedgerViewModel(
             Pager(
                 config = PagingConfig(pageSize = 20, prefetchDistance = 5, enablePlaceholders = false),
                 pagingSourceFactory = {
-                    CashProjectionPagingSource(repository, filters, diagnostics) { page, firstPage ->
+                    CashProjectionPagingSource(repository, filters, diagnostics,
+                        onSnapshotInvalidated = {
+                            if (mutableState.value.filters == filters && mutableState.value.listRevision == revision)
+                                mutableState.value = mutableState.value.copy(selectedIds = emptySet())
+                        },
+                    ) { page, firstPage ->
                         if (firstPage && mutableState.value.filters == filters && mutableState.value.listRevision == revision) {
                             mutableState.value = mutableState.value.copy(
+                                selectedIds = mutableState.value.selectedIds.takeIf { mutableState.value.projectionVersion == 0L || mutableState.value.projectionVersion == page.projectionVersion }.orEmpty(),
                                 page = page.copy(items = emptyList()),
                                 filterOptions = page.filterOptions,
                                 projectionVersion = page.projectionVersion,

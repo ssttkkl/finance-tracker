@@ -6,6 +6,12 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonElement
 
 @Serializable
+data class CashCurrentMemberDto(@SerialName("transaction_id") val transactionId: String,
+    @SerialName("row_revision") val rowRevision: Long, @SerialName("confirmation_status") val confirmationStatus: String)
+@Serializable
+data class CashCurrentMembersDto(@SerialName("projection_version") val projectionVersion: Long, val members: List<CashCurrentMemberDto>)
+
+@Serializable
 data class CashEntryViewDto(
     @SerialName("entry_id") val entryId: String,
     val revision: Long,

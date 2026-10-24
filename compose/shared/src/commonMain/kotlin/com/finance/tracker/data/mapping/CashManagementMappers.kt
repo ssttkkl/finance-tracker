@@ -23,6 +23,7 @@ fun CashFiltersDto.toDomain(): CashFilters = CashFilters(
     economicType = economicType,
     transferSubtype = transferSubtype,
     composition = composition,
+    state = state, confirmationStatus = confirmationStatus,
 )
 
 fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
@@ -38,6 +39,7 @@ fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
     economicType = economicType,
     transferSubtype = transferSubtype,
     composition = composition,
+    state = state, confirmationStatus = confirmationStatus,
 )
 
 fun AccountListDto.toDomain(): AccountList = AccountList(

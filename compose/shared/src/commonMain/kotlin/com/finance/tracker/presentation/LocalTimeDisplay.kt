@@ -13,7 +13,8 @@ private const val DAYS_PER_400_YEAR_ERA = 146_097L
 internal data class LocalDateDisplayParts(val year: Int, val month: Int, val day: Int)
 internal data class LocalDateTimeDisplayParts(val date: LocalDateDisplayParts, val time: String)
 
-internal fun localDateTimeDisplayParts(instant: String): LocalDateTimeDisplayParts? {
+internal fun localDateTimeDisplayParts(instant: String?): LocalDateTimeDisplayParts? {
+    if (instant == null) return null
     val date = localDateDisplayParts(getLocalDateForInstant(instant)) ?: return null
     val time = formatLocalDateTime(instant).substringAfter(' ', "")
     if (!LOCAL_TIME_PATTERN.matches(time)) return null
@@ -21,12 +22,13 @@ internal fun localDateTimeDisplayParts(instant: String): LocalDateTimeDisplayPar
 }
 
 @Composable
-internal fun localDateTimeDisplayLabel(instant: String): String {
+internal fun localDateTimeDisplayLabel(instant: String?): String {
     val parts = localDateTimeDisplayParts(instant) ?: return localizedText("display_not_provided")
     return localizedText("display_date_time_full", parts.date.year, parts.date.month, parts.date.day, parts.time)
 }
 
-internal fun localMonthKey(instant: String): String {
+internal fun localMonthKey(instant: String?): String {
+    if (instant == null) return "unknown"
     val date = LOCAL_DATE_PATTERN.matchEntire(getLocalDateForInstant(instant)) ?: return "unknown"
     if (!isValidLocalDate(date)) return "unknown"
     return "${date.groupValues[1]}-${date.groupValues[2]}"
@@ -63,7 +65,8 @@ internal fun isoDateDisplayLabel(value: String): String {
     return localizedText("display_date_full", parts.year, parts.month, parts.day)
 }
 
-internal fun localDateTimeSortKey(instant: String): String {
+internal fun localDateTimeSortKey(instant: String?): String {
+    if (instant == null) return ""
     val date = getLocalDateForInstant(instant)
     val match = LOCAL_DATE_PATTERN.matchEntire(date) ?: return ""
     if (!isValidLocalDate(match)) return ""
@@ -109,6 +112,12 @@ internal fun isValidLocalDateTime(value: String): Boolean {
     val minute = time.substring(3, 5).toIntOrNull() ?: return false
     return hour in 0..23 && minute in 0..59
 }
+
+internal fun localDateTimeWithDate(value: String, date: String, allowEmpty: Boolean): String =
+    if (allowEmpty && date.isEmpty()) "" else "${date}T${value.substringAfter('T', "").take(5)}"
+
+internal fun localDateTimeWithTime(value: String, time: String, allowEmpty: Boolean): String =
+    if (allowEmpty && time.isEmpty()) "" else "${value.substringBefore('T')}T$time"
 
 internal fun displaySignedSummaryAmount(direction: String, amount: String): String {
     val absolute = displayDecimalAbs(amount) ?: amount.removePrefix("+").removePrefix("-")

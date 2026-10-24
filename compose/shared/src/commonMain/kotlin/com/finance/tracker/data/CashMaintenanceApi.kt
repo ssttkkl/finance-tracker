@@ -9,6 +9,9 @@ private val maintenanceJson = Json(apiJson) { encodeDefaults = true; explicitNul
 suspend fun FinanceApiClient.readCurrentCashRecord(transactionId: String): CashCurrentRecordDto =
     request(HttpMethod.Get, "/api/v1/cash-records/${encodePathSegment(transactionId)}")
 
+suspend fun FinanceApiClient.readCurrentCashMembers(projectionId: String): CashCurrentMembersDto =
+    request(HttpMethod.Get, "/api/v1/cash-projections/${encodePathSegment(projectionId)}")
+
 suspend fun FinanceApiClient.saveCashDraft(transactionId: String, revision: Long, patch: JsonObject, key: String): CashDraftSaveDto {
     requireCashRevision(revision)
     return request(HttpMethod.Patch, "/api/v1/cash-records/${encodePathSegment(transactionId)}/draft",

@@ -10,6 +10,46 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashMaintenanceApiTest {
+    @Test fun sourceBodyUsesExplicitMemberReferenceAndKeepsOriginalStatementFields() = runTest {
+        val calls = mutableListOf<String>()
+        val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
+            calls += it.url.encodedPath
+            val result = if (it.url.encodedPath.startsWith("/api/v1/evidence/"))
+                """{"projection_version":9,"projection":{"projection_id":"p","record_id":"bill-source","transaction_id":"9007199254740993","economic_type":null,"occurred_at":null,"amount":null,"currency":null,"state":"draft","statistics_eligible":false},"members":[{"id":"9007199254740993","row_revision":3,"note":"normalized note","components":[{"id":"different-component"}]}]}"""
+            else RECORD.replace("\"projection_ref\":null", "\"projection_ref\":{\"transaction_id\":\"9007199254740993\",\"projection_id\":\"p\",\"attention_count\":0,\"projection_version\":9}").replace("\"amount\":null,", "\"source_payload\":{\"商品\":\"原始账单商品\",\"金额\":\"12345678901234567890.0100\"},\"amount\":null,")
+            respond(result, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        val source = KtorCashMaintenanceRepository(api).sources("p").members.single()
+        assertEquals(listOf("/api/v1/evidence/cash-projections/p", "/api/v1/cash-records/9007199254740993"), calls)
+        assertEquals(com.finance.tracker.domain.StructuredText("原始账单商品"), source.sourcePayload?.fields?.get("商品"))
+        assertEquals(com.finance.tracker.domain.StructuredText("12345678901234567890.0100"), source.sourcePayload?.fields?.get("金额"))
+        api.close()
+    }
+    @Test fun sourceBodyRejectsChangedMemberIdentityRevisionOrProjection() = runTest {
+        val reference = """{"transaction_id":"9007199254740993","projection_id":"p","attention_count":0,"projection_version":9}"""
+        val current = RECORD.replace("\"projection_ref\":null", "\"projection_ref\":" + reference)
+        val evidence = """{"projection_version":9,"projection":{"projection_id":"p","record_id":"bill-source","transaction_id":"9007199254740993","economic_type":null,"occurred_at":null,"amount":null,"currency":null},"members":[{"id":"9007199254740993","row_revision":3}]}"""
+        val changed = listOf(current.replace("9007199254740993", "12"), current.replace("\"row_revision\":3", "\"row_revision\":4"),
+            current.replace("\"projection_id\":\"p\"", "\"projection_id\":\"different\""), current.replace("\"projection_version\":9", "\"projection_version\":10"))
+        for (record in changed) {
+            val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
+                respond(if (it.url.encodedPath.startsWith("/api/v1/evidence/")) evidence else record, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            })
+            assertEquals("record_changed", assertFailsWith<com.finance.tracker.domain.DomainFailure> { KtorCashMaintenanceRepository(api).sources("p") }.code)
+            api.close()
+        }
+    }
+    @Test fun currentGroupKeepsExplicitMemberReferencesAndPendingStatus() = runTest {
+        var call: HttpRequestData? = null
+        val api = client("""{"projection_version":9,"projection":{},"members":[{"transaction_id":"9007199254740993","row_revision":4,"state":"posted","confirmation_status":"pending"}],"issues":[]}""") { call = it }
+        val group = KtorCashMaintenanceRepository(api).currentGroup("cash:opaque")
+        val members = group.members
+        assertEquals(9L, group.projectionVersion); assertEquals(4L, members.single().rowRevision)
+        assertEquals("/api/v1/cash-projections/cash%3Aopaque", call!!.url.encodedPath)
+        assertEquals("9007199254740993", members.single().transactionId)
+        assertEquals("pending", members.single().confirmationStatus)
+        api.close()
+    }
     @Test fun currentRecordKeepsNullPermissionsAndStableIdentity() = runTest {
         var call: HttpRequestData? = null
         val api = client(RECORD) { call = it }
@@ -100,6 +140,16 @@ class CashMaintenanceApiTest {
         assertEquals(2, choice.commonFieldConflicts["note"]!!.size)
         assertEquals("", choice.commonFields!!["note"]!!.jsonPrimitive.content)
         assertEquals(false, choice.inheritCommonFields)
+    }
+    @Test fun sourceEvidenceKeepsUnknownFieldsAndRealParentReference() = runTest {
+        var call: HttpRequestData? = null
+        val api = client("""{"projection_version":9,"projection":{"projection_id":"p","record_id":"11","transaction_id":"11","economic_type":"unknown","occurred_at":null,"amount":null,"currency":null,"state":"draft","statistics_eligible":false},"members":[{"id":"11","row_revision":3,"occurred_at":null,"amount":null,"currency":null,"counterparty":"原始对方","note":"来源原文","components":[{"id":"component-1","amount":null,"currency":null}]}]}""") { call = it }
+        val sources = api.readCashSourceEvidence("p/+?")
+        assertEquals("/api/v1/evidence/cash-projections/p%2F%2B%3F", call!!.url.encodedPath)
+        assertNull(sources.members.single().amount)
+        assertEquals("11", sources.members.single().id)
+        assertNull(sources.members.single().components.single().amount)
+        api.close()
     }
     private fun client(response: String, inspect: suspend (HttpRequestData) -> Unit) = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {
         inspect(it); respond(response, headers = headersOf(HttpHeaders.ContentType, "application/json"))

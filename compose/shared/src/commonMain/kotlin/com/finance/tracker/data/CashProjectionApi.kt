@@ -13,6 +13,8 @@ import kotlinx.serialization.json.put
 suspend fun FinanceApiClient.fetchCashPage(filters: CashFiltersDto, cursor: String? = null): CashPageDto = request(
     HttpMethod.Get,
     appendQuery("/api/v1/cash-projections", listOf(
+        "state" to filters.state,
+        "confirmation_status" to filters.confirmationStatus,
         "date_from" to filters.dateFrom,
         "date_to" to filters.dateTo,
         "account_id" to filters.accountId,

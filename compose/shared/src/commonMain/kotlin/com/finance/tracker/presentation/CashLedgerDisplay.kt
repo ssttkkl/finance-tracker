@@ -48,7 +48,7 @@ internal fun cashProjectionAccountValue(item: CashProjection): String? = item.tr
 
 @Composable
 internal fun cashProjectionAccountLabel(item: CashProjection): String =
-    cashProjectionAccountValue(item) ?: localizedText("cash_account_multiple")
+    cashProjectionAccountValue(item) ?: localizedText(if (item.memberCount > 1) "cash_account_multiple" else "display_not_provided")
 
 internal fun cashProjectionAmountLabel(item: CashProjection): String {
     val transfer = item.transfer.takeIf { item.economicType == "internal_transfer" }
@@ -61,12 +61,13 @@ internal fun cashProjectionAmountLabel(item: CashProjection): String {
             "$fromAmount ${transfer.fromCurrency} → $toAmount ${transfer.toCurrency}"
         }
     }
+    val value = item.amount ?: return listOfNotNull("—", item.currency).joinToString(" ")
     val amount = when {
-        displayDecimalSign(item.amount) == 0 -> item.amount.removePrefix("-").removePrefix("+")
-        item.amount.startsWith("-") || item.amount.startsWith("+") -> item.amount
-        else -> "+${item.amount}"
+        displayDecimalSign(value) == 0 -> value.removePrefix("-").removePrefix("+")
+        value.startsWith("-") || value.startsWith("+") -> value
+        else -> "+$value"
     }
-    return "$amount ${item.currency}"
+    return listOfNotNull(amount, item.currency).joinToString(" ")
 }
 
 internal fun cashProjectionSourceResourceKey(item: CashProjection): String? = when {

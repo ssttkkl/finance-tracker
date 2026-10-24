@@ -25,6 +25,7 @@ class FinanceModelMapperTest {
             currency = "USD",
             economicType = "expense",
             recordId = "record-1",
+            transactionId = "11",
         )
 
         val domain = dto.toDomain()

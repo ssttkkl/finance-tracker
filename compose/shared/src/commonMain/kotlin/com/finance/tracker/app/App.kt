@@ -72,6 +72,8 @@ fun App(apiOrigin: String = getConfiguredApiOrigin(), demoMode: Boolean = false)
 internal data class DestinationState(
     val route: AppRoute,
     val financeRepository: FinanceRepository,
+    val cashMaintenanceRepository: CashMaintenanceRepository,
+    val cashMaintenanceRecovery: CashMaintenanceRecoveryStore,
     val sessionRepository: SessionRepository,
     val diagnosticLogger: DiagnosticLogger,
     val session: Session,
@@ -375,9 +377,15 @@ private fun FinanceTrackerAppContent(
                     val destination = remember(apiClient) {
                         movableContentOf<DestinationState> { state -> DestinationScaffold(state) }
                     }
+                    val maintenanceRecovery = remember(apiOrigin, demoMode, currentSession.user.email, currentSession.activeWorkspaceId) {
+                        if (demoMode || currentSession.activeWorkspaceId.isNullOrBlank()) InMemoryCashMaintenanceRecoveryStore()
+                        else ScopedCashMaintenanceRecoveryStore(ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId), createPlatformImportRecoveryStorage())
+                    }
                     val state = DestinationState(
                         route = currentRoute,
                         financeRepository = graph.financeRepository,
+                        cashMaintenanceRepository = graph.cashMaintenanceRepository,
+                        cashMaintenanceRecovery = maintenanceRecovery,
                         sessionRepository = graph.sessionRepository,
                         diagnosticLogger = graph.diagnosticLogger,
                         demoStatement = graph.demoStatement,

@@ -147,6 +147,21 @@ class DemoFinanceRepository : FinanceRepository {
     )
     private val relations = mutableListOf<CashRelation>()
     private val committedImportTokens = mutableSetOf<String>()
+    private val commonFields = mutableMapOf<String, Map<String, StructuredValue>>()
+    internal fun currentCommonFields(id: String): Map<String, StructuredValue> = commonFields[id].orEmpty()
+    internal fun saveCommonFields(id: String, patch: Map<String, StructuredValue>) {
+        findRecord(id)
+        require(patch.keys.all { it in setOf("note", "counterparty", "counterparty_account", "counterparty_account_attrs", "category_id") })
+        commonFields[id] = commonFields[id].orEmpty() + patch
+        if (patch.isNotEmpty()) projectionVersion++
+    }
+    private fun effectiveRecord(row: CashRecord): CashRecord {
+        val fields = currentCommonFields(row.id)
+        fun text(key: String, fallback: String) = (fields[key] as? StructuredText)?.value ?: fallback
+        return row.copy(note = text("note", row.note), counterparty = text("counterparty", row.counterparty),
+            counterpartyAccount = text("counterparty_account", row.counterpartyAccount),
+            categoryId = if ("category_id" in fields) (fields["category_id"] as? StructuredText)?.value else row.categoryId)
+    }
     private var categoryRevision = 1L
     private var projectionVersion = 1L
     private var nextRecordNumber = 4
@@ -158,7 +173,7 @@ class DemoFinanceRepository : FinanceRepository {
         if (listOfNotNull(filters.amountMin, filters.amountMax).any { !isExactDecimalString(it) }) {
             throw demoFailure("invalid_filter", 400)
         }
-        val filtered = records.filter { recordMatches(it, filters) }
+        val filtered = records.filter { recordMatches(effectiveRecord(it), filters) }
         val offset = cursor?.toIntOrNull()?.coerceAtLeast(0) ?: 0
         val page = filtered.drop(offset).take(DEMO_PAGE_SIZE)
         val next = (offset + page.size).takeIf { it < filtered.size }?.toString()
@@ -549,7 +564,9 @@ class DemoFinanceRepository : FinanceRepository {
         onPortfolio(demoPortfolio(displayCurrency ?: "USD"))
     }
 
-    private fun projection(record: CashRecord): CashProjection = CashProjection(
+    private fun projection(source: CashRecord): CashProjection {
+        val record = effectiveRecord(source)
+        return CashProjection(
         projectionId = "projection-${record.id}",
         occurredAt = record.occurredAt,
         account = accountById(record.accountId),
@@ -562,9 +579,12 @@ class DemoFinanceRepository : FinanceRepository {
         transferSubtype = record.recordSubtype.takeIf { record.recordType == "transfer" },
         composition = if (record.components.isNullOrEmpty()) listOf("single") else listOf("combined"),
         recordId = record.id,
+        transactionId = record.id,
         sourceType = record.sourceType,
         sourceTypes = listOfNotNull(record.sourceType),
     )
+
+    }
 
     private fun recordDetail(record: CashRecord) = CashRecordDetail(
         record = record.copy(category = categoryById(record.categoryId)),

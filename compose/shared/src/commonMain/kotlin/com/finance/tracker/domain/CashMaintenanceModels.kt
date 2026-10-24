@@ -49,7 +49,17 @@ data class CashMaintenancePlan(
 )
 data class CashDraftSaveResult(val receipt: ImportReceipt, val currentRecordStatus: String, val currentRecord: CashCurrentRecord?)
 
+data class CashSourceComponent(val componentId: String, val amount: String?, val currency: String?, val accountName: String?, val label: String)
+data class CashSourceMember(val transactionId: String, val occurredAt: String?, val amount: String?, val currency: String?,
+    val counterparty: String, val note: String, val counterpartyAccount: String?, val accountName: String?, val components: List<CashSourceComponent>,
+    val sourcePayload: StructuredObject? = null)
+data class CashSourceEvidence(val projectionVersion: Long, val projection: CashProjection, val members: List<CashSourceMember>)
+data class CashCurrentMember(val transactionId: String, val rowRevision: Long, val confirmationStatus: String)
+data class CashCurrentGroup(val projectionVersion: Long, val members: List<CashCurrentMember>)
+
 interface CashMaintenanceRepository {
+    suspend fun currentGroup(projectionId: String): CashCurrentGroup
+    suspend fun sources(projectionId: String): CashSourceEvidence
     suspend fun record(transactionId: String): CashCurrentRecord
     suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String): CashDraftSaveResult
     suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan

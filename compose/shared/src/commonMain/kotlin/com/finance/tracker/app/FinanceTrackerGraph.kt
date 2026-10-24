@@ -8,6 +8,9 @@ import com.finance.tracker.data.FinanceApiClient
 import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.data.DemoSessionRepository
 import com.finance.tracker.data.DemoStatementFileSource
+import com.finance.tracker.data.KtorCashMaintenanceRepository
+import com.finance.tracker.data.DemoCashMaintenanceRepository
+import com.finance.tracker.domain.CashMaintenanceRepository
 import com.finance.tracker.data.KtorFinanceRepository
 import com.finance.tracker.data.KtorSessionRepository
 import com.finance.tracker.domain.FinanceRepository
@@ -18,6 +21,7 @@ data class FinanceTrackerGraph(
     val apiClient: FinanceApiClient?,
     val sessionRepository: SessionRepository,
     val financeRepository: FinanceRepository,
+    val cashMaintenanceRepository: CashMaintenanceRepository,
     val diagnosticLogger: DiagnosticLogger,
     val demoStatement: FileSource? = null,
 )
@@ -28,14 +32,19 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
         apiClient = apiClient,
         sessionRepository = KtorSessionRepository(apiClient),
         financeRepository = KtorFinanceRepository(apiClient),
+        cashMaintenanceRepository = KtorCashMaintenanceRepository(apiClient),
         diagnosticLogger = createDiagnosticLogger(),
     )
 }
 
-fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph = FinanceTrackerGraph(
+fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph {
+    val finance = DemoFinanceRepository()
+    return FinanceTrackerGraph(
     apiClient = null,
     sessionRepository = DemoSessionRepository(),
-    financeRepository = DemoFinanceRepository(),
+    financeRepository = finance,
+    cashMaintenanceRepository = DemoCashMaintenanceRepository(finance),
     diagnosticLogger = NoOpDiagnosticLogger,
     demoStatement = DemoStatementFileSource(),
 )
+}

@@ -112,6 +112,7 @@ class CashLedgerDisplayTest {
         economicType = economicType,
         transferSubtype = transferSubtype,
         recordId = "record-1",
+            transactionId = "11",
         transfer = transfer,
     )
 }

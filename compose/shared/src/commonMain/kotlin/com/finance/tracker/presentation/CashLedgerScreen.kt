@@ -101,6 +101,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.finance.tracker.core.design.GeneratedTokens
 import org.jetbrains.compose.resources.painterResource
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -111,12 +112,44 @@ internal fun CashLedgerScreen(
     onNavigate: (AppPage) -> Unit,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
     cashLedgerReloadRevision: Int = 0,
+    maintenanceRepository: CashMaintenanceRepository,
+    maintenanceRecovery: CashMaintenanceRecoveryStore,
 ) {
     val viewModel: CashLedgerViewModel = viewModel(
-        key = "cash-ledger:${session.activeWorkspaceId.orEmpty()}",
+        key = "cash-ledger:${session.user.email}:${session.activeWorkspaceId.orEmpty()}:${repository.hashCode()}",
         factory = viewModelFactory { initializer { CashLedgerViewModel(repository, repository, diagnostics = diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val currentTask: CashRecordTaskViewModel = viewModel(
+        key = "cash-current:${session.user.email}:${session.activeWorkspaceId}:${maintenanceRepository.hashCode()}",
+        factory = viewModelFactory { initializer { CashRecordTaskViewModel(maintenanceRepository, maintenanceRecovery) } },
+    )
+    val currentState by currentTask.state.collectAsStateWithLifecycle()
+    var showCurrentDetail by remember(currentTask) { mutableStateOf(false) }
+    var currentProjection by remember(currentTask) { mutableStateOf<CashProjection?>(null) }
+    var currentEvidence by remember(currentTask) { mutableStateOf<CashSourceEvidence?>(null) }
+    var sourceError by remember(currentTask) { mutableStateOf<String?>(null) }
+    val currentScope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(currentTask) { currentTask.restore() }
+    LaunchedEffect(currentState.recoveryReady) { if (currentState.unresolved) showCurrentDetail = true }
+    LaunchedEffect(currentState.savedRevision) {
+        if (currentState.savedRevision > 0) {
+            viewModel.reload()
+            currentEvidence = null
+        }
+    }
+    LaunchedEffect(currentState.record?.projectionRef) {
+        currentState.record?.projectionRef?.let { ref ->
+            if (currentProjection?.projectionVersion != ref.projectionVersion || currentProjection?.projectionId != ref.projectionId) {
+                try {
+                    val evidence = maintenanceRepository.sources(ref.projectionId)
+                    if (evidence.projectionVersion != ref.projectionVersion) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
+                    currentProjection = evidence.projection
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (_: Exception) { currentProjection = null }
+            }
+        }
+    }
     val pagedRows = viewModel.cashProjections.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     LaunchedEffect(viewModel, cashLedgerReloadRevision) {
@@ -178,6 +211,15 @@ internal fun CashLedgerScreen(
                     onInvalidAmount = viewModel::reportInvalidAmountFilter,
                 )
             }
+        }
+        val pendingItemCount = state.page?.pendingItemCount ?: 0
+        if (pendingItemCount > 0 || state.filters.confirmationStatus == "pending") {
+            FilterChip(
+                selected = state.filters.confirmationStatus == "pending",
+                onClick = { viewModel.updateFilters(state.filters.copy(confirmationStatus = if (state.filters.confirmationStatus == "pending") null else "pending")) },
+                label = { Text(if (pendingItemCount > 0) localizedText("cash_pending_count", pendingItemCount.toString()) else localizedText("cash_confirmation_pending")) },
+                modifier = Modifier.testTag("ledger.filter.pending"),
+            )
         }
         val summariesByMonth = state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month)
         val appendReachedEnd = (pagedRows.loadState.append as? LoadState.NotLoading)?.endOfPaginationReached == true
@@ -250,7 +292,13 @@ internal fun CashLedgerScreen(
                                 selectionMode = selectionMode,
                                 lastInMonth = monthEnd,
                                 onChecked = { viewModel.toggleSelection(row.projectionId, it) },
-                                onOpen = { viewModel.openRow(row) },
+                                onOpen = {
+                                    if (!currentState.unresolved) {
+                                        currentProjection = row; currentEvidence = null; sourceError = null
+                                        currentTask.open(row.transactionId)
+                                    }
+                                    showCurrentDetail = true
+                                },
                             )
                         }
                     }
@@ -367,6 +415,45 @@ internal fun CashLedgerScreen(
                 )
             }
         }
+    }
+
+    if (showCurrentDetail) {
+        CashCurrentRecordPanel(currentState, currentProjection, sizeClass, currentEvidence, sourceError,
+            onLoadSources = {
+                val ref = currentState.record?.projectionRef?.projectionId ?: currentProjection?.projectionId
+                val target = currentState.transactionId
+                val version = currentState.record?.projectionRef?.projectionVersion
+                if (sourceError == "record_changed" && target != null) {
+                    sourceError = null; currentEvidence = null; currentTask.open(target)
+                } else if (ref != null) currentScope.launch {
+                    sourceError = null
+                    try {
+                        val evidence = maintenanceRepository.sources(ref)
+                        if (evidence.projectionVersion != version) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
+                        if (currentTask.state.value.transactionId == target && currentTask.state.value.record?.projectionRef?.projectionVersion == version) currentEvidence = evidence
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (failure: Exception) { if (currentTask.state.value.transactionId == target) sourceError = (failure as? DomainFailure)?.code ?: "request_failed" }
+                }
+            },
+            onRetry = { currentState.transactionId?.let(currentTask::open) },
+            onResolve = currentTask::resolve,
+            onRetryOriginal = currentTask::retryOriginal,
+            onClose = { if (currentTask.close()) showCurrentDetail = false },
+            onResolveIssue = if (canWrite) currentTask::resolveIssue else null,
+            onSaveDraft = if (canWrite) ({ patch, finalize ->
+                if (finalize) currentState.record?.let { currentTask.prepare(CashMaintenanceRequest("finalize_draft", it.transactionId, it.rowRevision, patch)) }
+                else currentTask.saveDraft(patch)
+            }) else null,
+            onBeginRelations = if (canWrite) currentTask::beginRelations else null,
+            onSaveRelationChoices = currentTask::saveRelationChoices,
+            onConfirmPlan = currentTask::confirmPlan,
+            onCancelPlan = currentTask::dismissPlan,
+            onResolveMemberIssue = if (canWrite) currentTask::resolveMemberIssue else null,
+            onOpenMember = currentTask::open,
+            accounts = state.accounts,
+            categories = state.categories,
+            options = state.options,
+        )
     }
 
     PlatformModalEscapeHandler(
@@ -1138,6 +1225,12 @@ private fun CashDetailedFilters(
                 semanticId = SemanticIds.ledgerFilterGroupCategory,
             ) {
                 categoryFilter(Modifier.fillMaxWidth())
+                ChoicePicker(localizedText("cash_confirmation_filter"), value.confirmationStatus.orEmpty(),
+                    listOf("" to localizedText("ledger_quick_all"), "pending" to localizedText("cash_confirmation_pending"), "confirmed" to localizedText("cash_confirmation_confirmed")),
+                    { onChange(value.copy(confirmationStatus = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.confirmation")
+                ChoicePicker(localizedText("cash_record_state"), value.state.orEmpty(),
+                    listOf("" to localizedText("ledger_quick_all"), "draft" to localizedText("cash_state_draft"), "posted" to localizedText("cash_state_posted")),
+                    { onChange(value.copy(state = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.state")
             }
             CashFilterGroup(
                 title = localizedText("ledger_filter_group_account"),
@@ -1214,14 +1307,14 @@ private fun CashProjectionRow(
                     Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val source = cashProjectionSourceLabel(item)
                     Text(
-                        listOfNotNull(cashProjectionEconomicTypeLabel(item), source).joinToString(" · "),
+                        listOfNotNull(cashProjectionEconomicTypeLabel(item), source, localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed")).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                FinanceAmount(cashProjectionAmountLabel(item), negative = item.amount.startsWith("-"))
+                FinanceAmount(cashProjectionAmountLabel(item), negative = item.amount?.startsWith("-") == true)
             }
             if (!lastInMonth) HorizontalDivider(Modifier.padding(start = GeneratedTokens.Core.Space.Token4))
         }
@@ -1262,6 +1355,9 @@ private fun CashProjectionRow(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     Text(cashProjectionEconomicTypeLabel(item), style = MaterialTheme.typography.bodySmall)
+                    Text(localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (item.confirmationStatus == "pending") LocalFinanceColorRoles.current.warning else MaterialTheme.colorScheme.onSurfaceVariant)
                     cashProjectionSourceLabel(item)?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -1269,7 +1365,7 @@ private fun CashProjectionRow(
                 FinanceAmount(
                     cashProjectionAmountLabel(item),
                     modifier = Modifier.weight(0.13f).padding(horizontal = 8.dp),
-                    negative = item.amount.startsWith("-"),
+                    negative = item.amount?.startsWith("-") == true,
                     textAlign = TextAlign.End,
                 )
                 Box(Modifier.weight(0.08f), contentAlignment = Alignment.CenterEnd) {

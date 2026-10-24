@@ -185,6 +185,7 @@ const cashProjection = {
   accepted_relation_summary: [],
   source_types: [],
   record_id: "record-1",
+  transaction_id: "record-1",
   visible: true,
 };
 
@@ -194,6 +195,7 @@ const importedCashProjection = {
   counterparty: "刚刚导入的流水",
   amount: "-12.34",
   record_id: "record-imported",
+  transaction_id: "record-imported",
 };
 
 const cashRecord = {

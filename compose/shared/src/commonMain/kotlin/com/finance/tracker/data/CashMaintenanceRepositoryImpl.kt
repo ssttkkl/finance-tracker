@@ -4,6 +4,23 @@ import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
 class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMaintenanceRepository {
+    override suspend fun currentGroup(projectionId: String) = guarded {
+        val group = api.readCurrentCashMembers(projectionId)
+        CashCurrentGroup(group.projectionVersion, group.members.map { CashCurrentMember(it.transactionId, it.rowRevision, it.confirmationStatus) })
+    }
+    override suspend fun sources(projectionId: String) = guarded {
+        val value = api.readCashSourceEvidence(projectionId)
+        CashSourceEvidence(value.projectionVersion, value.projection.toDomain().copy(projectionVersion = value.projectionVersion), value.members.map { member ->
+            val source = api.readCurrentCashRecord(member.id)
+            if (source.transactionId != member.id || source.rowRevision != member.rowRevision ||
+                source.projectionRef?.projectionId != value.projection.projectionId || source.projectionRef?.projectionVersion != value.projectionVersion) {
+                throw ApiFailure("record_changed", 409)
+            }
+            CashSourceMember(member.id, member.occurredAt, member.amount, member.currency, member.counterparty, member.note, member.counterpartyAccount,
+                member.account?.name ?: member.accountName, member.components.map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, part.label) },
+                source.fields["source_payload"]?.toStructuredValue() as? StructuredObject)
+        })
+    }
     override suspend fun record(transactionId: String) = guarded { api.readCurrentCashRecord(transactionId).toDomain() }
     override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String) = guarded {
         val result = api.saveCashDraft(transactionId, revision, patch.toJsonObject(), key)
