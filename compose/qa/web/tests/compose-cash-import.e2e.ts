@@ -20,7 +20,7 @@ async function setup(page: Page, unknown = false, unexpected = false) {
     display: { ...display, counterparty: "正常商户" }, statistics_eligible: true, member_refs: [{ row_ref: "row-confirmed" }] };
   const context = { session_id: session, session_revision: 1, expires_at: "2099-01-01T00:00:00Z", state: "open",
     files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay", source_scope_label: null,
-      status: "ready", recognized_row_count: 2, issues: [], can_retry: false }], source_accounts: [], last_choices: null, last_plan_id: null,
+      status: "ready", recognized_row_count: 2, issues: [], can_retry: false }], source_accounts: [] as Array<Record<string, unknown>>, last_choices: null, last_plan_id: null,
     can_preview: true, receipt_id: null };
   const plan = { plan_id: planId, session_id: session, session_revision: 2, expires_at: context.expires_at,
     summary: { create_posted: 1, create_draft: 1 }, item_counts: { confirmed: 1, pending: 1 }, can_commit: true,
@@ -45,10 +45,10 @@ async function setup(page: Page, unknown = false, unexpected = false) {
     resolves.push(route.request().postDataJSON().idempotency_key);
     return route.fulfill({ json: { status: "committed", receipt } });
   });
-  return { fixtures, pages, commits, resolves };
+  return { fixtures, pages, commits, resolves, context };
 }
 
-async function uploadAndReview(page: Page, fromLedger = false) {
+async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = false) {
   await page.goto(fromLedger ? "/w/workspace-1/" : "/w/workspace-1/cash-import");
   if (fromLedger) {
     await page.waitForLoadState("networkidle");
@@ -67,6 +67,7 @@ async function uploadAndReview(page: Page, fromLedger = false) {
   }
   await (await chooser).setFiles({ name: "synthetic.csv", mimeType: "text/csv", buffer: Buffer.from("synthetic statement") });
   await page.waitForTimeout(300);
+  if (prepareOnly) return;
   await press(page, "cash.import.review");
   await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("待核对商户");
 }
@@ -215,4 +216,70 @@ test("an authoritative uncommitted refusal offers return without replaying the c
   await page.waitForTimeout(200);
   expect(commits).toBe(1);
   expect(calls.resolves).toEqual([]);
+});
+
+
+test("import account preparation keeps the single form within the desktop width limit", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { context } = await setup(page);
+  context.source_accounts.push({ source_account_ref: "account-group", source_type: "alipay", display_name: "对应账户",
+    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null });
+  context.files.push({ ...context.files[0], file_ref: "locked-file", client_file_ref: "locked", display_name: "locked.pdf",
+    source_type: "ccb", status: "password_required", recognized_row_count: 0, can_retry: true });
+  await uploadAndReview(page, false, true);
+  const password = page.locator('[id="cash.import.password-locked-file"]:visible').last();
+  await expect(password).toBeVisible();
+  expect((await password.boundingBox())?.width ?? Infinity).toBeLessThanOrEqual(720);
+  const account = page.locator('[id="cash.import.account-account-group"]:visible').last();
+  await expect(account).toBeVisible();
+  const box = await account.boundingBox();
+  expect(box?.width ?? Infinity).toBeLessThanOrEqual(720);
+  await page.screenshot({ path: "/tmp/ft-compose-cash-evidence/import-account-width-1440.png" });
+});
+
+
+test("import source differences show both statement bodies as readonly content", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page);
+  await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items\/pending-item$/, route => route.fulfill({ json: {
+    preview_item_id: "pending-item", members: [{ row_ref: "row-pending", transaction_id: "11", planned_action: "update_posted",
+      fields: { amount: "-12.5000", currency: "CNY", source_payload: { receipt: "新凭证正文" } },
+      editable_fields: [], allowed_actions: ["apply", "keep_existing", "defer"], row_revision: 3 }],
+    field_diffs: [{ row_ref: "row-pending", transaction_id: "11", field: "source_payload", current: { receipt: "原始凭证正文" },
+      incoming: { receipt: "新凭证正文" }, effective: { receipt: "新凭证正文" }, resolution: "apply" }],
+    issues: [], relation_choices: [], relation_effects: [], relation_members: [],
+  } }));
+  await uploadAndReview(page);
+  await press(page, "ledger.open-record");
+  const changed = page.getByRole("button", { name: /账单内容有变化/ });
+  const box = await changed.boundingBox();
+  if (!box) throw new Error("Missing source difference card");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const detail = page.locator('[id="cash.import.detail"]:visible');
+  await expect(detail).toContainText("原始凭证正文");
+  await expect(detail).toContainText("新凭证正文");
+  await expect(detail.getByRole("textbox")).toHaveCount(0);
+});
+
+test("import empty incoming allocations remain explicitly visible and readonly", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page);
+  await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items\/pending-item$/, route => route.fulfill({ json: {
+    preview_item_id: "pending-item", members: [{ row_ref: "row-pending", transaction_id: "11", planned_action: "update_posted",
+      fields: { amount: "-12.5000", currency: "CNY", source_payload: { receipt: "新凭证正文" } },
+      editable_fields: [], allowed_actions: ["apply", "keep_existing", "defer"], row_revision: 3 }],
+    field_diffs: [{ row_ref: "row-pending", transaction_id: "11", field: "components", current: [{ account_id: "1", amount: "-12.5000", currency: "CNY" }],
+      incoming: [], effective: [], resolution: "apply" }],
+    issues: [], relation_choices: [], relation_effects: [], relation_members: [],
+  } }));
+  await uploadAndReview(page);
+  await press(page, "ledger.open-record");
+  const changed = page.getByRole("button", { name: /账单内容有变化/ });
+  const box = await changed.boundingBox();
+  if (!box) throw new Error("Missing source difference card");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const detail = page.locator('[id="cash.import.detail"]:visible');
+  await expect(detail).toContainText("日常账户 · -12.5000 · CNY");
+  await expect(detail).toContainText(/账单信息\s*未提供/);
+  await expect(detail.getByRole("textbox")).toHaveCount(0);
 });

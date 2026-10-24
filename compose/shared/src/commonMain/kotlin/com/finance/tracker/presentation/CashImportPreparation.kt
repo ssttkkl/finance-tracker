@@ -38,7 +38,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                     file.issues.distinctBy { it.code }.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
                     if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
                         visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
-                        modifier = Modifier.fillMaxWidth().widthIn(max = 720.dp).testTag("cash.import.password-${file.fileRef}"))
+                        modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
                         TextButton(onClick = { onPick(file.fileRef) }, enabled = !busy) { Text(localizedText("cash_import_replace_file")) }
@@ -63,7 +63,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
             Text(localizedText("cash_import_accounts_heading"), style = MaterialTheme.typography.titleLarge)
             state.context?.sourceAccounts.orEmpty().forEach { group ->
                 val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
-                Column(Modifier.fillMaxWidth().widthIn(max = 720.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
                         accountState.accounts.filter { it.active && it.type in setOf("cash", "loan", "lend") || it.id == target?.accountId }.map { it.id to it.name }
                     ChoicePicker(group.displayName, target?.accountId.orEmpty(), accountOptions,

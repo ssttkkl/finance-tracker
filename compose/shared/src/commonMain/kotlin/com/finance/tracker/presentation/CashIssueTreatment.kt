@@ -81,9 +81,11 @@ internal fun cashFieldLabel(field: String): String? = when (field) {
 }
 
 @Composable
-private fun CashSourcePatchValue(field: String, value: StructuredValue?, accounts: List<Account>) {
+internal fun CashSourcePatchValue(field: String, value: StructuredValue?, accounts: List<Account>) {
     if (field == "components") {
-        (value as? StructuredArray)?.values.orEmpty().forEach { part ->
+        val parts = (value as? StructuredArray)?.values.orEmpty()
+        if (parts.isEmpty()) Text(localizedText("display_not_provided"))
+        parts.forEach { part ->
             val fields = (part as? StructuredObject)?.fields.orEmpty()
             val name = accounts.firstOrNull { it.id.toString() == fields["account_id"].cashText() }?.name ?: localizedText("display_not_provided")
             Text(listOfNotNull(name, fields["amount"].cashText() ?: "—", fields["currency"].cashText()).joinToString(" · "))

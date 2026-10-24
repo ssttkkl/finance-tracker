@@ -71,7 +71,7 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
                             }
                     }
                 }
-                detail.fieldDiffs.groupBy { ImportMemberRef(it.rowRef, it.transactionId) }.forEach { (reference, differences) ->
+                detail.fieldDiffs.filter { it.current != it.incoming }.groupBy { ImportMemberRef(it.rowRef, it.transactionId) }.forEach { (reference, differences) ->
                     val member = detail.members.firstOrNull { it.rowRef == reference.rowRef && it.transactionId == reference.transactionId }
                     val key = "source:${reference.rowRef}:${reference.transactionId}"
                     CashImportWarningCard(localizedText("cash_import_source_changed"), expanded == key, !busy,
@@ -79,8 +79,15 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
                     if (expanded == key) {
                         differences.forEach { difference ->
                             cashFieldLabel(difference.field)?.let { Text(localizedText(it), style = MaterialTheme.typography.titleSmall) }
-                            Text(localizedText("cash_import_current_value", cashBusinessFieldValue(difference.field, difference.current, accounts, categories, options)))
-                            Text(localizedText("cash_import_incoming_value", cashBusinessFieldValue(difference.field, difference.incoming, accounts, categories, options)))
+                            if (difference.field in setOf("source_payload", "components")) {
+                                Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
+                                CashSourcePatchValue(difference.field, difference.current, accounts)
+                                Text(localizedText("cash_statement_value"), style = MaterialTheme.typography.labelSmall)
+                                CashSourcePatchValue(difference.field, difference.incoming, accounts)
+                            } else {
+                                Text(localizedText("cash_import_current_value", cashBusinessFieldValue(difference.field, difference.current, accounts, categories, options)))
+                                Text(localizedText("cash_import_incoming_value", cashBusinessFieldValue(difference.field, difference.incoming, accounts, categories, options)))
+                            }
                         }
                         if (member?.rowRef != null) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -160,7 +167,7 @@ private fun CashImportFieldEditor(fields: StructuredObject, editable: List<Strin
     var error by remember(initial) { mutableStateOf<String?>(null) }
     val zone = getLocalTimeZoneId()
     LaunchedEffect(dirty) { onDirty(dirty) }
-    Column(Modifier.fillMaxWidth().widthIn(max = 720.dp).testTag(prefix), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag(prefix), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         CashRecordFieldInputs(values, editable, accounts, categories, options, sizeClass, busy, prefix) { field, value ->
             if (field == "cash_granularity") allocation = allocation.switchMode()
             values = values + (field to value); error = null
