@@ -32,6 +32,7 @@ data class CashRecordIssueDto(
     @SerialName("allowed_resolutions") val allowedResolutions: List<String>,
     @SerialName("pending_fields") val pendingFields: JsonObject,
     @SerialName("pending_source_payload") val pendingSourcePayload: JsonObject? = null,
+    @SerialName("pending_source_payload_present") val pendingSourcePayloadPresent: Boolean? = null,
     val candidates: List<CashIdentityCandidateDto> = emptyList(),
 )
 @Serializable

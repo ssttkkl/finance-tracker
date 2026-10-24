@@ -376,7 +376,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 草稿补丁请求也使用幂等键与并发修订，避免响应丢失后误报冲突。`state` 不属于补丁字段，用户不能直接改为 `posted`。正式编辑补丁只能包含主设计白名单；固定字段实际变化拒绝该操作，原记录不动。
 
-当前详情使用 `transaction_id/state/row_revision/confirmation_status/fields/editable_fields/issues/relations/projection_ref`，替换旧单条详情结构。当前问题只返回安全原因、实例和修订、允许决定、待采用字段及适用的当前候选；不返回来源绑定证明。只读成员可查看详情，但 `editable_fields` 和允许决定为空。
+当前详情使用 `transaction_id/state/row_revision/confirmation_status/fields/editable_fields/issues/relations/projection_ref`，替换旧单条详情结构。当前问题只返回安全原因、实例和修订、允许决定、待采用字段及适用的当前候选；不返回来源绑定证明。`pending_source_payload_present=true` 表示本次包含原文更新（正文为 null 时明确清空），false 表示不更新原文，null 或旧响应缺省表示不能判断；客户端不得从可空正文推断清空。只读成员可查看详情，但 `editable_fields` 和允许决定为空。
 
 维护结构错误返回 `422`，当前流水修订变化返回 `409 record_changed`，不可见目标返回 `404`。统一字段规则拒绝固定字段变化时返回 `422 fixed_field_conflict`；可定位错误的 `field_errors` 项包含 `field/code/message`，只回传已知字段名，不附输入值。尚未补齐但不能定位到单一字段的原因仍通过安全消息和当前详情的问题表达，不伪造字段位置。允许来源的浏览器可读取认证错误；其他编辑者不能读取或提交本人的临时维护计划。
 

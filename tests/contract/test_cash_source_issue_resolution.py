@@ -187,6 +187,7 @@ def test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted(conte
     choice = _issue(runtime, identifier, fields={"_source_payload_present": present} if present else {})
     service, before = _service(runtime), _records(runtime).read(identifier)
     allowed = before["issues"][0]["allowed_resolutions"]
+    assert before["issues"][0]["pending_source_payload_present"] is (True if present is True else None)
     if present is True:
         assert allowed == ["apply_source", "keep_existing"]
         _commit(service, _preview(service, runtime, identifier, intent="resolve_issue", issue_resolutions=[choice]))
@@ -327,8 +328,34 @@ def test_legacy_nonempty_body_is_adoptable_without_new_presence_metadata(context
     choice = _issue(runtime, identifier, payload={"备注": "旧事项仍有原文"}, legacy=True)
     service = _service(runtime)
     assert _records(runtime).read(identifier)["issues"][0]["allowed_resolutions"] == ["apply_source", "keep_existing"]
+    assert _records(runtime).read(identifier)["issues"][0]["pending_source_payload_present"] is True
     _commit(service, _preview(service, runtime, identifier, intent="resolve_issue", issue_resolutions=[choice]))
     assert _records(runtime).read(identifier)["fields"]["note"] == "旧事项仍有原文"
+
+
+def test_valid_field_only_update_explicitly_has_no_body_update(context_runtime):
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    _issue(runtime, identifier, fields={"counterparty": "合成商户"}, legacy=True)
+    issue = _records(runtime).read(identifier)["issues"][0]
+    assert issue["pending_source_payload_present"] is False
+    assert issue["pending_source_payload"] is None
+
+
+@pytest.mark.parametrize("body", [{"备注": "合成说明"}, None])
+def test_inline_legacy_body_has_the_same_presence_and_content_as_adoption(context_runtime, body):
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    _issue(runtime, identifier, fields={"source_payload": body}, legacy=True)
+    issue = _records(runtime).read(identifier)["issues"][0]
+    assert issue["pending_source_payload_present"] is True
+    assert issue["pending_source_payload"] == body
+
+
+def test_contradictory_body_presence_is_unknown_and_not_adoptable(context_runtime):
+    runtime, identifier = context_runtime, _posted(context_runtime)
+    _issue(runtime, identifier, fields={"_source_payload_present": False}, payload={"备注": "合成说明"}, legacy=True)
+    issue = _records(runtime).read(identifier)["issues"][0]
+    assert issue["pending_source_payload_present"] is None
+    assert issue["allowed_resolutions"] == ["keep_existing"]
 
 
 @pytest.mark.parametrize("reason", ["foreign_parent", "stale_issue", "wrong_kind"])

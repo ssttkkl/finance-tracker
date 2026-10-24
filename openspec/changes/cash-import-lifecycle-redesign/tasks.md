@@ -214,7 +214,7 @@
 - [x] 4.17.4 独立范围、工程、安全和最终 diff 复核；阻断项修复后重审。
 - [x] 4.17.5 SQLite 开发验证后显式专用 PostgreSQL 契约矩阵、完整回归、构建与 OpenSpec 检查；记录当前证据。
 - [x] 4.17.6 同组核对接口参考、主流程、词表、功能地图和技能；前端接入及三端 QA 归对应 change。
-- [ ] 4.17.7 发布准备及 additive 合同回退边界已核对；相称检查后按已授权分支提交推送，记录实际提交，不部署或写真实账本。
+- [x] 4.17.7 发布准备及 additive 合同回退边界已核对；已按授权提交推送 `ce2512d` 至 `average-snail`，未部署或写真实账本。
 - [x] 4.17.8 沉淀状态失效和额外影响防复发反例；未实现页面不计完成。
 
 4.17 当前验证：2026-10-24，`HEAD=18bb6f1`，比较基线同一提交；本步补维护计划及客户端协议，不包含详情、编辑或导入 UI 完成。普通草稿保存仍排除余额和统计，无 schema／迁移／依赖变化。
@@ -228,6 +228,25 @@
 | 共享协议与构建 | 最终客户端回归 Wasm 295／Android 290 项通过（0 失败、0 skip），`/tmp/ft-maintenance-save-plan-client.log`；新增独立 3 项覆盖 save_draft 请求、明确清空、混入决定不出网及 additional_effects 缺省／null／空列表区别。iOS Simulator 共享编译通过，`/tmp/ft-compose-current-sources-verified.log`。`uv build --out-dir /tmp/ft-cash-maintenance-effects-dist` 成功；OpenSpec strict 37/37、doctor healthy、链接及 diff 空白检查通过 |
 | 文档与跨端 | 原位更新词表、维护接口参考、账本、导入主流程、功能地图及 apply 技能；README 启动方式／配置未变，无需修改。Web、Android、iOS 消费同一协议；真实接线、浏览器与设备 QA 仍由前端 tasks 继续，不能据协议测试标 UI 完成 |
 | 回退与反思 | 原直接 PATCH 保持兼容；旧计划缺省 additional_effects 不推定为空。回退前停止新 save_draft 计划或等待活动上下文终结，保留未知原键，不能通过清理指针假定未保存；永久收据仍可核实。不恢复旧写旁路，不部署或写真实账本。前端复用原计划核实，选择变化即使预览失败也禁止提交旧计划 |
+
+### 4.18 来源原文更新的可见事实
+
+- [x] 4.18.1 思考／计划／拆分：来源问题正文的 null 不能区分明确清空与旧数据缺失；沿用既有存在性合同，补只读公开事实。无写入、权限、schema 或依赖变化。
+- [x] 4.18.2 测试先行／构建：覆盖非空原文、明确清空、旧缺省及坏存在性；补 HTTP、共享模型，供 UI 读取。
+- [x] 4.18.3 独立范围／工程／安全及最终 diff 复核；影响只读事实，不重定义来源处理。
+- [x] 4.18.4 SQLite 与显式专用 PostgreSQL 受影响来源／维护读取矩阵、共享测试、编译及严格校验。
+- [ ] 4.18.5 文档及功能地图收尾、发布准备和小步提交；页面与三端 QA 保持对应前端变更负责。
+- [x] 4.18.6 反思：存在性与内容分开验证，旧缺省不冒充明确清空。
+
+4.18 当前证据：2026-10-24，`HEAD=ce2512d`，比较基线同一提交；该小步只补读取事实和共享解码，不包含当前未提交 UI。
+
+| 范围 | 当前结论 |
+|---|---|
+| 测试先行及独立复核 | 首次 4 项因缺字段失败后转绿；独立复核补 inline 正文／inline null／矛盾存在性 3 个先失败反例，读取复用原 `_pending_patch` 解析，不重定义采用逻辑。合法仅业务字段更新为 false；旧空事项或矛盾记录为 null。无新增 blocking／major |
+| 双后端 | `uv run python /tmp/ft-cash-source-presence-dual.py`，人工专用 `_test` PostgreSQL，显式 `FT_TEST_POSTGRES_URL`、`FT_REQUIRE_TEST_POSTGRES=1`、`PYTHONPATH=tests:tests/contract`；来源问题／维护 HTTP／协议三文件最终 131 passed，无 skip（291.96 s），`/tmp/ft-cash-source-presence-dual.log` |
+| 完整回归 | `uv run python /tmp/ft-source-presence-full-regression.py`，排序 contract 文件三等分及独立非 contract；`-q -m 'not performance' --disable-warnings --tb=short --maxfail=5`，清除 PostgreSQL 环境，仅排除两项已确认旧 Expo 断言。3378 passed、1284 skipped、73 deselected，四进程 exit 0；参数和日志 `/tmp/ft-source-presence-full-{0,1,2,3}.{json,log}`。全量启动后的存在性兼容精修及新反例由最终 131 项矩阵重验，skip 不算 PostgreSQL 通过 |
+| 客户端／构建 | `CashSourcePresenceApiTest` 通过真实 Repository→API 解码覆盖旧缺省、false、true及明确 null 正文；最近共享回归 Wasm 315／Android 310 均零失败、零 skip（`/tmp/ft-cash-source-presence-client-final.log`），含本字段；后续 UI 新反例另行验证，不借此声称 UI 通过。iOS 共享编译通过 `ft-cash-relations-ui-green.log`；`uv build --out-dir /tmp/ft-cash-source-presence-dist` 成功 |
+| 验证／文档／跨端／回退 | OpenSpec strict、doctor、链接与 diff 检查；接口参考、技能、功能地图同组更新，词表已有“来源原文”，README 启动／配置未变。Web／Android／iOS 共享解码受影响，当前小步无页面变化，UI QA 不适用；保留旧缺省未知及既有决定权限，无 schema／迁移／依赖变化。字段 additive 可回退忽略，不写真实账本或部署 |
 
 ## 5. 审查
 

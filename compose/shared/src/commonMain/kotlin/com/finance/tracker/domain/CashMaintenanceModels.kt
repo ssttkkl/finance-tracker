@@ -10,6 +10,7 @@ data class CashRecordIssue(
     val fieldPath: String?, val blockingScope: String, val nextAction: String,
     val allowedResolutions: List<String>, val pendingFields: StructuredObject,
     val pendingSourcePayload: StructuredObject?, val candidates: List<CashIdentityCandidate>, val afterImportAction: String? = null,
+    val pendingSourcePayloadPresent: Boolean? = null,
 )
 data class CashSavedRelation(
     val relationId: String, val kind: String, val subtype: String?, val state: String,

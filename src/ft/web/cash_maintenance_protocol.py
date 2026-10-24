@@ -111,6 +111,7 @@ class RecordIssueView(IssueView):
     allowed_resolutions: list[str]
     pending_fields: dict[str, Any]
     pending_source_payload: dict[str, Any] | None
+    pending_source_payload_present: bool | None = None
     candidates: list[IdentityCandidateView] = Field(default_factory=list)
 
 

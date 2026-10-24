@@ -28,7 +28,7 @@ internal fun CashCurrentRecordDto.toDomain() = CashCurrentRecord(recordOrigin,
     transactionId, state, rowRevision, confirmationStatus, fields.toStructuredObject(), editableFields,
     issues.map { issue -> CashRecordIssue(issue.issueId, issue.revision, issue.code, issue.message, issue.fieldPath, issue.blockingScope, issue.nextAction,
         issue.allowedResolutions, issue.pendingFields.toStructuredObject(), issue.pendingSourcePayload?.toStructuredObject(),
-        issue.candidates.map { CashIdentityCandidate(it.transactionId, it.rowRevision, it.state, it.display.toDomain()) }, issue.afterImportAction) },
+        issue.candidates.map { CashIdentityCandidate(it.transactionId, it.rowRevision, it.state, it.display.toDomain()) }, issue.afterImportAction, issue.pendingSourcePayloadPresent) },
     relations.map { CashSavedRelation(it.relationId, it.kind, it.subtype, it.state, it.active, it.rowRevision, it.decisionGroupId) },
     projectionRef?.let { CashCurrentProjectionRef(it.transactionId, it.projectionId, it.attentionCount, it.projectionVersion) })
 internal fun CashMaintenancePlanDto.toDomain() = CashMaintenancePlan(planId, editContextId, planRevision, expiresAt, summary, itemCounts, canCommit,

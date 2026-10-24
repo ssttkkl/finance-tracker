@@ -57,9 +57,16 @@ class CashRecordMaintenanceService:
         resolutions = ["apply_source", "keep_existing"] if row.code == "source_update_pending" else []
         if allowed_resolutions is not None:
             resolutions = allowed_resolutions
+        from ft.application.cash_source_issue_resolutions import _pending_patch
+        try:
+            pending = _pending_patch(row)
+            presence = "source_payload" in pending
+            payload = pending.get("source_payload")
+        except CashRecordPolicyError:
+            presence, payload = None, row.pending_source_payload
         return {"issue_id": str(row.id), "revision": row.revision, **issue, "allowed_resolutions": resolutions,
             "pending_fields": {key: deepcopy(value) for key, value in (row.pending_fields or {}).items() if key in _EDITABLE},
-            "pending_source_payload": deepcopy(row.pending_source_payload)}
+            "pending_source_payload": deepcopy(payload), "pending_source_payload_present": presence}
 
     def read(self, transaction_id):
         identifier = _identifier(transaction_id)
