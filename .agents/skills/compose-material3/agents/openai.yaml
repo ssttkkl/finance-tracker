@@ -1,7 +1,7 @@
 interface:
   display_name: "Compose Material 3"
   short_description: "设计、实现和审查 Compose Multiplatform 的 Material 3 UI"
-  default_prompt: "使用 $compose-material3 按 Material 3 Expressive 规范设计或审查此 Compose UI。"
+  default_prompt: "使用 $compose-material3，先打开并阅读任务相关的 Material 3 官方页面，再按 Material 3 Expressive 规范设计或审查此 Compose UI。"
 
 policy:
   allow_implicit_invocation: true

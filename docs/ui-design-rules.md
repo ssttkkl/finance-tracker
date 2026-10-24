@@ -48,7 +48,7 @@
 ### 4.1 必须参考 Compose Material 3 技能
 
 - 所有 Compose UI 的设计、原型、实现和审查都必须先参考 [`compose-material3` 技能](../.agents/skills/compose-material3/SKILL.md)，包括小范围修复；自动触发或显式调用 `$compose-material3` 均可。
-- 按任务读取技能中的主题参考：组件改动查 `Components`，布局、状态或无障碍改动查 `Foundations`，视觉样式改动查 `Styles`；所有 UI 改动查 `Expressive`，涉及 API 或平台行为时查 `Compose Multiplatform`。
+- 按任务读取技能中的主题参考：组件改动查 `Components`，布局、状态或无障碍改动查 `Foundations`，视觉样式改动查 `Styles`；所有 UI 改动查 `Expressive`，涉及 API 或平台行为时查 `Compose Multiplatform`。必须打开并阅读对应官方页面正文；组件改动须读其 overview 与 specs，仅看本地摘要、链接标题或搜索摘要不算。将页面标题和采用的规则记入对应 `design.md` 或 `tasks.md`；页面无法访问时不得声称已完成核验。
 - Material 3 官方站点是设计依据；Compose API、稳定状态和平台可用性须结合当前仓库依赖、源码集及 JetBrains / AndroidX 文档核实。Material 3 Expressive 是所有触及 UI 改动（含小修复）的默认视觉方向。
 - 可使用当前依赖已提供的实验 API，但须记录对应 API、版本、稳定状态及跨端风险；不得仅为追随官方新特性而自动新增或升级依赖。
 - 技能建议不得覆盖本文件、OpenSpec 行为合同、FinanceTheme 和 Git token；平台范围限于 Compose Multiplatform 的 Android、iOS、Web，不据此扩展其他 UI 技术栈。
