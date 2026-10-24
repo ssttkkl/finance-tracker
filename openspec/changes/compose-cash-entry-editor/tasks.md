@@ -22,20 +22,20 @@
 
 ## 5. 审查
 
-- [ ] 5.1 在独立上下文复核产品范围、工程、API 可发现性、恢复与隐私边界，记录 finding、处置和回写；阻断项修复后重审。
-- [ ] 5.2 对实际 Compose 页面执行 Hallmark audit、中文术语与可见文案必要性自检；独立设计复核清零 critical／major，不能用规划自查代替。
+- [x] 5.1 在独立上下文复核产品范围、工程、API 可发现性、恢复与隐私边界，记录 finding、处置和回写；阻断项修复后重审。
+- [x] 5.2 对实际 Compose 页面执行 Hallmark audit、中文术语与可见文案必要性自检；独立设计复核清零 critical／major，不能用规划自查代替。
 
 ## 6. 测试与 QA
 
-- [ ] 6.1 在 `compose/` 执行 Wasm 和 Android 主机单测、Web 开发／QA 构建、Android 包及 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测及设备／应用包 QA 按用户明确决定不执行。
-- [ ] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在 Web 代表视口冒烟受影响主流程、关键交互及直接相关复现分支，记录实际 API、步骤、必要截图及 console／network；不默认穷举全部状态、主题或三类窗口。
-- [ ] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在默认验收范围，不以未执行阻断，也不记为通过。
-- [ ] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
+- [x] 6.1 在 `compose/` 执行 Wasm 和 Android 主机单测、Web 开发／QA 构建、Android 包及 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测及设备／应用包 QA 按用户明确决定不执行。
+- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在 Web 代表视口冒烟受影响主流程、关键交互及直接相关复现分支，记录实际 API、步骤、必要截图及 console／network；不默认穷举全部状态、主题或三类窗口。
+- [x] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在默认验收范围，不以未执行阻断，也不记为通过。
+- [x] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
 - [ ] 6.5 在 Compose 演示模式以 Web 代表视口交付受影响流程，取得用户演示确认后才勾选 UI 完成；执行 OpenSpec strict、链接和 `git diff --check`。
 
 ## 7. 发布
 
-- [ ] 7.1 验证与审查后修订 README／业务说明／接口示例／功能地图和旧变更取代关系，原位清理过时表述，检查链接；无需修改的文档记录理由。
+- [x] 7.1 验证与审查后修订 README／业务说明／接口示例／功能地图和旧变更取代关系，原位清理过时表述，检查链接；无需修改的文档记录理由。
 - [ ] 7.2 记录交付范围、依赖版本、回退和未解决风险；相称检查后按已授权仓库／分支小步提交推送，PR／合并／部署另需授权。不得通过回退恢复已关闭接口。
 
 ## 8. 反思
@@ -52,13 +52,14 @@ Cross-platform Impact Check：清理共享账本中的无入口旧状态、表�
 
 | 验证 | 当前结果与证据 |
 |---|---|
-| 基线／时间 | `HEAD=ae9cbcb`，比较基线同 HEAD；2026-10-24，旧路径清理工作树，无依赖或后端变化 |
-| 共享回归及构建 | `FT_API_ORIGIN=http://127.0.0.1:58792 ./gradlew :webApp:wasmJsBrowserDevelopmentWebpack :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache`：成功，1m25；Wasm 367、Android 主机 362 项，均无失败／跳过。日志 `/tmp/ft-cash-retire-old-matrix.log`。测试数减少 4 项，仅为已退役创建／搜索及关系搜索日期场景；分类同级移动与现有本地日期回归保留 |
+| 基线／时间 | 生产代码比较基线 `dc4b39e`；当前收尾 `HEAD=62e6240` 加测试迁移及 Demo 修复工作树，2026-10-25。中间规则提交未改变运行源码；无依赖或后端变化 |
+| 共享回归及构建 | 最终共享矩阵复用统一 UI 小步：Wasm 387／Android 主机 382 项，无失败或 skip；Web Demo 开发构建、Android 包及 iOS 共享编译成功，1m59。完整命令及当前基线见 [导入记录](../compose-cash-import-workflow/tasks.md#当前实施与验证)，日志 `/tmp/ft-cash-demo-single-final-matrix.log`。本轮另修正 Demo 的真实关系组成及筛选值，单笔无合并标签反例先失败，再用完整共享矩阵转绿；生产接口及页面格式器未改变 |
 | 真实 Web 创建及编辑 | Chromium，`http://127.0.0.1:5308`，1440×900，专用合成 SQLite API `58792`。最终产物指纹一致；普通模式填值→转账模式→返回普通收入保存→当前普通金额编辑→同币种转账创建，验证仅当前模式及一次保存；1/1 passed，38.2s，无新增控制台／请求／HTTP 错误；日志 `/tmp/ft-cash-retire-old-creation-web-final.log`。完整双端编辑已在 `ae9cbcb` 交付，本次清理后再验见下项 |
 | 真实 Web 双端编辑 | 同一最终产物和合成 API，当前转账联动金额／公共-only／换汇转入金额编辑，真实完整成员补丁和结果核对；1/1 passed，25.7s，无新增控制台／请求／HTTP 错误；日志 `/tmp/ft-cash-retire-old-pair-web.log` |
-| 公共编辑回归 | 相同产物的仓库 `compose-cash-entry.e2e.ts`，当前导入公共-only 保存、固定来源字段和一次预览／提交；1/1 passed，4.5s；日志 `/tmp/ft-cash-retire-old-public-fixture.log` |
-| 工具／静态范围 | Node 3/3、OpenSpec strict 37/37、doctor healthy、7 份 Markdown 本地链接／锚点和 `git diff --check` 通过；日志 `/tmp/ft-cash-retire-old-{node.log,specs.json,doctor.json}`。正式 data 无 `/cash-relations`、旧 `cash-records` PUT 或旧详情协议；Demo 方法仅为内存助手，不构造 HTTP |
+| 当前合同浏览器回归 | Chromium，1440×900，当前 API 开发包及 `http://127.0.0.1:5308`；仓库 entry／import／manual／relations 串行 20/20 passed，1.9m，日志 `/tmp/ft-cash-current-contract-verified.log`。其中 manual 8 项覆盖创建模式留输入与收入编码、普通金额 CAS 编辑、同容器和继续编辑、实际额外影响确认、忙碌防重／阻止关闭、遮罩／拖动画面关闭、确认放弃零写入，以及确定未提交后保留输入／只由新保存重试；公共-only 与真实成员回归保持。无新增控制台、请求或静态资源错误；无障碍缺陷准确保留，不使用 expected-failure 吞掉行为失败 |
+| 工具／静态范围 | Node 3/3、OpenSpec strict 37/37、doctor healthy、当前所属 Markdown 链接／锚点和 `git diff --check` 通过；日志 `/tmp/ft-cash-ui-final-{node.log,specs.json,doctor.json}`。正式 data 无 `/cash-relations`、旧 `cash-records` PUT 或旧详情协议；Demo 方法仅为内存助手，不构造 HTTP |
 | Hallmark／独立设计 | 正常渲染仍由当前详情／编辑／创建组件承载，旧分支无真实入口；以最终实际页面截图核对任务、层级、标准 Material 3、文字及操作，不以删行数代替复核；独立 Hallmark／设计复核 0 critical／0 major／0 minor，最终 diff 无 blocking／major。当前截图见 `/tmp/ft-compose-cash-evidence/create-{ordinary,transfer,manual-edit}-1440.png` 与 `transfer-edit-{linked,fx}-1440.png`。完整用户演示确认仍由 6.5 承载 |
+| 离线演示准备 | 基线 `62e6240`，2026-10-25，离线 Demo 输入／产物指纹一致；`http://127.0.0.1:5309/w/demo-workspace/` 的导入、当前详情编辑及普通／转账创建 3/3 passed、18.7s，零 API 请求及 JS 异常（`/tmp/ft-cash-offline-final-verified.log`）。普通创建稳态取证重跑 1/1、9.3s，最终八图独立 Hallmark／M3 复核 0 critical／0 major／0 minor（`/tmp/ft-cash-offline-booking-stable.log`）。本轮 iOS 平台单测及设备 QA 依用户决定未执行。复杂来源／身份／关系维护沿用已列真实 API 证据，离线演示不实现完整后端引擎，不据此宣称穷举或已获用户确认；6.5 继续未完成。 |
 | 限制与回退 | 无后端、金额、存储、权限或依赖变化，不重复未受影响的双库与后端全回归；只写合成账本。Compose 1.12.1 弹层树停更及禁用状态缺陷保留，不升级。回退可恢复前端接线版本，但不得重新启用已关闭协议。完整关系验收、统一导入及用户演示确认不算完成 |
 
 文档收尾：功能地图、现金流水说明、维护 design 和 OpenSpec apply 参考与当前边界对齐。无新术语，README、部署及配置无需改动。防复发由当前创建、维护、来源只读及双端合同回归承载，不保留验证已退役行为的测试或伪兼容路径。

@@ -19,7 +19,6 @@ type FixtureOptions = {
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
   cashTransferSubtypes?: string[];
-  withAcceptedCashRelation?: boolean;
 };
 
 export type ComposeApiFixtures = {
@@ -189,15 +188,6 @@ const cashProjection = {
   visible: true,
 };
 
-const importedCashProjection = {
-  ...cashProjection,
-  projection_id: "projection-imported",
-  counterparty: "刚刚导入的流水",
-  amount: "-12.34",
-  record_id: "record-imported",
-  transaction_id: "record-imported",
-};
-
 const cashRecord = {
   id: "record-1",
   occurred_at: "2026-09-24T10:30:00+08:00",
@@ -208,53 +198,11 @@ const cashRecord = {
   note: "拿铁",
   category: categoryItems[1],
   category_id: "coffee",
-  record_type: "expense",
+  record_type: "consumption",
   record_subtype: "not_applicable",
   account_name: "日常账户",
   account_id: 1,
   account_type: "cash",
-};
-
-const relatedCashRecord = {
-  ...cashRecord,
-  id: "record-2",
-  occurred_at: "2026-09-24T10:35:00+08:00",
-  counterparty: "便利店",
-  note: "矿泉水",
-};
-
-const secondRelatedCashRecord = {
-  ...cashRecord,
-  id: "record-3",
-  occurred_at: "2026-09-24T10:42:00+08:00",
-  amount: "8.00",
-  counterparty: "超市",
-  note: "水果",
-};
-
-const candidateCashRecord = {
-  ...cashRecord,
-  id: "record-candidate",
-  occurred_at: "2026-09-24T11:00:00+08:00",
-  amount: "16.00",
-  counterparty: "待关联流水",
-  note: "",
-};
-
-const acceptedCashRelation = {
-  id: "relation-1",
-  kind: "payment_mirror",
-  label: "同笔支付",
-  status: "accepted",
-  primary_record: cashRecord,
-  secondary_record: relatedCashRecord,
-};
-
-const secondAcceptedCashRelation = {
-  ...acceptedCashRelation,
-  id: "relation-2",
-  primary_record: cashRecord,
-  secondary_record: secondRelatedCashRecord,
 };
 
 const investmentEvent = {
@@ -319,10 +267,8 @@ export async function installComposeApiFixtures(
   const writes: Array<Record<string, unknown>> = [];
   const classificationWrites: Array<Record<string, unknown>> = [];
   const projectionDeletes: Array<Record<string, unknown>> = [];
-  let cashRelations = options.withAcceptedCashRelation ? [acceptedCashRelation, secondAcceptedCashRelation] : [];
   let cashPageRequests = 0;
   let cashAppendFailuresRemaining = 0;
-  let cashImportCommitted = false;
   const cashProjectionPageIds: string[][] = [];
   const state = {
     session: initialSession,
@@ -420,7 +366,7 @@ export async function installComposeApiFixtures(
     if (pathname === "/api/v1/cash-ledger/options" && method === "GET") {
       return json({
         record_types: [
-          { value: "expense", label: "支出", subtypes: [] },
+          { value: "consumption", label: "支出", subtypes: [{ value: "not_applicable", label: "普通支出" }] },
           { value: "income", label: "收入", subtypes: [] },
         ],
         relation_types: [
@@ -523,7 +469,7 @@ export async function installComposeApiFixtures(
       }
       return json({
         projection_version: 1,
-        items: options.cashPageEmpty ? [] : [cashProjection, ...(cashImportCommitted ? [importedCashProjection] : [])],
+        items: options.cashPageEmpty ? [] : [cashProjection],
         next_cursor: null,
         page_size: 20,
         filter_options: {
@@ -558,39 +504,15 @@ export async function installComposeApiFixtures(
     if (pathname === "/api/v1/cash-records" && method === "POST") {
       const values = JSON.parse(body ?? "{}");
       writes.push(values);
-      return json({ record: { ...cashRecord, ...values, id: "record-created" }, relations: [], options: {} });
-    }
-    if (pathname === "/api/v1/cash-records" && method === "GET") {
-      return json({ items: [candidateCashRecord], next_cursor: null });
+      return json({ record: { ...cashRecord, ...values, id: "record-created" } });
     }
     if (pathname === "/api/v1/cash-records/record-1" && method === "GET") {
-      return json({
-        record: cashRecord,
-        relations: cashRelations,
-        options: {},
-      });
-    }
-    if (/^\/api\/v1\/cash-relations\/relation-\d+$/.test(pathname) && method === "PUT") {
-      const relationId = pathname.split("/").at(-1);
-      const values = JSON.parse(body ?? "{}") as Record<string, unknown>;
-      const kind = String(values.kind ?? "");
-      const label = kind === "refund_offset" ? "退款冲销" : "同笔支付";
-      cashRelations = cashRelations.map((relation) => relation.id === relationId ? { ...relation, kind, label } : relation);
-      return json({ record: cashRecord, relations: cashRelations, options: {} });
-    }
-    if (/^\/api\/v1\/cash-relations\/relation-\d+$/.test(pathname) && method === "DELETE") {
-      const relationId = pathname.split("/").at(-1);
-      cashRelations = cashRelations.filter((relation) => relation.id !== relationId);
-      return json({ ok: true });
-    }
-    if (pathname === "/api/v1/cash-relations/dissolve" && method === "POST") {
-      cashRelations = [];
-      return json({ record: cashRecord, relations: cashRelations, options: {} });
-    }
-    if (pathname === "/api/v1/cash-records/record-1" && method === "PUT") {
-      const values = JSON.parse(body ?? "{}");
-      writes.push(values);
-      return json({ record: { ...cashRecord, ...values }, relations: [], options: {} });
+      return json({ transaction_id: "record-1", state: "posted", row_revision: 1, record_origin: "import",
+        confirmation_status: "confirmed", fields: cashRecord, editable_fields: [], issues: [], relations: [],
+        entry: { entry_id: "entry-1", revision: 1, fields: { note: cashRecord.note, counterparty: cashRecord.counterparty,
+          category_id: cashRecord.category_id, counterparty_account: "", counterparty_account_attrs: [] },
+          manual_fields: [], editable_fields: ["note", "counterparty", "category_id", "counterparty_account", "counterparty_account_attrs"],
+          supports_transfer_edit: false } });
     }
     if (pathname === "/api/v1/evidence/cash-projections/projection-1" && method === "GET") {
       return json({
@@ -602,63 +524,6 @@ export async function installComposeApiFixtures(
         inactive_relation_hints: [],
         refund_timeline: [],
       });
-    }
-
-    if (pathname === "/api/v1/cash-import/scan" && method === "POST") {
-      return json({
-        import_token: "import-e2e-token",
-        contract: "cash-import-v1",
-        channel: "bank",
-        channel_label: "银行账单",
-        ready: true,
-        file: { name: "statement.csv", digest: "digest-e2e" },
-        digest: "digest-e2e",
-        files: [{ index: 0, name: "statement.csv", filename: "statement.csv", digest: "digest-e2e", size: 42, channel: "bank", channel_label: "银行账单", row_count: 1, status: "ready" }],
-        accounts: [cashAccount],
-        groups: [{
-          group_id: "bank-account",
-          source_type: "bank",
-          channel: "bank",
-          channel_label: "银行账单",
-          display_name: "银行卡",
-          masked_evidence: "尾号 1234",
-          currencies: ["CNY"],
-          row_count: 1,
-          suggestion: { account_id: 1, account: cashAccount, missing_currencies: [], mapping_revision: 1 },
-        }],
-      });
-    }
-    if (pathname === "/api/v1/cash-import/preview" && method === "POST") {
-      return json({
-        import_token: "import-e2e-token",
-        channel: "bank",
-        channel_label: "银行账单",
-        file: { name: "statement.csv", digest: "digest-e2e" },
-        relation_digest: "relations-e2e",
-        items: [{
-          record_id: "import-row-1",
-          occurred_at: "2026-09-24T10:30:00+08:00",
-          amount: "28.50",
-          currency: "CNY",
-          account_name: "日常账户",
-          counterparty: "咖啡店",
-          counterparty_account: "masked",
-          record_type: "expense",
-          record_subtype: "not_applicable",
-          category: "分类不会展示",
-          note: "拿铁",
-          channel: "bank",
-          status: "new",
-          message: "",
-        }],
-        summary: { total: 1, new: 1, existing: 0, unsupported: 0, unresolved: 0, requires_allocation: 0 },
-        mapping: [],
-        relations: [],
-      });
-    }
-    if (pathname === "/api/v1/cash-import/commit" && method === "POST") {
-      cashImportCommitted = true;
-      return json({ message: "ok", new_rows: 1, updated_rows: 0, skipped_rows: 0, channel: "bank", digest: "digest-e2e" });
     }
 
     if (pathname === "/api/v1/investment-portfolio" && method === "GET") return json(portfolio);

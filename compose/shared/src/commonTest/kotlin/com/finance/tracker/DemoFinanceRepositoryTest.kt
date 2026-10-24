@@ -1,6 +1,9 @@
 package com.finance.tracker
 
 import com.finance.tracker.data.DemoFinanceRepository
+import com.finance.tracker.domain.CashFilters
+import com.finance.tracker.presentation.cashProjectionSourceResourceKey
+import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,4 +38,13 @@ class DemoFinanceRepositoryTest {
 
         assertEquals("同笔支付", detail.relations.single().label)
     }
+    @Test
+    fun singleRecordDemoHasNoMergedLabelAndRemainsInSingleFilter() = runTest {
+        val repository = DemoFinanceRepository()
+        val rows = repository.fetchCashPage(CashFilters()).items
+        assertTrue(rows.isNotEmpty())
+        rows.forEach { assertEquals(null, cashProjectionSourceResourceKey(it)) }
+        assertEquals(rows.map { it.transactionId }, repository.fetchCashPage(CashFilters(composition = "single")).items.map { it.transactionId })
+    }
+
 }

@@ -538,7 +538,7 @@ class DemoFinanceRepository : FinanceRepository {
         confirmationStatus = if (importedStates[record.id] == "draft") "pending" else "confirmed",
         attentionCount = if (importedStates[record.id] == "draft") 1 else 0,
         statisticsEligible = importedStates[record.id] != "draft",
-        composition = if (record.components.isNullOrEmpty()) listOf("single") else listOf("combined"),
+        composition = if (transfer != null) listOf("transfer_pair") else emptyList(),
         recordId = record.id,
         transactionId = record.id,
         sourceType = record.sourceType,
@@ -629,7 +629,12 @@ class DemoFinanceRepository : FinanceRepository {
             (filters.dateTo == null || record.occurredAt <= filters.dateTo) &&
             (filters.economicType == null || projected.economicType == filters.economicType) &&
             (filters.transferSubtype == null || projected.transferSubtype == filters.transferSubtype) &&
-            (filters.composition == null || filters.composition in projected.composition) &&
+            (when (filters.composition) {
+                null -> true
+                "single" -> projected.composition.isEmpty()
+                "combined" -> projected.composition.distinct().size > 1
+                else -> filters.composition in projected.composition
+            }) &&
             (filters.state == null || projected.state == filters.state) &&
             (filters.confirmationStatus == null || projected.confirmationStatus == filters.confirmationStatus)
     }
