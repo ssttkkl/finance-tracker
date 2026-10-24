@@ -187,6 +187,25 @@
 
 - [ ] 在独立后端任务中优化万行预览；两个后端均使用相同固定分布、完整当前计划和原 5 s／256 MiB 预算验收。必须保留权限、来源隔离、完整图校验、JSON 预算、CAS、TTL、幂等和逐项结果，不缩减业务输出或安全校验。当前未通过结果见 4.14；本项不计入本次功能交付完成范围。
 
+### 4.16 Compose 结果摘要所需提交事实
+
+- [x] 4.16.1 按本轮已确认 UI 合同回写规格、设计和词表，先用失败测试区分预览已知问题／提交新增异常／实际业务写入与旧收据缺省。
+- [x] 4.16.2 在同一收据 JSON 增加 commit_outcome；按执行阶段收集安全码，保留原 status、summary、事务、幂等及恢复。
+- [x] 4.16.3 独立工程与安全复核；SQLite 开发回归后显式专用 PostgreSQL 契约矩阵、完整回归与 OpenSpec／diff 检查，原位记录当前命令和结果。
+- [x] 4.16.4 同组更新接口文档、功能地图、共享 DTO／domain，核对 README／词表／旧收据兼容；按授权小步提交推送，前端真实接入与演示仍由对应 change 验收。
+
+4.16 当前验证：2026-10-24，`HEAD=69e1fb7`，比较基线同一提交；后端及共享收据源文件在下列检查期间保持一致。本步仅扩展结果事实，不改变导入财务规则、schema、关系匹配、原结果状态或万行性能范围。
+
+| 范围 | 命令、结果及证据 |
+|---|---|
+| 测试先行 | `/tmp/ft-commit-outcome-red.log` 5 failed／6 passed，缺少新增事实；`/tmp/ft-commit-outcome-noop-red.log` 无操作引用的重复记录变化未上报，补回归并修复。新旧收据、零行来源保存失败、预览已知跳过／文件／发现问题、关系执行失败和零实际写入均有反例 |
+| 双后端 | `uv run python /tmp/ft-cash-current-matrix.py` 显式读取人工准备的 `_test` PostgreSQL 配置，设置 `FT_TEST_POSTGRES_URL`、`FT_REQUIRE_TEST_POSTGRES=1` 及 `PYTHONPATH=tests:tests/contract`；执行 outcome 纯测试、导入计划 API／提交／收据／旧收据 API 和协议六个文件 → 288 passed、无 skip（365.91 s），`/tmp/ft-commit-outcome-dual.log` |
+| 完整普通回归 | 显式移除 PostgreSQL 环境，`PYTHONPATH=tests:tests/contract uv run pytest tests -q -m 'not performance' -k 'not test_mobile_ci_builds_release_like_artifacts_with_embedded_js and not test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts' --disable-warnings --tb=short --maxfail=10` → 3368 passed、1283 skipped、73 deselected（2379.30 s），`/tmp/ft-cash-current-full-regression.log`。两项旧 Expo 断言沿已核实基线排除；性能不在本步范围；不将无 PostgreSQL 的 skip 计为双后端通过 |
+| 共享收据 | `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` → Wasm 279／Android 274 项通过，iOS Simulator 共享编译通过，`/tmp/ft-compose-list-outcome-verified.log`；新增 HTTP 回归区分当前 object 与旧缺省。此命令同时验证列表基础，不将其算为后端 UI 接入 |
+| 审查 | 独立范围／工程／安全复核，关闭无操作引用 `record_changed` 遗漏；重新检查执行阶段、固定安全码、旧缺省、原事务／幂等／重放，无遗留 major／阻断。协议仅持久化有界安全码，不保存异常正文 |
+| 构建及静态 | `uv build --out-dir /tmp/ft-cash-commit-outcome-dist` 成功；OpenSpec strict 37/37、diff 空白检查通过。首次三文件 SQLite 命令因缺少 tests/contract 的 PYTHONPATH 有一项夹具导入失败，已用上述完整命令修正，不计首次为通过 |
+| 文档、跨端及回退 | 词表、接口参考、主流程及功能地图同组更新；README 的启动和配置未变，无需修改。Web／Android／iOS 共享收据解码受影响，页面接线和演示仍待前端 change；本收据小步无页面／文案修改，浏览器和设备 UI QA 不适用。additive JSON 回退可忽略新字段，既有收据保留，禁止从旧 status 补造 commit_outcome；不写真实账本或部署 |
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。

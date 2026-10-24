@@ -256,6 +256,7 @@ def test_http_relation_failure_does_not_rollback_posted_rows(context_runtime, mo
     receipt = response.json()
     assert receipt["status"] == "partial" and receipt["summary"]["created_posted"] == 2
     assert receipt["summary"]["relations_failed"] == 1 and receipt["pending_item_count"] == 2
+    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": True, "reason_codes": ["relation_save_failed"]}
     page = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/relations").json()
     assert page["items"][0]["outcome"] == "failed" and "private" not in page["items"][0]["message"]
     rows = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/rows").json()
@@ -372,6 +373,7 @@ def test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_faile
     assert conflict["items"] == [] and conflict["summary"]["skip"] == 1
     receipt = _commit(client, conflict, "conflict-confirm").json()
     assert receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
+    assert receipt["commit_outcome"] == {"has_new_failures": False, "has_business_writes": False, "reason_codes": []}
     results = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/rows").json()
     assert results["items"][0]["code"] == "fixed_field_conflict"
 
@@ -417,3 +419,34 @@ def test_authentication_and_viewer_denial_keep_the_public_error_envelope(context
     assert denied.status_code == 403
     assert denied.json()["error"]["field_errors"] == [] and denied.json()["error"]["retryable"] is False
     assert "private" not in denied.text
+
+
+def test_http_empty_import_evidence_failure_is_a_new_failure_without_business_writes(context_runtime, monkeypatch):
+    from ft.application.cash_import_commit import CashImportCommandService
+    file = _file()
+    empty = replace(file, document=replace(file.document, rows=(), declared_count=0, observed_count=0))
+    client, _, view = _setup(context_runtime, monkeypatch, files=(empty,))
+    plan = _preview(client, view).json()
+    monkeypatch.setattr(CashImportCommandService, "_save_evidence", lambda *_: {("alipay", "fixture", "empty"): "source_evidence_save_failed"})
+    receipt = _commit(client, plan).json()
+    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["source_evidence_save_failed"]}
+    assert client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"]).json() == receipt
+    assert _commit(client, plan).json() == receipt
+
+
+def test_http_duplicates_plus_a_new_failure_do_not_claim_business_writes(context_runtime, monkeypatch):
+    from ft.adapters.relational.cash_sources import CashSourceRepository
+    client, _, view = _setup(context_runtime, monkeypatch, files=(_rows(1),))
+    _commit(client, _preview(client, view).json())
+    client, _, view = _setup(context_runtime, monkeypatch, files=(_rows(2),))
+    plan = _preview(client, view).json()
+    original = CashSourceRepository.save_occurrence
+    def fail(self, identifier, row, **kwargs):
+        if row.provider_id == "synthetic-order-1":
+            raise RuntimeError("private database SQL")
+        return original(self, identifier, row, **kwargs)
+    monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail)
+    receipt = _commit(client, plan, "mixed-confirm").json()
+    assert receipt["status"] == "partial"
+    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["row_save_failed"]}
+    assert "private" not in str(receipt["commit_outcome"])

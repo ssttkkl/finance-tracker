@@ -66,7 +66,7 @@ def _summary(value):
     counters = {"needs_attention_count", "pending_item_count", "projection_version", "account_revision"}
     references = {"retry_context_id", "account_id", "retained_transaction_id"}
     reference_lists = {"affected_transaction_ids"}
-    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "retry_context_status", "projection_refs", "account", "legacy_by_account"}
+    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "retry_context_status", "projection_refs", "account", "legacy_by_account", "commit_outcome"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("mutation_summary_invalid")
     value = deepcopy(value)
@@ -84,6 +84,15 @@ def _summary(value):
             if not isinstance(item, list) or any(not isinstance(reference, dict) or set(reference) != {"transaction_id", "projection_id"} for reference in item):
                 raise ValueError("mutation_summary_invalid")
             value[key] = [{field: _text(reference[field], 128, code="mutation_summary_invalid") for field in ("transaction_id", "projection_id")} for reference in item]
+        elif key == "commit_outcome":
+            from ft.domain.cash_import_outcome import CASH_COMMIT_REASON_CODES
+            if (not isinstance(item, dict) or set(item) != {"has_new_failures", "has_business_writes", "reason_codes"}
+                or type(item["has_new_failures"]) is not bool or type(item["has_business_writes"]) is not bool
+                or not isinstance(item["reason_codes"], list) or len(item["reason_codes"]) > len(CASH_COMMIT_REASON_CODES)
+                or any(not isinstance(code, str) or code not in CASH_COMMIT_REASON_CODES for code in item["reason_codes"])
+                or len(set(item["reason_codes"])) != len(item["reason_codes"])
+                or bool(item["reason_codes"]) != item["has_new_failures"]):
+                raise ValueError("mutation_summary_invalid")
         elif key == "account":
             value[key] = _account_result(item)
         elif key == "status":

@@ -295,3 +295,31 @@ def test_database_rejects_result_attached_to_another_workspaces_receipt(mutation
     with pytest.raises(IntegrityError), runtime.sessions.begin() as session:
         session.add(CashMutationResultModel(workspace_id="different-workspace", receipt_id=receipt["receipt_id"],
             result_kind="row", item_ref="wrong-owner", outcome="duplicate"))
+
+
+def test_commit_outcome_is_persisted_and_legacy_absence_is_preserved(mutation_runtime):
+    runtime = mutation_runtime
+    outcome = {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["row_save_failed"]}
+    with runtime.sessions.begin() as session:
+        repo = _repo(session, runtime)
+        old = _save(repo)
+        assert "commit_outcome" not in old
+        saved = _save(repo, idempotency_key="new-outcome", session_digest="e" * 64,
+            result_summary={"status": "partial", "commit_outcome": outcome})
+        assert saved["commit_outcome"] == outcome
+    with runtime.sessions.begin() as session:
+        assert _repo(session, runtime).get("fixture-user", saved["receipt_id"])["commit_outcome"] == outcome
+
+
+@pytest.mark.parametrize("outcome", [
+    {"has_new_failures": "false", "has_business_writes": False, "reason_codes": []},
+    {"has_new_failures": False, "has_business_writes": False, "reason_codes": ["row_save_failed"]},
+    {"has_new_failures": True, "has_business_writes": False, "reason_codes": []},
+    {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["private SQL /path"]},
+    {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["row_save_failed"] * 40},
+    {"has_new_failures": False, "has_business_writes": False, "reason_codes": [], "payload": "private"},
+])
+def test_commit_outcome_rejects_invalid_or_sensitive_values(mutation_runtime, outcome):
+    with mutation_runtime.sessions.begin() as session:
+        with pytest.raises(ValueError, match="mutation_summary_invalid"):
+            _save(_repo(session, mutation_runtime), result_summary={"commit_outcome": outcome})

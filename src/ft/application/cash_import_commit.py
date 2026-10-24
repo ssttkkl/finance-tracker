@@ -27,6 +27,7 @@ from ft.application.cash_plan_execution import (CashPlanWriteOperations, _Accoun
     _operation_fingerprint, _reason, _receipt_view, _recoverable)
 from ft.domain.cash_record_policy import CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, _normalize
 from ft.domain.cash_source_matching import _digest, _index
+from ft.domain.cash_import_outcome import commit_failure_reason
 
 
 def _equivalent_duplicate(before, current):
@@ -78,6 +79,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                 previous_plan=plan, plan_id=plan_id, source_plan=sources)
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()
             failed_namespaces = self._save_evidence(session, current.files)
+            execution_reasons = {commit_failure_reason(code, "source_evidence_save_failed") for code in failed_namespaces.values()}
             dependencies = self._source_dependencies(sources)
             actual, identity, component_ids, changes, affected = {}, {}, {}, [], set()
             fresh_ops = {item["occurrence_key"]: item for item in fresh["operations"]}
@@ -115,6 +117,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                             raise
                         session.expire_all()
                         candidate_epoch += 1
+                        execution_reasons.add(commit_failure_reason(_reason(error, "row_save_failed"), "row_save_failed"))
                         for member in unit:
                             failures.add(member['preview_transaction_id'])
                             actual[member['operation_ref']] = {'outcome': 'skipped', 'transaction_id': member['transaction_id'],
@@ -185,16 +188,19 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                     session.expire_all()
                     candidate_epoch += 1
                     failures.add(operation["preview_transaction_id"])
+                    execution_reasons.add(commit_failure_reason(_reason(error, "row_save_failed"), "row_save_failed"))
                     actual[ref] = {"outcome": "skipped", "code": _reason(error, "row_save_failed")}
                     if operation["transaction_id"] is not None:
                         actual[ref]["transaction_id"] = operation["transaction_id"]
-            rows = self._row_results(plan, fresh, actual, dependencies, failed_namespaces)
+            rows = self._row_results(plan, fresh, actual, dependencies, failed_namespaces,
+                on_execution_failure=lambda code: execution_reasons.add(commit_failure_reason(code, "row_save_failed")))
             used = [choice for operation in plan["operations"]
                 if actual[operation["operation_ref"]]["outcome"] != "skipped"
                 for choice in fresh_ops[operation["occurrence_key"]].get("used_account_selections", ())]
             CashImportAccountMappings(session, self._workspace_id).publish(used, user_id=self._user_id)
             groups = self._save_groups(session, plan, fresh, identity, component_ids, failures, affected,
-                manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]})
+                manual={choice["suggestion_id"] for choice in current.preview_input["relation_choices"]},
+                on_execution_failure=lambda code: execution_reasons.add(commit_failure_reason(code, "relation_save_failed")))
             self._discovery_issues(session, plan, identity, failures, affected)
             groups.extend(self._discovery_results(plan, identity, failures))
             self._balances(uow, changes)
@@ -242,6 +248,8 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                 request_digest=digest, operation_kind="import", plan_id=plan_id,
                 session_digest=sha256(session_id.encode()).hexdigest(),
                 result_summary={"status": status, "summary": dict(summary), "needs_attention_count": pending,
+                    "commit_outcome": {"has_new_failures": bool(execution_reasons), "has_business_writes": bool(written),
+                        "reason_codes": sorted(execution_reasons)},
                     "pending_item_count": pending_items, "projection_version": state.projection_version, **retry},
                 results=[*rows, *groups, *file_results])
             boundary.commit(uow)
@@ -361,7 +369,7 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
 
 
     @staticmethod
-    def _row_results(plan, fresh, actual, dependencies, failed_namespaces):
+    def _row_results(plan, fresh, actual, dependencies, failed_namespaces, *, on_execution_failure=None):
         current = {row["row_ref"]: row for row in fresh["row_decisions"]}
         result = []
         for row in plan["row_decisions"]:
@@ -380,6 +388,8 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                     "transaction_id": row.get("transaction_id")}
             else:
                 item = {"outcome": "skipped", "code": "record_changed"}
+                if on_execution_failure is not None:
+                    on_execution_failure("record_changed")
             result.append({"result_kind": "row", "item_ref": row["row_ref"], "operation_ref": reference, **item})
         return result
 

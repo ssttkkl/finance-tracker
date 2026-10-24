@@ -166,6 +166,12 @@ data class CashPlanItemDetailDto(
 )
 
 @Serializable
+data class CashImportCommitOutcomeDto(
+    @SerialName("has_new_failures") val hasNewFailures: Boolean,
+    @SerialName("has_business_writes") val hasBusinessWrites: Boolean,
+    @SerialName("reason_codes") val reasonCodes: List<String>,
+)
+@Serializable
 data class CashMutationReceiptDto(
     @SerialName("receipt_id") val receiptId: String,
     @SerialName("plan_id") val planId: String? = null,
@@ -184,6 +190,7 @@ data class CashMutationReceiptDto(
     @SerialName("account_id") val accountId: String? = null,
     @SerialName("account_revision") val accountRevision: Long? = null,
     val account: ImportAccountDto? = null,
+    @SerialName("commit_outcome") val commitOutcome: CashImportCommitOutcomeDto? = null,
 )
 @Serializable
 data class CashMutationResultDto(

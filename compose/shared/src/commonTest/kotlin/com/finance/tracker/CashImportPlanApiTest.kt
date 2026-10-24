@@ -10,6 +10,21 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportPlanApiTest {
+    @Test fun receiptCommitOutcomeDistinguishesNewErrorsAndPreservesLegacyAbsence() {
+        val legacy = apiJson.decodeFromString<CashMutationReceiptDto>(RECEIPT).toDomain()
+        assertNull(legacy.commitOutcome)
+        val body = apiJson.parseToJsonElement(RECEIPT).jsonObject.toMutableMap()
+        body["commit_outcome"] = buildJsonObject {
+            put("has_new_failures", true); put("has_business_writes", false)
+            put("reason_codes", JsonArray(listOf(JsonPrimitive("row_save_failed"))))
+        }
+        val current = apiJson.decodeFromJsonElement<CashMutationReceiptDto>(JsonObject(body)).toDomain()
+        val outcome = assertNotNull(current.commitOutcome)
+        assertTrue(outcome.hasNewFailures)
+        assertFalse(outcome.hasBusinessWrites)
+        assertEquals(listOf("row_save_failed"), outcome.reasonCodes)
+    }
+
     @Test fun optionalCommonDecisionsAreOmittedWhileExplicitClearsAndFalseArePreserved() = runTest {
         val calls = mutableListOf<JsonObject>()
         val api = client(PLAN) { calls += json(it) }

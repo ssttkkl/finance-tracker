@@ -100,12 +100,14 @@ data class ImportAccount(
     val accountId: String, val name: String, val type: String, val active: Boolean, val currencies: List<String>,
     val revision: Long, val deleted: Boolean, val capabilities: Map<String, Boolean>, val receiptId: String?, val committed: Boolean?,
 )
+data class ImportCommitOutcome(val hasNewFailures: Boolean, val hasBusinessWrites: Boolean, val reasonCodes: List<String>)
 data class ImportReceipt(
     val receiptId: String, val planId: String?, val operationKind: String, val committed: Boolean,
     val createdAt: String, val status: String?, val summary: Map<String, Long>, val legacyByAccount: Map<String, Long>,
     val needsAttentionCount: Long?, val pendingItemCount: Long?, val projectionVersion: Long?,
     val retryContextStatus: String?, val retryContextExpiresAt: String?, val retainedTransactionId: String?,
     val accountId: String?, val accountRevision: Long?, val account: ImportAccount?,
+    val commitOutcome: ImportCommitOutcome? = null,
 )
 data class ImportResultItem(
     val resultId: String, val resultKind: String, val itemRef: String, val outcome: String, val code: String?,

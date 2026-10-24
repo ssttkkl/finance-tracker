@@ -540,3 +540,7 @@ Agent 使用相同解析会话、完整替换预览和持久结果接口，用�
 | 会话计划、恢复及隔离 | 新应用服务合同、`tests/contract`、API 权限；4.7–4.11 | FastAPI `scan/preview/commit` 和 Agent 导入技能统一切换为会话／计划 |
 | 独立账户与安全补偿 | 账户 CAS／收据、Compose ViewModel；4.6、4.12 | 普通账户稳定 ID 命令，停止导入映射创建账户 |
 | 统一列表与主页维护 | 共享测试、生产 Web 三尺寸、适用 Native QA；4.12–4.13、6.4–6.6 | 共享 `CashImportApi/Dto/Workflow/ViewModel/Screen` 及演示，不保留独立关系页 |
+
+## 导入摘要与提交新增异常
+
+为接通用户确认的 Compose 结果合同，新导入收据在现有 JSON result_summary 中保存 commit_outcome：has_new_failures、has_business_writes 和 reason_codes。status／summary 保留当前兼容语义，不再要求前端通过 partial／failed 猜测异常阶段。新增行／关联组执行失败与来源证明保存失败按执行阶段收集；原计划已知 skip、文件失败及发现失败不加入。批量写回退后逐项最终成功不算新增异常。has_business_writes 沿用现有 written 口径，排除重复。原因固定白名单、去重有界，不存异常原文。该对象与业务／收据同事务发布，读取与重放不重算；旧收据保持字段缺省。无需 schema 迁移。Compose 结果页仅摘要，新增异常只有统一错误、安全原因与返回；后端失败子集接口保留但不新增页面入口。

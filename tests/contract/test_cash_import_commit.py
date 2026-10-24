@@ -765,6 +765,7 @@ def test_file_failure_and_normal_whitelist_skip_have_distinct_result_status(cont
     service, plan = _plan(context_runtime, files)
     receipt = _commit(service, plan)
     assert receipt["status"] == ("partial" if failed_file else "no_changes")
+    assert receipt["commit_outcome"] == {"has_new_failures": False, "has_business_writes": failed_file, "reason_codes": []}
 
 
 def test_empty_page_failure_only_skips_dependent_source_decisions(context_runtime, monkeypatch):
@@ -784,6 +785,7 @@ def test_empty_page_failure_only_skips_dependent_source_decisions(context_runtim
     rows = _results(service, receipt, "row")
     assert rows[0]["outcome"] == "skipped" and rows[0]["code"] == "source_evidence_save_failed"
     assert rows[1]["outcome"] == "created_posted"
+    assert "source_evidence_save_failed" in receipt["commit_outcome"]["reason_codes"]
     with context_runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashSourceEmptyPageModel)) == 0
 
@@ -846,3 +848,15 @@ def test_receipt_reads_are_user_scoped_and_only_contain_safe_results(context_run
         lambda: other.receipt_by_key("synthetic-confirm")):
         with pytest.raises(CashImportPlanError, match="receipt_not_found"):
             read()
+
+
+def test_preview_known_discovery_failure_is_not_a_new_commit_failure(context_runtime, monkeypatch):
+    import ft.application.cash_import_business_plan as module
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("private bill body")
+    monkeypatch.setattr(module, "plan_relation_proposals", broken)
+    service, plan = _plan(context_runtime, _mirror_files())
+    assert plan["summary"]["relations_failed"] > 0
+    receipt = _commit(service, plan)
+    assert receipt["status"] == "partial"
+    assert receipt["commit_outcome"] == {"has_new_failures": False, "has_business_writes": True, "reason_codes": []}

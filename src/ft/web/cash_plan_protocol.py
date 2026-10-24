@@ -219,8 +219,16 @@ class ReceiptAccountView(Output):
     deleted: bool
 
 
+class ImportCommitOutcomeView(Output):
+    has_new_failures: bool
+    has_business_writes: bool
+    reason_codes: list[Literal["record_changed", "account_changed", "entry_changed", "row_save_failed",
+        "source_evidence_save_failed", "relation_context_changed", "relation_save_failed"]] = Field(max_length=7)
+
+
 class MutationReceiptView(Output):
     receipt_id: str
+    commit_outcome: ImportCommitOutcomeView | None = None
     plan_id: str | None
     operation_kind: str
     committed: Literal[True]

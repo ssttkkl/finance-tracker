@@ -57,13 +57,14 @@ class CashPlanWriteOperations:
         return {"create_posted": "created_posted", "create_draft": "saved_draft", "update_draft": "saved_draft",
             "update_posted": "updated_posted", "finalize_draft": "finalized_draft", "merge_draft": "merged_draft", "duplicate": "duplicate"}[operation["planned_action"]]
 
-    def _save_groups(self, session, plan, fresh, identity, components, failed_rows, affected, *, manual):
+    def _save_groups(self, session, plan, fresh, identity, components, failed_rows, affected, *, manual, on_execution_failure=None):
         groups, result = defaultdict(list), []
         current = {group["suggestion_id"]: group for group in fresh["relation_groups"]}
         for group in plan["relation_groups"]:
             groups[group.get("commit_group_id", group["suggestion_id"])].append(group)
         for commit_id, members in groups.items():
             code = None
+            anticipated_failure = False
             try:
                 if any(set(group["parent_ids"]).intersection(failed_rows) for group in members):
                     raise CashRelationError("relation_context_changed")
@@ -75,6 +76,7 @@ class CashPlanWriteOperations:
                 for group in members:
                     updated = current.get(group["suggestion_id"])
                     if group["action"] == "skip":
+                        anticipated_failure = True
                         raise CashRelationError(group.get("code", "relation_save_failed"))
                     if updated is None or updated["action"] != group["action"] or updated["edges"] != group["edges"]:
                         raise CashRelationError("relation_context_changed")
@@ -92,6 +94,8 @@ class CashPlanWriteOperations:
                     raise
                 session.expire_all()
                 code = _reason(error, "relation_save_failed")
+                if on_execution_failure is not None and not anticipated_failure:
+                    on_execution_failure(code)
                 result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code}
                     for group in members)
             for group in members:
