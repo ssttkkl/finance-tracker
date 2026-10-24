@@ -10,10 +10,10 @@
 ## 3. 任务拆分与一致性
 
 - [x] 3.1 先补当前读取、`entry`／来源权限、维护所有意图、公共冲突／继承、草稿保存、计划／收据／核实的协议失败测试；验证 null、清空、修订、字符串金额和工作区隔离。
-- [ ] 3.2 完成公共基础与宿主：
+- [x] 3.2 完成公共基础与宿主：
   - [x] 3.2.1 当前 DTO／domain／Repository、读取及维护 API、公共冲突和定位引用通过测试与构建。
-  - [ ] 3.2.2 接入编辑宿主和稳定定位行为，冻结集中声明的文件归属。
-- [ ] 3.3 提交公共基础小步，让导入和编辑模块基于同一版本开发；合成合同夹具、语义 ID／文案与最终 App 集成接口分别登记所有者。
+  - [x] 3.2.2 接入编辑宿主和稳定定位行为，冻结集中声明的文件归属。
+- [x] 3.3 提交公共基础小步，让导入和编辑模块基于同一版本开发；合成合同夹具、语义 ID／文案与最终 App 集成接口分别登记所有者。
 
 ## 4. 构建
 
@@ -30,7 +30,7 @@
 
 ## 6. 测试与 QA
 
-- [ ] 6.1 在 `compose/` 执行 `./gradlew :shared:wasmJsTest --no-configuration-cache` 及受影响 Android／iOS 单元测试；构建 `:webApp:wasmJsBrowserDistribution`、`:androidApp:assembleDebug`、`:shared:linkDebugFrameworkIosSimulatorArm64`，记录实际 HEAD、命令与结果。
+- [ ] 6.1 在 `compose/` 执行 Wasm 和 Android 主机单测、Web 开发／QA 构建、Android 包及 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测及设备／应用包 QA 按用户明确决定不执行。
 - [ ] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在代表视口以真实 API 冒烟受影响主流程、关键交互和直接相关复现分支，记录浏览器、URL、步骤、必要截图及 console／network；不默认穷举状态、主题或三类窗口。
 - [ ] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在本次验收范围，不以未执行阻断，也不记为通过。
 - [ ] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
@@ -51,17 +51,14 @@
 
 当前未解决缺陷：Web 的 Compose `1.12.1` 关闭详情弹层后画布已回到账本，无障碍树仍保留详情、账本语义节点不恢复；鼠标与 Escape 路径均复现。关联上游 [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623)，用户明确不升级依赖。保留失败回归及 `/tmp/ft-compose-cash-evidence/after-close-390.png`；对应无障碍与返回 QA 未通过，其他业务实施继续，不据此勾选 UI 完成。
 
-2026-10-24，验证时 `HEAD=f2b1970`，前端比较基线相同；后端稳定引用已独立交付。列表、详情和草稿／来源／关系补处理已有开发接线；旧编辑器、手动转账、新导入页及最终 Web 冒烟／演示确认尚未完成，不能据此提升三端完整可用覆盖。
+当前列表、详情、草稿与来源维护基础已提交 `0e523a1`，正式编辑、普通记账和完整转账分别由 `2b9833a`、`fd0cb5c`、`ae9cbcb` 接入。当前小步删除无入口旧详情／编辑／任意关系页面、状态及 HTTP 客户端，精确验证范围见 [编辑模块当前证据](../compose-cash-entry-editor/tasks.md#当前审查与验证)。完整关系组／冲突／解除继承验收及最终用户演示确认仍未完成。
 
-| 范围／命令 | 当前结论 |
+| 范围 | 当前结论 |
 |---|---|
-| 产品／工程复核 | 当前 `next_action=edit`、具体草稿问题合并、其他成员问题与所属修订、保存后来源折叠已修复。原文读取校验明确成员 ID、修订及展示版本；模式切换不提交隐藏分摊，不继承旧明确采用状态。新增两项 major 经失败回归、修复及局部独立重审关闭；旧任意关系入口退役及编辑宿主仍在 4.4–4.5 |
+| 公共基础与宿主 | 当前 DTO／Repository、当前维护任务与编辑／创建插槽已经真实共享入口接通；明确成员身份、修订和展示版本，保存后依实际引用重定位。集中声明由维护模块持有，不重复写 DTO |
+| 草稿及来源 | 普通保存保持草稿，转正式明确执行；来源原文使用真实成员引用，草稿分摊保护组成项 ID／顺序及精确金额。其他成员的问题使用所属流水修订，不开放来源普通编辑；原有失败回归及实际合成 API 证据保留在 `0e523a1`，本次不重复宣称未受影响的旧截图为新全量验收 |
+| 清理审查 | 旧全字段写入、逐条来源编辑、任意关联搜索／直接关系写入及旧详情响应形状从正式客户端删除；分类移动与 ISO 日期校验迁回所属模块，保留有效测试。独立范围／工程审查无 blocking／major，最终 Web 创建及编辑冒烟、当前共享测试与编译见编辑模块证据 |
 | 简单重试 | 明确修订／过期拒绝或 `commit_state=not_committed` 释放命令，不重放；来源变化提示重读。已消费／幂等冲突及网络未知保留原键。失败／部分收据不显示成功；已知保存后的读取失败不抹去收据 |
-| 共享测试与构建 | `./gradlew :shared:testAndroidHostTest :shared:wasmJsTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 通过（1m4s）：Wasm 336、Android host 331，零失败／skip；Android 包与 iOS 共享编译通过。`/tmp/ft-cash-source-allocation-final-matrix.log`。本提交包含 iOS 本机时间转换实现，共享编译通过；iOS 平台单测及设备／应用包 QA 依用户本轮明确免验未执行，不记通过 |
-| 原文／分摊失败回归 | `/tmp/ft-cash-source-body-red.log` 原文缺失失败1项；`/tmp/ft-cash-allocation-red.log` 明确分摊失败2项；`/tmp/ft-cash-allocation-boundaries-red.log` 模式切换及来源版本失败3项；当前完整矩阵全部转绿 |
-| 真实接口 Web 冒烟 | Chromium，Web 1440×900，`http://127.0.0.1:5308/` 与专用合成 SQLite API `127.0.0.1:58792`；当前开发 QA 包指纹一致。实际列表→来源原文→双分摊修改→普通保存仍 draft→明确确认 posted 已通过，保留组成项 ID／顺序／账户／币种，仅发送 `components`；无 pageerror 或新增 console／network 错误。最终 1 passed（16.3s），`/tmp/ft-cash-split-settled-web-smoke.log`；截图 `/tmp/ft-compose-cash-evidence/split-{original,form,draft-saved,finalized}-1440.png`。生产包（4m2s）已覆盖业务源码；最终纯文案修改通过开发 QA 包（1m50s）、Android host 331 项及原生相称编译再验，`/tmp/ft-cash-source-allocation-dev-build.log`。此前实际标量保存、来源展开→保存后折叠→重新展开三宽度3 passed，`/tmp/ft-cash-source-settled-final-qa.log`；后续标签修改不复用旧截图宣称全部当前 UI 通过 |
-| 浏览器已知缺陷 | 列表未知值／零额退款、筛选及来源失败重试已走通；关闭弹层后的语义树停更仍复现并按用户决定保留。确定拒绝后实际保存按钮灰色且物理点击不发送请求，但无障碍禁用状态仍报告 enabled；此项与整树冻结分开登记，未声称修复。保留相应失败回归，不因缩小默认 QA 伪造通过 |
-| Hallmark／独立设计 | 重复草稿警示和缺字箭头已修复并局部复核关闭；当前原文／分摊 1440 px 截图 Hallmark audit 与独立设计复核无 critical／major；保存后截图时机的 minor 已补稳定页面并局部重审关闭；未将忙碌截图计为保存完成证据。Native 设备与穷举深色／三窗口不在本次默认门禁；重大 UI 的最终演示确认仍未取得 |
-| 后端／工具／文档 | 稳定引用后端 `5a7f3ab`：121+最终2项专用双后端通过；完整SQLite3389 passed，其skip不计PG。本轮 Node 3 passed、OpenSpec strict 37/37、doctor healthy、链接和 diff 通过。其他成员来源问题在当前 QA 包 Web 1440 px 重验 1 passed（4.9s），`/tmp/ft-cash-source-allocation-member-qa.log`。协议／功能地图／skill已同步，未新增领域术语；README启动方式不变，三端完整流程TODO保留 |
-| 跨端与剩余门禁 | Web、Android、iOS共用查询、草稿输入、计划／原键状态和错误语义。当前来源原文与分摊普通保存／明确转正式已跑通；编辑器和双端转账、新导入、Web代表视口演示与用户确认未完成；Native设备QA不在本次范围；10k性能独立待办不变 |
-| 发布与回退 | 发布范围为当前列表／详情及草稿维护小步，完整 change 的编辑器、关系清理、统一导入及演示确认仍待完成；后端已独立交付。不改Compose依赖、不新增迁移、不操作真实账本或部署，不回退恢复旧写入口 |
+| 剩余范围 | 完整关系组确认／延后／拒绝／解除、实际公共冲突及继承、分类／删除整体作用范围和合成演示仍按 4.3–4.5／6.5 验收。统一导入由 workflow 承载；本表不把代码存在当完整流程通过 |
+| 跨端与已知缺陷 | Web、Android、iOS 共用当前读取、输入、命令和错误语义；默认 Web 代表视口冒烟及原生编译／单测，本轮 iOS 平台单测及设备／应用包 QA 免验，不记通过。Compose 1.12.1 关闭弹层无障碍树停更及独立的禁用状态语义缺陷保留，不升级；10k 性能独立待办不变 |
+| 文档及回退 | 功能地图、现金流水说明、维护设计及 apply 参考保持实际接入状态；无新领域术语、后端变更或迁移，README／部署配置不变。回退只能恢复已支持的接线或只读降级，不重新开放旧协议；PR／合并／部署没有授权 |

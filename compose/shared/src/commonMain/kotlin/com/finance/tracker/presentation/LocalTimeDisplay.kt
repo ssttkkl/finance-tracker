@@ -131,3 +131,20 @@ private fun floorDivide(value: Long, divisor: Long): Long {
     val quotient = value / divisor
     return if (value % divisor < 0) quotient - 1 else quotient
 }
+
+internal fun isValidIsoDate(value: String): Boolean = parseIsoDate(value) != null
+
+private fun parseIsoDate(value: String): Triple<Int, Int, Int>? {
+    if (value.length != 10 || value[4] != '-' || value[7] != '-') return null
+    val year = value.substring(0, 4).toIntOrNull() ?: return null
+    val month = value.substring(5, 7).toIntOrNull() ?: return null
+    val day = value.substring(8, 10).toIntOrNull() ?: return null
+    if (year !in 1..9999 || month !in 1..12 || day !in 1..daysInMonth(year, month)) return null
+    return Triple(year, month, day)
+}
+
+private fun daysInMonth(year: Int, month: Int): Int = when (month) {
+    2 -> if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) 29 else 28
+    4, 6, 9, 11 -> 30
+    else -> 31
+}

@@ -251,15 +251,15 @@ class DemoFinanceRepository : FinanceRepository {
         return CashProjectionDeleteResult(roots.count { root -> removed.any { it.id == root } }, removed.size, groupCount, removed.isNotEmpty(), this.projectionVersion)
     }
 
-    override suspend fun fetchCashRecord(id: String): CashRecordDetail = recordDetail(findRecord(id))
+    suspend fun fetchCashRecord(id: String): CashRecordDetail = recordDetail(findRecord(id))
 
-    override suspend fun fetchCashRecords(
-        query: String?,
-        excludeId: String?,
-        dateFrom: String?,
-        dateTo: String?,
-        cursor: String?,
-        limit: Int,
+    suspend fun fetchCashRecords(
+        query: String? = null,
+        excludeId: String? = null,
+        dateFrom: String? = null,
+        dateTo: String? = null,
+        cursor: String? = null,
+        limit: Int = 20,
     ): CashRecordPage {
         val filtered = records.filter { record ->
             record.id != excludeId &&
@@ -271,7 +271,7 @@ class DemoFinanceRepository : FinanceRepository {
         return CashRecordPage(page, (offset + page.size).takeIf { it < filtered.size }?.toString())
     }
 
-    override suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail {
+    suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail {
         val record = recordFromWrite("demo-record-${nextRecordNumber++}", write)
         records.add(0, record)
         projectionVersion++
@@ -333,7 +333,7 @@ class DemoFinanceRepository : FinanceRepository {
         return changed
     }
 
-    override suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail {
+    suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail {
         val index = records.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_record_not_found", 404)
         records[index] = recordFromWrite(id, write, sourceType = records[index].sourceType)
@@ -341,7 +341,7 @@ class DemoFinanceRepository : FinanceRepository {
         return recordDetail(records[index])
     }
 
-    override suspend fun deleteCashRecord(id: String, mode: String): CashRecordDeleteResult {
+    suspend fun deleteCashRecord(id: String, mode: String): CashRecordDeleteResult {
         val affected = relations.count { it.primaryRecord?.id == id || it.secondaryRecord?.id == id }
         val removed = records.removeAll { it.id == id }
         relations.removeAll { it.primaryRecord?.id == id || it.secondaryRecord?.id == id }
@@ -349,7 +349,7 @@ class DemoFinanceRepository : FinanceRepository {
         return CashRecordDeleteResult(removed, affected, if (removed) listOf(id) else emptyList())
     }
 
-    override suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail {
+    suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail {
         val primary = findRecord(primaryFactId.removePrefix("fact-").removePrefix("record-"))
         val secondary = findRecord(secondaryFactId.removePrefix("fact-").removePrefix("record-"))
         val relation = CashRelation(
@@ -364,18 +364,18 @@ class DemoFinanceRepository : FinanceRepository {
         return recordDetail(primary)
     }
 
-    override suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail {
+    suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail {
         val index = relations.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_relation_not_found", 404)
         relations[index] = relations[index].copy(kind = kind, label = demoRelationLabel(kind))
         return recordDetail(relations[index].primaryRecord ?: throw demoFailure("cash_record_not_found", 404))
     }
 
-    override suspend fun cancelCashRelation(id: String) {
+    suspend fun cancelCashRelation(id: String) {
         relations.removeAll { it.id == id }
     }
 
-    override suspend fun dissolveCashRelations(factId: String): CashRecordDetail {
+    suspend fun dissolveCashRelations(factId: String): CashRecordDetail {
         val record = findRecord(factId.removePrefix("fact-").removePrefix("record-"))
         relations.removeAll { it.primaryRecord?.id == record.id || it.secondaryRecord?.id == record.id }
         return recordDetail(record)

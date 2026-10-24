@@ -27,47 +27,6 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
         apiClient.deleteCashProjections(ids, projectionVersion).toDomain()
     }
 
-    override suspend fun fetchCashRecord(id: String): CashRecordDetail = guarded { apiClient.fetchCashRecord(id).toDomain() }
-
-    override suspend fun fetchCashRecords(
-        query: String?,
-        excludeId: String?,
-        dateFrom: String?,
-        dateTo: String?,
-        cursor: String?,
-        limit: Int,
-    ): CashRecordPage = guarded {
-        apiClient.fetchCashRecords(query, excludeId, dateFrom, dateTo, cursor, limit).toDomain()
-    }
-
-    override suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail = guarded {
-        apiClient.createCashRecord(write.toStructuredObject().toJsonObject()).toDomain()
-    }
-
-    override suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail = guarded {
-        apiClient.updateCashRecord(id, write.toStructuredObject().toJsonObject()).toDomain()
-    }
-
-    override suspend fun deleteCashRecord(id: String, mode: String): CashRecordDeleteResult = guarded {
-        apiClient.deleteCashRecord(id, mode).toDomain()
-    }
-
-    override suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail = guarded {
-        apiClient.createCashRelation(primaryFactId, secondaryFactId, kind).toDomain()
-    }
-
-    override suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail = guarded {
-        apiClient.updateCashRelation(id, kind).toDomain()
-    }
-
-    override suspend fun cancelCashRelation(id: String) {
-        guarded { apiClient.cancelCashRelation(id) }
-    }
-
-    override suspend fun dissolveCashRelations(factId: String): CashRecordDetail = guarded {
-        apiClient.dissolveCashRelations(factId).toDomain()
-    }
-
     override suspend fun fetchCashCategories(): CashCategoryDirectory = guarded { apiClient.fetchCashCategories().toDomain() }
 
     override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory = guarded {

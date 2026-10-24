@@ -1,6 +1,6 @@
 ## Context
 
-当前缺口以实际共享入口为准：`CashProjectionApi.kt` 未发送状态筛选，`FinanceModels.kt/FinanceDtos.kt` 缺当前状态和可空值，`CashRecordApi.kt` 仍按旧详情形状读取并提供直接关系写入。新的导入生命周期客户端与恢复基础已存在；本变更不重复开发它们。
+当前共享入口已接入状态筛选、当前详情、草稿及来源问题；旧全字段编辑、任意关联页面和 `CashRecordApi` 已移除，创建及正式编辑由编辑模块承载。完整关系验收与导入接线仍需完成；已有导入生命周期及恢复基础不重复开发。
 
 后端行为输入为 [现金流水](../../../docs/cash-ledger.md)、[维护接口](../../../docs/cash-import-redesign-contracts.md#35-后续维护与读取) 和 [后端 delta](../cash-import-lifecycle-redesign/proposal.md)。服务端匹配、来源身份、金额与事务规则不在本轮重定义。
 

@@ -35,3 +35,14 @@ internal fun filterCashCategoriesByAncestorPath(
         category.path.joinToString(" / ") { it.name }.contains(term, ignoreCase = true)
     }
 }
+
+internal fun categoryCanMove(items: List<CashCategory>, categoryId: String, direction: String): Boolean {
+    val item = items.firstOrNull { it.id == categoryId } ?: return false
+    val siblings = items.filter { it.parentId == item.parentId }
+    val index = siblings.indexOfFirst { it.id == categoryId }
+    return when (direction) {
+        "before" -> index > 0
+        "after" -> index >= 0 && index < siblings.lastIndex
+        else -> false
+    }
+}

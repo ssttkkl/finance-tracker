@@ -1,6 +1,7 @@
 package com.finance.tracker
 
 import com.finance.tracker.app.createDemoFinanceTrackerGraph
+import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.domain.CashRecordWrite
 import com.finance.tracker.domain.CashFilters
 import com.finance.tracker.domain.DomainFailure
@@ -38,9 +39,9 @@ class ComposeDemoModeTest {
             counterparty = "演示测试",
         )
 
-        val created = graph.financeRepository.createCashRecord(write)
-        val currentRows = graph.financeRepository.fetchCashRecords().items
-        val restartedRows = createDemoFinanceTrackerGraph().financeRepository.fetchCashRecords().items
+        val created = (graph.financeRepository as DemoFinanceRepository).createCashRecord(write)
+        val currentRows = (graph.financeRepository as DemoFinanceRepository).fetchCashRecords().items
+        val restartedRows = (createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository).fetchCashRecords().items
 
         assertTrue(currentRows.any { it.id == created.record.id && it.amount == "-12.50" })
         assertFalse(restartedRows.any { it.amount == "-12.50" && it.counterparty == "演示测试" })
@@ -48,7 +49,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoCashRecordsSupportCreateUpdateAndDeleteInMemory() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository
+        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
         val write = CashRecordWrite(
             occurredAt = "2026-10-12T10:00:00Z",
             amount = "-12.50",
@@ -72,7 +73,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoLedgerAppliesExactSignedAmountFiltersAndRejectsInvalidAmounts() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository
+        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
 
         val betweenNegativeBounds = repository.fetchCashPage(CashFilters(amountMin = "-20", amountMax = "-10"))
         val minimumOnly = repository.fetchCashPage(CashFilters(amountMin = "10000.01"))
@@ -141,7 +142,7 @@ class ComposeDemoModeTest {
         assertTrue(scan.ready == true)
         assertTrue(preview.summary.new > 0)
         assertTrue(result.newRows > 0)
-        assertTrue(graph.financeRepository.fetchCashRecords().items.any { it.sourceType == "statement_import" })
-        assertFalse(createDemoFinanceTrackerGraph().financeRepository.fetchCashRecords().items.any { it.sourceType == "statement_import" })
+        assertTrue((graph.financeRepository as DemoFinanceRepository).fetchCashRecords().items.any { it.sourceType == "statement_import" })
+        assertFalse((createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository).fetchCashRecords().items.any { it.sourceType == "statement_import" })
     }
 }

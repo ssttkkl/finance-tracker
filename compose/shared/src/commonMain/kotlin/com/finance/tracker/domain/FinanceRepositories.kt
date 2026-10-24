@@ -16,22 +16,7 @@ interface CashLedgerRepository {
     suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult
     suspend fun fetchCashProjectionDeleteImpact(ids: List<String>, projectionVersion: Long): CashProjectionDeleteImpact
     suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult
-    suspend fun fetchCashRecord(id: String): CashRecordDetail
-    suspend fun fetchCashRecords(
-        query: String? = null,
-        excludeId: String? = null,
-        dateFrom: String? = null,
-        dateTo: String? = null,
-        cursor: String? = null,
-        limit: Int = 20,
-    ): CashRecordPage
-    suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail
-    suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail
-    suspend fun deleteCashRecord(id: String, mode: String): CashRecordDeleteResult
-    suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail
-    suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail
-    suspend fun cancelCashRelation(id: String)
-    suspend fun dissolveCashRelations(factId: String): CashRecordDetail
+
 }
 
 interface CashCategoryRepository {
