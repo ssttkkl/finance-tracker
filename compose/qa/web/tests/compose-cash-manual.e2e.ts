@@ -43,11 +43,11 @@ async function press(page: Page, id: string) {
   await click(page, page.locator(`[id="${id}"]:visible`).last());
 }
 
-async function currentManual(page: Page, withEffects = false) {
+async function currentManual(page: Page, withEffects = false, accountAttributes: string[] = []) {
   const base = await installComposeApiFixtures(page);
   const fields: Record<string, unknown> = { amount: "-12.5000", currency: "CNY", occurred_at: "2026-10-24T04:00:00Z", account_id: "1",
     counterparty: "现金商户", counterparty_account: "", note: "原始备注", category_id: null, record_type: "consumption", record_subtype: "not_applicable" };
-  const common: Record<string, unknown> = { note: "公共备注", counterparty: "现金商户", counterparty_account: "", category_id: null, counterparty_account_attrs: [] };
+  const common: Record<string, unknown> = { note: "公共备注", counterparty: "现金商户", counterparty_account: "", category_id: null, counterparty_account_attrs: accountAttributes };
   const publicKeys = new Set(Object.keys(common));
   const editable = [...Object.keys(fields), "counterparty_account_attrs"];
   const context = "m".repeat(43), planId = `mp_${context}.${"p".repeat(16)}`;
@@ -114,6 +114,38 @@ test("ordinary creation retains its input across modes and saves only the active
   expect(api.base.state.recordWrites[0]).toMatchObject({ amount: "12.50", account_name: "日常账户", record_type: "income" });
 });
 
+test("manual editor keeps amount with currency and actions visible while the full form scrolls", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const api = await currentManual(page, false, ["tail"]); await openManual(page);
+  await expect(page.getByText("流水信息", { exact: true })).toBeVisible();
+  await expect(page.getByText("账号尾号", { exact: true })).toBeVisible();
+  await page.screenshot({ path: info.outputPath("detail-account-attributes.png") });
+  await press(page, "cash.current.edit");
+  const amount = await bounds(page, page.locator('[id="cash.entry.amount"]:visible'));
+  const currency = await page.locator('[id="cash.entry.currency"]:visible').boundingBox();
+  expect(currency).not.toBeNull();
+  expect(Math.abs(amount.y - currency!.y)).toBeLessThan(12);
+  await enter(page, "cash.entry.amount", "invalid");
+  await page.screenshot({ path: info.outputPath("invalid-amount.png") });
+  await info.attach("amount-semantics", { body: await page.locator('[id="cash.entry.amount"]:visible').evaluate(node => node.outerHTML), contentType: "text/html" });
+  expect((await page.locator('[id="cash.entry.amount"]:visible').boundingBox())!.height).toBeGreaterThan(amount.height);
+  await press(page, "cash.entry.save");
+  await bounds(page, page.locator('[id="cash.entry.error"]:visible'));
+  await expect(page.locator('[id="cash.entry.error"]:visible')).toContainText("金额格式无效。");
+  expect(api.requests).toHaveLength(0);
+  await enter(page, "cash.entry.amount", "-12.5000");
+  const save = page.locator('[id="cash.entry.save"]:visible');
+  const before = await save.boundingBox();
+  expect(before).not.toBeNull(); expect(before!.y + before!.height).toBeLessThanOrEqual(900);
+  await enter(page, "cash.entry.counterparty_account", "visible-expanded-account");
+  const after = await save.boundingBox();
+  expect(after).not.toBeNull(); expect(Math.abs(before!.y - after!.y)).toBeLessThan(2);
+  await press(page, "cash.entry.save");
+  await expect.poll(api.commits).toBe(1);
+  expect(api.requests[0].patch).toMatchObject({ counterparty_account: "visible-expanded-account" });
+  expect(api.requests[0].patch).not.toHaveProperty("counterparty_account_attrs");
+});
+
 test("manual financial editing uses the current plan and never the retired PUT", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const api = await currentManual(page); await openManual(page);
@@ -156,14 +188,22 @@ test("current entry editing keeps one panel and retains unsaved input when conti
   expect(api.requests[1].patch).toEqual({ note: "继续编辑的备注" });
 });
 
-test("actual additional effects require confirmation and an in-flight save cannot be repeated or closed", async ({ page }) => {
+test("actual additional effects require confirmation and an in-flight save cannot be repeated or closed", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const api = await currentManual(page, true); api.holdCommit();
   try {
     await openManual(page); await press(page, "cash.current.edit");
     await enter(page, "cash.entry.note", "确认后的备注");
     await press(page, "cash.entry.save");
+    await expect(page.locator('[id="cash.entry.save"]:visible')).toHaveCount(0);
+    await expect(page.locator('[id="cash.entry.review"]:visible')).toBeVisible();
+    await expect(page.locator('[id="cash.entry.review"]:visible').getByText("现金商户", { exact: true })).toHaveCount(1);
+    await press(page, "cash.maintenance.cancel");
+    await expect(page.locator('[id="cash.entry.note"]:visible')).toContainText("确认后的备注");
+    await press(page, "cash.entry.save");
+    await expect(page.locator('[id="cash.entry.review"]:visible')).toBeVisible();
     const confirmation = await bounds(page, page.locator('[id="cash.maintenance.confirm"]:visible').last());
+    await page.screenshot({ path: info.outputPath("additional-effects-confirmation.png") });
     const close = await page.locator('[id="ledger.record-panel.close"]:visible').last().boundingBox();
     await page.mouse.click(confirmation.x + confirmation.width / 2, confirmation.y + confirmation.height / 2);
     await expect.poll(api.commits).toBe(1);

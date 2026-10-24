@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -23,65 +24,77 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     var scopeLabel by remember { mutableStateOf("") }
     val busy = !state.canEdit || accountState.busy
     Column(modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(localizedText("cash_import_files_heading"), style = MaterialTheme.typography.titleLarge)
-        state.context?.files.orEmpty().forEach { file ->
-            key(file.fileRef) {
-                var password by remember { mutableStateOf("") }
-                Column(Modifier.fillMaxWidth().testTag("cash.import.file-${file.fileRef}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(file.displayName, style = MaterialTheme.typography.titleMedium)
-                    Text(localizedText(when (file.status) {
-                        "ready" -> "cash_import_file_ready"
-                        "partial" -> "cash_import_file_partial"
-                        "password_required" -> "cash_import_file_password"
-                        else -> "cash_import_file_failed"
-                    }), color = if (file.status in setOf("password_required", "failed")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
-                    file.issues.distinctBy { it.code }.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
-                    if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
-                        visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
-                        modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
-                        TextButton(onClick = { onPick(file.fileRef) }, enabled = !busy) { Text(localizedText("cash_import_replace_file")) }
-                        if (file.sourceType == "wechat") TextButton(onClick = { scopeFile = file; scopeLabel = file.sourceScopeLabel.orEmpty() }, enabled = !busy) {
-                            Text(localizedText("cash_import_source_settings"))
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(localizedText("cash_import_files_heading"), style = MaterialTheme.typography.titleLarge)
+                OutlinedButton(onClick = { onPick(null) }, enabled = !busy && state.context?.files.orEmpty().size < 20,
+                    modifier = Modifier.testTag("cash.import.add-files")) { Text(localizedText("copy_7c3a726882")) }
+            }
+            state.context?.files.orEmpty().forEach { file ->
+                key(file.fileRef) {
+                    var password by remember { mutableStateOf("") }
+                    OutlinedCard(Modifier.fillMaxWidth().testTag("cash.import.file-${file.fileRef}")) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(file.displayName, style = MaterialTheme.typography.titleMedium)
+                            Text(localizedText(when (file.status) {
+                                "ready" -> "cash_import_file_ready"
+                                "partial" -> "cash_import_file_partial"
+                                "password_required" -> "cash_import_file_password"
+                                else -> "cash_import_file_failed"
+                            }), color = if (file.status in setOf("password_required", "failed")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+                            file.issues.distinctBy { it.code }.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
+                            if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
+                                visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
+                                modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
+                                TextButton(onClick = { onPick(file.fileRef) }, enabled = !busy) { Text(localizedText("cash_import_replace_file")) }
+                                if (file.sourceType == "wechat") TextButton(onClick = { scopeFile = file; scopeLabel = file.sourceScopeLabel.orEmpty() }, enabled = !busy) {
+                                    Text(localizedText("cash_import_source_settings"))
+                                }
+                                TextButton(onClick = { removing = file }, enabled = !busy) { Text(localizedText("cash_import_remove_file")) }
+                            }
                         }
-                        TextButton(onClick = { removing = file }, enabled = !busy) { Text(localizedText("cash_import_remove_file")) }
                     }
-                    HorizontalDivider()
                 }
             }
-        }
-        state.localFileFailures.forEach { failure ->
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                fileNames[failure.clientFileRef]?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
-                Text(cashImportTaskErrorText(failure.code), color = MaterialTheme.colorScheme.error)
-            }
-        }
-        OutlinedButton(onClick = { onPick(null) }, enabled = !busy && state.context?.files.orEmpty().size < 20,
-            modifier = Modifier.testTag("cash.import.add-files")) { Text(localizedText("copy_7c3a726882")) }
-        if (state.context?.sourceAccounts.orEmpty().isNotEmpty()) {
-            Text(localizedText("cash_import_accounts_heading"), style = MaterialTheme.typography.titleLarge)
-            state.context?.sourceAccounts.orEmpty().forEach { group ->
-                val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
-                Column(Modifier.widthIn(max = 720.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
-                        accountState.accounts.filter { it.active && it.type in setOf("cash", "loan", "lend") || it.id == target?.accountId }.map { it.id to it.name }
-                    ChoicePicker(group.displayName, target?.accountId.orEmpty(), accountOptions,
-                        { onSelectAccount(group.sourceAccountRef, it.takeIf(String::isNotEmpty)) }, enabled = !busy && accountState.ready,
-                        semanticId = "cash.import.account-${group.sourceAccountRef}")
-                    target?.accountId?.let { id -> TextButton(onClick = { onEditAccount(id) }, enabled = !busy) { Text(localizedText("cash_import_edit_account")) } }
+            state.localFileFailures.forEach { failure ->
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    fileNames[failure.clientFileRef]?.let { Text(it, style = MaterialTheme.typography.titleSmall) }
+                    Text(cashImportTaskErrorText(failure.code), color = MaterialTheme.colorScheme.error)
                 }
             }
-            OutlinedButton(onClick = onCreateAccount, enabled = !busy && accountState.ready,
-                modifier = Modifier.testTag("cash.import.create-account")) { Text(localizedText("cash_import_create_account")) }
-        }
-        if (accountState.pendingKeys.isNotEmpty()) {
-            Text(localizedText("cash_import_account_unknown"), color = LocalFinanceColorRoles.current.warning)
-            TextButton(onClick = onResolveAccounts, enabled = !busy, modifier = Modifier.testTag("cash.import.resolve-accounts")) {
-                Text(localizedText("cash_import_check_result"))
+            if (state.context?.sourceAccounts.orEmpty().isNotEmpty()) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(localizedText("cash_import_accounts_heading"), style = MaterialTheme.typography.titleLarge)
+                    OutlinedButton(onClick = onCreateAccount, enabled = !busy && accountState.ready,
+                        modifier = Modifier.testTag("cash.import.create-account")) { Text(localizedText("cash_import_create_account")) }
+                }
+                state.context?.sourceAccounts.orEmpty().forEach { group ->
+                    val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
+                    OutlinedCard(Modifier.fillMaxWidth().testTag("cash.import.account-group-${group.sourceAccountRef}")) {
+                        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(group.displayName, Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                                target?.accountId?.let { id -> TextButton(onClick = { onEditAccount(id) }, enabled = !busy) { Text(localizedText("cash_import_edit_account")) } }
+                            }
+                            val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
+                                accountState.accounts.filter { it.active && it.type in setOf("cash", "loan", "lend") || it.id == target?.accountId }.map { it.id to it.name }
+                            ChoicePicker(localizedText("copy_c3d92b20c8"), target?.accountId.orEmpty(), accountOptions,
+                                { onSelectAccount(group.sourceAccountRef, it.takeIf(String::isNotEmpty)) }, enabled = !busy && accountState.ready,
+                                semanticId = "cash.import.account-${group.sourceAccountRef}")
+                        }
+                    }
+                }
             }
+            if (accountState.pendingKeys.isNotEmpty()) {
+                Text(localizedText("cash_import_account_unknown"), color = LocalFinanceColorRoles.current.warning)
+                TextButton(onClick = onResolveAccounts, enabled = !busy, modifier = Modifier.testTag("cash.import.resolve-accounts")) {
+                    Text(localizedText("cash_import_check_result"))
+                }
+            }
+            accountState.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
         }
-        accountState.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
     }
     removing?.let { file -> AlertDialog(onDismissRequest = { removing = null }, title = { Text(localizedText("cash_import_remove_file_question", file.displayName)) },
         confirmButton = { TextButton(onClick = { removing = null; onRemove(file.fileRef) }, enabled = !busy) { Text(localizedText("cash_import_remove_file")) } },

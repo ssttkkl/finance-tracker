@@ -74,18 +74,28 @@ internal fun CashCreationPanel(state: CashCreationState, accounts: List<Account>
 private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<Account>, sizeClass: WindowSizeClass,
     busy: Boolean, onChange: (CashTransferInput) -> Unit) {
     val choices = listOf("" to localizedText("display_not_provided")) + accounts.filter { it.active }.map { it.id.toString() to it.name }
+    Text(localizedText("cash_transfer_out"), style = MaterialTheme.typography.titleSmall)
     ChoicePicker(localizedText("cash_from_account"), input.fromAccountId, choices, { value ->
         onChange(input.copy(fromAccountId = value, fromCurrency = accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull().orEmpty()))
     }, enabled = !busy, semanticId = "cash.create.from-account")
-    CashTransferCurrency(input.fromCurrency, input.fromAccountId, accounts, busy, "cash.create.from-currency") { onChange(input.copy(fromCurrency = it)) }
-    OutlinedTextField(input.amount, { onChange(input.copy(amount = it)) }, label = { Text(localizedText("cash_from_amount")) },
-        enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.create.from-amount"))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(input.amount, { onChange(input.copy(amount = it)) }, label = { Text(localizedText("cash_from_amount")) },
+            enabled = !busy, singleLine = true, modifier = Modifier.weight(if (sizeClass == WindowSizeClass.COMPACT) 2f else 1f).testTag("cash.create.from-amount"))
+        CashTransferCurrency(input.fromCurrency, input.fromAccountId, accounts, busy, "cash.create.from-currency", Modifier.weight(1f)) { onChange(input.copy(fromCurrency = it)) }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(localizedText("cash_transfer_in"), style = MaterialTheme.typography.titleSmall)
     ChoicePicker(localizedText("cash_to_account"), input.toAccountId, choices, { value ->
         onChange(input.copy(toAccountId = value, toCurrency = accounts.firstOrNull { it.id.toString() == value }?.currencies?.firstOrNull().orEmpty()))
     }, enabled = !busy, semanticId = "cash.create.to-account")
-    CashTransferCurrency(input.toCurrency, input.toAccountId, accounts, busy, "cash.create.to-currency") { onChange(input.copy(toCurrency = it)) }
-    if (input.fromCurrency != input.toCurrency) OutlinedTextField(input.toAmount, { onChange(input.copy(toAmount = it)) },
-        label = { Text(localizedText("cash_to_amount")) }, enabled = !busy, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.create.to-amount"))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (input.fromCurrency != input.toCurrency) OutlinedTextField(input.toAmount, { onChange(input.copy(toAmount = it)) },
+            label = { Text(localizedText("cash_to_amount")) }, enabled = !busy, singleLine = true,
+            modifier = Modifier.weight(if (sizeClass == WindowSizeClass.COMPACT) 2f else 1f).testTag("cash.create.to-amount"))
+        CashTransferCurrency(input.toCurrency, input.toAccountId, accounts, busy, "cash.create.to-currency", Modifier.weight(1f)) { onChange(input.copy(toCurrency = it)) }
+    }
+    Spacer(Modifier.height(8.dp))
+    Text(localizedText("cash_booking_information"), style = MaterialTheme.typography.titleSmall)
     DateTimePickerInput(input.occurredAt, { onChange(input.copy(occurredAt = it)) }, localizedText("copy_51f85a78ca"), sizeClass,
         enabled = !busy, modifier = Modifier.testTag("cash.create.transfer-time"))
     OutlinedTextField(input.note, { onChange(input.copy(note = it)) }, label = { Text(localizedText("copy_e0361480e3")) },
@@ -93,7 +103,7 @@ private fun CashTransferCreationFields(input: CashTransferInput, accounts: List<
 }
 
 @Composable
-private fun CashTransferCurrency(value: String, accountId: String, accounts: List<Account>, busy: Boolean, id: String, onChange: (String) -> Unit) {
+private fun CashTransferCurrency(value: String, accountId: String, accounts: List<Account>, busy: Boolean, id: String, modifier: Modifier = Modifier, onChange: (String) -> Unit) {
     val currencies = (accounts.firstOrNull { it.id.toString() == accountId }?.currencies.orEmpty() + value).distinct()
-    ChoicePicker(localizedText("copy_a81ab5e100"), value, currencies.map { it to it }, onChange, enabled = !busy, semanticId = id)
+    ChoicePicker(localizedText("copy_a81ab5e100"), value, currencies.map { it to it }, onChange, modifier = modifier, enabled = !busy, semanticId = id)
 }

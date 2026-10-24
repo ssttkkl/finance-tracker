@@ -139,59 +139,88 @@ internal fun cashBusinessFieldValue(field: String, value: StructuredValue?, acco
 
 @Composable
 internal fun CashMaintenanceConfirmation(state: CashRecordTaskState, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
-    onConfirm: () -> Unit, onCancel: () -> Unit) {
+    onConfirm: () -> Unit, onCancel: () -> Unit, showActions: Boolean = true) {
     val plan = state.plan ?: return
     Column(Modifier.fillMaxWidth().testTag("cash.maintenance.confirmation"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(localizedText("cash_confirm_changes"), style = MaterialTheme.typography.titleMedium)
-        val unresolvedEffect = plan.additionalEffects.orEmpty().any { cashEffectTargets(it, state.details, state.input).isEmpty() }
-        plan.additionalEffects.orEmpty().forEach { effect ->
-            val label = when (effect.kind) {
-                "field_value_changed" -> "cash_effect_fields"
-                "relation_changed" -> "cash_effect_relations"
-                "funding_relation_removed" -> "cash_effect_funding"
-                "choice_changed" -> "cash_effect_choices"
-                "new_attention" -> "cash_effect_attention"
-                else -> "cash_confirm_changes"
-            }
-            Text(localizedText(label), style = MaterialTheme.typography.bodyMedium)
-            val targets = cashEffectTargets(effect, state.details, state.input)
-            targets.forEach { id ->
-                state.affectedRecords[id]?.let { before ->
-                    CashAffectedRecordSummary(before.fields)
+        val unresolvedEffect = cashHasUnresolvedEffects(state)
+        val differences = state.details.flatMap { it.fieldDiffs }.filter { it.current != it.effective }.distinct()
+        val effects = plan.additionalEffects.orEmpty().map { it to cashEffectTargets(it, state.details, state.input) }
+        val targets = (effects.flatMap { it.second } + differences.mapNotNull { it.transactionId }).distinct()
+        targets.forEachIndexed { index, id ->
+            if (index > 0) HorizontalDivider()
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                state.affectedRecords[id]?.let { CashAffectedRecordSummary(it.fields) }
+                val targetDiffs = differences.filter { it.transactionId == id }
+                effects.filter { id in it.second }.forEach { (effect, _) ->
+                    if (!cashEffectHasVisibleDiff(effect, targetDiffs)) {
+                        Text(localizedText(cashMaintenanceEffectLabel(effect.kind)), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
-            }
-            plan.items.filter { item -> item.members.any { it.transactionId in targets } }.forEach { item ->
-                Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
-                Text(listOfNotNull(item.display.amount ?: "—", item.display.currency).joinToString(" "), style = MaterialTheme.typography.titleMedium)
-                item.display.counterparty?.takeIf { it.isNotBlank() }?.let { Text(it) }
-                Text(localDateTimeDisplayLabel(item.display.occurredAt), style = MaterialTheme.typography.bodySmall)
-                if (item.display.accounts.isNotEmpty()) Text(item.display.accounts.joinToString(" / "), style = MaterialTheme.typography.bodySmall)
+                targetDiffs.forEach { CashMaintenanceFieldDifference(it, accounts, categories, options) }
             }
         }
-        state.details.flatMap { it.fieldDiffs }.filter { it.current != it.effective }.distinct().forEach { diff ->
-            cashFieldLabel(diff.field)?.let {
-                diff.transactionId?.let { id -> state.affectedRecords[id]?.let { before -> CashAffectedRecordSummary(before.fields) } }
-                Text(localizedText(it), style = MaterialTheme.typography.labelMedium)
-                if (diff.field in setOf("source_payload", "components")) {
-                    Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
-                    CashSourcePatchValue(diff.field, diff.current, accounts)
-                    Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
-                    CashSourcePatchValue(diff.field, diff.effective, accounts)
-                } else {
-                    Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
-                    Text(cashBusinessFieldValue(diff.field, diff.current, accounts, categories, options))
-                    Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
-                    Text(cashBusinessFieldValue(diff.field, diff.effective, accounts, categories, options))
-                }
+        effects.filter { it.second.isEmpty() }.forEach { (effect, _) ->
+            Text(localizedText(cashMaintenanceEffectLabel(effect.kind)), style = MaterialTheme.typography.bodyMedium)
+        }
+        differences.filter { it.transactionId == null }.forEach { CashMaintenanceFieldDifference(it, accounts, categories, options) }
+        val previewTargets = effects.filter { (effect, ids) ->
+            effect.kind != "field_value_changed" || ids.any { id ->
+                !cashEffectHasVisibleDiff(effect, differences.filter { it.transactionId == id })
             }
+        }.flatMap { it.second }.toSet()
+        plan.items.filter { item -> item.members.any { it.transactionId in previewTargets } }.forEach { item ->
+            Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
+            Text(listOfNotNull(item.display.amount ?: "—", item.display.currency).joinToString(" "), style = MaterialTheme.typography.titleMedium)
+            item.display.counterparty?.takeIf { it.isNotBlank() }?.let { Text(it) }
+            Text(localDateTimeDisplayLabel(item.display.occurredAt), style = MaterialTheme.typography.bodySmall)
+            if (item.display.accounts.isNotEmpty()) Text(item.display.accounts.joinToString(" / "), style = MaterialTheme.typography.bodySmall)
         }
         if (unresolvedEffect) Text(localizedText("cash_effect_unavailable"), color = MaterialTheme.colorScheme.error)
         if (state.previewDirty || plan.invalidatedChoices.isNotEmpty()) Text(localizedText("cash_preview_needs_refresh"), color = MaterialTheme.colorScheme.error)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved) { Text(localizedText("copy_4d0b4688c7")) }
-            Button(onClick = onConfirm, enabled = !state.busy && !state.unresolved && !state.previewDirty && !unresolvedEffect && plan.canCommit && plan.invalidatedChoices.isEmpty(),
-                modifier = Modifier.testTag("cash.maintenance.confirm")) { Text(localizedText("copy_fadf24dbc5")) }
-        }
+        if (showActions) CashMaintenanceConfirmationActions(state, onConfirm, onCancel)
+    }
+}
+
+private fun cashEffectHasVisibleDiff(effect: CashAdditionalEffect, differences: List<ImportFieldDiff>): Boolean =
+    effect.kind == "field_value_changed" && effect.field != null && cashFieldLabel(effect.field) != null && differences.any { it.field == effect.field }
+
+private fun cashMaintenanceEffectLabel(kind: String): String = when (kind) {
+    "field_value_changed" -> "cash_effect_fields"
+    "relation_changed" -> "cash_effect_relations"
+    "funding_relation_removed" -> "cash_effect_funding"
+    "choice_changed" -> "cash_effect_choices"
+    "new_attention" -> "cash_effect_attention"
+    else -> "cash_confirm_changes"
+}
+
+@Composable
+private fun CashMaintenanceFieldDifference(diff: ImportFieldDiff, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions) {
+    val label = cashFieldLabel(diff.field) ?: return
+    Text(localizedText(label), style = MaterialTheme.typography.titleSmall)
+    if (diff.field in setOf("source_payload", "components")) {
+        Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
+        CashSourcePatchValue(diff.field, diff.current, accounts)
+        Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
+        CashSourcePatchValue(diff.field, diff.effective, accounts)
+    } else {
+        Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
+        Text(cashBusinessFieldValue(diff.field, diff.current, accounts, categories, options))
+        Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
+        Text(cashBusinessFieldValue(diff.field, diff.effective, accounts, categories, options))
+    }
+}
+
+private fun cashHasUnresolvedEffects(state: CashRecordTaskState): Boolean =
+    state.plan?.additionalEffects.orEmpty().any { cashEffectTargets(it, state.details, state.input).isEmpty() }
+
+@Composable
+internal fun CashMaintenanceConfirmationActions(state: CashRecordTaskState, onConfirm: () -> Unit, onCancel: () -> Unit) {
+    val plan = state.plan ?: return
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        TextButton(onClick = onCancel, enabled = !state.busy && !state.unresolved, modifier = Modifier.testTag("cash.maintenance.cancel")) { Text(localizedText("copy_4d0b4688c7")) }
+        Button(onClick = onConfirm, enabled = !state.busy && !state.unresolved && !state.previewDirty && !cashHasUnresolvedEffects(state) && plan.canCommit && plan.invalidatedChoices.isEmpty(),
+            modifier = Modifier.testTag("cash.maintenance.confirm")) { Text(localizedText("cash_confirm_save")) }
     }
 }
 

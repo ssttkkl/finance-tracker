@@ -36,11 +36,13 @@ private fun CashTransferMemberFields(values: Map<String, String>, accounts: List
             val currencies = accounts.firstOrNull { it.id.toString() == value }?.currencies.orEmpty()
             onChange(values + ("account_id" to value) + ("currency" to (currency.takeIf { it in currencies } ?: currencies.firstOrNull().orEmpty())))
         }, enabled = !busy, semanticId = "cash.entry.$role-account")
-    ChoicePicker(localizedText("copy_a81ab5e100"), currency, (account?.currencies.orEmpty() + currency).distinct().map { it to it },
-        { onChange(values + ("currency" to it)) }, enabled = !busy, semanticId = "cash.entry.$role-currency")
-    if (amountEditable) OutlinedTextField(values["amount"].orEmpty(), { onChange(values + ("amount" to it)) },
-        label = { Text(localizedText(if (role == "outgoing") "cash_from_amount" else "cash_to_amount")) }, enabled = !busy, singleLine = true,
-        modifier = Modifier.fillMaxWidth().testTag("cash.entry.$role-amount"))
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (amountEditable) OutlinedTextField(values["amount"].orEmpty(), { onChange(values + ("amount" to it)) },
+            label = { Text(localizedText(if (role == "outgoing") "cash_from_amount" else "cash_to_amount")) }, enabled = !busy, singleLine = true,
+            modifier = Modifier.weight(if (sizeClass == WindowSizeClass.COMPACT) 2f else 1f).testTag("cash.entry.$role-amount"))
+        ChoicePicker(localizedText("copy_a81ab5e100"), currency, (account?.currencies.orEmpty() + currency).distinct().map { it to it },
+            { onChange(values + ("currency" to it)) }, modifier = Modifier.weight(1f), enabled = !busy, semanticId = "cash.entry.$role-currency")
+    }
     DateTimePickerInput(values["occurred_at"].orEmpty(), { onChange(values + ("occurred_at" to it)) }, localizedText("copy_51f85a78ca"),
         sizeClass, enabled = !busy, modifier = Modifier.testTag("cash.entry.$role-time"))
 }

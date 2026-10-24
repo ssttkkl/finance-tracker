@@ -755,4 +755,7 @@
     <string name="cash_import_processing_details">未导入及重复内容</string>
     <string name="cash_import_not_imported">未导入</string>
     <string name="cash_import_duplicate">已存在，未重复导入</string>
+    <string name="cash_booking_information">记账信息</string>
+    <string name="cash_counterparty_information">对方信息</string>
+    <string name="cash_confirm_save">确认保存</string>
 </resources>

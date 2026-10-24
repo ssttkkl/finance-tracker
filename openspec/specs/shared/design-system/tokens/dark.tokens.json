@@ -13,6 +13,7 @@
     "color.semantic.overlay": { "type": "color", "value": "#18181B" },
     "color.semantic.field": { "type": "color", "value": "#18181B" },
     "color.semantic.fieldBorder": { "type": "color", "value": "#3F3F46" },
+    "color.semantic.accentForeground": { "type": "color", "value": "#060607" },
     "color.semantic.focus": { "type": "color", "value": "#0485F7" },
     "color.semantic.danger": { "type": "color", "value": "#F04438" },
     "color.semantic.warning": { "type": "color", "value": "#FDBA74" },

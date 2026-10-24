@@ -75,7 +75,7 @@ internal fun CashCurrentRecordPanel(
             }
         }) else null,
     ) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 16.dp).testTag("cash.current.detail"),
+        Column(Modifier.fillMaxSize().then(if (entryEditing) Modifier else Modifier.verticalScroll(rememberScrollState())).padding(vertical = 16.dp).testTag("cash.current.detail"),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
             if (state.busy && record == null) CircularProgressIndicator(Modifier.testTag("cash.current.loading"))
             if (state.unresolved) {
@@ -95,27 +95,16 @@ internal fun CashCurrentRecordPanel(
                 TextButton(onClick = onRetry, enabled = !state.busy) { Text(localizedText("copy_e2d53a6d3a")) }
             }
             if (record != null) {
-                val common = record.entry?.fields?.fields ?: record.fields.fields
                 val editingFields = if (entryEditing) cashEntryEditableFields(record).toSet() +
                     (if (cashTransferEntryMembers(record, state.transferMembers) != null) cashTransferFinancialFields else emptyList()) else emptySet()
-                if ("amount" !in editingFields) Text(projection?.let(::cashProjectionAmountLabel) ?: listOfNotNull(record.fields.fields["amount"].cashText() ?: "—", record.fields.fields["currency"].cashText()).joinToString(" "),
-                    style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("cash.current.amount"))
-                if ("counterparty" !in editingFields) common["counterparty"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-                if ("note" !in editingFields) common["note"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                val occurredAt = record.fields.fields["occurred_at"].cashText()
-                if ("occurred_at" !in editingFields) Text(localDateTimeDisplayLabel(occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                projection?.let {
-                    val summary = buildList {
-                        if ("account_id" !in editingFields) add(cashProjectionAccountLabel(it))
-                        if ("category_id" !in editingFields) add(cashCategoryDisplayPath(it.category))
-                    }
-                    if (summary.isNotEmpty()) Text(summary.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
-                }
+                if (!entryEditing) CashCurrentRecordSummary(record, projection, editingFields, accounts, categories, options)
                 if (entryEditing && onSaveEntry != null) {
                     CashEntryEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
                         state.busy || state.unresolved || state.plan != null, onInput = { entryDirty = it }, onCancel = requestCancelEntry, onSave = onSaveEntry,
-                        transferMembers = state.transferMembers)
-                    if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan)
+                        transferMembers = state.transferMembers, modifier = Modifier.weight(1f),
+                        summary = { CashCurrentRecordSummary(record, projection, editingFields, accounts, categories, options) },
+                        confirmation = { if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan, showActions = false) },
+                        actions = if (state.plan != null && !state.unresolved) ({ CashMaintenanceConfirmationActions(state, onConfirmPlan, onCancelPlan) }) else null)
                 } else {
                     if (record.state == "draft") {
                         val problems = cashDraftEditingIssues(record)

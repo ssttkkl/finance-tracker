@@ -74,6 +74,22 @@ flowchart TD
 
 后端变更保留服务器读取／统计与领域合同；本变更只增加真实页面验收，不复制后端算法。其原 4.12.4 的草稿、来源及关联页面任务移交本变更，正式公共编辑由编辑变更负责。旧 `compose-cash-ledger-redesign` 保留布局和未验收演示，不能再恢复逐条来源编辑或直接关联写入；通用 M3 合同继续适用。
 
+### 修改前视觉基线与详情组织
+
+以实施前 `8aa0b40` 的 Compose 源码及 `d0b15a9` 的详情截图为基线；保留当前外层面板和主题。恢复有语义色及等宽数字的金额、交易对方标题、类型和时间次级行，以及带标题／分隔线的“流水信息”标签值卡片。固定信息只读摘要与可编辑输入不重复。待处理警示卡继续位于摘要下方，来源保持按需展开，不恢复来源逐条编辑或任意关系写入。
+
+移除无标签散排的账户／分类／备注及重复摘要，不增添功能说明和新视觉系统。
+
+### 官方 Material 3 页面复核
+
+按用户要求实际打开官方页面并读取 JavaScript 渲染正文，不以技能摘要代替。参考 [Expressive](https://m3.material.io/foundations/usability/applying-m-3-expressive)、[间距](https://m3.material.io/foundations/layout/grids-spacing/spacing)、[文字层级](https://m3.material.io/styles/typography/applying-type)、[卡片](https://m3.material.io/components/cards/guidelines)、[按钮](https://m3.material.io/components/buttons/guidelines)、[文本输入](https://m3.material.io/components/text-fields/guidelines) 及其 [无障碍](https://m3.material.io/components/text-fields/accessibility)、[侧面板](https://m3.material.io/components/side-sheets/guidelines)、[列表与详情](https://m3.material.io/foundations/layout/canonical-examples/list-detail)、[状态](https://m3.material.io/foundations/interaction/states/overview) 和 [对比度](https://m3.material.io/foundations/designing/color-contrast)。
+
+组件另读文本输入、卡片、按钮及侧面板的 `overview`／`specs` 正文：输入使用默认 outlined 状态、标签与 supporting error；卡片只归拢同一主题，尺寸随内容；按钮沿用当前依赖的默认尺寸及主题角色；侧面板保留独立滚动和既有容器合同，不照搬官网新 API 或改变用户认可的面板宽度。
+
+落实为业务组内紧邻、组间留白、现有 type scale、单主题信息卡、独立滚动正文和固定主要操作；不把每个字段装进卡片，不增加按钮或装饰。额外影响确认时，正文切到本次变化，使用独立滚动位置；底部原保存栏由“取消／确认保存”替换，不能同时出现可用与禁用两组保存，或将确认内容埋在表单下。取消确认回到原表单并保留本次输入，不发送写命令。每个明确目标只展示一次当前摘要，字段变化紧邻该目标展示旧／新值；已由具体差异完整表达的字段影响不再重复整笔预计金额与对方，其他影响及必要的预计组结构完整保留，不按种类合并或丢弃不同目标／字段。分配控件归记账组，位于对方组之前；金额格式错误提供明确文字反馈。
+
+官方网页说明设计，当前 JetBrains Material3 API 与实际编译负责平台支持，不升级依赖。原始 Expressive 链接路径失效，使用站内当前链接。用户已确认加深交互蓝并达到对比度要求。浅色交互蓝采用既有品牌蓝 `#0A63B8`，焦点与其一致；深色保留原蓝 `#0485F7`，按钮前景使用既有深色背景色 `#060607`，避免深色操作文字随浅色一起变暗。两主题分别验收按钮标签与页面操作文字至少 4.5:1、焦点边界至少 3:1；颜色仍只从 Git token 生成，无新视觉系统。
+
 ## Risks / Trade-offs
 
 - Web 弹层关闭后无障碍树残留：Compose `1.12.1` 已复现上游 [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623)。用户明确保持当前版本，不升级 `1.13.0-beta01`；将该问题作为待解决缺陷，保留关闭后恢复语义树的失败回归，不将对应无障碍 QA 标为通过。业务交互继续按当前默认 Web 冒烟范围验证，Android、iOS 仅编译和单元测试。

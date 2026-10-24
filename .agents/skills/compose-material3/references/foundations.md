@@ -7,7 +7,7 @@
 | 主题 | 用于设计判断 | 官方细则 |
 |---|---|---|
 | Principles 与 usability | 先理解用户要完成的任务，令层级、布局和状态帮助用户判断下一步；不用装饰取代清晰结构。 | [设计原则](https://m3.material.io/foundations/overview/principles)、[可用性概览](https://m3.material.io/foundations/usability/overview) |
-| Applying M3 Expressive | 在熟悉、可预测的交互骨架上，用形状、排版、颜色和动效强化重要内容与操作；细则见 [Expressive 专页](expressive.md)。 | [Applying M3 Expressive](https://m3.material.io/foundations/usability/applying-m3-expressive) |
+| Applying M3 Expressive | 在熟悉、可预测的交互骨架上，用形状、排版、颜色和动效强化重要内容与操作；细则见 [Expressive 专页](expressive.md)。 | [Applying M3 Expressive](https://m3.material.io/foundations/usability/applying-m-3-expressive) |
 | Accessibility | 让信息可感知、可操作、可理解；检查文字缩放、颜色对比、触控目标、键盘/焦点、语义标签、读屏次序与动效偏好。Material 控件的默认支持不能替代页面级检查。 | [Assistive technology](https://m3.material.io/foundations/overview/assistive-technology)、[User needs](https://m3.material.io/foundations/building-for-all/user-needs)、[Co-design](https://m3.material.io/foundations/building-for-all/co-design) |
 | Contrast | 文字、图标和状态层使用对应的颜色角色；不要仅依赖颜色区分错误、选择或成功。 | [Color contrast](https://m3.material.io/foundations/designing/color-contrast) |
 

@@ -23,6 +23,8 @@
 - [x] 4.4 以失败测试实现已有完整关系组确认／延后／拒绝／解除、公共冲突选择及解除继承；移除任意关联搜索和直接关系写入。
 - [x] 4.5 接入编辑器插槽、当前分类／删除影响及保存后的稳定定位，集成合成演示；删除无人使用的旧详情和维护适配，未实现动作保持准确受限状态。
 
+- [x] 4.6 按修改前视觉基线恢复内容层级、业务字段分组及主要操作位置，保持现有新协议和用户已确认流程。
+
 ## 5. 审查
 
 - [x] 5.1 在独立上下文复核产品范围、工程、API 可发现性、恢复与隐私边界，记录 finding、处置和回写；阻断项修复后重审。
@@ -47,29 +49,32 @@
 
 ### 当前审查与验证
 
-用户确认并发处理仅保留后端识别及重试提示，不增加自动表单合并、修订替换重放或跨版本执行兼容路径；未知提交继续使用最小原键核实。业务公共值冲突选择不受此简化影响。
+2026-10-25，当前验证 `HEAD=5b42f96` 加本次工作树；生产代码比较基线 `099dfaa`，用户认可的视觉基线 `8aa0b40`（详情最近布局提交 `d0b15a9`）。本小步恢复现金 UI 层级和表单布局，并按用户确认调整交互蓝；不改变 VM、请求构造、财务运算、权限、存储或依赖。完整 change 的演示确认未取得，不归档。
 
-当前未解决缺陷：Web 的 Compose `1.12.1` 关闭详情弹层后画布已回到账本，无障碍树仍保留详情、账本语义节点不恢复；鼠标与 Escape 路径均复现。关联上游 [CMP-10623](https://youtrack.jetbrains.com/issue/CMP-10623)，用户明确不升级依赖。保留失败回归及 `/tmp/ft-compose-cash-evidence/after-close-390.png`；对应无障碍与返回 QA 未通过，其他业务实施继续，不据此勾选 UI 完成。
+Cross-platform Impact Check：共享详情、编辑／创建表单、导入准备和浅深主题语义色影响 Web、Android、iOS。Web 用 Chromium 真实操作当前 Compose；主流程 1440×900，金额／币种及表单布局补验 390×844、768×900，改色补验深色 1440×900。Android 编译及主机单测；iOS 仅共享编译，本轮平台单测、设备与应用包 QA 按用户决定不执行，不记通过。
 
-当前列表、详情、草稿与来源维护基础已提交 `0e523a1`，正式编辑、普通记账和完整转账已接入；旧详情／编辑／任意关联页面及 HTTP 客户端在 `808f87c` 清理。演示独立单笔曾携带旧组成值而误标“已合并”；先补展示与单笔筛选反例并复现失败，按真实关系合同修正演示值；单笔、完整转账及单笔／组合筛选回归和最终稳态截图已通过独立重审。当前小步完成候选完整成员展示、读取失败保护、失效重读及残余公共冲突处理。联合必要组、实际公共值冲突和明确解除继承已通过当前真实 API 冒烟；完整演示和最终用户确认仍未完成。
-
-独立产品／工程复核登记的三项 major 已分别回归并修复：候选未完整展示、旧失效选择无法退出、已解决公共字段阻塞剩余冲突。候选读取明确成员 ID 并校验已有详细成员修订；缺成员不接受，已知失效清理未发送计划，不迁移旧决定。非冲突公共键只允许当前计划显式返回且完全一致的值。截图自查精简重复摘要／逐成员“当前信息”及核对时不可用编辑页脚，保留金额、对方、账户、时间和非空备注，不改变品牌或组件。
-
-Cross-platform Impact Check：共享当前详情、关系输入、成员读取及失败状态影响 Web、Android、iOS；默认 Web 代表视口冒烟、Android 主机单测及编译、iOS 共享编译。本轮 iOS 平台单测、设备与应用包 QA 按用户决定不执行，不记通过或默认阻断。
-
-| 范围／命令 | 当前结果与证据 |
+| 验证 | 当前结果与证据 |
 |---|---|
-| 基线／时间 | 生产代码比较基线 `dc4b39e`，当前收尾 `HEAD=62e6240` 加测试迁移及 Demo 修复工作树，2026-10-25；候选小步验证基线 `808f87c`、最终代码提交 `2d800f3`；联合组及解除继承验证时 `HEAD=2d800f3`，比较基线同 HEAD，代码及最终 QA 产物指纹一致；2026-10-24，无后端、依赖或存储变化 |
-| 测试先行 | 候选完整读取／读取失败清理／失效重新核对：32 项中 3 项失败；重复完全一致组：6 项中 1 项失败；已解决字段保留及残余冲突：7 项中 1 项失败。最终均转绿。日志 `/tmp/ft-cash-relation-{candidates,repeated-group,residual-conflict}-red.log` |
-| 共享回归及构建 | 当前最终共享矩阵 Wasm 387／Android 主机 382 项，无失败或 skip；Web Demo 开发构建、Android 包及 iOS 共享编译成功，1m59。命令见 [导入记录](../compose-cash-import-workflow/tasks.md#当前实施与验证)，日志 `/tmp/ft-cash-demo-single-final-matrix.log`。本次同时修正演示的真实关系组成及筛选；普通单笔为空、转账为 `transfer_pair`，不以资金分配判断合并。共享完整回归及编译重新运行 |
-| 真实 API Web 冒烟 | Chromium，1440×900，`http://127.0.0.1:5308` 与专用合成 SQLite API `58792`，最终开发包指纹一致。实际待确认流水→核对关联→多候选全部真实成员→选择一组→一次预览提交→确认只有所选完整成员合并，另一候选独立；1/1 passed，9.7s，无新增控制台／请求／HTTP 错误。日志 `/tmp/ft-cash-relations-layout-real-web.log`；截图 `/tmp/ft-compose-cash-evidence/relation-{candidates,confirmed}-1440.png`。初始无滚动和错误 radio 角色定位已修正为实际控件操作，不记作产品回归 |
-| 来源与身份最终冒烟 | 2026-10-25，`HEAD=7a1ea9c` 加当前前端工作树，相同 Chromium／1440×900、开发包及专用合成 SQLite API：来源更新→查看当前／账单差异→采用→原身份保留、选中问题清除、字段与原文更新；身份草稿→未选目标物理点击不发送→明确选择已有流水→一次预览／提交→实际收据保留所选目标。2/2 passed，14.8s，无新增控制台／请求／HTTP 错误；日志 `/tmp/ft-cash-final-issues-confirmed-browser.log`，截图 `/tmp/ft-compose-cash-evidence/final-{source-review,source-adopted,identity-choice,identity-retained}-1440.png`。额外影响为空时正常一次完成，不要求重复确认；初始测试错误的目标顺序、文案及滚动假设已修正，不把测试定位失败列为产品缺陷 |
-| 单候选及失效 Web 回归 | 仓库 `compose-cash-relations.e2e.ts`，相同最终产物／Chromium／1440×900：单候选两个实际成员与真实账户名均可见，后端明确失效后无提交、旧表单清除、重读后新计划不携旧决定；1/1 passed，6.1s，诊断无新增错误。日志 `/tmp/ft-cash-relations-layout-fixture-web.log` |
-| 联合组／公共冲突／解除继承 | 当前 `HEAD=2d800f3`，相同 Chromium／1440×900／合成 API。两组已确认全额退款、待确认必要双镜像→单一四成员决定→实际人工备注冲突→选择共同值→一次提交合并净额零；解除前未选继承物理点击不发送请求→明确 `inherit_common_fields=false`→一次拆回两组原退款成员、共同人工备注不继承、两笔零额保留。1/1 passed，20.2s，无新增控制台／请求／HTTP 错误，独立合同／范围重审通过。日志 `/tmp/ft-cash-joint-real-web.log`；截图 `/tmp/ft-compose-cash-evidence/joint-{public-conflict,unlink-inheritance}-1440.png` |
-| 工具及文档 | Node 3/3、OpenSpec strict 37/37、doctor healthy、本地 Markdown 链接／锚点及 `git diff --check`。日志 `/tmp/ft-cash-ui-final-{node.log,specs.json,doctor.json}`。功能地图、现金流水说明、规格场景与 apply 参考原位对齐；无新术语，README、接口示例、配置及部署不变 |
-| Hallmark／独立设计 | 对最终实际候选及确认后截图执行 Hallmark audit、可见文字必要性与范围术语检查；独立设计复核 0 critical／0 major／0 minor，最终 diff 无剩余 blocking／major，三项 major 重审关闭。联合组／冲突／继承两张最终截图独立 Hallmark／设计复核同为 0 critical／0 major／0 minor，生产流程验收可关闭 4.4。完整用户演示与确认仍由 6.5 承载，不以本小步代替 |
-| 剩余范围与已知缺陷 | 原有草稿、来源及编辑证据见 `0e523a1` 及编辑模块记录，不把旧截图当本次全量验收。联合关系组、公共人工值及解除继承的生产流程已验证；来源／身份问题已补真实 API 最终冒烟及独立设计复核，演示用户确认待完成，统一导入剩余分支按 workflow 记录。Compose 1.12.1 弹层树停更及禁用状态缺陷保留，不升级；10k 性能独立待办不变 |
-| 离线演示准备 | 基线 `62e6240`，2026-10-25，离线 Demo 输入／产物指纹一致；`http://127.0.0.1:5309/w/demo-workspace/` 的导入、当前详情编辑及普通／转账创建 3/3 passed、18.7s，零 API 请求及 JS 异常（`/tmp/ft-cash-offline-final-verified.log`）。普通创建稳态取证重跑 1/1、9.3s，最终八图独立 Hallmark／M3 复核 0 critical／0 major／0 minor（`/tmp/ft-cash-offline-booking-stable.log`）。本轮 iOS 平台单测及设备 QA 依用户决定未执行。复杂来源／身份／关系维护沿用已列真实 API 证据，离线演示不实现完整后端引擎，不据此宣称穷举或已获用户确认；6.5 继续未完成。 |
-| 发布与回退 | 只写合成账本，无新增金额、权限、后端或持久化规则，不重复未受影响的双库／后端完整回归。回退可撤回当前展示及状态接线，不重新启用旧协议；PR／合并／部署没有授权。防复发由实际成员、单候选、失效无重放及残余冲突回归保护 |
+| 测试先行 | 金额／币种拆行、非空账号属性缺失、重复保存栏、确认摘要重复三次及旧配色对比度分别先失败再修复。日志 `/tmp/ft-cash-ui-{restore-red,attrs-red,confirm-red,confirm-duplicate-red}.log`、`/tmp/ft-cash-interaction-blue-red.log`；永久回归位于 `compose-cash-manual.e2e.ts` 和 `FinanceTokensTest.kt` |
+| 共享回归及构建 | `FT_COMPOSE_DEMO_MODE=false FT_API_ORIGIN=http://127.0.0.1:58792 ./compose/gradlew -p compose :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache` 成功，1m17；Wasm 388／Android 主机 383 项，零失败、错误及 skip。日志 `/tmp/ft-cash-ui-reviewed-matrix.log` |
+| 当前 HTTP 合同 Web 冒烟 | `playwright test --config=/tmp/ft-cash-current-contract.config.cjs`，Chromium、1440×900、`http://127.0.0.1:5308`，源码／产物指纹一致。entry／import／manual／relations 共 21 用例，整轮 20 通过；entry 用例因测试输入尾字未同步即保存失败，改为失焦、等待 Compose 输入同步并检查完整值后，原精确请求断言独立 1/1 通过（6.2s），未修改产品输入或放宽断言。日志 `/tmp/ft-cash-ui-final-contract.log`、`/tmp/ft-cash-ui-final-entry.log`。这些用例使用当前 HTTP 合同夹具，不称作本轮真实后端验收；之前真实 API 业务证据见下文 |
+| 直接相关状态 | 实际滚动完整表单，金额与币种同排，固定保存位置不变；非法金额显示文字、保存拒绝且零请求；非空账号属性保留；出现实际影响后仅显示确认正文和一组固定操作，取消后输入仍在，再保存一次提交；同笔商户摘要严格一次。来源／成员只读、普通及转账模式留输入、忙碌防重、放弃无写入、导入异常只错误／原因／返回等原合同回归保留。fixture 浏览器无新增 console error、failed request 或静态资源 HTTP 错误 |
+| 当前演示 | `FT_COMPOSE_DEMO_MODE=true FT_API_ORIGIN='' ./compose/gradlew -p compose :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache` 构建成功 26s，输入／产物指纹一致；`playwright test --config=/tmp/ft-cash-ui-restored.config.cjs` 7/7 passed，34.7s，日志 `/tmp/ft-cash-ui-final-demo{,-build}.log`。URL `http://127.0.0.1:5309/w/demo-workspace/`；实际导入准备→统一核对→摘要→返回、详情编辑保存、普通／转账创建及三窗口金额布局走通，完整主流程零 API 请求和 JS 异常。截图 `/tmp/ft-cash-ui-restored/offline-*-1440.png`、`booking-{compact,regular,dark}.png`、`transfer-{compact,regular,dark}.png`，确认及校验截图位于 `/tmp/ft-cash-current-contract-results/`。演示为合成内存数据，不写真实账本，不实现完整后端关系引擎，不替代真实 API 合同验收 |
+| 对比度／生成 | `python3 scripts/generate_ui_tokens.py` 真实生成并重复运行字节一致；浅色交互蓝 `#0A63B8` 对白色 6.02:1；深色原蓝 `#0485F7` 对深色按钮文字 5.50:1、页面 surface 4.81:1。自动回归覆盖按钮、页面文字与焦点边界，分别至少 4.5:1、3:1；不在页面硬编码 |
+| 工具／链接 | Node `npm run test:node` 3/3，日志 `/tmp/ft-cash-ui-restore-node.log`。OpenSpec strict 37/37、doctor healthy，日志 `/tmp/ft-cash-ui-restored-{specs,doctor}.json`；当前所属 13 个 Markdown 文件链接／锚点及 `git diff --check` 通过；新增文案仅记账信息／对方信息／确认保存，范围搜索无新增实现术语或教学文字 |
+| 独立审查 | 工程／范围最终 diff 无新增 blocking／major，保留输入 remember、原 modal key 和全部确认门禁；不同目标／字段／影响没有被去重丢失。最终实际 10 张截图独立 Hallmark audit／设计复核 0 critical／0 major／0 minor；包括确认、详情、编辑、准备、普通／转账、compact／regular／dark。下表全部发现修复后重审关闭，不沿用旧截图结论 |
+| 限制／回退 | Compose `1.12.1`／Material3 `1.12.0-alpha03` 未升级；已登记弹层关闭后语义树停更及禁用状态缺陷保留，画布操作通过不代表屏幕阅读器通过，输入 supporting text 的 DOM 镜像缺失也不宣称无障碍通过。回退只撤回本小步展示及 token，不恢复旧协议。无后端／存储改动，不重跑未受影响双库、性能与后端完整矩阵 |
 
-当前测试迁移验证：Chromium／1440×900、`http://127.0.0.1:5308`，entry／import／manual／relations 20/20 passed，1.9m，日志 `/tmp/ft-cash-current-contract-verified.log`；无新增控制台、请求及静态资源错误。独立范围复核保留所有有效任务，遮罩／拖动和放弃采用真实画布精确相等及实际请求计数，不把已知语义树缺陷混为通过。迁移范围：`compose-pages.e2e.ts` 的旧 F-04 全字段 PUT、任意关联、详情单条删除及其专属夹具退役。普通创建／手动编辑、同详情容器、未保存确认、保存保护与遮罩／拖动由当前协议代表视口用例承接；已有 F-03 投影删除确认／取消／失败保护保留，不恢复已删除入口。旧 ChoicePicker 的收入／支出下拉改为当前账户菜单，普通方向由现有并列选项承载；其他功能菜单验证保留。已知 Compose 关闭弹层的无障碍树失败单独准确记录，不能静默当通过。
+当前 Hallmark audit 与独立设计 finding：
+
+| 严重度／位置 | 发现及处置 | 当前状态 |
+|---|---|---|
+| major，字段与详情层级 | 金额／币种拆散、详情缺少语义色及标签值信息卡；恢复修改前邻近关系、金额／对方层级及单主题卡，所有实际可编辑字段按记账／对方分组展开 | 已修复，最终实际截图独立重审关闭 |
+| major，编辑及确认 | 长表单操作滚走、额外影响埋在表单后、双保存栏及同笔摘要三次；正文独立滚动，确认替换正文及页脚，每笔摘要一次紧接实际旧／新值 | 已修复，当前合同浏览器及最终实际截图独立重审关闭 |
+| major，准备页 | 文件、账户和操作散落；文件在上、来源账户集中在下，相关操作紧邻，表单上限 720 px | 已修复，最终实际截图独立重审关闭 |
+| major，主题 | 浅色旧蓝白字 3.68:1；按用户确认分别配置浅深配对及焦点，保留蓝色风格、字体与组件 | 自动回归及最终深浅截图独立重审关闭 |
+| minor，表单顺序 | 分配控件落在对方组之后；归回记账组，仅具当前组成权限时显示 | 已修复 |
+
+文档收尾：三个 design／相关 delta、功能地图及 Compose Material3／OpenSpec apply 技能已原位对齐。本轮实际读取官方正文及采用规则见 [官方 Material3 页面复核](../compose-cash-ledger-maintenance/design.md#官方-material-3-页面复核)，修正失效 Expressive 链接；未造新视觉系统。README 启动命令、业务／接口文档、配置、迁移与词表不因本步改变，无新领域概念，无需重复修改。防复发由实际浏览器几何／确认／请求断言和 token 对比度回归承载。
+
+既有业务验收：当前列表／详情／草稿／来源基础 `0e523a1`，完整候选与失效处理 `2d800f3`。合成 SQLite API `58792` 的多候选完整成员选择 1/1（9.7s），来源更新与明确身份合并 2/2（14.8s），联合必要组／人工公共冲突／明确解除继承 1/1（20.2s）；日志 `/tmp/ft-cash-relations-layout-real-web.log`、`/tmp/ft-cash-final-issues-confirmed-browser.log`、`/tmp/ft-cash-joint-real-web.log`。单候选读取失败、失效重读无决定重放及残余公共冲突回归保留。以上为既有业务证据，本轮不冒充重跑。并发仅最小原键核实及提示用户重试，不增加自动合并／重放。用户确认仍由 6.5 承载。

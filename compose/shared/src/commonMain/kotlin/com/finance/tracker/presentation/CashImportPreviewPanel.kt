@@ -32,14 +32,15 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
                 Text(localizedText("cash_edit_entry"))
             }
         } } else null) {
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp).testTag("cash.import.detail"),
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(vertical = 16.dp).testTag("cash.import.detail"),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(cashAmountWithCurrencyLabel(item.display.amount, item.display.currency), style = MaterialTheme.typography.headlineMedium)
-            item.display.counterparty?.takeIf { it.isNotBlank() && "counterparty" !in editingFields }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-            Text(localDateTimeDisplayLabel(item.display.occurredAt), style = MaterialTheme.typography.bodyMedium)
-            Text(item.display.accounts.joinToString("、").ifEmpty { localizedText("display_not_provided") })
-            if ("category_id" !in editingFields) Text(cashCategoryDisplayPath(categories.firstOrNull { it.id == item.display.categoryId }))
-            item.display.note?.takeIf { it.isNotBlank() && "note" !in editingFields }?.let { Text(it) }
+            CashRecordSummary(cashAmountWithCurrencyLabel(item.display.amount, item.display.currency), item.display.amount?.startsWith("-") == true,
+                item.display.counterparty?.takeIf { "counterparty" !in editingFields }, localDateTimeDisplayLabel(item.display.occurredAt),
+                buildList {
+                    add("copy_c3d92b20c8" to item.display.accounts.joinToString("、").ifEmpty { localizedText("display_not_provided") })
+                    if ("category_id" !in editingFields) add("copy_a42e73f0a7" to cashCategoryDisplayPath(categories.firstOrNull { it.id == item.display.categoryId }))
+                    item.display.note?.takeIf { it.isNotBlank() && "note" !in editingFields }?.let { add("copy_e0361480e3" to it) }
+                })
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
             if (detail == null) {
@@ -168,13 +169,14 @@ private fun CashImportFieldEditor(fields: StructuredObject, editable: List<Strin
     val zone = getLocalTimeZoneId()
     LaunchedEffect(dirty) { onDirty(dirty) }
     Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag(prefix), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        CashRecordFieldInputs(values, editable, accounts, categories, options, sizeClass, busy, prefix) { field, value ->
+        CashRecordFieldInputs(values, editable, accounts, categories, options, sizeClass, busy, prefix, bookingContent = if ("components" in editable) ({
+            CashDraftAllocationEditor(split, if (split) allocation.parts else parts ?: initialParts,
+                accounts, busy, singleNeedsRepair = !allocation.singleChosen && !cashDraftSingleAllocationMatches(initial, initialParts), semanticPrefix = prefix,
+                onChange = { allocation = allocation.changeParts(it); error = null }, onUseSingle = { allocation = allocation.chooseSingle(); error = null })
+        }) else null) { field, value ->
             if (field == "cash_granularity") allocation = allocation.switchMode()
             values = values + (field to value); error = null
         }
-        if ("components" in editable) CashDraftAllocationEditor(split, if (split) allocation.parts else parts ?: initialParts,
-            accounts, busy, singleNeedsRepair = !allocation.singleChosen && !cashDraftSingleAllocationMatches(initial, initialParts), semanticPrefix = prefix,
-            onChange = { allocation = allocation.changeParts(it); error = null }, onUseSingle = { allocation = allocation.chooseSingle(); error = null })
         error?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }

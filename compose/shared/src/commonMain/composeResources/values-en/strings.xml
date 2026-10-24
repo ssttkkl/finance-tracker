@@ -755,4 +755,7 @@
     <string name="cash_import_processing_details">Not imported and duplicate content</string>
     <string name="cash_import_not_imported">Not imported</string>
     <string name="cash_import_duplicate">Already exists; not imported again</string>
+    <string name="cash_booking_information">Booking information</string>
+    <string name="cash_counterparty_information">Counterparty information</string>
+    <string name="cash_confirm_save">Confirm save</string>
 </resources>

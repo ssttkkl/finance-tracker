@@ -37,11 +37,12 @@ internal fun CashDraftEditor(record: CashCurrentRecord, savedRevision: Int, acco
         onSave(patch, finalize)
     }
     Column(Modifier.fillMaxWidth().testTag("cash.draft.editor"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        CashRecordFieldInputs(values, record.editableFields, accounts, categories, options, sizeClass, busy, "cash.draft", ::change)
-        if ("components" in record.editableFields) CashDraftAllocationEditor(split, effectiveAllocations, accounts, busy,
-            singleNeedsRepair = !allocationInput.singleChosen && !cashDraftSingleAllocationMatches(initial, initialAllocations),
-            onChange = { allocationInput = allocationInput.changeParts(it); error = null },
-            onUseSingle = { allocationInput = allocationInput.chooseSingle(); error = null })
+        CashRecordFieldInputs(values, record.editableFields, accounts, categories, options, sizeClass, busy, "cash.draft", bookingContent = if ("components" in record.editableFields) ({
+            CashDraftAllocationEditor(split, effectiveAllocations, accounts, busy,
+                singleNeedsRepair = !allocationInput.singleChosen && !cashDraftSingleAllocationMatches(initial, initialAllocations),
+                onChange = { allocationInput = allocationInput.changeParts(it); error = null },
+                onUseSingle = { allocationInput = allocationInput.chooseSingle(); error = null })
+        }) else null, onChange = ::change)
         error?.let { Text(when (it) { "invalid_datetime" -> localizedText("cash_invalid_local_time"); "invalid_amount" -> localizedText("copy_d9ea7affdf"); "invalid_currency" -> localizedText("cash_invalid_currency"); else -> ledgerErrorText(it) }, color = MaterialTheme.colorScheme.error, modifier = Modifier.testTag("cash.draft.error")) }
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = { save(false) }, enabled = !busy && dirty, modifier = Modifier.testTag("cash.draft.save")) { Text(localizedText("cash_save_pending")) }

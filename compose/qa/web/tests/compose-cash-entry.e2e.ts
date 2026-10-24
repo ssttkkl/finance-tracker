@@ -50,6 +50,9 @@ test("imported entry edits only common fields and saves once in the current deta
     await expect(page.locator(`[id="cash.entry.${field}"]:visible`)).toHaveCount(0);
   }
   await typeIntoComposeInput(page, '[id="cash.entry.note"]', "本次备注", { replace: true });
+  await page.mouse.click(1100, 43);
+  await page.waitForTimeout(200);
+  await expect(page.locator('[id="cash.entry.note"]:visible')).toContainText("本次备注");
   await press(page, "cash.entry.save");
   await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(0);
   await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText("本次备注");

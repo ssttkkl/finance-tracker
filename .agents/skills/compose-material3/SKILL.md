@@ -15,7 +15,7 @@ description: "为本仓库 Compose Multiplatform 页面设计、实现或审查 
 - [Expressive](references/expressive.md)：默认视觉方向、使用边界和实验 API 检查方式。
 - [Compose Multiplatform](references/compose-multiplatform.md)：版本核对、Android/iOS/Web 支持边界和跨端审查。
 
-**官方页面阅读门禁（必做）：**开始设计或审查前，必须打开并阅读与任务直接相关的 Material 3 官方页面正文；只看本地摘要、链接标题或搜索摘要不算。组件任务要读对应组件的 overview 与 specs；Foundations 或 Styles 任务要读涉及的主题页；实现 API 时还要读当前 JetBrains Compose Multiplatform / AndroidX API 或发布记录。读完后在对应 `design.md` 或 `tasks.md` 简记页面标题和本次采用的规则。每项任务只需读实际涉及的页面，无需遍历整站。页面无法访问时记录未完成；若设计决策依赖该内容，不得声称已核验或完成该项设计审查。
+**官方页面阅读门禁（必做）：**开始设计或审查前，必须打开并阅读与任务直接相关的 Material 3 官方页面正文；只看本地摘要、链接标题或搜索摘要不算。组件任务要读对应组件的 overview 与 specs；Foundations 或 Styles 任务要读涉及的主题页；实现 API 时还要读当前 JetBrains Compose Multiplatform / AndroidX API 或发布记录。Material 网站依赖 JavaScript，普通抓取只返回导航壳时须用真实浏览器加载正文；仅收到 HTTP 200 不算完成阅读。失效链接从官方站内导航定位并修正，不根据路径猜内容。读完后在对应 `design.md` 或 `tasks.md` 简记页面标题和本次采用的规则。每项任务只需读实际涉及的页面，无需遍历整站。页面无法访问时记录未完成；若设计决策依赖该内容，不得声称已核验或完成该项设计审查。
 
 所有触及的 UI 改动（含小范围修复）默认采用 M3 Expressive 的视觉与交互原则，同时保留原任务范围、财务信息密度和项目行为合同。实现前先读 [项目 UI 设计规范](../../../docs/ui-design-rules.md)、相关 OpenSpec 与现有 token；这些仓库规则优先于通用 Material 建议。按钮与输入直接调用 Material 3，不增加 Finance 包装层；沿用组件默认尺寸，不为统一外观固定控件宽高。Compose 页面是结构与样式事实源，`FinanceTheme` 和 Git token 继续承担项目颜色、字体及语义角色。
 
