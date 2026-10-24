@@ -10,6 +10,25 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashImportPlanApiTest {
+    @Test fun previewCandidateMemberFieldsRemainReadonlyAndBoundToTheirReferences() {
+        val input = apiJson.parseToJsonElement(DETAIL).jsonObject.toMutableMap()
+        input["relation_members"] = JsonArray(listOf(buildJsonObject {
+            put("transaction_id", "existing-candidate"); put("planned_action", "duplicate")
+            put("fields", buildJsonObject { put("amount", "-12.5000"); put("note", "actual source") })
+            put("editable_fields", JsonArray(emptyList())); put("allowed_actions", JsonArray(emptyList()))
+            put("row_revision", 7)
+        }))
+        val detail = apiJson.decodeFromJsonElement<CashPlanItemDetailDto>(JsonObject(input))
+        val encoded = apiJson.encodeToJsonElement(detail).jsonObject
+        assertEquals(1, encoded["relation_members"]?.jsonArray?.size)
+        val member = detail.toDomain().relationMembers.single()
+        assertEquals("existing-candidate", member.transactionId)
+        assertEquals(7L, member.rowRevision)
+        assertEquals(com.finance.tracker.domain.StructuredText("-12.5000"), member.fields.fields["amount"])
+        assertTrue(member.editableFields.isEmpty())
+        assertTrue(member.allowedActions.isEmpty())
+    }
+
     @Test fun explicitEntryTargetAndClearArePreserved() = runTest {
         val input = apiJson.parseToJsonElement(DETAIL).jsonObject.toMutableMap()
         input["entry"] = buildJsonObject {

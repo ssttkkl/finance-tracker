@@ -209,7 +209,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `pages` | 投影项及处理明细的分页游标 |
 | `invalidated_choices[]` | 失效选择的 `kind/reference/code`，不能静默换成另一候选 |
 
-`GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `entry`（公共字段、可编辑字段及 `edit_ref`）、`members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。它们从属于这一项详情，不是另一份顶层关系列表。
+`GET /cash-import/plans/{plan_id}/items/{preview_item_id}` 在用户维护某项时返回 `entry`（公共字段、可编辑字段及 `edit_ref`）、`members[]`、`relation_members[]`、`field_diffs[]`、`issues[]`、`relation_choices[]` 和 `relation_effects[]`。成员包含来源行引用或已有流水引用、字段和允许动作；关联选择包含服务端建议／候选 ID 及联合范围；关联影响包含类型修改将保留或解除的旧关系。`relation_members` 按这些组及候选的明确引用返回同一冻结计划中的真实成员字段，包含当前项之外的新行或既有流水，权限与动作均为空；不使用候选合并摘要代替，也不开放对侧编辑。正文仅在内部操作或既有成员值中存一份，响应按需展开。它们从属于这一项详情，不是另一份顶层关系列表。
 
 成员内部 `planned_action` 为 `create_posted/create_draft/update_posted/update_draft/finalize_draft/duplicate/skip`；实际结果另用 `outcome`，不拿计划状态冒充已保存。只要与本次成功操作相关的完整投影需要展示已有对侧，就将该已有成员纳入当前预览项，但不把它算成新增或主动更新。
 

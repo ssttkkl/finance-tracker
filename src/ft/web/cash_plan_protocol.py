@@ -209,6 +209,7 @@ class EntryPreviewView(Output):
 class PlanItemDetailView(Output):
     preview_item_id: str
     entry: EntryPreviewView | None = None
+    relation_members: list[MemberDetailView] = Field(default_factory=list)
     members: list[MemberDetailView]
     field_diffs: list[FieldDiffView]
     issues: list[IssueView]

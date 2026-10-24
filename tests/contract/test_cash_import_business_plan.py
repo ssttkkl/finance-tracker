@@ -548,3 +548,24 @@ def test_nonzero_choice_generation_survives_file_invalidation_and_blocks_old_fin
         assert final["relation_groups"][0]["action"] == "defer"
         assert final["relation_groups"][0]["choice_generation"] == 2
         assert final["relation_groups"][0]["suggestion_id"] != choice1["suggestion_id"]
+
+
+def test_relation_candidate_members_are_resolved_readonly_from_the_same_plan(draft_runtime):
+    from ft.application.cash_import_plans import _resolve_detail, _public_detail
+    first, bank = _mirror_files()
+    second = _file(letter="c", provider="another-payment")
+    with draft_runtime.sessions() as session:
+        plan = _build(session, draft_runtime, (first, second, bank))
+    pending = next(item for item in plan["items"] if item["confirmation_status"] == "pending")
+    detail = _public_detail(_resolve_detail(plan, plan["item_details"][pending["preview_item_id"]]))
+    def reference(member):
+        return member.get("row_ref"), member.get("transaction_id")
+    expected = {reference(member) for group in detail["relation_choices"]
+        for choice in [group, *group["candidates"]] for member in choice["member_refs"]}
+    members = {reference(member): member for member in detail["relation_members"]}
+    assert expected and expected <= members.keys()
+    for member in members.values():
+        assert member["fields"]["amount"] == "-12.5"
+        assert member["fields"]["counterparty"] == first.document.rows[0].fields["counterparty"]
+        assert member["editable_fields"] == [] and member["allowed_actions"] == []
+        assert "fields_ref" not in member

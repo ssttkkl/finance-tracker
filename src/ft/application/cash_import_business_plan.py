@@ -875,6 +875,7 @@ class CashImportBusinessPlanBuilder:
         projections.sort(key=lambda item: (item.sort_at, item.primary_record.id), reverse=True)
         old_edges = defaultdict(dict)
         old_edge_order = {edge.id: index for index, edge in enumerate(snapshot.context.relations)}
+        current_revisions = dict(snapshot.context.transaction_revisions)
         for edge in snapshot.context.relations:
             if edge.active and edge.state == "confirmed":
                 for parent in (edge.primary_transaction_id, edge.secondary_transaction_id):
@@ -916,7 +917,7 @@ class CashImportBusinessPlanBuilder:
                         if value['state'] == 'draft' or operation and operation.get('transaction_id') is None
                         or value.get('record_origin') == 'manual' and len(parents) == 1 else set()),
                     "allowed_actions": ["apply", "keep_existing", "defer"] if operation else [],
-                    "row_revision": operation.get("expected_revision") if operation else dict(snapshot.context.transaction_revisions).get(int(parent))})
+                    "row_revision": operation.get("expected_revision") if operation else current_revisions.get(int(parent))})
                 if not operation:
                     detail_values[parent] = self._member_fields(value)
                 if operation:
@@ -931,13 +932,25 @@ class CashImportBusinessPlanBuilder:
             for choice in choices:
                 group = by_suggestion[choice["suggestion_id"]]
                 choice.update({key: deepcopy(group[key]) for key in ("common_field_conflicts", "common_fields", "inherit_common_fields") if key in group})
+            relation_parents = {parent for group in relevant for option in (group, *group["candidates"])
+                for parent in option["parent_ids"]} if relevant else set()
+            relation_members = []
+            for parent in sorted(relation_parents):
+                operation = snapshot.parent_ops.get(parent)
+                if operation is None and parent not in detail_values:
+                    detail_values[parent] = self._member_fields(snapshot.values[parent])
+                relation_members.append({**self._ref(snapshot, parent),
+                    "planned_action": operation["planned_action"] if operation else "duplicate",
+                    "fields_ref": {"operation_ref": operation["operation_ref"]} if operation else {"transaction_id": parent},
+                    "editable_fields": [], "allowed_actions": [],
+                    "row_revision": operation.get("expected_revision") if operation else current_revisions.get(int(parent))})
             root = str(projection.primary_record.id)
             public = deepcopy(snapshot.entry_public.get(root, {}).get('values', {}))
             public.update({field: getattr(projection.primary_record, field) for field in ('note', 'counterparty', 'category_id')})
             edit_ref, target = entry_target(snapshot, parents, target_index)
             entry_targets[edit_ref] = target
             details[identifier] = {"entry": {'fields': public, 'editable_fields': sorted(COMMON_CASH_FIELDS), 'edit_ref': edit_ref},
-                "members": members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}
+                "members": members, "relation_members": relation_members, "field_diffs": diffs, "issues": issues, "relation_choices": choices, "relation_effects": effects}
         counts = dict(Counter(op["planned_action"] for op in operations))
         counts.update({"duplicate": sum(row["planned_action"] in {"duplicate", "duplicate_in_batch"} for row in rows),
             "skip": sum(row["planned_action"] == "skip" for row in rows),

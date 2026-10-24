@@ -206,3 +206,24 @@ def test_pending_relation_save_failure_rejects_edited_single_entry(context_runti
 def test_retry_subset_does_not_inherit_entry_choices():
     from ft.application.cash_import_retry import _inputs
     assert not _inputs({'entry_choices': [{'edit_ref': 'old', 'patch': {'note': 'old'}}]}, (_file(),)).get('entry_choices')
+
+
+def test_http_candidate_members_include_other_preview_items_without_edit_permissions(context_runtime, monkeypatch):
+    from tests.contract.test_cash_import_plan_api import _setup, _preview
+    first, bank = _mirror_files()
+    other = _file(letter='c', provider='another-payment')
+    client, _, context = _setup(context_runtime, monkeypatch, files=(first, other, bank))
+    response = _preview(client, context)
+    assert response.status_code == 200, response.text
+    plan = response.json()
+    item = next(item for item in plan['items'] if item['confirmation_status'] == 'pending')
+    path = '/api/v1/cash-import/plans/' + plan['plan_id'] + '/items/' + item['preview_item_id']
+    response = client.get(path)
+    assert response.status_code == 200
+    detail = response.json()
+    assert len(detail['relation_members']) == 3
+    assert all(member['editable_fields'] == [] and member['allowed_actions'] == [] for member in detail['relation_members'])
+    assert len({member['row_ref'] for member in detail['relation_members']}) == 3
+    assert all(member['fields']['amount'] == '-12.5' for member in detail['relation_members'])
+    assert 'fields_ref' not in response.text
+    assert client.get(path).json() == detail

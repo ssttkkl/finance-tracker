@@ -167,6 +167,7 @@ data class CashPlanItemDetailDto(
     @SerialName("relation_choices") val relationChoices: List<CashPlanRelationChoiceDto>,
     @SerialName("relation_effects") val relationEffects: List<CashPlanRelationEffectDto>,
     val entry: CashPlanEntryDto? = null,
+    @SerialName("relation_members") val relationMembers: List<CashPlanMemberDto> = emptyList(),
 )
 
 @Serializable

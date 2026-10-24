@@ -96,6 +96,7 @@ data class ImportItemDetail(
     val itemId: String, val members: List<ImportMemberDetail>, val fieldDiffs: List<ImportFieldDiff>,
     val issues: List<ImportIssue>, val relationChoices: List<ImportPairOption>, val relationEffects: List<ImportPairEffect>,
     val entry: ImportEntryFields? = null,
+    val relationMembers: List<ImportMemberDetail> = emptyList(),
 )
 data class ImportAccountListItem(val id: String, val name: String, val type: String, val active: Boolean, val currencies: List<String>?)
 data class ImportAccount(

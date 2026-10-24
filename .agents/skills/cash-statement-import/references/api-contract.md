@@ -104,7 +104,7 @@ POST /api/v1/cash-import/sessions/{session_id}/plans
 |---|---|
 | `GET /cash-import/plans/{plan_id}` | 当前计划及第一页 |
 | `GET /cash-import/plans/{plan_id}/items` | `limit`（默认 50，最多 200）、`cursor`、`confirmation_status=all/confirmed/pending` |
-| `GET /cash-import/plans/{plan_id}/items/{preview_item_id}` | 按需查看成员、`field_diffs`、事项、关联选择及既有关系变化 |
+| `GET /cash-import/plans/{plan_id}/items/{preview_item_id}` | 按需查看当前成员、只读 `relation_members`、`field_diffs`、事项、关联选择及既有关系变化 |
 | `GET /cash-import/plans/{plan_id}/processing-details` | 按需查看重复、跳过和配对失败原因；`limit/cursor` 分页 |
 
 分页响应使用 `next_cursor`；游标绑定计划、类型和筛选，不跨计划复用。单项失败不要求逐条人工确认才继续；以 `can_commit` 判断最终动作是否可用。预览摘要计数描述预计处理，不代替实际收据。

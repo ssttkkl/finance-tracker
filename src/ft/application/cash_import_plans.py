@@ -143,19 +143,22 @@ def _public_item(item):
 
 
 def _public_detail(value, *, copy_values=True):
-    result = _only(value, {"entry", "members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
+    result = _only(value, {"entry", "members", "relation_members", "field_diffs", "issues", "relation_choices", "relation_effects"}, copy_values=False)
     if 'entry' in result:
         result['entry'] = _only(result['entry'], {'fields', 'editable_fields', 'edit_ref'}, copy_values=copy_values)
         result['entry']['fields'] = _only(result['entry'].get('fields', {}), COMMON_CASH_FIELDS, copy_values=copy_values)
-    members = _objects(result.get("members", []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"},
-        copy_values=copy_values)
-    for member in members:
-        if "fields" in member:
-            member["fields"] = _only(member["fields"], MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state", "row_revision"}, copy_values=False)
-            if "components" in member["fields"]:
-                member["fields"]["components"] = _objects(member["fields"]["components"],
-                    {"component_id", "account_id", "amount", "currency", "ordinal"}, copy_values=copy_values)
-    result["members"] = members
+    for role in ("members", "relation_members"):
+        if role == "relation_members" and role not in result:
+            continue
+        members = _objects(result.get(role, []), _REF_FIELDS | {"planned_action", "fields", "editable_fields", "allowed_actions", "row_revision"},
+            copy_values=copy_values)
+        for member in members:
+            if "fields" in member:
+                member["fields"] = _only(member["fields"], MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state", "row_revision"}, copy_values=False)
+                if "components" in member["fields"]:
+                    member["fields"]["components"] = _objects(member["fields"]["components"],
+                        {"component_id", "account_id", "amount", "currency", "ordinal"}, copy_values=copy_values)
+        result[role] = members
     result["field_diffs"] = _objects(result.get("field_diffs", []),
         {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"}, copy_values=copy_values)
     result["issues"] = _issues(result.get("issues", []))
@@ -198,44 +201,47 @@ def _resolve_detail(plan, value, *, operations=None, copy_values=True):
     if not isinstance(value, dict):
         raise CashImportPlanError("plan_build_failed")
     result = deepcopy(value) if copy_values else dict(value)
-    if not isinstance(result, dict) or not isinstance(result.get("members", []), list):
-        raise CashImportPlanError("plan_build_failed")
-    if not copy_values:
-        result["members"] = [dict(member) if isinstance(member, dict) else member for member in result.get("members", [])]
-    for member in result.get("members", []):
-        if not isinstance(member, dict):
-            raise CashImportPlanError("plan_build_failed")
-        if "fields_ref" not in member:
+    for role in ("members", "relation_members"):
+        if role == "relation_members" and role not in result:
             continue
-        reference = member.pop("fields_ref")
-        if not isinstance(reference, dict) or set(reference) not in ({"operation_ref"}, {"transaction_id"}) or "fields" in member:
-            raise CashImportPlanError("plan_build_failed")
-        if "operation_ref" in reference:
-            key = reference["operation_ref"]
-            if not isinstance(key, str) or key not in operations:
-                raise CashImportPlanError("plan_build_failed")
-            operation = operations[key]
-            if not (member.get("row_ref") is not None and member["row_ref"] in operation.get("row_refs", [])
-                or member.get("transaction_id") is not None and member["transaction_id"] == operation.get("transaction_id")):
-                raise CashImportPlanError("plan_build_failed")
-            fields = operation.get("values")
-        else:
-            key = reference["transaction_id"]
-            if not isinstance(key, str) or key not in plan.get("detail_values", {}) or member.get("transaction_id") != key:
-                raise CashImportPlanError("plan_build_failed")
-            fields = plan["detail_values"][key]
-        member["fields"] = _only(fields, MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"},
-            copy_values=copy_values)
-        components = member["fields"].get("components", [])
-        if not isinstance(components, list) or any(not isinstance(part, dict) for part in components):
+        if not isinstance(result, dict) or not isinstance(result.get(role, []), list):
             raise CashImportPlanError("plan_build_failed")
         if not copy_values:
-            components = [dict(part) for part in components]
-            member["fields"]["components"] = components
-        for part in components:
-            identifier = part.get("component_id")
-            if identifier is not None and str(identifier).isdigit() and int(identifier) >= 2 ** 63:
-                part.pop("component_id")
+            result[role] = [dict(member) if isinstance(member, dict) else member for member in result.get(role, [])]
+        for member in result.get(role, []):
+            if not isinstance(member, dict):
+                raise CashImportPlanError("plan_build_failed")
+            if "fields_ref" not in member:
+                continue
+            reference = member.pop("fields_ref")
+            if not isinstance(reference, dict) or set(reference) not in ({"operation_ref"}, {"transaction_id"}) or "fields" in member:
+                raise CashImportPlanError("plan_build_failed")
+            if "operation_ref" in reference:
+                key = reference["operation_ref"]
+                if not isinstance(key, str) or key not in operations:
+                    raise CashImportPlanError("plan_build_failed")
+                operation = operations[key]
+                if not (member.get("row_ref") is not None and member["row_ref"] in operation.get("row_refs", [])
+                    or member.get("transaction_id") is not None and member["transaction_id"] == operation.get("transaction_id")):
+                    raise CashImportPlanError("plan_build_failed")
+                fields = operation.get("values")
+            else:
+                key = reference["transaction_id"]
+                if not isinstance(key, str) or key not in plan.get("detail_values", {}) or member.get("transaction_id") != key:
+                    raise CashImportPlanError("plan_build_failed")
+                fields = plan["detail_values"][key]
+            member["fields"] = _only(fields, MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"},
+                copy_values=copy_values)
+            components = member["fields"].get("components", [])
+            if not isinstance(components, list) or any(not isinstance(part, dict) for part in components):
+                raise CashImportPlanError("plan_build_failed")
+            if not copy_values:
+                components = [dict(part) for part in components]
+                member["fields"]["components"] = components
+            for part in components:
+                identifier = part.get("component_id")
+                if identifier is not None and str(identifier).isdigit() and int(identifier) >= 2 ** 63:
+                    part.pop("component_id")
     return result
 
 
