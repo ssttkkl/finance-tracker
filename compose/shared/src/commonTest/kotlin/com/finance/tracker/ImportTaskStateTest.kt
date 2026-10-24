@@ -5,6 +5,27 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun pendingDefaultNeverReusesTheAllItemsPageOrCursor() {
+        val initial = prepared().loadedPlan(plan().copy(itemCounts = mapOf("pending" to 2L)), ImportChoiceSet())
+        assertEquals("pending", initial.filter)
+        assertTrue(initial.items.isEmpty())
+        assertNull(initial.nextCursor)
+        assertFalse(initial.itemsInitialized)
+    }
+
+    @Test fun explicitAllSurvivesRepreviewWhileZeroPendingAutomaticallyShowsAll() {
+        val pendingPlan = plan().copy(itemCounts = mapOf("pending" to 2L))
+        val initial = prepared().loadedPlan(pendingPlan, ImportChoiceSet())
+        val all = initial.changeFilter("all").loadedPlan(pendingPlan.copy(planId = "ip_two", sessionRevision = 5), ImportChoiceSet())
+        assertEquals("all", all.filter)
+        assertEquals(pendingPlan.items, all.items)
+        val cleared = initial.loadedPlan(pendingPlan.copy(itemCounts = mapOf("pending" to 0L)), ImportChoiceSet())
+        assertEquals("all", cleared.filter)
+        assertTrue(cleared.itemsInitialized)
+        val pendingAgain = cleared.loadedPlan(pendingPlan, ImportChoiceSet())
+        assertEquals("pending", pendingAgain.filter)
+    }
+
     @Test fun authoritativeSameSessionReceiptDropsOldPlanButOrdinaryReceiptCannotBypassBinding() {
         val session = "a".repeat(43)
         val first = "ip_$session.${"b".repeat(16)}"

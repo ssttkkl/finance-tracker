@@ -21,6 +21,7 @@ data class ImportTaskUiState(
     val nextCursor: String? = null,
     val itemsInitialized: Boolean = false,
     val filter: String = "all",
+    val requestedFilter: String? = null,
     val details: Map<String, ImportItemDetail> = emptyMap(),
     val processingItems: List<ImportProcessingDetail> = emptyList(),
     val processingNextCursor: String? = null,
@@ -39,7 +40,7 @@ data class ImportTaskUiState(
     val errorCode: String? = null,
 ) {
     val canEdit: Boolean get() = recoveryReady && !busy && submission == ImportSubmissionState.IDLE && !needsContextRefresh && frozenCommand == null && receipt == null && receiptToFetch == null && (context == null || context.state == "open")
-    val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && !previewDirty && !needsContextRefresh &&
+    val canConfirm: Boolean get() = canEdit && phase == ImportTaskPhase.REVIEW && itemsInitialized && !previewDirty && !needsContextRefresh &&
         plan?.canCommit == true && context?.revision == plan.sessionRevision
 
     private fun requestStarted(): ImportTaskUiState = copy(requestSequence = requestSequence + 1,
@@ -68,9 +69,11 @@ data class ImportTaskUiState(
 
     fun acceptPlan(request: ImportTaskRequest, value: ImportPlan, submitted: ImportChoiceSet): ImportTaskUiState {
         if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT || context?.sessionId != value.sessionId || value.sessionRevision < (context.revision ?: 0)) return this
+        val selected = if ((value.itemCounts["pending"] ?: 0L) == 0L) "all" else requestedFilter ?: "pending"
         return copy(phase = ImportTaskPhase.REVIEW, plan = value, choices = submitted,
             context = context.copy(revision = value.sessionRevision, lastPlanId = value.planId, lastChoices = submitted),
-            items = value.items, nextCursor = value.nextCursor, filter = "all", itemsInitialized = true,
+            items = if (selected == "all") value.items else emptyList(),
+            nextCursor = value.nextCursor.takeIf { selected == "all" }, filter = selected, itemsInitialized = selected == "all",
             details = emptyMap(), processingItems = emptyList(), processingNextCursor = null, processingInitialized = false,
             previewDirty = false, needsContextRefresh = false, errorCode = null)
     }
@@ -99,9 +102,10 @@ data class ImportTaskUiState(
     }
 
     fun changeFilter(value: String): ImportTaskUiState {
-        if (!canEdit || plan == null || filter == value) return this
+        if (!canEdit || plan == null) return this
         if (value !in setOf("all", "confirmed", "pending")) invalidTaskChoice()
-        return copy(filter = value, items = emptyList(), nextCursor = null, itemsInitialized = false, errorCode = null)
+        if (filter == value) return copy(requestedFilter = value)
+        return copy(filter = value, requestedFilter = value, items = emptyList(), nextCursor = null, itemsInitialized = false, errorCode = null)
     }
 
     fun acceptItemPage(request: ImportTaskRequest, planId: String, requestedFilter: String, page: ImportItemPage, append: Boolean): ImportTaskUiState {

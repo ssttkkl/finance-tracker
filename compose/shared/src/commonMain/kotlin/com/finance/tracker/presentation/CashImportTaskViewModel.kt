@@ -44,7 +44,7 @@ class CashImportTaskViewModel(
                     val context = state.value.context
                     if (current(request) && state.value.receipt == null && context?.state == "open" && context.lastPlanId != null) {
                         val plan = repository.plan(context.lastPlanId)
-                        if (current(request)) mutableState.value = state.value.acceptPlan(request, plan, state.value.choices)
+                        publishPlan(request, plan, state.value.choices)
                     }
                 }
                 is ImportRecoveryPointer.Submission -> {
@@ -127,7 +127,17 @@ class CashImportTaskViewModel(
         val choices = before.choices
         mutableState.value = before.copy(needsContextRefresh = true)
         val plan = repository.preview(context.sessionId, context.revision ?: invalidTask(), before.plan?.planId ?: context.lastPlanId, choices)
-        if (current(request)) mutableState.value = state.value.acceptPlan(request, plan, choices)
+        publishPlan(request, plan, choices)
+    }
+
+    private suspend fun publishPlan(request: ImportTaskRequest, plan: ImportPlan, choices: ImportChoiceSet) {
+        if (!current(request)) return
+        mutableState.value = state.value.acceptPlan(request, plan, choices)
+        val selected = state.value.filter
+        if (state.value.plan?.planId == plan.planId && !state.value.itemsInitialized) {
+            val page = repository.items(plan.planId, confirmationStatus = selected)
+            if (current(request)) mutableState.value = state.value.acceptItemPage(request, plan.planId, selected, page, false)
+        }
     }
 
     fun loadItems(filter: String = state.value.filter, append: Boolean = false) {

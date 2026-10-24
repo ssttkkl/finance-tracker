@@ -9,6 +9,42 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ImportTaskViewModelTest {
+    @Test fun pendingFirstPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, store ->
+        repo.pendingCount = 1
+        repo.pageFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        assertFalse(vm.state.value.itemsInitialized)
+        assertFalse(vm.state.value.canConfirm)
+        vm.confirm(); advanceUntilIdle()
+        assertTrue(repo.confirmations.isEmpty())
+        val restored = CashImportTaskViewModel(repo, store)
+        restored.restore(); advanceUntilIdle()
+        assertFalse(restored.state.value.itemsInitialized)
+        assertFalse(restored.state.value.canConfirm)
+        restored.confirm(); advanceUntilIdle()
+        assertTrue(repo.confirmations.isEmpty())
+        repo.pageFailure = null
+        repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), null))
+        vm.loadItems("pending"); advanceUntilIdle()
+        assertTrue(vm.state.value.canConfirm)
+    } }
+
+    @Test fun previewAndRestoreLoadThePendingPageBeforePublishingItsCursor() = runTest { task { vm, repo, store ->
+        repo.pendingCount = 1
+        repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), "pending-cursor"))
+        vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        assertEquals("pending", vm.state.value.filter)
+        assertEquals(listOf("pending-page"), vm.state.value.items.map { it.itemId })
+        assertEquals("pending-cursor", vm.state.value.nextCursor)
+        assertEquals(listOf<Pair<String?, String>>(null to "pending"), repo.pageCalls)
+        repo.pages.add(ImportItemPage(listOf(taskItem("restored-pending")), null))
+        val restored = CashImportTaskViewModel(repo, store)
+        restored.restore(); advanceUntilIdle()
+        assertEquals(listOf("restored-pending"), restored.state.value.items.map { it.itemId })
+        assertEquals("pending", restored.state.value.filter)
+        assertNull(restored.state.value.nextCursor)
+    } }
+
     @Test fun definiteRollbackCanCancelOnlyAfterServerAndLocalRecoveryClear() = runTest { task { vm, repo, store ->
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
         repo.beforeConfirm = { throw DomainFailure("commit_failed", 503, FailureCategory.RECOVERABLE, commitState = "not_committed") }
@@ -550,6 +586,9 @@ private class TaskRecovery : ImportRecoveryStore {
 internal class TaskRepository : CashImportLifecycleRepository {
     var current = ImportContext(TASK_SESSION, 2, "future", "open", emptyList(), emptyList(), ImportChoiceSet(), null, true, null)
     var contextReads = 0
+    var pageFailure: DomainFailure? = null
+    var pendingCount = 0L
+    var latestPlan: ImportPlan? = null
     var failPreview = false
     var failFileMutation = false
     var failCancel = false
@@ -574,7 +613,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
         events += "preview:$revision"; lastChoices = choices
         current = current.copy(revision = revision + 1, lastPlanId = TASK_PLAN, lastChoices = choices)
         if (failPreview) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
-        return ImportPlan(TASK_PLAN, TASK_SESSION, revision + 1, "future", emptyMap(), emptyMap(), true, emptyList(), emptyList(), null, emptyList())
+        return ImportPlan(TASK_PLAN, TASK_SESSION, revision + 1, "future", emptyMap(), mapOf("pending" to pendingCount), true, emptyList(), emptyList(), "all-cursor", emptyList()).also { latestPlan = it }
     }
     override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt {
         val command = ImportFrozenCommand(planId, revision, idempotencyKey)
@@ -602,9 +641,9 @@ internal class TaskRepository : CashImportLifecycleRepository {
         if (failCancel) throw DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         return current
     }
-    override suspend fun plan(planId: String): ImportPlan = error("unused")
+    override suspend fun plan(planId: String): ImportPlan = assertNotNull(latestPlan)
     override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String): ImportItemPage {
-        assertEquals(TASK_PLAN, planId); pageCalls += cursor to confirmationStatus; return pages.removeFirst()
+        assertEquals(TASK_PLAN, planId); pageCalls += cursor to confirmationStatus; pageFailure?.let { throw it }; return pages.removeFirst()
     }
     override suspend fun item(planId: String, itemId: String) = ImportItemDetail(itemId,
         listOf(ImportMemberDetail("f:r1", null, "create_draft", StructuredObject(emptyMap()), listOf("note"), listOf("apply", "defer"), null)),

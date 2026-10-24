@@ -47,3 +47,9 @@
 ### 实施细化
 
 2026-10-24 用户逐轮确认：复用主页列表／详情；待确认优先、零待确认自动全部；文件上账户下；摘要下警示卡片按需展开；通常一次保存；结果仅摘要，提交新增异常统一错误／原因／返回。已知业务问题在预览展示。实施基线 `664d0ce`；现有用户 `AGENTS.md` 改动不纳入实现提交。
+
+### 当前实施与验证
+
+核对列表筛选基础已完成，页面尚未接线。默认待确认读取独立分页，零待确认自动全部，用户主动筛选保留至重新预览；初始页失败禁止确认。测试先红：`/tmp/ft-cash-import-pending-red.log` 55 项中 3 失败；首分页失败反例 `/tmp/ft-cash-import-pending-first-page-red.log` 56 项中 1 失败。2026-10-24 基线 `5966cd4`，`./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 最终成功（59 秒，`/tmp/ft-cash-import-pending-final-matrix.log`）；Wasm 377／Android 372 项，无失败或跳过。iOS 平台单测及设备 QA 依本轮用户决定未运行，不记为通过。
+
+独立工程复核覆盖筛选、游标、迟到响应、恢复及确认资格；首分页失败仍可确认的 major 已修复并回查关闭，其余无 blocking／major。本小步没有新用户入口或渲染变化，浏览器冒烟留至统一导入页面接线后；现有线上页面仍为旧导入，不以状态机测试宣称可用。共用层三端受影响，未改持久化、金额或原生命令。八阶段中思考／计划沿用本 change，当前小步测试先行、构建及独立审查完成；交付保留旧入口事实，不提前归档；防复发由专属分页与首次读取失败测试保证。
