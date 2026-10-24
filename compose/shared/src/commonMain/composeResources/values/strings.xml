@@ -676,4 +676,5 @@
     <string name="cash_allocation_use_fields">采用上方账户与金额</string>
     <string name="cash_allocation_add">添加分摊</string>
     <string name="cash_allocation_remove">移除分摊</string>
+    <string name="cash_edit_entry">编辑收支</string>
 </resources>

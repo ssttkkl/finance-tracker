@@ -676,4 +676,5 @@
     <string name="cash_allocation_use_fields">Use account and amount above</string>
     <string name="cash_allocation_add">Add allocation</string>
     <string name="cash_allocation_remove">Remove allocation</string>
+    <string name="cash_edit_entry">Edit entry</string>
 </resources>

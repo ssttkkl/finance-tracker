@@ -71,7 +71,13 @@ class CashRecordTaskViewModel(
         mutableState.value = CashRecordTaskState(recoveryReady = state.value.recoveryReady, savedRevision = state.value.savedRevision)
         return true
     }
-    fun dismissPlan() { if (!state.value.busy && !state.value.unresolved) mutableState.value = state.value.copy(plan = null, details = emptyList(), input = null, previewDirty = false, selectionPlan = false, affectedRecords = emptyMap()) }
+    fun dismissPlan() { cancelEdit() }
+    fun cancelEdit(): Boolean {
+        if (state.value.busy || state.value.unresolved) return false
+        mutableState.value = state.value.copy(plan = null, details = emptyList(), input = null,
+            previewDirty = false, selectionPlan = false, affectedRecords = emptyMap())
+        return true
+    }
 
     fun beginRelations(patch: StructuredObject = StructuredObject(emptyMap())) {
         val record = state.value.record ?: return

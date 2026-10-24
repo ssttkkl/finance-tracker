@@ -46,9 +46,14 @@ internal fun cashDraftInitialValues(record: CashCurrentRecord): Map<String, Stri
 }
 
 internal fun cashDraftPatch(record: CashCurrentRecord, changes: Map<String, String>, timeZoneId: String, allocations: List<CashDraftAllocation>? = null): StructuredObject {
+    if (record.state != "draft") throw DomainFailure("draft_required", 0, FailureCategory.RECOVERABLE)
+    return cashRecordFieldPatch(record.editableFields, changes, timeZoneId, allocations)
+}
+
+internal fun cashRecordFieldPatch(editableFields: List<String>, changes: Map<String, String>, timeZoneId: String,
+    allocations: List<CashDraftAllocation>? = null): StructuredObject {
     fun invalid(code: String): Nothing = throw DomainFailure(code, 0, FailureCategory.RECOVERABLE)
-    if (record.state != "draft") invalid("draft_required")
-    if (changes.keys.any { it !in record.editableFields || it !in cashDraftScalarFields }) invalid("field_not_editable")
+    if (changes.keys.any { it !in editableFields || it !in cashDraftScalarFields }) invalid("field_not_editable")
     val patch = changes.mapValues { (field, text) ->
         when (field) {
             "occurred_at" -> if (text.isEmpty()) StructuredNull else StructuredText(instantForLocalDateTime(text, timeZoneId) ?: invalid("invalid_datetime"))
@@ -64,7 +69,7 @@ internal fun cashDraftPatch(record: CashCurrentRecord, changes: Map<String, Stri
         }
     }.toMutableMap()
     if (allocations != null) {
-        if ("components" !in record.editableFields) invalid("field_not_editable")
+        if ("components" !in editableFields) invalid("field_not_editable")
         patch["components"] = StructuredArray(allocations.map { part ->
             if (part.amount.isNotEmpty() && !isExactDecimalString(part.amount)) invalid("invalid_amount")
             if (part.currency.isNotEmpty() && !Regex("[A-Z]{3}").matches(part.currency)) invalid("invalid_currency")

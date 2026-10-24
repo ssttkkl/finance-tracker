@@ -31,6 +31,8 @@ internal fun CashCurrentRecordPanel(
     onClose: () -> Unit,
     onResolveIssue: ((String, String, String?, StructuredObject) -> Unit)? = null,
     onSaveDraft: ((StructuredObject, Boolean) -> Unit)? = null,
+    onSaveEntry: ((CashMaintenanceRequest) -> Unit)? = null,
+    onCancelEntry: () -> Boolean = { false },
     onBeginRelations: ((StructuredObject) -> Unit)? = null,
     onSaveRelationChoices: (List<CashRelationDecision>) -> Unit = {},
     onConfirmPlan: () -> Unit = {},
@@ -50,14 +52,26 @@ internal fun CashCurrentRecordPanel(
     var draftExpanded by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var draftDirty by remember(state.transactionId, state.record?.rowRevision, state.savedRevision) { mutableStateOf(false) }
     var draftPatch by remember(state.transactionId, state.record?.rowRevision, state.savedRevision) { mutableStateOf<StructuredObject?>(StructuredObject(emptyMap())) }
-    var discardConfirm by remember(state.transactionId) { mutableStateOf(false) }
+    var entryEditing by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
+    var entryDirty by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
+    var discardAction by remember(state.transactionId) { mutableStateOf<(() -> Unit)?>(null) }
     val record = state.record
-    val requestClose = { if (draftDirty && !state.unresolved) discardConfirm = true else onClose() }
-    CashRecordModalPanel(sizeClass, localizedText("copy_8cb72a44a5"), compactFullScreen = true,
-        semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = requestClose,
-        footer = if (record != null && onEdit != null && !state.unresolved) ({
+    val requestClose = {
+        if (!state.unresolved && !(state.busy && record != null)) {
+            if (draftDirty || entryDirty) discardAction = onClose else onClose()
+        }
+    }
+    val cancelEntry = { if (onCancelEntry()) { entryEditing = false; entryDirty = false } }
+    val requestCancelEntry = {
+        if (!state.busy && !state.unresolved) {
+            if (entryDirty) discardAction = cancelEntry else cancelEntry()
+        }
+    }
+    CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
+        semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
+        footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved) ({
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                Button(onClick = onEdit, enabled = !state.busy, modifier = Modifier.testTag("cash.current.edit")) { Text(localizedText("copy_6a5c4515c6")) }
+                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy && state.plan == null, modifier = Modifier.testTag("cash.current.edit")) { Text(localizedText("copy_a7f814c0a4")) }
             }
         }) else null,
     ) {
@@ -82,96 +96,109 @@ internal fun CashCurrentRecordPanel(
             }
             if (record != null) {
                 val common = record.entry?.fields?.fields ?: record.fields.fields
-                Text(projection?.let(::cashProjectionAmountLabel) ?: listOfNotNull(record.fields.fields["amount"].cashText() ?: "—", record.fields.fields["currency"].cashText()).joinToString(" "),
+                val editingFields = if (entryEditing) cashEntryEditableFields(record).toSet() else emptySet()
+                if ("amount" !in editingFields) Text(projection?.let(::cashProjectionAmountLabel) ?: listOfNotNull(record.fields.fields["amount"].cashText() ?: "—", record.fields.fields["currency"].cashText()).joinToString(" "),
                     style = MaterialTheme.typography.headlineMedium, modifier = Modifier.testTag("cash.current.amount"))
-                common["counterparty"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
-                common["note"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                if ("counterparty" !in editingFields) common["counterparty"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.titleMedium) }
+                if ("note" !in editingFields) common["note"].cashText()?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
                 val occurredAt = record.fields.fields["occurred_at"].cashText()
-                Text(localDateTimeDisplayLabel(occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                projection?.let { Text("${cashProjectionAccountLabel(it)} · ${cashCategoryDisplayPath(it.category)}", style = MaterialTheme.typography.bodyMedium) }
-                if (record.state == "draft") {
-                    val problems = cashDraftEditingIssues(record)
-                    CashPendingCard("draft", problems.joinToString("\n") { it.message }.ifEmpty { localizedText("cash_draft_problem") }, localizedText("cash_fill_information"),
-                        if (onSaveDraft != null && record.editableFields.isNotEmpty()) ({ draftExpanded = true }) else onProcessDraft, state.busy || state.unresolved)
-                }
-                record.issues.filterNot { record.state == "draft" && it.nextAction == "edit" }.forEach { issue ->
-                    val process = if (issue.allowedResolutions.isNotEmpty() && onResolveIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId })
-                        else onProcessIssue?.let { { it(issue) } }
-                    CashPendingCard(issue.issueId, issue.message, localizedText("cash_process_issue"), process, state.busy || state.unresolved)
-                    if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, accounts, categories, options) { resolution, target ->
-                        draftPatch?.let { onResolveIssue(issue.issueId, resolution, target, it) }
+                if ("occurred_at" !in editingFields) Text(localDateTimeDisplayLabel(occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                projection?.let {
+                    val summary = buildList {
+                        if ("account_id" !in editingFields) add(cashProjectionAccountLabel(it))
+                        if ("category_id" !in editingFields) add(cashCategoryDisplayPath(it.category))
                     }
+                    if (summary.isNotEmpty()) Text(summary.joinToString(" · "), style = MaterialTheme.typography.bodyMedium)
                 }
-                state.pendingMembers.forEach { owner ->
-                    owner.issues.forEach { issue ->
-                        val process = if (issue.allowedResolutions.isNotEmpty() && onResolveMemberIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId }) else null
-                        CashPendingCard("member-${issue.issueId}", listOfNotNull(owner.fields.fields["counterparty"].cashText()?.takeIf { it.isNotBlank() }, issue.message).joinToString(" · "),
-                            localizedText("cash_process_issue"), process, state.busy || state.unresolved)
-                        if (expandedIssue == issue.issueId && onResolveMemberIssue != null) CashIssueTreatment(owner, issue,
-                            state.busy || state.unresolved || state.plan != null, accounts, categories, options) { resolution, target ->
-                            onResolveMemberIssue(owner.transactionId, issue.issueId, resolution, target)
+                if (entryEditing && onSaveEntry != null) {
+                    CashEntryEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
+                        state.busy || state.unresolved || state.plan != null, onInput = { entryDirty = it }, onCancel = requestCancelEntry, onSave = onSaveEntry)
+                    if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan)
+                } else {
+                    if (record.state == "draft") {
+                        val problems = cashDraftEditingIssues(record)
+                        CashPendingCard("draft", problems.joinToString("\n") { it.message }.ifEmpty { localizedText("cash_draft_problem") }, localizedText("cash_fill_information"),
+                            if (onSaveDraft != null && record.editableFields.isNotEmpty()) ({ draftExpanded = true }) else onProcessDraft, state.busy || state.unresolved)
+                    }
+                    record.issues.filterNot { record.state == "draft" && it.nextAction == "edit" }.forEach { issue ->
+                        val process = if (issue.allowedResolutions.isNotEmpty() && onResolveIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId })
+                            else onProcessIssue?.let { { it(issue) } }
+                        CashPendingCard(issue.issueId, issue.message, localizedText("cash_process_issue"), process, state.busy || state.unresolved)
+                        if (expandedIssue == issue.issueId && onResolveIssue != null) CashIssueTreatment(record, issue, state.busy || state.unresolved || state.plan != null || draftPatch == null, accounts, categories, options) { resolution, target ->
+                            draftPatch?.let { onResolveIssue(issue.issueId, resolution, target, it) }
                         }
                     }
-                }
-                if (record.relations.none { it.active && it.state == "draft" }) {
-                    state.pendingMembers.firstOrNull { owner -> owner.relations.any { it.active && it.state == "draft" } }?.let { owner ->
-                        CashPendingCard("member-relations", localizedText("cash_relation_problem"), localizedText("cash_review_relations"),
-                            if (onBeginRelations != null) ({ onOpenMember(owner.transactionId) }) else null, state.busy || state.unresolved || draftDirty)
-                    }
-                }
-                if (draftExpanded && onSaveDraft != null && record.state == "draft") CashDraftEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
-                    state.busy || state.unresolved || state.plan != null,
-                    onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft)
-                if (record.relations.any { it.active && it.state == "draft" }) {
-                    CashPendingCard("relations", localizedText("cash_relation_problem"), localizedText("cash_review_relations"),
-                        onBeginRelations?.let { begin -> { draftPatch?.let(begin) } } ?: onProcessRelations,
-                        state.busy || state.unresolved || state.plan != null || draftPatch == null)
-                } else if (record.relations.isNotEmpty() && onBeginRelations != null && record.recordOrigin !in setOf("manual", "manual_transfer")) {
-                    TextButton(onClick = { draftPatch?.let(onBeginRelations) }, enabled = !state.busy && !state.unresolved && state.plan == null && draftPatch != null,
-                        modifier = Modifier.testTag("cash.current.manage-relations")) { Text(localizedText("cash_manage_relations")) }
-                }
-                if (state.selectionPlan) CashRelationTreatment(state, accounts, categories, options, onCancelPlan, onSaveRelationChoices)
-                else if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan)
-                HorizontalDivider()
-                TextButton(onClick = {
-                    sourcesExpanded = !sourcesExpanded
-                    if (sourcesExpanded && evidence == null) onLoadSources()
-                }, modifier = Modifier.testTag("cash.current.sources-toggle")) { Text(localizedText(if (sourcesExpanded) "cash_hide_sources" else "cash_show_sources")) }
-                if (sourcesExpanded) {
-                    if (sourceError != null) StateMessage(if (sourceError == "record_changed") ledgerErrorText(sourceError) else localizedText("cash_sources_unavailable"), isError = true) {
-                        TextButton(onClick = onLoadSources, modifier = Modifier.testTag("cash.current.sources-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
-                    }
-                    val members = evidence?.members.orEmpty()
-                    if (evidence == null && sourceError == null) CircularProgressIndicator()
-                    else if (members.isEmpty()) CashReadonlyFields(record.fields)
-                    else members.forEach { member ->
-                        key(member.transactionId) {
-                            Text(member.counterparty.ifBlank { localizedText("display_not_provided") }, style = MaterialTheme.typography.titleSmall)
-                            Text(listOfNotNull(member.amount ?: "—", member.currency).joinToString(" "), style = MaterialTheme.typography.bodyMedium)
-                            Text(localDateTimeDisplayLabel(member.occurredAt), style = MaterialTheme.typography.bodySmall)
-                            member.accountName?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                            if (member.components.size > 1) member.components.forEach { component ->
-                                Text(listOfNotNull(component.accountName, component.amount ?: "—", component.currency).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                    state.pendingMembers.forEach { owner ->
+                        owner.issues.forEach { issue ->
+                            val process = if (issue.allowedResolutions.isNotEmpty() && onResolveMemberIssue != null) ({ expandedIssue = if (expandedIssue == issue.issueId) null else issue.issueId }) else null
+                            CashPendingCard("member-${issue.issueId}", listOfNotNull(owner.fields.fields["counterparty"].cashText()?.takeIf { it.isNotBlank() }, issue.message).joinToString(" · "),
+                                localizedText("cash_process_issue"), process, state.busy || state.unresolved)
+                            if (expandedIssue == issue.issueId && onResolveMemberIssue != null) CashIssueTreatment(owner, issue,
+                                state.busy || state.unresolved || state.plan != null, accounts, categories, options) { resolution, target ->
+                                onResolveMemberIssue(owner.transactionId, issue.issueId, resolution, target)
                             }
-                            member.note.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-                            member.counterpartyAccount?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                            Text(localizedText("cash_statement_content"), style = MaterialTheme.typography.titleSmall)
-                            Column(Modifier.fillMaxWidth().testTag("cash.current.source-body-${member.transactionId}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val lines = cashStatementLines(member.sourcePayload)
-                                if (lines.isEmpty()) Text(localizedText("cash_statement_empty"))
-                                else lines.forEach { (label, value) -> Text(if (label.isEmpty()) value else "$label：$value", style = MaterialTheme.typography.bodyMedium) }
+                        }
+                    }
+                    if (record.relations.none { it.active && it.state == "draft" }) {
+                        state.pendingMembers.firstOrNull { owner -> owner.relations.any { it.active && it.state == "draft" } }?.let { owner ->
+                            CashPendingCard("member-relations", localizedText("cash_relation_problem"), localizedText("cash_review_relations"),
+                                if (onBeginRelations != null) ({ onOpenMember(owner.transactionId) }) else null, state.busy || state.unresolved || draftDirty)
+                        }
+                    }
+                    if (draftExpanded && onSaveDraft != null && record.state == "draft") CashDraftEditor(record, state.savedRevision, accounts, categories, options, sizeClass,
+                        state.busy || state.unresolved || state.plan != null,
+                        onInput = { dirty, patch -> draftDirty = dirty; draftPatch = patch }, onSave = onSaveDraft)
+                    if (record.relations.any { it.active && it.state == "draft" }) {
+                        CashPendingCard("relations", localizedText("cash_relation_problem"), localizedText("cash_review_relations"),
+                            onBeginRelations?.let { begin -> { draftPatch?.let(begin) } } ?: onProcessRelations,
+                            state.busy || state.unresolved || state.plan != null || draftPatch == null)
+                    } else if (record.relations.isNotEmpty() && onBeginRelations != null && record.recordOrigin !in setOf("manual", "manual_transfer")) {
+                        TextButton(onClick = { draftPatch?.let(onBeginRelations) }, enabled = !state.busy && !state.unresolved && state.plan == null && draftPatch != null,
+                            modifier = Modifier.testTag("cash.current.manage-relations")) { Text(localizedText("cash_manage_relations")) }
+                    }
+                    if (state.selectionPlan) CashRelationTreatment(state, accounts, categories, options, onCancelPlan, onSaveRelationChoices)
+                    else if (state.plan != null && !state.unresolved) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirmPlan, onCancelPlan)
+                    HorizontalDivider()
+                    TextButton(onClick = {
+                        sourcesExpanded = !sourcesExpanded
+                        if (sourcesExpanded && evidence == null) onLoadSources()
+                    }, modifier = Modifier.testTag("cash.current.sources-toggle")) { Text(localizedText(if (sourcesExpanded) "cash_hide_sources" else "cash_show_sources")) }
+                    if (sourcesExpanded) {
+                        if (sourceError != null) StateMessage(if (sourceError == "record_changed") ledgerErrorText(sourceError) else localizedText("cash_sources_unavailable"), isError = true) {
+                            TextButton(onClick = onLoadSources, modifier = Modifier.testTag("cash.current.sources-retry")) { Text(localizedText("copy_e2d53a6d3a")) }
+                        }
+                        val members = evidence?.members.orEmpty()
+                        if (evidence == null && sourceError == null) CircularProgressIndicator()
+                        else if (members.isEmpty()) CashReadonlyFields(record.fields)
+                        else members.forEach { member ->
+                            key(member.transactionId) {
+                                Text(member.counterparty.ifBlank { localizedText("display_not_provided") }, style = MaterialTheme.typography.titleSmall)
+                                Text(listOfNotNull(member.amount ?: "—", member.currency).joinToString(" "), style = MaterialTheme.typography.bodyMedium)
+                                Text(localDateTimeDisplayLabel(member.occurredAt), style = MaterialTheme.typography.bodySmall)
+                                member.accountName?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                                if (member.components.size > 1) member.components.forEach { component ->
+                                    Text(listOfNotNull(component.accountName, component.amount ?: "—", component.currency).joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+                                }
+                                member.note.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+                                member.counterpartyAccount?.takeIf { it.isNotBlank() }?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                                Text(localizedText("cash_statement_content"), style = MaterialTheme.typography.titleSmall)
+                                Column(Modifier.fillMaxWidth().testTag("cash.current.source-body-${member.transactionId}"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    val lines = cashStatementLines(member.sourcePayload)
+                                    if (lines.isEmpty()) Text(localizedText("cash_statement_empty"))
+                                    else lines.forEach { (label, value) -> Text(if (label.isEmpty()) value else "$label：$value", style = MaterialTheme.typography.bodyMedium) }
+                                }
+                                HorizontalDivider()
                             }
-                            HorizontalDivider()
                         }
                     }
                 }
             }
         }
     }
-    if (discardConfirm) AlertDialog(onDismissRequest = { discardConfirm = false },
+    if (discardAction != null) AlertDialog(onDismissRequest = { discardAction = null },
         title = { Text(localizedText("ledger_record_discard_title")) },
-        confirmButton = { TextButton(onClick = { discardConfirm = false; onClose() }) { Text(localizedText("ledger_record_discard_confirm")) } },
-        dismissButton = { TextButton(onClick = { discardConfirm = false }) { Text(localizedText("ledger_record_discard_continue")) } })
+        confirmButton = { TextButton(onClick = { val action = discardAction; discardAction = null; action?.invoke() }) { Text(localizedText("ledger_record_discard_confirm")) } },
+        dismissButton = { TextButton(onClick = { discardAction = null }) { Text(localizedText("ledger_record_discard_continue")) } })
 }
 
 @Composable

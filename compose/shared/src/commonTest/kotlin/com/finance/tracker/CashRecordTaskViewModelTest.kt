@@ -9,6 +9,30 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashRecordTaskViewModelTest {
+    @Test fun cancelledEditCannotSubmitItsPreviousImpactPlan() = runTest { task { vm, repo, _ ->
+        vm.open("11"); advanceUntilIdle()
+        vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); advanceUntilIdle()
+        assertNotNull(vm.state.value.plan)
+        assertTrue(vm.cancelEdit())
+        assertNull(vm.state.value.plan); assertNull(vm.state.value.input)
+        assertTrue(vm.state.value.details.isEmpty()); assertTrue(vm.state.value.affectedRecords.isEmpty())
+        vm.confirmPlan(); advanceUntilIdle(); assertTrue(repo.commits.isEmpty())
+    } }
+    @Test fun suspendedPreviewCannotBeReportedAsDiscarded() = runTest { task { vm, repo, _ ->
+        vm.open("11"); advanceUntilIdle(); repo.delayPreview = CompletableDeferred()
+        vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); runCurrent()
+        assertTrue(vm.state.value.busy); assertFalse(vm.cancelEdit()); assertFalse(vm.close())
+        repo.delayPreview!!.complete(Unit); advanceUntilIdle()
+        assertNotNull(vm.state.value.plan); assertTrue(repo.commits.isEmpty())
+    } }
+    @Test fun unknownSentEditCannotDiscardItsOriginalCommand() = runTest { task { vm, repo, store ->
+        vm.open("11"); advanceUntilIdle(); repo.emptyEffects = true
+        repo.commitFailure = DomainFailure("network_unavailable", 0, FailureCategory.RECOVERABLE)
+        vm.prepare(CashMaintenanceRequest("edit_entry", "11", 3)); advanceUntilIdle()
+        val original = assertNotNull(vm.state.value.frozenCommand)
+        assertFalse(vm.cancelEdit()); assertFalse(vm.close())
+        assertEquals(original, vm.state.value.frozenCommand); assertEquals(original, store.pointer!!.command)
+    } }
     @Test fun detailLoadsPendingIssuesOnOtherConfirmedGroupMembers() = runTest { task { vm, repo, _ ->
         repo.grouped = true
         vm.open("11"); advanceUntilIdle()
@@ -221,6 +245,7 @@ private class DetailStore : CashMaintenanceRecoveryStore {
     override suspend fun clear() { pointer = null }
 }
 private class DetailRepo : CashMaintenanceRepository {
+    var delayPreview: CompletableDeferred<Unit>? = null
     var grouped = false; var failGroupRead = false; var groupVersion = 7L; var memberRevision = 3L
     override suspend fun currentGroup(projectionId: String): CashCurrentGroup {
         if (failGroupRead) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
@@ -242,6 +267,7 @@ private class DetailRepo : CashMaintenanceRepository {
         draftPatch = patch; return CashDraftSaveResult(detailReceipt().copy(operationKind = "save_draft"), if (currentUnavailable) "unavailable" else "available", detailRecord().takeUnless { currentUnavailable })
     }
     override suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan {
+        delayPreview?.await()
         previews += input; latestChoices = input.relationChoices; previewFailure?.let { throw it }; if (input.intent == "save_draft") draftPatch = input.patch
         return CashMaintenancePlan("mp_one", "context", 2, "2099-01-01T00:00:00Z", emptyMap(), emptyMap(), true, emptyList(), if (paged) "second" else null, emptyList(), additionalEffects = if (missingEffects) null else if (emergingConflict) (if (latestChoices.any { it.action == "accept" && it.commonFields == null }) listOf(CashAdditionalEffect("choice_changed", "group")) else emptyList()) else if (input.intent == "save_draft" || emptyEffects) emptyList() else listOf(CashAdditionalEffect("new_attention", "11")))
     }

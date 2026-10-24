@@ -444,6 +444,8 @@ internal fun CashLedgerScreen(
                 if (finalize) currentState.record?.let { currentTask.prepare(CashMaintenanceRequest("finalize_draft", it.transactionId, it.rowRevision, patch)) }
                 else currentTask.saveDraft(patch)
             }) else null,
+            onSaveEntry = if (canWrite) ({ request -> currentTask.prepare(request) }) else null,
+            onCancelEntry = currentTask::cancelEdit,
             onBeginRelations = if (canWrite) currentTask::beginRelations else null,
             onSaveRelationChoices = currentTask::saveRelationChoices,
             onConfirmPlan = currentTask::confirmPlan,

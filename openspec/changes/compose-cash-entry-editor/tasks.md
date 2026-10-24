@@ -9,12 +9,12 @@
 
 ## 3. 任务拆分与一致性
 
-- [ ] 3.1 基于维护模块已合入的公共基础冻结编辑器输入／回调与命令边界，不并行修改集中 DTO／宿主。
+- [x] 3.1 基于维护模块已合入的公共基础冻结编辑器输入／回调与命令边界，不并行修改集中 DTO／宿主。
 - [ ] 3.2 先补权限与序列化失败测试：导入五字段、组内只读、null／清空、手动财务、双端转账、孤立／投资单端受限及并发过期。
 
 ## 4. 构建
 
-- [ ] 4.1 新建独立编辑状态及表单，展示固定摘要和当前可编辑项，公共编辑使用真实对象修订并保护人工清空。
+- [x] 4.1 新建独立编辑状态及表单，展示固定摘要和当前可编辑项，公共编辑使用真实对象修订并保护人工清空。
 - [ ] 4.2 接通普通手动新建／编辑及单入口转账模式，校验真实账户、同币种联动金额、换汇双金额的精确字符串和合法类型；不发送半笔转账或来源身份。
 - [ ] 4.3 接通手动转账完整双端编辑，按真实成员与允许补丁共同预览／提交，覆盖失败全保留和受限只公共编辑。
 - [ ] 4.4 接通保存／返回／放弃、必要影响确认和维护命令核实；直接新建未知不自动重发，新建转账确定成功只刷新账本，不伪造稳定定位／收据或额外去重机制。
@@ -42,4 +42,23 @@
 
 - [ ] 8.1 记录可复用防复发测试与必要规则，保持文档只表述当前结论；完成后再按实际依赖同步 delta，未实现内容不提前归档。
 
-规划起点 `HEAD=a05d593`；仅完成 artifacts，未修改应用代码或运行 UI QA。独立复核、finding 处置、37/37 strict、doctor、链接与 diff 证据见 [共同规划验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)；本变更审查无剩余阻断，实施证据在各阶段原位填写。
+规划证据见 [共同规划验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)。当前实施基线 `HEAD=0e523a1`，先接入当前详情中的整笔编辑；普通新建／转账和旧写入口退役仍未完成。
+
+### 当前审查与验证
+
+独立工程复核范围为字段权限、补丁序列化、真实修订和详情宿主的编辑生命周期。取消编辑残留旧影响计划的 major 已关闭：维护任务原位清空未发送计划，忙碌／未知状态拒绝放弃，确认回调再次检查；三项失败回归修复转绿，独立重审无新增 blocking／major。其余已审查的权限、修订和共享字段控件无 major。
+
+Cross-platform Impact Check：共享表单、取消与保存语义影响 Web、Android 和 iOS；Web 真实冒烟，Android 编译和主机单测，iOS 共享编译，本轮 iOS 平台单测及设备 QA 按用户决定不执行。仅接入公共及普通手动编辑表单，双端转账、记账模式、旧入口删除及整个 change 演示确认尚未完成。
+
+| 验证 | 当前结果与证据 |
+|---|---|
+| 基线／时间 | `HEAD=0e523a1`，比较基线同 HEAD；2026-10-24，工作树编辑小步，不含后端、存储或依赖变更 |
+| 测试先行 | 输入权限五项、四项业务失败后转绿；取消生命周期三项失败后转绿。日志 `/tmp/ft-cash-entry-input-red.log`、`/tmp/ft-cash-entry-cancel-red.log`、`/tmp/ft-cash-entry-cancel-green.log`，最终定向 31 项通过 |
+| 共享回归及构建 | `FT_API_ORIGIN=http://127.0.0.1:58792 ./gradlew :webApp:wasmJsBrowserDevelopmentWebpack :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache`：成功，1m24；Wasm 344、Android 主机 339 项，均无失败／跳过；日志 `/tmp/ft-cash-entry-final-matrix.log` |
+| 真实 Web 冒烟 | Chromium，`http://127.0.0.1:5308`，1440×900，开发产物指纹一致；外部专用合成 SQLite API `58792`。主页→详情→编辑→改备注→一次保存→来源原文；真实稳定修订、仅备注补丁、一次预览／提交、来源字段及分摊不变。1/1 通过，10.5s；日志 `/tmp/ft-cash-entry-real-web-smoke.log`；截图 `/tmp/ft-compose-cash-evidence/entry-{form,saved}-1440.png`；无新增控制台／请求／HTTP 错误 |
+| 入口回归 | `compose-cash-entry.e2e.ts`：1/1 通过，6.5s；核对只展示可编辑项、真实对象修订、一次保存与当前详情刷新。日志 `/tmp/ft-cash-entry-fixture-web-smoke.log` |
+| 工具与规格 | `npm run test:node`：3/3；`openspec validate --all --strict --json`：37/37；日志 `/tmp/ft-cash-entry-node.log`、`/tmp/ft-cash-entry-spec-validation.json`。5 份改动 Markdown 的本地链接／锚点及最终 diff 检查通过 |
+| Hallmark audit | 按仓库 audit 及 anti-patterns 对照实际上述截图与 Compose，沿用 FinanceTheme／M3，固定摘要→字段→保存，未增加说明区或装饰；当前自查 0 critical／0 major／0 minor。中文字段与文字必要性已复核；独立工程／产品／设计复核同意该小步提交，0 critical／0 major／0 minor；实际页面验收仅覆盖导入公共编辑，手动财务表单本轮只有权限／序列化单测 |
+| 范围及限制 | 无后端存储行为变更，不重复后端双库矩阵；真实冒烟写入仅合成库。Compose 1.12.1 关闭弹层树停更及禁用状态无障碍缺陷按用户决定保留；本小步未改变相关依赖。完整关系、转账、统一导入和用户演示确认不算完成 |
+
+文档收尾核对：更新现金流水操作说明、功能地图及 OpenSpec apply 接线参考；复用既有术语，无新领域概念，不改词表；根 README、部署及接口示例无新接口／配置，保持不变。回退为撤回本前端小步，不能恢复旧 PUT 写入。防复发测试明确约束取消必须同时撤销未发送确认计划，不能仅以表单关闭推断命令已放弃。
