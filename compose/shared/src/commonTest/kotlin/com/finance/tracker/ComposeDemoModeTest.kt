@@ -5,7 +5,6 @@ import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.domain.CashRecordWrite
 import com.finance.tracker.domain.CashFilters
 import com.finance.tracker.domain.DomainFailure
-import com.finance.tracker.domain.ImportMappingDecision
 import com.finance.tracker.domain.WorkspaceRole
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -120,29 +119,5 @@ class ComposeDemoModeTest {
         val restartedSession = createDemoFinanceTrackerGraph().sessionRepository.restoreSession()
         assertEquals("demo-workspace", restartedSession.activeWorkspaceId)
         assertFalse(restartedSession.workspaces.any { it.id == createdWorkspaceId })
-    }
-
-    @Test
-    fun builtInStatementCompletesTheLocalImportContract() = runTest {
-        val graph = createDemoFinanceTrackerGraph()
-        val statement = assertNotNull(graph.demoStatement)
-        val detection = graph.financeRepository.detectCashImport(statement)
-        val scan = graph.financeRepository.scanCashImport(listOf(statement))
-        val token = assertNotNull(scan.importToken)
-        val preview = graph.financeRepository.previewCashImport(token)
-        val decisions = preview.mapping.map { ImportMappingDecision(it.groupId, accountId = it.accountId) }
-        val result = graph.financeRepository.commitCashImport(
-            importToken = token,
-            previewDigest = preview.file.digest,
-            previewRelationDigest = preview.relationDigest,
-            mapping = decisions,
-        )
-
-        assertTrue(detection.rowCount > 0)
-        assertTrue(scan.ready == true)
-        assertTrue(preview.summary.new > 0)
-        assertTrue(result.newRows > 0)
-        assertTrue((graph.financeRepository as DemoFinanceRepository).fetchCashRecords().items.any { it.sourceType == "statement_import" })
-        assertFalse((createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository).fetchCashRecords().items.any { it.sourceType == "statement_import" })
     }
 }

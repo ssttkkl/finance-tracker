@@ -28,37 +28,6 @@ interface CashCategoryRepository {
     suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult
 }
 
-interface CashImportRepository {
-    suspend fun detectCashImport(file: FileSource, currency: String? = null, password: String? = null): ImportDetection
-    suspend fun scanCashImport(
-        files: List<FileSource>,
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        importToken: String? = null,
-    ): ImportScan
-    suspend fun previewCashImport(
-        importToken: String,
-        source: String = "",
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        mapping: List<ImportMappingDecision>? = null,
-        batch: Boolean = false,
-    ): ImportPreview
-    suspend fun commitCashImport(
-        importToken: String,
-        source: String = "",
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        previewDigest: String? = null,
-        previewRelationDigest: String? = null,
-        previewChannel: String? = null,
-        relations: List<StructuredObject>? = null,
-        mapping: List<ImportMappingDecision>? = null,
-        idempotencyKey: String? = null,
-        batch: Boolean = false,
-    ): ImportCommitResult
-}
-
 interface InvestmentRepository {
     suspend fun fetchInvestmentAccounts(): List<Account>
     suspend fun fetchInvestmentPage(filters: InvestmentFilters, cursor: String? = null): InvestmentPage
@@ -77,4 +46,4 @@ interface InvestmentRepository {
     )
 }
 
-interface FinanceRepository : CashLedgerRepository, CashCategoryRepository, CashImportRepository, InvestmentRepository
+interface FinanceRepository : CashLedgerRepository, CashCategoryRepository, InvestmentRepository

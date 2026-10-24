@@ -6,7 +6,7 @@ import com.finance.tracker.domain.*
 class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) : CashMaintenanceRepository {
     override suspend fun currentGroup(projectionId: String): CashCurrentGroup {
         val evidence = finance.fetchEvidence(projectionId)
-        return CashCurrentGroup(evidence.projectionVersion, evidence.members.map { CashCurrentMember(it.id, revisions[it.id] ?: 1, "confirmed") })
+        return CashCurrentGroup(evidence.projectionVersion, evidence.members.map { CashCurrentMember(it.id, revisions[it.id] ?: 1, if (finance.importedStates[it.id] == "draft") "pending" else "confirmed") })
     }
     private val revisions = mutableMapOf<String, Long>()
     private val entryRevisions = mutableMapOf<String, Long>()
@@ -20,11 +20,27 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         val evidence = finance.fetchEvidence(projectionId)
         return CashSourceEvidence(evidence.projectionVersion, evidence.projection, evidence.members.map { member ->
             CashSourceMember(member.id, member.occurredAt, member.amount, member.currency, member.counterparty, member.note, member.counterpartyAccount,
-                member.account?.name ?: member.accountName, member.components.orEmpty().map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, "") })
+                member.account?.name ?: member.accountName, member.components.orEmpty().map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, "") },
+                finance.importedFields[member.id]?.fields?.get("source_payload") as? StructuredObject)
         })
     }
     override suspend fun record(transactionId: String): CashCurrentRecord {
         val row = finance.fetchCashRecord(transactionId).record
+        finance.importedFields[transactionId]?.let { source ->
+            val fields = source
+            val state = finance.importedStates[transactionId] ?: "posted"
+            val pending = state == "draft"
+            val editable = if (pending) listOf("occurred_at", "amount", "currency", "account_id", "record_type", "record_subtype") + common else common.toList()
+            val revision = revisions[transactionId] ?: 1
+            val version = finance.fetchCashPage(CashFilters()).projectionVersion
+            val issues = if (!pending) emptyList() else listOf(CashRecordIssue("demo-account-$transactionId", revision, "posting_incomplete",
+                if (fields.fields["account_id"] is StructuredText) "请核对后转为正式收支。" else "请选择对应账户。", "account_id", "row", "edit", emptyList(), StructuredObject(emptyMap()), null, emptyList())) // i18n-allow: demo-fixture
+            return CashCurrentRecord("import", CashPublicEntry("demo-entry-$transactionId", entryRevisions[transactionId] ?: 1,
+                StructuredObject(fields.fields.filterKeys { it in common } + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), common.toList(), false), transactionId,
+                state, revision, if (pending) "pending" else "confirmed", fields, editable, issues, emptyList(),
+                CashCurrentProjectionRef(transactionId, "projection-$transactionId", if (pending) 1 else 0, version))
+        }
+
         fun text(value: String) = StructuredText(value)
         val root = finance.transferRoot(transactionId)
         val isTransfer = finance.transferMembers(transactionId).size == 2
@@ -45,8 +61,12 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
     override suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan {
         val current = record(input.transactionId)
         if (current.rowRevision != input.expectedRevision) failure("record_changed", 409)
-        if (input.intent !in setOf("edit_entry", "edit_record")) failure("posted_required", 409)
-        if (input.patch.fields.keys.any { it !in current.entry!!.editableFields }) failure("field_not_editable", 422)
+        val draft = input.intent in setOf("save_draft", "finalize_draft")
+        if (draft && current.state != "draft") failure("draft_required", 409)
+        if (!draft && input.intent !in setOf("edit_entry", "edit_record")) failure("intent_invalid", 422)
+        val editable = if (draft) current.editableFields else current.entry!!.editableFields
+        if (input.patch.fields.keys.any { it !in editable }) failure("field_not_editable", 422)
+        if (input.intent == "finalize_draft") validateFinalDraft(StructuredObject(current.fields.fields + input.patch.fields))
         if (input.intent == "edit_entry" && (input.entryId != current.entry!!.entryId || input.expectedEntryRevision != current.entry!!.revision)) failure("entry_changed", 409)
         if (current.recordOrigin == "manual_transfer" && input.patch.fields.keys.any { it !in common }) failure("field_not_editable", 422)
         val preparedMembers = if (input.memberPatches.isNotEmpty()) finance.prepareTransferMembers(input.transactionId, input.memberPatches) else emptyList()
@@ -59,11 +79,14 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
             "occurred_at" to StructuredText(it.occurredAt), "account_name" to StructuredText(it.accountName)) }.orEmpty()
         val fields = StructuredObject(current.fields.fields + current.entry!!.fields.fields + proposedFields + input.patch.fields)
         fun value(key: String) = (fields.fields[key] as? StructuredText)?.value
-        val item = ImportProjectedItem("demo-item", "confirmed", "posted", ImportDisplay(value("occurred_at"), value("amount"), value("currency"),
-            value("counterparty"), value("note"), listOfNotNull(value("account_name"))), true,
+        val state = if (input.intent == "save_draft") "draft" else "posted"
+        val pending = if (state == "draft") 1L else 0L
+        val action = if (draft) input.intent else "update_posted"
+        val item = ImportProjectedItem("demo-item", if (pending == 1L) "pending" else "confirmed", state, ImportDisplay(value("occurred_at"), value("amount"), value("currency"),
+            value("counterparty"), value("note"), listOfNotNull(value("account_name"))), pending == 0L,
             (preparedMembers.map { ImportMemberRef(null, it.id) }).ifEmpty { listOf(ImportMemberRef(null, current.transactionId)) }, emptyList(), true)
-        val plan = CashMaintenancePlan(id, context, (old?.revision ?: 0) + 1, "2099-01-01T00:00:00Z", mapOf("update_posted" to 1L),
-            mapOf("all" to 1L, "confirmed" to 1L, "pending" to 0L), true, listOf(item), null, emptyList(), emptyList())
+        val plan = CashMaintenancePlan(id, context, (old?.revision ?: 0) + 1, "2099-01-01T00:00:00Z", mapOf(action to 1L),
+            mapOf("all" to 1L, "confirmed" to 1L - pending, "pending" to pending), true, listOf(item), null, emptyList(), emptyList())
         old?.let { plans.remove(it.planId); requests.remove(it.planId) }
         plans[id] = plan; requests[id] = input
         return plan
@@ -80,7 +103,7 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
                 "account_id" to StructuredText(row.accountId.toString()), "account_name" to StructuredText(row.accountName), "occurred_at" to StructuredText(row.occurredAt),
                 "record_type" to StructuredText(row.recordType), "record_subtype" to StructuredText(row.recordSubtype))))
         }
-        return ImportItemDetail(itemId, prepared.map { member -> ImportMemberDetail(null, member.transactionId, "update_posted",
+        return ImportItemDetail(itemId, prepared.map { member -> ImportMemberDetail(null, member.transactionId, if (input.intent in setOf("save_draft", "finalize_draft")) input.intent else "update_posted",
             StructuredObject(member.fields.fields + input.patch.fields), emptyList(), emptyList(), member.rowRevision) },
             emptyList(), emptyList(), emptyList(), emptyList(), ImportEntryFields(StructuredObject(current.entry!!.fields.fields + input.patch.fields), current.entry!!.editableFields))
     }
@@ -92,19 +115,29 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         val current = record(input.transactionId)
         if (current.rowRevision != input.expectedRevision) failure("record_changed", 409)
         if (input.intent == "edit_entry" && (input.entryId != current.entry!!.entryId || input.expectedEntryRevision != current.entry!!.revision)) failure("entry_changed", 409)
-        if (input.memberPatches.isNotEmpty()) {
-            finance.saveTransferMembers(input.transactionId, input.memberPatches).forEach { id -> revisions[id] = (revisions[id] ?: 1) + 1 }
+        if (input.intent in setOf("save_draft", "finalize_draft")) {
+            if (current.state != "draft") failure("draft_required", 409)
+            val fields = StructuredObject(current.fields.fields + input.patch.fields)
+            if (input.intent == "finalize_draft") validateFinalDraft(fields)
+            finance.updateImported(current.transactionId, fields, if (input.intent == "finalize_draft") "posted" else "draft")
+            revisions[current.transactionId] = current.rowRevision + 1
+        } else {
+            if (input.memberPatches.isNotEmpty()) {
+                finance.saveTransferMembers(input.transactionId, input.memberPatches).forEach { id -> revisions[id] = (revisions[id] ?: 1) + 1 }
+            }
+            val fields = current.fields.fields + input.patch.fields.filterKeys { it !in common }
+            fun value(key: String) = (fields[key] as? StructuredText)?.value.orEmpty()
+            val account = finance.fetchCashAccounts().firstOrNull { it.id.toString() == value("account_id") }
+            if (input.patch.fields.keys.any { it !in common }) finance.updateCashRecord(current.transactionId, CashRecordWrite(value("occurred_at"), value("amount"), value("currency"), value("counterparty"),
+                value("counterparty_account"), value("note"), account?.name ?: value("account_name"), value("record_type"), value("record_subtype"), value("category_id").ifEmpty { null }))
+            if (input.patch.fields.keys.any { it !in common }) revisions[current.transactionId] = current.rowRevision + 1
+            finance.saveCommonFields(current.transactionId, input.patch.fields.filterKeys { it in common })
         }
-        val fields = current.fields.fields + input.patch.fields.filterKeys { it !in common }
-        fun value(key: String) = (fields[key] as? StructuredText)?.value.orEmpty()
-        val account = finance.fetchCashAccounts().firstOrNull { it.id.toString() == value("account_id") }
-        if (input.patch.fields.keys.any { it !in common }) finance.updateCashRecord(current.transactionId, CashRecordWrite(value("occurred_at"), value("amount"), value("currency"), value("counterparty"),
-            value("counterparty_account"), value("note"), account?.name ?: value("account_name"), value("record_type"), value("record_subtype"), value("category_id").ifEmpty { null }))
-        if (input.patch.fields.keys.any { it !in common }) revisions[current.transactionId] = current.rowRevision + 1
-        finance.saveCommonFields(current.transactionId, input.patch.fields.filterKeys { it in common })
         entryRevisions[finance.transferRoot(current.transactionId)] = current.entry!!.revision + 1
+        val pending = if (input.intent == "save_draft") 1L else 0L
+        val result = when (input.intent) { "save_draft" -> "saved_draft"; "finalize_draft" -> "finalized_draft"; else -> "updated_posted" }
         val receipt = ImportReceipt("demo-receipt-${++counter}", command.planId, "mutation", true, "2026-10-24T00:00:00Z", "completed",
-            mapOf("updated_posted" to 1L), emptyMap(), 0, 0, null, null, null, current.transactionId, null, null, null)
+            mapOf(result to 1L), emptyMap(), pending, pending, finance.fetchCashPage(CashFilters()).projectionVersion, null, null, current.transactionId, null, null, null)
         receipts[command.idempotencyKey] = receipt
         plans.remove(command.planId); requests.remove(command.planId)
         return receipt
@@ -112,6 +145,15 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
     override suspend fun resolve(command: ImportFrozenCommand) = receipts[command.idempotencyKey]?.let { ImportResolveResult("committed", it) }
         ?: ImportResolveResult(if (command.planId in plans) "retry_original" else "not_committed", null)
     override suspend fun receiptByKey(key: String) = receipts[key] ?: failure("receipt_not_found", 404)
-    override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String): CashDraftSaveResult = failure("draft_required", 409)
+    override suspend fun saveDraft(transactionId: String, revision: Long, patch: StructuredObject, key: String): CashDraftSaveResult {
+        val receipt = receipts[key] ?: preview(CashMaintenanceRequest("save_draft", transactionId, revision, patch)).let {
+            commit(ImportFrozenCommand(it.planId, it.revision, key))
+        }
+        if (receipt.retainedTransactionId != transactionId) failure("idempotency_conflict", 409)
+        return CashDraftSaveResult(receipt, "available", record(transactionId))
+    }
+    private fun validateFinalDraft(fields: StructuredObject) {
+        if (!demoCashPostingComplete(fields, finance.demoAccounts())) failure("posting_incomplete", 422)
+    }
     private fun failure(code: String, status: Int): Nothing = throw DomainFailure(code, status, FailureCategory.RECOVERABLE)
 }

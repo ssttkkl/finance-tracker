@@ -74,6 +74,11 @@ internal data class DestinationState(
     val financeRepository: FinanceRepository,
     val cashMaintenanceRepository: CashMaintenanceRepository,
     val cashCreationRepository: CashCreationRepository,
+    val cashImportRepository: CashImportLifecycleRepository,
+    val importRecovery: ImportRecoveryStore,
+    val importAccountRecovery: ImportAccountRecovery,
+    val registerImportExit: (((() -> Unit) -> Unit)?) -> Unit,
+    val onImportDone: () -> Unit,
     val cashMaintenanceRecovery: CashMaintenanceRecoveryStore,
     val sessionRepository: SessionRepository,
     val diagnosticLogger: DiagnosticLogger,
@@ -164,28 +169,40 @@ private fun FinanceTrackerAppContent(
         ?: IncomingInvitationLinks.currentToken()?.let { AppRoute(AppPage.INVITATION, invitationToken = it) }
         ?: initialRoute
     var navigationState by rememberAppNavigationState(resolvedInitialRoute)
+    var importExitGuard by remember { mutableStateOf<((() -> Unit) -> Unit)?>(null) }
+    val registerImportExit = remember { { handler: ((() -> Unit) -> Unit)? -> importExitGuard = handler } }
+    fun guardNavigation(action: () -> Unit) {
+        val guard = importExitGuard.takeIf { navigationState.currentRoute.page == AppPage.CASH_IMPORT }
+        if (guard == null) action() else guard(action)
+    }
     val currentRoute = navigationState.currentRoute
     val routeHistory = navigationState.backStack
-    var previousPage by remember { mutableStateOf(currentRoute.page) }
     var importCompletedAwaitingReturn by remember { mutableStateOf(false) }
     var cashLedgerReloadRevision by remember { mutableStateOf(0) }
     LaunchedEffect(currentRoute.page) {
-        if (previousPage == AppPage.CASH_IMPORT && currentRoute.page == AppPage.CASH_LEDGER && importCompletedAwaitingReturn) {
+        if (currentRoute.page == AppPage.CASH_LEDGER && importCompletedAwaitingReturn) {
             cashLedgerReloadRevision += 1
             importCompletedAwaitingReturn = false
         }
-        previousPage = currentRoute.page
     }
 
     DisposableEffect(Unit) {
         val removeListener = observeBrowserHistory {
             getBrowserLocation()?.let { location ->
-                navigationState = navigationState.copy(currentRoute = parseAppRoute(location.pathname, location.search))
+                val next = parseAppRoute(location.pathname, location.search)
+                val target = location.pathname + location.search
+                if (next != navigationState.currentRoute) {
+                    appPathForRoute(navigationState.currentRoute)?.let(::replaceBrowserPath)
+                    guardNavigation {
+                        navigationState = navigationState.copy(currentRoute = next)
+                        replaceBrowserPath(target)
+                    }
+                }
             }
         }
         val removeInvitationListener = IncomingInvitationLinks.observe { token ->
             val nextRoute = AppRoute(AppPage.INVITATION, invitationToken = token)
-            navigationState = navigationState.navigate(nextRoute, recordBackStack = getBrowserLocation() == null)
+            guardNavigation { navigationState = navigationState.navigate(nextRoute, recordBackStack = getBrowserLocation() == null) }
         }
         onDispose {
             removeListener()
@@ -209,27 +226,23 @@ private fun FinanceTrackerAppContent(
     }
 
     val selectPage: (AppPage) -> Unit = { page ->
-        val nextRoute = currentRoute.copy(
-            page = page,
-            workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
-            invitationToken = null,
-            unmatchedPath = null,
-        )
-        navigationState = navigationState.navigate(nextRoute, recordBackStack = getBrowserLocation() == null)
-        appPathForRoute(nextRoute)?.let(::pushBrowserPath)
-        onNavigate(nextRoute)
-    }
-
-    val navigateBack: () -> Unit = {
-        if (getBrowserLocation() == null) {
-            val previousState = navigationState.back()
-            if (previousState != null) {
-                navigationState = previousState
-                val previous = previousState.currentRoute
-                onNavigate(previous)
-            }
+        if (page != currentRoute.page) guardNavigation {
+            val nextRoute = currentRoute.copy(page = page,
+                workspaceId = session?.activeWorkspaceId ?: currentRoute.workspaceId,
+                invitationToken = null, unmatchedPath = null)
+            navigationState = navigationState.navigate(nextRoute, recordBackStack = getBrowserLocation() == null)
+            appPathForRoute(nextRoute)?.let(::pushBrowserPath)
+            onNavigate(nextRoute)
         }
     }
+
+    val navigateBackDirect: () -> Unit = {
+        if (getBrowserLocation() == null) navigationState.back()?.let { previous ->
+            navigationState = previous
+            onNavigate(previous.currentRoute)
+        }
+    }
+    val navigateBack: () -> Unit = { guardNavigation(navigateBackDirect) }
 
     val navigateBackOr: (AppPage) -> Unit = { fallbackPage ->
         if (getBrowserLocation() == null && routeHistory.isNotEmpty()) {
@@ -259,7 +272,7 @@ private fun FinanceTrackerAppContent(
             appPathForRoute(ledgerRoute)?.let(::replaceBrowserPath)
             onNavigate(ledgerRoute)
         } else if (routeHistory.isNotEmpty()) {
-            navigateBack()
+            navigateBackDirect()
         } else {
             navigationState = navigationState.copy(currentRoute = ledgerRoute)
             onNavigate(ledgerRoute)
@@ -320,13 +333,13 @@ private fun FinanceTrackerAppContent(
         }
     }
 
-    val selectWorkspace: (String) -> Unit = accessViewModel::selectWorkspace
+    val selectWorkspace: (String) -> Unit = { id -> guardNavigation { accessViewModel.selectWorkspace(id) } }
 
-    val logout: () -> Unit = {
+    val logout: () -> Unit = { guardNavigation {
         accessViewModel.signOut()
         navigationState = navigationState.copy(backStack = emptyList())
         invitationSignInRequested = false
-    }
+    } }
 
     FinanceTheme {
         BoxWithConstraints(
@@ -382,11 +395,21 @@ private fun FinanceTrackerAppContent(
                         if (demoMode || currentSession.activeWorkspaceId.isNullOrBlank()) InMemoryCashMaintenanceRecoveryStore()
                         else ScopedCashMaintenanceRecoveryStore(ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId), createPlatformImportRecoveryStorage())
                     }
+                    val importStores = remember(apiOrigin, demoMode, currentSession.user.email, currentSession.activeWorkspaceId) {
+                        val storage = if (demoMode) InMemoryImportRecoveryStorage() else createPlatformImportRecoveryStorage()
+                        val recoveryScope = ImportRecoveryScope(apiOrigin, currentSession.user.email, currentSession.activeWorkspaceId.orEmpty())
+                        ScopedImportRecoveryStore(recoveryScope, storage) to ScopedImportAccountRecovery(recoveryScope, storage)
+                    }
                     val state = DestinationState(
                         route = currentRoute,
                         financeRepository = graph.financeRepository,
                         cashMaintenanceRepository = graph.cashMaintenanceRepository,
                         cashCreationRepository = graph.cashCreationRepository,
+                        cashImportRepository = graph.cashImportRepository,
+                        importRecovery = importStores.first,
+                        importAccountRecovery = importStores.second,
+                        registerImportExit = registerImportExit,
+                        onImportDone = { importCompletedAwaitingReturn = true },
                         cashMaintenanceRecovery = maintenanceRecovery,
                         sessionRepository = graph.sessionRepository,
                         diagnosticLogger = graph.diagnosticLogger,
@@ -417,18 +440,7 @@ private fun FinanceTrackerAppContent(
                             }
                             WindowSizeClass.WIDE -> WideAppShell(state) { destination(state.copy(navigationIcon = {})) }
                         }
-                        if (state.route.page == AppPage.CASH_IMPORT) {
-                            CashImportScreen(
-                                repository = graph.financeRepository,
-                                demoStatement = graph.demoStatement,
-                                workspaceId = currentSession.activeWorkspaceId.orEmpty(),
-                                sizeClass = windowSizeClass,
-                                canWrite = currentSession.workspaces.firstOrNull { it.id == currentSession.activeWorkspaceId }?.role?.canWrite == true,
-                                onBack = state.onCloseSecondaryPage,
-                                onDone = { importCompletedAwaitingReturn = true },
-                                diagnostics = graph.diagnosticLogger,
-                            )
-                        }
+
                     }
                 }
             }

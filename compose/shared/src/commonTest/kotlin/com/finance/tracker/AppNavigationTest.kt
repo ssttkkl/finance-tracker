@@ -27,9 +27,9 @@ class AppNavigationTest {
     }
 
     @Test
-    fun cashImportIsASecondaryPagePresentedOverTheLedger() {
+    fun cashImportHasItsOwnTaskTitleWithinLedgerNavigation() {
         assertEquals(AppPage.CASH_LEDGER, primaryPageFor(AppPage.CASH_IMPORT))
-        assertEquals("navigation_cash_ledger", titleKeyFor(AppPage.CASH_IMPORT))
+        assertEquals("cash_import_title", titleKeyFor(AppPage.CASH_IMPORT))
         assertFalse(appDestinations.any { it.page == AppPage.CASH_IMPORT })
     }
 

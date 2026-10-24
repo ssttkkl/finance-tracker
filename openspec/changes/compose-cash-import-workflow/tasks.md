@@ -10,27 +10,27 @@
 ## 3. 任务拆分与一致性
 
 - [x] 3.1 在维护模块公共基础合入后，核对公共字段／关系选择及宿主合同；先补真实响应 DTO 解码失败测试，覆盖 `entry`、权限、公共冲突与明确清空。
-- [ ] 3.2 先补状态及页面失败测试：部分文件继续、未映射草稿、完整组、计划失效、结果摘要与提交异常统一返回、原命令未知与账户退出；与 requirement 逐项对应。
+- [x] 3.2 先补状态及页面失败测试：部分文件继续、未映射草稿、完整组、计划失效、结果摘要与提交异常统一返回、原命令未知与账户退出；与 requirement 逐项对应。
 
 ## 4. 构建
 
-- [ ] 4.1 扩展生命周期 DTO／domain／mapper，不重写已有恢复基础；按测试补齐任务／账户 VM 及最小恢复接线。
-- [ ] 4.2 实现主内容区准备页面、逐文件重传／设置及独立账户表单，保存生效后选择；不保存账户草稿。
-- [ ] 4.3 实现统一预计收支列表、状态筛选、分页及当前项详情，差异／公共值／关联选择写入当前计划输入，一次确认。
-- [ ] 4.4 实现实际结果摘要、提交新增异常统一错误／安全原因／返回、提交未知核实和安全退出／补偿；覆盖权威未提交、已持久化但无成功写入的 failed、仅草稿、正常无新增及成功部分写入。
+- [x] 4.1 扩展生命周期 DTO／domain／mapper，不重写已有恢复基础；按测试补齐任务／账户 VM 及最小恢复接线。
+- [x] 4.2 实现主内容区准备页面、逐文件重传／设置及独立账户表单，保存生效后选择；不保存账户草稿。
+- [x] 4.3 实现统一预计收支列表、状态筛选、分页及当前项详情，差异／公共值／关联选择写入当前计划输入，一次确认。
+- [x] 4.4 实现实际结果摘要、提交新增异常统一错误／安全原因／返回、提交未知核实和安全退出／补偿；覆盖权威未提交、已持久化但无成功写入的 failed、仅草稿、正常无新增及成功部分写入。
 - [ ] 4.5 统一完成 App／Graph 接线和受影响依赖注入，确认三个模块真实入口；移除无人调用的旧导入 API／状态／步骤并更新合成演示场景。
 
 ## 5. 审查
 
-- [ ] 5.1 在独立上下文复核产品范围、工程、API 可发现性、恢复与隐私边界，记录 finding、处置和回写；阻断项修复后重审。
-- [ ] 5.2 对实际 Compose 页面执行 Hallmark audit、中文术语与可见文案必要性自检；独立设计复核清零 critical／major，不能用规划自查代替。
+- [x] 5.1 在独立上下文复核产品范围、工程、API 可发现性、恢复与隐私边界，记录 finding、处置和回写；阻断项修复后重审。
+- [x] 5.2 对实际 Compose 页面执行 Hallmark audit、中文术语与可见文案必要性自检；独立设计复核清零 critical／major，不能用规划自查代替。
 
 ## 6. 测试与 QA
 
-- [ ] 6.1 在 `compose/` 执行 `./gradlew :shared:wasmJsTest --no-configuration-cache` 及受影响 Android／iOS 单元测试；构建 `:webApp:wasmJsBrowserDistribution`、`:androidApp:assembleDebug`、`:shared:linkDebugFrameworkIosSimulatorArm64`，记录实际 HEAD、命令与结果。
-- [ ] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在 Web 代表视口冒烟受影响主流程、关键交互及直接相关复现分支，记录实际 API、步骤、必要截图及 console／network；不默认穷举全部状态、主题或三类窗口。
-- [ ] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在默认验收范围，不以未执行阻断，也不记为通过。
-- [ ] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
+- [x] 6.1 在 `compose/` 执行 Wasm 与 Android 主机单测、Web 开发／QA 构建、Android 包和 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测、设备与应用包 QA 按用户决定不执行。
+- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在 Web 代表视口冒烟受影响主流程、关键交互及直接相关复现分支，记录实际 API、步骤、必要截图及 console／network；不默认穷举全部状态、主题或三类窗口。
+- [x] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在默认验收范围，不以未执行阻断，也不记为通过。
+- [x] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
 - [ ] 6.5 在 Compose 演示模式以 Web 代表视口交付受影响流程，取得用户演示确认后才勾选 UI 完成；执行 OpenSpec strict、链接和 `git diff --check`。
 
 ## 7. 发布
@@ -42,22 +42,24 @@
 
 - [ ] 8.1 记录可复用防复发测试与必要规则，保持文档只表述当前结论；完成后再按实际依赖同步 delta，未实现内容不提前归档。
 
-规划起点 `HEAD=a05d593`；仅完成 artifacts，未修改应用代码或运行 UI QA。独立复核、finding 处置、37/37 strict、doctor、链接与 diff 证据见 [共同规划验证](../compose-cash-ledger-maintenance/tasks.md#当前审查与验证)；本变更审查无剩余阻断，实施证据在各阶段原位填写。
-
-### 实施细化
-
-2026-10-24 用户逐轮确认：复用主页列表／详情；待确认优先、零待确认自动全部；文件上账户下；摘要下警示卡片按需展开；通常一次保存；结果仅摘要，提交新增异常统一错误／原因／返回。已知业务问题在预览展示。实施基线 `664d0ce`；现有用户 `AGENTS.md` 改动不纳入实现提交。
-
 ### 当前实施与验证
 
-核对列表筛选基础已完成，页面尚未接线。默认待确认读取独立分页，零待确认自动全部，用户主动筛选保留至重新预览；初始页失败禁止确认。测试先红：`/tmp/ft-cash-import-pending-red.log` 55 项中 3 失败；首分页失败反例 `/tmp/ft-cash-import-pending-first-page-red.log` 56 项中 1 失败。2026-10-24 基线 `5966cd4`，`./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 最终成功（59 秒，`/tmp/ft-cash-import-pending-final-matrix.log`）；Wasm 377／Android 372 项，无失败或跳过。iOS 平台单测及设备 QA 依本轮用户决定未运行，不记为通过。
+2026-10-24 用户逐轮确认的方向已写入 design 和 delta：复用主页表格／详情；待确认优先、零待确认自动全部；文件上账户下；摘要下警示卡片；通常一次保存；结果仅摘要，提交新增异常统一错误／原因／返回。当前入口为共享 `CashImportTaskScreen`，由 App／Graph 承载，旧四步页面、scan／preview／commit 客户端及专属模型、状态和演示实现已删除。
 
-独立工程复核覆盖筛选、游标、迟到响应、恢复及确认资格；首分页失败仍可确认的 major 已修复并回查关闭，其余无 blocking／major。本小步没有新用户入口或渲染变化，浏览器冒烟留至统一导入页面接线后；现有线上页面仍为旧导入，不以状态机测试宣称可用。共用层三端受影响，未改持久化、金额或原生命令。八阶段中思考／计划沿用本 change，当前小步测试先行、构建及独立审查完成；交付保留旧入口事实，不提前归档；防复发由专属分页与首次读取失败测试保证。
+Cross-platform Impact Check：App 导航／退出、当前导入页面、共享账本行渲染和恢复存储影响 Web、Android、iOS。三端共用当前业务合同；默认 Web 代表视口冒烟，Android 编译与主机单测，iOS 共享编译。本轮 iOS 平台单测、设备和应用包 QA 按用户决定不运行，不记通过。依赖保持 Compose `1.12.1`；弹层关闭后无障碍树停更及禁用状态语义缺陷按用户决定保留，不据物理点击通过宣称辅助技术通过。
 
-预计整笔公共编辑协议与客户端已补齐，生产页面仍待接入。`entry.edit_ref` 与 `entry_choices` 独立于来源选择；目标变化需用户明确重新核对，重新读取的服务器行选择保留，旧整笔／关联决定清除，未成功预览的本地输入不迁移。测试先红覆盖缺少 `edit_ref`、客户端丢字段和确定未提交标志。2026-10-24 比较基线 `fc21c41`：显式专用 `_test` PostgreSQL 与 SQLite 最终定向合同 89 passed，无 skip（`/tmp/ft-cash-import-entry-confirmed-dual.log`）；此前大矩阵 390 passed／2 个旧输入形状断言失败，断言按新增空数组修正后已包含在最终 89 项中；跨工作区分类夹具的 PostgreSQL 前置工作区缺失也已修正，不把前次失败计通过。
+| 范围 | 当前证据与结论 |
+|---|---|
+| 基线／时间 | 当前 UI 验证 `HEAD=7a1ea9c`，比较基线同 HEAD，2026-10-25；工作树包含统一任务页、真实接线及旧路径退役，最终开发包输入和产物指纹一致 |
+| 测试先行 | 默认待确认分页、首屏失败禁止确认、明确公共目标与候选成员、退出策略、结果统计均有失败反例。连续同成员 APPLY 丢补丁的 20 项中 1 项失败后修复；多成员切换浏览器反例后改为一次只展开一个成员，未保存确认。演示普通草稿保存／明确转正式及来源只读 5 项中 3 项先失败后修复，保持同一流水身份及原文；缺金额／时间／币种或账户不支持币种保持草稿不统计，证券账户不能转正式 |
+| 共享回归和构建 | `FT_API_ORIGIN=http://127.0.0.1:58792 ./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 :webApp:wasmJsBrowserDevelopmentWebpack --no-configuration-cache` 成功，1m19；Wasm 386／Android 主机 381 项，无失败或 skip。日志 `/tmp/ft-cash-import-cash-account-final-matrix.log`。旧测试减少仅对应已退役协议／四步页面，当前会话／状态／账户／恢复回归保留 |
+| Web 当前合同回归 | Chromium，1440×900，`http://127.0.0.1:5308`；仓库 `compose-cash-import.e2e.ts` 7/7 passed，32.3s：待确认独立分页／切全部／实际摘要，未知提交按原键核实且不重发，多成员放弃确认后保留原成员实际补丁，完成导入经分类页回账本刷新，主内容完整任务／唯一标题及返回；提交新增异常或明确未提交均只给错误、原因和返回，不提供行重试或自动重发。日志 `/tmp/ft-cash-import-ready-final-browser.log`。跨页刷新先复现失败再修复；成员保留检查实际请求，绕过已登记的弹窗后语义树停更，不把它计无障碍通过 |
+| 真实 API 冒烟 | 专用合成 SQLite API `58792`，同一开发包及 Chromium／1440×900：实际文件选择上传、未映射草稿、统一核对、实际结果；公共备注使用 `entry_choices` 且来源原值不变，恢复后提交；独立账户立即创建，退出先取消会话再撤销账户。最终日志 `/tmp/ft-cash-import-retired-real-browser.log`，截图 `/tmp/ft-compose-cash-evidence/import-*.png`；3/3 passed，22.1s，无新增控制台／请求／HTTP 错误。随后改动仅限演示数据，生产流程未变化 |
+| 后端合同 | 明确整笔公共目标最终双后端 89 passed，索引增量 29 passed；只读候选成员 205 passed。当前分页缓存／暂存／API／重试／消费矩阵 SQLite 与显式专用 `_test` PostgreSQL 329 passed、无 skip，暂存单测 153 passed。日志 `/tmp/ft-cash-{import-entry-confirmed-dual,import-entry-indexed-final-dual,import-members-dual,plan-cache-final-dual,plan-cache-final-unit}.log`；具体后端范围与收尾见父 change，不把缺 PostgreSQL 的 skip 计通过 |
+| 性能边界 | 既有千行 HTTP 性能及 publication 双后端 54 passed：SQLite／PostgreSQL 预览 2.46／2.61s、提交 4.68／10.65s、预热后同页热读 p95 约 14.3ms。冷读仍整对象解码，不宣称任意冷页低于 100ms；万行独立待办不变。日志 `/tmp/ft-cash-import-final-performance.log` |
+| 独立复核 | 原两项输入 major 已修复并回查关闭；最终七张实际截图经独立 Hallmark audit／设计复核为 0 critical／0 major／0 minor，准备页完整中文与唯一任务标题通过。演示完整性 major 已修复并回查关闭：预览／明确转正式共用必需字段、有效现金类账户及币种判断，未知字段保留 null；新反例 8 项中 3 项失败、证券账户反例 9 项中 1 项失败后全部转绿。最终共享矩阵及新增两项结果浏览器回归均通过，当前小步最终工程／范围无 blocking／major，不以此勾选整 change 完成 |
+| 工具和文档 | Node 3/3（`/tmp/ft-cash-import-current-node.log`）；功能地图、业务说明、design 与旧路径归属原位修订。OpenSpec strict 37/37、doctor healthy、本地 Markdown 链接／锚点及 `git diff --check` 通过；日志 `/tmp/ft-cash-import-current-{specs.json,doctor.json}`。README 的演示启动命令仍适用，接口示例、配置、部署及词表无新增概念或变更，无需重复修改 |
+| 剩余范围 | 导入关联／来源差异／密码等复杂分支的最终专项冒烟、维护来源／身份问题的最终验收、完整合成演示及用户确认仍待完成。已有普通／转账及关系维护生产证据不被旧页面退役替代 |
+| 发布与回退 | 当前只写专用合成账本，不操作真实库或部署；同仓库／`average-snail` 提交推送已有授权。回退可撤回当前前端接线，不恢复已关闭的旧公开协议。无新依赖、schema 或迁移 |
 
-共享矩阵 `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :androidApp:assembleDebug :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache` 成功，Wasm 380／Android 375 项，无失败或跳过，日志 `/tmp/ft-cash-import-entry-ready-matrix.log`；测试、编译范围按默认策略，iOS 平台单测本轮未运行。独立工程／DX／安全复核的分类预检、关系依赖失败回滚、失效引用循环三项 major 均已修复并回查关闭；无新增 blocking／major。该小步不改页面，Web 冒烟随真实入口接线执行；完整后端 SQLite 非性能回归 `/tmp/ft-cash-import-entry-full-regression.log` 已结束：3405 passed、1311 未配置 PostgreSQL 参数项 skipped、73 deselected，唯一失败为后续已修正的 publication 输入形状断言；该文件随后 SQLite 26 passed，显式双后端补跑及千行 HTTP 性能仍在验证。缺少 PostgreSQL 的 skip 不计双后端通过。后端普通预览性能与最终收尾仍需检查。账本表格复用、金额显示和通用输入取值的下一步改动不包含在此协议小步或本次已验证矩阵中。编辑目标索引按局部成员构建，全局版本、旧边及组只遍历一次，并保留原次序；千独立目标成本回归通过。排序及补丁定位索引的最终双后端增量 29 passed，无 skip（`/tmp/ft-cash-import-entry-indexed-final-dual.log`），不重复未变化的其余合同。
-
-当前详情已补 `relation_members` 的后端及共享模型，候选实际字段来自同一冻结计划并保持只读；不扩展正式来源编辑权限。builder缺字段回归及客户端未知字段被丢弃的回归先失败。比较基线 `00c7a1e`，显式 SQLite／PostgreSQL 定向矩阵 205 passed、无 skip（`/tmp/ft-cash-import-members-dual.log`）；重复读取、当前项之外候选、完整引用及空权限均覆盖。共享矩阵 `/tmp/ft-cash-import-members-and-table-matrix.log` 成功，包含 Wasm／Android 单测、Android 构建和 iOS 共享编译；后续新增详情／关系编辑／准备页面尚未包含在该证据中。独立工程／安全复核无 blocking／major，冻结数据归属、只读权限及字段容器复制边界通过。协议小步无当前用户入口变化，Web 冒烟及演示确认仍未完成，整个 change 不标完成。
-
-分页小步先红：无快照入口 4 failed、无缓存入口 4 failed；暂存 memory／R2 最终单测 153 passed（`/tmp/ft-cash-plan-cache-final-unit.log`）。纯快照解码仍未达 100 ms，profiler 确认慢页包含 70–81 ms gen2 GC；没有改 GC、依赖或门槛。公开响应缓存后的既有千行真实 HTTP 双后端及 publication 合同 54 passed，无 skip（`/tmp/ft-cash-import-final-performance.log`）：SQLite／PostgreSQL 预览 2.46／2.61 秒、提交 4.68／10.65 秒、重复同页热读 p95 均约 14.3 ms。该预算含预热；冷页仍需整对象解码，不宣称任意首次页都低于 100 ms，万行独立待办不变。新增热页计划身份、不同参数及消费后拒绝的最终双后端矩阵 329 passed，无 skip（`/tmp/ft-cash-plan-cache-final-dual.log`，313.88 秒）。独立工程／安全复核通过，无 blocking／major；此次后端小步不包含工作树中的 UI 呈现。
+防复发：每次导入只允许一个来源成员编辑；同一成员的连续 APPLY 保留明确 null 与已保存补丁，DEFER／KEEP 清除。结果统计只计账单行，不把公共对象更新再算一笔；导入结束后的刷新标记直到首次返回账本才消费。最小恢复只存标识与原幂等键，不存文件、密码或账户旧值；来源只读展示不混入公共人工值。

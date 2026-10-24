@@ -1,7 +1,6 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.core.TokenStore
-import com.finance.tracker.domain.FileSource
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -79,9 +78,6 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     if (response.status.value !in 200..299) {
         val code = apiErrorCode(response.status.value, responseText) ?: "request_failed"
         if (response.status == HttpStatusCode.Unauthorized) clearToken()
-        val importToken = runCatching {
-            (apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("import_token")?.let { (it as? JsonPrimitive)?.content }
-        }.getOrNull()
         val receiptId = runCatching {
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("receipt_id") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,36}")) }
@@ -90,7 +86,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it in setOf("unknown", "not_committed") }
         }.getOrNull()
-        throw ApiFailure(code, response.status.value, importToken, receiptId, commitState)
+        throw ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState)
     }
     if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
         @Suppress("UNCHECKED_CAST")
@@ -101,43 +97,6 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
     } catch (_: Throwable) {
         throw ApiFailure("request_failed", response.status.value)
     }
-}
-
-internal suspend inline fun <reified T> FinanceApiClient.importJsonRequest(
-    path: String,
-    options: ImportRequestOptions,
-    payload: Any? = importPayload(options),
-): T {
-    val headers = buildMap {
-        if (options.password != null) put("X-FT-Statement-Password", options.password)
-        if (options.passwords.isNotEmpty()) put("X-FT-Statement-Passwords", apiJson.encodeToString(options.passwords))
-        if (options.idempotencyKey != null) put("Idempotency-Key", options.idempotencyKey)
-    }
-    return request(HttpMethod.Post, path, payload, extraHeaders = headers)
-}
-
-internal suspend inline fun <reified T> FinanceApiClient.importRawRequest(
-    path: String,
-    file: FileSource,
-    options: ImportRequestOptions,
-): T {
-    val query = appendQuery(path, listOf(
-        "source" to options.source,
-        "filename" to file.name,
-        "currency" to options.currency,
-        "preview_digest" to options.previewDigest,
-        "preview_relation_digest" to options.previewRelationDigest,
-        "preview_channel" to options.previewChannel,
-        "relations" to options.relations?.let(apiJson::encodeToString),
-        "mapping" to options.mapping?.let(apiJson::encodeToString),
-    ))
-    val headers = buildMap {
-        if (options.password != null) put("X-FT-Statement-Password", options.password)
-        if (options.passwords.isNotEmpty()) put("X-FT-Statement-Passwords", apiJson.encodeToString(options.passwords))
-        put(HttpHeaders.ContentType, "application/octet-stream")
-        if (options.idempotencyKey != null) put("Idempotency-Key", options.idempotencyKey)
-    }
-    return request(HttpMethod.Post, query, file.read(), headers, ContentType.Application.OctetStream)
 }
 
 internal suspend fun FinanceApiClient.readToken(): String? = try {

@@ -144,3 +144,11 @@ private object StoredImportPointerSerializer : KSerializer<StoredImportPointer> 
 }
 
 private fun invalidRecovery(): Nothing = throw DomainFailure("import_recovery_invalid", 0, FailureCategory.RECOVERABLE)
+
+class InMemoryImportRecoveryStorage : ImportRecoveryStorage {
+    private val values = mutableMapOf<String, String>()
+    override suspend fun read(key: String) = values[key]
+    override suspend fun write(key: String, value: String) { values[key] = value }
+    override suspend fun remove(key: String) { values.remove(key) }
+    override suspend fun keys(prefix: String, limit: Int) = values.keys.filter { it.startsWith(prefix) }.take(limit)
+}

@@ -195,82 +195,11 @@ class FinanceApiClientTest {
         client.close()
     }
 
-    @Test
-    fun cashImportKeepsExistingBatchJsonAndIdempotentConfirmationContracts() = runTest {
-        val requests = mutableListOf<HttpRequestData>()
-        val engine = MockEngine { call ->
-            requests += call
-            when (call.url.encodedPath) {
-                "/api/v1/cash-import/scan" -> respondJson("""
-                    {"import_token":"import-1","contract":"cash-import-v1","channel":"bank","channel_label":"银行","ready":true,
-                    "file":{"name":"statement.csv","digest":"sha1"},"digest":"sha1","groups":[],"accounts":[],"files":[]}
-                """.trimIndent())
-                "/api/v1/cash-import/preview" -> respondJson("""
-                    {"import_token":"import-1","channel":"bank","channel_label":"银行","file":{"name":"statement.csv","digest":"sha1"},
-                    "summary":{"total":1,"new":1,"existing":0,"unsupported":0},"items":[],"relations":[]}
-                """.trimIndent())
-                "/api/v1/cash-import/commit" -> respondJson("""
-                    {"message":"ok","new_rows":1,"updated_rows":0,"channel":"bank","digest":"sha1"}
-                """.trimIndent())
-                else -> error("Unexpected path: ${call.url.encodedPath}")
-            }
-        }
-        val client = FinanceApiClient({ "https://api.example.com" }, MemoryTokenStore("token"), engine)
-
-        val scan = client.scanCashImport(listOf(MemoryFileSource("statement.csv", byteArrayOf(97))), passwords = mapOf("0" to "secret"))
-        val preview = client.previewCashImport(scan.importToken!!, passwords = mapOf("0" to "secret"), batch = true)
-        val committed = client.commitCashImport(
-            importToken = preview.importToken!!,
-            previewDigest = preview.file.digest,
-            previewRelationDigest = "relations-v1",
-            previewChannel = preview.channel,
-            idempotencyKey = "cash-import-stable-key",
-            batch = true,
-        )
-
-        val scanBody = (requests[0].body as io.ktor.http.content.TextContent).text
-        assertTrue(scanBody.contains("statement.csv"))
-        assertTrue(scanBody.contains("YQ=="))
-        assertEquals("{\"0\":\"secret\"}", requests[0].headers["X-FT-Statement-Passwords"])
-        assertTrue((requests[1].body as io.ktor.http.content.TextContent).text.contains("\"batch\":true"))
-        assertEquals("cash-import-stable-key", requests[2].headers["Idempotency-Key"])
-        assertTrue((requests[2].body as io.ktor.http.content.TextContent).text.contains("relations-v1"))
-        assertEquals(1, committed.newRows)
-        client.close()
-    }
-
-    @Test
-    fun importFailuresRetainOnlySafeCodeStatusAndRetryToken() = runTest {
-        val engine = MockEngine {
-            respond(
-                content = ByteReadChannel("""{"error":{"code":"import_password_required"},"import_token":"retry-token"}"""),
-                status = HttpStatusCode.BadRequest,
-                headers = headersOf(HttpHeaders.ContentType, "application/json"),
-            )
-        }
-        val client = FinanceApiClient({ "https://api.example.com" }, MemoryTokenStore("token"), engine)
-
-        val failure = assertFailsWith<ApiFailure> {
-            client.scanCashImport(listOf(MemoryFileSource("statement.pdf", byteArrayOf(1))))
-        }
-
-        assertEquals("import_password_required", failure.code)
-        assertEquals(400, failure.status)
-        assertEquals("retry-token", failure.importToken)
-        client.close()
-    }
-
     private fun MockRequestHandleScope.respondJson(body: String) = respond(
         content = ByteReadChannel(body),
         status = HttpStatusCode.OK,
         headers = headersOf(HttpHeaders.ContentType, "application/json"),
     )
-}
-
-private class MemoryFileSource(override val name: String, private val content: ByteArray) : FileSource {
-    override val mediaType: String? = null
-    override val size: Long = content.size.toLong()
-    override suspend fun read(): ByteArray = content
 }
 
 private class MemoryTokenStore(initial: String? = null) : TokenStore {

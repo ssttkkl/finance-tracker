@@ -19,8 +19,10 @@ internal data class CashDraftAllocationInput(val parts: List<CashDraftAllocation
         }.takeIf { it != initial }
 }
 
-internal fun cashDraftInitialAllocations(record: CashCurrentRecord): List<CashDraftAllocation> =
-    (record.fields.fields["components"] as? StructuredArray)?.values.orEmpty().mapIndexed { index, value ->
+internal fun cashDraftInitialAllocations(record: CashCurrentRecord): List<CashDraftAllocation> = cashRecordInitialAllocations(record.fields)
+
+internal fun cashRecordInitialAllocations(fields: StructuredObject): List<CashDraftAllocation> =
+    (fields.fields["components"] as? StructuredArray)?.values.orEmpty().mapIndexed { index, value ->
         val fields = (value as? StructuredObject)?.fields.orEmpty()
         CashDraftAllocation(fields["component_id"].cashText(), fields["ordinal"].cashText()?.toIntOrNull() ?: index,
             fields["account_id"].cashText().orEmpty(), fields["amount"].cashText().orEmpty(), fields["currency"].cashText().orEmpty())
@@ -36,8 +38,10 @@ internal fun cashDraftSingleAllocationMatches(values: Map<String, String>, alloc
         (part.amount == values["amount"].orEmpty() || displayDecimalCompare(part.amount, values["amount"]) == 0)
 }
 
-internal fun cashDraftInitialValues(record: CashCurrentRecord): Map<String, String> = cashDraftScalarFields.filter { it in record.editableFields }.associateWith { field ->
-    val value = record.fields.fields[field]
+internal fun cashDraftInitialValues(record: CashCurrentRecord): Map<String, String> = cashRecordInitialValues(record.fields, record.editableFields)
+
+internal fun cashRecordInitialValues(fields: StructuredObject, editableFields: List<String>): Map<String, String> = cashDraftScalarFields.filter { it in editableFields }.associateWith { field ->
+    val value = fields.fields[field]
     when (field) {
         "occurred_at" -> value.cashText()?.let { formatLocalDateTime(it).replace(' ', 'T') }.orEmpty()
         "counterparty_account_attrs" -> (value as? StructuredArray)?.values.orEmpty().mapNotNull { it.cashText() }.joinToString(",")

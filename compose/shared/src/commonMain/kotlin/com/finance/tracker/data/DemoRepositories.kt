@@ -5,7 +5,6 @@ import com.finance.tracker.domain.*
 private const val DEMO_WORKSPACE_ID = "demo-workspace"
 private const val DEMO_USER_EMAIL = "demo@example.test"
 private const val DEMO_STATEMENT_NAME = "演示银行账单.csv" // i18n-allow: demo-fixture
-private const val DEMO_STATEMENT_DIGEST = "demo-statement-v1"
 
 /** An in-memory statement fixture. Its bytes are synthetic and never come from the platform file system. */
 class DemoStatementFileSource : BoundedFileSource {
@@ -129,6 +128,14 @@ class DemoSessionRepository : SessionRepository {
         ?: throw demoFailure("workspace_not_found", 404)
 }
 
+internal fun demoCashPostingComplete(fields: StructuredObject, accounts: List<Account>): Boolean {
+    fun text(key: String) = (fields.fields[key] as? StructuredText)?.value.orEmpty()
+    val account = accounts.firstOrNull { it.id.toString() == text("account_id") && it.active && it.type in setOf("cash", "loan", "lend") } ?: return false
+    return text("currency") in account.currencies.orEmpty() && isExactDecimalString(text("amount")) &&
+        text("record_type").isNotBlank() && text("record_subtype").isNotBlank() &&
+        runCatching { kotlin.time.Instant.parse(text("occurred_at")) }.isSuccess
+}
+
 /** All records are owned by this instance and disappear when the app process creates a new graph. */
 class DemoFinanceRepository : FinanceRepository {
     private val cashAccount = Account(1, "日常账户", "cash", currencies = listOf("CNY")) // i18n-allow: demo-fixture
@@ -149,7 +156,34 @@ class DemoFinanceRepository : FinanceRepository {
     private val manualTransfers = mutableMapOf<String, List<String>>()
     internal fun transferMembers(id: String): List<String> = manualTransfers.values.firstOrNull { id in it }.orEmpty()
     internal fun transferRoot(id: String): String = transferMembers(id).firstOrNull() ?: id
-    private val committedImportTokens = mutableSetOf<String>()
+    internal val importedFields = mutableMapOf<String, StructuredObject>()
+    internal val importedStates = mutableMapOf<String, String>()
+    internal fun demoAccounts() = accounts.toList()
+    internal fun demoAccountInUse(id: String) = records.any { it.accountId?.toString() == id }
+    internal fun saveDemoAccount(id: String?, name: String, type: String, active: Boolean, currencies: List<String>): Account {
+        val next = Account(id?.toLong() ?: ((accounts.maxOfOrNull { it.id } ?: 0) + 1), name, type, active, currencies)
+        accounts.removeAll { it.id == next.id }; accounts.add(next)
+        return next
+    }
+    internal fun deleteDemoAccount(id: String) { accounts.removeAll { it.id.toString() == id } }
+    internal fun insertImported(fields: StructuredObject, state: String): String {
+        val id = "demo-imported-${nextRecordNumber++}"
+        writeImported(id, fields, state, create = true)
+        return id
+    }
+    internal fun updateImported(id: String, fields: StructuredObject, state: String) {
+        require(id in importedFields)
+        writeImported(id, fields, state, create = false)
+    }
+    private fun writeImported(id: String, fields: StructuredObject, state: String, create: Boolean) {
+        fun text(key: String) = (fields.fields[key] as? StructuredText)?.value.orEmpty()
+        val accountName = accounts.firstOrNull { it.id.toString() == text("account_id") }?.name.orEmpty()
+        val row = recordFromWrite(id, CashRecordWrite(text("occurred_at"), text("amount"), text("currency"), text("counterparty"),
+            text("counterparty_account"), text("note"), accountName, text("record_type"), text("record_subtype"), text("category_id").ifEmpty { null }), "statement_import")
+        if (create) records.add(0, row) else records[records.indexOfFirst { it.id == id }] = row
+        importedFields[id] = fields; importedStates[id] = state
+        projectionVersion++
+    }
     private val commonFields = mutableMapOf<String, Map<String, StructuredValue>>()
     internal fun currentCommonFields(id: String): Map<String, StructuredValue> = commonFields[transferRoot(id)].orEmpty()
     internal fun saveCommonFields(id: String, patch: Map<String, StructuredValue>) {
@@ -171,7 +205,6 @@ class DemoFinanceRepository : FinanceRepository {
     private var nextRecordNumber = 4
     private var nextCategoryNumber = 1
     private var nextRelationNumber = 1
-    private var importCommittedRows = 0
 
     override suspend fun fetchCashPage(filters: CashFilters, cursor: String?): CashPage {
         if (listOfNotNull(filters.amountMin, filters.amountMax).any { !isExactDecimalString(it) }) {
@@ -450,157 +483,6 @@ class DemoFinanceRepository : FinanceRepository {
         return CashCategoryDeleteResult(id, clearedCount, categoryRevision)
     }
 
-    override suspend fun detectCashImport(file: FileSource, currency: String?, password: String?): ImportDetection {
-        ensureDemoStatement(file)
-        file.read()
-        return ImportDetection("bank", "bank", ImportFileDescriptor(file.name, DEMO_STATEMENT_DIGEST), DEMO_STATEMENT_DIGEST, DEMO_IMPORT_ROWS.size)
-    }
-
-    override suspend fun scanCashImport(files: List<FileSource>, currency: String?, passwords: Map<String, String>, importToken: String?): ImportScan {
-        if (files.isEmpty()) throw demoFailure("import_file_required", 400)
-        files.forEach { ensureDemoStatement(it); it.read() }
-        val token = importToken ?: "demo-import-$DEMO_STATEMENT_DIGEST"
-        val fileScans = files.mapIndexed { index, file ->
-            ImportFileScan(index, file.name, file.name, DEMO_STATEMENT_DIGEST, file.size ?: 0L, "bank", "bank", DEMO_IMPORT_ROWS.size, "ready")
-        }
-        return ImportScan(
-            importToken = token,
-            contract = "cash-import-v1",
-            channel = "bank",
-            channelLabel = "bank",
-            ready = true,
-            batchDigest = DEMO_STATEMENT_DIGEST,
-            channels = listOf("bank"),
-            files = fileScans,
-            file = ImportFileDescriptor(files.first().name, DEMO_STATEMENT_DIGEST),
-            digest = DEMO_STATEMENT_DIGEST,
-            accounts = accounts.filter { it.type == "cash" },
-            groups = listOf(
-                ImportSourceGroup(
-                    groupId = "demo-bank-account",
-                    sourceType = "bank_statement",
-                    channel = "bank",
-                    channelLabel = "bank",
-                    displayName = cashAccount.name,
-                    maskedEvidence = "尾号 1234", // i18n-allow: demo-fixture
-                    currencies = listOf("CNY"),
-                    rowCount = DEMO_IMPORT_ROWS.size,
-                    suggestion = ImportMappingSuggestion(accountId = cashAccount.id, account = cashAccount, mappingRevision = 1),
-                ),
-            ),
-        )
-    }
-
-    override suspend fun previewCashImport(
-        importToken: String,
-        source: String,
-        currency: String?,
-        passwords: Map<String, String>,
-        mapping: List<ImportMappingDecision>?,
-        batch: Boolean,
-    ): ImportPreview {
-        val token = requireDemoImportToken(importToken)
-        val choices = mapping.orEmpty().map { decision ->
-            ImportMappingResult(
-                groupId = decision.groupId,
-                sourceType = "bank_statement",
-                channel = "bank",
-                channelLabel = "bank",
-                accountId = decision.accountId,
-                newAccount = decision.newAccount,
-            )
-        }.ifEmpty {
-            listOf(ImportMappingResult("demo-bank-account", "bank_statement", "bank", "bank", cashAccount.id))
-        }
-        val file = ImportFileDescriptor(DEMO_STATEMENT_NAME, DEMO_STATEMENT_DIGEST)
-        return ImportPreview(
-            importToken = token,
-            channel = "bank",
-            channelLabel = "bank",
-            file = file,
-            batchDigest = DEMO_STATEMENT_DIGEST,
-            channels = listOf("bank"),
-            relationDigest = "demo-relations-$DEMO_STATEMENT_DIGEST",
-            columns = listOf("日期", "账户", "对方", "金额", "币种", "备注"), // i18n-allow: demo-fixture
-            items = DEMO_IMPORT_ROWS.map { row ->
-                ImportPreviewItem(
-                    recordId = row.recordId,
-                    relationRef = row.relationRef,
-                    occurredAt = row.occurredAt,
-                    amount = row.amount,
-                    currency = "CNY",
-                    accountName = row.accountName,
-                    counterparty = row.counterparty,
-                    recordType = row.recordType,
-                    recordSubtype = "not_applicable",
-                    category = categoryById(row.categoryId)?.name.orEmpty(),
-                    note = row.note,
-                    channel = "bank",
-                    status = "new",
-                )
-            },
-            summary = ImportPreviewSummary(DEMO_IMPORT_ROWS.size, DEMO_IMPORT_ROWS.size - importCommittedRows, importCommittedRows, 0),
-            mapping = choices,
-            relations = listOf(demoImportRelation()),
-        )
-    }
-
-    override suspend fun commitCashImport(
-        importToken: String,
-        source: String,
-        currency: String?,
-        passwords: Map<String, String>,
-        previewDigest: String?,
-        previewRelationDigest: String?,
-        previewChannel: String?,
-        relations: List<StructuredObject>?,
-        mapping: List<ImportMappingDecision>?,
-        idempotencyKey: String?,
-        batch: Boolean,
-    ): ImportCommitResult {
-        val token = requireDemoImportToken(importToken)
-        if (previewDigest != null && previewDigest != DEMO_STATEMENT_DIGEST) throw demoFailure("import_preview_changed", 409)
-        if (!committedImportTokens.add(idempotencyKey ?: token)) {
-            return ImportCommitResult("", 0, 0, skippedRows = DEMO_IMPORT_ROWS.size, channel = "bank", digest = DEMO_STATEMENT_DIGEST)
-        }
-        val decision = mapping.orEmpty().firstOrNull { it.groupId == "demo-bank-account" }
-        decision?.newAccount?.let { draft ->
-            val newAccount = Account(accounts.maxOfOrNull(Account::id)?.plus(1) ?: 4, draft.name, draft.type, currencies = draft.currencies)
-            accounts += newAccount
-        }
-        val selectedAccount = accounts.firstOrNull { it.id == decision?.accountId } ?: cashAccount
-        DEMO_IMPORT_ROWS.forEach { row ->
-            val id = "demo-imported-${nextRecordNumber++}"
-            records.add(0, CashRecord(
-                id = id,
-                occurredAt = row.occurredAt,
-                amount = row.amount,
-                currency = "CNY",
-                counterparty = row.counterparty,
-                note = row.note,
-                category = categoryById(row.categoryId),
-                categoryId = row.categoryId,
-                recordType = row.recordType,
-                accountName = selectedAccount.name,
-                accountId = selectedAccount.id,
-                accountType = selectedAccount.type,
-                sourceType = "statement_import",
-            ))
-        }
-        importCommittedRows += DEMO_IMPORT_ROWS.size
-        projectionVersion++
-        return ImportCommitResult(
-            message = "",
-            newRows = DEMO_IMPORT_ROWS.size,
-            updatedRows = 0,
-            channel = "bank",
-            digest = DEMO_STATEMENT_DIGEST,
-            batchDigest = DEMO_STATEMENT_DIGEST,
-            channels = listOf("bank"),
-            pendingRelations = 1,
-        )
-    }
-
     override suspend fun fetchInvestmentAccounts(): List<Account> = listOf(investmentAccount)
 
     override suspend fun fetchInvestmentPage(filters: InvestmentFilters, cursor: String?): InvestmentPage {
@@ -637,20 +519,25 @@ class DemoFinanceRepository : FinanceRepository {
         val pair = transferMembers(record.id).map(::findRecord)
         val transfer = if (pair.size == 2) CashTransfer(accountById(pair[0].accountId)!!, pair[0].amount, pair[0].currency,
             accountById(pair[1].accountId)!!, pair[1].amount, pair[1].currency) else null
+        val imported = importedFields[record.id]
+        fun text(key: String, fallback: String): String? = if (imported == null) fallback else (imported.fields[key] as? StructuredText)?.value
         return CashProjection(
         projectionId = "projection-${record.id}",
-        occurredAt = record.occurredAt,
+        occurredAt = text("occurred_at", record.occurredAt),
         account = accountById(record.accountId),
         counterparty = record.counterparty,
         category = categoryById(record.categoryId),
         note = record.note,
-        amount = record.amount,
-        currency = record.currency,
+        amount = text("amount", record.amount),
+        currency = text("currency", record.currency),
         economicType = if (transfer != null) "internal_transfer" else if (record.recordType == "transfer") "transfer" else if (record.recordType == "income") "income" else "expense",
         transferSubtype = record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
         transfer = transfer,
         memberCount = pair.size.takeIf { it > 0 } ?: 1,
-        statisticsEligible = true,
+        state = importedStates[record.id] ?: "posted",
+        confirmationStatus = if (importedStates[record.id] == "draft") "pending" else "confirmed",
+        attentionCount = if (importedStates[record.id] == "draft") 1 else 0,
+        statisticsEligible = importedStates[record.id] != "draft",
         composition = if (record.components.isNullOrEmpty()) listOf("single") else listOf("combined"),
         recordId = record.id,
         transactionId = record.id,
@@ -742,7 +629,9 @@ class DemoFinanceRepository : FinanceRepository {
             (filters.dateTo == null || record.occurredAt <= filters.dateTo) &&
             (filters.economicType == null || projected.economicType == filters.economicType) &&
             (filters.transferSubtype == null || projected.transferSubtype == filters.transferSubtype) &&
-            (filters.composition == null || filters.composition in projected.composition)
+            (filters.composition == null || filters.composition in projected.composition) &&
+            (filters.state == null || projected.state == filters.state) &&
+            (filters.confirmationStatus == null || projected.confirmationStatus == filters.confirmationStatus)
     }
 
     private fun findRecord(id: String): CashRecord = records.firstOrNull { it.id == id || "fact-${it.id}" == id }
@@ -750,49 +639,6 @@ class DemoFinanceRepository : FinanceRepository {
 
     private fun categoryById(id: String?): CashCategory? = categories.firstOrNull { it.id == id }
     private fun accountById(id: Long?): Account? = accounts.firstOrNull { it.id == id }
-
-    private fun ensureDemoStatement(file: FileSource) {
-        if (file.name != DEMO_STATEMENT_NAME) throw demoFailure("demo_statement_only", 400)
-    }
-
-    private fun requireDemoImportToken(token: String): String {
-        if (!token.startsWith("demo-import-")) throw demoFailure("import_token_invalid", 404)
-        return token
-    }
-
-    private fun demoImportRelation(): ImportRelation {
-        fun relationRecord(row: DemoImportRow, preview: Boolean) = ImportRelationRecord(
-            recordId = row.recordId,
-            relationRef = row.relationRef,
-            occurredAt = row.occurredAt,
-            amount = row.amount,
-            currency = "CNY",
-            accountName = row.accountName,
-            counterparty = row.counterparty,
-            recordType = row.recordType,
-            recordSubtype = "not_applicable",
-            category = categoryById(row.categoryId)?.name.orEmpty(),
-            note = row.note,
-            channel = "bank",
-            status = "new",
-            preview = preview,
-        )
-        val first = DEMO_IMPORT_ROWS.first()
-        val second = DEMO_IMPORT_ROWS.last()
-        return ImportRelation(
-            id = "demo-payment-review",
-            kind = "payment_mirror",
-            label = "",
-            subtype = "",
-            status = "pending",
-            automatic = false,
-            ruleId = "demo-rule",
-            reason = "",
-            primary = relationRecord(first, true),
-            secondary = relationRecord(second, true),
-            candidates = listOf(relationRecord(second, true)),
-        )
-    }
 
     private fun demoPortfolio(displayCurrency: String) = Portfolio(
         accounts = listOf(
@@ -850,23 +696,6 @@ class DemoFinanceRepository : FinanceRepository {
         ),
     )
 }
-
-private data class DemoImportRow(
-    val recordId: String,
-    val relationRef: String,
-    val occurredAt: String,
-    val amount: String,
-    val accountName: String,
-    val counterparty: String,
-    val recordType: String,
-    val categoryId: String,
-    val note: String,
-)
-
-private val DEMO_IMPORT_ROWS = listOf(
-    DemoImportRow("demo-import-row-1", "payment-1", "2026-10-09T04:30:00Z", "-28.00", "日常账户", "山海咖啡", "consumption", "food", "午后咖啡"), // i18n-allow: demo-fixture
-    DemoImportRow("demo-import-row-2", "payment-1", "2026-10-10T01:00:00Z", "12000.00", "日常账户", "示例公司", "income", "income", "月度收入"), // i18n-allow: demo-fixture
-)
 
 private fun demoRecord(id: String, occurredAt: String, amount: String, counterparty: String, note: String, recordType: String, categoryId: String) = CashRecord(
     id = id,

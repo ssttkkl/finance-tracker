@@ -89,4 +89,4 @@ fun apiErrorCode(status: Int, responseBody: String): String? {
         ?: if (status == 401) "authentication_required" else "request_failed"
 }
 
-class ApiFailure(val code: String, val status: Int, val importToken: String? = null, val receiptId: String? = null, val commitState: String? = null) : Exception(code)
+class ApiFailure(val code: String, val status: Int, val receiptId: String? = null, val commitState: String? = null) : Exception(code)

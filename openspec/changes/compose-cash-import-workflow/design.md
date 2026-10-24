@@ -1,6 +1,6 @@
 ## Context
 
-生产入口 `App.kt` 仍挂载旧 `CashImportScreen/CashImportViewModel`；新 `CashImportLifecycleRepositoryImpl`、`CashImportTaskViewModel`、`ImportAccountViewModel` 及最小恢复存储已有基础，尚未接到页面。当前 DTO 已能读取整笔公共对象与公共冲突；明确的预计整笔公共属性目标已具备，尚未接入真实页面；不能用来源行补丁替代。
+生产入口 `App.kt`／`AppShell.kt` 已在主内容区挂载 `CashImportTaskScreen`，通过 `FinanceTrackerGraph` 接入当前生命周期仓库、任务与账户 VM、按后端／使用者／工作区隔离的最小恢复存储。旧四步导入页面、scan／preview／commit 客户端及其专属模型已移除。预计整笔公共编辑使用明确 `entry.edit_ref`，不以来源行补丁替代；复杂分支与最终演示仍按 tasks 验收。
 
 行为输入为 [导入流程](../../../docs/cash-import-flow.md)、[客户端合同](../../../docs/cash-import-redesign-contracts.md#2-用户业务流程)；公共合同及并行文件所有权见 [维护变更](../compose-cash-ledger-maintenance/design.md#共享基础与并行归属)。
 

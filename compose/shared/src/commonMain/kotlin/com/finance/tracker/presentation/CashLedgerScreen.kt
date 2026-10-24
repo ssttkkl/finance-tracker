@@ -537,17 +537,17 @@ internal fun CashLedgerScreen(
 }
 
 @Composable
-private fun CashLedgerTableHeader(modifier: Modifier = Modifier) {
+internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection: Boolean = true, statusOnly: Boolean = false) {
     Row(
         modifier = modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(Modifier.weight(0.05f))
+        if (showSelection) Spacer(Modifier.weight(0.05f))
         FinanceTableCell(localizedText("ledger_column_occurred_at"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnDate))
         FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 0.15f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnAccount))
         FinanceTableCell(localizedText("ledger_column_transaction_info"), weight = 0.24f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnTransactionInfo))
         FinanceTableCell(localizedText("copy_435c5259e4"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnCategory))
-        FinanceTableCell(localizedText("copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
+        FinanceTableCell(localizedText(if (statusOnly) "cash_import_status" else "copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
         FinanceTableCell(localizedText("copy_34943c40c9"), weight = 0.13f, header = true, textAlign = TextAlign.End, modifier = Modifier.testTag(SemanticIds.ledgerColumnAmount))
         Spacer(Modifier.weight(0.08f))
     }
@@ -964,16 +964,26 @@ private fun CashDetailedFilters(
 
 @Composable
 private fun CashProjectionRow(
-    item: CashProjection,
-    checked: Boolean,
-    canWrite: Boolean,
-    sizeClass: WindowSizeClass,
-    selectionMode: Boolean,
-    lastInMonth: Boolean,
-    onChecked: (Boolean) -> Unit,
-    onOpen: () -> Unit,
+    item: CashProjection, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
+    selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
+) = CashLedgerRow(CashLedgerRowContent(item.projectionId, item.occurredAt, item.counterparty, item.note,
+    cashProjectionAccountLabel(item), cashCategoryDisplayPath(item.category), cashProjectionEconomicTypeLabel(item),
+    cashProjectionSourceLabel(item), item.confirmationStatus, cashProjectionAmountLabel(item), item.amount?.startsWith("-") == true),
+    checked, canWrite, sizeClass, selectionMode, lastInMonth, onChecked, onOpen)
+
+internal data class CashLedgerRowContent(
+    val id: String, val occurredAt: String?, val counterparty: String, val note: String,
+    val accountLabel: String, val categoryLabel: String, val economicLabel: String?, val sourceLabel: String?,
+    val confirmationStatus: String, val amountLabel: String, val negative: Boolean,
+)
+
+@Composable
+internal fun CashLedgerRow(
+    item: CashLedgerRowContent, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
+    selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
+    showSelection: Boolean = true,
 ) {
-    val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.projectionId}")
+    val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
     if (sizeClass == WindowSizeClass.COMPACT) {
         Column(
             modifier = recordModifier.fillMaxWidth().combinedClickable(
@@ -991,7 +1001,7 @@ private fun CashProjectionRow(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
                     )
                 }
                 Column(
@@ -1001,17 +1011,17 @@ private fun CashProjectionRow(
                     Text(item.counterparty.ifBlank { "—" }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(item.note.ifBlank { "—" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    val source = cashProjectionSourceLabel(item)
+                    Text("${item.accountLabel} · ${item.categoryLabel}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val source = item.sourceLabel
                     Text(
-                        listOfNotNull(cashProjectionEconomicTypeLabel(item), source, localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed")).joinToString(" · "),
+                        listOfNotNull(item.economicLabel, source, localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed")).joinToString(" · "),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                FinanceAmount(cashProjectionAmountLabel(item), negative = item.amount?.startsWith("-") == true)
+                FinanceAmount(item.amountLabel, negative = item.negative)
             }
             if (!lastInMonth) HorizontalDivider(Modifier.padding(start = GeneratedTokens.Core.Space.Token4))
         }
@@ -1021,16 +1031,16 @@ private fun CashProjectionRow(
                 Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                if (showSelection) Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
                     Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
                     )
                 }
                 FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = 0.12f)
-                FinanceTableCell(cashProjectionAccountLabel(item), weight = 0.15f)
+                FinanceTableCell(item.accountLabel, weight = 0.15f)
                 Column(
                     Modifier.weight(0.24f).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -1046,23 +1056,23 @@ private fun CashProjectionRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                FinanceTableCell(cashCategoryDisplayPath(item.category), weight = 0.12f)
+                FinanceTableCell(item.categoryLabel, weight = 0.12f)
                 Column(
                     Modifier.weight(0.11f).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text(cashProjectionEconomicTypeLabel(item), style = MaterialTheme.typography.bodySmall)
+                    item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Text(localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed"),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (item.confirmationStatus == "pending") LocalFinanceColorRoles.current.warning else MaterialTheme.colorScheme.onSurfaceVariant)
-                    cashProjectionSourceLabel(item)?.let {
+                    item.sourceLabel?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 FinanceAmount(
-                    cashProjectionAmountLabel(item),
+                    item.amountLabel,
                     modifier = Modifier.weight(0.13f).padding(horizontal = 8.dp),
-                    negative = item.amount?.startsWith("-") == true,
+                    negative = item.negative,
                     textAlign = TextAlign.End,
                 )
                 Box(Modifier.weight(0.08f), contentAlignment = Alignment.CenterEnd) {

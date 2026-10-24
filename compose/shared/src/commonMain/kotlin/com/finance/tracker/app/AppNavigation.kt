@@ -24,6 +24,6 @@ internal fun primaryPageFor(page: AppPage): AppPage =
 fun titleKeyFor(page: AppPage): String = when (page) {
     AppPage.INVITATION -> "navigation_invitation"
     AppPage.NOT_FOUND -> "navigation_not_found"
-    AppPage.CASH_IMPORT -> "navigation_cash_ledger"
+    AppPage.CASH_IMPORT -> "cash_import_title"
     else -> appDestinations.first { it.page == page }.titleKey
 }

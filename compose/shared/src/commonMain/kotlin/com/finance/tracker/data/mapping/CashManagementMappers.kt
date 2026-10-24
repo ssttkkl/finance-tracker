@@ -103,23 +103,3 @@ fun CashRecordDeleteResult.toDto(): CashRecordDeleteResultDto = CashRecordDelete
     relatedCount = relatedCount,
     deletedFactIds = deletedFactIds,
 )
-
-fun ImportFileUploadDto.toDomain(): ImportFileUpload = ImportFileUpload(
-    filename = filename,
-    contentBase64 = contentBase64,
-)
-
-fun ImportFileUpload.toDto(): ImportFileUploadDto = ImportFileUploadDto(
-    filename = filename,
-    contentBase64 = contentBase64,
-)
-
-fun ImportBatchUploadDto.toDomain(): ImportBatchUpload = ImportBatchUpload(
-    files = files.map { it.toDomain() },
-    currency = currency,
-)
-
-fun ImportBatchUpload.toDto(): ImportBatchUploadDto = ImportBatchUploadDto(
-    files = files.map { it.toDto() },
-    currency = currency,
-)

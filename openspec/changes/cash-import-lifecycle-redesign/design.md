@@ -539,7 +539,7 @@ Agent 使用相同解析会话、完整替换预览和持久结果接口，用�
 | 草稿关联、类型及最终图 | 现有关系系列及新组保存点合同；4.4、4.9 | 旧关系更新委托新服务，不自动替换，不恢复已移除 CLI |
 | 会话计划、恢复及隔离 | 新应用服务合同、`tests/contract`、API 权限；4.7–4.11 | FastAPI `scan/preview/commit` 和 Agent 导入技能统一切换为会话／计划 |
 | 独立账户与安全补偿 | 账户 CAS／收据、Compose ViewModel；4.6、4.12 | 普通账户稳定 ID 命令，停止导入映射创建账户 |
-| 统一列表与主页维护 | 共享测试、生产 Web 三尺寸、适用 Native QA；4.12–4.13、6.4–6.6 | 共享 `CashImportApi/Dto/Workflow/ViewModel/Screen` 及演示，不保留独立关系页 |
+| 统一列表与主页维护 | 共享测试、Web 代表视口冒烟、相称原生编译／单测；4.12–4.13、6.4–6.6 | 共享 `CashImportLifecycleRepository`／`CashImportTaskViewModel`／`CashImportTaskScreen` 与维护宿主及演示，不保留独立关系页 |
 
 ## 导入摘要与提交新增异常
 

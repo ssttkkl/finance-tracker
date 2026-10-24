@@ -49,58 +49,6 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
         apiClient.deleteCashCategory(id, impact.toDto()).toDomain()
     }
 
-    override suspend fun detectCashImport(file: FileSource, currency: String?, password: String?): ImportDetection = guarded {
-        apiClient.detectCashImport(file, currency, password).toDomain()
-    }
-
-    override suspend fun scanCashImport(
-        files: List<FileSource>,
-        currency: String?,
-        passwords: Map<String, String>,
-        importToken: String?,
-    ): ImportScan = guarded {
-        apiClient.scanCashImport(files, currency, passwords, importToken).toDomain()
-    }
-
-    override suspend fun previewCashImport(
-        importToken: String,
-        source: String,
-        currency: String?,
-        passwords: Map<String, String>,
-        mapping: List<ImportMappingDecision>?,
-        batch: Boolean,
-    ): ImportPreview = guarded {
-        apiClient.previewCashImport(importToken, source, currency, passwords, mapping?.map { it.toDto() }, batch).toDomain()
-    }
-
-    override suspend fun commitCashImport(
-        importToken: String,
-        source: String,
-        currency: String?,
-        passwords: Map<String, String>,
-        previewDigest: String?,
-        previewRelationDigest: String?,
-        previewChannel: String?,
-        relations: List<StructuredObject>?,
-        mapping: List<ImportMappingDecision>?,
-        idempotencyKey: String?,
-        batch: Boolean,
-    ): ImportCommitResult = guarded {
-        apiClient.commitCashImport(
-            importToken = importToken,
-            source = source,
-            currency = currency,
-            passwords = passwords,
-            previewDigest = previewDigest,
-            previewRelationDigest = previewRelationDigest,
-            previewChannel = previewChannel,
-            relations = relations?.map(StructuredObject::toJsonObject),
-            mapping = mapping?.map { it.toDto() },
-            idempotencyKey = idempotencyKey,
-            batch = batch,
-        ).toDomain()
-    }
-
     override suspend fun fetchInvestmentAccounts(): List<Account> = guarded { apiClient.fetchInvestmentAccounts().map { it.toDomain() } }
 
     override suspend fun fetchInvestmentPage(filters: InvestmentFilters, cursor: String?): InvestmentPage = guarded {

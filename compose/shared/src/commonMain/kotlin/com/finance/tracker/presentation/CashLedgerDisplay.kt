@@ -61,13 +61,17 @@ internal fun cashProjectionAmountLabel(item: CashProjection): String {
             "$fromAmount ${transfer.fromCurrency} → $toAmount ${transfer.toCurrency}"
         }
     }
-    val value = item.amount ?: return listOfNotNull("—", item.currency).joinToString(" ")
+    return cashAmountWithCurrencyLabel(item.amount, item.currency)
+}
+
+internal fun cashAmountWithCurrencyLabel(value: String?, currency: String?): String {
+    if (value == null) return listOfNotNull("—", currency).joinToString(" ")
     val amount = when {
         displayDecimalSign(value) == 0 -> value.removePrefix("-").removePrefix("+")
         value.startsWith("-") || value.startsWith("+") -> value
         else -> "+$value"
     }
-    return listOfNotNull(amount, item.currency).joinToString(" ")
+    return listOfNotNull(amount, currency).joinToString(" ")
 }
 
 internal fun cashProjectionSourceResourceKey(item: CashProjection): String? = when {

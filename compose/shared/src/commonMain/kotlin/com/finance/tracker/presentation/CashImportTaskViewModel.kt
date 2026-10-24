@@ -108,6 +108,8 @@ class CashImportTaskViewModel(
         }
     }
 
+    fun showPreparation() { if (state.value.canEdit) mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE) }
+
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
     fun editRow(choice: ImportRecordChoice) = edit { it.editRow(choice) }
     fun editEntry(choice: ImportEntryChoice) = edit { it.editEntry(choice) }

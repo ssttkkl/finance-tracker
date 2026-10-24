@@ -68,32 +68,3 @@ internal fun categoryWriteBody(name: String, parentId: String?, description: Str
     put("parent_id", parentId?.let(::JsonPrimitive) ?: JsonNull)
     put("expected_revision", expectedRevision)
 }
-
-internal fun importPayload(options: ImportRequestOptions) = buildJsonObject {
-    if (options.importToken != null) put("import_token", options.importToken)
-    if (options.batch) put("batch", true)
-    put("source", options.source)
-    put("currency", options.currency?.let(::JsonPrimitive) ?: JsonNull)
-    put("preview_digest", options.previewDigest?.let(::JsonPrimitive) ?: JsonNull)
-    if (options.previewRelationDigest != null) put("preview_relation_digest", options.previewRelationDigest)
-    put("preview_channel", options.previewChannel?.let(::JsonPrimitive) ?: JsonNull)
-    if (options.relations != null) put("relations", apiJson.encodeToJsonElement(options.relations))
-    if (options.mapping != null) put("mapping", apiJson.encodeToJsonElement(options.mapping))
-}
-
-internal fun base64(bytes: ByteArray): String {
-    val alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-    return buildString(((bytes.size + 2) / 3) * 4) {
-        var index = 0
-        while (index < bytes.size) {
-            val first = bytes[index].toInt() and 0xff
-            val second = bytes.getOrNull(index + 1)?.toInt()?.and(0xff)
-            val third = bytes.getOrNull(index + 2)?.toInt()?.and(0xff)
-            append(alphabet[first shr 2])
-            append(alphabet[((first and 0x03) shl 4) or ((second ?: 0) shr 4)])
-            append(if (second == null) '=' else alphabet[((second and 0x0f) shl 2) or ((third ?: 0) shr 6)])
-            append(if (third == null) '=' else alphabet[third and 0x3f])
-            index += 3
-        }
-    }
-}

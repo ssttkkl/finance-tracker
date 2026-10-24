@@ -5,6 +5,22 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun repeatedMemberApplyPreservesEarlierPatchesAndExplicitNullWhileOtherDecisionsClearThem() {
+        val fields = detail().copy(members = listOf(detail().members.single().copy(
+            editableFields = listOf("amount", "account_id"), allowedActions = listOf("apply", "keep_existing", "defer"))))
+        val first = prepared().loadedDetail("ip_one", fields).editRow(ImportRecordChoice("f:r1", ImportRowDecision.APPLY,
+            StructuredObject(mapOf("amount" to StructuredText("-12.5000")))))
+        val next = first.loadedPlan(plan("ip_two", 5), first.choices).loadedDetail("ip_two", fields)
+            .editRow(ImportRecordChoice("f:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("account_id" to StructuredNull))))
+        assertEquals(mapOf("amount" to StructuredText("-12.5000"), "account_id" to StructuredNull), next.choices.rows.single().patch.fields)
+        for (decision in listOf(ImportRowDecision.DEFER, ImportRowDecision.KEEP_EXISTING)) {
+            val cleared = next.editRow(ImportRecordChoice("f:r1", decision))
+            assertTrue(cleared.choices.rows.single().patch.fields.isEmpty())
+            val applied = cleared.editRow(ImportRecordChoice("f:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("amount" to StructuredText("-3")))))
+            assertEquals(mapOf("amount" to StructuredText("-3")), applied.choices.rows.single().patch.fields)
+        }
+    }
+
     @Test fun wholeEntryEditUsesOnlyItsExplicitTargetAndPreservesSourceDecisions() {
         val entry = ImportEntryFields(StructuredObject(mapOf("note" to StructuredText("original"))), listOf("note", "category_id"), "ie_whole")
         val original = prepared().loadedDetail("ip_one", detail().copy(entry = entry))

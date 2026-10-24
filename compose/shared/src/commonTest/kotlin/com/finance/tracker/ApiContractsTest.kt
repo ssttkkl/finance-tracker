@@ -118,23 +118,4 @@ class ApiContractsTest {
         assertEquals("investment-events.load-more", SemanticIds.investmentEventsLoadMore)
         assertEquals("investment.event.detail.close", SemanticIds.investmentEventDetailClose)
     }
-
-    @Test
-    fun importsUseSha1ContentIdentityAndWebContractFileLimits() {
-        assertEquals("da39a3ee5e6b4b0d3255bfef95601890afd80709", sha1Hex(byteArrayOf()))
-        assertEquals("a9993e364706816aba3e25717850c26c9cd0d89d", sha1Hex("abc".encodeToByteArray()))
-        assertEquals(ImportFileValidation.Valid, validateImportFile("statement.csv", 100L * 1024 * 1024))
-        assertEquals(ImportFileValidation.UnsupportedType, validateImportFile("statement.txt", 12))
-        assertEquals(ImportFileValidation.TooLarge, validateImportFile("statement.pdf", 100L * 1024 * 1024 + 1))
-        assertEquals(ImportFileValidation.SizeUnavailable, validateImportFile("statement.pdf", -1))
-    }
-
-    @Test
-    fun capsImportFileCountAndDeduplicatesIdenticalContent() {
-        val original = (1..MAX_IMPORT_FILES).map { ImportFileIdentity("$it.pdf", "digest-$it", 1) }
-        assertEquals(ImportFileSelection(original, emptyList()), addImportFiles(original, listOf(ImportFileIdentity("duplicate.pdf", "digest-1", 1))))
-        val result = addImportFiles(original, listOf(ImportFileIdentity("extra.pdf", "new-digest", 1)))
-        assertEquals(MAX_IMPORT_FILES, result.files.size)
-        assertEquals(listOf(ImportFileValidation.TooManyFiles), result.rejections)
-    }
 }

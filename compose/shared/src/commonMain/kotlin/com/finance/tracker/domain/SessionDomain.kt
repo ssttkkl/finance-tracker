@@ -71,7 +71,6 @@ class DomainFailure(
     val code: String,
     val status: Int,
     val category: FailureCategory,
-    val importToken: String? = null,
     val receiptId: String? = null,
     val commitState: String? = null,
 ) : Exception(code)
