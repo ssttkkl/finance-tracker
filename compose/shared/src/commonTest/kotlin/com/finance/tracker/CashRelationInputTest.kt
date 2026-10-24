@@ -1,7 +1,7 @@
 package com.finance.tracker
 
 import com.finance.tracker.domain.*
-import com.finance.tracker.presentation.cashRelationRequest
+import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class CashRelationInputTest {
@@ -22,6 +22,27 @@ class CashRelationInputTest {
     }
     @Test fun manualEntriesCannotOpenExternalRelationMaintenance() {
         assertFailsWith<DomainFailure> { cashRelationRequest(record().copy(recordOrigin="manual"), listOf(CashRelationDecision("group", "defer")), listOf(option())) }
+    }
+    @Test fun acceptingRequiresEveryActualCandidateMemberToBeLoaded() {
+        val options = listOf(option().copy(commonFieldConflicts = emptyMap()))
+        val choice = listOf(CashRelationDecision("group", "accept", "candidate"))
+        val members = mapOf("11" to record(), "12" to record().copy(transactionId = "12"))
+        assertTrue(cashRelationChoicesLoaded(choice, options, members))
+        assertFalse(cashRelationChoicesLoaded(choice, options, members - "12"))
+        assertFalse(cashRelationChoicesLoaded(choice, options.map { it.copy(candidates = listOf(it.candidates.single().copy(members = emptyList()))) }, members))
+        assertFalse(cashRelationChoicesLoaded(choice, options.map { it.copy(candidates = listOf(it.candidates.single().copy(members = listOf(ImportMemberRef("row-only", null))))) }, members))
+    }
+    @Test fun identicalGroupRepeatedAcrossPlanItemsIsOneValidDecision() {
+        val group = option().copy(commonFieldConflicts = emptyMap())
+        assertTrue(cashRelationChoicesLoaded(listOf(CashRelationDecision("group", "accept", "candidate")), listOf(group, group),
+            mapOf("11" to record(), "12" to record().copy(transactionId = "12"))))
+    }
+    @Test fun acceptedPublicValueCanRemainWhileOnlyTheResidualConflictIsChosenAgain() {
+        val current = option().copy(commonFields = StructuredObject(mapOf("category_id" to StructuredText("food"))))
+        val choice = CashRelationDecision("group", "accept", "candidate", StructuredObject(mapOf("note" to StructuredText("已有备注"), "category_id" to StructuredText("food"))))
+        assertEquals(choice, cashRelationRequest(record(), listOf(choice), listOf(current)).relationChoices.single())
+        assertFailsWith<DomainFailure> { cashRelationRequest(record(), listOf(choice.copy(commonFields = StructuredObject(choice.commonFields!!.fields + ("category_id" to StructuredText("invented"))))), listOf(current)) }
+        assertFailsWith<DomainFailure> { cashRelationRequest(record(), listOf(choice.copy(commonFields = StructuredObject(choice.commonFields!!.fields + ("counterparty" to StructuredText("invented"))))), listOf(current)) }
     }
     private fun record() = CashCurrentRecord("import", null, "11", "posted", 3, "pending", StructuredObject(emptyMap()), emptyList(), emptyList(), emptyList(), null)
     private fun option() = ImportPairOption("group", "payment_mirror", null, "defer", null,

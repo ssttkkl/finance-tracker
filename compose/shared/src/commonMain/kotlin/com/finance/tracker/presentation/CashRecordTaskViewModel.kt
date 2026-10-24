@@ -77,9 +77,13 @@ class CashRecordTaskViewModel(
     fun dismissPlan() { cancelEdit() }
     fun cancelEdit(): Boolean {
         if (state.value.busy || state.value.unresolved) return false
+        cancelUnsentPlan()
+        return true
+    }
+
+    private fun cancelUnsentPlan() {
         mutableState.value = state.value.copy(plan = null, details = emptyList(), input = null,
             previewDirty = false, selectionPlan = false, affectedRecords = emptyMap())
-        return true
     }
 
     fun beginRelations(patch: StructuredObject = StructuredObject(emptyMap())) {
@@ -90,7 +94,11 @@ class CashRecordTaskViewModel(
     fun saveRelationChoices(choices: List<CashRelationDecision>) {
         val record = state.value.record ?: return
         if (!state.value.selectionPlan || state.value.busy || state.value.unresolved) return
-        val input = try { cashRelationRequest(record, choices, state.value.details.flatMap { it.relationChoices }, state.value.input?.patch ?: StructuredObject(emptyMap())) }
+        val options = state.value.details.flatMap { it.relationChoices }
+        if (!cashRelationChoicesLoaded(choices, options, state.value.affectedRecords)) {
+            mutableState.value = state.value.copy(errorCode = "record_changed"); return
+        }
+        val input = try { cashRelationRequest(record, choices, options, state.value.input?.patch ?: StructuredObject(emptyMap())) }
         catch (failure: DomainFailure) { mutableState.value = state.value.copy(errorCode = failure.code); return }
         prepare(input)
     }
@@ -127,43 +135,51 @@ class CashRecordTaskViewModel(
         }
         mutableState.value = state.value.copy(previewDirty = true)
         execute {
-            val old = state.value.plan
-            val request = if (old != null && input.editContextId == null) input.copy(editContextId = old.editContextId,
-                previousPlanId = old.planId, expectedPlanRevision = old.revision) else input
-            val plan = repository.preview(request)
-            currentCoroutineContext().ensureActive()
-            if (plan.additionalEffects == null) invalid("plan_changed")
-            mutableState.value = state.value.copy(input = request, plan = plan)
-            val items = plan.items.toMutableList()
-            val cursors = mutableSetOf<String>()
-            var cursor = plan.nextCursor
-            while (cursor != null) {
-                if (!cursors.add(cursor)) invalid("request_failed")
-                val page = repository.items(plan.planId, cursor)
-                items += page.items
-                cursor = page.nextCursor
-            }
-            if (items.map { it.itemId }.distinct().size != items.size) invalid("request_failed")
-            val details = items.filter { it.detailAvailable }.map { repository.item(plan.planId, it.itemId) }
-            val affected = details.flatMap { it.members }.mapNotNull { member ->
-                member.transactionId?.let { id ->
-                    val before = if (id == record.transactionId) record else repository.record(id)
-                    if (before.transactionId != id || member.rowRevision != null && before.rowRevision != member.rowRevision) invalid("record_changed")
-                    id to before
+            try {
+                val old = state.value.plan
+                val request = if (old != null && input.editContextId == null) input.copy(editContextId = old.editContextId,
+                    previousPlanId = old.planId, expectedPlanRevision = old.revision) else input
+                val plan = repository.preview(request)
+                currentCoroutineContext().ensureActive()
+                if (plan.additionalEffects == null || request.intent == "maintain_relations" && plan.invalidatedChoices.isNotEmpty()) invalid("plan_changed")
+                mutableState.value = state.value.copy(input = request, plan = plan)
+                val items = plan.items.toMutableList()
+                val cursors = mutableSetOf<String>()
+                var cursor = plan.nextCursor
+                while (cursor != null) {
+                    if (!cursors.add(cursor)) invalid("request_failed")
+                    val page = repository.items(plan.planId, cursor)
+                    items += page.items
+                    cursor = page.nextCursor
                 }
-            }.toMap()
-            currentCoroutineContext().ensureActive()
-            val needsRelationChoices = request.intent == "maintain_relations" && (plan.invalidatedChoices.isNotEmpty() ||
-                details.flatMap { it.relationChoices }.any { option ->
-                    val requested = request.relationChoices.firstOrNull { it.suggestionId == option.suggestionId }
-                    requested?.action == "accept" && (option.action in setOf("defer", "skip") ||
-                        option.commonFieldConflicts.any { (field, values) -> requested.commonFields?.fields?.get(field) !in values })
-                })
-            val selection = forSelection || needsRelationChoices
-            mutableState.value = state.value.copy(input = request, plan = plan.copy(items = items, nextCursor = null), details = details, affectedRecords = affected, previewDirty = false, selectionPlan = selection)
-            if (!selection && plan.additionalEffects.isEmpty() && plan.canCommit && plan.invalidatedChoices.isEmpty()) sendPlan(plan, record.transactionId)
+                if (items.map { it.itemId }.distinct().size != items.size) invalid("request_failed")
+                val details = items.filter { it.detailAvailable }.map { repository.item(plan.planId, it.itemId) }
+                val memberDetails = details.flatMap { it.members }
+                val references = details.flatMap { it.relationChoices }.flatMap { group -> group.members + group.candidates.flatMap { it.members } }
+                val ids = (memberDetails.mapNotNull { it.transactionId } + references.mapNotNull { it.transactionId }).distinct()
+                val affected = ids.associateWith { id ->
+                    val before = if (id == record.transactionId) record else repository.record(id)
+                    if (before.transactionId != id || memberDetails.filter { it.transactionId == id }.any { it.rowRevision != null && before.rowRevision != it.rowRevision }) invalid("record_changed")
+                    before
+                }
+                currentCoroutineContext().ensureActive()
+                val needsRelationChoices = request.intent == "maintain_relations" && (plan.invalidatedChoices.isNotEmpty() ||
+                    details.flatMap { it.relationChoices }.any { option ->
+                        val requested = request.relationChoices.firstOrNull { it.suggestionId == option.suggestionId }
+                        requested?.action == "accept" && (option.action in setOf("defer", "skip") ||
+                            option.commonFieldConflicts.any { (field, values) -> requested.commonFields?.fields?.get(field) !in values })
+                    })
+                val selection = forSelection || needsRelationChoices
+                mutableState.value = state.value.copy(input = request, plan = plan.copy(items = items, nextCursor = null), details = details, affectedRecords = affected, previewDirty = false, selectionPlan = selection)
+                if (!selection && plan.additionalEffects.isEmpty() && plan.canCommit && plan.invalidatedChoices.isEmpty()) sendPlan(plan, record.transactionId)
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (error: Exception) {
+                if (input.intent == "maintain_relations" && !state.value.unresolved) cancelUnsentPlan()
+                throw error
+            }
         }
     }
+
     fun confirmPlan() {
         val plan = state.value.plan ?: return
         val record = state.value.record ?: return

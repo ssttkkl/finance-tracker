@@ -69,7 +69,7 @@ internal fun CashCurrentRecordPanel(
     }
     CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
         semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
-        footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved) ({
+        footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved && state.plan == null) ({
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy && state.plan == null, modifier = Modifier.testTag("cash.current.edit")) { Text(localizedText("copy_a7f814c0a4")) }
             }

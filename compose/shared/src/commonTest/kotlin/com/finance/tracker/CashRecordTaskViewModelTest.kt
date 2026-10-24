@@ -194,6 +194,27 @@ class CashRecordTaskViewModelTest {
         vm.saveRelationChoices(listOf(CashRelationDecision("group", "accept", commonFields = StructuredObject(mapOf("note" to StructuredText("乙备注")))))); advanceUntilIdle()
         assertEquals(1, repo.commits.size)
     } }
+    @Test fun relationCandidatesLoadTheirCompleteMembersEvenOutsideProjectedItems() = runTest { task { vm, repo, _ ->
+        vm.open("11"); advanceUntilIdle(); repo.paged = true; repo.candidateMembers = true
+        vm.beginRelations(); advanceUntilIdle()
+        assertEquals(setOf("11", "12", "21", "22"), vm.state.value.affectedRecords.keys)
+        assertTrue(vm.state.value.selectionPlan); assertTrue(repo.commits.isEmpty())
+    } }
+    @Test fun unreadableCandidateDoesNotLeaveAnAcceptableOldPlan() = runTest { task { vm, repo, _ ->
+        vm.open("11"); advanceUntilIdle(); repo.paged = true; repo.candidateMembers = true; repo.failedCandidate = true
+        vm.beginRelations(); advanceUntilIdle()
+        assertNull(vm.state.value.plan); assertTrue(vm.state.value.affectedRecords.isEmpty())
+        assertEquals("request_failed", vm.state.value.errorCode); assertTrue(repo.commits.isEmpty())
+    } }
+    @Test fun invalidatedRelationChoiceRequiresExplicitReinspectionWithoutOldDecisions() = runTest { task { vm, repo, _ ->
+        vm.open("11"); advanceUntilIdle(); repo.paged = true; repo.candidateMembers = true
+        vm.beginRelations(); advanceUntilIdle(); repo.invalidateRelation = true
+        vm.saveRelationChoices(listOf(CashRelationDecision("group", "accept", "candidate"))); advanceUntilIdle()
+        assertNull(vm.state.value.plan); assertNull(vm.state.value.input); assertTrue(vm.state.value.details.isEmpty())
+        assertFalse(vm.state.value.selectionPlan); assertEquals("plan_changed", vm.state.value.errorCode); assertTrue(repo.commits.isEmpty())
+        repo.invalidateRelation = false; vm.open("11"); advanceUntilIdle(); vm.beginRelations(); advanceUntilIdle()
+        assertEquals(emptyList(), vm.state.value.input!!.relationChoices)
+    } }
     @Test fun incompletePlanRequestsRetryWithoutLegacyConfirmationPath() = runTest { task { vm, repo, _ ->
         vm.open("11"); advanceUntilIdle(); repo.missingEffects = true
         vm.prepare(CashMaintenanceRequest("finalize_draft", "11", 3)); advanceUntilIdle()
@@ -273,13 +294,14 @@ private class DetailRepo : CashMaintenanceRepository {
             else listOf(CashCurrentMember("11", 3, "confirmed"), CashCurrentMember("12", memberRevision, "pending"), CashCurrentMember("13", 3, "confirmed")))
     }
     override suspend fun sources(projectionId: String): CashSourceEvidence = error("unused")
+    var candidateMembers = false; var failedCandidate = false; var invalidateRelation = false
     var missingEffects = false; var emergingConflict = false; var latestChoices = emptyList<CashRelationDecision>(); var emptyEffects = false; var paged = false; var detailFailure = false; val itemPages = mutableListOf<String?>()
     var delayRead: CompletableDeferred<Unit>? = null; var ignoreReadCancellation = false; val reads = mutableListOf<String>()
     var draftPatch: StructuredObject? = null; val previews = mutableListOf<CashMaintenanceRequest>()
     val commits = mutableListOf<ImportFrozenCommand>(); var previewFailure: DomainFailure? = null
     var commitFailure: DomainFailure? = null; var currentUnavailable = false; var commitReceipt = detailReceipt()
     var resolution = ImportResolveResult("pending", null)
-    override suspend fun record(transactionId: String): CashCurrentRecord { reads += transactionId; if (ignoreReadCancellation) withContext(NonCancellable) { delayRead?.await() } else delayRead?.await(); if (currentUnavailable) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
+    override suspend fun record(transactionId: String): CashCurrentRecord { reads += transactionId; if (failedCandidate && transactionId == "22") throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE); if (ignoreReadCancellation) withContext(NonCancellable) { delayRead?.await() } else delayRead?.await(); if (currentUnavailable) throw DomainFailure("request_failed", 503, FailureCategory.RECOVERABLE)
         if (transferPair) return detailRecord().copy(transactionId = transactionId, recordOrigin = "manual_transfer", state = "posted", confirmationStatus = "confirmed",
             entry = CashPublicEntry("pair-entry", 7, StructuredObject(emptyMap()), emptyList(), cashPublicEntryFields.toList() + cashTransferFinancialFields, transferCapability),
             fields = StructuredObject(mapOf("amount" to StructuredText(if (transactionId == "11") "-1.00" else "1.00"),
@@ -296,12 +318,14 @@ private class DetailRepo : CashMaintenanceRepository {
     override suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan {
         delayPreview?.await()
         previews += input; latestChoices = input.relationChoices; previewFailure?.let { throw it }; if (input.intent == "save_draft") draftPatch = input.patch
-        return CashMaintenancePlan("mp_one", "context", 2, "2099-01-01T00:00:00Z", emptyMap(), emptyMap(), true, emptyList(), if (paged) "second" else null, emptyList(), additionalEffects = if (missingEffects) null else if (emergingConflict) (if (latestChoices.any { it.action == "accept" && it.commonFields == null }) listOf(CashAdditionalEffect("choice_changed", "group")) else emptyList()) else if (input.intent == "save_draft" || emptyEffects) emptyList() else listOf(CashAdditionalEffect("new_attention", "11")))
+        return CashMaintenancePlan("mp_one", "context", 2, "2099-01-01T00:00:00Z", emptyMap(), emptyMap(), true, emptyList(), if (paged) "second" else null, if (invalidateRelation) listOf(ImportInvalidatedChoice("relation", "group", "choice_invalid")) else emptyList(), additionalEffects = if (missingEffects) null else if (emergingConflict) (if (latestChoices.any { it.action == "accept" && it.commonFields == null }) listOf(CashAdditionalEffect("choice_changed", "group")) else emptyList()) else if (input.intent == "save_draft" || emptyEffects) emptyList() else listOf(CashAdditionalEffect("new_attention", "11")))
     }
     override suspend fun plan(planId: String) = error("unused")
     override suspend fun currentPlan(contextId: String) = error("unused")
     override suspend fun items(planId: String, cursor: String?, confirmationStatus: String): ImportItemPage { itemPages += cursor; return ImportItemPage(listOf(ImportProjectedItem("later", "pending", "draft", ImportDisplay(null, null, null, null, null, emptyList()), false, listOf(ImportMemberRef(null, "12")), emptyList(), true)), null) }
-    override suspend fun item(planId: String, itemId: String): ImportItemDetail { if (detailFailure) error("unavailable"); return ImportItemDetail(itemId, listOf(ImportMemberDetail(null, "12", "duplicate", StructuredObject(emptyMap()), emptyList(), emptyList(), 3)), emptyList(), emptyList(), if (emergingConflict) listOf(ImportPairOption("group", "payment_mirror", null, if (latestChoices.any { it.action == "accept" && it.commonFields != null }) "accept" else "defer", null, emptyList(), listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), listOf("accept", "defer", "ignore"), null, commonFieldConflicts = if (latestChoices.isNotEmpty()) mapOf("note" to listOf(StructuredText("甲备注"), StructuredText("乙备注"))) else emptyMap())) else emptyList(), emptyList()) }
+    override suspend fun item(planId: String, itemId: String): ImportItemDetail { if (detailFailure) error("unavailable"); return ImportItemDetail(itemId, listOf(ImportMemberDetail(null, "12", "duplicate", StructuredObject(emptyMap()), emptyList(), emptyList(), 3)), emptyList(), emptyList(), if (candidateMembers) listOf(ImportPairOption("group", "payment_mirror", null, "defer", null,
+            listOf(ImportPairCandidate("candidate", null, listOf(ImportMemberRef(null, "21"), ImportMemberRef(null, "22")), null)),
+            listOf(ImportMemberRef(null, "11")), listOf("accept", "defer", "ignore"), null)) else if (emergingConflict) listOf(ImportPairOption("group", "payment_mirror", null, if (latestChoices.any { it.action == "accept" && it.commonFields != null }) "accept" else "defer", null, emptyList(), listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), listOf("accept", "defer", "ignore"), null, commonFieldConflicts = if (latestChoices.isNotEmpty()) mapOf("note" to listOf(StructuredText("甲备注"), StructuredText("乙备注"))) else emptyMap())) else emptyList(), emptyList()) }
     override suspend fun commit(command: ImportFrozenCommand): ImportReceipt { commits += command; commitFailure?.let { throw it }; return commitReceipt }
     override suspend fun resolve(command: ImportFrozenCommand) = resolution
     override suspend fun receiptByKey(key: String) = detailReceipt()

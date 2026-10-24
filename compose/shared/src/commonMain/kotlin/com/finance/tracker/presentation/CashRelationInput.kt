@@ -15,9 +15,25 @@ internal fun cashRelationRequest(record: CashCurrentRecord, choices: List<CashRe
             if (option.candidates.isNotEmpty() && option.candidates.none { it.candidateId == choice.candidateId }) invalid()
             if (option.candidates.isEmpty() && choice.candidateId != null && choice.candidateId != option.candidateId) invalid()
             if (option.commonFieldConflicts.any { (field, values) -> choice.commonFields?.fields?.get(field) !in values }) invalid()
-            if (choice.commonFields?.fields?.keys.orEmpty().any { it !in option.commonFieldConflicts }) invalid()
+            if (choice.commonFields?.fields.orEmpty().any { (field, value) ->
+                field !in option.commonFieldConflicts && (field !in option.commonFields?.fields.orEmpty() || option.commonFields?.fields?.get(field) != value)
+            }) invalid()
         } else if (choice.candidateId != null || choice.commonFields != null) invalid()
         if (choice.action != "remove" && choice.inheritCommonFields != null) invalid()
     }
     return CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision, patch, relationChoices = choices)
 }
+
+internal fun cashRelationMemberRecords(refs: List<ImportMemberRef>, records: Map<String, CashCurrentRecord>): List<CashCurrentRecord>? {
+    if (refs.isEmpty() || refs.any { it.transactionId.isNullOrBlank() }) return null
+    val ids = refs.map { it.transactionId!! }.distinct()
+    if (ids.any { records[it]?.transactionId != it }) return null
+    return ids.map { records.getValue(it) }
+}
+internal fun cashRelationChoicesLoaded(choices: List<CashRelationDecision>, options: List<ImportPairOption>, records: Map<String, CashCurrentRecord>): Boolean =
+    choices.filter { it.action == "accept" }.all { choice ->
+        val group = options.filter { it.suggestionId == choice.suggestionId }.distinct().singleOrNull() ?: return@all false
+        val candidate = group.candidates.singleOrNull { it.candidateId == choice.candidateId }
+        cashRelationMemberRecords(group.members, records) != null &&
+            (if (group.candidates.isEmpty()) true else candidate?.let { cashRelationMemberRecords(it.members, records) != null } == true)
+    }
