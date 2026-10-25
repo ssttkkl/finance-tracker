@@ -517,7 +517,7 @@ erDiagram
 | `cash_granularity` | `atomic/aggregate`，非空，默认 `atomic` | 正式 `atomic` 对应唯一组成项和一致账户；导入／缺证历史正式后固定 |
 | `account_id` | 可空 | 草稿可尚未确定账户；正式 `atomic` 必填，`aggregate` 不填伪造的单一账户 |
 | `record_type/record_subtype` | 草稿可空 | 正式非空且组合合法；已填草稿值同样必须合法，原始非法输入保留在来源行和问题中 |
-| `counterparty/counterparty_account/note` | 文本，非空默认 `""` | 来源当前值，备注不截断或合成；用户公共值另存稳定对象 |
+| `counterparty/counterparty_account/note` | 文本，非空默认 `""` | 来源当前值，备注不截断或合成；微信交易对方取 `交易对方`，备注取 `商品`，不回退 `备注`；用户公共值另存稳定对象 |
 | `counterparty_account_attrs` | JSON 数组，默认 `[]` | 仅基本结构检查，不做账号语义校验 |
 | `category_id` | 可空，工作区内分类外键 | 来源默认分类；用户公共分类及保护另存稳定对象 |
 | `deleted_at/deleted_by/delete_reason` | 沿用 | 逻辑删除后退出活动唯一性、关系与投影，不物理删除原记录 |

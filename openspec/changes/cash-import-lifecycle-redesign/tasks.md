@@ -292,12 +292,20 @@
 - [x] 4.21.2 测试先行覆盖混合新旧成员、已有组、保留／延后、清空、原文不变、全部重复、分类权限、目标变化、关系失败回滚与文件／重试恢复边界。
 - [ ] 4.21.3 显式 SQLite／PostgreSQL 合同、共享客户端矩阵、独立工程／DX／安全复核、OpenSpec 及文档核对后小步交付；页面 QA 由 compose-cash-import-workflow 承接，不提前宣称可用。
 
+### 4.22 微信来源原列映射与零钱账户归组
+
+- [x] 4.22.1 思考／澄清：用户确认微信 `counterparty` 原样取 `交易对方`，`note` 原样取 `商品`，不提取或改写商户、不回退 `备注`，商品为空时 note 为空；`支付方式` 为 `/` 时归入 `微信零钱` 账户组，快照保留 `/`。
+- [x] 4.22.2 计划：将映射与身份归一同时写入本 change 的 proposal、statement-import delta 和 design；保留现有交易类型、金额方向、来源身份及关系证据规则，不扩展其他来源或配对算法。
+- [x] 4.22.3 任务拆分／测试先行：补来源行归一、来源正文更新及账户分组失败回归；验证不同三列值、商品为空、前后空白、`/` 与两个零钱别名共组，且原始快照不变。红测 6 failed，复现商品被备注覆盖、空商品错误回退及 `/` 独立分组。
+- [x] 4.22.4 构建：让首次导入、来源更新和账户映射查找使用同一微信列映射／规范键，保持其他来源行为不变；微信解析／映射／来源更新定向测试 93 项通过，双后端导入计划／账户映射／提交／解析上下文合同 278 项通过。
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。
 - [x] 5.2 本次后端安全与性能复核：隔离、日志脱敏、原文件清理、受控临时存储、输入上限、无全库重配与有界分页。
 Compose Hallmark audit 由三个前端 change 的审查阶段执行，本目录不计为通过。
 - [x] 5.4 本次后端最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
+- [x] 5.5 最终 diff 复核确认微信对方／商品原值、空商品、旧别名 `/`、原始快照及账户分组均与合同一致；关系扫描算法、来源分类与其他来源映射未改。
 
 ## 6. 测试与 QA
 
@@ -654,18 +662,26 @@ Compose Hallmark audit 由三个前端 change 的审查阶段执行，本目录�
 - [x] 6.3 以 `~/.ft/bills` 在专用测试库验证多来源重叠、重复导入、来源更新及错误恢复；报告只含汇总。
 客户端构建、真实浏览器／设备 QA 和三尺寸用户演示由三个前端 change 的第 6 阶段独立验收，当前均未完成。
 - [x] 6.7 `openspec validate --all --strict`、`openspec doctor`、`git diff --check` 及适用性能／安全检查，记录未运行项与补跑条件。
+- [x] 6.8 微信解析／映射／来源更新 93 项通过；完整非性能 SQLite 回归 2,183 passed、112 skipped、71 deselected；显式专用 `_test` PostgreSQL 双后端合同矩阵 278 passed、无 skip。
 
 ## 7. 发布准备
 
 - [x] 7.1 本次后端的每个可验证小步检查 status、diff 和验证后提交推送当前分支；授权不扩展到 PR、合并或部署。
 - [x] 7.2 完成后端切换矩阵、备份／迁移／回滚条件及观察项；真实数据迁移及部署等待相应授权。
 - [ ] 7.3 本变更剩余范围完成后同步所属后端 delta 并检查新前端变更的依赖；三个前端 change 分别完成自己的真实 QA、用户演示与归档，不由本目录代为勾选。
+- [x] 7.4 已更新导入流程、合同说明、功能地图及导入技能；确认回退只需撤销本地解析／映射改动，不涉及 schema、依赖、真实账本或部署。
 
 ## 8. 反思
 
 - [x] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
+- [x] 8.2 防复发约束已写入 delta、设计、测试和导入技能：公开字段按来源列映射，来源快照保持原样，账户键归一不改快照。
 
 ## 执行证据
+
+- 4.22 微信来源字段与账户映射（2026-10-25，HEAD／比较基线 `fc546128f234ceb00ce8e7b390372b3d0803c29c`）：最终定向 `PYTHONPATH=tests:tests/contract uv run pytest tests/test_cash_statement_rows.py tests/test_statement_account_mapping.py tests/test_cash_statement_effects.py tests/test_cash_matching_source_notes.py -q --disable-warnings --tb=short` → 93 passed；最终双后端 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_test@127.0.0.1:55447/ft_cash_import_test FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:tests/contract uv run pytest tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_account_mappings.py tests/contract/test_cash_import_commit.py tests/contract/test_parsed_cash_import_context.py -q --disable-warnings --tb=short` → 278 passed、无 skip（262.57 s）。PostgreSQL 16 仅用于专用 `ft_cash_import_test` 临时容器，结束后已移除；不访问 `~/.ft` 账本或真实账单。
+- 同一实现的完整非性能 SQLite 回归 `env -u FT_TEST_POSTGRES_URL -u FT_REQUIRE_TEST_POSTGRES PYTHONPATH=tests:tests/contract uv run pytest tests --ignore=tests/contract -q -m 'not performance' -k 'not test_mobile_ci_builds_release_like_artifacts_with_embedded_js and not test_mobile_ci_docs_describe_login_origin_and_standalone_artifacts' --disable-warnings --tb=short --maxfail=10` → 2,183 passed、112 skipped、71 deselected（198.10 s）；其后仅将来源说明 helper 改为复用既有 `_cells` 规范化，最终 93 项受影响测试及双后端矩阵在该改动后重跑通过。
+- 文档与构建收尾：`tests/test_runtime_docs.py`、`python -m compileall -q src/ft`、wheel 构建、`openspec validate --all --strict`、`openspec doctor` 和 `git diff --check` 均在最终任务记录变更后重跑；无 schema、依赖或持久化变化。Cross-platform Impact Check：后端解析／来源身份会影响未来 Web、Native 与共享 presentation 消费；本次不改页面、文案或客户端合同，功能地图保留既有客户端 TODO，浏览器与 Native QA 不适用于此后端小步。未运行 UI 演示或部署。
+
 
 - 4.8.3 不可变计划发布（2026-10-21，HEAD／比较基线 `626b374`）：新发布／替换／分页／到期／消费及权限合同先 8 failed，再 8 passed（`/tmp/ft-cash-import-plan-publication-red.log`、`-green.log`）。服务端构建器为显式依赖，当前测试使用合成预计结果；真实业务构建器仍在 4.8.4，未开放新 HTTP 或替换实际导入。计划及选择与会话修订在同一 CAS 对象更新，TTL 保持，公开响应与构建器输入隔离，完整操作只存服务端，分页不截断提交范围。
 - 独立复核发现三个 P2：异常明细在 CAS 后才报错导致原计划丢失、未交付明细第一页却返回续页游标、详情及嵌套字段透传。新增 6 个 SQLite 反例先失败（`/tmp/ft-cash-import-plan-publication-review-red.log`）后，全部公开读取结构及摘要先于 CAS 校验；明细从空游标起读，详情／列表／候选等使用公开字段投影。范围复跑 21 passed；补充问题字段丢失 P2，以 2 个反例先失败后保留并校验 `blocking_scope/next_action/message`，文案仅从稳定原因生成，不能转发技术异常正文。

@@ -30,7 +30,11 @@ def _text(cells, key, *, pdf=False):
 
 
 def cash_source_note(source_type, payload):
-    return source_note(_cells(source_type, payload))
+    cells = _cells(source_type, payload)
+    if source_type == "wechat":
+        value = cells.get("商品")
+        return value if isinstance(value, str) else ""
+    return source_note(cells)
 
 
 def _platform(source_type, cells, amount):

@@ -63,13 +63,28 @@ def test_uses_existing_native_financial_and_classification_rules(source, changes
 @pytest.mark.parametrize("source,changes,expected", [
     ("alipay", {"商品说明": "  完整原文\n" + "长" * 150 + "  "}, "  完整原文\n" + "长" * 150 + "  "),
     ("alipay", {"商品说明": ""}, ""),
-    ("wechat", {"备注": "  原始备注\n  ", "商品": "其他商品"}, "  原始备注\n  "),
+    ("wechat", {"备注": "  原始备注\n  ", "商品": "其他商品"}, "其他商品"),
     ("wechat", {"备注": "", "商品": "原始商品描述"}, "原始商品描述"),
     ("wechat", {"备注": "", "商品": ""}, ""),
 ])
 def test_note_is_exact_native_text_without_generated_fallback(source, changes, expected):
     row = _convert(_document(_payload(source, **changes), source=source)).rows[0]
     assert row.fields["note"] == expected
+
+
+def test_wechat_counterparty_and_product_are_mapped_exactly_and_snapshot_is_unchanged():
+    payload = _payload("wechat", 交易对方="财付通-美团平台商户", 商品=" 原始商品  \n", 备注="独立备注")
+    row = _convert(_document(payload, source="wechat")).rows[0]
+    assert row.fields["counterparty"] == payload["交易对方"]
+    assert row.fields["note"] == payload["商品"]
+    assert row.fields["source_payload"] == payload
+
+
+def test_wechat_empty_product_does_not_fall_back_to_remark():
+    payload = _payload("wechat", 商品="", 备注="不得回退到这里")
+    row = _convert(_document(payload, source="wechat")).rows[0]
+    assert row.fields["note"] == ""
+    assert row.fields["source_payload"] == payload
 
 
 @pytest.mark.parametrize("source,field", [("alipay", "交易订单号"), ("wechat", "交易单号")])
@@ -160,5 +175,5 @@ def test_native_source_evidence_is_captured_in_the_same_single_row_call(monkeypa
     assert row.source_explanation["merchant_order_id"] == "merchant-1"
     assert row.source_explanation["platform_status"] in {"交易成功", "支付成功"}
     assert not {"summary", "_is_refund", "offset_group", "note", "_fact_id"} & row.source_explanation.keys()
-    assert row.fields["note"] == ("原始描述" if source == "alipay" else "原始备注")
+    assert row.fields["note"] == ("原始描述" if source == "alipay" else "原始商品")
     assert row.fields["amount"] == "-20.00" and row.error_code is None

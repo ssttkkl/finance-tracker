@@ -8,17 +8,26 @@ import pytest
 def test_source_patch_replaces_note_and_stale_explanation_without_creating_manual_override():
     from ft.adapters.cash_statement_effects import prepare_cash_source_effects
     values = {"note": "旧原文", "amount": Decimal("12"), "record_type": "refund", "record_subtype": "not_applicable",
-        "source_payload": {"备注": "  新原文\n完整保留  ", "交易单号": "new-id", "当前状态": "支付成功", "收/支": "收入"}}
+        "source_payload": {"商品": "  新商品\n完整保留  ", "备注": "其他备注", "交易单号": "new-id", "当前状态": "支付成功", "收/支": "收入"}}
     before = deepcopy(values)
     final, evidence = prepare_cash_source_effects(values, {"source_payload": values["source_payload"]},
         source_type="wechat", source_explanation={"txn_id": "old-id", "_refund_signal": "wechat_status",
             "platform_status": "退款成功", "offset_group": "old-choice", "_source_account_identifier": "trusted-owner"})
-    assert final["note"] == "  新原文\n完整保留  " and final["amount"] == Decimal("12")
+    assert final["note"] == "  新商品\n完整保留  " and final["amount"] == Decimal("12")
     assert final["record_type"] == "refund" and final["source_payload"] == before["source_payload"]
     assert evidence["txn_id"] == "new-id" and evidence["platform_status"] == "支付成功"
     assert evidence["_source_account_identifier"] == "trusted-owner"
     assert "_refund_signal" not in evidence and "offset_group" not in evidence
     assert values == before
+
+
+def test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text():
+    from ft.adapters.cash_statement_effects import prepare_cash_source_effects
+    payload = {"商品": "", "备注": "不回退此备注"}
+    final, _ = prepare_cash_source_effects({"note": "旧原文", "amount": None, "source_payload": payload},
+        {"source_payload": payload}, source_type="wechat", source_explanation={})
+    assert final["note"] == ""
+    assert final["source_payload"] == payload
 
 
 @pytest.mark.parametrize("protected,patch,note", [(set(), {"note": ""}, ""),

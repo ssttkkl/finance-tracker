@@ -444,13 +444,16 @@ def test_wechat_wallet_deposit_placeholder_is_normalized_before_account_scan(tmp
 def test_scan_wechat_wallet_aliases_share_canonical_group():
     from ft.application.statement_account_mapping import scan_source_rows
 
-    groups = scan_source_rows([
+    rows = [
+        _row("wechat", payment_method="/", source_payload={"支付方式": "/"}),
         _row("wechat", payment_method="零钱"),
         _row("wechat", payment_method="微信零钱"),
-    ])
+    ]
+    groups = scan_source_rows(rows)
 
-    assert [(group.source_account_key, group.row_count) for group in groups] == [("微信零钱", 2)]
-    assert groups[0].legacy_source_account_keys == ("零钱",)
+    assert [(group.source_account_key, group.row_count) for group in groups] == [("微信零钱", 3)]
+    assert groups[0].legacy_source_account_keys == ("/", "零钱")
+    assert rows[0]["source_payload"] == {"支付方式": "/"}
 
 
 def test_alipay_missing_payment_method_uses_explicit_wallet_group(tmp_path, monkeypatch):

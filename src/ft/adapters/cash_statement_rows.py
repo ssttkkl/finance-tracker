@@ -9,7 +9,7 @@ from typing import Any
 
 from ft.adapters.cash_statement_document import CashStatementDocument
 from ft.adapters.cash_statement_evidence import extract_source_explanation
-from ft.adapters.cash_statement_effects import derive_cash_source_explanation
+from ft.adapters.cash_statement_effects import cash_source_note, derive_cash_source_explanation
 from ft.domain.cash_record_policy import source_note
 from ft.domain.cash_source_matching import SourceCoverage
 from ft.domain.decimal import exact_decimal
@@ -54,7 +54,7 @@ def _normalize_row(payload, source, position):
         "record_type": None, "record_subtype": None,
         "counterparty": payload.get("交易对方", ""),
         "counterparty_account": payload.get("对方账号", "") if source == "alipay" else "",
-        "counterparty_account_attrs": [], "note": source_note(payload),
+        "counterparty_account_attrs": [], "note": cash_source_note(source, payload),
         "source_payload": deepcopy(payload),
     }
     try:
@@ -80,7 +80,7 @@ def _normalize_row(payload, source, position):
         else:
             fields["amount"] = format(exact_decimal(native["amount"]), "f")
             fields["record_type"], fields["record_subtype"] = classify_cash_record(source, native)
-            fields["counterparty"] = native["counterparty"]
+            fields["counterparty"] = payload.get("交易对方", "") if source == "wechat" else native["counterparty"]
             counterparty_account = normalize_counterparty_account(native.get("counterparty_account"), source=source, source_payload=payload)
             fields["counterparty_account"] = counterparty_account.value
             fields["counterparty_account_attrs"] = list(counterparty_account.attrs)

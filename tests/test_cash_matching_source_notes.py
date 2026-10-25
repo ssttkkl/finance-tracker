@@ -10,7 +10,8 @@ from ft.domain.cash_relation_policy import RelationEndpoint
 
 
 @pytest.mark.parametrize("source,payload,expected", [("alipay", {"商品说明": "原始描述"}, "原始描述"),
-    ("wechat", {"备注": "原始备注"}, "原始备注"),
+    ("wechat", {"商品": "原始商品", "备注": "原始备注"}, "原始商品"),
+    ("wechat", {"商品": "", "备注": "不得回退"}, ""),
     ("icbc_debit", {"备\n注": "  完整原文\n ", "摘要": "转账"}, "  完整原文\n ")])
 def test_matching_note_uses_the_same_source_mapping_as_record_notes(source, payload, expected):
     part = RelationEndpoint("part", "parent", Decimal("-1"), "CNY", "101", "consumption", "not_applicable")
