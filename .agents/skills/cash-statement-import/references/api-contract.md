@@ -50,7 +50,7 @@ multipart 有且只有一个文本部分 `metadata`，值为 JSON；每份文件
 {"expected_session_revision": 3, "source_scope_label": "另一个微信账号"}
 ```
 
-`source_scope_label` 为 `null` 或空字符串表示默认来源，不要求用户填写微信号；非微信文件不能借此改渠道。成功后从响应取得最新修订。不要自动从文件名猜生产密码或来源身份。
+`source_scope_label` 为 `null` 或空字符串表示默认来源，不要求用户填写微信号；非微信文件不能借此改渠道。成功后从响应取得最新修订。文件名明确以“密码”“password”或“pwd”等标记提供的值，可作为该文件当次上传的 `password`；不得从其他文件名信息推测密码，也不得从文件名猜来源身份。密码仅用于本次请求，不记录或持久化。
 
 `SessionView` 含 `session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`。会话只保存限时解析内容，不提供原文件下载。
 
