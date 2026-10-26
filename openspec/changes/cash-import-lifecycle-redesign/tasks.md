@@ -334,6 +334,28 @@
 - Compose 复验命令：在 `compose/` 执行 `./gradlew :shared:wasmJsTest :shared:testAndroidHostTest :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache` → BUILD SUCCESSFUL（Wasm Browser tests、Android Host tests、iOS Simulator tests 与 framework link）。
 - 回归命令：`env -u FT_TEST_POSTGRES_URL -u FT_REQUIRE_TEST_POSTGRES PYTHONPATH=tests:src uv run pytest tests/test_cash_source_batch.py tests/test_cash_source_matching.py tests/test_cash_source_scope.py tests/test_parsed_import_staging.py tests/contract/test_cash_source_storage.py tests/contract/test_parsed_cash_import_context.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_session_api.py -q --disable-warnings --tb=short -k 'not postgres' --maxfail=5`；显式 PostgreSQL 同命令去除 `-k 'not postgres'` 并设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55439/ft_cash_snapshot_test`、`FT_REQUIRE_TEST_POSTGRES=1`。PostgreSQL 临时实例已停止；仅测试目录留在 `/tmp/ft-cash-snapshot-pg.2u7uNb`，无真实数据。
 
+### 4.27 导入行决定只接受有效选择
+
+- [x] 4.27.1 思考／澄清：按 `grill-me → grilling` 和用户直接确认，范围为同笔仅一项行决定、新流水无“保留当前信息”，另检查相关修订／重试边界；同文件真实身份歧义及固定财务字段规则不改。个人记账场景中不新增多人自动合并流程。
+- [x] 4.27.2 计划：更新 `import/cash-import-session` delta、前端导入 delta、双侧 design 与工程约束；无 schema、金额、来源身份或关系算法变化。无效输入在预览拒绝，已冻结提交继续保留幂等和必要重验。
+- [x] 4.27.3 任务拆分／测试先行：先证明同笔相同／相反双决定、新流水保留及非法显式补丁会错误产出跳过，再覆盖预览拒绝、已存流水单项保留、真正坏来源行隔离、公开可用动作及客户端校验。
+- [x] 4.27.4 构建：来源操作规划校验、公开 `allowed_actions`、共享任务状态与详情按钮按已存身份收紧；显式财务补丁复用已知资金一致性检查，表单先拦截矛盾，合法部分草稿继续可保存。提交重建中的显式输入失效返回 `plan_changed/not_committed`，失败回归证明无新流水或收据。
+- [x] 4.27.5 审查：独立范围、工程、API／UI 与最终 diff 复核；确认无效输入不进收据、既有正式值可保留，提交时未知结果仍安全核实。
+- [x] 4.27.6 验证：受影响 SQLite 与显式专用 `_test` PostgreSQL 合同、完整回归、OpenSpec strict、构建及共享单测；Web 代表视口真实冒烟，Android／iOS 相称编译和单测，记录未运行项与风险。
+- [x] 4.27.7 发布：按实际实现核对导入文档、接口示例、功能地图、词表和技能；记录 HEAD、比较基线、命令、回退边界及授权范围，验证后小步提交推送同分支。
+- [x] 4.27.8 反思：保留无效选择拒绝与合法单决定回归；个人记账修订冲突保持刷新重试，避免将输入错误重新伪装为业务跳过。
+
+本节当前证据：2026-10-26，实施工作树基于 `HEAD=83bf24b94cc8babd2d20e92d3a339ab063ecb985`，比较基线同该提交，授权目标为 `origin/average-snail`。同笔相同／相反双决定、新行保留、显式补丁与账户／分摊矛盾均有先红回归；合法 `defer` 部分补丁、来源缺项和固定事实冲突继续保留原业务合同。
+
+- 独立产品／工程／API 复核发现一项 P2：显式财务矛盾被降为草稿。已在 `cash_record_policy.py` 复用已知资金一致性检查，避免时间等缺项短路；导入表单和后端均拒绝明确矛盾，P2 重审关闭。独立上下文另对照原／现正式校验 432 组输入，结果、错误码及字段一致；3 类合法部分资金输入仍允许。修订、原命令幂等及结果未知核实继续承担防止重复写入的边界，没有新增自动合并或逐行冲突 UI。历史 `batch_choice_conflict/row_not_selected` 仅保留旧收据原因读取，新增预览不再产生。
+- 最终增量双后端命令：显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55439/ft_cash_input_test` 与 `FT_REQUIRE_TEST_POSTGRES=1`，运行 `tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_plan_api.py -q -k postgres --disable-warnings --tb=line`，`PYTHONPATH=tests:src uv run pytest` → 130 passed、无 skip，130 个 SQLite 参数化项另由完整回归覆盖。日志 `/tmp/ft-cash-input-final-postgres.log`；专用临时容器已停止，没有使用真实账本。
+- 完整非性能回归：由 `/tmp/ft-cash-full-regression.py` 按独立测试文件分 4 组运行同一 `pytest -q -m 'not performance' -p no:cacheprovider --disable-warnings --tb=line`，清除 PostgreSQL 环境变量。清单 `/tmp/ft-cash-input-regression-manifest.json` 完整包含 235 个文件、4,840 项收集结果，结果为 3,503 passed、1 failed、1,336 skipped，另 17 个性能项在各组运行时 deselected；skip 均未计为 PostgreSQL 通过。唯一失败为冻结人工分摊账户失效后仍期待逐行导入的旧断言，已按本节合同更新为写入前拒绝，并先证明错误码尚未转换的失败；最终受影响模块另行重跑，不把该轮称为全绿。
+- 最终提交边界修正后，`PYTHONPATH=tests:src uv run pytest tests/contract/test_cash_import_account_revalidation.py tests/contract/test_cash_import_commit.py -q --disable-warnings --tb=line`，使用上述显式 PostgreSQL 环境变量 → 152 passed、无 skip（191.10 s，`/tmp/ft-cash-input-final-commit-dual.log`），覆盖 SQLite 和 PostgreSQL 的账户资格、原键回放、结果核实、保存点及外层回滚。该轮在最终源码执行，替代完整回归中这两个受影响模块的结果；其余模块源码未再变化。新增断言包括 `plan_changed/not_committed`、流水数未变及 `receipt_not_found`。专用临时测试容器验证后停止。
+- `uv build --out-dir /tmp/ft-cash-input-dist` 成功；最终提交边界修正后再运行 `uv build --wheel --out-dir /tmp/ft-cash-input-dist` 成功，wheel 的 5 个修改模块逐字节匹配当前源码。OpenSpec strict 35/35、runtime docs 4 passed、语法编译及 diff 检查通过。没有新增查询、schema、依赖或金额算法；一致性计算复用原精确小数策略，额外逐行检查只涉及本次显式选择，性能专项不适用。部署配置／迁移／README 命令无需变更，词表没有新概念；已原位更新导入流程、协议说明、功能地图及 OpenSpec 实施技能的约束入口。
+- 相关边界排查覆盖导入操作／共同来源决定、账户资金资格、整笔编辑、流水维护计划／提交及账户恢复状态。`cash_mutation_commit.py` 的目标修订检查、`CashRecordTaskViewModel.kt` 的已知拒绝清理及账户普通 CAS 已有错误／重试边界，保留；关系人工值冲突属于真实业务决定，保留。原键核实结果未知继续防止重复写入，不扩展多人协调或逐行修复 UI。提交重建的最终独立复核无阻断，确认幂等回放先于新检查、拒绝先于业务写入、其他错误不被吞掉。
+- Cross-platform Impact Check：Web、Android、iOS 共用动作资格、表单校验和错误状态；真实 Web 冒烟及 Native 编译／单测证据见 [workflow 4.7](../compose-cash-import-workflow/tasks.md#47-导入行可用动作收紧)。本节无迁移或真实账本写入，回退限代码／规格；整体 change 的历史待办和 UI 演示确认不因本小步完成而关闭。
+
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。

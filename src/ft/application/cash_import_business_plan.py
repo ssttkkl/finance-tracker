@@ -916,7 +916,8 @@ class CashImportBusinessPlanBuilder:
                         ({'source_payload', 'account_name'} if value['state'] == 'posted' else set()))
                         if value['state'] == 'draft' or operation and operation.get('transaction_id') is None
                         or value.get('record_origin') == 'manual' and len(parents) == 1 else set()),
-                    "allowed_actions": ["apply", "keep_existing", "defer"] if operation else [],
+                    "allowed_actions": (["apply", "keep_existing", "defer"] if operation.get("transaction_id") is not None
+                        else ["apply", "defer"]) if operation else [],
                     "row_revision": operation.get("expected_revision") if operation else current_revisions.get(int(parent))})
                 if not operation:
                     detail_values[parent] = self._member_fields(value)

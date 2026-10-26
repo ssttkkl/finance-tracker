@@ -263,18 +263,30 @@ def test_http_relation_failure_does_not_rollback_posted_rows(context_runtime, mo
     assert len({item["projection_id"] for item in rows["projection_refs"]}) == 2
 
 
-def test_http_unselected_account_saves_draft_and_row_field_error_is_not_protocol_failure(context_runtime, monkeypatch):
+def test_http_unselected_account_saves_draft_but_rejects_invalid_row_patch(context_runtime, monkeypatch):
     client, _, view = _setup(context_runtime, monkeypatch, files=(_rows(2),))
     draft = _preview(client, view, account_selections=[]).json()
     assert draft["item_counts"]["pending"] == 2 and all(not item["statistics_eligible"] for item in draft["items"])
     first = draft["items"][0]["member_refs"][0]["row_ref"]
-    checked = _preview(client, {**view, "session_revision": draft["session_revision"]},
+    invalid = _preview(client, {**view, "session_revision": draft["session_revision"]},
         previous_plan_id=draft["plan_id"], account_selections=[],
         row_choices=[{"row_ref": first, "action": "apply", "patch": {"manual_overrides": {"note": True}}}])
+    assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "plan_input_invalid"
+    checked = _preview(client, {**view, "session_revision": draft["session_revision"]},
+        previous_plan_id=draft["plan_id"], account_selections=[])
     assert checked.status_code == 200, checked.text
-    assert checked.json()["summary"]["skip"] == 1 and checked.json()["summary"]["create_draft"] == 1
+    assert checked.json()["summary"]["create_draft"] == 2
     receipt = _commit(client, checked.json()).json()
-    assert receipt["summary"]["saved_draft"] == 1 and receipt["summary"]["skipped"] == 1
+    assert receipt["summary"]["saved_draft"] == 2 and receipt["summary"]["skipped"] == 0
+
+
+def test_http_new_row_cannot_keep_existing_and_can_retry_with_default(context_runtime, monkeypatch):
+    client, _, view = _setup(context_runtime, monkeypatch)
+    row_ref = "file_a:r1"
+    invalid = _preview(client, view, row_choices=[{"row_ref": row_ref, "action": "keep_existing"}])
+    assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "plan_input_invalid"
+    valid = _preview(client, view)
+    assert valid.status_code == 200 and valid.json()["summary"]["create_posted"] == 1
 
 
 @pytest.mark.parametrize("change", [

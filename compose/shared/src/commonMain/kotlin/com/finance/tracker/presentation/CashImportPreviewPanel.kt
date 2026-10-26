@@ -93,7 +93,10 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
                         if (member?.rowRef != null) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(ImportRowDecision.APPLY to "cash_import_apply_source", ImportRowDecision.KEEP_EXISTING to "cash_import_keep_source", ImportRowDecision.DEFER to "cash_relation_defer").forEach { (action, label) ->
-                                    if (action.name.lowercase() in member.allowedActions) TextButton(onClick = { onRow(ImportRecordChoice(member.rowRef, action)) }, enabled = !busy) { Text(localizedText(label)) }
+                                    if (action.name.lowercase() in member.allowedActions &&
+                                        (action != ImportRowDecision.KEEP_EXISTING || member.rowRevision != null)) {
+                                        TextButton(onClick = { onRow(ImportRecordChoice(member.rowRef, action)) }, enabled = !busy) { Text(localizedText(label)) }
+                                    }
                                 }
                             }
                         }
@@ -177,11 +180,17 @@ private fun CashImportFieldEditor(fields: StructuredObject, editable: List<Strin
             if (field == "cash_granularity") allocation = allocation.switchMode()
             values = values + (field to value); error = null
         }
-        error?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
+        error?.let { Text(when (it) {
+            "invalid_allocation" -> localizedText("cash_import_invalid_allocation")
+            "account_changed" -> cashImportTaskErrorText(it)
+            else -> ledgerErrorText(it)
+        }, color = MaterialTheme.colorScheme.error) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             TextButton(onClick = onCancel, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
             Button(onClick = {
-                val patch = try { cashRecordFieldPatch(editable, changes, zone, parts) }
+                val patch = try { cashRecordFieldPatch(editable, changes, zone, parts).also {
+                    validateCashImportFinancialPatch(fields, it, accounts)
+                } }
                 catch (failure: DomainFailure) { error = failure.code; return@Button }
                 onSave(patch)
             }, enabled = !busy && dirty, modifier = Modifier.testTag("$prefix.save")) { Text(localizedText("copy_fadf24dbc5")) }

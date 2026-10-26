@@ -73,6 +73,10 @@ Implement tasks from an OpenSpec change.
 4. **Read context files**
 
    Read every file path listed under `contextFiles` from the apply instructions output.
+   In this repository, also apply the product boundaries in
+   [AGENTS.md](../../../AGENTS.md#个人记账的冲突与输入边界) before adding conflict,
+   validation, compatibility, or recovery branches. If implementation requires a
+   different boundary, update the controlling change artifacts before coding.
    The files depend on the schema being used:
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output

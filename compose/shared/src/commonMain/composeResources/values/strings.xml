@@ -720,6 +720,8 @@
     <string name="cash_import_source_name">来源名称（可选）</string>
     <string name="cash_import_default_source">默认来源</string>
     <string name="cash_import_changed">数据已变化，请返回后重新核对。</string>
+    <string name="cash_import_input_invalid">核对选择无效；本次流水和关联选择已清除，请检查账户后重新核对。</string>
+    <string name="cash_import_invalid_allocation">资金分配与流水不一致，请检查账户、币种、收支方向和合计金额。</string>
     <string name="cash_import_expired">本次核对已过期，请返回后重新开始。</string>
     <string name="cash_import_category_unavailable">所选分类不可用，请重新选择。</string>
     <string name="cash_import_account_name_unavailable">账户名称已被使用。</string>

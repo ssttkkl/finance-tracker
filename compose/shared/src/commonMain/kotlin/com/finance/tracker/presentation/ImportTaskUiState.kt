@@ -89,11 +89,18 @@ data class ImportTaskUiState(
     fun editRow(choice: ImportRecordChoice): ImportTaskUiState {
         if (!canEdit) return this
         val member = details.values.flatMap { it.members }.firstOrNull { it.rowRef == choice.rowRef } ?: invalidTaskChoice()
-        if (choice.action.name.lowercase() !in member.allowedActions || choice.patch.fields.keys.any { it !in member.editableFields }) invalidTaskChoice()
+        if (choice.action.name.lowercase() !in member.allowedActions ||
+            choice.action == ImportRowDecision.KEEP_EXISTING && member.rowRevision == null ||
+            choice.action == ImportRowDecision.KEEP_EXISTING && choice.patch.fields.isNotEmpty() ||
+            choice.patch.fields.keys.any { it !in member.editableFields }) invalidTaskChoice()
         val previous = choices.rows.firstOrNull { it.rowRef == choice.rowRef && it.action == ImportRowDecision.APPLY }
         val updated = if (choice.action == ImportRowDecision.APPLY) choice.copy(patch = StructuredObject(previous?.patch?.fields.orEmpty() + choice.patch.fields)) else choice
         return copy(choices = choices.copy(rows = choices.rows.filterNot { it.rowRef == choice.rowRef } + updated), previewDirty = true, errorCode = null)
     }
+
+    fun rejectInvalidPreviewInput(code: String): ImportTaskUiState = copy(
+        choices = choices.copy(rows = emptyList(), entries = emptyList(), relations = emptyList()),
+        previewDirty = true, needsContextRefresh = false, errorCode = code)
 
     fun editEntry(choice: ImportEntryChoice): ImportTaskUiState {
         if (!canEdit) return this

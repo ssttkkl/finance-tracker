@@ -7,6 +7,7 @@ import kotlin.test.*
 class ImportTaskStateTest {
     @Test fun repeatedMemberApplyPreservesEarlierPatchesAndExplicitNullWhileOtherDecisionsClearThem() {
         val fields = detail().copy(members = listOf(detail().members.single().copy(
+            plannedAction = "update_posted", rowRevision = 3,
             editableFields = listOf("amount", "account_id"), allowedActions = listOf("apply", "keep_existing", "defer"))))
         val first = prepared().loadedDetail("ip_one", fields).editRow(ImportRecordChoice("f:r1", ImportRowDecision.APPLY,
             StructuredObject(mapOf("amount" to StructuredText("-12.5000")))))
@@ -19,6 +20,26 @@ class ImportTaskStateTest {
             val applied = cleared.editRow(ImportRecordChoice("f:r1", ImportRowDecision.APPLY, StructuredObject(mapOf("amount" to StructuredText("-3")))))
             assertEquals(mapOf("amount" to StructuredText("-3")), applied.choices.rows.single().patch.fields)
         }
+    }
+
+    @Test fun newMemberCannotKeepExistingEvenIfAnOldServerOffersTheAction() {
+        val fields = detail().copy(members = listOf(detail().members.single().copy(
+            allowedActions = listOf("apply", "keep_existing", "defer"))))
+        val state = prepared().loadedDetail("ip_one", fields)
+        assertFailsWith<DomainFailure> { state.editRow(ImportRecordChoice("f:r1", ImportRowDecision.KEEP_EXISTING)) }
+        assertTrue(state.choices.rows.isEmpty())
+    }
+
+    @Test fun invalidPreviewInputClearsOnlyOptionalDecisionsAndAllowsReviewAgain() {
+        val before = prepared().loadedDetail("ip_one", detail())
+            .editRow(ImportRecordChoice("f:r1", ImportRowDecision.DEFER))
+            .copy(needsContextRefresh = true)
+        val after = before.rejectInvalidPreviewInput("plan_input_invalid")
+        assertTrue(after.choices.rows.isEmpty())
+        assertEquals(before.choices.accountSelections, after.choices.accountSelections)
+        assertTrue(after.previewDirty)
+        assertFalse(after.needsContextRefresh)
+        assertTrue(after.canEdit)
     }
 
     @Test fun wholeEntryEditUsesOnlyItsExplicitTargetAndPreservesSourceDecisions() {

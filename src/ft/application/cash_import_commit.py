@@ -80,8 +80,13 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
             if not plan.get("can_commit"):
                 raise CashImportPlanError("plan_input_invalid")
             sources = self._prepare_sources(uow, current)
-            fresh = self._builder(session=session, files=current.files, preview_input=current.preview_input,
-                previous_plan=plan, plan_id=plan_id, source_plan=sources)
+            try:
+                fresh = self._builder(session=session, files=current.files, preview_input=current.preview_input,
+                    previous_plan=plan, plan_id=plan_id, source_plan=sources)
+            except CashImportPlanError as error:
+                if error.code != "plan_input_invalid":
+                    raise
+                raise CashImportPlanError("plan_changed") from None
             if _digest(plan.get("entry_edits", [])) != _digest(fresh.get("entry_edits", [])):
                 raise CashImportPlanError("plan_changed")
             state = RelationalCashProjectionRepository(session, self._workspace_id).require_ready_state_lock()

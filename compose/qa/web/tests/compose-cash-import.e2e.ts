@@ -300,7 +300,80 @@ test("import source differences show both statement bodies as readonly content",
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(detail).toContainText("原始凭证正文");
   await expect(detail).toContainText("新凭证正文");
+  await expect(detail.getByRole("button", { name: "保留现有" })).toBeVisible();
   await expect(detail.getByRole("textbox")).toHaveCount(0);
+});
+
+test("new import rows never offer keeping an existing record", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page);
+  await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items\/pending-item$/, route => route.fulfill({ json: {
+    preview_item_id: "pending-item", members: [{ row_ref: "row-pending", planned_action: "create_draft",
+      fields: { amount: "-12.5000", currency: "CNY" }, editable_fields: [],
+      allowed_actions: ["apply", "keep_existing", "defer"], row_revision: null }],
+    field_diffs: [{ row_ref: "row-pending", field: "note", current: null,
+      incoming: "来源备注", effective: "来源备注", resolution: "apply" }],
+    issues: [], relation_choices: [], relation_effects: [], relation_members: [],
+  } }));
+  await uploadAndReview(page);
+  await press(page, "ledger.open-record");
+  const changed = page.getByRole("button", { name: /账单内容有变化/ });
+  const box = await changed.boundingBox();
+  if (!box) throw new Error("Missing source difference card");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const detail = page.locator('[id="cash.import.detail"]:visible');
+  await expect(detail.getByRole("button", { name: "应用更新" })).toBeVisible();
+  await expect(detail.getByRole("button", { name: "保留现有" })).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("new-row-actions.png") });
+});
+
+test("invalid review choices return to a single review retry", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const calls = await setup(page);
+  let previews = 0;
+  await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+\/plans$/, route => {
+    previews++;
+    if (previews === 1) return route.fulfill({ status: 422, json: {
+      error: { code: "plan_input_invalid", message: "核对选择有误", field_errors: [], retryable: false },
+    } });
+    return route.fallback();
+  });
+  await uploadAndReview(page, false, true);
+  await press(page, "cash.import.review");
+  await expect(page.locator('[id="cash.import.task"]:visible')).toContainText("核对选择无效");
+  await press(page, "cash.import.review");
+  await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("待核对商户");
+  expect(previews).toBe(2);
+  expect(calls.commits).toHaveLength(0);
+});
+
+test("inconsistent import allocations stay in the form without another preview", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await setup(page);
+  let previews = 0;
+  page.on("request", request => { if (request.method() === "POST" && /\/plans$/.test(new URL(request.url()).pathname)) previews++; });
+  await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items\/pending-item$/, route => route.fulfill({ json: {
+    preview_item_id: "pending-item", members: [{ row_ref: "row-pending", planned_action: "create_draft",
+      fields: { amount: "-12.5", currency: "CNY", account_id: "1", cash_granularity: "atomic",
+        components: [{ ordinal: 0, account_id: "1", amount: "-12.5", currency: "CNY" }] },
+      editable_fields: ["amount"], allowed_actions: ["apply", "defer"] }], field_diffs: [],
+    issues: [{ code: "incomplete_record", message: "补充金额", field_path: "amount", blocking_scope: "row", next_action: "edit" }],
+    relation_choices: [], relation_effects: [], relation_members: [],
+  } }));
+  await uploadAndReview(page);
+  await press(page, "ledger.open-record");
+  const warning = await page.getByRole("button", { name: /补充金额/ }).boundingBox();
+  if (!warning) throw new Error("Missing amount issue");
+  await page.mouse.click(warning.x + warning.width / 2, warning.y + warning.height / 2);
+  await press(page, "cash.import.edit-member-row-pending");
+  const amount = await page.locator('[id="cash.import.row-row-pending.amount"]:visible').last().boundingBox();
+  if (!amount) throw new Error("Missing amount field");
+  await page.mouse.click(amount.x + amount.width / 2, amount.y + amount.height / 2);
+  await page.keyboard.press("ControlOrMeta+A"); await page.keyboard.press("Backspace"); await page.keyboard.type("-10");
+  await press(page, "cash.import.row-row-pending.save");
+  await expect(page.locator('[id="cash.import.detail"]:visible')).toContainText("资金分配与流水不一致");
+  expect(previews).toBe(1);
+  await page.screenshot({ path: info.outputPath("allocation-validation.png") });
 });
 
 test("import empty incoming allocations remain explicitly visible and readonly", async ({ page }) => {

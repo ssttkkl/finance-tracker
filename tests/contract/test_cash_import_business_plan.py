@@ -81,6 +81,24 @@ def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runt
         assert not session.new and not session.dirty
 
 
+def test_keep_existing_is_offered_only_for_a_saved_record(draft_runtime):
+    from ft.application.cash_import_plans import _resolve_detail
+    file = _file()
+    with draft_runtime.sessions() as session:
+        created = _build(session, draft_runtime, (file,))
+    item, = created["items"]
+    detail = _resolve_detail(created, created["item_details"][item["preview_item_id"]])
+    assert "keep_existing" not in detail["members"][0]["allowed_actions"]
+    with draft_runtime.sessions.begin() as session:
+        _bind_existing(session, draft_runtime, file)
+    changed = _file(note="来源更新备注")
+    with draft_runtime.sessions() as session:
+        existing = _build(session, draft_runtime, (changed,))
+    item, = existing["items"]
+    detail = _resolve_detail(existing, existing["item_details"][item["preview_item_id"]])
+    assert "keep_existing" in detail["members"][0]["allowed_actions"]
+
+
 def test_frozen_preview_stores_member_values_once_and_restores_only_requested_detail(draft_runtime):
     import json
     from ft.application.cash_import_plans import _resolve_detail
@@ -227,14 +245,14 @@ def test_ordinary_source_update_shows_existing_projection_without_rediscovery(dr
         assert not session.new and not session.dirty
 
 
-def test_type_edit_skips_imported_record_without_removing_existing_relation(draft_runtime):
+def test_type_edit_rejects_plan_without_removing_existing_relation(draft_runtime):
+    from ft.application.cash_import_plans import CashImportPlanError
     with draft_runtime.sessions.begin() as session:
         file, relation_id = _existing_mirror(session, draft_runtime)
     with draft_runtime.sessions() as session:
-        plan = _build(session, draft_runtime, (file,), mapped=False, rows=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
-        assert plan["summary"]["skip"] == 1 and plan["operations"] == []
-        assert plan["type_effects"]["removed_relation_ids"] == []
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _build(session, draft_runtime, (file,), mapped=False, rows=[{"row_ref": "file_a:r1", "action": "apply",
+                "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
         assert session.get(TransactionRelationModel, relation_id).active is True
         assert session.get(CashTransactionModel, 1003).record_type == "consumption"
 

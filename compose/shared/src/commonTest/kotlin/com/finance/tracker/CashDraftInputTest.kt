@@ -4,11 +4,27 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.cashDraftPatch
 import com.finance.tracker.presentation.CashDraftAllocation
 import com.finance.tracker.presentation.CashDraftAllocationInput
+import com.finance.tracker.presentation.cashRecordFieldPatch
+import com.finance.tracker.presentation.validateCashImportFinancialPatch
 import com.finance.tracker.presentation.localDateTimeWithDate
 import com.finance.tracker.presentation.localDateTimeWithTime
 import kotlin.test.*
 
 class CashDraftInputTest {
+    @Test fun importFinancialContradictionsAreRejectedBeforePreviewButPartialValuesRemainAllowed() {
+        val original = StructuredObject(mapOf("amount" to StructuredText("-12.5"), "currency" to StructuredText("CNY"),
+            "account_id" to StructuredText("101"), "cash_granularity" to StructuredText("atomic")))
+        val accounts = listOf(Account(101, "账户", "cash", currencies = listOf("CNY")))
+        fun check(parts: List<CashDraftAllocation>) = validateCashImportFinancialPatch(original,
+            cashRecordFieldPatch(listOf("components"), emptyMap(), "UTC", parts), accounts)
+        assertFailsWith<DomainFailure> { check(listOf(CashDraftAllocation(null, 0, "101", "-1", "CNY"))) }
+        assertFailsWith<DomainFailure> { check(listOf(CashDraftAllocation(null, 0, "101", "12.5", "CNY"))) }
+        assertFailsWith<DomainFailure> { check(listOf(CashDraftAllocation(null, 0, "missing", "-12.5", "CNY"))) }
+        assertFailsWith<DomainFailure> { check(listOf(CashDraftAllocation(null, 0, "101", "-6", "CNY"), CashDraftAllocation(null, 0, "101", "-6.5", "CNY"))) }
+        check(listOf(CashDraftAllocation(null, 0, "101", "", "CNY")))
+        check(listOf(CashDraftAllocation(null, 0, "101", "-12.5000", "CNY")))
+    }
+
     @Test fun switchingBackToSingleNeverSubmitsHiddenSplitEdits() {
         val first = CashDraftAllocation("31", 4, "101", "-10.00", "CNY")
         val added = CashDraftAllocation(null, 0, "102", "-2", "CNY")

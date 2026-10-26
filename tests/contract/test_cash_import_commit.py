@@ -539,7 +539,8 @@ def test_reimport_of_identity_draft_preserves_its_unresolved_candidate_set(conte
         assert session.scalar(select(func.count()).select_from(CashIssueCandidateModel)) == 1
 
 
-def test_known_partial_draft_component_is_saved_and_invalid_structure_is_row_local(context_runtime):
+def test_known_partial_draft_component_is_saved_but_invalid_structure_rejects_plan(context_runtime):
+    from ft.application.cash_import_plans import CashImportPlanError
     first, second = _file(), _file(letter="b", provider="002", amount="-3")
     service, plan = _plan(context_runtime, (first, second), rows=[{"row_ref": "file_a:r1", "action": "defer", "patch": {
         "components": [{"ordinal": 0, "account_id": "101"}]}}])
@@ -549,9 +550,9 @@ def test_known_partial_draft_component_is_saved_and_invalid_structure_is_row_loc
     with context_runtime.sessions() as session:
         component = session.scalar(select(CashTransactionComponentModel).where(CashTransactionComponentModel.cash_transaction_id == identifier))
         assert component.account_id == 101 and component.amount is None and component.currency is None
-    other, view = _plan(context_runtime, (_file(letter="c", provider="003"), second), rows=[{
-        "row_ref": "file_c:r1", "action": "defer", "patch": {"components": [{"account_id": "101"}]}}])
-    assert view["summary"]["skip"] == 1
+    with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+        _plan(context_runtime, (_file(letter="c", provider="003"), second), rows=[{
+            "row_ref": "file_c:r1", "action": "defer", "patch": {"components": [{"account_id": "101"}]}}])
 
 
 @pytest.mark.parametrize("same_key", [True, False])

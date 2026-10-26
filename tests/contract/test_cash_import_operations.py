@@ -9,6 +9,7 @@ from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.relational.cash_sources import CashSourceRepository
 from ft.adapters.relational.models import AccountModel, CashTransactionModel
 from ft.application.cash_import_funding import scan_cash_funding
+from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_import_source_rows import source_batch_rows
 from ft.application.parsed_import_staging import ParsedImportFile
 from ft.domain.cash_source_matching import SourceCoverage
@@ -102,8 +103,8 @@ def test_import_user_source_payload_patch_is_rejected_without_partial_public_edi
     if explicit is not None:
         patch["note"] = explicit
     with runtime.sessions() as session:
-        prepared = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
-        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
         assert session.get(CashTransactionModel, 1003).source_payload != patch["source_payload"]
 
 
@@ -112,9 +113,9 @@ def test_posted_user_source_payload_noop_is_still_not_an_editable_field(draft_ru
     with runtime.sessions.begin() as session:
         _bind_existing(session, runtime, file)
     with runtime.sessions() as session:
-        prepared = _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"source_payload": file.document.rows[0].fields["source_payload"]}}])
-        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+                "patch": {"source_payload": file.document.rows[0].fields["source_payload"]}}])
 
 
 def _bind_existing(session, runtime, file, *, note=None):
@@ -239,8 +240,8 @@ def test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_reject
     with runtime.sessions() as session:
         cleared = _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"note": ""}}])
         assert cleared.operations[0]["entry_edit"]["patch"] == {"note": ""} and cleared.operations[0]["values"]["note"] == "原始备注"
-        rejected = _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"amount": "-100"}}])
-        assert rejected.rows[0]["code"] == "field_not_editable" and not rejected.operations
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, runtime, (first,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"amount": "-100"}}])
 
 
 def test_duplicate_keeps_result_and_binding_work_but_does_not_claim_record_update(draft_runtime):
@@ -268,16 +269,18 @@ def test_known_source_update_can_defer_on_existing_record_without_creating_a_dra
         assert operation["issues"] and operation["planned_action"] == "update_posted"
 
 
-def test_bad_row_patch_or_unreadable_source_does_not_block_other_rows(draft_runtime):
+def test_bad_row_patch_rejects_plan_but_unreadable_source_does_not_block_other_rows(draft_runtime):
     runtime = draft_runtime
     first = _file()
     good = _file(provider="002", letter="b")
     unreadable = _file(letter="c", rows=(ParsedCashRow(1, None, disposition="skipped", error_code="row_unreadable"),))
     with runtime.sessions() as session:
-        prepared = _prepare(session, runtime, (first, good, unreadable), selections=_selections((first, good)),
-            choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"record_type": "invalid"}}])
-        assert [row["planned_action"] for row in prepared.rows] == ["skip", "create_posted", "skip"]
-        assert prepared.rows[0]["code"] == "invalid_record_type" and prepared.rows[2]["code"] == "row_unreadable"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, runtime, (first, good, unreadable), selections=_selections((first, good)),
+                choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": {"record_type": "invalid"}}])
+        prepared = _prepare(session, runtime, (first, good, unreadable), selections=_selections((first, good)))
+        assert [row["planned_action"] for row in prepared.rows] == ["create_posted", "create_posted", "skip"]
+        assert prepared.rows[2]["code"] == "row_unreadable"
 
 
 def test_selected_different_financial_account_is_conflict_for_existing_posted_record(draft_runtime):
@@ -290,14 +293,30 @@ def test_selected_different_financial_account_is_conflict_for_existing_posted_re
         assert prepared.rows[0]["planned_action"] == "skip" and prepared.rows[0]["code"] == "fixed_field_conflict"
 
 
-def test_conflicting_manual_choices_for_shared_operation_skip_all_its_rows(draft_runtime):
+@pytest.mark.parametrize("second_note", ["一个决定", "另一个决定"])
+def test_multiple_choices_for_one_source_operation_are_invalid(draft_runtime, second_note):
+    from ft.application.cash_import_plans import CashImportPlanError
     files = (_file(), _file(letter="b"))
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
             {"row_ref": "file_a:r1", "action": "apply", "patch": {"note": "一个决定"}},
-            {"row_ref": "file_b:r1", "action": "apply", "patch": {"note": "另一个决定"}}])
-        assert not prepared.operations
-        assert [row["code"] for row in prepared.rows] == ["batch_choice_conflict"] * 2
+            {"row_ref": "file_b:r1", "action": "apply", "patch": {"note": second_note}}])
+
+
+def test_keep_existing_requires_a_matched_saved_record(draft_runtime):
+    from ft.application.cash_import_plans import CashImportPlanError
+    file = _file()
+    choice = [{"row_ref": "file_a:r1", "action": "keep_existing"}]
+    with draft_runtime.sessions() as session:
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), choices=choice)
+    with draft_runtime.sessions.begin() as session:
+        _bind_existing(session, draft_runtime, file)
+    with draft_runtime.sessions() as session:
+        prepared = _prepare(session, draft_runtime, (file,), choices=choice)
+        assert prepared.rows[0]["planned_action"] == "duplicate"
+        assert prepared.operations[0]["transaction_id"] == "1003"
 
 
 def test_same_file_ambiguous_draft_does_not_finalize_on_complete_reupload(draft_runtime):
@@ -324,26 +343,33 @@ def test_new_draft_never_substitutes_currency_or_guesses_financial_account(draft
         assert any(issue["code"] == "account_currency_missing" for issue in operation["issues"])
 
 
-def test_bad_category_shape_is_row_failure_and_foreign_category_is_not_assignable(draft_runtime):
+def test_bad_category_shape_and_foreign_category_reject_plan(draft_runtime):
     files = (_file(), _file(letter="b", provider="002"))
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
-            {"row_ref": "file_a:r1", "action": "apply", "patch": {"category_id": {"id": "wrong"}}},
-            {"row_ref": "file_b:r1", "action": "apply", "patch": {"category_id": "foreign-category"}}])
-        assert [row["code"] for row in prepared.rows] == ["invalid_field", "category_unavailable"]
-        assert not prepared.operations
+        for patch in ({"category_id": {"id": "wrong"}}, {"category_id": "foreign-category"}):
+            with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+                _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
+                    {"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
 
 
-def test_posted_type_edit_is_skipped_without_changing_current_record(draft_runtime):
+def test_posted_type_edit_rejects_plan_without_changing_current_record(draft_runtime):
     file = _file()
     with draft_runtime.sessions.begin() as session:
         _bind_existing(session, draft_runtime, file)
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
-        assert not prepared.operations and prepared.rows[0]["code"] == "field_not_editable"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+                "patch": {"record_type": "transfer_out", "record_subtype": "ordinary_transfer"}}])
         assert session.get(CashTransactionModel, 1003).record_type == "consumption"
         assert not session.new and not session.dirty
+
+
+def test_manual_type_patch_incompatible_with_source_subtype_rejects_plan(draft_runtime):
+    file = _file()
+    with draft_runtime.sessions() as session:
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), selections=_selections((file,)), choices=[
+                {"row_ref": "file_a:r1", "action": "apply", "patch": {"record_type": "transfer_out"}}])
 
 
 def test_unexpected_row_preparation_failure_is_safe_and_other_rows_continue(draft_runtime, monkeypatch):
@@ -375,7 +401,7 @@ def test_fixed_conflict_explains_the_actual_field_in_safe_row_result(draft_runti
 
 
 @pytest.mark.parametrize("account_id,active,expected", [("101", True, "create_posted"),
-    ("101", False, "create_draft"), ("104", True, "create_draft")])
+    ("101", False, None), ("104", True, None)])
 def test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason(draft_runtime, account_id, active, expected):
     file = _file()
     with draft_runtime.sessions.begin() as session:
@@ -383,13 +409,33 @@ def test_explicit_draft_financial_completion_revalidates_account_and_clears_old_
     patch = {"account_id": account_id, "components": [{"ordinal": 0, "account_id": account_id,
         "amount": "-12.5", "currency": "CNY"}]}
     with draft_runtime.sessions() as session:
+        if expected is None:
+            with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+                _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
+            return
         operation, = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}]).operations
         assert operation["planned_action"] == expected
         if expected == "create_posted":
             assert not operation["issues"] and operation["expected_accounts"] == [{"account_id": "101",
                 "exists": True, "active": True, "type": "cash", "currency_support": {"CNY": True}}]
-        else:
-            assert any(issue["code"] == "account_unavailable" for issue in operation["issues"])
+
+
+@pytest.mark.parametrize("parts", [
+    [{"ordinal": 0, "account_id": "101", "amount": "-6", "currency": "CNY"},
+     {"ordinal": 0, "account_id": "102", "amount": "-6.5", "currency": "CNY"}],
+    [{"ordinal": 0, "account_id": "101", "amount": "-1", "currency": "CNY"}],
+    [{"ordinal": 0, "account_id": "101", "amount": "12.5", "currency": "CNY"}],
+])
+@pytest.mark.parametrize("missing_time", [False, True])
+def test_explicit_financial_contradictions_reject_plan_instead_of_creating_draft(draft_runtime, parts, missing_time):
+    file = _file()
+    if missing_time:
+        row = replace(file.document.rows[0], fields={**file.document.rows[0].fields, "occurred_at": None})
+        file = replace(file, document=replace(file.document, rows=(row,)))
+    patch = {"cash_granularity": "aggregate", "account_id": None, "components": parts}
+    with draft_runtime.sessions() as session:
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply", "patch": patch}])
 
 
 def test_corrected_missing_amount_and_time_can_be_posted_without_stale_parser_issues(draft_runtime):
@@ -417,15 +463,13 @@ def test_existing_complete_draft_uses_current_account_eligibility_when_finalizin
         assert any(issue["code"] == "account_unavailable" for issue in operation["issues"])
 
 
-def test_unknown_patch_field_does_not_turn_safe_error_formatting_into_batch_failure(draft_runtime):
+def test_unknown_patch_field_rejects_plan_without_leaking_input(draft_runtime):
     files = (_file(), _file(letter="b", provider="002"))
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
-            {"row_ref": "file_a:r1", "action": "apply", "patch": {"bad field SQL": True}}])
-        assert prepared.rows[0]["code"] == "field_not_editable"
-        assert prepared.rows[0]["issues"][0]["field_path"] is None
-        assert prepared.rows[1]["planned_action"] == "create_posted"
-        assert "SQL" not in str(prepared.rows)
+        with pytest.raises(CashImportPlanError) as error:
+            _prepare(session, draft_runtime, files, selections=_selections(files), choices=[
+                {"row_ref": "file_a:r1", "action": "apply", "patch": {"bad field SQL": True}}])
+        assert str(error.value) == "plan_input_invalid"
 
 
 def test_unidentified_equivalent_repetitions_do_not_create_extra_operations(draft_runtime):
@@ -454,10 +498,10 @@ def test_account_rename_does_not_invalidate_current_valid_mapping(draft_runtime)
 def test_new_record_cannot_claim_an_existing_component_identifier(draft_runtime):
     file = _file()
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, (file,), selections=_selections((file,)), choices=[
-            {"row_ref": "file_a:r1", "action": "apply", "patch": {"components": [{"component_id": "1001",
-                "ordinal": 0, "account_id": "101", "amount": "-12.5", "currency": "CNY"}]}}])
-        assert not prepared.operations and prepared.rows[0]["code"] == "component_reference_invalid"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), selections=_selections((file,)), choices=[
+                {"row_ref": "file_a:r1", "action": "apply", "patch": {"components": [{"component_id": "1001",
+                    "ordinal": 0, "account_id": "101", "amount": "-12.5", "currency": "CNY"}]}}])
 
 
 def test_existing_draft_funding_refresh_preserves_current_component_identity(draft_runtime):
@@ -482,6 +526,6 @@ def test_explicit_draft_component_ids_must_be_owned_and_unique(draft_runtime, co
         _bind_existing(session, draft_runtime, file)
         session.get(CashTransactionModel, 1003).state = "draft"
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
-            "patch": {"components": components}}])
-        assert not prepared.operations and prepared.rows[0]["code"] == "component_reference_invalid"
+        with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
+            _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
+                "patch": {"components": components}}])

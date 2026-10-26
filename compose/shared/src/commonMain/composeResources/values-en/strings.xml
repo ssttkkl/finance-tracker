@@ -720,6 +720,8 @@
     <string name="cash_import_source_name">Source name (optional)</string>
     <string name="cash_import_default_source">Default source</string>
     <string name="cash_import_changed">Data changed. Return and review again.</string>
+    <string name="cash_import_input_invalid">These choices are invalid. Record and relation choices were cleared. Check accounts, then review again.</string>
+    <string name="cash_import_invalid_allocation">Allocations do not match the record. Check accounts, currencies, directions, and total amount.</string>
     <string name="cash_import_expired">This review expired. Return and start again.</string>
     <string name="cash_import_category_unavailable">The selected category is unavailable. Choose again.</string>
     <string name="cash_import_account_name_unavailable">This account name is already in use.</string>

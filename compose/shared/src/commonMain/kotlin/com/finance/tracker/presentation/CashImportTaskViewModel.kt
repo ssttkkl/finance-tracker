@@ -142,7 +142,12 @@ class CashImportTaskViewModel(
         val context = before.context ?: invalidTask()
         val choices = before.choices
         mutableState.value = before.copy(needsContextRefresh = true)
-        val plan = repository.preview(context.sessionId, context.revision ?: invalidTask(), before.plan?.planId ?: context.lastPlanId, choices)
+        val plan = try { repository.preview(context.sessionId, context.revision ?: invalidTask(), before.plan?.planId ?: context.lastPlanId, choices) }
+        catch (failure: DomainFailure) {
+            if (failure.code !in setOf("plan_input_invalid", "import_payload_invalid")) throw failure
+            if (current(request)) mutableState.value = state.value.rejectInvalidPreviewInput(failure.code)
+            return
+        }
         publishPlan(request, plan, choices)
     }
 

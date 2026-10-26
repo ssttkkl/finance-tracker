@@ -18,7 +18,7 @@ from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_source_candidate_sets import SourceCandidateSets
 from ft.domain.cash_record_policy import (
     CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDENTITY_FIELDS, COMMON_CASH_FIELDS, MUTABLE_CASH_FIELDS, CashRecordPolicyError,
-    _normalize, prepare_cash_record_update, validate_cash_record_for_posting,
+    _normalize, prepare_cash_record_update, validate_cash_component_consistency, validate_cash_record_for_posting,
 )
 from ft.domain.cash_source_matching import allocate_source_record_id
 
@@ -108,16 +108,42 @@ class CashImportOperationPlanner:
             # 批内确定重复指向共同操作；等价集合不虚构单笔对应。
             members[resolution.duplicate_of or resolution.row_ref].append(resolution.row_ref)
         categories = self._categories(choices)
+        for root, related in members.items():
+            requested = [choices[item] for item in related if item in choices]
+            if len(requested) > 1:
+                raise CashImportPlanError("plan_input_invalid")
+            if not requested:
+                continue
+            choice = requested[0]
+            resolution = source_results[root]
+            record = records.get(resolution.transaction_id)
+            manual = choice.get("patch", {})
+            if choice["action"] == "keep_existing" and (record is None or manual):
+                raise CashImportPlanError("plan_input_invalid")
+            if resolution.action in {"batch_duplicate", "duplicate"} and record is None and (manual or choice["action"] != "apply"):
+                raise CashImportPlanError("plan_input_invalid")
+            allowed = COMMON_CASH_FIELDS if record is not None and record.fields["state"] == "posted" else MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
+            if manual.keys() - allowed:
+                raise CashImportPlanError("plan_input_invalid")
+            try:
+                prepare_cash_record_update({"state": "draft"}, manual)
+                if "components" in manual:
+                    parts = _normalize("components", manual["components"])
+                    if any("ordinal" not in part for part in parts) or len({part["ordinal"] for part in parts}) != len(parts):
+                        raise CashRecordPolicyError("invalid_field", ("components",))
+                    _validate_component_ids(_current_values(record)["components"] if record else [], parts)
+            except CashRecordPolicyError:
+                raise CashImportPlanError("plan_input_invalid") from None
+            if manual.get("category_id") is not None and manual["category_id"] not in categories:
+                raise CashImportPlanError("plan_input_invalid")
+        if set(choices) - source_results.keys():
+            raise CashImportPlanError("plan_input_invalid")
         for resolution in source.plan.rows:
             ref = resolution.row_ref
             if resolution.duplicate_of:
                 continue
             related = members[ref]
             requested = [choices[item] for item in related if item in choices]
-            distinct = [{key: value for key, value in item.items() if key != "row_ref"} for item in requested]
-            if distinct and any(item != distinct[0] for item in distinct):
-                decisions[ref] = self._skip(ref, "batch_choice_conflict")
-                continue
             choice = requested[0] if requested else {"action": "apply"}
             record = records.get(resolution.transaction_id)
             candidates, candidate_group = (), None
@@ -129,20 +155,13 @@ class CashImportOperationPlanner:
                             in source.rows[ref].fields.items() if key in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS})
                     raise CashRecordPolicyError(resolution.reason, ())
                 if resolution.action == "batch_duplicate":
-                    if choice.get("patch") or choice["action"] == "defer":
-                        raise CashRecordPolicyError("source_identity_ambiguous", ())
                     decisions[ref] = {"row_ref": ref, "operation_ref": None,
                         "planned_action": "duplicate_in_batch", "source_group_ref": resolution.group_ref}
                     continue
                 if choice["action"] == "keep_existing":
-                    if record is None:
-                        decisions[ref] = self._skip(ref, "row_not_selected")
-                        continue
                     operation = self._keep(record, targets[record.transaction_id], source.rows[ref],
                         saved_issues.get(record.transaction_id, ()))
                 elif resolution.action == "duplicate" and record is None:
-                    if choice.get("patch") or choice["action"] == "defer":
-                        raise CashRecordPolicyError("source_identity_ambiguous", ())
                     decisions[ref] = {"row_ref": ref, "operation_ref": None, "planned_action": "duplicate",
                         "source_group_ref": resolution.group_ref}
                     continue
@@ -166,6 +185,8 @@ class CashImportOperationPlanner:
                 operations.append(_wire(operation))
                 decisions[ref] = {"row_ref": ref, "operation_ref": operation["operation_ref"],
                     "planned_action": operation["planned_action"], "transaction_id": operation["transaction_id"]}
+            except CashImportPlanError:
+                raise
             except CashRecordPolicyError as error:
                 decisions[ref] = self._skip(ref, error.code, error.fields)
                 if record and error.code == "fixed_field_conflict":
@@ -308,7 +329,10 @@ class CashImportOperationPlanner:
         if public_patch:
             public_patch = prepare_cash_record_update({'state': 'draft'}, public_patch).values
         source_manual = {field: value for field, value in manual.items() if field not in COMMON_CASH_FIELDS}
-        manual_values = prepare_cash_record_update(source_values, source_manual).values if source_manual else {}
+        try:
+            manual_values = prepare_cash_record_update(source_values, source_manual).values if source_manual else {}
+        except CashRecordPolicyError:
+            raise CashImportPlanError("plan_input_invalid") from None
         entry = self._entries.get(record.transaction_id) if record else None
         entry_edit = {"entry_id": entry.id if entry else None, "revision": entry.revision if entry else None,
             "patch": public_patch} if public_patch else None
@@ -336,7 +360,18 @@ class CashImportOperationPlanner:
                 issues.append(_issue("source_update_pending"))
         elif not is_posted:
             # 明确补丁可以补齐资金；旧身份问题需要独立解决，不能靠重传消失。
+            if manual.keys() & CASH_FINANCIAL_FIELDS:
+                try:
+                    validate_cash_component_consistency(values)
+                except CashRecordPolicyError:
+                    raise CashImportPlanError("plan_input_invalid") from None
             account_issues, expected_accounts = _draft_accounts(values, accounts)
+            explicit_accounts = {str(identifier) for identifier in [manual.get("account_id"),
+                *(part.get("account_id") for part in manual.get("components", []))] if identifier is not None}
+            if any((dependency["account_id"] in explicit_accounts or "currency" in manual) and (
+                not dependency["exists"] or not dependency["active"] or dependency["type"] not in {"cash", "loan", "lend"}
+                or not all(dependency["currency_support"].values())) for dependency in expected_accounts):
+                raise CashImportPlanError("plan_input_invalid")
             issues.extend(account_issues)
             try:
                 validate_cash_record_for_posting(values)

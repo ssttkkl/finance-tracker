@@ -54,6 +54,39 @@ internal fun cashDraftPatch(record: CashCurrentRecord, changes: Map<String, Stri
     return cashRecordFieldPatch(record.editableFields, changes, timeZoneId, allocations)
 }
 
+internal fun validateCashImportFinancialPatch(original: StructuredObject, patch: StructuredObject, accounts: List<Account>) {
+    if (patch.fields.keys.none { it in setOf("amount", "currency", "account_id", "cash_granularity", "components") }) return
+    fun invalid(): Nothing = throw DomainFailure("invalid_allocation", 0, FailureCategory.RECOVERABLE)
+    val fields = original.fields + patch.fields
+    val amount = fields["amount"].cashText()?.takeIf(::isExactDecimalString)
+    val currency = fields["currency"].cashText().orEmpty()
+    val accountId = fields["account_id"].cashText().orEmpty()
+    val parts = cashRecordInitialAllocations(StructuredObject(fields))
+    val selected = buildList {
+        if ("account_id" in patch.fields || "currency" in patch.fields) add(accountId to currency)
+        if ("components" in patch.fields || "currency" in patch.fields) addAll(parts.map { it.accountId to it.currency })
+    }
+    selected.filter { it.first.isNotEmpty() }.forEach { (id, code) ->
+        val account = accounts.firstOrNull { it.id.toString() == id && it.active && it.type in setOf("cash", "loan", "lend") }
+        if (account == null || code.isNotEmpty() && code !in account.currencies.orEmpty())
+            throw DomainFailure("account_changed", 0, FailureCategory.RECOVERABLE)
+    }
+    if (parts.map { it.ordinal }.distinct().size != parts.size) invalid()
+    val split = fields["cash_granularity"].cashText() == "aggregate"
+    if (split && accountId.isNotEmpty()) invalid()
+    if (!split && accountId.isNotEmpty() && parts.isNotEmpty() &&
+        (parts.size != 1 || parts.single().accountId.isNotEmpty() && parts.single().accountId != accountId)) invalid()
+    if (currency.isNotEmpty() && parts.any { it.currency.isNotEmpty() && it.currency != currency }) invalid()
+    if (amount != null) {
+        val sign = displayDecimalSign(amount)!!
+        if (parts.any { part -> displayDecimalSign(part.amount)?.let { it != 0 && it != sign } == true }) invalid()
+        if (parts.isNotEmpty() && parts.all { isExactDecimalString(it.amount) }) {
+            val total = parts.fold("0") { sum, part -> displayDecimalAdd(sum, part.amount) ?: invalid() }
+            if (displayDecimalCompare(total, amount) != 0) invalid()
+        }
+    }
+}
+
 internal fun cashRecordFieldPatch(editableFields: List<String>, changes: Map<String, String>, timeZoneId: String,
     allocations: List<CashDraftAllocation>? = null): StructuredObject {
     fun invalid(code: String): Nothing = throw DomainFailure(code, 0, FailureCategory.RECOVERABLE)

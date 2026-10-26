@@ -260,19 +260,40 @@ def validate_cash_record_for_posting(record: Mapping[str, Any]) -> None:
         raise CashRecordPolicyError("incomplete_record", ("components",))
     if any(item.get("ordinal") is None for item in components):
         raise CashRecordPolicyError("incomplete_record", ("components",))
-    if len({item["ordinal"] for item in components}) != len(components):
+    _validate_known_cash_components(normalized)
+
+
+def validate_cash_component_consistency(record: Mapping[str, Any]) -> None:
+    """校验已知资金值之间的一致性，允许草稿缺少时间或部分资金字段。"""
+    values = {}
+    for field in ("amount", "currency", "account_id", "cash_granularity", "components"):
+        try:
+            values[field] = _normalize(field, record.get(field, "atomic" if field == "cash_granularity" else [] if field == "components" else None))
+        except (ValueError, TypeError, ArithmeticError):
+            raise CashRecordPolicyError("invalid_field", (field,)) from None
+    _validate_known_cash_components(values)
+
+
+def _validate_known_cash_components(record: Mapping[str, Any]) -> None:
+    components = record["components"]
+    ordinals = [part["ordinal"] for part in components if part.get("ordinal") is not None]
+    if len(set(ordinals)) != len(ordinals):
         raise CashRecordPolicyError("duplicate_component_ordinal", ("components",))
-    if any(item["currency"] != normalized["currency"] for item in components):
+    if record.get("currency") is not None and any(item.get("currency") is not None and item["currency"] != record["currency"] for item in components):
         raise CashRecordPolicyError("component_currency_mismatch", ("components",))
-    amount = normalized["amount"]
-    if any((amount < 0 and item["amount"] > 0) or (amount > 0 and item["amount"] < 0)
-        or (amount == 0 and item["amount"] != 0) for item in components):
+    amount = record.get("amount")
+    if amount is not None and any((amount < 0 and item["amount"] > 0) or (amount > 0 and item["amount"] < 0)
+        or (amount == 0 and item["amount"] != 0) for item in components if item.get("amount") is not None):
         raise CashRecordPolicyError("component_direction_mismatch", ("components",))
-    if normalized["cash_granularity"] == "atomic":
-        if len(components) != 1 or components[0]["account_id"] != normalized["account_id"]:
+    if record.get("cash_granularity") == "aggregate" and record.get("account_id") is not None:
+        raise CashRecordPolicyError("component_account_mismatch", ("account_id",))
+    if record.get("cash_granularity", "atomic") == "atomic" and components:
+        if len(components) != 1 or (components[0].get("account_id") is not None and record.get("account_id") is not None
+            and components[0]["account_id"] != record["account_id"]):
             raise CashRecordPolicyError("component_account_mismatch", ("components",))
-    with localcontext() as arithmetic:
-        arithmetic.prec = 80
-        total = sum((item["amount"] for item in components), exact_decimal("0"))
-    if total != normalized["amount"]:
-        raise CashRecordPolicyError("component_total_mismatch", ("components",))
+    if amount is not None and components and all(item.get("amount") is not None for item in components):
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            total = sum((item["amount"] for item in components), exact_decimal("0"))
+        if total != amount:
+            raise CashRecordPolicyError("component_total_mismatch", ("components",))

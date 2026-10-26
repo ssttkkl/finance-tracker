@@ -35,6 +35,7 @@ _PLAN_ERRORS = {
     "retry_context_unavailable": (410, "请重新选择账单处理未导入项。"),
     "retry_context_limit": (409, "请使用已经打开的重试内容。"),
     "category_unavailable": (422, "分类已不可用，请重新选择。"),
+    "plan_input_invalid": (422, "核对选择有误，请重新核对。"),
     "plan_build_failed": (503, "暂时无法准备核对内容，请稍后重试。"),
 }
 _CONFLICTS = {
