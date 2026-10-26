@@ -987,7 +987,7 @@ internal fun DestinationScaffold(
         containerColor = shellColors.background,
         topBar = {
             TopAppBar(
-                title = { DestinationTopBarTitle(if (state.route.page == AppPage.CASH_IMPORT) AppPage.CASH_IMPORT else primaryPageFor(state.route.page)) },
+                title = { DestinationTopBarTitle(primaryPageFor(state.route.page)) },
                 navigationIcon = state.navigationIcon,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = shellColors.surface,
@@ -1016,7 +1016,7 @@ internal fun DestinationScaffold(
                 .fillMaxSize()
                 .padding(contentPadding)
             ) {
-            when (if (state.route.page == AppPage.CASH_IMPORT) AppPage.CASH_IMPORT else primaryPageFor(state.route.page)) {
+            when (primaryPageFor(state.route.page)) {
                 AppPage.CASH_LEDGER -> CashLedgerScreen(
                     state.financeRepository,
                     state.session,
@@ -1028,9 +1028,7 @@ internal fun DestinationScaffold(
                     creationRepository = state.cashCreationRepository,
                     maintenanceRecovery = state.cashMaintenanceRecovery,
                 )
-                AppPage.CASH_IMPORT -> CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
-                    state.importRecovery, state.importAccountRecovery, state.session.activeWorkspaceId.orEmpty(),
-                    state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
+                AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> Unit
                 AppPage.INVESTMENT_HOLDINGS -> InvestmentHoldingsScreen(
                     state.financeRepository,
@@ -1078,5 +1076,10 @@ internal fun DestinationScaffold(
                 }
             }
         }
+    }
+    if (state.route.page == AppPage.CASH_IMPORT) {
+        CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
+            state.importRecovery, state.importAccountRecovery, state.session.activeWorkspaceId.orEmpty(),
+            state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
     }
 }

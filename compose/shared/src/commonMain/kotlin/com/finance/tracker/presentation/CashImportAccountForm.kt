@@ -12,16 +12,23 @@ import androidx.compose.ui.unit.dp
 import com.finance.tracker.core.WindowSizeClass
 import com.finance.tracker.domain.*
 
+internal fun cashImportAccountTypeForName(name: String): String =
+    if (name.contains("花呗") || name.contains("信用卡")) "loan" else "cash"
+
 @Composable
 internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, busy: Boolean, sizeClass: WindowSizeClass,
-    errorCode: String?, onDirty: (Boolean) -> Unit, onClose: () -> Unit,
+    errorCode: String?, initialName: String = "", initialType: String = "cash", initialCurrencies: List<String> = emptyList(),
+    onDirty: (Boolean) -> Unit, onClose: () -> Unit,
     onSave: (String, String, List<String>, Boolean) -> Unit) {
-    var name by remember(account) { mutableStateOf(account?.name.orEmpty()) }
-    var type by remember(account) { mutableStateOf(account?.type ?: "cash") }
-    var currencies by remember(account) { mutableStateOf(account?.currencies?.joinToString(", ") ?: "CNY") }
-    var active by remember(account) { mutableStateOf(account?.active ?: true) }
-    val dirty = name != account?.name.orEmpty() || type != (account?.type ?: "cash") ||
-        currencies != (account?.currencies?.joinToString(", ") ?: "CNY") || active != (account?.active ?: true)
+    val originalName = account?.name ?: initialName
+    val originalType = account?.type ?: initialType
+    val originalCurrencies = account?.currencies?.joinToString(", ") ?: initialCurrencies.joinToString(", ").ifEmpty { "CNY" }
+    val originalActive = account?.active ?: true
+    var name by remember(account, initialName) { mutableStateOf(originalName) }
+    var type by remember(account, initialType, initialName) { mutableStateOf(originalType) }
+    var currencies by remember(account, initialCurrencies) { mutableStateOf(originalCurrencies) }
+    var active by remember(account) { mutableStateOf(originalActive) }
+    val dirty = name != originalName || type != originalType || currencies != originalCurrencies || active != originalActive
     LaunchedEffect(dirty) { onDirty(dirty) }
     val codes = currencies.split(',', '，').map(String::trim).filter(String::isNotEmpty).distinct()
     val valid = name.isNotBlank() && name.length <= 128 && codes.isNotEmpty() && codes.all { it.matches(Regex("[A-Z]{3}")) }
@@ -33,7 +40,7 @@ internal fun CashImportAccountForm(account: ImportAccount?, loading: Boolean, bu
                 if (sizeClass == WindowSizeClass.COMPACT) {
                     TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
                 }
-                Button(onClick = { onSave(name.trim(), type, codes, active) }, enabled = !loading && !busy && valid && dirty,
+                Button(onClick = { onSave(name.trim(), type, codes, active) }, enabled = !loading && !busy && valid && (account == null || dirty),
                     modifier = Modifier.testTag("cash.import.account-form.save")) { Text(localizedText("copy_fadf24dbc5")) }
                 if (sizeClass != WindowSizeClass.COMPACT) {
                     TextButton(onClick = onClose, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
