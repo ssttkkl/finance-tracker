@@ -116,16 +116,9 @@ class CashImportContextService:
         current = self._staging.get(session_id, workspace_id=self._workspace_id, user_id=self._user_id)
         if current.workflow_kind == "import":
             return current
-        if current.workflow_kind == "retry":
-            from ft.application.cash_import_retry import CashImportRetryService
-            return CashImportRetryService(self._uow, self._staging, user_id=self._user_id).refresh(uow, current)
         raise ImportSessionNotFound
 
     def _prepare_sources(self, uow, current):
-        if current.workflow_kind == "retry":
-            from ft.application.cash_import_retry_sources import apply_retry_proofs
-            return apply_retry_proofs(uow._state().session, self._workspace_id, current.files,
-                current.context_data, current.context_data["_successful"])
         from ft.application.cash_import_source_plan import CashImportSourcePlanner
         return CashImportSourcePlanner(uow._state().session, self._workspace_id).prepare(current.files)
 

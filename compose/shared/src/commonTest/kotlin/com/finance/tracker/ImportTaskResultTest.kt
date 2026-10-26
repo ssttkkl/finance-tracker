@@ -9,7 +9,7 @@ class ImportTaskResultTest {
         val receipt = ImportReceipt("receipt", "plan", "import", true, "now", "failed",
             mapOf("created_posted" to 2L, "updated_posted" to 1L, "saved_draft" to 3L, "finalized_draft" to 1L,
                 "duplicate" to 4L, "skipped" to 2L, "updated_entries" to 8L, "relations_confirmed" to 4L), emptyMap(),
-            3, 3, 1, null, null, null, null, null, null, ImportCommitOutcome(false, false, emptyList()))
+            3, 3, 1, null, null, null, null, ImportCommitOutcome(false, false, emptyList()))
         assertFalse(importTaskHasUnexpectedFailure(receipt))
         assertEquals(13L, importTaskProcessedRows(receipt))
         assertTrue(importTaskHasUnexpectedFailure(receipt.copy(status = "partial", commitOutcome = ImportCommitOutcome(true, true, listOf("record_changed")))))

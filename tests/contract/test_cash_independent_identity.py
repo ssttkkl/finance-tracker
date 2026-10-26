@@ -227,13 +227,9 @@ def test_independent_failures_restore_issue_candidates_bindings_and_balances(con
         original(*args, **kwargs)
         raise RuntimeError("synthetic failure after independent confirmation")
     monkeypatch.setattr(owner, method, staticmethod(fail) if failure == "projection" else fail)
-    if failure == "row":
-        receipt = _commit(service, view)
-        assert receipt["status"] == "failed" and receipt["summary"]["resolved_issues"] == 0
-    else:
-        with pytest.raises(RuntimeError):
-            _commit(service, view)
-        assert service.read_plan(view["plan_id"]) == view
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, view))
+    assert service.read_plan(view["plan_id"]) == view
     assert records.read(identifier) == before and _bindings(runtime, identifier) == bindings and _snapshot(runtime) == balance
 
 

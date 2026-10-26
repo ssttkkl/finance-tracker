@@ -408,8 +408,9 @@ def test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balanc
             original(*args, **kwargs)
             raise RuntimeError('synthetic internal relation write failure')
         monkeypatch.setattr(CurrentCashRelationRepository, 'replace', fail)
-    receipt = service.commit(plan['plan_id'], expected_plan_revision=plan['plan_revision'], idempotency_key='synthetic-transfer-failure')
-    assert receipt['status'] == 'failed' and receipt['summary']['skipped'] == 2
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: service.commit(plan['plan_id'],
+        expected_plan_revision=plan['plan_revision'], idempotency_key='synthetic-transfer-failure'))
     assert _business(runtime) == before and _snapshot(runtime) == balances
 
 

@@ -262,7 +262,7 @@ def _valid_session_metadata(value):
         or not isinstance(value.created_at, datetime) or not isinstance(value.expires_at, datetime)
         or value.created_at.tzinfo is None or value.expires_at.tzinfo is None
         or not 0 < (value.expires_at - value.created_at).total_seconds() <= 1800
-        or not isinstance(value.workflow_kind, str) or value.workflow_kind not in {"import", "retry", "retry_capsule", "mutation"}
+        or not isinstance(value.workflow_kind, str) or value.workflow_kind not in {"import", "mutation"}
         or value.workflow_kind == "mutation" and bool(value.files)
         or not isinstance(value.context_data, dict)
         or not isinstance(value.preview_input, dict) or value.plan is not None and not isinstance(value.plan, dict)

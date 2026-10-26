@@ -186,7 +186,7 @@ def scan_cash_funding(files) -> CashFundingScan:
                     group["row_refs"][ref] = None
                     values.append(_FundingPart(group_ref, amount))
                 rows.append(CashFundingRow(ref, fields, tuple(values), tuple(dict.fromkeys((*row.issue_codes, *issues)))))
-            except Exception:
+            except (ValueError, ArithmeticError):
                 rows.append(CashFundingRow(ref, fields, (), tuple(row.issue_codes), "funding_unreadable"))
     return CashFundingScan(tuple(CashFundingGroup(**{**group, "currencies": tuple(sorted(group["currencies"])), "row_refs": tuple(group["row_refs"])}) for group in groups.values()), tuple(rows))
 
@@ -266,6 +266,6 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
                 issues.append(error.code)
             result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)),
                 not issues and row.error_code is None, row.error_code, tuple(sorted(used))))
-        except Exception:
+        except (ValueError, ArithmeticError):
             result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)), False, "funding_unreadable"))
     return tuple(result)

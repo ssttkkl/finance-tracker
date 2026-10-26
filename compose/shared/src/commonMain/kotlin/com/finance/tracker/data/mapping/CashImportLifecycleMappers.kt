@@ -57,7 +57,7 @@ internal fun CashPlanItemDetailDto.toDomain() = ImportItemDetail(previewItemId,
 internal fun ImportAccountListItemDto.toDomain() = ImportAccountListItem(id, name, type, active, currencies)
 internal fun ImportAccountDto.toDomain() = ImportAccount(accountId, name, type, active, currencies, accountRevision, deleted, capabilities, receiptId, committed)
 internal fun CashMutationReceiptDto.toDomain() = ImportReceipt(receiptId, planId, operationKind, committed, createdAt, status, summary, legacyByAccount,
-    needsAttentionCount, pendingItemCount, projectionVersion, retryContextStatus, retryContextExpiresAt, retainedTransactionId, accountId, accountRevision, account?.toDomain(),
+    needsAttentionCount, pendingItemCount, projectionVersion, retainedTransactionId, accountId, accountRevision, account?.toDomain(),
     commitOutcome?.let { ImportCommitOutcome(it.hasNewFailures, it.hasBusinessWrites, it.reasonCodes) })
 internal fun CashMutationResultPageDto.toDomain() = ImportResultPage(items.map { ImportResultItem(it.resultId, it.resultKind, it.itemRef, it.outcome, it.code, it.message, it.operationRef, it.transactionId, it.relationId, it.accountId) }, nextAfter,
     projectionRefs.map { ImportProjectionRef(it.transactionId, it.projectionId) }, projectionVersion)

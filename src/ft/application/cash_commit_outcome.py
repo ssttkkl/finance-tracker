@@ -1,4 +1,4 @@
-"""区分确定未提交与提交调用后的未知结果，不改变单项保存点边界。"""
+"""区分确定未提交与提交调用后的未知结果。"""
 from contextlib import contextmanager
 
 
@@ -20,7 +20,9 @@ class CashCommitBoundary:
     def guard(self, known_errors):
         try:
             yield
-        except known_errors:
+        except known_errors as error:
+            if self.commit_state == "not_committed":
+                error.commit_state = "not_committed"
             raise
         except Exception:
             raise CashCommitFailure(self.commit_state) from None

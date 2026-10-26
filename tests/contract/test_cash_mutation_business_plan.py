@@ -212,17 +212,17 @@ def test_incomplete_draft_does_not_publish_a_posting_plan(context_runtime):
     assert _records(runtime).read(identifier)["state"] == "draft"
 
 
-def test_pairing_failure_does_not_prevent_valid_finalization_preview(context_runtime, monkeypatch):
+def test_pairing_programming_failure_stops_finalization_preview(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
     def unavailable(*args, **kwargs):
         raise RuntimeError("sensitive-native-error-must-not-escape")
     monkeypatch.setattr(business, "plan_relation_proposals", unavailable)
     service = _service(runtime)
-    view = _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(_records(runtime).read(identifier)))
-    assert view["can_commit"] and view["summary"]["finalize_draft"] == 1
-    assert view["items"][0]["anticipated_state"] == "posted" and view["items"][0]["confirmation_status"] == "pending"
-    assert "sensitive-native-error" not in json.dumps(view)
+    before = _records(runtime).read(identifier)
+    with pytest.raises(RuntimeError, match="sensitive-native-error"):
+        _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(before))
+    assert _records(runtime).read(identifier) == before
 
 
 @pytest.mark.parametrize("same_scope", [True, False])

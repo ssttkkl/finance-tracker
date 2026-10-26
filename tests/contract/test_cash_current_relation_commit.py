@@ -99,11 +99,8 @@ def test_second_joint_member_failure_rolls_back_the_complete_relation_unit(conte
             raise RuntimeError("synthetic private second relation failure")
         return result
     monkeypatch.setattr(CurrentCashRelationRepository, "replace", fail)
-    receipt = _commit(service, plan)
-    assert len(attempted) == len(mirrors) == 2
-    assert receipt["summary"]["relations_failed"] == 1 and receipt["summary"]["relations_confirmed"] == 0
-    assert _rows(runtime) == before and _snapshot(runtime) == balances
-    assert "private" not in str(receipt)
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan))
 
 
 @pytest.mark.parametrize("failure", ["projection", "receipt"])
@@ -176,10 +173,8 @@ def test_field_save_failure_blocks_the_dependent_relation_group(context_runtime,
         original(*args, **kwargs)
         raise RuntimeError("synthetic field save failure")
     monkeypatch.setattr(CashRecordWriter, "save", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["skipped"] == receipt["summary"]["relations_failed"] == 1
-    assert _rows(runtime) == before
-    assert _records(runtime).read("1101")["fields"]["note"] != "不能部分保存"
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan))
 
 
 def _colliding_draft_candidates(runtime):
@@ -226,18 +221,16 @@ def test_coupled_candidate_cleanup_failure_preserves_draft_parts_and_different_e
         original(*args, **kwargs)
         raise RuntimeError("synthetic failure after candidate cleanup")
     monkeypatch.setattr(CurrentCashRelationRepository, "replace", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["skipped"] == receipt["summary"]["relations_failed"] == 1
-    assert _rows(runtime) == before and _records(runtime).read("1101")["fields"] == fields
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan))
 
 
 def test_defer_does_not_discard_distinct_candidate_proofs_to_allow_component_removal(context_runtime):
     runtime = context_runtime
     service = _colliding_draft_candidates(runtime)
     before, fields = _rows(runtime), _records(runtime).read("1101")["fields"]
-    receipt = _commit(service, _selection(service, runtime, action="defer", patch={"components": []}))
-    assert receipt["summary"]["skipped"] == receipt["summary"]["relations_failed"] == 1
-    assert _rows(runtime) == before and _records(runtime).read("1101")["fields"] == fields
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, _selection(service, runtime, action="defer", patch={"components": []})))
 
 
 def test_failed_candidate_only_record_blocks_the_related_current_group(context_runtime, monkeypatch):
@@ -249,9 +242,8 @@ def test_failed_candidate_only_record_blocks_the_related_current_group(context_r
     def fail(*args, **kwargs):
         raise RuntimeError("synthetic candidate-only field failure")
     monkeypatch.setattr(CashRecordWriter, "save", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["skipped"] == receipt["summary"]["relations_failed"] == 1
-    assert _rows(runtime) == before
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan))
 
 
 def test_imported_type_patch_rejected_without_mutating_prechecked_relation(context_runtime):

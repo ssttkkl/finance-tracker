@@ -110,8 +110,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
             choices[planId]?.entries?.firstOrNull { it.editRef == "demo-edit-${item.itemId}" }?.let { finance.saveCommonFields(transactionId, it.patch.fields) }
         }
         val receipt = ImportReceipt("demo-import-receipt-${++next}", planId, "import", true, "2026-10-24T00:00:00Z", "completed",
-            mapOf("created_posted" to plan.items.size.toLong() - pending, "saved_draft" to pending), emptyMap(), pending, pending, 1,
-            null, null, null, null, null, null, ImportCommitOutcome(false, plan.items.isNotEmpty(), emptyList()))
+            mapOf("created_posted" to plan.items.size.toLong() - pending, "saved_draft" to pending), emptyMap(), pending, pending, 1, null, null, null, null, ImportCommitOutcome(false, plan.items.isNotEmpty(), emptyList()))
         receipts[idempotencyKey] = receipt
         contexts[plan.sessionId] = contexts[plan.sessionId]!!.copy(state = "committed", receiptId = receipt.receiptId, canPreview = false)
         return receipt
@@ -122,7 +121,6 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
     override suspend fun resolve(planId: String, idempotencyKey: String) = receipts[idempotencyKey]?.let {
         if (it.planId != planId) fail("idempotency_conflict"); ImportResolveResult("committed", it)
     } ?: ImportResolveResult("retry_original", null)
-    override suspend fun retry(receiptId: String, idempotencyKey: String, rowRefs: List<String>?) = fail("retry_context_unavailable", 410)
     override suspend fun accounts() = finance.demoAccounts().filter { it.type in setOf("cash", "loan", "lend") }.map { ImportAccountListItem(it.id.toString(), it.name, it.type, it.active, it.currencies) }
     override suspend fun account(accountId: String): ImportAccount {
         deletedAccounts[accountId]?.let { return it }
@@ -133,7 +131,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
     private fun accountReceipt(key: String, kind: String, value: ImportAccount): ImportAccount {
         val committed = value.copy(receiptId = "demo-account-${++next}", committed = true)
         receipts[key] = ImportReceipt(committed.receiptId!!, null, kind, true, "2026-10-24T00:00:00Z", null,
-            emptyMap(), emptyMap(), null, null, null, null, null, null, value.accountId, value.revision, committed)
+            emptyMap(), emptyMap(), null, null, null, null, value.accountId, value.revision, committed)
         accountVersions[value.accountId] = value.revision
         return committed
     }

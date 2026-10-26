@@ -137,7 +137,7 @@ def test_known_whitelist_skip_has_reason_and_does_not_drop_other_occurrences():
     assert parsed.rows[1].disposition == "candidate"
 
 
-def test_unexpected_importer_error_is_safe_and_isolated(monkeypatch):
+def test_unexpected_importer_error_propagates_to_file_boundary(monkeypatch):
     from ft import convert
     original = convert._parse_alipay_source_row
     def failing(payload, *, position):
@@ -145,12 +145,8 @@ def test_unexpected_importer_error_is_safe_and_isolated(monkeypatch):
             raise RuntimeError("technical secret from importer")
         return original(payload, position=position)
     monkeypatch.setattr(convert, "_parse_alipay_source_row", failing)
-    parsed = _convert(_document(_payload(交易对方="bad"), _payload()))
-    assert parsed.rows[0].error_code == "row_unreadable"
-    assert parsed.rows[0].disposition == "skipped"
-    assert parsed.rows[1].fields["amount"] == "-20.00"
-    assert "technical secret" not in repr(parsed)
-    assert not parsed.coverage.complete
+    with pytest.raises(RuntimeError, match="technical secret from importer"):
+        _convert(_document(_payload(交易对方="bad"), _payload()))
 
 
 def test_structural_error_is_retained_without_creating_an_empty_cash_record():
@@ -194,3 +190,14 @@ def test_native_source_evidence_is_captured_in_the_same_single_row_call(monkeypa
     assert not {"summary", "_is_refund", "offset_group", "note", "_fact_id"} & row.source_explanation.keys()
     assert row.fields["note"] == ("原始描述" if source == "alipay" else "原始商品")
     assert row.fields["amount"] == "-20.00" and row.error_code is None
+
+
+@pytest.mark.parametrize("channel", ["platform", "bank"])
+def test_converter_programming_error_is_not_a_skipped_source_row(monkeypatch, channel):
+    import ft.adapters.cash_statement_rows as module
+    converter, operation = (module.normalize_platform_document, "_normalize_row") if channel == "platform" else (module.normalize_bank_document, "_bank_row")
+    def broken(*args, **kwargs):
+        raise RuntimeError("synthetic converter programming error")
+    monkeypatch.setattr(module, operation, broken)
+    with pytest.raises(RuntimeError, match="synthetic converter programming error"):
+        converter(_document(_payload(), source="alipay" if channel == "platform" else "ccb_debit"))

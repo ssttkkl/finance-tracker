@@ -201,10 +201,9 @@ def test_failure_during_joint_source_aliases_rolls_back_the_whole_pending_record
             raise RuntimeError("synthetic failure after second alias")
         return result
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail_second)
-    receipt = _commit(importer, plan, "joint-pending-alias-failure")
-    results = _results(importer, receipt, "row")
-    assert len(calls) == 2, (calls, results)
-    assert all(row["outcome"] == "skipped" for row in results), results
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(importer, plan, "joint-pending-alias-failure"))
+    assert len(calls) == 2
     with runtime.sessions() as session:
         assert session.scalar(select(func.count()).select_from(CashSourceBindingModel)) == 0
         assert session.scalar(select(func.count()).select_from(CashTransactionIssueModel)) == 0

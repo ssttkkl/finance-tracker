@@ -280,7 +280,7 @@ internal fun accountValue(name: String = "Created", revision: Long = 1, active: 
         mapOf("can_update" to true, "can_delete" to !active), "account-receipt", true)
 internal fun accountPatch(name: String) = StructuredObject(mapOf("name" to StructuredText(name)))
 internal fun accountReceipt(operation: String = "account_create") = ImportReceipt("account-receipt", null, operation, true,
-    "now", "completed", emptyMap(), emptyMap(), null, null, null, null, null, null, "1", 1, accountValue())
+    "now", "completed", emptyMap(), emptyMap(), null, null, null, null, "1", 1, accountValue())
 private data class AccountWrite(val kind: String, val key: String, val revision: Long? = null, val name: String? = null,
     val type: String? = null, val currencies: List<String>? = null, val patch: StructuredObject? = null)
 private class AccountRecovery : ImportAccountRecovery {

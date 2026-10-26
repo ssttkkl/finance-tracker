@@ -6,12 +6,12 @@
 
 - `src/ft/web/cash_import_routes.py`、`cash_import_protocol.py`：上传、文件修订、资源限制及安全会话响应。
 - `src/ft/web/cash_plan_routes.py`、`cash_plan_protocol.py`：计划、一次确认、分页结果和核实。
-- `src/ft/application/cash_import_context.py`、`cash_import_plans.py`、`cash_import_commit.py`、`cash_import_retry.py`：解析内容、不可变计划、联合提交及失败项重试。
+- `src/ft/application/cash_import_context.py`、`cash_import_plans.py`、`cash_import_commit.py`：解析内容、不可变计划、原子提交及原请求核实。
 - `src/ft/web/account_routes.py`：独立账户命令。
 
 ## 通用约束
 
-认证使用 `Authorization: Bearer <token>`，工作区取自登录上下文；不得通过正文指定工作区。新写命令的 `Idempotency-Key` 必须为 1–255 个 `[A-Za-z0-9_:.~-]` 字符。一个逻辑请求固定一键，网络重试不得换键或改正文；不同账户命令、最终导入及失败项派生各有自己的键。
+认证使用 `Authorization: Bearer <token>`，工作区取自登录上下文；不得通过正文指定工作区。新写命令的 `Idempotency-Key` 必须为 1–255 个 `[A-Za-z0-9_:.~-]` 字符。一个逻辑请求固定一键，网络重试不得换键或改正文；不同账户命令与最终导入各有自己的键。
 
 对象 ID 均视为不透明字符串，原样使用响应值；修订为正整数。金额用精确十进制字符串，未知值为 `null`。请求不接受未知字段；成功响应只读取公开字段，不提交来源内部操作图、原摘要、关系边或消费证明。
 
@@ -92,7 +92,7 @@ POST /api/v1/cash-import/sessions/{session_id}/plans
 
 上述五个基础字段均必填；整笔编辑另传 `entry_choices`。选择数组是完整替换输入，最多各 100,000 项。恢复任务先保留当前 `selection/last_preview_input` 的有效决定，只给尚未选择项补建议；空数组不是增量“保持不变”。文件或来源变化后按服务端失效结果重核，不能将旧行位置的选择移到新文件。账户未选择可省略该项，或传 `account_id: null` 且修订为 `null`；不要求全部账户完成。引用真实账户时必须带其当前修订。
 
-行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段由后端按行反馈。组成项金额必须精确等于总额；导入正式金额、币种、发生时间、资金账户、组成项、类型／子类型和来源身份固定，不能借导入修改。用户只编辑收支公共属性：交易对方、对方账号和属性、备注、分类；来源行只由来源更新刷新。公共人工值和明确清空受保护。来源成员只读，计划详情 `entry.fields/editable_fields/edit_ref` 提供预计公共值及明确编辑目标。整笔公共补丁放入完整替换数组 `entry_choices`，格式为 `{"edit_ref":"ie_current","patch":{"note":"","category_id":null}}`；未编辑时可省略或传空数组。不挑首个来源行、不改变其来源决定。文件变化清除计划时清除旧整笔选择，派生重试不继承旧目标；目标失效须重新核对，不能迁移补丁。实际人工冲突按服务端 `common_field_conflicts` 保留待确认，只有用户明确选择后才提交 `common_fields`，不能替用户猜值。
+行选择为 `{"row_ref": "f1:r1", "action": "apply", "patch": {...}}`，动作只允许 `apply/keep_existing/defer`。仅按服务端详情的 `editable_fields` 和 `allowed_actions` 填写；未知或非法行字段使本次预览请求被拒绝，修正输入后重试。组成项金额必须精确等于总额；导入正式金额、币种、发生时间、资金账户、组成项、类型／子类型和来源身份固定，不能借导入修改。用户只编辑收支公共属性：交易对方、对方账号和属性、备注、分类；来源行只由来源更新刷新。公共人工值和明确清空受保护。来源成员只读，计划详情 `entry.fields/editable_fields/edit_ref` 提供预计公共值及明确编辑目标。整笔公共补丁放入完整替换数组 `entry_choices`，格式为 `{"edit_ref":"ie_current","patch":{"note":"","category_id":null}}`；未编辑时可省略或传空数组。不挑首个来源行、不改变其来源决定。文件变化清除计划时清除旧整笔选择，目标失效须重新核对，不能迁移补丁。实际人工冲突按服务端 `common_field_conflicts` 保留待确认，只有用户明确选择后才提交 `common_fields`，不能替用户猜值。
 
 关联选择为 `{"suggestion_id": "sg_example", "action": "defer", "candidate_id": null}`，动作只允许 `accept/defer/ignore`。首次可留空使用后端默认；调整时从上一计划的单项详情取得完整建议和候选，禁止自造关系或拆开联合决定组。`defer` 是待确认，`ignore` 是明确忽略，不能混用。选项变化后带最新会话修订及 `previous_plan_id` 重预览，成功得到新计划和递增修订，旧计划不可执行。
 
@@ -120,9 +120,9 @@ Idempotency-Key: synthetic-confirm-example
 {"expected_session_revision": 2}
 ```
 
-整笔公共编辑的目标依赖失败或最终完整成员不符时整次命令拒绝并回滚，不发布成功收据；没有整笔选择仍保持既有局部失败隔离。已权威排除原消费且提交尚未开始的拒绝返回 `commit_state=not_committed`；未取得该证明不推断未提交。
+整笔公共编辑的目标依赖失败或最终完整成员不符时整次命令拒绝并回滚，不发布成功收据；任一提交新增异常都使整次业务写入回滚。已权威排除原消费且提交尚未开始的拒绝返回 `commit_state=not_committed`；未取得该证明不推断未提交。
 
-`200` 返回持久收据，即使部分失败或没有新增，也表示该次处理结果已确定。收据含 `receipt_id`、`plan_id`、`operation_kind`、`committed: true`、时间、`status`（`completed/partial/no_changes/failed`）、`summary`、待确认计数和可用时的重试状态／到期时间。内部上下文 ID、请求摘要及完整结果数组不公开。
+`200` 返回持久收据，预览已知跳过或没有新增仍是确定结果；提交新增异常不返回成功收据。历史部分完成收据保持可读。收据含 `receipt_id`、`plan_id`、`operation_kind`、`committed: true`、时间、`status`（`completed/partial/no_changes/failed`）、`summary`、待确认计数。内部上下文 ID、请求摘要及完整结果数组不公开。
 
 当前导入摘要包括 `created_posted`、`updated_posted`、`saved_draft`、`finalized_draft`、可选的 `updated_entries`、`duplicate`、`skipped`，以及 `relations_confirmed/deferred/ignored/failed`。新增／更新按实际保存操作计数，重复和跳过按来源出现计数，不能把全部数字相加当作新增流水。`needs_attention_count` 按有当前问题的唯一流水计数；`pending_item_count` 按最终可见的待确认列表项计数，均不混作失败数量。
 
@@ -133,7 +133,7 @@ Idempotency-Key: synthetic-confirm-example
 | `GET /cash-mutations/receipts/{receipt_id}/rows` | 行结果；`after` 从 0 开始，`limit` 默认 50、最多 200 |
 | `GET /cash-mutations/receipts/{receipt_id}/relations` | 关联结果，同上 |
 
-结果分页使用 `next_after`；返回当前 `projection_refs` 和 `projection_version` 便于定位，永久结果不保证旧展示 ID 永远有效。结果 `code/message` 是安全原因；配对失败不代表合法流水回滚。文件级原因从本次会话及计划的 `file_results` 核对，不调用不存在的收据 `/files` 接口；只剩永久摘要时不猜测文件名或逐文件结果。
+结果分页使用 `next_after`；返回当前 `projection_refs` 和 `projection_version` 便于定位，永久结果不保证旧展示 ID 永远有效。结果 `code/message` 是安全原因；预览已知的未确认关系不阻止合法流水保存；执行异常使本次全部回滚。文件级原因从本次会话及计划的 `file_results` 核对，不调用不存在的收据 `/files` 接口；只剩永久摘要时不猜测文件名或逐文件结果。
 
 超时或 `commit_state=unknown` 时保留原键、计划和正文。调用：
 
@@ -152,21 +152,12 @@ POST /api/v1/cash-mutations/resolve
 
 收据 404、会话过期和暂存丢失都不能单独判定未提交。未知期间不换键重做、不取消任务、不补偿账户。明确 `commit_state=not_committed` 与未知不同；同键重放始终返回首次处理结果，不重新执行失败项。
 
-旧导入结果以 `operation_kind=legacy_import` 保存真实旧摘要及可选 `legacy_by_account`，不推断缺失状态、正式／草稿数或逐行结果。旧键读取兼容不放宽新键规则；旧收据没有失败重试正文，本人派生请求返回 `410 retry_context_unavailable`，其他用户不能读取。
+旧导入结果以 `operation_kind=legacy_import` 保存真实旧摘要及可选 `legacy_by_account`，不推断缺失状态、正式／草稿数或逐行结果。旧键读取兼容不放宽新键规则；历史收据仅供原归属读取，不开放失败子集派生。
 
-## 5. 失败子集重试和错误
+## 5. 错误与重新处理
 
-```http
-POST /api/v1/cash-import/receipts/{receipt_id}/retry-sessions
-Idempotency-Key: synthetic-retry-example
-```
+失败子集派生接口及 `retry_context_*` 能力已移除；确定未保存时重新核对原会话或重选账单，结果未知时仍核实原命令。普通失败文件补密码／重传不受影响。
 
-```json
-{"row_refs": null}
-```
-
-`null` 使用可恢复失败子集；也可显式传非空且不重复的失败行引用。成功 `201` 返回新 `SessionView`，继承原到期时间，重新预览后用新的提交键确认；不重跑已经成功的来源行。已保存的草稿从主页维护，不当作失败行重试。`retry_context_status=reselect_file`、过期或不可用时要求重新提供相应账单。
-
-安全错误结构为 `error.code/message/field_errors/retryable`。常见处理：401／403 停止未授权写入；422 修正请求；409 的 `session_changed/plan_changed` 刷新重预览，`session_committed` 读取已有结果；410 按具体原因重新提供文件或打开流水；503 按 `commit_state` 区分明确未保存与结果未知。不得将一个文件、流水或关联的可预期错误升级为整批阻断，也不得把存储故障伪装成普通单项跳过。密码或解析问题优先采用文件级安全 `issues`。
+安全错误结构为 `error.code/message/field_errors/retryable`。常见处理：401／403 停止未授权写入；422 修正请求；409 的 `session_changed/plan_changed` 刷新重预览，`session_committed` 读取已有结果；410 按具体原因重新提供文件或打开流水；503 按 `commit_state` 区分明确未保存与结果未知。确认前可定位的文件／来源业务问题可单项展示；非法输入、内部程序错误和提交新增异常必须拒绝，不伪装成普通跳过。密码或解析问题优先采用文件级安全 `issues`。
 
 旧 `cash-import/detect/scan/preview/commit`、原 `import_token`、Base64 JSON 上传、密码请求头、账户 `draft_id/new_account`、客户端关系边及摘要确认字段均已退出合同。

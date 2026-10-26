@@ -250,13 +250,9 @@ def test_issue_body_is_restored_after_record_unit_or_publication_failure(context
         original(*args, **kwargs)
         raise RuntimeError("synthetic private failure after clearing issue")
     monkeypatch.setattr(owner, method, fail if failure == "row" else staticmethod(fail))
-    if failure == "row":
-        receipt = _commit(service, view)
-        assert receipt["status"] == "failed" and receipt["summary"]["resolved_issues"] == 0
-    else:
-        with pytest.raises(RuntimeError):
-            _commit(service, view)
-        assert service.read_plan(view["plan_id"]) == view
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, view))
+    assert service.read_plan(view["plan_id"]) == view
     assert _records(runtime).read(identifier) == before and _read_issue(runtime, choice) == saved
 
 

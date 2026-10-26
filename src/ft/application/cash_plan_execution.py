@@ -5,34 +5,20 @@ from dataclasses import replace
 from datetime import datetime, timezone
 
 from sqlalchemy import select
-from sqlalchemy.exc import DBAPIError, DataError, IntegrityError
 
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
-from ft.adapters.relational.cash_sources import CashSourceRepository, SourceBindingConflict
+from ft.adapters.relational.cash_sources import CashSourceRepository
 from ft.adapters.relational.models import AccountModel, CashTransactionModel
 from ft.application.cash_balances import apply_snapshot_components, counts_toward_balance
 from ft.application.cash_import_business_plan import _edge_key
 from ft.application.cash_import_operations import _batches
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.application.cash_record_writer import CashRecordWriter
-from ft.domain.cash_record_policy import CashRecordPolicyError, _normalize
+from ft.domain.cash_record_policy import _normalize
 from ft.domain.cash_relation_graph import CashRelationGraphEdge
 from ft.domain.cash_relation_policy import CashRelationError, RelationRoleEvidence
 from ft.domain.cash_source_matching import _digest
 
-
-class _RowChanged(ValueError):
-    code = "record_changed"
-
-class _AccountChanged(_RowChanged):
-    code = "account_changed"
-
-def _recoverable(error):
-    # 完整性错误可由保存点恢复；连接中断／锁与事务错误绝不伪装成单行失败。
-    return not isinstance(error, DBAPIError) or (isinstance(error, (IntegrityError, DataError)) and not error.connection_invalidated)
-
-def _reason(error, fallback):
-    return error.code if isinstance(error, (_RowChanged, SourceBindingConflict, CashRecordPolicyError, CashRelationError)) else fallback
 
 def _operation_fingerprint(operation):
     keys = {"occurrence_key", "transaction_id", "expected_revision", "planned_action", "current", "values",
@@ -47,7 +33,7 @@ def _receipt_view(receipt):
 
 
 class CashPlanWriteOperations:
-    """调用方提供工作区、操作者和事务；保存点只在此处隔离局部错误。"""
+    """调用方提供工作区、操作者和原子事务；异常交给外层提交边界。"""
 
     def _save_row(self, session, operation, source_rows):
         return CashRecordWriter(self._workspace_id).save(session, operation, source_rows)
@@ -57,53 +43,37 @@ class CashPlanWriteOperations:
         return {"create_posted": "created_posted", "create_draft": "saved_draft", "update_draft": "saved_draft",
             "update_posted": "updated_posted", "finalize_draft": "finalized_draft", "merge_draft": "merged_draft", "duplicate": "duplicate"}[operation["planned_action"]]
 
-    def _save_groups(self, session, plan, fresh, identity, components, failed_rows, affected, *, manual, on_execution_failure=None):
+    def _save_groups(self, session, plan, fresh, identity, components, affected, *, manual):
         groups, result = defaultdict(list), []
         current = {group["suggestion_id"]: group for group in fresh["relation_groups"]}
         for group in plan["relation_groups"]:
             groups[group.get("commit_group_id", group["suggestion_id"])].append(group)
         for commit_id, members in groups.items():
-            code = None
-            anticipated_failure = False
-            try:
-                if any(set(group["parent_ids"]).intersection(failed_rows) for group in members):
-                    raise CashRelationError("relation_context_changed")
-                unchanged = self._existing_groups(session, members, identity, components)
-                if unchanged is not None:
-                    result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "duplicate",
-                        "relation_id": str(unchanged[group["suggestion_id"]])} for group in members)
-                    continue
+            if any(group["action"] == "skip" for group in members):
                 for group in members:
-                    updated = current.get(group["suggestion_id"])
-                    if group["action"] == "skip":
-                        anticipated_failure = True
-                        raise CashRelationError(group.get("code", "relation_save_failed"))
-                    if updated is None or updated["action"] != group["action"] or updated["edges"] != group["edges"]:
-                        raise CashRelationError("relation_context_changed")
-                    if set(group["parent_ids"]).intersection(failed_rows):
-                        raise CashRelationError("relation_context_changed")
-                with session.begin_nested():
-                    written = self._write_group(session, members, identity, components, commit_id, manual, unavailable=failed_rows)
-                    session.flush()
-                for group in members:
-                    result.append({"result_kind": "relation", "item_ref": group["suggestion_id"],
-                        "outcome": {"accept": "confirmed", "defer": "deferred", "ignore": "ignored"}[group["action"]],
-                        "relation_id": str(written[group["suggestion_id"]])})
-            except Exception as error:
-                if not _recoverable(error):
-                    raise
-                session.expire_all()
-                code = _reason(error, "relation_save_failed")
-                if on_execution_failure is not None and not anticipated_failure:
-                    on_execution_failure(code)
-                result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code}
-                    for group in members)
-            for group in members:
-                parents = {int(identity.get(parent, parent)) for parent in group["parent_ids"]
-                    if parent not in failed_rows and int(identity.get(parent, parent)) < 2 ** 63}
-                affected.update(parents)
-                if code:
+                    code = group.get("code", "relation_save_failed")
+                    result.append({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code})
+                    parents = {int(identity.get(parent, parent)) for parent in group["parent_ids"]
+                        if int(identity.get(parent, parent)) < 2 ** 63}
                     self._relation_problem(session, parents, commit_id, code)
+                    affected.update(parents)
+                continue
+            unchanged = self._existing_groups(session, members, identity, components)
+            if unchanged is not None:
+                result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "duplicate",
+                    "relation_id": str(unchanged[group["suggestion_id"]])} for group in members)
+                continue
+            for group in members:
+                updated = current.get(group["suggestion_id"])
+                if updated is None or updated["action"] != group["action"] or updated["edges"] != group["edges"]:
+                    raise CashRelationError("relation_context_changed")
+            written = self._write_group(session, members, identity, components, commit_id, manual)
+            session.flush()
+            for group in members:
+                result.append({"result_kind": "relation", "item_ref": group["suggestion_id"],
+                    "outcome": {"accept": "confirmed", "defer": "deferred", "ignore": "ignored"}[group["action"]],
+                    "relation_id": str(written[group["suggestion_id"]])})
+                affected.update(int(identity.get(parent, parent)) for parent in group["parent_ids"])
         return result
 
     def _existing_groups(self, session, groups, identity, components):
@@ -238,24 +208,24 @@ class CashPlanWriteOperations:
                 source.save_issue(identifier, "relation:" + _digest(reference), code=code)
         session.flush()
 
-    def _discovery_issues(self, session, plan, identity, failed_rows, affected):
+    def _discovery_issues(self, session, plan, identity, affected):
         for failure in plan["relation_failures"]:
             if failure.get("suggestion_id"):
                 continue
             parents = {int(identity.get(parent, parent)) for parent in failure["parent_ids"]
-                if parent not in failed_rows and int(identity.get(parent, parent)) < 2 ** 63}
+                if int(identity.get(parent, parent)) < 2 ** 63}
             self._relation_problem(session, parents, _digest("discovery", sorted(parents)), failure["code"])
             affected.update(parents)
 
     @staticmethod
-    def _discovery_results(plan, identity, failed_rows):
+    def _discovery_results(plan, identity):
         results = {}
         for failure in plan["relation_failures"]:
             if failure.get("suggestion_id"):
                 continue
             reference = "discovery:" + _digest(failure["code"], sorted(set(failure["parent_ids"])))
             parents = {int(identity.get(parent, parent)) for parent in failure["parent_ids"]
-                if parent not in failed_rows and 0 < int(identity.get(parent, parent)) < 2 ** 63}
+                if 0 < int(identity.get(parent, parent)) < 2 ** 63}
             results.setdefault(reference, {"result_kind": "relation", "item_ref": reference, "outcome": "failed",
                 "code": failure["code"], "transaction_id": str(min(parents)) if parents else None})
         return list(results.values())

@@ -372,7 +372,7 @@ def test_manual_type_patch_incompatible_with_source_subtype_rejects_plan(draft_r
                 {"row_ref": "file_a:r1", "action": "apply", "patch": {"record_type": "transfer_out"}}])
 
 
-def test_unexpected_row_preparation_failure_is_safe_and_other_rows_continue(draft_runtime, monkeypatch):
+def test_unexpected_row_preparation_failure_stops_plan(draft_runtime, monkeypatch):
     from ft.application.cash_import_operations import CashImportOperationPlanner
     original = CashImportOperationPlanner._operation
 
@@ -384,10 +384,8 @@ def test_unexpected_row_preparation_failure_is_safe_and_other_rows_continue(draf
     monkeypatch.setattr(CashImportOperationPlanner, "_operation", fail_one)
     files = (_file(), _file(letter="b", provider="002"))
     with draft_runtime.sessions() as session:
-        prepared = _prepare(session, draft_runtime, files, selections=_selections(files))
-        assert prepared.rows[0]["planned_action"] == "skip"
-        assert "private" not in str(prepared.rows) and "SQL" not in str(prepared.rows)
-        assert prepared.rows[1]["planned_action"] == "create_posted"
+        with pytest.raises(RuntimeError):
+            _prepare(session, draft_runtime, files, selections=_selections(files))
 
 
 def test_fixed_conflict_explains_the_actual_field_in_safe_row_result(draft_runtime):

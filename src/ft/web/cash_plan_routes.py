@@ -19,7 +19,7 @@ from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
 from ft.web.cash_plan_protocol import (
     CashPlanErrorView, ImportCommitInput, ImportPlanView, ImportPreviewInput, ItemPageView,
     MutationReceiptView, MutationResultPageView, PlanItemDetailView, ProcessingPageView,
-    ResolveInput, ResolveView, RetrySessionInput, idempotency_key, json_contract, page_contract, page_input, receipt_key_input,
+    ResolveInput, ResolveView, idempotency_key, json_contract, page_contract, page_input, receipt_key_input,
 )
 
 
@@ -31,9 +31,6 @@ _PLAN_ERRORS = {
     "receipt_not_found": (404, "暂未查到处理结果，请继续核实。"),
     "plan_changed": (409, "核对内容已变化，请刷新后重试。"),
     "plan_expired": (410, "本次核对已过期，请重新打开。"),
-    "retry_context_expired": (410, "可重试内容已过期，请重新选择账单。"),
-    "retry_context_unavailable": (410, "请重新选择账单处理未导入项。"),
-    "retry_context_limit": (409, "请使用已经打开的重试内容。"),
     "category_unavailable": (422, "分类已不可用，请重新选择。"),
     "plan_input_invalid": (422, "核对选择有误，请重新核对。"),
     "plan_build_failed": (503, "暂时无法准备核对内容，请稍后重试。"),
@@ -42,7 +39,6 @@ _CONFLICTS = {
     "idempotency_conflict": "这次操作与上次不同，请核实后重试。",
     "session_committed": "本次导入已提交，请查看结果。",
     "edit_context_committed": "本次修改已提交，请查看结果。",
-    "retry_already_processed": "这些未导入项已处理，请查看结果。",
     "record_changed": "流水已变化，请刷新后重试。",
     "issue_changed": "待处理内容已变化，请刷新后重试。",
     "relation_context_changed": "相关流水已变化，请刷新后重试。",
@@ -64,6 +60,7 @@ def _error(code, status, message, *, field_errors=None, **details):
 
 
 def plan_failure(error):
+    proof = {"commit_state": "not_committed"} if getattr(error, "commit_state", None) == "not_committed" else {}
     if isinstance(error, CashCommitFailure):
         if error.commit_state == "not_committed":
             return _error("commit_failed", 503, "本次未能保存，请重试本次操作。", commit_state="not_committed")
@@ -71,17 +68,17 @@ def plan_failure(error):
     if isinstance(error, CashMutationConflict):
         code = error.code if error.code in _CONFLICTS else "plan_changed"
         return _error(code, 409, _CONFLICTS.get(code, "核对内容已变化，请刷新后重试。"),
-            **({"receipt_id": error.receipt_id} if error.receipt_id is not None else {}))
+            **({"receipt_id": error.receipt_id} if error.receipt_id is not None else {}), **proof)
     if isinstance(error, PermissionDenied):
         return _error("workspace_forbidden", 403, "当前用户无权处理这些记录。")
     if isinstance(error, (CashImportPlanError, CashMutationPlanError)) and error.code in _PLAN_ERRORS:
         status, message = _PLAN_ERRORS[error.code]
         return _error(error.code, status, message,
-            **({"commit_state": "not_committed"} if getattr(error, "commit_state", None) == "not_committed" else {}))
+            **proof)
     if isinstance(error, CashRecordMaintenanceError):
         code = error.code if error.code in _RECORD_ERRORS else "record_input_invalid"
         status, message = _RECORD_ERRORS[code]
-        return _error(code, status, message)
+        return _error(code, status, message, **proof)
     if isinstance(error, CashRecordPolicyError):
         if error.code == "fixed_field_conflict":
             code, message = error.code, "金额、币种、时间和账户不能修改，请删除后新建。"
@@ -93,7 +90,7 @@ def plan_failure(error):
                 code, message = "record_input_invalid", "修改内容有误，请检查后重试。"
         allowed = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS | {"state"}
         fields = [{"field": field, "code": code, "message": message} for field in error.fields if field in allowed]
-        return _error(code, 422, message, field_errors=fields)
+        return _error(code, 422, message, field_errors=fields, **proof)
     if isinstance(error, CashImportProtocolError) and error.code == "idempotency_key_required":
         return _error(error.code, 422, "未能确认本次操作，请重试。")
     return _failure(error)
@@ -212,15 +209,6 @@ def cash_plan_router(services):
     async def commit(plan_id: str, request: Request):
         return await command(request, ImportCommitInput, lambda body, key: services.cash_import_commands().commit(
             plan_id, expected_session_revision=body.expected_session_revision, idempotency_key=key), keyed=True, write=True)
-
-    @router.post("/cash-import/receipts/{receipt_id}/retry-sessions", status_code=201,
-        response_model=CashImportSessionView, openapi_extra=json_contract(RetrySessionInput, keyed=True))
-    async def retry(receipt_id: str, request: Request):
-        def derive(body, key):
-            commands = services.cash_import_commands()
-            current = commands.retry_session(receipt_id, row_refs=body.row_refs, idempotency_key=key)
-            return commands.get_view(current.session_id)
-        return await command(request, RetrySessionInput, derive, keyed=True, write=True)
 
     # 固定 by-key 路由必须先于单个收据路由。
     @router.get("/cash-mutations/receipts/by-key", response_model=MutationReceiptView,

@@ -194,9 +194,6 @@ class CashImportOperationPlanner:
                     decisions[ref]["field_diffs"] = _wire([{"field": field, "current": record.fields.get(field),
                         "incoming": incoming.get(field), "effective": record.fields.get(field), "resolution": "fixed_conflict"}
                         for field in error.fields if field in incoming and field in CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS])
-            except Exception:
-                # 此边界内只有内存组合；数据库读取在循环前，存储异常不能降为行失败。
-                decisions[ref] = self._skip(ref, "row_unreadable")
         for resolution in source.plan.rows:
             if not resolution.duplicate_of:
                 continue

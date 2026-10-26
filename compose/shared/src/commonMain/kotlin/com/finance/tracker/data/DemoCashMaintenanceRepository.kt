@@ -137,7 +137,7 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         val pending = if (input.intent == "save_draft") 1L else 0L
         val result = when (input.intent) { "save_draft" -> "saved_draft"; "finalize_draft" -> "finalized_draft"; else -> "updated_posted" }
         val receipt = ImportReceipt("demo-receipt-${++counter}", command.planId, "mutation", true, "2026-10-24T00:00:00Z", "completed",
-            mapOf(result to 1L), emptyMap(), pending, pending, finance.fetchCashPage(CashFilters()).projectionVersion, null, null, current.transactionId, null, null, null)
+            mapOf(result to 1L), emptyMap(), pending, pending, finance.fetchCashPage(CashFilters()).projectionVersion, current.transactionId, null, null, null)
         receipts[command.idempotencyKey] = receipt
         plans.remove(command.planId); requests.remove(command.planId)
         return receipt

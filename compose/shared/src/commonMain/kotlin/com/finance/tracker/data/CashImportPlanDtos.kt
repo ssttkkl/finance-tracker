@@ -189,8 +189,6 @@ data class CashMutationReceiptDto(
     @SerialName("needs_attention_count") val needsAttentionCount: Long? = null,
     @SerialName("pending_item_count") val pendingItemCount: Long? = null,
     @SerialName("projection_version") val projectionVersion: Long? = null,
-    @SerialName("retry_context_status") val retryContextStatus: String? = null,
-    @SerialName("retry_context_expires_at") val retryContextExpiresAt: String? = null,
     @SerialName("retained_transaction_id") val retainedTransactionId: String? = null,
     @SerialName("account_id") val accountId: String? = null,
     @SerialName("account_revision") val accountRevision: Long? = null,

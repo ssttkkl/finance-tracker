@@ -72,8 +72,8 @@ def test_each_file_parsed_once_and_only_parsed_rows_survive(context_runtime):
         assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
 
 
-@pytest.mark.parametrize("kind", ["retry_capsule", "retry"])
-def test_private_or_unregistered_retry_context_is_not_a_public_import(context_runtime, kind):
+@pytest.mark.parametrize("kind", ["mutation"])
+def test_edit_context_is_not_a_public_import(context_runtime, kind):
     from ft.application.cash_import_errors import ImportSessionNotFound
     from ft.application.parsed_import_staging import InMemoryParsedImportStore
     from ft.application.cash_import_plans import CashImportPlanError, CashImportPlanService
@@ -82,10 +82,10 @@ def test_private_or_unregistered_retry_context_is_not_a_public_import(context_ru
     service = _service(context_runtime, store=store)
     file = service.create((_upload(),)).files[0]
     private = store.create(workspace_id=context_runtime.workspace_id, user_id=USER,
-        files=(file,), workflow_kind=kind)
+        files=(), workflow_kind=kind)
     plan_id = f"ip_{private.session_id}.{'p' * 16}"
     store.replace(private.session_id, workspace_id=context_runtime.workspace_id, user_id=USER,
-        expected_revision=1, files=(file,), preview_input={}, plan={"plan_id": plan_id})
+        expected_revision=1, files=(), preview_input={}, plan={"plan_id": plan_id})
     plans = CashImportPlanService(RelationalUnitOfWork(context_runtime.sessions, context_runtime.workspace_id),
         store, user_id=USER, builder=lambda **_kwargs: pytest.fail("private context reached builder"))
     for action in (lambda: service.get(private.session_id), lambda: service.cancel(private.session_id),

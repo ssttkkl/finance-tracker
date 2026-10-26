@@ -23,7 +23,10 @@ for (const width of [390, 768, 1440]) {
       counterparty: "待补充账单", note: "当前备注" };
     await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
       items: [row], next_cursor: null, projection_version: 9, pending_item_count: 1,
-      page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
+      page_size: 20, start_index: 0, total_count: 1, filters: {}, filter_options: {}, monthly_summaries: [],
+    } }));
+    await page.route(/\/api\/v1\/cash-projections\/draft-11$/, route => route.fulfill({ json: {
+      projection_version: 9, members: [{ transaction_id: "11", row_revision: 3, state: "draft", confirmation_status: "pending" }], issues: [],
     } }));
     let recordReads = 0;
     await page.route(/\/api\/v1\/cash-records\/11$/, route => { recordReads++; return route.fulfill({ json: {
@@ -92,3 +95,48 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="cash.draft.save"]:visible').last()).toBeDisabled();
   });
 }
+
+test("draft contradictions stay in the form without a save request", async ({ page }, info) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const diagnostics = captureBrowserDiagnostics(page);
+  await installComposeApiFixtures(page);
+  await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
+    items: [{ projection_id: "draft-11", transaction_id: "11", record_id: "source-11", occurred_at: null,
+      amount: "-12.5", currency: "CNY", state: "draft", statistics_eligible: false,
+      economic_type: null, confirmation_status: "pending", attention_count: 1, counterparty: "待补充账单", note: "" }],
+    next_cursor: null, projection_version: 9, pending_item_count: 1, page_size: 20, start_index: 0, total_count: 1,
+    filters: {}, filter_options: {}, monthly_summaries: [],
+  } }));
+  await page.route(/\/api\/v1\/cash-records\/11$/, route => route.fulfill({ json: {
+    transaction_id: "11", state: "draft", row_revision: 3, record_origin: "import", confirmation_status: "pending",
+    fields: { amount: "-12.5", currency: "CNY", occurred_at: null, account_id: null, cash_granularity: "aggregate",
+      components: [{ component_id: "21", ordinal: 0, account_id: "1", amount: "-5", currency: "CNY" },
+        { component_id: "22", ordinal: 1, account_id: "1", amount: "-7.5", currency: "CNY" }] },
+    editable_fields: ["amount", "currency", "account_id", "cash_granularity", "components"], issues: [], relations: [],
+  } }));
+  await page.route(/\/api\/v1\/cash-projections\/draft-11$/, route => route.fulfill({ json: {
+    projection_version: 9, members: [{ transaction_id: "11", row_revision: 3, state: "draft", confirmation_status: "pending" }], issues: [],
+  } }));
+  let writes = 0;
+  page.on("request", request => {
+    if (request.method() !== "GET" && /\/api\/v1\/cash-(mutations|records)/.test(new URL(request.url()).pathname)) writes++;
+  });
+  await page.goto("/w/workspace-1/");
+  await press(page, "ledger.open-record");
+  await expect(page.locator('[id="cash.current.detail"]:visible').last()).toBeVisible();
+  await page.waitForTimeout(400);
+  await press(page, "cash.current.process-draft");
+  await expect(page.locator('[id="cash.draft.editor"]:visible').last()).toBeVisible();
+  await typeIntoComposeInput(page, '[id="cash.draft.amount"]', "-13", { replace: true });
+  await page.mouse.move(1200, 650);
+  await page.mouse.wheel(0, 700);
+  await page.waitForTimeout(200);
+  await press(page, "cash.draft.save");
+  await expect(page.locator('[id="cash.draft.error"]:visible').last()).toContainText("合计金额");
+  expect(writes).toBe(0);
+  await expect(page.locator('[id="cash.draft.editor"]:visible').last()).toBeVisible();
+  await page.screenshot({ path: info.outputPath("draft-allocation-invalid.png") });
+  await diagnostics.settle();
+  expect(diagnostics.consoleErrors).toEqual([]);
+  expect(diagnostics.failedRequests).toEqual([]);
+});

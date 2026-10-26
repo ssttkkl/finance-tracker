@@ -151,13 +151,8 @@ def test_merge_unit_failure_restores_all_current_facts(context_runtime, monkeypa
         original(*args, **kwargs)
         raise RuntimeError("synthetic merge unit failure after write")
     monkeypatch.setattr(owner, name, failed)
-    receipt = _commit(service, view)
-    assert receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
-    assert receipt["retained_transaction_id"] == source
-    assert _business(runtime) == before and _snapshot(runtime) == balance
-    result, = service.results(receipt["receipt_id"], result_kind="row")["items"]
-    assert result["transaction_id"] == source and result["code"] == "row_save_failed"
-    assert _commit(service, view) == receipt
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, view))
 
 
 @pytest.mark.parametrize("stage", ["projection", "receipt"])
@@ -311,9 +306,8 @@ def test_category_member_failure_rolls_back_earlier_target_and_prepared_candidat
             raise RuntimeError("synthetic public attribute failure after write")
         return saved
     monkeypatch.setattr(CashRecordWriter, "save", failed)
-    receipt = _commit(service, view)
-    assert receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
-    assert receipt["retained_transaction_id"] == source and _business(runtime) == before and _snapshot(runtime) == balances
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, view))
 
 
 @pytest.mark.parametrize("changed", ["binding", "reverse_candidate"])

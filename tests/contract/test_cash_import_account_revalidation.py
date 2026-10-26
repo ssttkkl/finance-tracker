@@ -78,7 +78,7 @@ def test_harmless_account_changes_preserve_current_valid_import(context_runtime,
 
 
 @pytest.mark.parametrize("change", ["disable", "remove_currency", "delete"])
-def test_lost_account_eligibility_skips_only_the_related_row(context_runtime, change):
+def test_lost_account_eligibility_rejects_entire_commit(context_runtime, change):
     runtime = context_runtime
     _account(runtime)
     first, second = _file(), _file(letter="b", provider="002")
@@ -90,12 +90,16 @@ def test_lost_account_eligibility_skips_only_the_related_row(context_runtime, ch
         account_selections=[*_selections((first,), account_id=ACCOUNT_ID), *_selections((second,))])
     assert plan["summary"]["create_posted"] == 2
     _change(runtime, change)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == receipt["summary"]["skipped"] == 1
-    rows = {row["item_ref"]: row for row in _results(service, receipt, "row")}
-    assert rows["file_a:r1"]["outcome"] == "skipped"
-    assert rows["file_a:r1"]["code"] == "account_changed"
-    assert rows["file_b:r1"]["outcome"] == "created_posted"
+    from ft.application.cash_import_plans import CashImportPlanError
+    with runtime.sessions() as session:
+        count = session.scalar(select(func.count()).select_from(CashTransactionModel))
+    with pytest.raises(CashImportPlanError, match="plan_changed") as rejected:
+        _commit(service, plan)
+    assert rejected.value.commit_state == "not_committed"
+    with runtime.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == count
+    with pytest.raises(CashImportPlanError, match="receipt_not_found"):
+        service.receipt_by_key("synthetic-confirm")
 
 
 def test_changed_account_in_frozen_manual_patch_refuses_commit_before_writes(context_runtime):

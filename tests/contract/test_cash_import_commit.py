@@ -47,6 +47,23 @@ def _results(service, receipt, kind=None):
     return service.results(receipt["receipt_id"], result_kind=kind, limit=200)["items"]
 
 
+def _database_state(runtime):
+    from ft.adapters.relational.models import Base
+    with runtime.sessions() as session:
+        return {table.name: sorted(repr(tuple(row)) for row in session.execute(select(table)))
+            for table in Base.metadata.sorted_tables}
+
+
+def _assert_atomic_failure(runtime, action, error=CashCommitFailure, *, code=None):
+    before = _database_state(runtime)
+    with pytest.raises(error, match=code) as rejected:
+        action()
+    if isinstance(rejected.value, CashCommitFailure):
+        assert rejected.value.commit_state == "not_committed"
+    assert _database_state(runtime) == before
+    return rejected.value
+
+
 def test_resolve_returns_pending_for_independent_writer_then_recovers(context_runtime):
     from sqlalchemy import text
     from ft.adapters.relational.workspace_lock import lock_workspace
@@ -82,7 +99,7 @@ def test_resolve_does_not_treat_other_storage_failures_as_pending(context_runtim
     assert captured.value.code == code
 
 
-def test_large_new_batch_rolls_back_failed_chunk_then_isolates_one_row(context_runtime, monkeypatch):
+def test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_import_new_rows import CashImportNewRowsRepository
     from ft.adapters.relational.cash_sources import CashSourceRepository
     original_file = _file()
@@ -110,19 +127,7 @@ def test_large_new_batch_rolls_back_failed_chunk_then_isolates_one_row(context_r
         return result
     monkeypatch.setattr(CashImportNewRowsRepository, "insert", batch_fail)
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", row_fail)
-    receipt = _commit(service, plan)
-    results = _results(service, receipt, "row")
-    assert calls and max(calls) <= 100
-    assert receipt["summary"]["created_posted"] == 119 and receipt["summary"]["skipped"] == 1
-    assert sum(item["outcome"] == "created_posted" for item in results) == 119
-    assert [item["code"] for item in results if item["outcome"] == "skipped"] == ["row_save_failed"]
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
-            CashTransactionModel.source_type == "alipay")) == 119
-        assert session.scalar(select(func.count()).select_from(CashTransactionComponentModel).join(
-            CashTransactionModel, CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id).where(
-                CashTransactionModel.source_type == "alipay")) == 119
-    assert receipt["status"] == "partial"
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_balances(context_runtime, monkeypatch):
@@ -242,7 +247,7 @@ def test_same_key_replays_after_temporary_session_is_gone_and_other_key_cannot_c
         service.commit(plan["plan_id"], expected_session_revision=99, idempotency_key="synthetic-confirm")
 
 
-def test_row_failure_rolls_back_all_aliases_and_duplicate_results_but_other_row_continues(context_runtime, monkeypatch):
+def test_row_failure_rolls_back_all_aliases_and_duplicate_results_and_preserves_entire_batch(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_sources import CashSourceRepository
     first, other = _file(), _file(letter="b", provider="002", amount="-3")
     duplicate = replace(first, file_ref="file_c", client_file_ref="client_c")
@@ -254,16 +259,7 @@ def test_row_failure_rolls_back_all_aliases_and_duplicate_results_but_other_row_
             raise RuntimeError("synthetic SQL secret after source flush")
         return result
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail)
-    receipt = _commit(service, plan)
-    rows = _results(service, receipt, "row")
-    assert receipt["status"] == "partial" and receipt["summary"]["created_posted"] == 1
-    assert [row["outcome"] for row in rows] == ["skipped", "skipped", "created_posted"]
-    assert all("secret" not in str(row) for row in rows)
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(
-            CashTransactionModel.source_type == "alipay")) == 1
-        assert session.scalar(select(CashTransactionModel.amount).where(
-            CashTransactionModel.source_type == "alipay")) == Decimal("-3")
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_current_row_conflict_only_skips_that_operation_and_preserves_manual_change(context_runtime):
@@ -274,11 +270,8 @@ def test_current_row_conflict_only_skips_that_operation_and_preserves_manual_cha
     with context_runtime.sessions.begin() as session:
         row = session.get(CashTransactionModel, 1003)
         row.note, row.manual_overrides = "刚刚修改", {"note": True}
-    receipt = _commit(service, plan)
-    rows = _results(service, receipt, "row")
-    assert rows[0]["outcome"] == "skipped" and rows[1]["outcome"] == "created_posted"
-    with context_runtime.sessions() as session:
-        assert session.get(CashTransactionModel, 1003).note == "刚刚修改"
+    from ft.application.cash_import_plans import CashImportPlanError
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code='plan_changed')
 
 
 def test_source_text_update_does_not_rewrite_balance_snapshot(context_runtime):
@@ -309,10 +302,8 @@ def test_stale_existing_counterpart_issue_only_defers_original_group_not_indepen
     with context_runtime.sessions.begin() as session:
         CashSourceRepository(session, context_runtime.workspace_id).save_issue(1003, "other-current-issue",
             code="posting_incomplete")
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == 2 and receipt["summary"]["relations_failed"] == 1
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
+    from ft.application.cash_import_plans import CashImportPlanError
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code='plan_changed')
 
 
 def _mirror_files():
@@ -337,8 +328,8 @@ def test_confirmed_relation_and_rows_are_saved_together(context_runtime):
 def test_receipt_counts_pending_items_after_merge_and_pages_current_locations(context_runtime, monkeypatch):
     service, plan = _plan(context_runtime, _mirror_files())
     original = service._discovery_issues
-    def unresolved(session, current, identity, failures, affected):
-        original(session, current, identity, failures, affected)
+    def unresolved(session, current, identity, affected):
+        original(session, current, identity, affected)
         parents = {int(value) for value in identity.values()}
         service._relation_problem(session, parents, "synthetic-current-attention", "relation_context_changed")
         affected.update(parents)
@@ -378,7 +369,7 @@ def test_old_receipt_pages_follow_current_split_and_deletion_without_rewriting_s
     assert service.receipt(receipt["receipt_id"]) == receipt
 
 
-def test_relation_save_failure_keeps_both_records_and_current_attention(context_runtime, monkeypatch):
+def test_relation_save_failure_rolls_back_records_relations_and_attention(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     service, plan = _plan(context_runtime, _mirror_files())
     original = CurrentCashRelationRepository.add
@@ -386,12 +377,7 @@ def test_relation_save_failure_keeps_both_records_and_current_attention(context_
         original(self, values)
         raise RuntimeError("synthetic relation failure after flush")
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == 2 and receipt["summary"]["relations_failed"] == 1
-    assert receipt["needs_attention_count"] == 2
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
-        assert session.scalar(select(func.count()).select_from(CashTransactionIssueModel)) == 2
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def _refund_bundle():
@@ -433,7 +419,7 @@ def test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_
             assert projections[0].net_amount == 0 and projections[0].hidden_reason is None
 
 
-def test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_other_group_continues(context_runtime, monkeypatch):
+def test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_entire_command(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     files = list(_refund_bundle())
     for letter, source in (("e", "alipay"), ("f", "ccb_debit")):
@@ -449,11 +435,7 @@ def test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_other_group_co
             raise RuntimeError("synthetic middle edge failure")
         return row
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == 6
-    assert receipt["summary"]["relations_failed"] == 1 and receipt["summary"]["relations_confirmed"] == 1
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 1
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_failed_required_row_prevents_group_from_using_old_record_as_substitute(context_runtime, monkeypatch):
@@ -470,11 +452,7 @@ def test_failed_required_row_prevents_group_from_using_old_record_as_substitute(
             raise RuntimeError("synthetic existing operation failure")
         return original(self, identifier, row, **kwargs)
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == 1 and receipt["summary"]["relations_failed"] == 1
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
-        assert session.get(CashTransactionModel, 1003).note != "新的原文"
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_integrity_failure_uses_business_reason_and_does_not_leak_driver_code(context_runtime, monkeypatch):
@@ -487,9 +465,7 @@ def test_integrity_failure_uses_business_reason_and_does_not_leak_driver_code(co
             session.flush()
         return result
     monkeypatch.setattr(service, "_save_row", invalid)
-    receipt = _commit(service, plan)
-    rows = _results(service, receipt, "row")
-    assert rows[0]["code"] == "row_save_failed" and rows[1]["outcome"] == "created_posted"
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrite_balance(context_runtime):
@@ -506,16 +482,17 @@ def test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrit
         assert session.get(LedgerSnapshotModel, context_runtime.workspace_id).version == before
 
 
-def test_reimport_does_not_clear_an_unresolved_relation_failure(context_runtime, monkeypatch):
-    from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+def test_reimport_preserves_historical_relation_failure_without_creating_retry_body(context_runtime):
+    from ft.adapters.relational.cash_sources import CashSourceRepository
+    from ft.application.cash_projections import CashProjectionService
     service, plan = _plan(context_runtime, _mirror_files())
-    original = CurrentCashRelationRepository.add
-    def fail(*args, **kwargs):
-        raise RuntimeError("synthetic pairing failure")
-    monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
     first = _commit(service, plan)
-    assert first["needs_attention_count"] == 2
-    monkeypatch.setattr(CurrentCashRelationRepository, "add", original)
+    identifiers = {int(row["transaction_id"]) for row in _results(service, first, "row")}
+    with context_runtime.sessions.begin() as session:
+        for identifier in identifiers:
+            CashSourceRepository(session, context_runtime.workspace_id).save_issue(identifier,
+                "relation:historical-failure", code="relation_save_failed")
+    CashProjectionService(context_runtime.sessions, context_runtime.workspace_id).rebuild()
     service, plan = _plan(context_runtime, _mirror_files())
     second = _commit(service, plan, "reimport")
     assert second["summary"]["duplicate"] == 2
@@ -621,19 +598,16 @@ def test_deferred_source_update_preserves_current_description_and_stores_the_new
 
 
 @pytest.mark.parametrize("mirror", [False, True])
-def test_second_already_previewed_session_becomes_silent_duplicate_after_first_commit(context_runtime, mirror):
+def test_second_already_previewed_session_rejects_stale_plan_after_first_commit(context_runtime, mirror):
     files = _mirror_files() if mirror else (_file(),)
     first, old = _plan(context_runtime, files)
     second, stale = _plan(context_runtime, files)
     _commit(first, old, "first-session")
-    result = _commit(second, stale, "second-session")
-    assert result["status"] == "no_changes" and result["summary"]["duplicate"] == len(files)
-    assert result["summary"]["skipped"] == 0 and result["summary"]["relations_failed"] == 0
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashTransactionIssueModel)) == 0
+    from ft.application.cash_import_plans import CashImportPlanError
+    _assert_atomic_failure(context_runtime, lambda: _commit(second, stale, "second-session"), CashImportPlanError, code="plan_changed")
 
 
-def test_concurrent_equivalent_duplicate_keeps_its_new_file_alias_without_changing_record(context_runtime):
+def test_concurrent_equivalent_duplicate_rejects_stale_plan_without_changing_record(context_runtime):
     from ft.adapters.relational.cash_sources import CashSourceRepository
     from ft.application.cash_import_source_rows import source_batch_rows
     first, a = _plan(context_runtime, (_file(),))
@@ -643,33 +617,25 @@ def test_concurrent_equivalent_duplicate_keeps_its_new_file_alias_without_changi
     identifier = int(_results(first, committed, "row")[0]["transaction_id"])
     with context_runtime.sessions() as session:
         revision = session.get(CashTransactionModel, identifier).row_revision
-    receipt = _commit(second, b, "other-file")
-    assert receipt["status"] == "no_changes"
-    with context_runtime.sessions() as session:
-        source = CashSourceRepository(session, context_runtime.workspace_id)
-        assert source.find(next(iter(source_batch_rows((file,)).values()))) == identifier
-        bindings = source.bindings_for(identifier)
-        assert sum(row.source_scope_kind == "file_local" for row in bindings) == 2
-        assert session.get(CashTransactionModel, identifier).row_revision == revision
+    from ft.application.cash_import_plans import CashImportPlanError
+    _assert_atomic_failure(context_runtime, lambda: _commit(second, b, "other-file"), CashImportPlanError, code="plan_changed")
 
 
 @pytest.mark.parametrize("failure", [True, False])
-def test_consumed_context_keeps_only_needed_retry_access_and_success_releases_body(context_runtime, monkeypatch, failure):
+def test_success_clears_body_and_failed_commit_keeps_original_session_only(context_runtime, monkeypatch, failure):
     service, plan = _plan(context_runtime)
     if failure:
-        def fail(*args, **kwargs):
-            raise RuntimeError("synthetic row failure")
+        def fail(*args, **kwargs): raise RuntimeError("synthetic row failure")
         monkeypatch.setattr(service, "_save_row", fail)
-    receipt = _commit(service, plan)
-    staged = service._staging.get(plan["session_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
-    assert staged.cancelled and not staged.files and staged.plan is None
-    if failure:
-        assert receipt["retry_context_id"] != plan["session_id"]
-        capsule = service._staging.get(receipt["retry_context_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
-        assert receipt["retry_context_expires_at"] == staged.expires_at.isoformat() == capsule.expires_at.isoformat()
-        assert capsule.workflow_kind == "retry_capsule" and capsule.files and capsule.plan is None
+        _assert_atomic_failure(context_runtime, lambda: _commit(service, plan))
+        staged = service._staging.get(plan["session_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
+        assert not staged.cancelled and staged.files and staged.plan is not None
+        assert len(service._staging._entries) == 1
     else:
-        assert "retry_context_id" not in receipt and staged.cancelled and not staged.files and staged.plan is None
+        receipt = _commit(service, plan)
+        staged = service._staging.get(plan["session_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
+        assert not any(key.startswith("retry_context") for key in receipt)
+        assert staged.cancelled and not staged.files and staged.plan is None
 
 
 def test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_decision(context_runtime):
@@ -685,10 +651,9 @@ def test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_deci
         row = session.scalar(select(TransactionRelationModel))
         repository.replace(row.id, {"applied_amount": "5"}, expected_revision=row.row_revision)
         CashProjectionService.maintain_in_session(session, context_runtime.workspace_id, identifiers)
-    result = _commit(second, stale, "second-allocation")
-    assert result["summary"]["duplicate"] == 2 and result["summary"]["relations_failed"] == 1
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(TransactionRelationModel.applied_amount)) == Decimal("5")
+    from ft.application.cash_import_plans import CashImportPlanError
+    _assert_atomic_failure(context_runtime, lambda: _commit(second, stale, "second-allocation"),
+        CashImportPlanError, code="plan_changed")
 
 
 def test_draft_can_replace_component_at_same_ordinal_before_finalization(context_runtime):
@@ -771,7 +736,7 @@ def test_file_failure_and_normal_whitelist_skip_have_distinct_result_status(cont
     assert receipt["commit_outcome"] == {"has_new_failures": False, "has_business_writes": failed_file, "reason_codes": []}
 
 
-def test_empty_page_failure_only_skips_dependent_source_decisions(context_runtime, monkeypatch):
+def test_empty_page_failure_rolls_back_entire_command(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_source_documents import CashSourceDocumentRepository
     from ft.adapters.relational.models import CashSourceEmptyPageModel
     from test_cash_source_documents import document_coverage, document_file, document_row
@@ -784,13 +749,7 @@ def test_empty_page_failure_only_skips_dependent_source_decisions(context_runtim
         original(self, files)
         raise RuntimeError("synthetic empty-page failure after flush")
     monkeypatch.setattr(CashSourceDocumentRepository, "save_empty_pages", fail)
-    receipt = _commit(service, plan)
-    rows = _results(service, receipt, "row")
-    assert rows[0]["outcome"] == "skipped" and rows[0]["code"] == "source_evidence_save_failed"
-    assert rows[1]["outcome"] == "created_posted"
-    assert "source_evidence_save_failed" in receipt["commit_outcome"]["reason_codes"]
-    with context_runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(CashSourceEmptyPageModel)) == 0
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
 
 
 def test_connection_failure_aborts_outer_transaction_instead_of_becoming_a_row_skip(context_runtime, monkeypatch):
@@ -853,13 +812,54 @@ def test_receipt_reads_are_user_scoped_and_only_contain_safe_results(context_run
             read()
 
 
-def test_preview_known_discovery_failure_is_not_a_new_commit_failure(context_runtime, monkeypatch):
+def test_discovery_programming_error_stops_import_preview(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as module
     def broken(*_args, **_kwargs):
         raise RuntimeError("private bill body")
     monkeypatch.setattr(module, "plan_relation_proposals", broken)
-    service, plan = _plan(context_runtime, _mirror_files())
-    assert plan["summary"]["relations_failed"] > 0
+    _assert_atomic_failure(context_runtime, lambda: _plan(context_runtime, _mirror_files()), RuntimeError)
+
+def test_execution_failure_rolls_back_entire_import_without_retry_capsule(context_runtime, monkeypatch):
+    from ft.application.cash_plan_execution import CashPlanWriteOperations
+    from ft.adapters.relational.models import CashMutationReceiptModel
+    files = (_file(), _file(letter="b", provider="002"))
+    service, plan = _plan(context_runtime, files)
+    with context_runtime.sessions() as session:
+        before = session.scalar(select(func.count()).select_from(CashTransactionModel))
+    original = CashPlanWriteOperations._save_row
+    count = 0
+    def fail_second(self, *args, **kwargs):
+        nonlocal count
+        result = original(self, *args, **kwargs)
+        count += 1
+        if count == 2: raise RuntimeError("synthetic internal failure after write")
+        return result
+    monkeypatch.setattr(CashPlanWriteOperations, "_save_row", fail_second)
+    with pytest.raises(CashCommitFailure) as rejected:
+        _commit(service, plan)
+    assert rejected.value.commit_state == "not_committed"
+    with context_runtime.sessions() as session:
+        assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before
+        assert session.scalar(select(CashMutationReceiptModel).where(
+            CashMutationReceiptModel.idempotency_key == "synthetic-confirm")) is None
+    assert len(service._staging._entries) == 1
+
+
+def test_success_has_no_failed_subset_recovery_capability(context_runtime):
+    service, plan = _plan(context_runtime)
     receipt = _commit(service, plan)
-    assert receipt["status"] == "partial"
-    assert receipt["commit_outcome"] == {"has_new_failures": False, "has_business_writes": True, "reason_codes": []}
+    assert not any(key.startswith("retry_context") for key in receipt)
+    assert not hasattr(service, "retry_session")
+
+
+@pytest.mark.parametrize("empty", [False, True])
+def test_preview_rejected_document_namespace_does_not_block_other_legal_rows(context_runtime, empty):
+    from test_cash_source_documents import document_file, document_coverage, document_row
+    rows = () if empty else (document_row(),)
+    first = document_file(document_coverage({"2": "b" * 64}), rows=rows, source="alipay")
+    second = document_file(document_coverage({"2": "f" * 64}), rows=rows, source="alipay", letter="b")
+    service, plan = _plan(context_runtime, (first, second, _file(letter="c", provider="synthetic-good")))
+    assert plan["summary"]["create_posted"] == 1 and plan["summary"].get("skip", 0) == (0 if empty else 2)
+    receipt = _commit(service, plan)
+    assert receipt["summary"]["created_posted"] == 1 and receipt["summary"].get("skipped", 0) == (0 if empty else 2)
+    assert receipt["commit_outcome"]["has_new_failures"] is False

@@ -179,17 +179,6 @@ class CashImportPlanApiTest {
         pages.close()
     }
 
-    @Test fun retryRequestKeepsSubsetAndOwnKey() = runTest {
-        var call: HttpRequestData? = null
-        val client = client(SESSION) { call = it }
-        assertEquals("s_retry", client.retryCashImport("receipt1", "retry-own-key", listOf("f1:r3")).sessionId)
-        assertEquals("retry-own-key", call!!.headers["Idempotency-Key"])
-        assertEquals(JsonArray(listOf(JsonPrimitive("f1:r3"))), json(call!!)["row_refs"])
-        client.retryCashImport("receipt1", "retry-all-key")
-        assertEquals(JsonNull, json(call!!)["row_refs"])
-        client.close()
-    }
-
     @Test fun safeErrorsRetainOnlyKnownCommitState() = runTest {
         for (state in listOf("unknown", "not_committed", "invalid", "123", "null")) {
             val primitive = if (state in listOf("123", "null")) state else "\"$state\""
@@ -238,7 +227,6 @@ class CashImportPlanApiTest {
         val client = client(PLAN) { calls++ }
         assertFailsWith<ApiFailure> { client.commitCashImport("ip_one", 0, "valid") }
         assertFailsWith<ApiFailure> { client.commitCashImport("ip_one", 4, "bad key") }
-        assertFailsWith<ApiFailure> { client.retryCashImport("receipt1", "valid", emptyList()) }
         assertFailsWith<ApiFailure> { client.readCashImportItems("ip_one", limit = 201) }
         assertFailsWith<ApiFailure> { client.readCashImportItems("ip_one", confirmationStatus = "invalid") }
         assertFailsWith<ApiFailure> { client.updateImportAccount("a", 7, buildJsonObject { put("type", "loan") }, "valid") }
@@ -251,7 +239,6 @@ class CashImportPlanApiTest {
         val receipt = client.readCashMutationReceipt("old1")
         assertNull(receipt.status)
         assertNull(receipt.pendingItemCount)
-        assertNull(receipt.retryContextStatus)
         assertNull(receipt.projectionVersion)
         assertEquals(2L, receipt.legacyByAccount["旧账户"])
         client.close()

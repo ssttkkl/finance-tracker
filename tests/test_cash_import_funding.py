@@ -294,7 +294,7 @@ def test_unreadable_row_isolated_and_skipped_file_does_not_create_a_fake_group()
     assert len(scan.rows) == 1 and len(scan.groups) == 1 and _resolve(scan)[0].ready
 
 
-def test_adapter_failure_is_an_explicit_row_failure_and_others_continue(monkeypatch):
+def test_internal_adapter_failure_stops_funding_scan(monkeypatch):
     import ft.application.cash_import_funding as module
     original = module.parse_alipay_payment_components
     def parse(row):
@@ -302,9 +302,8 @@ def test_adapter_failure_is_an_explicit_row_failure_and_others_continue(monkeypa
             raise RuntimeError("sensitive importer error")
         return original(row)
     monkeypatch.setattr(module, "parse_alipay_payment_components", parse)
-    rows = _resolve(_scan(_file(methods=("异常", "余额"))))
-    assert rows[0].error_code == "funding_unreadable" and not rows[0].ready
-    assert rows[1].ready
+    with pytest.raises(RuntimeError):
+        _scan(_file(methods=("异常", "余额")))
 
 
 def test_invalid_row_does_not_leave_unused_source_account_groups():
@@ -337,3 +336,17 @@ def test_a_selection_for_another_scan_is_not_applied_to_current_rows():
     from ft.application.cash_import_funding import CashFundingInputError
     with pytest.raises(CashFundingInputError):
         _resolve(_scan(_file()), selections={"other": {"account_id": "1", "expected_account_revision": 3}})
+
+
+@pytest.mark.parametrize("stage", ["scan", "resolve"])
+def test_internal_funding_failure_stops_instead_of_returning_a_bad_source_row(monkeypatch, stage):
+    import ft.application.cash_import_funding as module
+    def broken(*_args, **_kwargs):
+        raise RuntimeError("synthetic internal funding failure")
+    if stage == "scan":
+        monkeypatch.setattr(module, "_parts", broken)
+        with pytest.raises(RuntimeError): _scan(_file())
+    else:
+        scan = _scan(_file())
+        monkeypatch.setattr(module, "_sum", broken)
+        with pytest.raises(RuntimeError): _resolve(scan)

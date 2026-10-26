@@ -237,7 +237,7 @@ def test_decimal_sign_never_rounds_long_valid_value(source, builder, row, field)
     assert Decimal(parsed.rows[0].fields["amount"]) == expected
 
 
-def test_unexpected_native_conversion_error_only_skips_that_row(monkeypatch):
+def test_unexpected_native_conversion_error_stops_file_normalization(monkeypatch):
     from ft.importers import ccb_debit
     original = ccb_debit._parse_ccb_source_row
     def failing(payload, **kwargs):
@@ -245,10 +245,8 @@ def test_unexpected_native_conversion_error_only_skips_that_row(monkeypatch):
             raise RuntimeError("private technical detail")
         return original(payload, **kwargs)
     monkeypatch.setattr(ccb_debit, "_parse_ccb_source_row", failing)
-    parsed = _parse(_ccb_bytes(_ccb_row(摘要="bad"), _ccb_row(序号="2")))
-    assert parsed.rows[0].error_code == "row_unreadable"
-    assert parsed.rows[1].fields["amount"] == "-4.23"
-    assert "private technical detail" not in repr(parsed)
+    with pytest.raises(RuntimeError, match="private technical detail"):
+        _parse(_ccb_bytes(_ccb_row(摘要="bad"), _ccb_row(序号="2")))
 
 
 def test_source_hint_cannot_reinterpret_other_bank_file():

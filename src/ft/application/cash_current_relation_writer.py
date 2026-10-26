@@ -8,7 +8,6 @@ from sqlalchemy import select
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
 from ft.application.cash_import_operations import _batches, _wire
-from ft.application.cash_plan_execution import _reason, _recoverable
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.domain.cash_record_policy import _normalize
 from ft.domain.cash_relation_graph import CashRelationGraphEdge
@@ -58,7 +57,7 @@ class CashCurrentRelationWriter:
             and group.get("commit_group_id", group["suggestion_id"]) in commits]
 
     def before_records(self, groups, plan):
-        rows = self._check_after_records(groups, plan, set(), before_records=True)
+        rows = self._check_after_records(groups, plan, before_records=True)
         written = self._write(groups, rows, _parents(groups), before_records=True)
         return [self._result(group, written[group["suggestion_id"]]) for group in groups]
 
@@ -69,44 +68,24 @@ class CashCurrentRelationWriter:
                 if changed else "duplicate", "relation_id": str(group["references"][0]["id"]),
             "transaction_id": str(group["references"][0]["anchor_transaction_id"])}
 
-    @staticmethod
-    def failed_results(groups, error):
-        return [{"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed",
-            "code": _reason(error, "relation_save_failed"), "transaction_id": str(group["references"][0]["anchor_transaction_id"])} for group in groups]
-
-    def save_groups(self, plan, fresh, failed_rows, affected, *, on_failure, excluded=()):
+    def save_groups(self, plan, fresh, affected, *, excluded=()):
         grouped, results = defaultdict(list), []
         current = {group["suggestion_id"]: group for group in fresh["relation_groups"]}
         for group in plan["relation_groups"]:
             if group.get("origin") == "current" and group["changed"] and group["suggestion_id"] not in excluded:
                 grouped[group.get("commit_group_id", group["suggestion_id"])].append(group)
-        for commit_id, groups in grouped.items():
-            parents, code = _parents(groups), None
-            try:
-                dependencies = parents | {int(parent) for group in groups for parent in group["dependency_parent_ids"]}
-                if dependencies.intersection(int(value) for value in failed_rows):
-                    raise CashRelationError("relation_context_changed")
-                if any(group["action"] == "skip" or current.get(group["suggestion_id"]) != group for group in groups):
-                    raise CashRelationError("relation_context_changed")
-                with self.session.begin_nested():
-                    rows = self._check_after_records(groups, plan, failed_rows)
-                    written = self._write(groups, rows, parents)
-                    self.session.flush()
-                for group in groups:
-                    results.append(self._result(group, written[group["suggestion_id"]]))
-            except Exception as error:
-                if not _recoverable(error):
-                    raise
-                self.session.expire_all()
-                code = _reason(error, "relation_save_failed")
-                results.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code,
-                    "transaction_id": str(group["references"][0]["anchor_transaction_id"])} for group in groups)
+        for groups in grouped.values():
+            parents = _parents(groups)
+            if any(group["action"] == "skip" or current.get(group["suggestion_id"]) != group for group in groups):
+                raise CashRelationError("relation_context_changed")
+            rows = self._check_after_records(groups, plan)
+            written = self._write(groups, rows, parents)
+            self.session.flush()
+            results.extend(self._result(group, written[group["suggestion_id"]]) for group in groups)
             affected.update(parents)
-            if code:
-                on_failure(self.session, parents, commit_id, code)
         return results
 
-    def _check_after_records(self, groups, plan, failed_rows, *, before_records=False):
+    def _check_after_records(self, groups, plan, *, before_records=False):
         originals = {row["id"]: row for group in groups for row in group["references"]}
         expected_edges = {row["id"]: row for group in groups for row in group["expected_record_edges"]}
         actual = {}
@@ -121,8 +100,7 @@ class CashCurrentRelationWriter:
             if actual != originals:
                 raise CashRelationError("relation_context_changed")
             return actual
-        operations = [operation for operation in plan["operations"] if operation["preview_transaction_id"] not in failed_rows
-            and operation["planned_action"] != "duplicate"]
+        operations = [operation for operation in plan["operations"] if operation["planned_action"] != "duplicate"]
         updated = {int(operation["transaction_id"]) for operation in operations}
         removed = {int(part["component_id"]) for operation in operations if operation["current"]["state"] == "draft"
             for part in operation["current"]["components"] if part.get("component_id") is not None

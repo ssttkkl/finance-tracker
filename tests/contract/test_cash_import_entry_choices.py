@@ -105,9 +105,8 @@ def test_target_dependency_failure_rolls_back_the_whole_command(context_runtime,
     monkeypatch.setattr(CashImportCommandService, '_save_row', fail)
     from ft.adapters.relational.cash_import_new_rows import CashImportNewRowsRepository
     monkeypatch.setattr(CashImportNewRowsRepository, 'insert', fail)
-    with pytest.raises(CashImportPlanError) as rejected:
-        _commit(service, edited)
-    assert rejected.value.commit_state == 'not_committed'
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, edited))
     assert service.resolve(edited['plan_id'], idempotency_key='synthetic-confirm')['status'] == 'retry_original'
     with runtime.sessions() as session:
         assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == 'alipay')) is None
@@ -197,15 +196,12 @@ def test_pending_relation_save_failure_rejects_edited_single_entry(context_runti
     def fail(*args, **kwargs):
         raise RuntimeError('synthetic relation write failure')
     monkeypatch.setattr(CashImportCommandService, '_write_group', fail)
-    with pytest.raises(CashImportPlanError):
-        _commit(service, edited)
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, edited))
     with runtime.sessions() as session:
         assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == 'alipay')) is None
 
 
-def test_retry_subset_does_not_inherit_entry_choices():
-    from ft.application.cash_import_retry import _inputs
-    assert not _inputs({'entry_choices': [{'edit_ref': 'old', 'patch': {'note': 'old'}}]}, (_file(),)).get('entry_choices')
 
 
 def test_http_candidate_members_include_other_preview_items_without_edit_permissions(context_runtime, monkeypatch):

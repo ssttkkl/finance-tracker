@@ -64,7 +64,7 @@ def test_only_final_confirmation_saves_used_mapping_and_replay_is_noop(context_r
 
 
 @pytest.mark.parametrize("success", ["none", "one", "override_only"])
-def test_partial_rows_publish_only_actual_shared_selection_use(context_runtime, monkeypatch, success):
+def test_any_row_failure_rolls_back_all_shared_account_defaults(context_runtime, monkeypatch, success):
     from ft.application.cash_record_writer import CashRecordWriter
     runtime, first, second = context_runtime, _file(), _file(letter="b", provider="002")
     if success == "one":
@@ -80,16 +80,9 @@ def test_partial_rows_publish_only_actual_shared_selection_use(context_runtime, 
             raise ValueError("synthetic row failure after write")
         return result
     monkeypatch.setattr(CashRecordWriter, "save", save)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == (0 if success == "none" else 1)
-    group, = scan_cash_funding((second,)).groups
-    assert _mappings(runtime) == ([("alipay", "funding_group_v1", group.source_account_ref, "101", 1)]
-        if success == "one" else [])
-    if success == "override_only":
-        row = next(row for row in _results(service, receipt, "row") if row["outcome"] != "skipped")
-        from ft.adapters.relational.models import CashTransactionModel
-        with runtime.sessions() as session:
-            assert session.get(CashTransactionModel, int(row["transaction_id"])).account_id == 102
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, plan))
+    assert _mappings(runtime) == []
 
 
 def test_note_patch_and_same_account_coalescing_keep_both_source_proofs(context_runtime):
@@ -110,7 +103,7 @@ def test_explicitly_deferred_draft_remembers_eligible_account(context_runtime):
     assert [row[3:] for row in _mappings(runtime)] == [("101", 1)]
 
 
-def test_relation_failure_does_not_discard_successfully_used_account_defaults(context_runtime, monkeypatch):
+def test_relation_failure_rolls_back_all_account_defaults(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     from tests.contract.test_cash_import_commit import _mirror_files
     runtime, files = context_runtime, _mirror_files()
@@ -120,9 +113,9 @@ def test_relation_failure_does_not_discard_successfully_used_account_defaults(co
         original(self, values)
         raise ValueError("synthetic relation failure")
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    receipt = _commit(service, plan)
-    assert receipt["summary"]["created_posted"] == 2 and receipt["summary"]["relations_failed"] == 1
-    assert {row[2] for row in _mappings(runtime)} == {group.source_account_ref for group in scan_cash_funding(files).groups}
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(runtime, lambda: _commit(service, plan))
+    assert _mappings(runtime) == []
 
 
 @pytest.mark.parametrize("existing", [False, True])

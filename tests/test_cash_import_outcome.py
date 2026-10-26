@@ -1,22 +1,17 @@
 from ft.application.cash_import_commit import CashImportCommandService
 
 
-def test_changed_no_operation_duplicate_reports_a_new_execution_failure():
-    plan = {"row_decisions": [{"row_ref": "f:r1", "planned_action": "duplicate", "transaction_id": "1"}]}
-    fresh = {"row_decisions": [{"row_ref": "f:r1", "planned_action": "skip", "code": "source_identity_conflict"}]}
-    reasons = []
-    rows = CashImportCommandService._row_results(plan, fresh, {}, {}, {}, on_execution_failure=reasons.append)
-    assert rows[0]["outcome"] == "skipped"
-    assert rows[0]["code"] == "record_changed"
-    assert reasons == ["record_changed"]
-
-
-def test_original_skip_does_not_report_a_new_execution_failure():
-    plan = {"row_decisions": [{"row_ref": "f:r1", "planned_action": "skip", "code": "fixed_field_conflict"}]}
-    reasons = []
-    rows = CashImportCommandService._row_results(plan, plan, {}, {}, {}, on_execution_failure=reasons.append)
+def test_row_results_keep_the_preview_known_skip_and_actual_saved_identity():
+    plan = {"row_decisions": [
+        {"row_ref": "f:r1", "planned_action": "skip", "code": "fixed_field_conflict"},
+        {"row_ref": "f:r2", "planned_action": "create_posted", "operation_ref": "op2"},
+        {"row_ref": "f:r3", "planned_action": "duplicate_in_batch", "operation_ref": "op2"},
+    ]}
+    rows = CashImportCommandService._row_results(plan, {"op2": {"outcome": "created_posted", "transaction_id": "12"}})
+    assert [(row["item_ref"], row["outcome"]) for row in rows] == [
+        ("f:r1", "skipped"), ("f:r2", "created_posted"), ("f:r3", "duplicate_in_batch")]
     assert rows[0]["code"] == "fixed_field_conflict"
-    assert reasons == []
+    assert rows[1]["transaction_id"] == rows[2]["transaction_id"] == "12"
 
 
 def test_preview_known_group_skip_does_not_trigger_execution_failure(monkeypatch):
@@ -27,8 +22,5 @@ def test_preview_known_group_skip_does_not_trigger_execution_failure(monkeypatch
     monkeypatch.setattr(writer, "_relation_problem", lambda *_: None)
     group = {"suggestion_id": "g", "parent_ids": [], "action": "skip", "code": "relation_context_changed"}
     plan = {"relation_groups": [group]}
-    reasons = []
-    result = writer._save_groups(SimpleNamespace(expire_all=lambda: None), plan, plan, {}, {}, set(), set(),
-        manual=set(), on_execution_failure=reasons.append)
+    result = writer._save_groups(SimpleNamespace(expire_all=lambda: None), plan, plan, {}, {}, set(), manual=set())
     assert result == [{"result_kind": "relation", "item_ref": "g", "outcome": "failed", "code": "relation_context_changed"}]
-    assert reasons == []

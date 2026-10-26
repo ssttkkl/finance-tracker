@@ -47,6 +47,18 @@ def _commit(client, plan, key="synthetic-api-confirm"):
         headers={"Idempotency-Key": key}, json={"expected_session_revision": plan["session_revision"]})
 
 
+def _assert_http_atomic_failure(runtime, action):
+    from tests.contract.test_cash_import_commit import _database_state
+    before = _database_state(runtime)
+    response = action()
+    assert response.status_code == 503, response.text
+    assert response.json()["error"]["code"] == "commit_failed"
+    assert response.json()["commit_state"] == "not_committed"
+    assert "private" not in response.text and "SQL" not in response.text
+    assert _database_state(runtime) == before
+    return response
+
+
 def _rows(count):
     file = _file()
     row = file.document.rows[0]
@@ -199,7 +211,7 @@ def test_http_plan_query_errors_are_safe(context_runtime, monkeypatch, query):
     assert response.status_code == 422 and "private" not in response.text
 
 
-def test_http_partial_result_can_retry_only_failed_rows_without_original_file(context_runtime, monkeypatch):
+def test_http_failed_commit_is_atomic_and_original_request_can_retry(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_sources import CashSourceRepository
     client, _, view = _setup(context_runtime, monkeypatch, files=(_rows(2),))
     plan = _preview(client, view).json()
@@ -211,35 +223,13 @@ def test_http_partial_result_can_retry_only_failed_rows_without_original_file(co
         return result
     with monkeypatch.context() as fault:
         fault.setattr(CashSourceRepository, "save_occurrence", fail)
-        response = _commit(client, plan)
+        _assert_http_atomic_failure(context_runtime, lambda: _commit(client, plan))
+    response = _commit(client, plan)
     assert response.status_code == 200, response.text
-    receipt = response.json()
-    assert receipt["status"] == "partial" and receipt["summary"]["created_posted"] == 1 and receipt["summary"]["skipped"] == 1
-    assert receipt["retry_context_status"] == "available" and "retry_context_id" not in receipt
-    path = "/api/v1/cash-import/receipts/" + receipt["receipt_id"] + "/retry-sessions"
-    rows = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/rows").json()["items"]
-    failed, = [item for item in rows if item["outcome"] == "skipped"]
-    assert failed["code"] == "row_save_failed" and "private" not in failed["message"]
-    for references in ([], ["unknown"], [next(item["item_ref"] for item in rows if item["outcome"] != "skipped")]):
-        invalid = client.post(path, headers={"Idempotency-Key": "bad-retry"}, json={"row_refs": references})
-        assert invalid.status_code == 422
-    retry = client.post(path, headers={"Idempotency-Key": "retry-key"}, json={"row_refs": [failed["item_ref"]]})
-    assert retry.status_code == 201, retry.text
-    current = retry.json()
-    assert current["expires_at"] == view["expires_at"] and current["files"][0]["recognized_row_count"] == 1
-    assert client.post(path, headers={"Idempotency-Key": "retry-key"}, json={"row_refs": [failed["item_ref"]]}).json() == current
-    assert current["last_preview_input"]["relation_choices"] == []
-    next_plan = _preview(client, current, **current["last_preview_input"])
-    assert next_plan.status_code == 200, next_plan.text
-    final = _commit(client, next_plan.json(), "retry-confirm").json()
-    assert final["summary"]["created_posted"] == 1 and final["summary"]["duplicate"] == 0
-    replay = client.post(path, headers={"Idempotency-Key": "retry-key"}, json={"row_refs": [failed["item_ref"]]})
-    assert replay.status_code == 409 and replay.json()["error"]["code"] == "retry_already_processed"
-    assert replay.json()["receipt_id"] == final["receipt_id"]
-    assert client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"]).json() == receipt
+    assert not any(key.startswith("retry_context") for key in response.json())
 
 
-def test_http_relation_failure_does_not_rollback_posted_rows(context_runtime, monkeypatch):
+def test_http_relation_failure_rolls_back_entire_command(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     from tests.contract.test_cash_import_commit import _mirror_files
     client, _, view = _setup(context_runtime, monkeypatch, files=_mirror_files())
@@ -251,16 +241,10 @@ def test_http_relation_failure_does_not_rollback_posted_rows(context_runtime, mo
         raise RuntimeError("private relation SQL")
     with monkeypatch.context() as fault:
         fault.setattr(CurrentCashRelationRepository, "add", fail)
-        response = _commit(client, plan)
+        _assert_http_atomic_failure(context_runtime, lambda: _commit(client, plan))
+    response = _commit(client, plan)
     assert response.status_code == 200, response.text
-    receipt = response.json()
-    assert receipt["status"] == "partial" and receipt["summary"]["created_posted"] == 2
-    assert receipt["summary"]["relations_failed"] == 1 and receipt["pending_item_count"] == 2
-    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": True, "reason_codes": ["relation_save_failed"]}
-    page = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/relations").json()
-    assert page["items"][0]["outcome"] == "failed" and "private" not in page["items"][0]["message"]
-    rows = client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"] + "/rows").json()
-    assert len({item["projection_id"] for item in rows["projection_refs"]}) == 2
+    assert not any(key.startswith("retry_context") for key in response.json())
 
 
 def test_http_unselected_account_saves_draft_but_rejects_invalid_row_patch(context_runtime, monkeypatch):
@@ -433,20 +417,18 @@ def test_authentication_and_viewer_denial_keep_the_public_error_envelope(context
     assert "private" not in denied.text
 
 
-def test_http_empty_import_evidence_failure_is_a_new_failure_without_business_writes(context_runtime, monkeypatch):
+def test_http_empty_import_evidence_failure_returns_known_rollback(context_runtime, monkeypatch):
     from ft.application.cash_import_commit import CashImportCommandService
     file = _file()
     empty = replace(file, document=replace(file.document, rows=(), declared_count=0, observed_count=0))
     client, _, view = _setup(context_runtime, monkeypatch, files=(empty,))
     plan = _preview(client, view).json()
-    monkeypatch.setattr(CashImportCommandService, "_save_evidence", lambda *_: {("alipay", "fixture", "empty"): "source_evidence_save_failed"})
-    receipt = _commit(client, plan).json()
-    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["source_evidence_save_failed"]}
-    assert client.get("/api/v1/cash-mutations/receipts/" + receipt["receipt_id"]).json() == receipt
-    assert _commit(client, plan).json() == receipt
+    def fail(*_args, **_kwargs): raise RuntimeError("private empty evidence failure")
+    monkeypatch.setattr(CashImportCommandService, "_save_evidence", fail)
+    _assert_http_atomic_failure(context_runtime, lambda: _commit(client, plan))
 
 
-def test_http_duplicates_plus_a_new_failure_do_not_claim_business_writes(context_runtime, monkeypatch):
+def test_http_duplicates_plus_new_failure_roll_back_without_receipt(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_sources import CashSourceRepository
     client, _, view = _setup(context_runtime, monkeypatch, files=(_rows(1),))
     _commit(client, _preview(client, view).json())
@@ -458,10 +440,7 @@ def test_http_duplicates_plus_a_new_failure_do_not_claim_business_writes(context
             raise RuntimeError("private database SQL")
         return original(self, identifier, row, **kwargs)
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail)
-    receipt = _commit(client, plan, "mixed-confirm").json()
-    assert receipt["status"] == "partial"
-    assert receipt["commit_outcome"] == {"has_new_failures": True, "has_business_writes": False, "reason_codes": ["row_save_failed"]}
-    assert "private" not in str(receipt["commit_outcome"])
+    _assert_http_atomic_failure(context_runtime, lambda: _commit(client, plan, "mixed-confirm"))
 
 
 def test_public_plan_reads_do_not_materialize_unrelated_parsed_documents(context_runtime, monkeypatch):
@@ -494,3 +473,12 @@ def test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters(
     _commit(client, plan)
     response = client.get(path + "/items?limit=1")
     assert response.status_code == 409 and response.json()["error"]["code"] == "session_committed"
+
+def test_failed_subset_retry_endpoint_is_removed(context_runtime, monkeypatch):
+    client, _, view = _setup(context_runtime, monkeypatch)
+    plan = _preview(client, view).json()
+    receipt = _commit(client, plan).json()
+    response = client.post("/api/v1/cash-import/receipts/" + receipt["receipt_id"] + "/retry-sessions",
+        headers={"Idempotency-Key": "synthetic-removed-retry"}, json={"row_refs": None})
+    assert response.status_code == 404
+    assert not any(key.startswith("retry_context") for key in receipt)

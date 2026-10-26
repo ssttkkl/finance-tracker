@@ -3,11 +3,10 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime
-from hashlib import sha256
 import json
 import re
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select
 
 from .models import CashMutationReceiptModel, CashMutationResultModel
 
@@ -64,9 +63,9 @@ def _account_result(value):
 
 def _summary(value):
     counters = {"needs_attention_count", "pending_item_count", "projection_version", "account_revision"}
-    references = {"retry_context_id", "account_id", "retained_transaction_id"}
+    references = {"account_id", "retained_transaction_id"}
     reference_lists = {"affected_transaction_ids"}
-    allowed = counters | references | reference_lists | {"status", "summary", "committed", "retry_context_expires_at", "retry_context_status", "projection_refs", "account", "legacy_by_account", "commit_outcome"}
+    allowed = counters | references | reference_lists | {"status", "summary", "committed", "projection_refs", "account", "legacy_by_account", "commit_outcome"}
     if not isinstance(value, dict) or set(value) - allowed:
         raise ValueError("mutation_summary_invalid")
     value = deepcopy(value)
@@ -98,9 +97,6 @@ def _summary(value):
         elif key == "status":
             if not isinstance(item, str) or item not in {"completed", "partial", "no_changes", "failed"}:
                 raise ValueError("mutation_summary_invalid")
-        elif key == "retry_context_status":
-            if not isinstance(item, str) or item not in {"available", "reselect_file"}:
-                raise ValueError("mutation_summary_invalid")
         elif key == "committed":
             if item is not True:
                 raise ValueError("mutation_summary_invalid")
@@ -114,12 +110,6 @@ def _summary(value):
                 for name in item:
                     name.encode("utf-8")
             except UnicodeError:
-                raise ValueError("mutation_summary_invalid") from None
-        elif key == "retry_context_expires_at" and item is not None:
-            try:
-                if not isinstance(item, str) or datetime.fromisoformat(item.replace("Z", "+00:00")).tzinfo is None:
-                    raise ValueError
-            except ValueError:
                 raise ValueError("mutation_summary_invalid") from None
     try:
         if "account" in value and (value.get("account_id") != value["account"]["account_id"] or value.get("account_revision") != value["account"]["account_revision"]):
@@ -241,29 +231,3 @@ class CashMutationRepository:
         rows = self._session.scalars(statement.order_by(CashMutationResultModel.id).limit(limit + 1)).all()
         return {"items": [{"result_id": str(row.id), **{field: getattr(row, field) for field in _RESULT_FIELDS}} for row in rows[:limit]],
             "next_after": rows[limit - 1].id if len(rows) > limit else None}
-
-    def successful_import_rows(self, user_id, session_ids, row_refs):
-        """只按已登记会话的消费索引读成功事实，不把派生收据当业务成功。"""
-        if len(session_ids) > 256 or len(row_refs) > 100_000:
-            raise ValueError("mutation_page_invalid")
-        user_id = _text(user_id, 128)
-        digests = sorted({sha256(_text(value, 43).encode()).hexdigest() for value in session_ids})
-        references = sorted({_text(value, 255) for value in row_refs})
-        result = {}
-        successful = {"created_posted", "updated_posted", "saved_draft", "finalized_draft", "duplicate", "duplicate_in_batch"}
-        for start in range(0, len(digests), 100):
-            for offset in range(0, len(references), 350):
-                rows = self._session.execute(select(CashMutationResultModel.item_ref, CashMutationResultModel.receipt_id,
-                    CashMutationResultModel.outcome, CashMutationResultModel.transaction_id).join(CashMutationReceiptModel, and_(
-                        CashMutationReceiptModel.id == CashMutationResultModel.receipt_id,
-                        CashMutationReceiptModel.workspace_id == CashMutationResultModel.workspace_id)).where(
-                    CashMutationReceiptModel.workspace_id == self._workspace_id, CashMutationReceiptModel.user_id == user_id,
-                    CashMutationReceiptModel.operation_kind == "import",
-                    CashMutationReceiptModel.session_digest.in_(digests[start:start + 100]),
-                    CashMutationResultModel.result_kind == "row", CashMutationResultModel.outcome.in_(successful),
-                    CashMutationResultModel.item_ref.in_(references[offset:offset + 350]),
-                    or_(CashMutationResultModel.outcome != "duplicate_in_batch", CashMutationResultModel.operation_ref.is_not(None)),
-                ).order_by(CashMutationResultModel.id))
-                for reference, receipt, outcome, transaction in rows:
-                    result.setdefault(reference, {"receipt_id": receipt, "outcome": outcome, "transaction_id": transaction})
-        return result

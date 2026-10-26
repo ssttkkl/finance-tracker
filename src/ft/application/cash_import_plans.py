@@ -319,18 +319,12 @@ class CashImportPlanService(CashImportContextService):
         try:
             with self._uow as uow:
                 current = self._current(uow, session_id, expected_session_revision)
-                if current.workflow_kind == "retry":
-                    preview_input = _preview_input(
-                        current.preview_input.get("account_selections", []) if account_selections is None else account_selections,
-                        current.preview_input.get("row_choices", []) if row_choices is None else row_choices,
-                        current.preview_input.get("relation_choices", []) if relation_choices is None else relation_choices, entry_choices)
                 previous = current.plan
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
-                additional = {"source_plan": self._prepare_sources(uow, current)} if current.workflow_kind == "retry" else {}
                 result = self._builder(session=uow._state().session, files=deepcopy(current.files),
-                    preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id, **additional)
+                    preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id)
                 if (not isinstance(result, dict) or not isinstance(result.get("items"), list)
                     or not isinstance(result.get("summary"), dict) or type(result.get("can_commit")) is not bool):
                     raise CashImportPlanError("plan_build_failed")
@@ -368,9 +362,7 @@ class CashImportPlanService(CashImportContextService):
                     from ft.adapters.relational.cash_mutations import CashMutationConflict
                     raise CashMutationConflict("session_committed", receipt["receipt_id"])
                 def render(current):
-                    if current.workflow_kind == "retry":
-                        current = self._read_context(uow, session_id)
-                    elif current.workflow_kind != "import":
+                    if current.workflow_kind != "import":
                         raise ImportSessionNotFound
                     if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
                         raise CashImportPlanError("plan_changed")

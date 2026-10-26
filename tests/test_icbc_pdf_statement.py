@@ -334,7 +334,7 @@ def test_native_refund_and_transfer_classification_are_reused_without_pairing(mo
     assert parsed.rows[2].fields["counterparty_account"] == "6222****9999"
 
 
-def test_an_unexpected_native_row_error_does_not_block_later_rows(monkeypatch):
+def test_unexpected_pdf_conversion_error_stops_file_normalization(monkeypatch):
     from ft import convert
     original = convert._parse_icbc_credit_source_row
     def parse(payload, **kwargs):
@@ -342,6 +342,5 @@ def test_an_unexpected_native_row_error_does_not_block_later_rows(monkeypatch):
             raise RuntimeError("private details")
         return original(payload, **kwargs)
     monkeypatch.setattr(convert, "_parse_icbc_credit_source_row", parse)
-    parsed = _parse(monkeypatch, [Page(_credit(交易场所="bad"), _credit())])
-    assert parsed.rows[0].disposition == "skipped" and parsed.rows[0].error_code == "row_unreadable"
-    assert parsed.rows[1].fields["amount"] == "-20.00"
+    with pytest.raises(RuntimeError, match="private details"):
+        _parse(monkeypatch, [Page(_credit(交易场所="bad"), _credit())])

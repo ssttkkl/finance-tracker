@@ -271,17 +271,15 @@ def test_conflict_and_unreadable_rows_are_processing_details_without_fake_items(
         assert {row["code"] for row in plan["processing_details"] if row.get("code")} == {"fixed_field_conflict", "row_unreadable"}
 
 
-def test_relation_discovery_failure_is_safe_and_does_not_remove_other_record_operations(draft_runtime, monkeypatch):
+def test_relation_discovery_failure_stops_plan_without_recursive_retry(draft_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as module
     def broken(*args, **kwargs):
         raise RuntimeError("SQL private bill body")
     monkeypatch.setattr(module, "plan_relation_proposals", broken)
     files = _mirror_files()
     with draft_runtime.sessions() as session:
-        plan = _build(session, draft_runtime, files)
-        assert len(plan["operations"]) == 2 and len(plan["items"]) == 2
-        assert plan["can_commit"] is True and "private" not in str(plan)
-        assert plan["summary"]["relations_failed"] >= 1
+        with pytest.raises(RuntimeError):
+            _build(session, draft_runtime, files)
 
 
 def test_unidentified_record_id_is_reused_when_only_relation_choice_changes(draft_runtime):

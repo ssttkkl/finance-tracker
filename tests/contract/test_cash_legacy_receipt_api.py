@@ -80,7 +80,7 @@ def test_legacy_result_cannot_be_used_to_derive_a_retry_session(legacy_api_runti
     client, _store = _client(runtime, monkeypatch, user_id="fixture-user")
     response = client.post("/api/v1/cash-import/receipts/" + receipt + "/retry-sessions",
         headers={"Idempotency-Key": "synthetic-legacy-retry"}, json={"row_refs": None})
-    assert response.status_code == 410 and response.json()["error"]["code"] == "retry_context_unavailable"
+    assert response.status_code == 404
 
 
 @pytest.mark.parametrize("target", ["/api/v1/cash-mutations/receipts/by-key?key=private-query-key&other=secret",

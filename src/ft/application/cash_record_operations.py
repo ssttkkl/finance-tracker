@@ -11,7 +11,7 @@ from ft.application.cash_import_issues import cash_import_issue
 from ft.application.cash_import_operations import _batches, _draft_accounts, _remaining_funding_issues, _validate_component_ids, _wire
 from ft.application.parsed_import_staging import ParsedImportDataError, _json_budget, _json_bytes
 from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, MUTABLE_CASH_FIELDS, COMMON_CASH_FIELDS,
-    CashRecordPolicyError, _normalize, prepare_cash_record_update, validate_cash_record_for_posting)
+    CashRecordPolicyError, _normalize, prepare_cash_record_update, validate_cash_component_consistency, validate_cash_record_for_posting)
 from ft.domain.cash_source_matching import _digest
 
 
@@ -226,7 +226,15 @@ class CashRecordOperationPlanner:
                 accounts.update((str(account.id), {"active": account.active, "type": account.type, "currencies": account.currencies})
                     for account in self.session.scalars(select(AccountModel).where(AccountModel.workspace_id == self.workspace_id,
                         AccountModel.id.in_(batch))))
+            if patch.keys() & CASH_FINANCIAL_FIELDS:
+                validate_cash_component_consistency(values)
             issues, dependencies = _draft_accounts(values, accounts)
+            explicit_accounts = {str(identifier) for identifier in [patch.get("account_id"),
+                *(part.get("account_id") for part in patch.get("components", []))] if identifier is not None}
+            if any((dependency["account_id"] in explicit_accounts or "currency" in patch) and (
+                not dependency["exists"] or not dependency["active"] or dependency["type"] not in {"cash", "loan", "lend"}
+                or not all(dependency["currency_support"].values())) for dependency in dependencies):
+                raise CashRecordPolicyError("account_unavailable", ("account_id",))
             try:
                 validate_cash_record_for_posting(values)
             except CashRecordPolicyError as error:

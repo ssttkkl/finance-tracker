@@ -374,3 +374,30 @@ def test_draft_component_ordinal_has_same_boundary_in_both_databases(context_run
         with runtime.sessions() as session:
             assert session.scalar(select(CashMutationReceiptModel).where(
                 CashMutationReceiptModel.idempotency_key == "synthetic-draft-ordinal-limit")) is None
+
+@pytest.mark.parametrize("missing_time", [False, True])
+@pytest.mark.parametrize("invalid", ["total", "direction", "currency", "account", "inactive"])
+def test_explicit_draft_financial_contradiction_is_rejected_before_save(context_runtime, missing_time, invalid):
+    from ft.adapters.relational.models import AccountModel
+    from ft.domain.cash_record_policy import CashRecordPolicyError
+    runtime, identifier = context_runtime, _draft(context_runtime)
+    service = _service(runtime)
+    before = service.read(identifier)
+    patch = {"cash_granularity": "aggregate", "account_id": None, "amount": "-12.5", "currency": "CNY",
+        "components": [{"ordinal": 0, "account_id": "101", "amount": "-5", "currency": "CNY"},
+            {"ordinal": 1, "account_id": "102", "amount": "-7.5", "currency": "CNY"}]}
+    if missing_time:
+        patch["occurred_at"] = None
+    if invalid == "total": patch["components"][1]["amount"] = "-6"
+    elif invalid == "direction": patch["components"][1]["amount"] = "7.5"
+    elif invalid == "currency": patch["components"][1]["currency"] = "EUR"
+    elif invalid == "account": patch["components"][1]["account_id"] = "999991"
+    elif invalid == "inactive":
+        with runtime.sessions.begin() as session: session.get(AccountModel, 102).active = False
+    with pytest.raises(CashRecordPolicyError):
+        service.save_draft(identifier, expected_revision=before["row_revision"], patch=patch,
+            idempotency_key="synthetic-draft-finance-rejected")
+    assert service.read(identifier) == before
+    with runtime.sessions() as session:
+        assert session.scalar(select(CashMutationReceiptModel).where(
+            CashMutationReceiptModel.idempotency_key == "synthetic-draft-finance-rejected")) is None

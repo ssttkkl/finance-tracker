@@ -6,6 +6,7 @@ import com.finance.tracker.presentation.CashDraftAllocation
 import com.finance.tracker.presentation.CashDraftAllocationInput
 import com.finance.tracker.presentation.cashRecordFieldPatch
 import com.finance.tracker.presentation.validateCashImportFinancialPatch
+import com.finance.tracker.presentation.validateCashDraftFinancialPatch
 import com.finance.tracker.presentation.localDateTimeWithDate
 import com.finance.tracker.presentation.localDateTimeWithTime
 import kotlin.test.*
@@ -23,6 +24,20 @@ class CashDraftInputTest {
         assertFailsWith<DomainFailure> { check(listOf(CashDraftAllocation(null, 0, "101", "-6", "CNY"), CashDraftAllocation(null, 0, "101", "-6.5", "CNY"))) }
         check(listOf(CashDraftAllocation(null, 0, "101", "", "CNY")))
         check(listOf(CashDraftAllocation(null, 0, "101", "-12.5000", "CNY")))
+    }
+
+    @Test fun draftFinancialChecksLinkSingleScalarsAndRejectKnownContradictions() {
+        val account = Account(101, "账户", "cash", currencies = listOf("CNY"))
+        val draft = record().copy(fields = StructuredObject(mapOf(
+            "amount" to StructuredText("-12.5"), "currency" to StructuredText("CNY"), "account_id" to StructuredText("101"),
+            "cash_granularity" to StructuredText("atomic"), "components" to StructuredArray(listOf(StructuredObject(mapOf(
+                "ordinal" to StructuredNumber("0"), "account_id" to StructuredText("101"),
+                "amount" to StructuredText("-12.5"), "currency" to StructuredText("CNY"))))))))
+        validateCashDraftFinancialPatch(draft, StructuredObject(mapOf("amount" to StructuredText("-20"))), listOf(account))
+        val invalid = StructuredObject(mapOf("components" to StructuredArray(listOf(StructuredObject(mapOf(
+            "ordinal" to StructuredNumber("0"), "account_id" to StructuredText("101"),
+            "amount" to StructuredText("-10"), "currency" to StructuredText("CNY")))))))
+        assertFailsWith<DomainFailure> { validateCashDraftFinancialPatch(draft, invalid, listOf(account)) }
     }
 
     @Test fun switchingBackToSingleNeverSubmitsHiddenSplitEdits() {

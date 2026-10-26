@@ -276,7 +276,7 @@ class CashRecordTaskViewModelTest {
     private lateinit var store: DetailStore
 }
 private fun detailRecord() = CashCurrentRecord("import", null, "11", "draft", 3, "pending", StructuredObject(emptyMap()), listOf("amount", "note"), emptyList(), emptyList(), null)
-private fun detailReceipt() = ImportReceipt("receipt1", "mp_one", "finalize_draft", true, "2026-10-24T00:00:00Z", "completed", emptyMap(), emptyMap(), null, null, null, null, null, "11", null, null, null)
+private fun detailReceipt() = ImportReceipt("receipt1", "mp_one", "finalize_draft", true, "2026-10-24T00:00:00Z", "completed", emptyMap(), emptyMap(), null, null, null, "11", null, null, null)
 private class DetailStore : CashMaintenanceRecoveryStore {
     var delayLoad: CompletableDeferred<Unit>? = null
     var pointer: CashMaintenanceRecoveryPointer? = null; var failSave = false

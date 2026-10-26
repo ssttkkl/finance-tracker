@@ -567,7 +567,7 @@ class ImportTaskViewModelTest {
 
 private val TASK_SESSION = "a".repeat(43)
 private val TASK_PLAN = "ip_$TASK_SESSION.${"b".repeat(16)}"
-private fun taskReceipt() = ImportReceipt("receipt1", TASK_PLAN, "import", true, "2026-10-23T00:00:00Z", "complete", emptyMap(), emptyMap(), 0, 0, 1, null, null, null, null, null, null)
+private fun taskReceipt() = ImportReceipt("receipt1", TASK_PLAN, "import", true, "2026-10-23T00:00:00Z", "complete", emptyMap(), emptyMap(), 0, 0, 1, null, null, null, null)
 private fun taskFile() = object : FileSource {
     override val name = "synthetic.csv"
     override val mediaType: String? = null
@@ -674,7 +674,6 @@ internal class TaskRepository : CashImportLifecycleRepository {
         beforeResults()
         return resultPages.removeFirst()
     }
-    override suspend fun retry(receiptId: String, idempotencyKey: String, rowRefs: List<String>?): ImportContext = error("unused")
     override suspend fun accounts(): List<ImportAccountListItem> = error("unused")
     override suspend fun account(accountId: String): ImportAccount = error("unused")
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = error("unused")

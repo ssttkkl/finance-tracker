@@ -354,3 +354,20 @@ def test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_
     store._entries.clear()
     resolved = client.post("/api/v1/cash-mutations/resolve", json={"plan_id": plan["plan_id"], "idempotency_key": "synthetic-maintenance-confirm"})
     assert resolved.json() == {"status": "committed", "receipt": saved.json()}
+
+
+def test_changed_account_after_finalize_preview_is_a_known_refusal(context_runtime, monkeypatch):
+    from ft.adapters.relational.models import AccountModel
+    runtime = context_runtime
+    identifier = _draft(runtime)
+    before = _records(runtime).read(identifier)
+    client, _ = _client(runtime, monkeypatch)
+    response = _preview(client, runtime, identifier, intent="finalize_draft", patch=_complete(before))
+    assert response.status_code == 200, response.text
+    plan = response.json()
+    with runtime.sessions.begin() as session:
+        session.get(AccountModel, 101).active = False
+    rejected = _commit(client, plan)
+    assert rejected.status_code in (409, 422), rejected.text
+    assert rejected.json()["commit_state"] == "not_committed"
+    assert _records(runtime).read(identifier) == before

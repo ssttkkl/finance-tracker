@@ -55,13 +55,6 @@ suspend fun FinanceApiClient.resolveCashMutation(planId: String, idempotencyKey:
     return request(HttpMethod.Post, "/api/v1/cash-mutations/resolve", buildJsonObject { put("plan_id", planId); put("idempotency_key", idempotencyKey) })
 }
 
-suspend fun FinanceApiClient.retryCashImport(receiptId: String, idempotencyKey: String, rowRefs: List<String>? = null): CashImportSessionDto {
-    if (rowRefs != null && rowRefs.size !in 1..100_000) invalidCashInput()
-    return request(HttpMethod.Post, "/api/v1/cash-import/receipts/${encodePathSegment(receiptId)}/retry-sessions", buildJsonObject {
-        put("row_refs", rowRefs?.let { apiJson.encodeToJsonElement(it) } ?: JsonNull)
-    }, cashKeyHeaders(idempotencyKey))
-}
-
 private fun importPlanPath(id: String) = "$IMPORT_PLANS/${encodePathSegment(id)}"
 private fun receiptPath(id: String) = "$RECEIPTS/${encodePathSegment(id)}"
 private fun requireReceiptLookupKey(key: String) {

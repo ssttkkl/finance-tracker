@@ -108,7 +108,7 @@ data class ImportReceipt(
     val receiptId: String, val planId: String?, val operationKind: String, val committed: Boolean,
     val createdAt: String, val status: String?, val summary: Map<String, Long>, val legacyByAccount: Map<String, Long>,
     val needsAttentionCount: Long?, val pendingItemCount: Long?, val projectionVersion: Long?,
-    val retryContextStatus: String?, val retryContextExpiresAt: String?, val retainedTransactionId: String?,
+    val retainedTransactionId: String?,
     val accountId: String?, val accountRevision: Long?, val account: ImportAccount?,
     val commitOutcome: ImportCommitOutcome? = null,
 )
@@ -136,7 +136,6 @@ interface CashImportLifecycleRepository {
     suspend fun receiptByKey(key: String): ImportReceipt
     suspend fun results(receiptId: String, kind: ImportResultKind, after: String = "0", limit: Int = 50): ImportResultPage
     suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult
-    suspend fun retry(receiptId: String, idempotencyKey: String, rowRefs: List<String>? = null): ImportContext
     suspend fun accounts(): List<ImportAccountListItem>
     suspend fun account(accountId: String): ImportAccount
     suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount

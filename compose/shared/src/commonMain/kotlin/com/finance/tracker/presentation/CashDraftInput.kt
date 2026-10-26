@@ -54,6 +54,19 @@ internal fun cashDraftPatch(record: CashCurrentRecord, changes: Map<String, Stri
     return cashRecordFieldPatch(record.editableFields, changes, timeZoneId, allocations)
 }
 
+internal fun validateCashDraftFinancialPatch(record: CashCurrentRecord, patch: StructuredObject, accounts: List<Account>) {
+    var checked = patch
+    val fields = record.fields.fields + patch.fields
+    val parts = (fields["components"] as? StructuredArray)?.values.orEmpty()
+    val linked = patch.fields.keys.intersect(setOf("amount", "currency", "account_id"))
+    if (linked.isNotEmpty() && "components" !in patch.fields && fields["cash_granularity"].cashText() != "aggregate" && parts.size <= 1) {
+        val part = (parts.singleOrNull() as? StructuredObject)?.fields.orEmpty()
+        val effective = part + linked.associateWith { fields[it] ?: StructuredNull }
+        checked = StructuredObject(patch.fields + ("components" to StructuredArray(listOf(StructuredObject(effective)))))
+    }
+    validateCashImportFinancialPatch(record.fields, checked, accounts)
+}
+
 internal fun validateCashImportFinancialPatch(original: StructuredObject, patch: StructuredObject, accounts: List<Account>) {
     if (patch.fields.keys.none { it in setOf("amount", "currency", "account_id", "cash_granularity", "components") }) return
     fun invalid(): Nothing = throw DomainFailure("invalid_allocation", 0, FailureCategory.RECOVERABLE)

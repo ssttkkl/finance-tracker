@@ -48,16 +48,18 @@ def test_explicit_parts_and_split_drafts_are_not_implicitly_rewritten(context_ru
     before = records.read(identifier)
     part = before["fields"]["components"][0]
     explicit = {**part, "amount": "-9.000"}
-    view = _preview(service, runtime, identifier, intent="save_draft", patch={"account_id": "101", "components": [explicit]})
+    view = _preview(service, runtime, identifier, intent="save_draft", patch={"amount": "-9", "account_id": "101", "components": [explicit]})
     assert _members(service, view)[identifier]["fields"]["components"] == [explicit]
     records.save_draft(identifier, expected_revision=before["row_revision"], idempotency_key="synthetic-split-linkage", patch={
         "cash_granularity": "aggregate", "components": [{**part, "amount": "-6"}, {"ordinal": 1, "amount": "-6.5", "currency": "CNY", "account_id": None}]})
     split = records.read(identifier)
-    view = _preview(service, runtime, identifier, intent="save_draft", patch={"account_id": "101", "amount": "-20"})
-    assert _members(service, view)[identifier]["fields"]["components"] == split["fields"]["components"]
+    from ft.domain.cash_record_policy import CashRecordPolicyError
+    with pytest.raises(CashRecordPolicyError, match="component_total_mismatch"):
+        _preview(service, runtime, identifier, intent="save_draft", patch={"amount": "-20"})
+    assert records.read(identifier) == split
 
 
-@pytest.mark.parametrize("part_amount", [None, "-15.0020"])
+@pytest.mark.parametrize("part_amount", [None, "-14.0000"])
 def test_source_explicit_atomic_part_is_preserved_when_only_account_is_changed(context_runtime, part_amount):
     runtime, identifier = context_runtime, _draft(context_runtime)
     with runtime.sessions.begin() as session:

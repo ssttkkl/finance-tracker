@@ -39,6 +39,6 @@ class ImportTaskExitTest {
 
     private fun completed(status: String, writes: Boolean?): ImportTaskUiState = ImportTaskUiState(
         receipt = ImportReceipt("receipt", "plan", "import", true, "now", status, emptyMap(), emptyMap(),
-            0, 0, 1, null, null, null, null, null, null,
+            0, 0, 1, null, null, null, null,
             writes?.let { ImportCommitOutcome(status == "failed", it, emptyList()) }), submission = ImportSubmissionState.COMPLETE)
 }

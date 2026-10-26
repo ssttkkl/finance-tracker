@@ -51,10 +51,6 @@ class ImportCommitInput(StrictInput):
     expected_session_revision: Revision
 
 
-class RetrySessionInput(StrictInput):
-    row_refs: list[Reference] | None = Field(default=None, min_length=1, max_length=100_000)
-
-
 class ResolveInput(StrictInput):
     plan_id: ShortReference
     idempotency_key: Reference
@@ -247,8 +243,6 @@ class MutationReceiptView(Output):
     needs_attention_count: Count | None = None
     pending_item_count: Count | None = None
     projection_version: Count | None = None
-    retry_context_status: Literal["available", "reselect_file"] | None = None
-    retry_context_expires_at: str | None = None
     retained_transaction_id: str | None = None
     account_id: str | None = None
     account_revision: Revision | None = None

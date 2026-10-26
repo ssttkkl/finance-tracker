@@ -114,19 +114,19 @@ def test_document_page_proof_and_locator_roundtrip_without_original_file(staging
     assert restored.coverage == coverage and restored.rows[0].document_position == "p2:t0:r1"
 
 
-def test_retry_context_inherits_original_lifetime_and_clears_private_data_on_cancel(staging):
+def test_edit_context_inherits_original_lifetime_and_clears_private_data_on_cancel(staging):
     store, now, _ = staging
     original = _create(store)
     now[0] += timedelta(seconds=30)
     child = store.create(workspace_id=original.workspace_id, user_id=original.user_id,
-        files=original.files, workflow_kind="retry", context_data={"synthetic_proof": "a" * 64},
+        files=(), workflow_kind="mutation", context_data={"synthetic_proof": "a" * 64},
         created_at=original.created_at, expires_at=original.expires_at)
     assert child.created_at == original.created_at and child.expires_at == original.expires_at
-    assert _get(store, child).workflow_kind == "retry"
+    assert _get(store, child).workflow_kind == "mutation"
     child.context_data["synthetic_proof"] = "caller mutation"
     assert _get(store, child).context_data == {"synthetic_proof": "a" * 64}
     changed = _replace(store, child, preview_input={"synthetic": True})
-    assert changed.expires_at == original.expires_at and changed.workflow_kind == "retry"
+    assert changed.expires_at == original.expires_at and changed.workflow_kind == "mutation"
     closed = store.cancel(child.session_id, workspace_id=child.workspace_id,
         user_id=child.user_id, expected_revision=changed.revision)
     assert closed.context_data == {} and closed.files == () and closed.cancelled
@@ -170,7 +170,7 @@ def test_mutation_context_cannot_gain_files_or_allow_empty_import(staging):
 
 
 @pytest.mark.parametrize("kind,created_offset,expires_offset", [
-    ("arbitrary", 0, 60), ("retry", 0, 1900), ("retry", 10, 60), ("retry", -60, -1),
+    ("arbitrary", 0, 60), ("mutation", 0, 1900), ("mutation", 10, 60), ("mutation", -60, -1),
 ])
 def test_invalid_context_kind_or_lifetime_cannot_be_written(staging, kind, created_offset, expires_offset):
     store, now, _ = staging
@@ -779,17 +779,6 @@ def test_public_plan_page_cache_is_bounded_by_current_object_owner_and_lifetime(
         read()
 
 
-def test_retry_plan_pages_never_cache_root_receipt_dependent_results(staging):
-    store, _now, _client = staging
-    value = store.create(workspace_id="w", user_id="u", files=(_file(),), workflow_kind="retry")
-    calls = []
-    def page(_snapshot):
-        calls.append(1)
-        return {"count": len(calls)}
-    def read():
-        return store.read_plan_projection(value.session_id, workspace_id="w", user_id="u", projection_key=("items",), project=page)
-    assert read() == {"count": 1}
-    assert read() == {"count": 2}
 
 
 def test_public_plan_cache_never_hides_storage_failures_and_bounds_payloads(staging, monkeypatch):
@@ -840,3 +829,10 @@ def test_late_old_page_fill_cannot_replace_a_new_revision_response(staging):
             release.set()
         assert old.result() == {"revision": 2}
     assert read() == {"revision": 3}
+
+@pytest.mark.parametrize("kind", ["retry", "retry_capsule"])
+def test_retired_failed_subset_kinds_cannot_be_created(staging, kind):
+    store, _now, _client = staging
+    from ft.application.parsed_import_staging import ParsedImportDataError
+    with pytest.raises(ParsedImportDataError):
+        store.create(workspace_id="w", user_id="u", files=(_file(),), workflow_kind=kind)

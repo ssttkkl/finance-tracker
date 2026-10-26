@@ -75,7 +75,7 @@ def apply_entry_choices(result, choices, previous, session, workspace_id):
     result["entry_edits"] = edits
 
 
-def save_entry_choices(session, workspace_id, edits, identity, failed, relation_results):
+def save_entry_choices(session, workspace_id, edits, identity, relation_results):
     from sqlalchemy import select
     from ft.adapters.relational.cash_entries import CashEntryRepository
     from ft.adapters.relational.models import CashEntryMemberModel
@@ -90,8 +90,6 @@ def save_entry_choices(session, workspace_id, edits, identity, failed, relation_
             if outcomes.get(dependency["suggestion_id"]) not in {expected, "duplicate"}:
                 raise CashImportPlanError("plan_changed")
         parents = target["parent_ids"]
-        if set(parents).intersection(failed):
-            raise CashImportPlanError("plan_changed")
         identifiers = {int(identity.get(parent, parent)) for parent in parents}
         if any(identifier >= 2 ** 63 for identifier in identifiers):
             raise CashImportPlanError("plan_changed")

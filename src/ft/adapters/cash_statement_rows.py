@@ -166,8 +166,8 @@ def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDo
             continue
         try:
             rows.append(_normalize_row(row.payload, document.source_type, row.position))
-        except Exception:
-            # 适配器的单条异常不能泄露技术信息或阻塞其余来源行。
+        except (ValueError, TypeError, ArithmeticError):
+            # 可识别的源字段错误按行处理；内部异常交给文件解析边界。
             rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
     usable = all(not row.issue_codes and row.error_code in {None, "unpaid_closed", "failed_repay"} for row in rows)
     coverage = document.coverage if usable else replace(document.coverage, complete=False, evidence="")
@@ -267,7 +267,7 @@ def normalize_bank_document(document: CashStatementDocument) -> ParsedCashDocume
             continue
         try:
             rows.append(_bank_row(row.payload, document, row.position))
-        except Exception:
+        except (ValueError, TypeError, ArithmeticError):
             rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
     usable = all(not row.issue_codes and row.error_code in {None, "account_opening"}
         and (row.fields is None or document.coverage.contains(row.fields.get("occurred_at"))) for row in rows)

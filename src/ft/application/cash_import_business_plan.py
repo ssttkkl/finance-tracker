@@ -516,32 +516,18 @@ class CashImportBusinessPlanBuilder:
                 tails[alias.alias_value].append(str(alias.account_id))
             elif alias.alias_type == "account_identifier":
                 identifiers[alias.alias_value].append(str(alias.account_id))
-        failures = []
-        def run(selected):
-            try:
-                with localcontext() as arithmetic:
-                    arithmetic.prec = 80
-                    return list(plan_relation_proposals(facts, seed_ids=selected, accepted_relations=accepted,
-                        aliases_by_tail=dict(tails), account_identifiers_by_value=dict(identifiers),
-                        workspace_id=self.workspace_id, require_unique_mirrors=True).proposals)
-            except Exception:
-                if len(selected) > 1:
-                    middle = len(selected) // 2
-                    return [*run(selected[:middle]), *run(selected[middle:])]
-                failures.append({"code": "relation_discovery_failed", "parent_ids": [snapshot.components[selected[0]].transaction_id]})
-                return []
-        proposals = run(sorted(seeds))
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            proposals = list(plan_relation_proposals(facts, seed_ids=sorted(seeds), accepted_relations=accepted,
+                aliases_by_tail=dict(tails), account_identifiers_by_value=dict(identifiers),
+                workspace_id=self.workspace_id, require_unique_mirrors=True).proposals)
         by_key = {}
         for proposal in proposals:
-            try:
-                if not isinstance(proposal, RelationProposal):
-                    raise ValueError
-                key = (proposal.kind, proposal.subtype, proposal.primary_fact_id, proposal.secondary_fact_id)
-                by_key.setdefault(key, proposal)
-            except Exception:
-                failures.append({"code": "relation_discovery_failed", "parent_ids": sorted({
-                    snapshot.components[seed].transaction_id for seed in seeds})})
-        return list(by_key.values()), failures
+            if not isinstance(proposal, RelationProposal):
+                raise CashImportPlanError("plan_build_failed")
+            key = (proposal.kind, proposal.subtype, proposal.primary_fact_id, proposal.secondary_fact_id)
+            by_key.setdefault(key, proposal)
+        return list(by_key.values()), []
 
     def _groups(self, snapshot, proposals):
         old_keys = {_edge_key(edge): edge for edge in snapshot.edges.values() if edge.active}
@@ -555,7 +541,7 @@ class CashImportBusinessPlanBuilder:
                 member = self._proposal_member(snapshot, proposal, old_keys)
                 if member is not None:
                     converted[str(member["edge"].id)] = member
-            except Exception as error:
+            except CashRelationError as error:
                 if parents.intersection(new_parents):
                     failures.append({"code": error.code if isinstance(error, CashRelationError) else "relation_discovery_failed",
                         "parent_ids": sorted(parents)})

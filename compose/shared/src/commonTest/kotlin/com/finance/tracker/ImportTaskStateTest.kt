@@ -283,5 +283,5 @@ class ImportTaskStateTest {
         listOf("note"), listOf("apply", "defer"), null)), emptyList(), emptyList(), emptyList(), emptyList())
     private fun processing() = ImportProcessingDetail("f:r2", null, "f", "skip", null, null, "row_unreadable", "未能读取", null, null, null)
     private fun receipt() = ImportReceipt("receipt1", "ip_one", "import", true, "2026-01-01", "partial", emptyMap(), emptyMap(),
-        1, 1, 9, null, null, null, null, null, null)
+        1, 1, 9, null, null, null, null)
 }

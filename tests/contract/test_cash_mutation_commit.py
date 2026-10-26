@@ -124,14 +124,8 @@ def test_failure_after_second_category_member_rolls_back_the_entire_record_unit(
             raise RuntimeError("synthetic private second member failure")
         return result
     monkeypatch.setattr(CashRecordWriter, "save", fail)
-    receipt = _commit(service, view)
-    assert len(attempted) == 1 and receipt["status"] == "failed" and receipt["summary"]["skipped"] == 1
-    assert receipt["summary"]["updated_posted"] == 0 and receipt["summary"]["relations_removed"] == 0
-    assert {identifier: _records(runtime).read(identifier) for identifier in before} == before
-    with runtime.sessions() as session:
-        assert session.get(TransactionRelationModel, relation_id).active
-    assert _snapshot(runtime) == balances
-    assert {item["code"] for item in _results(service, receipt, "row")} == {"row_save_failed"}
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, view), CashCommitFailure)
 
 
 def test_retained_source_problem_body_and_revision_survive_formal_edit(context_runtime):
@@ -178,7 +172,7 @@ def test_publication_failure_rolls_back_record_and_keeps_context_retryable(conte
             CashMutationReceiptModel.operation_kind == "mutation")) == 0
 
 
-def test_new_relation_failure_keeps_finalized_record_and_visible_current_problem(context_runtime, monkeypatch):
+def test_new_relation_failure_rolls_back_finalization_and_all_business_writes(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     runtime = context_runtime
     bank = _as_source(_file(letter="b", provider="bank-only"), "icbc_debit")
@@ -194,15 +188,8 @@ def test_new_relation_failure_keeps_finalized_record_and_visible_current_problem
         original(*args, **kwargs)
         raise RuntimeError("synthetic private relation failure after flush")
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    receipt = _commit(service, view)
-    assert receipt["status"] == "partial" and receipt["summary"]["finalized_draft"] == 1
-    assert receipt["summary"]["relations_failed"] == 1 and receipt["needs_attention_count"] == 2
-    current = _records(runtime).read(identifier)
-    assert current["state"] == "posted" and current["confirmation_status"] == "pending"
-    assert any(issue["code"] == "relation_save_failed" for issue in current["issues"])
-    with runtime.sessions() as session:
-        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
-    assert "synthetic private" not in str(receipt) + str(_results(service, receipt))
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, view), CashCommitFailure)
 
 
 def test_posted_source_text_user_edit_is_rejected_and_full_refund_stays_confirmed(context_runtime):
@@ -244,45 +231,31 @@ def test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previou
             raise RuntimeError("synthetic incomplete decision group")
         return row
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    receipt = _commit(service, view)
-    assert len(attempts) == 2 and receipt["summary"]["finalized_draft"] == 1 and receipt["summary"]["relations_failed"] == 1
-    assert _records(runtime).read(identifier)["state"] == "posted"
-    with runtime.sessions() as session:
-        assert {(row.id, row.active, row.state) for row in session.scalars(select(TransactionRelationModel))} == previous
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _commit(service, view), CashCommitFailure)
 
 
-def test_discovery_exception_keeps_finalization_and_publishes_a_safe_current_problem(context_runtime, monkeypatch):
+def test_discovery_exception_stops_finalization_without_publishing_a_problem(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
     service = _service(runtime)
     def fail(*args, **kwargs):
         raise RuntimeError("synthetic private native pairing failure")
     monkeypatch.setattr(business, "plan_relation_proposals", fail)
-    view = _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(_records(runtime).read(identifier)))
-    receipt = _commit(service, view)
-    current = _records(runtime).read(identifier)
-    assert receipt["summary"]["finalized_draft"] == 1 and current["state"] == "posted" and current["confirmation_status"] == "pending"
-    assert current["issues"] and "synthetic private" not in str(current) + str(receipt)
-    assert receipt["status"] == "partial" and receipt["summary"]["relations_failed"] == 1
-    result, = _results(service, receipt, "relation")
-    assert result["outcome"] == "failed" and result["code"] == "relation_discovery_failed"
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(_records(runtime).read(identifier))), RuntimeError)
 
 
-def test_import_discovery_failure_is_also_present_in_permanent_relation_results(context_runtime, monkeypatch):
+def test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     def fail(*args, **kwargs):
         raise RuntimeError("synthetic private native pairing failure")
     monkeypatch.setattr(business, "plan_relation_proposals", fail)
-    importer, plan = _plan(context_runtime)
-    assert plan["summary"]["relations_failed"] == 1
-    receipt = _import_commit(importer, plan)
-    assert receipt["status"] == "partial" and receipt["summary"]["created_posted"] == 1
-    assert receipt["summary"]["relations_failed"] == 1
-    result, = _results(importer, receipt, "relation")
-    assert result["outcome"] == "failed" and result["code"] == "relation_discovery_failed" and result["transaction_id"]
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _plan(context_runtime), RuntimeError)
 
 
-def test_two_failed_payment_components_have_one_current_discovery_problem_and_result(context_runtime, monkeypatch):
+def test_component_discovery_exception_stops_preview_without_creating_problems(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
     detail = _records(runtime).read(identifier)
@@ -291,45 +264,22 @@ def test_two_failed_payment_components_have_one_current_discovery_problem_and_re
         raise RuntimeError("synthetic per-component native failure")
     monkeypatch.setattr(business, "plan_relation_proposals", fail)
     service = _service(runtime)
-    view = _preview(service, runtime, identifier, intent="finalize_draft", patch={"cash_granularity": "aggregate", "account_id": None,
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
+    _assert_atomic_failure(context_runtime, lambda: _preview(service, runtime, identifier, intent="finalize_draft", patch={"cash_granularity": "aggregate", "account_id": None,
         "components": [{"component_id": part["component_id"], "ordinal": 0, "account_id": "101", "currency": "CNY", "amount": "-5"},
-            {"ordinal": 1, "account_id": "102", "currency": "CNY", "amount": "-7.5"}]})
-    assert view["summary"]["relations_failed"] == 1
-    receipt = _commit(service, view)
-    assert receipt["summary"]["finalized_draft"] == receipt["summary"]["relations_failed"] == 1
-    assert len(_results(service, receipt, "relation")) == 1
-    current = _records(runtime).read(identifier)
-    assert len(current["fields"]["components"]) == 2
-    assert sum(issue["code"] == "relation_discovery_failed" for issue in current["issues"]) == 1
+            {"ordinal": 1, "account_id": "102", "currency": "CNY", "amount": "-7.5"}]}), RuntimeError)
 
 
-@pytest.mark.parametrize("failure", ["connection", "problem"])
-def test_connection_or_failed_problem_publication_rolls_back_outer_transaction(context_runtime, monkeypatch, failure):
+def test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan(context_runtime, monkeypatch):
     from sqlalchemy.exc import OperationalError
+    from tests.contract.test_cash_import_commit import _assert_atomic_failure
     runtime, identifier = context_runtime, _draft(context_runtime)
-    before = _records(runtime).read(identifier)
-    balances = _snapshot(runtime)
     service = _service(runtime)
-    if failure == "problem":
-        import ft.application.cash_import_business_plan as business
-        def discovery_fail(*args, **kwargs):
-            raise RuntimeError("synthetic native failure")
-        monkeypatch.setattr(business, "plan_relation_proposals", discovery_fail)
-    view = _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(before))
-    if failure == "connection":
-        original = service._save_row
-        def fail(*args, **kwargs):
-            original(*args, **kwargs)
-            raise OperationalError("synthetic driver failure", {}, Exception("private detail"), connection_invalidated=True)
-        monkeypatch.setattr(service, "_save_row", fail)
-    else:
-        original = CashSourceRepository.save_issue
-        def fail(*args, **kwargs):
-            original(*args, **kwargs)
-            raise RuntimeError("synthetic failed problem publication")
-        monkeypatch.setattr(CashSourceRepository, "save_issue", fail)
-    with pytest.raises(CashCommitFailure) as error:
-        _commit(service, view)
-    assert error.value.commit_state == "not_committed"
-    assert _records(runtime).read(identifier) == before and _snapshot(runtime) == balances
+    view = _preview(service, runtime, identifier, intent="finalize_draft", patch=_complete(_records(runtime).read(identifier)))
+    original = service._save_row
+    def fail(*args, **kwargs):
+        original(*args, **kwargs)
+        raise OperationalError("synthetic driver failure", {}, Exception("private detail"), connection_invalidated=True)
+    monkeypatch.setattr(service, "_save_row", fail)
+    _assert_atomic_failure(runtime, lambda: _commit(service, view))
     assert service.read_plan(view["plan_id"]) == view

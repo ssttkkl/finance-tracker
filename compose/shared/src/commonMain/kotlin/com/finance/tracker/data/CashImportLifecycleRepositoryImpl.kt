@@ -28,7 +28,6 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
     override suspend fun receiptByKey(key: String): ImportReceipt = guarded { api.readCashMutationReceiptByKey(key).toDomain() }
     override suspend fun results(receiptId: String, kind: ImportResultKind, after: String, limit: Int): ImportResultPage = guarded { api.readCashMutationResults(receiptId, CashMutationResultKind.valueOf(kind.name), after, limit).toDomain() }
     override suspend fun resolve(planId: String, idempotencyKey: String): ImportResolveResult = guarded { api.resolveCashMutation(planId, idempotencyKey).toDomain() }
-    override suspend fun retry(receiptId: String, idempotencyKey: String, rowRefs: List<String>?): ImportContext = guarded { api.retryCashImport(receiptId, idempotencyKey, rowRefs).toDomain() }
     override suspend fun accounts(): List<ImportAccountListItem> = guarded { api.listCashImportAccounts().map(ImportAccountListItemDto::toDomain) }
     override suspend fun account(accountId: String): ImportAccount = guarded { api.readImportAccount(accountId).toDomain() }
     override suspend fun createAccount(name: String, type: String, currencies: List<String>, idempotencyKey: String): ImportAccount = guarded { api.createImportAccount(name, type, currencies, idempotencyKey).toDomain() }
