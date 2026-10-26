@@ -11,7 +11,7 @@ from ft.adapters.relational.models import (AccountModel, CashSourceBindingModel,
 from ft.adapters.relational.uow import RelationalUnitOfWork
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from ft.application.cash_commit_outcome import CashCommitFailure
-from tests.contract.test_cash_import_operations import _file, _selections, _bind_existing
+from tests.contract.test_cash_import_operations import _as_source, _file, _selections, _bind_existing
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
 
@@ -317,7 +317,7 @@ def test_stale_existing_counterpart_issue_only_defers_original_group_not_indepen
 
 def _mirror_files():
     platform, bank = _file(), _file(letter="b", provider="bank-1")
-    bank = replace(bank, source_type="icbc_debit", document=replace(bank.document, source_type="icbc_debit"))
+    bank = _as_source(bank, "icbc_debit")
     return platform, bank
 
 
@@ -403,6 +403,7 @@ def _refund_bundle():
     d = replace(c, file_ref="file_d", client_file_ref="client_d", digest="d" * 64, source_type="icbc_debit",
         document=replace(c.document, source_type="icbc_debit", rows=(replace(c.document.rows[0], provider_id="004",
             source_explanation={"_is_refund": True, "_icbc_refund_merchant_trusted": True}),)))
+    d = _as_source(d, "icbc_debit")
     return a, b, c, d
 
 
@@ -437,7 +438,8 @@ def test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_other_group_co
     files = list(_refund_bundle())
     for letter, source in (("e", "alipay"), ("f", "ccb_debit")):
         file = _file(letter=letter, amount="-3", provider="another-" + letter)
-        files.append(replace(file, source_type=source, document=replace(file.document, source_type=source)))
+        files.append(_as_source(file, source) if source == "ccb_debit" else
+            replace(file, source_type=source, document=replace(file.document, source_type=source)))
     service, plan = _plan(context_runtime, files)
     original, attempts = CurrentCashRelationRepository.add, []
     def fail(self, values):

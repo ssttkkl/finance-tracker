@@ -33,6 +33,26 @@ def _file(*, amount="-12.5", name="合成商户", note="原始备注", letter="a
     return ParsedImportFile(f"file_{letter}", f"client_{letter}", "synthetic.csv", letter * 64, 100, "alipay", "parsed", document)
 
 
+_UNSET_OWNER = object()
+
+
+def _as_source(file, source, *, owner=_UNSET_OWNER, scope=None):
+    document_owner = file.document.source_account_identifier if owner is _UNSET_OWNER else owner
+    rows = file.document.rows
+    if source in {"icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia"}:
+        base = {"icbc_credit": "工商银行信用卡", "icbc_debit": "工商银行借记卡",
+            "ccb_debit": "建设银行", "icbc_asia": "工银亚洲"}[source]
+        updated = []
+        for row in rows:
+            row_owner = row.source_account_identifier or document_owner
+            tail = row_owner[-4:] if isinstance(row_owner, str) and row_owner.isascii() and row_owner.isdigit() else ""
+            label = base + (f"({tail})" if tail and source != "icbc_asia" else (f"（尾号 {tail}）" if tail else ""))
+            updated.append(replace(row, source_explanation={**row.source_explanation, "source_display_name": label}))
+        rows = tuple(updated)
+    document = replace(file.document, source_type=source, source_account_identifier=document_owner, rows=rows)
+    return replace(file, source_type=source, source_scope_label=scope, document=document)
+
+
 def _selections(files, account_id="101", revision=1):
     return [{"source_account_ref": group.source_account_ref, "account_id": account_id,
         "expected_account_revision": revision} for group in scan_cash_funding(files).groups]
@@ -52,6 +72,21 @@ def test_new_record_has_fields_without_fabricated_update_differences(draft_runti
         assert operation["planned_action"] == "create_posted"
         assert operation["values"]["amount"] == "-12.5" and operation["current"] is None
         assert operation["field_diffs"] == []
+
+
+def test_missing_alipay_funding_uses_wallet_group_and_can_post(draft_runtime):
+    original = _file()
+    row = replace(original.document.rows[0], payment_method="")
+    file = replace(original, document=replace(original.document, rows=(row,)))
+    group, = scan_cash_funding((file,)).groups
+    assert group.display_name == "支付宝余额"
+    with draft_runtime.sessions() as session:
+        result = _prepare(session, draft_runtime, (file,), selections=_selections((file,)))
+    operation, = result.operations
+    assert operation["planned_action"] == "create_posted"
+    assert operation["values"]["account_id"] == "101"
+    assert operation["values"]["components"] == [{"ordinal": 0, "account_id": "101", "amount": "-12.5", "currency": "CNY"}]
+    assert "funding_unrecognized" not in {issue["code"] for issue in operation["issues"]}
 
 
 @pytest.mark.parametrize("protected,explicit,expected", [(False, None, "人工修改的来源原文"), (True, None, "人工旧备注"), (False, "", "")])

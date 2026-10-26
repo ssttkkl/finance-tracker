@@ -44,6 +44,8 @@ def _platform(source_type, cells, amount):
         method, kind = _text(cells, "支付方式"), _text(cells, "交易类型")
         if direction not in {"支出", "收入"} and kind == "零钱提现":
             method = "零钱"
+        from ft.adapters.cash_statement_rows import _normalize_wechat_payment_method
+        method = _normalize_wechat_payment_method(method)
         return {"txn_type": kind, "txn_id": _text(cells, "交易单号"), "merchant_order_id": _text(cells, "商户单号"),
             "status": status, "platform_status": status, "_wechat_direction": direction,
             "payment_method": method, "_refund_signal": "wechat_status" if "退款" in status else ""}
@@ -56,6 +58,8 @@ def _platform(source_type, cells, amount):
         # 复用既有理财渠道规则；只取资金渠道，不采用其金额或收支结果。
         method = convert._alipay_route_wealth_product({"amount": amount, "note": description,
             "payment_method": method})["payment_method"]
+    from ft.adapters.cash_statement_rows import _normalize_alipay_payment_method
+    method = _normalize_alipay_payment_method(method)
     return {"txn_type": kind, "txn_id": _text(cells, "交易订单号"), "merchant_order_id": _text(cells, "商家订单号"),
         "platform_status": status, "_alipay_direction": direction, "payment_method": method,
         "_refund_signal": convert._alipay_refund_signal(txn_type=kind, txn_status=status,

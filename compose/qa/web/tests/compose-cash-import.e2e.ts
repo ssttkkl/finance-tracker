@@ -261,6 +261,20 @@ test("import account preparation keeps the single form within the desktop width 
 });
 
 
+test("missing Alipay funding shows the wallet fallback account group", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { context } = await setup(page);
+  context.source_accounts = [{ source_account_ref: "alipay-wallet", source_type: "alipay", display_name: "支付宝余额",
+    currencies: ["CNY"], row_count: 2, suggestion: { basis: "none" }, selection: null }];
+  await uploadAndReview(page, false, true);
+  const group = page.locator('[id^="cash.import.account-group-"]:visible');
+  await expect(group).toContainText("支付宝余额");
+  await expect(page.getByText("待选择账户", { exact: true })).toHaveCount(0);
+  await press(page, "cash.import.review");
+  await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("待核对商户");
+});
+
+
 test("import source differences show both statement bodies as readonly content", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await setup(page);

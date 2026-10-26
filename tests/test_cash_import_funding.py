@@ -9,10 +9,14 @@ from ft.application.parsed_import_staging import ParsedImportFile
 from ft.domain.cash_source_matching import SourceCoverage
 
 
-def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", label=None, ref="a", issues=()):
+def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", label=None, ref="a", issues=(), product=""):
+    display_names = {"icbc_credit": "工商银行信用卡", "icbc_debit": "工商银行借记卡",
+        "ccb_debit": "建设银行", "icbc_asia": "工银亚洲"}
     rows = tuple(ParsedCashRow(index, {"amount": amount, "currency": "CNY", "occurred_at": "2026-10-01T10:00:00+00:00",
         "record_type": "consumption", "record_subtype": "not_applicable", "note": "  原始备注  ",
-        "source_payload": {"付款方式": method}}, method, issue_codes=issues) for index, method in enumerate(methods, 1))
+        "source_payload": {"付款方式": method, "商品说明": product}}, method, issue_codes=issues,
+        source_explanation={"source_display_name": display_names[source] + (f"({owner[-4:]})" if source in display_names and owner else "")}
+            if source in display_names else {}) for index, method in enumerate(methods, 1))
     document = ParsedCashDocument(source, "table", "native-v1", rows, owner, owner, SourceCoverage(), len(rows), len(rows))
     return ParsedImportFile(ref, ref, "fixture.csv", ref * 64, 100, source, "parsed", document, source_scope_label=label)
 
@@ -87,36 +91,95 @@ def test_partial_allocation_is_not_filled_from_the_remainder():
     assert not row.ready and "allocation_missing" in row.issue_codes
 
 
-@pytest.mark.parametrize("amount,ready", [("0", True), (None, False), ("-10", False)])
-def test_only_known_zero_can_use_wallet_for_promotion_only_or_missing_funding(amount, ready):
-    scan = _scan(_file(methods=("红包&优惠券",), amount=amount))
-    row, = _resolve(scan, **({} if ready else {"selections": {}}))
-    assert row.ready is ready
-    if ready:
-        assert scan.groups[0].display_name == "支付宝余额"
-    else:
-        assert "funding_unrecognized" in row.issue_codes
+@pytest.mark.parametrize("method", ["红包&优惠券", "", " & ", "30元"])
+@pytest.mark.parametrize("amount", ["0", None, "-10", "10"])
+def test_missing_alipay_funding_defaults_to_wallet_for_any_direction(method, amount):
+    file = _file(methods=(method,), amount=amount)
+    original_payload = deepcopy(file.document.rows[0].fields["source_payload"])
+    scan = _scan(file)
+    group, = scan.groups
+    row, = _resolve(scan)
+    assert group.display_name == "支付宝余额"
+    assert row.group_refs == (group.source_account_ref,)
+    assert "funding_unrecognized" not in row.issue_codes
+    assert row.fields["components"][0]["account_id"] == "1"
+    assert file.document.rows[0].fields["source_payload"] == original_payload
 
 
-def test_explicit_account_choice_resolves_unrecognized_funding_without_inventing_identity():
-    scan = _scan(_file(methods=("",)))
-    unknown, = _resolve(scan, selections={})
-    completed, = _resolve(scan)
-    assert not unknown.ready and "funding_unrecognized" in unknown.issue_codes
-    assert completed.ready and not completed.issue_codes and completed.fields["account_id"] == "1"
-    assert scan.groups[0].identity_kind == "file_local"
+@pytest.mark.parametrize("amount", ["0", "-12", "12", None])
+def test_yuebao_product_description_is_the_specific_missing_account_fallback(amount):
+    file = _file(methods=("",), amount=amount, product="余额宝-2025.06.19-收益发放")
+    scan = _scan(file)
+    group, = scan.groups
+    row, = _resolve(scan)
+    assert group.display_name == "余额宝"
+    assert row.group_refs == (group.source_account_ref,)
+    assert "funding_unrecognized" not in row.issue_codes
+    assert file.document.rows[0].fields["source_payload"]["商品说明"] == "余额宝-2025.06.19-收益发放"
 
 
-def test_blank_payment_parts_do_not_implicitly_prove_a_wallet():
-    scan = _scan(_file(methods=(" & ",)))
-    assert scan.groups[0].identity_kind == "file_local"
-    assert not _resolve(scan, selections={})[0].ready
+def test_identified_payment_account_takes_precedence_over_yuebao_description():
+    scan = _scan(_file(methods=("招商银行储蓄卡(1234)",), product="余额宝收益发放"))
+    group, = scan.groups
+    assert group.display_name == "招商银行储蓄卡(1234)"
 
 
-def test_amount_without_a_funding_name_is_local_and_has_a_readable_label():
+def test_unknown_alipay_direction_still_gets_wallet_fallback_without_hiding_direction_issue():
+    scan = _scan(_file(methods=("",), issues=("direction_unrecognized",)))
+    row, = _resolve(scan)
+    assert scan.groups[0].display_name == "支付宝余额"
+    assert "funding_unrecognized" not in row.issue_codes
+    assert "direction_unrecognized" in row.issue_codes
+
+
+def test_missing_wechat_funding_is_a_row_issue_not_an_account_mapping_group():
+    scan = _scan(_file(source="wechat", methods=("",), owner=None))
+    row, = _resolve(scan, selections={})
+    assert scan.groups == () and row.group_refs == ()
+    assert not row.ready and "funding_unrecognized" in row.issue_codes
+    assert row.fields["components"][0]["account_id"] is None
+
+
+def test_amount_without_a_funding_name_uses_wallet_fallback():
     scan = _scan(_file(methods=("30元",)))
-    assert scan.groups[0].identity_kind == "file_local" and scan.groups[0].display_name
-    assert not _resolve(scan, selections={})[0].ready and _resolve(scan)[0].ready
+    group, = scan.groups
+    row, = _resolve(scan)
+    assert group.display_name == "支付宝余额"
+    assert row.group_refs == (group.source_account_ref,)
+    assert "funding_unrecognized" not in row.issue_codes
+    assert row.fields["components"][0]["account_id"] == "1"
+
+
+def test_known_and_unidentified_payment_parts_keep_separate_preview_components():
+    scan = _scan(_file(methods=("银行卡(1234)&30元",)))
+    assert len(scan.groups) == 1 and scan.groups[0].display_name == "银行卡(1234)"
+    row, = _resolve(scan)
+    assert row.group_refs == (scan.groups[0].source_account_ref,)
+    assert not row.ready and "funding_unrecognized" in row.issue_codes and "allocation_missing" in row.issue_codes
+    assert [part["account_id"] for part in row.fields["components"]] == ["1", None]
+    assert [part["amount"] for part in row.fields["components"]] == [None, "-30"]
+
+
+def test_bank_group_uses_the_display_name_prepared_by_its_channel_converter():
+    file = _file("ccb_debit", ("ignored by bank group identity",), owner="6217000000000000001")
+    group, = _scan(file).groups
+    assert group.display_name == "建设银行(0001)"
+
+
+def test_bank_labels_with_missing_card_type_remain_distinct_from_full_card_labels():
+    scan = _scan(_file(methods=("工商银行(3697)", "工商银行信用卡(3697)")))
+    assert len(scan.groups) == 2
+    assert [group.display_name for group in scan.groups] == ["工商银行(3697)", "工商银行信用卡(3697)"]
+
+
+def test_government_subsidy_is_not_a_funding_group_or_component_and_raw_text_survives():
+    method = "工商银行信用卡(1200)&政府补贴"
+    file = _file(methods=(method,))
+    group, = _scan(file).groups
+    row, = _resolve(_scan(file))
+    assert group.display_name == "工商银行信用卡(1200)"
+    assert len(row.fields["components"]) == 1
+    assert file.document.rows[0].fields["source_payload"]["付款方式"] == method
 
 
 @pytest.mark.parametrize("method", ["优惠券10元", "红包5元&优惠券5元"])
@@ -207,7 +270,9 @@ def test_wallet_base_identity_is_the_same_with_or_without_explicit_amount():
 
 
 def test_allocation_wrapping_and_spaces_do_not_create_a_different_wallet():
-    scan = _scan(_file(methods=("余额", "余额( 30 元 )", "余额【 30元 】")))
+    from ft.adapters.cash_statement_rows import _normalize_alipay_payment_method
+    methods = tuple(_normalize_alipay_payment_method(value) for value in ("余额", "余额( 30 元 )", "余额【 30元 】"))
+    scan = _scan(_file(methods=methods))
     assert len(scan.groups) == 1 and all(row.ready for row in _resolve(scan))
 
 

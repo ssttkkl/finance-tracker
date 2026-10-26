@@ -30,6 +30,19 @@ def test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text
     assert final["source_payload"] == payload
 
 
+@pytest.mark.parametrize("source_type,payload,expected", [
+    ("alipay", {"收/付款方式": "云闪付-中国工商银行储蓄卡（尾号 3697）"}, "工商银行储蓄卡(3697)"),
+    ("wechat", {"支付方式": "云闪付-中国工商银行信用卡（尾号 9166）"}, "工商银行信用卡(9166)"),
+])
+def test_source_patch_reuses_each_platform_converter_account_label_cleanup(source_type, payload, expected):
+    from ft.adapters.cash_statement_effects import prepare_cash_source_effects
+    values = {"note": "原文", "amount": Decimal("12"), "source_payload": payload}
+    final, explanation = prepare_cash_source_effects(values, {"source_payload": payload},
+        source_type=source_type, source_explanation={})
+    assert final["source_payload"] == payload
+    assert explanation["payment_method"] == expected
+
+
 @pytest.mark.parametrize("protected,patch,note", [(set(), {"note": ""}, ""),
     ({"note"}, {}, "人工值"), ({"note"}, {"note": "本次明确值"}, "本次明确值"), (set(), {}, "")])
 def test_explicit_note_and_existing_protection_take_priority(protected, patch, note):

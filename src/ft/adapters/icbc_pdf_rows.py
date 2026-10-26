@@ -19,6 +19,40 @@ _CURRENCIES = {"人民币": "CNY", "CNY": "CNY", "美元": "USD", "USD": "USD", 
 _AMOUNT = re.compile(r"[+-]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]{1,18})?")
 
 
+def _icbc_credit_source_display_name(cells, owner):
+    """工行信用卡转换器从本方卡号组装并清洗信用卡账户显示名。"""
+    source_card = re.sub(r"\s+", "", cells.get("交易卡号", ""))
+    masked = re.fullmatch(r"[0-9]{4,6}[*＊]{2,}([0-9]{4})", source_card) if not owner else None
+    tail = owner[-4:] if owner else (masked.group(1) if masked else "")
+    raw = "中国工商银行信用卡" + (f"（尾号 {tail}）" if tail else "")
+    compact = re.sub(r"\s+", "", raw)
+    tail_match = re.search(r"[（(](?:尾号)?([0-9]{4})[）)]$", compact)
+    body = compact[:tail_match.start()] if tail_match else compact
+    bank = re.fullmatch(r"([\u4e00-\u9fff]+银行)([\u4e00-\u9fff]*卡)?", body)
+    if not bank:
+        return raw
+    bank_name = bank.group(1)
+    if bank_name.startswith("中国") and bank_name != "中国银行":
+        bank_name = bank_name[2:]
+    return bank_name + (bank.group(2) or "") + (f"({tail_match.group(1)})" if tail_match else "")
+
+
+def _icbc_debit_source_display_name(owner):
+    """工行借记卡转换器从文件本方卡号组装并清洗借记卡账户显示名。"""
+    tail = owner[-4:] if owner else ""
+    raw = "中国工商银行借记卡" + (f"（尾号 {tail}）" if tail else "")
+    compact = re.sub(r"\s+", "", raw)
+    tail_match = re.search(r"[（(](?:尾号)?([0-9]{4})[）)]$", compact)
+    body = compact[:tail_match.start()] if tail_match else compact
+    bank = re.fullmatch(r"([\u4e00-\u9fff]+银行)([\u4e00-\u9fff]*卡)?", body)
+    if not bank:
+        return raw
+    bank_name = bank.group(1)
+    if bank_name.startswith("中国") and bank_name != "中国银行":
+        bank_name = bank_name[2:]
+    return bank_name + (bank.group(2) or "") + (f"({tail_match.group(1)})" if tail_match else "")
+
+
 def _row(row, document):
     from ft import convert
     payload = row.payload
@@ -84,7 +118,8 @@ def _row(row, document):
         explanation = extract_source_explanation(native)
     explanation = derive_cash_source_explanation(document.source_type, payload, amount=amount,
         source_explanation={**explanation, "_source_account_identifier": owner or "", "file_account_key": owner or "",
-            "card_number": owner[-4:] if owner else "", "source_display_name": "工商银行信用卡" if credit else "工商银行借记卡"})
+            "card_number": owner[-4:] if owner else "", "source_display_name":
+            _icbc_credit_source_display_name(cells, owner) if credit else _icbc_debit_source_display_name(owner)})
     account = normalize_counterparty_account(fields["counterparty_account"], source=document.source_type,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"], fields["counterparty_account_attrs"] = account.value, list(account.attrs)

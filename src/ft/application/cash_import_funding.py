@@ -15,7 +15,7 @@ from ft.domain.cash_source_scope import source_account_key
 from ft.domain.decimal import exact_decimal
 
 
-_BANK_NAMES = {"icbc_credit": "工商银行信用卡", "icbc_debit": "工商银行借记卡", "ccb_debit": "建设银行", "icbc_asia": "工银亚洲"}
+_BANK_SOURCES = frozenset({"icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia"})
 _MONEY = re.compile(r"[¥￥]\s*([+-]?[0-9][0-9,]*(?:\.[0-9]+)?)(?![0-9A-Za-z.,+-])|(?<![0-9A-Za-z.,+-])([+-]?[0-9][0-9,]*(?:\.[0-9]+)?)\s*元")
 _DECIMAL = re.compile(r"[+]?(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:\.[0-9]{1,18})?")
 
@@ -39,7 +39,7 @@ class CashFundingGroup:
 
 @dataclass(frozen=True)
 class _FundingPart:
-    group_ref: str
+    group_ref: str | None
     amount: str | None
 
 
@@ -53,7 +53,7 @@ class CashFundingRow:
 
     @property
     def group_refs(self):
-        return tuple(dict.fromkeys(part.group_ref for part in self.parts))
+        return tuple(dict.fromkeys(part.group_ref for part in self.parts if part.group_ref is not None))
 
 
 @dataclass(frozen=True)
@@ -88,15 +88,16 @@ def _label(value):
         lambda match: "尾号 " + re.sub(r"[^0-9]", "", match[0])[-4:], value.replace("\n", " ").strip())[:128]
 
 
-def _alipay_parts(method, amount):
-    known_zero = amount is not None and exact_decimal(amount) == 0
+def _alipay_parts(method, amount, product_description=""):
     if method.count("&") >= 64:
         raise ValueError("funding_parts_too_large")
     parts = parse_alipay_payment_components({"source_type": "alipay", "payment_method": method, "amount": amount})
-    fallback = not any(_normalize_alipay_payment_component(token) for token in method.split("&"))
+    # Payment-only text such as "30元" and promotion tokens do not identify
+    # an account. Do not turn those labels into mapping groups.
+    fallback = not any(_normalize_alipay_payment_component(_MONEY.sub("", token)) for token in method.split("&"))
     if fallback:
-        return ([("payment_method", "支付宝余额", "支付宝余额", None)], []) if known_zero else (
-            [("file_local", "unknown", "待选择账户", None)], ["funding_unrecognized"])
+        fallback_account = "余额宝" if isinstance(product_description, str) and "余额宝" in product_description else "支付宝余额"
+        return [("payment_method", fallback_account, fallback_account, None)], []
     result, issues = [], []
     for index, part in enumerate(parts):
         token, value = part["source_label"], None
@@ -112,13 +113,11 @@ def _alipay_parts(method, amount):
             except (ValueError, ArithmeticError):
                 issues.append("allocation_amount_invalid")
         key = _MONEY.sub("", part["account_key"])
-        key = re.sub(r"\s+", "", key)
-        key = re.sub(r"\(\)|（）|\[\]|【】", "", key)
         key = _normalize_alipay_payment_component(key)
         if key:
             result.append(("payment_method", key, _label(key), value))
         else:
-            result.append(("file_local", f"unknown:{index}", "待选择账户", value))
+            result.append(("unresolved", f"unknown:{index}", "", value))
             issues.append("funding_unrecognized")
     return result, issues
 
@@ -131,20 +130,24 @@ def _parts(file, row):
     local = _digest("funding-file-v1", source, file.digest, document.parser_version)
     origin = scope or local
     if source == "alipay":
-        parts, issues = _alipay_parts(row.payment_method.strip(), row.fields.get("amount"))
+        source_payload = row.fields.get("source_payload")
+        product_description = source_payload.get("商品说明", "") if isinstance(source_payload, Mapping) else ""
+        parts, issues = _alipay_parts(row.payment_method.strip(), row.fields.get("amount"), product_description)
     elif source == "wechat":
         key = _normalize_wechat_payment_identity(row.payment_method)
         parts, issues = [("payment_method", key, _label(key), None)], []
         if not key:
-            parts, issues = [("file_local", "unknown", "待选择账户", None)], ["funding_unrecognized"]
-    elif source in _BANK_NAMES:
+            parts, issues = [("unresolved", "unknown", "", None)], ["funding_unrecognized"]
+    elif source in _BANK_SOURCES:
         masked = None
         if source == "icbc_credit" and owner is None:
             cells = {re.sub(r"\s+", "", key): value for key, value in row.fields.get("source_payload", {}).items()}
             value = re.sub(r"\s+", "", cells.get("交易卡号", ""))
             if re.fullmatch(r"[0-9]{4,6}[*＊]{2,}[0-9]{4}", value):
                 masked = value.replace("＊", "*")
-        label = _BANK_NAMES[source] + (f"（尾号 {(owner or masked)[-4:]}）" if owner or masked else "")
+        label = row.source_explanation.get("source_display_name")
+        if not isinstance(label, str) or not label:
+            raise ValueError("funding_source_display_name_missing")
         parts, issues = [("file_account" if owner else "file_local", owner or masked or "unknown", label, None)], []
     else:
         raise ValueError("funding_source_unsupported")
@@ -169,6 +172,9 @@ def scan_cash_funding(files) -> CashFundingScan:
                 parts, issues = _parts(file, row)
                 values = []
                 for kind, origin, key, label, amount in parts:
+                    if kind == "unresolved":
+                        values.append(_FundingPart(None, amount))
+                        continue
                     group_ref = _digest("funding-group-v1", file.document.source_type, kind, origin, key)
                     if group_ref not in groups:
                         groups[group_ref] = {"source_account_ref": group_ref, "source_type": file.document.source_type,
@@ -216,21 +222,23 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
     result = []
     for row in scan.rows:
         fields = deepcopy(row.fields)
+        has_unresolved_part = any(part.group_ref is None for part in row.parts)
         issues = [code for code in row.issue_codes if code != "funding_unrecognized"
-            or any(selected[ref][0] is None for ref in row.group_refs)]
+            or has_unresolved_part or any(selected[ref][0] is None for ref in row.group_refs)]
         merged, used = OrderedDict(), set()
         try:
             total = exact_decimal(fields["amount"]) if fields.get("amount") is not None else None
-            for part in row.parts:
-                account, issue = selected[part.group_ref]
+            for index, part in enumerate(row.parts):
+                account, issue = selected[part.group_ref] if part.group_ref is not None else (None, None)
                 if issue:
                     issues.append(issue)
                 if account is not None and fields.get("currency") is not None and fields["currency"] not in account.get("currencies", ()):
                     issues.append("account_currency_missing")
                 account_id = str(account.get("id", account.get("account_id"))) if account is not None else None
-                if account_id is not None:
+                if account_id is not None and part.group_ref is not None:
                     used.add((part.group_ref, account_id))
-                key = ("account", account_id) if account_id else ("source", part.group_ref)
+                key = (("account", account_id) if account_id else
+                    ("source", part.group_ref) if part.group_ref is not None else ("unresolved", index))
                 values = merged.setdefault(key, {"account_id": account_id, "amounts": []})
                 values["amounts"].append(_magnitude(part.amount))
             components, magnitudes = [], []

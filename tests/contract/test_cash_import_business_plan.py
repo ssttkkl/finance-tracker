@@ -8,7 +8,7 @@ from sqlalchemy import func, select, update
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel
 from tests.contract.test_cash_draft_storage import draft_runtime
-from tests.contract.test_cash_import_operations import _bind_existing, _file, _selections
+from tests.contract.test_cash_import_operations import _as_source, _bind_existing, _file, _selections
 
 
 @pytest.fixture(autouse=True)
@@ -21,7 +21,7 @@ def _currencies(draft_runtime):
 def _mirror_files():
     first = _file()
     second = _file(letter="b")
-    second = replace(second, source_type="icbc_debit", document=replace(second.document, source_type="icbc_debit"))
+    second = _as_source(second, "icbc_debit")
     return first, second
 
 
@@ -46,6 +46,21 @@ def _existing_mirror(session, runtime):
         "secondary_component_id": 1001, "anchor_transaction_id": 1003, "anchor_component_id": 1003,
         "primary_role": "expense", "secondary_role": "expense", "applied_amount": "12.5"})
     return file, relation["id"]
+
+
+def test_missing_alipay_funding_uses_wallet_in_business_plan(draft_runtime):
+    original = _file()
+    row = original.document.rows[0]
+    fields = {**row.fields, "source_payload": {**row.fields["source_payload"], "商品说明": ""}}
+    file = replace(original, document=replace(original.document, rows=(replace(row, payment_method="", fields=fields),)))
+    with draft_runtime.sessions() as session:
+        plan = _build(session, draft_runtime, (file,))
+    operation, = plan["operations"]
+    item, = plan["items"]
+    assert operation["planned_action"] == "create_posted"
+    assert operation["values"]["account_id"] == "101"
+    assert "funding_unrecognized" not in {issue["code"] for issue in operation["issues"]}
+    assert item["anticipated_state"] == "posted" and item["statistics_eligible"] is True
 
 
 def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runtime):
@@ -119,7 +134,8 @@ def test_equal_sized_mirror_occurrences_without_unique_evidence_are_deferred(dra
         ("c", "ccb_debit", None), ("d", "ccb_debit", None)):
         file = _file(letter=letter, provider=provider, note=f"实际出现{letter}",
             name="合成商户" if same_counterparty or source == "alipay" else f"银行摘要{letter}")
-        files.append(replace(file, source_type=source, document=replace(file.document, source_type=source)))
+        files.append(_as_source(file, source) if source == "ccb_debit" else
+            replace(file, source_type=source, document=replace(file.document, source_type=source)))
     bank = files[2]
     # 同一账单内的两次出现已能确定是两笔，排除跨文件身份草稿对配对测试的干扰。
     bank = replace(bank, document=replace(bank.document, rows=(bank.document.rows[0],
@@ -322,6 +338,7 @@ def test_refund_and_mirror_bundle_is_projected_and_deferred_as_one_complete_deci
     d = replace(c, file_ref="file_d", client_file_ref="client_d", digest="d" * 64, source_type="icbc_debit",
         document=replace(c.document, source_type="icbc_debit", rows=(replace(c.document.rows[0], provider_id="004",
             source_explanation={"_is_refund": True, "_icbc_refund_merchant_trusted": True}),)))
+    d = _as_source(d, "icbc_debit")
     files = a, b, c, d
     with draft_runtime.sessions() as session:
         first = _build(session, draft_runtime, files)
@@ -478,8 +495,8 @@ def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kep
     from ft.domain.relations import RelationProposal
     import ft.application.cash_import_business_plan as module
     a, b = _mirror_files()
-    files = a, b, _file(letter="c", amount="-7", provider="003"), replace(_file(letter="d", amount="-7", provider="004"),
-        source_type="icbc_debit", document=replace(_file(letter="d", amount="-7", provider="004").document, source_type="icbc_debit"))
+    files = a, b, _file(letter="c", amount="-7", provider="003"), _as_source(
+        _file(letter="d", amount="-7", provider="004"), "icbc_debit")
     def discover(facts, **kwargs):
         by_amount = {amount: sorted((fact for fact in facts if fact.amount == amount and int(fact.parent_id) >= 2 ** 63), key=lambda fact: fact.bill_source)
             for amount in (Decimal("-12.5"), Decimal("-7"))}

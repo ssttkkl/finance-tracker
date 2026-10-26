@@ -97,6 +97,7 @@ def test_credit_uses_transaction_columns_preserves_occurrences_and_exact_raw_not
     assert all(row.fields["amount"] == "-20.00" and row.fields["currency"] == "CNY" for row in parsed.rows)
     assert all(row.fields["note"] == note and row.provider_id is None for row in parsed.rows)
     assert parsed.rows[0].fields["source_payload"] == dict(zip(CREDIT, page.rows[0]))
+    assert parsed.rows[0].source_explanation["source_display_name"] == "工商银行信用卡(1234)"
     assert parsed.coverage.complete and parsed.coverage.contains(parsed.rows[0].fields["occurred_at"])
 
 
@@ -116,6 +117,7 @@ def test_debit_owner_comes_from_file_card_not_the_settlement_account_column(monk
     assert parsed.rows[0].fields["amount"] == "-20.00"
     assert parsed.rows[0].fields["source_payload"]["账号"] != OWNER
     assert parsed.rows[0].fields["record_type"] == "consumption"
+    assert parsed.rows[0].source_explanation["source_display_name"] == "工商银行借记卡(1234)"
 
 
 @pytest.mark.parametrize("kind", ["credit", "debit"])

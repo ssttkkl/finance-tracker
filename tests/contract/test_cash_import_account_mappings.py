@@ -7,7 +7,7 @@ from sqlalchemy import select
 from ft.adapters.relational.models import AccountAliasModel, AccountModel, StatementAccountMappingModel
 from ft.application.cash_import_funding import scan_cash_funding
 from tests.contract.test_cash_import_commit import configured, _commit, _plan, _results, _service
-from tests.contract.test_cash_import_operations import _file, _selections
+from tests.contract.test_cash_import_operations import _as_source, _file, _selections
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
 
@@ -222,8 +222,7 @@ def test_mapping_and_records_rollback_together_on_publication_failure(context_ru
 
 
 def _source(file, source, owner="fixture-owner", scope=None):
-    return replace(file, source_scope_label=scope, source_type=source,
-        document=replace(file.document, source_type=source, source_account_identifier=owner))
+    return _as_source(file, source, owner=owner, scope=scope)
 
 
 @pytest.mark.parametrize("source,other_owner,scope", [

@@ -82,6 +82,18 @@ def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_run
     assert b"private-password" not in raw and b"synthetic-original" not in raw
 
 
+def test_missing_alipay_funding_exposes_wallet_fallback_group(context_runtime, monkeypatch):
+    original = _document()
+    row = original.rows[0]
+    fields = {**row.fields, "source_payload": {**row.fields["source_payload"], "商品说明": ""}}
+    document = replace(original, rows=(replace(row, payment_method="", fields=fields),))
+    client, _ = _client(context_runtime, monkeypatch, parser=lambda _upload: document)
+    view = _upload(client).json()
+    assert view["can_preview"] is True
+    account, = view["source_accounts"]
+    assert account["display_name"] == "支付宝余额"
+
+
 @pytest.mark.parametrize("code", ["statement_header_not_found", "statement_header_invalid", "statement_encoding_unsupported"])
 def test_known_file_format_failure_provides_safe_reselect_action(context_runtime, monkeypatch, code):
     from ft.adapters.cash_statement_document import StatementDocumentError

@@ -90,7 +90,70 @@ def _normalize_row(payload, source, position):
     provider_id = identifier if identifier not in {"", "/", "-", "--"} and len(identifier) <= 512 else None
     explanation = derive_cash_source_explanation(source, payload, amount=exact_decimal(fields["amount"]) if fields["amount"] is not None else None,
         source_explanation=explanation)
+    method = explanation.get("payment_method", method)
     return ParsedCashRow(position, fields, method, provider_id, tuple(issues), source_explanation=explanation)
+
+
+def _normalize_alipay_payment_method(value):
+    """支付宝转换器自己的支付方式标签清洗；原始支付方式留在 source_payload。"""
+    if not isinstance(value, str):
+        return ""
+    result = []
+    for raw in value.split("&"):
+        token = raw.strip()
+        if token.startswith("云闪付-"):
+            token = token[len("云闪付-"):]
+        token = re.sub(
+            r"[（(\[【]\s*((?:[¥￥]\s*[+-]?[0-9][0-9,]*(?:\.[0-9]+)?|[+-]?[0-9][0-9,]*(?:\.[0-9]+)?\s*元))\s*[）)\]】]",
+            r"\1",
+            token,
+        )
+        token = re.sub(r"分期\s*[（(]\s*\d+\s*期\s*[）)]", "", token)
+        token = token.replace("分期", "")
+        token = re.sub(r"\s*[（(]?\d+\s*期[）)]?", "", token).strip()
+        amount = re.search(r"(?:[¥￥]\s*[+-]?[0-9][0-9,]*(?:\.[0-9]+)?|[+-]?[0-9][0-9,]*(?:\.[0-9]+)?\s*元)$", token)
+        suffix = token[amount.start():] if amount else ""
+        label = token[:amount.start()] if amount else token
+        compact = re.sub(r"\s+", "", label)
+        tail = re.search(r"(?:[（(](?:尾号)?([0-9]{4})[）)]|尾号([0-9]{4})|([0-9]{4}))$", compact)
+        if tail:
+            digits = next(group for group in tail.groups() if group is not None)
+            body = compact[:tail.start()]
+        else:
+            digits, body = "", compact
+        bank = re.fullmatch(r"([\u4e00-\u9fff]+银行)([\u4e00-\u9fff]*卡)?", body)
+        if bank:
+            bank_name = bank.group(1)
+            if bank_name.startswith("中国") and bank_name != "中国银行":
+                bank_name = bank_name[2:]
+            normalized = bank_name + (bank.group(2) or "") + (f"({digits})" if digits else "")
+            result.append(normalized + suffix)
+        else:
+            result.append(token)
+    return "&".join(result)
+
+
+def _normalize_wechat_payment_method(value):
+    """微信转换器清洗支付方式开头的云闪付前缀及完整银行式账户名。"""
+    if not isinstance(value, str):
+        return ""
+    token = value.strip()
+    if token.startswith("云闪付-"):
+        token = token[len("云闪付-"):]
+    compact = re.sub(r"\s+", "", token)
+    tail = re.search(r"(?:[（(](?:尾号)?([0-9]{4})[）)]|尾号([0-9]{4})|([0-9]{4}))$", compact)
+    if tail:
+        digits = next(group for group in tail.groups() if group is not None)
+        body = compact[:tail.start()]
+    else:
+        digits, body = "", compact
+    bank = re.fullmatch(r"([\u4e00-\u9fff]+银行)([\u4e00-\u9fff]*卡)?", body)
+    if not bank:
+        return token
+    bank_name = bank.group(1)
+    if bank_name.startswith("中国") and bank_name != "中国银行":
+        bank_name = bank_name[2:]
+    return bank_name + (bank.group(2) or "") + (f"({digits})" if digits else "")
 
 
 def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDocument:
@@ -175,8 +238,18 @@ def _bank_row(payload, document, position):
         explanation = extract_source_explanation(native)
         if not is_ccb and amount == 0 and payload.get("業務類型", "").strip() in {"新開戶", "新开户"} and not issues:
             return ParsedCashRow(position, None, error_code="account_opening", disposition="skipped")
+    if is_ccb:
+        display_tail = owner[-4:] if owner and owner.isascii() and owner.isdigit() else ""
+        raw_display_name = "中国建设银行" + (f"（尾号 {display_tail}）" if display_tail else "")
+        compact = re.sub(r"\s+", "", raw_display_name)
+        tail_match = re.search(r"[（(](?:尾号)?([0-9]{4})[）)]$", compact)
+        display_name = "建设银行" + (f"({tail_match.group(1)})" if tail_match else "")
+    else:
+        display_tail = owner[-4:] if owner and owner.isascii() and owner.isdigit() else ""
+        display_name = "工银亚洲" + (f"（尾号 {display_tail}）" if display_tail else "")
     explanation = derive_cash_source_explanation(source, payload, amount=amount,
-        source_explanation={**explanation, "_source_account_identifier": owner or "", "card_number": card or ""})
+        source_explanation={**explanation, "_source_account_identifier": owner or "", "card_number": card or "",
+            "source_display_name": display_name})
     counterparty_account = normalize_counterparty_account(fields["counterparty_account"], source=source,
         source_account_identifier=owner, source_payload=payload)
     fields["counterparty_account"] = counterparty_account.value

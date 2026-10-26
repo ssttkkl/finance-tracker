@@ -87,6 +87,23 @@ def test_wechat_empty_product_does_not_fall_back_to_remark():
     assert row.fields["source_payload"] == payload
 
 
+@pytest.mark.parametrize("source,field,raw,expected", [
+    ("alipay", "收/付款方式", "云闪付-中国工商银行储蓄卡（尾号 3697）", "工商银行储蓄卡(3697)"),
+    ("wechat", "支付方式", "云闪付-中国工商银行储蓄卡（尾号 3697）", "工商银行储蓄卡(3697)"),
+    ("alipay", "收/付款方式", "中国工商银行信用卡（尾号 9166）", "工商银行信用卡(9166)"),
+    ("wechat", "支付方式", "工商银行 ( 3697 )", "工商银行(3697)"),
+    ("wechat", "支付方式", "中国工商银行储蓄卡", "工商银行储蓄卡"),
+    ("wechat", "支付方式", "中国银行信用卡(3697)", "中国银行信用卡(3697)"),
+    ("wechat", "支付方式", "云闪付-微信零钱", "微信零钱"),
+    ("wechat", "支付方式", "星巴克储值卡", "星巴克储值卡"),
+    ("alipay", "收/付款方式", "余额（¥30）", "余额¥30"),
+])
+def test_platform_channel_converters_clean_only_supported_bank_account_labels(source, field, raw, expected):
+    row = _convert(_document(_payload(source, **{field: raw}), source=source)).rows[0]
+    assert row.payment_method == expected
+    assert row.fields["source_payload"][field] == raw
+
+
 @pytest.mark.parametrize("source,field", [("alipay", "交易订单号"), ("wechat", "交易单号")])
 def test_merchant_order_number_is_not_used_as_reliable_provider_identity(source, field):
     parsed = _convert(_document(_payload(source, **{field: ""}), _payload(source, **{field: "000123"}), source=source))

@@ -16,7 +16,7 @@ from ft.application.cash_commit_outcome import CashCommitFailure
 from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_cash_import_business_plan import _existing_mirror
 from tests.contract.test_cash_import_commit import configured, _plan, _commit as _import_commit, _results
-from tests.contract.test_cash_import_operations import _file
+from tests.contract.test_cash_import_operations import _as_source, _file
 from tests.contract.test_cash_mutation_business_plan import _posted, _preview
 from tests.contract.test_cash_record_maintenance import _draft, _complete, _service as _records
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
@@ -181,8 +181,7 @@ def test_publication_failure_rolls_back_record_and_keeps_context_retryable(conte
 def test_new_relation_failure_keeps_finalized_record_and_visible_current_problem(context_runtime, monkeypatch):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     runtime = context_runtime
-    bank = _file(letter="b", provider="bank-only")
-    bank = replace(bank, source_type="icbc_debit", document=replace(bank.document, source_type="icbc_debit"))
+    bank = _as_source(_file(letter="b", provider="bank-only"), "icbc_debit")
     importer, plan = _plan(runtime, (bank,))
     _import_commit(importer, plan, "synthetic-existing-bank")
     identifier = _draft(runtime)

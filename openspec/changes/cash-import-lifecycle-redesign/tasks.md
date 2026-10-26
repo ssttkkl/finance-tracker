@@ -286,7 +286,7 @@
 
 ### 4.21 导入预计整笔公共编辑
 
-协议与客户端定向验证、独立 finding 处置及未完成完整回归见 [统一导入当前验证](../compose-cash-import-workflow/tasks.md#当前实施与验证)；页面与最终性能／收尾未验收，不关闭 4.21.3。
+协议与客户端定向验证、独立 finding 处置及未完成完整回归见 [统一导入当前验证](../compose-cash-import-workflow/tasks.md#当前审查与验证)；页面与最终性能／收尾未验收，不关闭 4.21.3。
 
 - [x] 4.21.1 按统一导入页面授权补齐明确编辑目标与选择入口；来源决定独立，完整目标失效／依赖失败时确定拒绝，不自动迁移补丁。
 - [x] 4.21.2 测试先行覆盖混合新旧成员、已有组、保留／延后、清空、原文不变、全部重复、分类权限、目标变化、关系失败回滚与文件／重试恢复边界。
@@ -299,6 +299,27 @@
 - [x] 4.22.3 任务拆分／测试先行：补来源行归一、来源正文更新及账户分组失败回归；验证不同三列值、商品为空、前后空白、`/` 与两个零钱别名共组，且原始快照不变。红测 6 failed，复现商品被备注覆盖、空商品错误回退及 `/` 独立分组。
 - [x] 4.22.4 构建：让首次导入、来源更新和账户映射查找使用同一微信列映射／规范键，保持其他来源行为不变；微信解析／映射／来源更新定向测试 93 项通过，双后端导入计划／账户映射／提交／解析上下文合同 278 项通过。
 
+### 4.23 支付宝未知资金方式保留为流水待补项
+
+- [x] 4.23.1 思考／澄清：阅读 `grill-me → grilling` 工作流并核对 `~/.ft/bills`；用户确认账户映射只应列出账单实际出现且已识别的资金账户，未知付款方式不得伪造成“待选择账户”。明确零金额仍按既有支付宝余额规则处理。
+- [x] 4.23.2 计划：更新 statement-import delta、design、合同文档和导入技能；无来源账户身份的资金组成项留在对应流水，保持 `funding_unrecognized` 并以草稿进入预览，不产生组级建议／映射。
+- [x] 4.23.3 测试先行：覆盖支付宝非零空支付方式、金额未知、无资金的优惠文本、零金额余额例外、混合已知／未知组成项及微信空支付方式；新增回归在旧实现上 4 项失败。修复后资金解析单测 49 passed；会话 API 和业务计划合同验证账户组缺失、未分配组成项、`funding_unrecognized` 草稿及其他账户组保持。
+- [x] 4.23.4 构建：未知资金组成项使用无组引用的行级部分；只有实际识别账户进入 `source_accounts[]`，预览仍收到未分配组成项和待补原因。
+
+### 4.24 资金账户名称清洗及非资金补贴
+
+- [x] 4.24.1 思考／澄清：使用 `grill-me → grilling` 明确规则；用户确认去掉开头 `云闪付-`，只清洗完整匹配的银行式名称，不按缺失卡种／尾号通配并组；支付宝 `政府补贴` 是优惠，不是资金账户。只读账单样本中云闪付银行名称与银行卡种、尾号形式已核对，不将真实流水内容写入仓库。
+- [x] 4.24.2 计划：更新现有 `import/statement-import` delta、设计、产品／接口合同、导入技能及领域词表；规范化只用于资金组键与标签，原始来源行快照不变。
+- [x] 4.24.3 测试先行：新增转换器及资金组回归，旧实现先有 12 failed／169 passed，覆盖平台银行名、云闪付前缀、非银行名称、缺字段精确区分、原始来源快照、银行账单显示名及支付宝政府补贴过滤；扩展货币括号与中国银行例外后，转换器／资金单测及运行文档共 211 passed，相关 SQLite 导入、账户映射、计划和提交合同 220 passed。
+- [x] 4.24.4 构建：支付宝、微信、建行及工行 PDF 来源转换分支分别清洗或组装各自银行账户显示名；工银亚洲因名称不符合银行式格式保持原样。资金扫描只消费转换器输出，桥接层不再二次清洗名称；支付宝政府补贴仍仅在该渠道作为非资金项过滤。账户组按转换后精确键生成，不做缺字段推断；无数据库 schema／持久化修改。
+
+### 4.25 支付宝缺少可识别账户时使用资金账户兜底
+
+- [x] 4.25.1 思考／澄清：已识别资金账户优先；缺少可识别账户时，`商品说明` 含“余额宝”回退为 `余额宝`，否则所有可处理的支付宝业务行均回退为 `支付宝余额`，不区分收入、支出、不计收支或未知方向，也不要求额外的实际入账证明。
+- [x] 4.25.2 计划：已更新 proposal、`import/statement-import` delta 和 design，写明已识别账户优先、余额宝标记优先及其余有效支付宝流水统一兜底到余额、来源快照不变。
+- [x] 4.25.3 测试先行：针对旧行为新增的回归先失败；实现后运行 `PYTHONPATH=tests:src uv run pytest tests/test_cash_import_funding.py tests/test_cash_statement_rows.py tests/contract/test_cash_import_session_api.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py -q --disable-warnings --tb=short -k 'not postgres' --maxfail=5` → 201 passed、94 deselected、1 warning（52.08 s）。覆盖已识别账户优先、余额宝标记、收入／支出／不计收支／方向未知／零金额及原始快照。
+- [x] 4.25.4 构建：仅在支付宝资金解析分支缺少可识别账户时检查来源快照中的 `商品说明` 并生成余额宝或支付宝余额组；不对共享层任意文本做通用匹配，不改变已识别账户、优惠过滤及拆分金额校验。
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。
@@ -306,10 +327,19 @@
 Compose Hallmark audit 由三个前端 change 的审查阶段执行，本目录不计为通过。
 - [x] 5.4 本次后端最终 diff 复核 artifact 与实现一致性、旧合同残留、遗漏测试和新增依赖；记录 finding 及处置。
 - [x] 5.5 最终 diff 复核确认微信对方／商品原值、空商品、旧别名 `/`、原始快照及账户分组均与合同一致；关系扫描算法、来源分类与其他来源映射未改。
+- [x] 5.6 最终产品／工程复核未知付款方式边界：账户映射只出现真实账单资金账户；未知资金不丢行、不绑定真实账户、不影响其他行；零金额例外和已知组成项金额守恒保持。复核扫描选择、计划输入验证、组成项输出及真实账单计数，无未关闭 finding。
+- [x] 5.7 最终复核所有渠道转换分支各自实现显示名规范化或组装、桥接层不清洗名称：云闪付只由支付宝／微信转换逻辑移除开头前缀，银行式名称按转换文本精确归组；缺卡种／尾号不通配，非银行式名称保持原文，`政府补贴` 只从支付宝资金识别中过滤且来源行快照保留。逐项核对平台转换、建行／工行 PDF 显示名、刷新路径及资金组键；未发现 P1／P2，工银亚洲名称不符合目标格式并按原文格式保留。
+- [ ] 5.8 独立复核支付宝账户优先级和兜底顺序：显式识别账户优先；缺少账户时，余额宝标记归余额宝，其余可处理支付宝业务行不分收支方向归支付宝余额；兜底不得改来源快照或推断对方账户。
 
 ## 6. 测试与 QA
 
 - 最终文档独立复核：双后端真实验收计数自洽，后端父项及发布准备关闭有证据支持；跳过项未冒称成功，历史原因细分未冒充新 PostgreSQL 统计。功能地图没有提升客户端覆盖，UI／客户端 QA／演示／归档仍开放，未声称真实迁移或部署完成；无 P1/P2。本次后端交付完成，未实现的客户端合同留后续独立任务。
+- [x] 6.9 最终验证：资金／账户映射／会话 API／计划合同 400 passed、193 warnings、0 skipped（SQLite 与专用 `ft_cash_unknown_funding_test` PostgreSQL，2026-10-25；HEAD／基线 `1ddc45c`）。新增资金单测最后复跑 49 passed；OpenSpec strict 35/35、runtime docs 4 passed、doctor 0 issues、`git diff --check` 通过。只读复扫 `~/.ft/bills` 的 6 份支付宝账单：3,763 条可处理行、45 条未知资金均无账户组、保留未分配组成项和 `funding_unrecognized`；账户组由原有 20 组（含 6 个占位组）变为 14 个真实组，零金额余额组保留。真实账单未导入数据库。Web 1440×900 Playwright 冒烟：空 `source_accounts[]` 不显示映射组或“待选择账户”，仍可进入核对，1 passed。Cross-platform Impact Check：Web、Android、iOS 共用的 Compose 页面仍消费同一 `source_accounts[]` 合同；仅后端返回项变化，没有 Kotlin 页面或平台代码改动，故 Native 编译／单测及设备 QA 不适用，本次不做 iOS 验证。
+- [x] 6.10（2026-10-25 11:02 UTC，HEAD／比较基线 `origin/average-snail` 均为 `1ddc45c68ef7d48bb7a2755962073a51b1d16885`）转换器／资金／运行文档单测 → 211 passed；受影响 SQLite 账户映射、业务计划、会话 API、导入提交和维护提交合同 → 220 passed、220 PostgreSQL 项明确排除。只读扫描 `~/.ft/bills`（路径中证券类项目已排除）→ 41 个候选文件，19 份现金账单解析成功、22 份非现金／不支持／解析失败；资金组共 24 个（支付宝 11、建行 2、工行信用卡 4、工行借记卡 1、微信 6），未知资金行 45，支付宝政府补贴行 1、未生成补贴账户组。扫描仅读账单并在内存解析，未改数据库或导入流水。无持久化逻辑改动，PostgreSQL 双后端不适用；`openspec validate --all --strict` 35/35、范围内 Markdown 链接／锚点检查 258 个本地链接无错误及 `git diff --check` 通过。
+- [ ] 6.11 扩展现金来源转换、资金、账户映射、导入计划／提交、会话 API 与维护提交合同回归：`PYTHONPATH=tests:src uv run pytest tests/test_bank_statement_rows.py tests/test_cash_statement_effects.py tests/test_cash_statement_rows.py tests/test_icbc_pdf_statement.py tests/test_cash_import_funding.py tests/contract/test_cash_import_account_mappings.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_session_api.py tests/contract/test_cash_mutation_commit.py -q --disable-warnings --tb=short -k 'not postgres' --maxfail=5` → 410 passed、186 deselected、198 warnings（108.01 s）；真实账单只读扫描 6 份支付宝账单、3,763 条可处理行，其中 328 条缺少可识别资金账户，45 条原未知非零行（43 个稳定交易 ID）现归入 `支付宝余额`，没有商品说明命中余额宝标记，未产生 `funding_unrecognized`，原始来源快照不变，未写数据库。Web Playwright（Compose QA Web，390×844）运行 `FT_COMPOSE_PREVIEW_PORT=5190 node scripts/run-compose-playwright.mjs tests/compose-cash-import.e2e.ts --grep 'missing Alipay funding shows the wallet fallback account group'` → 1 passed；展示 `支付宝余额` 并可继续核对。Cross-platform Impact Check：Web／Android／iOS 共用同一 `source_accounts[]` 与计划合同，只有后端来源解析逻辑改变、未改 Kotlin／原生代码；不需原生交互 QA。专用 PostgreSQL 重跑命令 `FT_TEST_POSTGRES_URL='postgresql+psycopg://huangwenlong@127.0.0.1:55439/ft_cash_unknown_funding_test' FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:src uv run pytest tests/contract/test_cash_import_session_api.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py -q --disable-warnings --tb=short -k 'postgres and missing_alipay_funding' --maxfail=3` 因 `127.0.0.1:55439` connection refused，3 个 PostgreSQL 参数化用例在连接阶段报错，未运行断言；等待显式准备并启动专用 `_test` PostgreSQL 后补跑。该导入计划会改变最终持久化账户映射，双后端验证仍是遗留门禁。
+- 语法／工作树：`uv run python -m compileall -q src/ft/adapters/cash_statement_rows.py src/ft/adapters/cash_statement_effects.py src/ft/adapters/icbc_pdf_rows.py src/ft/application/cash_import_funding.py src/ft/application/statement_account_mapping.py && git diff --check` 通过；OpenSpec 命令：`openspec validate --all --strict --json` → 35 项通过、0 失败。 转换器分拆后的账户映射 API 回归：`PYTHONPATH=tests:src uv run pytest tests/contract/test_cash_import_account_mappings.py -q --disable-warnings --tb=short -k 'not postgres'` → 29 passed、29 deselected（16.01s）。
+- 受影响转换器／资金单测：`PYTHONPATH=tests:src uv run pytest tests/test_cash_statement_rows.py tests/test_bank_statement_rows.py tests/test_icbc_pdf_statement.py tests/test_cash_import_funding.py tests/test_cash_statement_effects.py tests/test_runtime_docs.py -q --disable-warnings --tb=short` → 211 passed（0.22s）。SQLite 合同：`PYTHONPATH=tests:src uv run pytest tests/contract/test_cash_import_account_mappings.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_session_api.py tests/contract/test_cash_import_plan_api.py tests/contract/test_cash_import_commit.py tests/contract/test_cash_mutation_commit.py -q --disable-warnings --tb=short --maxfail=3 -k 'not postgres'` → 220 passed、220 deselected（133.78s）。
+- 受影响合同最终命令（182.00s）：`FT_TEST_POSTGRES_URL='postgresql+psycopg://huangwenlong@127.0.0.1:55439/ft_cash_unknown_funding_test' FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=tests:src uv run pytest tests/test_cash_import_funding.py tests/test_statement_account_mapping.py tests/contract/test_cash_import_account_mappings.py tests/contract/test_cash_import_operations.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_import_session_api.py tests/contract/test_cash_import_plan_api.py -q --disable-warnings --tb=short --maxfail=3` → 400 passed、193 warnings、0 skipped。纯资金单测复跑：`PYTHONPATH=tests:src uv run pytest tests/test_cash_import_funding.py -q --disable-warnings --tb=short` → 49 passed（0.08s）。浏览器：`FT_COMPOSE_PREVIEW_PORT=5190 node scripts/run-compose-playwright.mjs tests/compose-cash-import.e2e.ts --grep 'unrecognized funding does not create a synthetic account mapping group'` → 1 passed（5.5s；`http://127.0.0.1:5190`，1440×900）。
 
 - 6.3 真实账单后端端到端验收完成（2026-10-23，执行起点 `5752fb0`、收口文档 `567509d`，后端实现均与 `7fa6e51` 相同）：`PYTHONPATH=tests:.:src uv run python /tmp/ft_cash_backend_acceptance.py` → exit 0，478.86s；日志 `/tmp/ft-cash-backend-real-acceptance.log`。当前 `收支账单` 目录不存在，使用已获授权的 `~/.ft/bills/账单流水`。19 份文件、15,198 次原始出现，含工行信用卡 3、借记卡 2、建行 2、微信 6、支付宝 6；密码由文件名在本机读取，3 次密码重试后全部解析，脚本及报告均在仓库外，报告只含计数。
 - 两个后端通过相同 Application Service：首次正式新增 12,706、草稿 6、批内重复 2,408、跳过 78，确认关联 441、待确认 27、关联失败 0；实际存储流水 12,712。每次分页取得全部 15,198 条实际结果，原命令重放返回相同收据，核实为 committed；再次导入正式／草稿新增和更新均为 0，重复 15,120、跳过仍 78，存储数量不变。不是把全部输入冒称成功；既有相同样本明细 `/tmp/ft-cash-source-effects-real-probe.log` 曾细查 78 项为批内身份冲突 28、未付款关闭 48、失败还款 2，此次补验确认相同跳过合计，不把旧细分当作新的 PostgreSQL 原因统计。
@@ -666,12 +696,20 @@ Compose Hallmark audit 由三个前端 change 的审查阶段执行，本目录�
 
 ## 7. 发布准备
 
+- [x] 7.5 更新 `docs/cash-import-flow.md`、跨层接口合同、功能地图及 `cash-statement-import` 技能；本地验证完成，回退限资金扫描／测试及对应合同，无真实导入、服务部署或分支推送。
+- [ ] 7.6 发布准备：收尾核对实现、OpenSpec delta、设计、词表、合同、功能地图及导入技能；记录本步 HEAD／基线、验证命令、真实账单只读结果和映射键变化影响。不提交、不推送、不写真实数据库。
+- [x] 7.7 实现后同步检查导入合同、导入技能、现金流程文档、重设计契约和功能地图，均记录已识别账户优先、余额宝标记及其余支付宝流水统一归入支付宝余额；真实账单扫描证据见 6.11。
+
 - [x] 7.1 本次后端的每个可验证小步检查 status、diff 和验证后提交推送当前分支；授权不扩展到 PR、合并或部署。
 - [x] 7.2 完成后端切换矩阵、备份／迁移／回滚条件及观察项；真实数据迁移及部署等待相应授权。
 - [ ] 7.3 本变更剩余范围完成后同步所属后端 delta 并检查新前端变更的依赖；三个前端 change 分别完成自己的真实 QA、用户演示与归档，不由本目录代为勾选。
 - [x] 7.4 已更新导入流程、合同说明、功能地图及导入技能；确认回退只需撤销本地解析／映射改动，不涉及 schema、依赖、真实账本或部署。
 
 ## 8. 反思
+
+- [x] 8.3 防复发结论已写入来源账户合同、扫描实现、API／计划回归和导入技能：没有账单资金身份的待补项不是一个可供用户映射的来源账户。
+- [ ] 8.4 防复发结论：每个渠道只在自身转换器中清洗账户显示名称，桥接层不引入通用名称清洗；账户名规范化不得补齐缺失字段或按银行／尾号猜账户；优惠字段不创建支付组成项，且规范化不覆盖来源行快照。
+- [x] 8.5 防复发结论：支付宝已识别账户优先；缺少账户时，`商品说明` 余额宝标记归 `余额宝`，否则所有可处理业务行不分方向归 `支付宝余额`；不从对方付款方式猜账户。来源优先、各方向及快照不变均由回归测试保护。
 
 - [x] 8.1 记录开发中计划缺口、反复失败及可复用约束；补回 artifacts 和防回归测试。
 - [x] 8.2 防复发约束已写入 delta、设计、测试和导入技能：公开字段按来源列映射，来源快照保持原样，账户键归一不改快照。

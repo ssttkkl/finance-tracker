@@ -100,6 +100,7 @@ def test_ccb_native_financial_fields_and_raw_note():
     assert fields["counterparty"] == "测试商户" and fields["counterparty_account"] == "000123"
     assert fields["note"] == row["交易地点/附言"]
     assert parsed.rows[0].payment_method == "微信支付"
+    assert parsed.rows[0].source_explanation["source_display_name"] == "建设银行(0001)"
     assert parsed.coverage.time_precision == "day"
 
 
@@ -120,6 +121,7 @@ def test_asia_native_financial_fields_and_raw_note():
     assert row.fields["record_type"] == "transfer_out"
     assert row.fields["note"] == "  原始備註\n  "
     assert row.payment_method == "工银亚洲活期账户(5670)"
+    assert row.source_explanation["source_display_name"] == "工银亚洲（尾号 5678）"
     assert row.fields["source_payload"][""] == "09:10:11"
 
 
