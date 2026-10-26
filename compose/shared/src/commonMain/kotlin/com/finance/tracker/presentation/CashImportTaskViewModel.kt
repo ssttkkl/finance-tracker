@@ -84,7 +84,7 @@ class CashImportTaskViewModel(
             }
             if (current(request)) mutableState.value = state.value.copy(
                 localFileFailures = state.value.localFileFailures.filterNot { old -> files.any { it.clientFileRef == old.clientFileRef } } + batch.localFailures,
-                unprocessedFileRefs = batch.interruption?.unprocessedFileRefs.orEmpty(), errorCode = batch.interruption?.code,
+                unprocessedFileRefs = batch.interruption?.unprocessedFileRefs.orEmpty(), errorCode = batch.interruption?.code, errorDiagnostic = batch.interruption?.diagnostic,
                 needsContextRefresh = state.value.needsContextRefresh || batch.interruption != null && state.value.context != null)
         }
     }
@@ -238,7 +238,7 @@ class CashImportTaskViewModel(
             val pages = state.value.resultPages.mapValues { (_, value) ->
                 if (value.projectionVersion == page.projectionVersion) value else value.copy(projectionRefs = emptyList(), projectionVersion = page.projectionVersion)
             }
-            mutableState.value = state.value.copy(resultPages = pages + (kind to combined), errorCode = null)
+            mutableState.value = state.value.copy(resultPages = pages + (kind to combined), errorCode = null, errorDiagnostic = null)
         }
     }
 
@@ -311,7 +311,7 @@ class CashImportTaskViewModel(
 
     private fun edit(action: (ImportTaskUiState) -> ImportTaskUiState) {
         try { mutableState.value = action(state.value) }
-        catch (cause: Exception) { mutableState.value = state.value.copy(errorCode = cause.safeFailure().code) }
+        catch (cause: Exception) { val failure = cause.safeFailure(); mutableState.value = state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic) }
     }
 
     private fun current(request: ImportTaskRequest): Boolean = state.value.activeRequest == request
@@ -327,7 +327,7 @@ class CashImportTaskViewModel(
                 if (current(request)) {
                     val failure = cause.safeFailure()
                     mutableState.value = if (state.value.frozenCommand != null) state.value.confirmationFailed(request, failure)
-                    else state.value.copy(errorCode = failure.code, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
+                    else state.value.copy(errorCode = failure.code, errorDiagnostic = failure.diagnostic, needsContextRefresh = state.value.needsContextRefresh || failure.code in setOf("plan_changed", "session_changed"))
                 }
             } finally {
                 mutableState.value = state.value.finishRequest(request)

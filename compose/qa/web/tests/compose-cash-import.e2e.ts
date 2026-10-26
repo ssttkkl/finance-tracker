@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type Locator } from "@playwright/test";
 import { captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
 
 async function press(page: Page, id: string) {
@@ -398,3 +398,90 @@ test("import empty incoming allocations remain explicitly visible and readonly",
   await expect(detail).toContainText(/账单信息\s*未提供/);
   await expect(detail.getByRole("textbox")).toHaveCount(0);
 });
+
+async function countDiagnosticFocusPixels(page: Page, target: Locator): Promise<number> {
+  const bounds = await target.boundingBox();
+  if (!bounds) return 0;
+  const screenshot = await page.screenshot();
+  return page.evaluate(async ({ pngBase64, bounds }) => {
+    const binary = atob(pngBase64);
+    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+    const bitmap = await createImageBitmap(new Blob([bytes], { type: "image/png" }));
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas 2D is unavailable for screenshot inspection");
+    context.drawImage(bitmap, 0, 0);
+
+    const { data, width, height } = context.getImageData(0, 0, bitmap.width, bitmap.height);
+    const { x, y, width: targetWidth, height: targetHeight } = bounds;
+    const left = Math.max(0, Math.floor(x - 6));
+    const right = Math.min(width, Math.ceil(x + targetWidth + 6));
+    const top = Math.max(0, Math.floor(y - 6));
+    const bottom = Math.min(height, Math.ceil(y + targetHeight + 6));
+    let count = 0;
+    for (let py = top; py < bottom; py += 1) {
+      for (let px = left; px < right; px += 1) {
+        if (px < x || px >= x + targetWidth || py < y || py >= y + targetHeight) continue;
+        const offset = (py * width + px) * 4;
+        const [red, green, blue] = data.subarray(offset, offset + 3);
+        if (red > 150 && blue > red + 5 && green > red + 2) count += 1;
+      }
+    }
+    bitmap.close();
+    return count;
+  }, { pngBase64: screenshot.toString("base64"), bounds });
+}
+
+for (const multi of [false, true]) {
+  test(`import diagnostics show a readonly ${multi ? "related range" : "exact record"} without row recovery`, async ({ page }, info) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const browserDiagnostics = captureBrowserDiagnostics(page);
+    const calls = await setup(page);
+    await page.route(/\/api\/v1\/cash-import\/sessions\/[^/]+$/, route =>
+      route.request().method() === "DELETE" ? route.fulfill({ json: { ...calls.context, state: "cancelled", session_revision: 3 } }) : route.fallback());
+    const diagnostic = { error_id: "a".repeat(32), stage: multi ? "relation_save" : "row_write", scope: multi ? "related" : "row",
+      locations: [8, ...(multi ? [17] : [])].map(row => ({ file_ref: "file", display_name: "定位账单.csv", row_ref: `file:r${row}`,
+        row_number: row, position_kind: "csv_record" })), total_locations: multi ? 2 : 1 };
+    await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/commit$/, route => route.fulfill({ status: 503,
+      json: { error: { code: "commit_failed", message: "private server exception", field_errors: [], retryable: true, diagnostic }, commit_state: "not_committed" } }));
+    await uploadAndReview(page);
+    await press(page, "cash.import.confirm");
+    const result = page.locator('[id="cash.import.result"]:visible');
+    await expect(result).toContainText("导入出错");
+    await expect(result).toContainText("出错环节");
+    await expect(result).toContainText("a".repeat(32));
+    await expect(result).not.toContainText("private server exception");
+    if (multi) {
+      await expect(result).toContainText("无法确定具体哪一条记录");
+      await expect(result).not.toContainText("定位账单.csv");
+      const toggle = page.locator('[id="cash.import.diagnostic-toggle"]:visible');
+      await page.mouse.click(1320, 800);
+      let focusPixels = 0;
+      for (let attempt = 0; attempt < 24 && focusPixels <= 500; attempt++) {
+        await page.keyboard.press("Tab");
+        focusPixels = await countDiagnosticFocusPixels(page, toggle);
+      }
+      expect(focusPixels).toBeGreaterThan(500);
+      await page.keyboard.press("Enter");
+      await expect(result).toContainText("第 17 条记录");
+      await page.screenshot({ path: info.outputPath("diagnostic-expanded.png") });
+      await expect(result.getByRole("button")).toHaveCount(2);
+      await press(page, "cash.import.diagnostic-toggle");
+      await expect(result).not.toContainText("第 17 条记录");
+    } else {
+      await expect(result).toContainText("定位账单.csv · 第 8 条记录");
+      await expect(result.getByRole("button")).toHaveCount(1);
+    }
+    await page.screenshot({ path: info.outputPath("diagnostic.png") });
+    expect(calls.resolves).toEqual([]);
+    await press(page, "cash.import.return");
+    await expect(page).toHaveURL(/workspace-1\/$/);
+    await browserDiagnostics.settle();
+    expect(browserDiagnostics.consoleErrors).toEqual([]);
+    expect(browserDiagnostics.failedRequests).toEqual([]);
+    expect(browserDiagnostics.staticHttpErrors).toEqual([]);
+    expect(browserDiagnostics.expectedApiErrors).toHaveLength(1);
+  });
+}

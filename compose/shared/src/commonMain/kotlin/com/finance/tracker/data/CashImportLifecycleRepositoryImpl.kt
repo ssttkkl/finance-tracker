@@ -12,7 +12,7 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
             api.createCashImportSession(inputs, progress)
         } else api.addCashImportFiles(context.sessionId, inputs, context.revision ?: invalidCashInput(), replacingFileRef, progress)
         ImportUploadBatch(value.session?.toDomain(), value.localFailures.map { ImportLocalFileFailure(it.clientFileRef, it.code) },
-            value.interruption?.let { ImportUploadInterruption(it.code, it.status, it.receiptId, it.unprocessedFileRefs) })
+            value.interruption?.let { ImportUploadInterruption(it.code, it.status, it.receiptId, it.unprocessedFileRefs, it.diagnostic) })
     }
     override suspend fun context(sessionId: String): ImportContext = guarded { api.readCashImportSession(sessionId).toDomain() }
     override suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext = guarded { api.setCashImportFileScope(sessionId, fileRef, revision, label).toDomain() }

@@ -1,6 +1,8 @@
 """已解析行的账户组和资金组成项；不访问数据库，也不创建账户。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import cash_diagnostic_scope, row_locations
+
 from collections import OrderedDict
 from collections.abc import Mapping
 from copy import deepcopy
@@ -167,25 +169,26 @@ def scan_cash_funding(files) -> CashFundingScan:
                 continue
             ref, fields = f"{file.file_ref}:r{row.position}", deepcopy(row.fields)
             try:
-                if fields.get("currency") is not None and (not isinstance(fields["currency"], str) or not re.fullmatch(r"[A-Z]{3}", fields["currency"])):
-                    raise ValueError("funding_currency_invalid")
-                parts, issues = _parts(file, row)
-                values = []
-                for kind, origin, key, label, amount in parts:
-                    if kind == "unresolved":
-                        values.append(_FundingPart(None, amount))
-                        continue
-                    group_ref = _digest("funding-group-v1", file.document.source_type, kind, origin, key)
-                    if group_ref not in groups:
-                        groups[group_ref] = {"source_account_ref": group_ref, "source_type": file.document.source_type,
-                            "identity_kind": kind, "origin_key": origin, "identity_key": key,
-                            "display_name": label, "currencies": set(), "row_refs": dict()}
-                    group = groups[group_ref]
-                    if fields.get("currency"):
-                        group["currencies"].add(fields["currency"])
-                    group["row_refs"][ref] = None
-                    values.append(_FundingPart(group_ref, amount))
-                rows.append(CashFundingRow(ref, fields, tuple(values), tuple(dict.fromkeys((*row.issue_codes, *issues)))))
+                with cash_diagnostic_scope("row_planning", row_locations((ref,)), scope="row", files=(file,)):
+                    if fields.get("currency") is not None and (not isinstance(fields["currency"], str) or not re.fullmatch(r"[A-Z]{3}", fields["currency"])):
+                        raise ValueError("funding_currency_invalid")
+                    parts, issues = _parts(file, row)
+                    values = []
+                    for kind, origin, key, label, amount in parts:
+                        if kind == "unresolved":
+                            values.append(_FundingPart(None, amount))
+                            continue
+                        group_ref = _digest("funding-group-v1", file.document.source_type, kind, origin, key)
+                        if group_ref not in groups:
+                            groups[group_ref] = {"source_account_ref": group_ref, "source_type": file.document.source_type,
+                                "identity_kind": kind, "origin_key": origin, "identity_key": key,
+                                "display_name": label, "currencies": set(), "row_refs": dict()}
+                        group = groups[group_ref]
+                        if fields.get("currency"):
+                            group["currencies"].add(fields["currency"])
+                        group["row_refs"][ref] = None
+                        values.append(_FundingPart(group_ref, amount))
+                    rows.append(CashFundingRow(ref, fields, tuple(values), tuple(dict.fromkeys((*row.issue_codes, *issues)))))
             except (ValueError, ArithmeticError):
                 rows.append(CashFundingRow(ref, fields, (), tuple(row.issue_codes), "funding_unreadable"))
     return CashFundingScan(tuple(CashFundingGroup(**{**group, "currencies": tuple(sorted(group["currencies"])), "row_refs": tuple(group["row_refs"])}) for group in groups.values()), tuple(rows))
@@ -227,45 +230,46 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
             or has_unresolved_part or any(selected[ref][0] is None for ref in row.group_refs)]
         merged, used = OrderedDict(), set()
         try:
-            total = exact_decimal(fields["amount"]) if fields.get("amount") is not None else None
-            for index, part in enumerate(row.parts):
-                account, issue = selected[part.group_ref] if part.group_ref is not None else (None, None)
-                if issue:
-                    issues.append(issue)
-                if account is not None and fields.get("currency") is not None and fields["currency"] not in account.get("currencies", ()):
-                    issues.append("account_currency_missing")
-                account_id = str(account.get("id", account.get("account_id"))) if account is not None else None
-                if account_id is not None and part.group_ref is not None:
-                    used.add((part.group_ref, account_id))
-                key = (("account", account_id) if account_id else
-                    ("source", part.group_ref) if part.group_ref is not None else ("unresolved", index))
-                values = merged.setdefault(key, {"account_id": account_id, "amounts": []})
-                values["amounts"].append(_magnitude(part.amount))
-            components, magnitudes = [], []
-            for index, value in enumerate(merged.values()):
-                known = [amount for amount in value["amounts"] if amount is not None]
-                magnitude = _sum(known) if len(known) == len(value["amounts"]) else None
-                if len(merged) == 1 and magnitude is None and total is not None:
-                    if _sum(known) > total.copy_abs():
-                        issues.append("component_total_mismatch")
-                    else:
-                        magnitude = total.copy_abs()
-                magnitudes.append(magnitude)
-                amount = magnitude if total is not None and total >= 0 else magnitude.copy_negate() if total is not None and magnitude is not None else None
-                components.append({"ordinal": index, "account_id": value["account_id"], "amount": format(amount, "f") if amount is not None else None, "currency": fields.get("currency")})
-            known = [value for value in magnitudes if value is not None]
-            if total is not None and (_sum(known) > total.copy_abs() or len(known) == len(magnitudes) and _sum(known) != total.copy_abs()):
-                issues.append("component_total_mismatch")
-            if any(value is None for value in magnitudes):
-                issues.append("allocation_missing")
-            fields.update(cash_granularity="aggregate" if len(components) > 1 else "atomic", components=components,
-                account_id=components[0]["account_id"] if len(components) == 1 else None)
-            try:
-                validate_cash_record_for_posting(fields)
-            except CashRecordPolicyError as error:
-                issues.append(error.code)
-            result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)),
-                not issues and row.error_code is None, row.error_code, tuple(sorted(used))))
+            with cash_diagnostic_scope("row_planning", row_locations((row.row_ref,)), scope="row"):
+                total = exact_decimal(fields["amount"]) if fields.get("amount") is not None else None
+                for index, part in enumerate(row.parts):
+                    account, issue = selected[part.group_ref] if part.group_ref is not None else (None, None)
+                    if issue:
+                        issues.append(issue)
+                    if account is not None and fields.get("currency") is not None and fields["currency"] not in account.get("currencies", ()):
+                        issues.append("account_currency_missing")
+                    account_id = str(account.get("id", account.get("account_id"))) if account is not None else None
+                    if account_id is not None and part.group_ref is not None:
+                        used.add((part.group_ref, account_id))
+                    key = (("account", account_id) if account_id else
+                        ("source", part.group_ref) if part.group_ref is not None else ("unresolved", index))
+                    values = merged.setdefault(key, {"account_id": account_id, "amounts": []})
+                    values["amounts"].append(_magnitude(part.amount))
+                components, magnitudes = [], []
+                for index, value in enumerate(merged.values()):
+                    known = [amount for amount in value["amounts"] if amount is not None]
+                    magnitude = _sum(known) if len(known) == len(value["amounts"]) else None
+                    if len(merged) == 1 and magnitude is None and total is not None:
+                        if _sum(known) > total.copy_abs():
+                            issues.append("component_total_mismatch")
+                        else:
+                            magnitude = total.copy_abs()
+                    magnitudes.append(magnitude)
+                    amount = magnitude if total is not None and total >= 0 else magnitude.copy_negate() if total is not None and magnitude is not None else None
+                    components.append({"ordinal": index, "account_id": value["account_id"], "amount": format(amount, "f") if amount is not None else None, "currency": fields.get("currency")})
+                known = [value for value in magnitudes if value is not None]
+                if total is not None and (_sum(known) > total.copy_abs() or len(known) == len(magnitudes) and _sum(known) != total.copy_abs()):
+                    issues.append("component_total_mismatch")
+                if any(value is None for value in magnitudes):
+                    issues.append("allocation_missing")
+                fields.update(cash_granularity="aggregate" if len(components) > 1 else "atomic", components=components,
+                    account_id=components[0]["account_id"] if len(components) == 1 else None)
+                try:
+                    validate_cash_record_for_posting(fields)
+                except CashRecordPolicyError as error:
+                    issues.append(error.code)
+                result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)),
+                    not issues and row.error_code is None, row.error_code, tuple(sorted(used))))
         except (ValueError, ArithmeticError):
             result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)), False, "funding_unreadable"))
     return tuple(result)

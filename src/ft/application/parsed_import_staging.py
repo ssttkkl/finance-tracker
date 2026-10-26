@@ -1,6 +1,8 @@
 """仅保存解析内容的短期会话；对象 CAS 不能代替应用层工作区锁。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import valid_cash_diagnostic
+
 from collections import OrderedDict
 from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import datetime, timedelta, timezone
@@ -51,6 +53,7 @@ class ParsedImportFile:
     source_scope_label: str | None = None
     is_subset: bool = False
     last_modified_at_ms: int | None = None
+    diagnostic: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +98,7 @@ def _valid_files(files):
             raise ParsedImportDataError("import_session_file_reference_conflict")
         refs.add(item.file_ref); client_refs.add(item.client_file_ref)
         if (not isinstance(item.filename, str) or not item.filename or len(item.filename) > 255 or "/" in item.filename or "\\" in item.filename
+            or item.diagnostic is not None and not valid_cash_diagnostic(item.diagnostic)
             or type(item.is_subset) is not bool
             or item.last_modified_at_ms is not None and (type(item.last_modified_at_ms) is not int or not 0 <= item.last_modified_at_ms < 2 ** 63)
             or not isinstance(item.digest, str) or not re.fullmatch(r"[0-9a-f]{64}", item.digest)

@@ -1,6 +1,8 @@
 """导入计划的原子发布和只读访问；业务计算由服务端构建器提供。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import cash_diagnostic_scope, valid_cash_diagnostic
+
 import base64
 import binascii
 from copy import deepcopy
@@ -246,8 +248,10 @@ def _resolve_detail(plan, value, *, operations=None, copy_values=True):
 
 
 def _file_results(value):
-    files = _objects(value, {"file_ref", "display_name", "status", "recognized_row_count", "issues", "code", "can_retry"})
+    files = _objects(value, {"file_ref", "display_name", "status", "recognized_row_count", "issues", "code", "can_retry", "diagnostic"})
     for file in files:
+        if file.get("diagnostic") is not None and not valid_cash_diagnostic(file["diagnostic"]):
+            raise CashImportPlanError("plan_build_failed")
         if "issues" in file:
             file["issues"] = _issues(file["issues"], default_scope="file")
     return files
@@ -323,8 +327,9 @@ class CashImportPlanService(CashImportContextService):
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
-                result = self._builder(session=uow._state().session, files=deepcopy(current.files),
-                    preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id)
+                with cash_diagnostic_scope(files=current.files):
+                    result = self._builder(session=uow._state().session, files=deepcopy(current.files),
+                        preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id)
                 if (not isinstance(result, dict) or not isinstance(result.get("items"), list)
                     or not isinstance(result.get("summary"), dict) or type(result.get("can_commit")) is not bool):
                     raise CashImportPlanError("plan_build_failed")

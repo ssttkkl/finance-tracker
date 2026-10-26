@@ -1,6 +1,8 @@
 """把已解析出现交给来源对应策略；这里只组合输入，不查询或写入账本。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import cash_diagnostic_scope, row_locations
+
 from copy import deepcopy
 from dataclasses import replace
 
@@ -54,13 +56,14 @@ def source_rows(file, *, resolved_fields=None):
     for row in document.rows:
         if row.disposition == "skipped" or row.fields is None:
             continue
-        values = deepcopy(row.fields)
-        values.update(deepcopy((resolved_fields or {}).get(row.position, {})))
-        scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier, scope_label=file.source_scope_label)
-        result[f"{file.file_ref}:r{row.position}"] = SourceOccurrence(
-            source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
-            parser_version=document.parser_version, table_key=document.table_key, position=row.position,
-            fields=values, coverage=document.coverage, provider_id=row.provider_id,
-            document_position=row.document_position,
-        )
+        with cash_diagnostic_scope("row_planning", row_locations((f"{file.file_ref}:r{row.position}",)), scope="row", files=(file,)):
+            values = deepcopy(row.fields)
+            values.update(deepcopy((resolved_fields or {}).get(row.position, {})))
+            scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier, scope_label=file.source_scope_label)
+            result[f"{file.file_ref}:r{row.position}"] = SourceOccurrence(
+                source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
+                parser_version=document.parser_version, table_key=document.table_key, position=row.position,
+                fields=values, coverage=document.coverage, provider_id=row.provider_id,
+                document_position=row.document_position,
+            )
     return result

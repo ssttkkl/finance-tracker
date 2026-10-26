@@ -29,6 +29,7 @@ private const val CONTEXT_PATH = "/api/v1/cash-import/sessions"
 data class CashImportLocalFileFailure(val clientFileRef: String, val code: String)
 data class CashImportUploadInterruption(
     val code: String, val status: Int, val receiptId: String?, val unprocessedFileRefs: List<String>,
+    val diagnostic: com.finance.tracker.domain.ImportDiagnostic? = null,
 )
 data class CashImportUploadBatchResult(
     val session: CashImportSessionDto?,
@@ -158,7 +159,7 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
             val failure = cause as? ApiFailure
             return CashImportUploadBatchResult(session, failures.toList(), CashImportUploadInterruption(
                 failure?.code ?: "request_failed", failure?.status ?: 0, failure?.receiptId,
-                files.drop(index).map { it.clientFileRef }))
+                files.drop(index).map { it.clientFileRef }, failure?.diagnostic))
         }
         session = current
         onSession(current)

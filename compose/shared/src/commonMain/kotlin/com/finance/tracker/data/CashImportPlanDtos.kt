@@ -78,6 +78,7 @@ data class CashPlanFileDto(
     @SerialName("recognized_row_count") val recognizedRowCount: Int? = null,
     val issues: List<CashImportIssueDto> = emptyList(), val code: String? = null,
     @SerialName("can_retry") val canRetry: Boolean,
+    val diagnostic: CashDiagnosticDto? = null,
 )
 @Serializable
 data class CashInvalidatedChoiceDto(val kind: String, val reference: String, val code: String)

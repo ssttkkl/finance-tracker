@@ -43,6 +43,7 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                 else -> "cash_import_file_failed"
                             }), color = if (file.status in setOf("password_required", "failed")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
                             file.issues.distinctBy { it.code }.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
+                            file.diagnostic?.let { CashImportDiagnostic(it) }
                             if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
                                 visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
                                 modifier = Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))

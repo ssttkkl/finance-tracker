@@ -15,7 +15,8 @@ def cash_import_file_view(file):
         "display_name": file.filename, "source_type": file.source_type, "source_scope_label": file.source_scope_label,
         "status": status, "recognized_row_count": file.document.observed_count if file.document is not None else None,
         "issues": [cash_import_issue(code, blocking_scope="file") for code in codes[:16]],
-        "can_retry": file.status != "parsed"}
+        "can_retry": file.status != "parsed",
+        **({"diagnostic": deepcopy(file.diagnostic)} if file.diagnostic is not None else {})}
 
 
 def cash_import_session_view(current, groups, suggestions):

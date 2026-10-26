@@ -1,6 +1,8 @@
 """区分确定未提交与提交调用后的未知结果。"""
 from contextlib import contextmanager
 
+from ft.cash_diagnostics import cash_diagnostic_scope, report_cash_failure
+
 
 class CashCommitFailure(RuntimeError):
     def __init__(self, commit_state):
@@ -24,10 +26,13 @@ class CashCommitBoundary:
             if self.commit_state == "not_committed":
                 error.commit_state = "not_committed"
             raise
-        except Exception:
-            raise CashCommitFailure(self.commit_state) from None
+        except Exception as error:
+            failure = CashCommitFailure(self.commit_state)
+            failure.cash_diagnostic = report_cash_failure(error)
+            raise failure from None
 
     def commit(self, uow):
         # 即使提交返回异常，数据库也可能已经生效；不能以随后 rollback 推断撤销。
         self.commit_state = "unknown"
-        uow.commit()
+        with cash_diagnostic_scope("database_commit", scope="request"):
+            uow.commit()

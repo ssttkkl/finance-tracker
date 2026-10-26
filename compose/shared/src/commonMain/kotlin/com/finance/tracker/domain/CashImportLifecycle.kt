@@ -25,6 +25,7 @@ data class ImportContextFile(
     val fileRef: String, val clientFileRef: String, val displayName: String,
     val sourceType: String?, val sourceScopeLabel: String?, val status: String,
     val recognizedRowCount: Int?, val issues: List<ImportIssue>, val canRetry: Boolean,
+    val diagnostic: ImportDiagnostic? = null,
 )
 data class ImportSourceAccount(
     val sourceAccountRef: String, val sourceType: String, val displayName: String,
@@ -44,7 +45,7 @@ class ImportUpload(
 )
 data class ImportSourceScope(val label: String?)
 data class ImportLocalFileFailure(val clientFileRef: String, val code: String)
-data class ImportUploadInterruption(val code: String, val status: Int, val receiptId: String?, val unprocessedFileRefs: List<String>)
+data class ImportUploadInterruption(val code: String, val status: Int, val receiptId: String?, val unprocessedFileRefs: List<String>, val diagnostic: ImportDiagnostic? = null)
 data class ImportUploadBatch(val context: ImportContext?, val localFailures: List<ImportLocalFileFailure>, val interruption: ImportUploadInterruption?)
 
 data class ImportMemberRef(val rowRef: String?, val transactionId: String?)
@@ -60,6 +61,7 @@ data class ImportProjectedItem(
 data class ImportPlanFile(
     val fileRef: String, val displayName: String, val status: String, val recognizedRowCount: Int?,
     val issues: List<ImportIssue>, val code: String?, val canRetry: Boolean,
+    val diagnostic: ImportDiagnostic? = null,
 )
 data class ImportInvalidatedChoice(val kind: String, val reference: String, val code: String)
 data class ImportPlan(

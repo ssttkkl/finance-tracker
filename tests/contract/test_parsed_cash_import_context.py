@@ -407,3 +407,27 @@ def test_oversized_file_keeps_observed_size_and_does_not_invoke_parser(context_r
     assert calls == []
     assert created.files[0].size == 6
     assert created.files[0].status == "failed" and created.files[0].document is None
+
+
+def test_unexpected_converter_diagnostic_survives_staging_and_replacement_clears_it(context_runtime, caplog):
+    import logging
+    from ft.application.cash_import_session_view import cash_import_file_view
+    from ft.cash_diagnostics import cash_diagnostic_scope
+    def parser(upload):
+        if upload.content == b"broken":
+            with cash_diagnostic_scope("row_conversion", [{"row_number": 8, "position_kind": "csv_record"}], scope="row"):
+                raise RuntimeError("private SQL account password")
+        return _document()
+    service = _service(context_runtime, parser)
+    with caplog.at_level(logging.ERROR):
+        current = service.create((_upload(content=b"broken", filename="bill.csv"),))
+    file, = current.files
+    diagnostic = file.diagnostic
+    assert diagnostic["stage"] == "row_conversion" and diagnostic["scope"] == "row"
+    assert diagnostic["locations"] == [{"file_ref": file.file_ref, "display_name": "bill.csv",
+        "row_ref": file.file_ref + ":r8", "row_number": 8, "position_kind": "csv_record"}]
+    assert diagnostic["error_id"] in caplog.text and "private SQL" not in caplog.text
+    restored = service.get(current.session_id).session
+    assert cash_import_file_view(restored.files[0])["diagnostic"] == diagnostic
+    result = service.replace_file(current.session_id, file.file_ref, _upload(content=b"fixed"), expected_revision=current.revision)
+    assert result.files[0].diagnostic is None

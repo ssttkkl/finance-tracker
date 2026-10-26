@@ -381,6 +381,39 @@
 
 已知限制：当前 Compose 1.12.1 的禁用控件无障碍语义失败仍按用户要求保留；对应旧 Web 回归在行为断言通过后于 `toBeDisabled` 失败，不把该项记为通过，不升级依赖。整体 UI 演示确认仍未完成。功能地图、流程、接口、技能和词表按当前实现核对；README 仍链接相同流程入口，无新增配置、CLI、迁移或依赖。回退限代码和合同，不改历史收据或真实账本；旧临时派生正文按原 TTL 退出，不恢复已关闭的失败子集接口。
 
+### 4.29 统一错误定位兜底
+
+- [x] 4.29.1 思考／澄清：显式使用 `grill-me → grilling`，用户确认安全诊断边界及单条摘要／多行折叠；独立事实调查覆盖文件、转换、规划、单条／批量、关系、余额／列表和最终提交。A 类，复用当前 feature 分支；无真实账本操作。
+- [x] 4.29.2 计划：更新词表、proposal、delta、design 及 UI 信息架构；不恢复逐项补救、拆分重跑或永久错误存储。官方 M3 正文阅读及 Hallmark 预检在 UI 编码前完成。
+- [x] 4.29.3 测试先行：位置／范围、文件暂存往返、安全日志与响应、包装只记一次、回滚与未知状态、共享映射和错误状态保留先红。
+- [x] 4.29.4 构建：实现轻量诊断、全链阶段和来源位置补充、HTTP／文件响应及共享错误呈现；不改业务决定或提交原子性。
+- [x] 4.29.5 审查：独立范围、工程／API、安全和最终 diff；UI 执行文字必要性／术语自检、Hallmark audit 与独立设计复核。
+- [x] 4.29.6 验证：受影响与完整回归、显式 `_test` PostgreSQL／SQLite、相称性能及构建；Web 代表视口真实冒烟，Android／iOS 编译与单测，设备 QA 不执行。
+- [x] 4.29.7 发布：原位核对 docs、references、示例、功能地图、技能及词表，记录当前命令／HEAD／基线／结果；按既有授权提交推送 `origin/average-snail`。
+- [x] 4.29.8 反思：保留精度标签和敏感错误标记的回归，防止统一错误包装再次丢失可证实位置，或将相关范围误报为坏行。
+
+基线与验证启动 HEAD：`b96d53b`，日期 2026-10-27，验证对象为本次工作树。Cross-platform Impact Check：Web、Android、iOS 共用诊断模型、错误状态和只读展示，全部受影响；没有依赖或平台控件变化。Web 使用 Chromium、`http://127.0.0.1:5191/w/workspace-1/cash-import`、1440×900，走过上传、待确认核对、故障响应、Tab 聚焦、Enter 展开、指针收起及返回账本。每例只有预期提交 `503`，控制台、页面、静态资源及网络失败均为 0。截图保留在 Git 忽略目录 `compose/qa/web/test-results/compose-cash-import.e2e.ts-cad59-record-without-row-recovery/diagnostic.png`、`compose-cash-import.e2e.ts-c0776--range-without-row-recovery/diagnostic.png` 及 `diagnostic-expanded.png`。
+
+审查覆盖范围、工程／API、安全、性能和最终 diff；独立上下文对五个转换／规划文件移除诊断 scope 后作 AST 对照，业务逻辑与基线相同。P2 已关闭：known 409 定位缺口；持久端点误关联唯一上传文件；日志缺安全位置引用；PDF 表序号零基显示；关系组重复建立完整索引；错误码转换丢失内层位置；无 scope 内部 `ValueError` 被误判输入错误。对应实现和回归原位修复，不添加冲突恢复或数据重放路径。Alembic 日志关闭问题已修复；过时失败子集单测按当前两参数合同更新，未恢复旧执行兼容。
+
+UI 对照 `HEAD` 的现有页面，保留布局、字体、颜色和返回动作。官方页面及规则见 workflow design。可见文字必要性及新增术语搜索通过；实际截图 Hallmark audit 与独立设计复核涵盖单条、多条收起及展开，结论 `0 critical · 0 major · 0 minor`。本次为现有错误页的局部只读信息补充，整体 UI 演示确认仍待完成。Hallmark 六轴自检：P5／H4／E4／S5／R5／V3；不引入额外视觉结构。
+
+验证结束日期 2026-10-27（Asia/Shanghai），当前实现与测试树 SHA-256：`77e5c9d927a2effaa1a3dcb85c2c759d28bb05f025723e95680c7bfaccc8b72e`。HEAD／比较基线为上方 `b96d53b`，验证同时包含下列最终专项补跑；未执行项不计通过。
+
+| 检查 | 实际命令与结果 |
+|---|---|
+| 完整非性能回归 | `python3 /tmp/ft-diagnostics-full-regression.py` 按文件分四片运行 `uv run pytest <分片文件> -q -m 'not performance' -p no:cacheprovider --disable-warnings --tb=line`；`PYTHONPATH=tests:tests/contract:src:.`，该轮移除 PostgreSQL 环境变量。234 文件：3,478 passed，1,320 skipped（包括未配置 PostgreSQL 等适用条件），17 性能例 deselected，0 failed；清单 `/tmp/ft-diagnostics-regression-manifest.json`，结果 `/tmp/ft-diagnostics-regression-final.log`。这些 skip 不作为双库通过证据。 |
+| 最终协议／安全专项 | `PYTHONPATH=tests:tests/contract:src:. uv run pytest tests/test_cash_diagnostics.py tests/test_cash_plan_protocol.py tests/test_cash_import_multipart.py tests/test_cash_import_outcome.py tests/test_cash_mutation_failure_results.py tests/test_runtime_docs.py -q --disable-warnings --tb=short`：46 passed；包含最终 OpenAPI、坏 JSON 422 与请求读取内部异常 503 两项新增回归。日志 `/tmp/ft-diagnostics-reviewed-unit.log`。 |
+| 双后端契约 | 人工启动专用 Docker PostgreSQL 16 并创建 `ft_cash_diag_test`、`ft_cash_diag_1_test`、`ft_cash_diag_2_test`、`ft_cash_diag_3_test`；显式 `FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55447/<对应_test库>`、`FT_REQUIRE_TEST_POSTGRES=1`。`python3 /tmp/ft-diagnostics-sharded-matrix.py` 四片执行导入提交、解析上下文、会话 API、计划 API、维护提交／恢复和维护 API 共 7 文件，SQLite／真实 PostgreSQL 共 402 passed，0 skipped／failed；清单 `/tmp/ft-diagnostics-matrix-manifest.json`，日志 `/tmp/ft-diagnostics-matrix-final.log`。最新错误码转换／文件恢复定点另有 4 例通过。 |
+| 性能 | 同一显式 PostgreSQL 配置下，`uv run pytest tests/test_cash_import_performance.py::test_fixed_1k_joint_import_preview_commit_duplicate_and_source_update_have_bounded_cost -q -s --disable-warnings --tb=short`：2 passed。SQLite 预览／提交 1.12／1.71 s，PostgreSQL 2.09／6.72 s；重复及来源更新仍在原预算内，内存增量均低于 256 MiB。日志 `/tmp/ft-diagnostics-performance.log`；不声称完成万行预览待办。 |
+| 共享编译／单测 | `./compose/gradlew -p compose :shared:wasmJsTest :shared:testAndroidHostTest :shared:iosSimulatorArm64Test :shared:linkDebugFrameworkIosSimulatorArm64 --no-configuration-cache --quiet` 成功；XML 汇总 Web 408、Android 402、iOS 403，全部 0 failure／error／skip。日志 `/tmp/ft-diagnostics-native-final.log`。 |
+| Web 冒烟 | `FT_COMPOSE_PREVIEW_PORT=5191 npm --prefix compose/qa/web run test:e2e -- --grep 'import diagnostics show'`：2 passed；键盘焦点使用原生 TextButton 的状态层核对，真实 Enter 展开和指针收起。日志 `/tmp/ft-diagnostics-web-final.log`。测试使用合成 HTTP 故障响应，不访问真实账本。 |
+| 构建与文档 | `uv build --out-dir /tmp/ft-diagnostics-dist` 成功；wheel 的 19 个变更／新增模块及 sdist 中的迁移日志配置与当前源码逐字节一致。`uv run python -m compileall -q src/ft migrations/env.py`、`openspec validate --all --strict --json`（35/35）、`uv run python /tmp/ft-tighten-check-links.py`（186 本地链接）及 `git diff --check` 通过。 |
+
+交付前已核对 README、现金导入流程、协议、功能地图、词表与适用技能；协议、功能地图和 OpenSpec apply 指南已原位更新，README／主流程没有新的入口或命令变更，无需改写。回退不触及数据库 schema 或正式账本：旧客户端可忽略新增响应字段；若回退旧后端，带新诊断字段的临时会话应关闭或等待原 TTL 后重选文件，不增加旧格式执行兼容。提交／推送目标为 `origin/average-snail`，不部署、不操作真实 `~/.ft` 数据。保留位置精度、隐私敏感标记、原错误码／原子回滚及官方按钮状态层回归防止复发。
+
+验证证据以当前日志、矩阵和构建结果收尾，未完成项不计通过。Android／iOS 不执行设备 QA；现有 Compose 关闭弹层后的无障碍缺陷继续登记，不升级依赖。本次新增折叠控件的键盘与指针操作已实际验证。
+
 ## 5. 审查
 
 - [x] 5.1 本次后端独立产品／范围与工程复核：金额、来源身份、关系组、闭包、保存点、并发、迁移及 API 可发现性。

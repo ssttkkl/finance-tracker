@@ -353,6 +353,24 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 原 `status`／`summary` 保留原有含义。新前端正常完成仅显示摘要；有新增异常时统一显示导入错误、安全原因与返回，不提供逐项处理或重试入口。结果未知仍用原命令核实。清理后读取、按键读取、resolve 及原键重放返回同一持久事实。旧收据缺少 `commit_outcome` 时分类未知，保留原摘要，不补算或改写历史结果。
 
+#### 错误定位
+
+解析、转换、预览和提交的意外异常统一返回安全原因和 `diagnostic`。提交重验及关系确认的已知冲突同样提供定位，保留原状态码与 `commit_state`；普通表单校验、缺少密码等正常状态沿用原流程。请求错误位于 `error.diagnostic`；已经隔离的文件错误位于会话文件及计划 `file_results` 的 `diagnostic`，随临时会话 TTL 保留，成功替换文件后清除。
+
+| 字段 | 合同 |
+|---|---|
+| `error_id` | 32 位随机十六进制错误编号，与服务端诊断日志一致；重复包装不产生第二个编号 |
+| `stage` | `request/file_read/row_conversion/row_planning/relation_discovery/submit_revalidation/source_evidence/row_write/batch_write/account_mapping/relation_save/balances/projection/entry_edit/database_commit` |
+| `scope` | `row` 为已定位输入记录；`related` 只说明相关范围；`file` 为文件；`request` 无法确定到记录或文件 |
+| `locations` | 最多 100 项，每项仅含已知的 `file_ref/display_name/row_ref/row_number/position_kind/document_position/transaction_id` |
+| `total_locations` | 相关位置的真实总数，超过返回上限时不缩减 |
+
+`position_kind` 为 `csv_record/worksheet_row/document_row`。CSV／TSV 的 `row_number` 是从文件起始计算的逻辑记录序号，包含表头和元数据记录；带换行的引号字段仍只算一条，不冒称文本物理行。Excel 使用工作表行号。PDF 有认证位置时，`document_position` 使用 `p<页>:t<表>:r<行>`，其中表编号从 0 起，行编号从首条数据记录的 1 起，客户端将表编号加一后按自然语言呈现；无证据时仅给已知记录位置。库中已有关系端点没有可证实的来源文件时，只返回内部 `transaction_id`，不把它归到本次上传的文件。
+
+单条转换或保存失败返回该记录；批量 SQL、关系组、余额或账本更新失败只报告可确定的相关范围。最终数据库提交出错使用 `database_commit/request`，不指认最后处理的记录，也不据此宣称确定回滚。诊断不拆分重跑、不创建失败子集或逐项处理入口。前端在错误原因下直接显示单条摘要，多条相关记录默认折叠；错误编号始终可读。
+
+服务端同编号记录异常类型、所有调用帧和去掉文件名后的安全位置引用；不记录异常正文、代码行字面量、SQL 参数、局部变量、路径、原键、密码或账单正文。诊断日志接收器失败不改变原异常及提交事实。不新增永久错误表、诊断查询接口或本机恢复存储。
+
 ### 3.5 后续维护与读取
 
 流水对象、投影及各操作的业务范围统一见 [现金流水说明](cash-ledger.md)，本节只列接口和执行约束。当前命令分为直接命令与维护计划，不能把所有写入都理解为同一种幂等／部分成功流程。
@@ -789,7 +807,9 @@ erDiagram
   "scenario": "commit_execution_failed",
   "request": {"method": "POST", "path": "/api/v1/cash-import/plans/p2/commit", "headers": {"Idempotency-Key": "import-k1"}, "body": {"expected_session_revision": 5}},
   "response": {
-    "error": {"code": "commit_failed", "message": "本次未能保存，请重试本次操作。", "field_errors": [], "retryable": true},
+    "error": {"code": "commit_failed", "message": "本次未能保存，请重试本次操作。", "field_errors": [], "retryable": true,
+      "diagnostic": {"error_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "stage": "row_write", "scope": "row",
+        "locations": [{"file_ref": "f1", "display_name": "账单.csv", "row_ref": "f1:r8", "row_number": 8, "position_kind": "csv_record"}], "total_locations": 1}},
     "commit_state": "not_committed"
   }
 }

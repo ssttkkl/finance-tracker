@@ -1,6 +1,8 @@
 """将共同来源决定与资金、字段选择合并为只读的逐流水操作。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import cash_diagnostic_scope, row_locations
+
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass
@@ -148,43 +150,45 @@ class CashImportOperationPlanner:
             record = records.get(resolution.transaction_id)
             candidates, candidate_group = (), None
             try:
-                if resolution.action == "conflict":
-                    # 固定冲突没有可保存的更新草稿。
-                    if record and resolution.reason == "fixed_field_conflict":
-                        prepare_cash_record_update(_current_values(record), {key: value for key, value
-                            in source.rows[ref].fields.items() if key in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS})
-                    raise CashRecordPolicyError(resolution.reason, ())
-                if resolution.action == "batch_duplicate":
-                    decisions[ref] = {"row_ref": ref, "operation_ref": None,
-                        "planned_action": "duplicate_in_batch", "source_group_ref": resolution.group_ref}
-                    continue
-                if choice["action"] == "keep_existing":
-                    operation = self._keep(record, targets[record.transaction_id], source.rows[ref],
-                        saved_issues.get(record.transaction_id, ()))
-                elif resolution.action == "duplicate" and record is None:
-                    decisions[ref] = {"row_ref": ref, "operation_ref": None, "planned_action": "duplicate",
-                        "source_group_ref": resolution.group_ref}
-                    continue
-                else:
-                    candidates = resolution.candidate_ids
-                    if resolution.group_ref in groups:
-                        candidates = groups[resolution.group_ref].candidate_ids
-                        candidate_group = resolution.group_ref
-                    operation = self._operation(ref, record, targets.get(resolution.transaction_id),
-                        saved_issues.get(resolution.transaction_id, ()), source.rows[ref], resolution,
-                        funding[ref], selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts)
-                candidate_sets.bind(operation, candidates, candidate_group)
-                occurrence_key = source.rows[ref].occurrence_key
-                operation["occurrence_key"] = occurrence_key
-                if record is None and occurrence_key in (record_ids or {}):
-                    operation["values"]["record_id"] = record_ids[occurrence_key]
-                operation["operation_ref"] = f"op_{len(operations) + 1}"
-                operation["source_updates"] = [{"row_ref": item, "bind": source_results[item].bind or resolution.action == "pending",
-                    "uncertain": any(issue["code"] == "source_identity_ambiguous" for issue in operation["issues"])} for item in related]
-                operation["row_refs"] = list(related)
-                operations.append(_wire(operation))
-                decisions[ref] = {"row_ref": ref, "operation_ref": operation["operation_ref"],
-                    "planned_action": operation["planned_action"], "transaction_id": operation["transaction_id"]}
+                with cash_diagnostic_scope("row_planning", row_locations(related),
+                        scope="row" if len(related) == 1 else "related"):
+                    if resolution.action == "conflict":
+                        # 固定冲突没有可保存的更新草稿。
+                        if record and resolution.reason == "fixed_field_conflict":
+                            prepare_cash_record_update(_current_values(record), {key: value for key, value
+                                in source.rows[ref].fields.items() if key in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS})
+                        raise CashRecordPolicyError(resolution.reason, ())
+                    if resolution.action == "batch_duplicate":
+                        decisions[ref] = {"row_ref": ref, "operation_ref": None,
+                            "planned_action": "duplicate_in_batch", "source_group_ref": resolution.group_ref}
+                        continue
+                    if choice["action"] == "keep_existing":
+                        operation = self._keep(record, targets[record.transaction_id], source.rows[ref],
+                            saved_issues.get(record.transaction_id, ()))
+                    elif resolution.action == "duplicate" and record is None:
+                        decisions[ref] = {"row_ref": ref, "operation_ref": None, "planned_action": "duplicate",
+                            "source_group_ref": resolution.group_ref}
+                        continue
+                    else:
+                        candidates = resolution.candidate_ids
+                        if resolution.group_ref in groups:
+                            candidates = groups[resolution.group_ref].candidate_ids
+                            candidate_group = resolution.group_ref
+                        operation = self._operation(ref, record, targets.get(resolution.transaction_id),
+                            saved_issues.get(resolution.transaction_id, ()), source.rows[ref], resolution,
+                            funding[ref], selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts)
+                    candidate_sets.bind(operation, candidates, candidate_group)
+                    occurrence_key = source.rows[ref].occurrence_key
+                    operation["occurrence_key"] = occurrence_key
+                    if record is None and occurrence_key in (record_ids or {}):
+                        operation["values"]["record_id"] = record_ids[occurrence_key]
+                    operation["operation_ref"] = f"op_{len(operations) + 1}"
+                    operation["source_updates"] = [{"row_ref": item, "bind": source_results[item].bind or resolution.action == "pending",
+                        "uncertain": any(issue["code"] == "source_identity_ambiguous" for issue in operation["issues"])} for item in related]
+                    operation["row_refs"] = list(related)
+                    operations.append(_wire(operation))
+                    decisions[ref] = {"row_ref": ref, "operation_ref": operation["operation_ref"],
+                        "planned_action": operation["planned_action"], "transaction_id": operation["transaction_id"]}
             except CashImportPlanError:
                 raise
             except CashRecordPolicyError as error:

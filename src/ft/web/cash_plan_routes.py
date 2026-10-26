@@ -1,4 +1,6 @@
 """计划的只读分页、一次确认及当前操作者的持久结果。"""
+from ft.cash_diagnostics import report_cash_failure
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
@@ -54,17 +56,18 @@ _RECORD_ERRORS = {
 }
 
 
-def _error(code, status, message, *, field_errors=None, **details):
+def _error(code, status, message, *, field_errors=None, diagnostic=None, **details):
     return JSONResponse({"error": {"code": code, "message": message, "field_errors": field_errors or [],
-        "retryable": status == 503}, **details}, status)
+        "retryable": status == 503,
+        **({"diagnostic": diagnostic} if diagnostic is not None else {})}, **details}, status)
 
 
-def plan_failure(error):
+def _plan_failure(error):
     proof = {"commit_state": "not_committed"} if getattr(error, "commit_state", None) == "not_committed" else {}
     if isinstance(error, CashCommitFailure):
         if error.commit_state == "not_committed":
-            return _error("commit_failed", 503, "本次未能保存，请重试本次操作。", commit_state="not_committed")
-        return _unknown()
+            return _error("commit_failed", 503, "本次未能保存，请重试本次操作。", commit_state="not_committed", diagnostic=getattr(error, "cash_diagnostic", None))
+        return _unknown(getattr(error, "cash_diagnostic", None))
     if isinstance(error, CashMutationConflict):
         code = error.code if error.code in _CONFLICTS else "plan_changed"
         return _error(code, 409, _CONFLICTS.get(code, "核对内容已变化，请刷新后重试。"),
@@ -96,8 +99,19 @@ def plan_failure(error):
     return _failure(error)
 
 
-def _unknown():
-    return _error("commit_state_unknown", 503, "保存结果待确认，请先核实本次操作。", commit_state="unknown")
+def plan_failure(error):
+    response = _plan_failure(error)
+    if isinstance(error, CashCommitFailure) or response.status_code >= 500 or (
+            response.status_code == 409 and hasattr(error, "_cash_diagnostic_context")):
+        import json
+        value = json.loads(response.body)
+        value["error"]["diagnostic"] = report_cash_failure(error)
+        return JSONResponse(value, response.status_code)
+    return response
+
+
+def _unknown(diagnostic=None):
+    return _error("commit_state_unknown", 503, "保存结果待确认，请先核实本次操作。", commit_state="unknown", diagnostic=diagnostic)
 
 
 def cash_plan_router(services):
@@ -109,21 +123,29 @@ def cash_plan_router(services):
             return await run_in_threadpool(action)
         except CashCommitFailure as error:
             return plan_failure(error)
-        except _STORAGE_ERRORS:
-            return _unknown() if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。")
+        except _STORAGE_ERRORS as error:
+            diagnostic = report_cash_failure(error)
+            return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
         except _ERRORS as error:
+            if type(error) is ValueError:
+                diagnostic = report_cash_failure(error)
+                return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
             response = plan_failure(error)
-            return _unknown() if write and response.status_code >= 500 else response
-        except Exception:
-            # 边界未知异常不透传路径、来源值或存储正文。
-            return _unknown() if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。")
+            return _unknown(report_cash_failure(error)) if write and response.status_code >= 500 else response
+        except Exception as error:
+            diagnostic = report_cash_failure(error)
+            return _unknown(diagnostic) if write else _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=diagnostic)
 
     async def command(request, model, action, *, keyed=False, write=False):
         try:
             key = idempotency_key(request) if keyed else None
             body = await json_input(request, model, max_bytes=MAX_PLAN_INPUT_BYTES)
         except _ERRORS as error:
-            return plan_failure(error)
+            if type(error) is not ValueError:
+                return plan_failure(error)
+            return _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=report_cash_failure(error))
+        except Exception as error:
+            return _error("import_unavailable", 503, "暂时无法处理账单，请稍后重试。", diagnostic=report_cash_failure(error))
         return await invoke(lambda: action(body, key), write=write)
 
     @router.post("/cash-import/sessions/{session_id}/plans", response_model=ImportPlanView,

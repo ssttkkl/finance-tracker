@@ -1,3 +1,4 @@
+from ft.web.cash_diagnostic_protocol import CashDiagnosticView
 """不可变计划和当前处理结果的公开 HTTP 结构。"""
 import re
 from urllib.parse import parse_qsl
@@ -93,6 +94,7 @@ class PreviewItemView(Output):
 
 
 class PlanFileView(Output):
+    diagnostic: CashDiagnosticView | None = None
     file_ref: str
     display_name: str
     status: Literal["ready", "partial", "password_required", "failed"]
@@ -280,6 +282,7 @@ class ResolveView(Output):
 
 
 class ErrorDetailView(Output):
+    diagnostic: CashDiagnosticView | None = None
     code: str
     message: str
     field_errors: list[dict[str, str]]

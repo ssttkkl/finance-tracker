@@ -1,6 +1,8 @@
 """实际账单操作、当前关系和预计流水列表的只读业务构建器。"""
 from __future__ import annotations
 
+from ft.cash_diagnostics import cash_diagnostic_scope, operation_locations
+
 from collections import Counter, defaultdict
 from copy import deepcopy
 from dataclasses import asdict, dataclass, replace
@@ -162,8 +164,9 @@ class CashImportBusinessPlanBuilder:
             snapshot_transform(snapshot, operations)
         seeds = {part.component_id for part in snapshot.components.values()
             if snapshot.parent_ops.get(part.transaction_id, {}).get("planned_action") in {"create_posted", "finalize_draft"}}
-        proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])
-        groups, conversion_failures = self._groups(snapshot, proposals)
+        with cash_diagnostic_scope("relation_discovery", operation_locations(operations), scope="related"):
+            proposals, failures = self._discover(snapshot, seeds, accounts, session) if seeds else ([], [])
+            groups, conversion_failures = self._groups(snapshot, proposals)
         if current_relation_builder is not None:
             groups.extend(current_relation_builder(snapshot, accounts))
         failures.extend(conversion_failures)
@@ -955,7 +958,7 @@ class CashImportBusinessPlanBuilder:
             for failure in failures)
         from ft.application.cash_import_session_view import cash_import_file_view
         file_results = [{key: value for key, value in cash_import_file_view(file).items()
-            if key in {"file_ref", "display_name", "status", "recognized_row_count", "issues", "can_retry"}} for file in files]
+            if key in {"file_ref", "display_name", "status", "recognized_row_count", "issues", "can_retry", "diagnostic"}} for file in files]
         return {"items": items, "item_details": details, "detail_values": detail_values, "entry_targets": entry_targets, "processing_details": processing,
             "file_results": file_results, "summary": counts, "can_commit": any(file.status == "parsed" for file in files)}
 

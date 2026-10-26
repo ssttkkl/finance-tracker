@@ -1,4 +1,6 @@
 """导入与无文件维护共用的事务内写入；不授权、不提交外层事务。"""
+from ft.cash_diagnostics import cash_diagnostic_scope, parent_locations
+
 from collections import defaultdict
 from copy import deepcopy
 from dataclasses import replace
@@ -48,32 +50,35 @@ class CashPlanWriteOperations:
         current = {group["suggestion_id"]: group for group in fresh["relation_groups"]}
         for group in plan["relation_groups"]:
             groups[group.get("commit_group_id", group["suggestion_id"])].append(group)
+        diagnostic_operations = {operation["preview_transaction_id"]: operation for operation in plan.get("operations", ())}
         for commit_id, members in groups.items():
-            if any(group["action"] == "skip" for group in members):
+            with cash_diagnostic_scope("relation_save", parent_locations(
+                    (parent for group in members for parent in group["parent_ids"]), diagnostic_operations), scope="related"):
+                if any(group["action"] == "skip" for group in members):
+                    for group in members:
+                        code = group.get("code", "relation_save_failed")
+                        result.append({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code})
+                        parents = {int(identity.get(parent, parent)) for parent in group["parent_ids"]
+                            if int(identity.get(parent, parent)) < 2 ** 63}
+                        self._relation_problem(session, parents, commit_id, code)
+                        affected.update(parents)
+                    continue
+                unchanged = self._existing_groups(session, members, identity, components)
+                if unchanged is not None:
+                    result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "duplicate",
+                        "relation_id": str(unchanged[group["suggestion_id"]])} for group in members)
+                    continue
                 for group in members:
-                    code = group.get("code", "relation_save_failed")
-                    result.append({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "failed", "code": code})
-                    parents = {int(identity.get(parent, parent)) for parent in group["parent_ids"]
-                        if int(identity.get(parent, parent)) < 2 ** 63}
-                    self._relation_problem(session, parents, commit_id, code)
-                    affected.update(parents)
-                continue
-            unchanged = self._existing_groups(session, members, identity, components)
-            if unchanged is not None:
-                result.extend({"result_kind": "relation", "item_ref": group["suggestion_id"], "outcome": "duplicate",
-                    "relation_id": str(unchanged[group["suggestion_id"]])} for group in members)
-                continue
-            for group in members:
-                updated = current.get(group["suggestion_id"])
-                if updated is None or updated["action"] != group["action"] or updated["edges"] != group["edges"]:
-                    raise CashRelationError("relation_context_changed")
-            written = self._write_group(session, members, identity, components, commit_id, manual)
-            session.flush()
-            for group in members:
-                result.append({"result_kind": "relation", "item_ref": group["suggestion_id"],
-                    "outcome": {"accept": "confirmed", "defer": "deferred", "ignore": "ignored"}[group["action"]],
-                    "relation_id": str(written[group["suggestion_id"]])})
-                affected.update(int(identity.get(parent, parent)) for parent in group["parent_ids"])
+                    updated = current.get(group["suggestion_id"])
+                    if updated is None or updated["action"] != group["action"] or updated["edges"] != group["edges"]:
+                        raise CashRelationError("relation_context_changed")
+                written = self._write_group(session, members, identity, components, commit_id, manual)
+                session.flush()
+                for group in members:
+                    result.append({"result_kind": "relation", "item_ref": group["suggestion_id"],
+                        "outcome": {"accept": "confirmed", "defer": "deferred", "ignore": "ignored"}[group["action"]],
+                        "relation_id": str(written[group["suggestion_id"]])})
+                    affected.update(int(identity.get(parent, parent)) for parent in group["parent_ids"])
         return result
 
     def _existing_groups(self, session, groups, identity, components):

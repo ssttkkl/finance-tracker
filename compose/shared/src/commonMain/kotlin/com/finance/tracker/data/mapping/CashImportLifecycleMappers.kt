@@ -16,7 +16,7 @@ private data class RestoredImportChoicesDto(
 internal fun CashImportIssueDto.toDomain() = ImportIssue(code, message, fieldPath, blockingScope, nextAction, afterImportAction)
 internal fun CashImportSessionDto.toDomain() = ImportContext(
     sessionId, sessionRevision, expiresAt, state,
-    files.map { ImportContextFile(it.fileRef, it.clientFileRef, it.displayName, it.sourceType, it.sourceScopeLabel, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.canRetry) },
+    files.map { ImportContextFile(it.fileRef, it.clientFileRef, it.displayName, it.sourceType, it.sourceScopeLabel, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.canRetry, it.diagnostic?.toDomain()) },
     sourceAccounts.map { group -> ImportSourceAccount(group.sourceAccountRef, group.sourceType, group.displayName, group.currencies, group.rowCount,
         group.suggestion.accountId?.let { ImportAccountTarget(it, group.suggestion.expectedAccountRevision) }, group.suggestion.basis,
         group.selection?.let { ImportAccountTarget(it.accountId, it.expectedAccountRevision) }) },
@@ -39,7 +39,7 @@ internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, c
 internal fun CashPlanItemDto.toDomain() = ImportProjectedItem(previewItemId, confirmationStatus, anticipatedState, display.toDomain(), statisticsEligible,
     memberRefs.map(CashPlanMemberRefDto::toDomain), attentionReasons.map(CashImportIssueDto::toDomain), detailAvailable)
 internal fun CashImportPlanDto.toDomain() = ImportPlan(planId, sessionId, sessionRevision, expiresAt, summary, itemCounts, canCommit,
-    items.map(CashPlanItemDto::toDomain), fileResults.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.code, it.canRetry) },
+    items.map(CashPlanItemDto::toDomain), fileResults.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.code, it.canRetry, it.diagnostic?.toDomain()) },
     pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) })
 internal fun CashPlanItemPageDto.toDomain() = ImportItemPage(items.map(CashPlanItemDto::toDomain), nextCursor)
 internal fun CashPlanProcessingPageDto.toDomain() = ImportProcessingPage(items.map { ImportProcessingDetail(it.rowRef, it.transactionId, it.fileRef, it.plannedAction, it.operationRef, it.duplicateOf, it.code, it.message, it.fieldPath, it.blockingScope, it.nextAction) }, nextCursor)

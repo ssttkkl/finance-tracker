@@ -86,7 +86,7 @@ internal suspend inline fun <reified T> FinanceApiClient.request(
             ((apiJson.parseToJsonElement(responseText) as? JsonObject)?.get("commit_state") as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it in setOf("unknown", "not_committed") }
         }.getOrNull()
-        throw ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState)
+        throw ApiFailure(code, response.status.value, receiptId = receiptId, commitState = commitState, diagnostic = apiErrorDiagnostic(responseText))
     }
     if (response.status == HttpStatusCode.NoContent || responseText.isBlank()) {
         @Suppress("UNCHECKED_CAST")

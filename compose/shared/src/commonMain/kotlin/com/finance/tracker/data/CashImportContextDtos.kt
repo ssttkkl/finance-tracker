@@ -25,6 +25,7 @@ data class CashImportContextFileDto(
     @SerialName("recognized_row_count") val recognizedRowCount: Int? = null,
     val issues: List<CashImportIssueDto>,
     @SerialName("can_retry") val canRetry: Boolean,
+    val diagnostic: CashDiagnosticDto? = null,
 )
 
 @Serializable

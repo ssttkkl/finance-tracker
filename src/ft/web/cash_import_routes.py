@@ -1,4 +1,6 @@
 """解析会话及逐文件命令的 HTTP 入口。"""
+from ft.cash_diagnostics import report_cash_failure
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
@@ -13,6 +15,7 @@ from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
 )
+from ft.web.cash_plan_protocol import CashPlanErrorView
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
 from ft.domain.cash_source_scope import CashSourceScopeError
 from ft.web.cash_import_protocol import (
@@ -46,6 +49,8 @@ def _failure(error):
     elif isinstance(error, ValueError) and str(error) == "import_file_not_found":
         code, status, message = "file_not_found", 404, "未找到这份账单。"
     result = {"error": {"code": code, "message": message, "field_errors": [], "retryable": status == 503}}
+    if status == 503 or status == 409 and hasattr(error, "_cash_diagnostic_context"):
+        result["error"]["diagnostic"] = report_cash_failure(error)
     if receipt_id is not None:
         result["receipt_id"] = receipt_id
     return JSONResponse(result, status)
@@ -55,8 +60,9 @@ _CLIENT_ERRORS = (ValueError, ValidationError, RecursionError, ImportSessionErro
 _STORAGE_ERRORS = (SQLAlchemyError, StorageError, RelationalEngineError, OSError)
 
 
-def _unavailable():
-    return _failure(ImportSessionStorageUnavailable())
+def _unavailable(error):
+    return JSONResponse({"error": {"code": "import_unavailable", "message": "暂时无法处理账单，请稍后重试。",
+        "field_errors": [], "retryable": True, "diagnostic": report_cash_failure(error)}}, 503)
 
 
 def _multipart_contract(model):
@@ -79,7 +85,8 @@ def _multipart_contract(model):
 
 
 def cash_import_router(services):
-    router = APIRouter(prefix="/api/v1/cash-import", tags=["cash-import"])
+    router = APIRouter(prefix="/api/v1/cash-import", tags=["cash-import"], responses={
+        status: {"model": CashPlanErrorView} for status in (401, 403, 404, 409, 410, 422, 503)})
 
     async def uploads(request, *, session_id=None):
         try:
@@ -95,10 +102,14 @@ def cash_import_router(services):
                     current = await run_in_threadpool(commands.replace_file, session_id, metadata.file_ref, files[0],
                         expected_revision=metadata.expected_session_revision)
             return await run_in_threadpool(commands.get_view, current.session_id)
-        except _STORAGE_ERRORS:
-            return _unavailable()
+        except _STORAGE_ERRORS as error:
+            return _unavailable(error)
         except _CLIENT_ERRORS as error:
+            if type(error) is ValueError:
+                return _unavailable(error)
             return _failure(error)
+        except Exception as error:
+            return _unavailable(error)
 
     @router.post("/sessions", status_code=201, response_model=CashImportSessionView,
         openapi_extra=_multipart_contract(UploadMetadata))
@@ -114,10 +125,14 @@ def cash_import_router(services):
     async def get_session(session_id: str):
         try:
             return await run_in_threadpool(services.parsed_import_context().get_view, session_id)
-        except _STORAGE_ERRORS:
-            return _unavailable()
+        except _STORAGE_ERRORS as error:
+            return _unavailable(error)
         except _CLIENT_ERRORS as error:
+            if type(error) is ValueError:
+                return _unavailable(error)
             return _failure(error)
+        except Exception as error:
+            return _unavailable(error)
 
     async def file_command(request, session_id, file_ref=None, *, remove=False):
         try:
@@ -132,10 +147,14 @@ def cash_import_router(services):
                 current = await run_in_threadpool(commands.set_file_source_scope, session_id, file_ref,
                     body.source_scope_label, expected_revision=body.expected_session_revision)
             return await run_in_threadpool(commands.get_view, current.session_id)
-        except _STORAGE_ERRORS:
-            return _unavailable()
+        except _STORAGE_ERRORS as error:
+            return _unavailable(error)
         except _CLIENT_ERRORS as error:
+            if type(error) is ValueError:
+                return _unavailable(error)
             return _failure(error)
+        except Exception as error:
+            return _unavailable(error)
 
     @router.patch("/sessions/{session_id}/files/{file_ref}", response_model=CashImportSessionView,
         openapi_extra={"requestBody": {"required": True, "content": {

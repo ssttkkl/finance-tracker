@@ -1,4 +1,6 @@
 """现金导入的严格请求边界和当次上传资源。"""
+from ft.web.cash_diagnostic_protocol import CashDiagnosticView
+
 from contextlib import asynccontextmanager
 import json
 import math
@@ -75,6 +77,7 @@ class CashImportAccountSelection(StrictInput):
 
 
 class CashImportFileView(StrictInput):
+    diagnostic: CashDiagnosticView | None = None
     file_ref: str
     client_file_ref: str
     display_name: str
@@ -130,7 +133,11 @@ def _float(value):
 
 
 def strict_json(value, model):
-    return model.model_validate(json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float))
+    try:
+        payload = json.loads(value, object_pairs_hook=_pairs, parse_constant=_constant, parse_float=_float)
+    except (ValueError, RecursionError):
+        raise CashImportProtocolError from None
+    return model.model_validate(payload)
 
 
 async def json_input(request, model, *, max_bytes=MAX_METADATA_BYTES):

@@ -1,6 +1,8 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -173,6 +175,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         else {
             localError?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
             state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
+            state.errorDiagnostic?.let { CashImportDiagnostic(it) }
             if (!auxiliaryReady) TextButton(onClick = { localError = null; reload++ }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
             if (state.plan?.invalidatedChoices?.isNotEmpty() == true) Text(localizedText("cash_import_preview_invalid"), color = MaterialTheme.colorScheme.error)
             if (state.phase == ImportTaskPhase.REVIEW && (state.plan?.summary?.get("duplicate") ?: 0L) +
@@ -259,7 +262,7 @@ private fun CashImportTaskResult(state: ImportTaskUiState, onResolve: () -> Unit
     val receipt = state.receipt
     val failed = receipt?.let(::importTaskHasUnexpectedFailure) == true ||
         state.submission == ImportSubmissionState.RETRY_ORIGINAL && state.errorCode != null
-    Column(Modifier.fillMaxWidth().testTag("cash.import.result"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).testTag("cash.import.result"), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(localizedText(when { failed -> "cash_import_error"; receipt != null -> "cash_import_complete"; else -> "cash_import_unknown" }), style = MaterialTheme.typography.headlineSmall)
         if (failed) {
             if (receipt?.commitOutcome?.hasBusinessWrites == true) Text(localizedText("cash_import_partial_saved"))
@@ -275,6 +278,7 @@ private fun CashImportTaskResult(state: ImportTaskUiState, onResolve: () -> Unit
             TextButton(onClick = if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) onRetry else onResolve, enabled = enabled,
                 modifier = Modifier.testTag("cash.import.resolve")) { Text(localizedText(if (state.submission == ImportSubmissionState.RETRY_ORIGINAL) "cash_import_retry_original" else "cash_import_check_result")) }
         }
+        state.errorDiagnostic?.let { CashImportDiagnostic(it) }
         Button(onClick = onReturn, enabled = enabled, modifier = Modifier.testTag("cash.import.return")) { Text(localizedText("cash_import_back_ledger")) }
     }
 }

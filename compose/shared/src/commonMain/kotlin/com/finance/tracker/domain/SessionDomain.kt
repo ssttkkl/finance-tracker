@@ -73,6 +73,7 @@ class DomainFailure(
     val category: FailureCategory,
     val receiptId: String? = null,
     val commitState: String? = null,
+    val diagnostic: ImportDiagnostic? = null,
 ) : Exception(code)
 
 fun normalizeDomainWorkspaceName(value: String): String? = value.trim().takeIf {

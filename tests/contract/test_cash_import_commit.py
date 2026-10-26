@@ -127,7 +127,11 @@ def test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback(
         return result
     monkeypatch.setattr(CashImportNewRowsRepository, "insert", batch_fail)
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", row_fail)
-    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    failure = _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    diagnostic = failure.cash_diagnostic
+    assert diagnostic["stage"] == "batch_write" and diagnostic["scope"] == "related"
+    assert diagnostic["total_locations"] == 100
+    assert all(item.get("display_name") and item.get("row_number") for item in diagnostic["locations"])
 
 
 def test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_balances(context_runtime, monkeypatch):
@@ -259,7 +263,11 @@ def test_row_failure_rolls_back_all_aliases_and_duplicate_results_and_preserves_
             raise RuntimeError("synthetic SQL secret after source flush")
         return result
     monkeypatch.setattr(CashSourceRepository, "save_occurrence", fail)
-    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    failure = _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    diagnostic = failure.cash_diagnostic
+    assert diagnostic["stage"] == "row_write" and diagnostic["scope"] == "related"
+    assert diagnostic["total_locations"] == 2
+    assert all(item.get("display_name") and item.get("row_number") for item in diagnostic["locations"])
 
 
 def test_current_row_conflict_only_skips_that_operation_and_preserves_manual_change(context_runtime):
@@ -377,7 +385,11 @@ def test_relation_save_failure_rolls_back_records_relations_and_attention(contex
         original(self, values)
         raise RuntimeError("synthetic relation failure after flush")
     monkeypatch.setattr(CurrentCashRelationRepository, "add", fail)
-    _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    failure = _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)
+    diagnostic = failure.cash_diagnostic
+    assert diagnostic["stage"] == "relation_save" and diagnostic["scope"] == "related"
+    assert diagnostic["total_locations"] == 2
+    assert all(item.get("display_name") and item.get("row_number") for item in diagnostic["locations"])
 
 
 def _refund_bundle():
@@ -863,3 +875,22 @@ def test_preview_rejected_document_namespace_does_not_block_other_legal_rows(con
     receipt = _commit(service, plan)
     assert receipt["summary"]["created_posted"] == 1 and receipt["summary"].get("skipped", 0) == (0 if empty else 2)
     assert receipt["commit_outcome"]["has_new_failures"] is False
+
+
+def test_submit_revalidation_code_conversion_preserves_exact_row_context(context_runtime, monkeypatch):
+    import json
+    from ft.application.cash_import_plans import CashImportPlanError
+    from ft.cash_diagnostics import cash_diagnostic_scope
+    from ft.web.cash_plan_routes import plan_failure
+    service, plan = _plan(context_runtime)
+    def changed(**_kwargs):
+        with cash_diagnostic_scope("row_planning", [{"row_ref": "file_a:r1"}], scope="row"):
+            raise CashImportPlanError("plan_input_invalid")
+    monkeypatch.setattr(service, "_builder", changed)
+    error = _assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code="plan_changed")
+    response = plan_failure(error)
+    diagnostic = json.loads(response.body)["error"]["diagnostic"]
+    assert response.status_code == 409
+    assert diagnostic["stage"] == "row_planning" and diagnostic["scope"] == "row"
+    assert diagnostic["locations"][0]["row_ref"] == "file_a:r1"
+    assert diagnostic["locations"][0]["display_name"]
