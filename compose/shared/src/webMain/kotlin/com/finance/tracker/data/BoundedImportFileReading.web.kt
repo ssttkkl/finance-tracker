@@ -13,9 +13,18 @@ import org.khronos.webgl.ArrayBuffer
 import org.khronos.webgl.Uint8Array
 import org.khronos.webgl.get
 import org.w3c.files.FileReader
+import kotlin.js.JsAny
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.js.unsafeCast
+
+internal actual fun platformImportFileLastModifiedAtMillis(file: PlatformFile): Long? {
+    val browser = file.webFile as? WebFile.FileWrapper ?: return null
+    return browserLastModifiedAtMillis(browser.file).toLong().takeIf { it >= 0 }
+}
+
+@JsFun("(file) => file.lastModified")
+private external fun browserLastModifiedAtMillis(file: JsAny): Double
 
 internal actual suspend fun readPlatformImportFileBounded(file: PlatformFile, maxBytes: Int): ByteArray {
     require(maxBytes in 0 until Int.MAX_VALUE)

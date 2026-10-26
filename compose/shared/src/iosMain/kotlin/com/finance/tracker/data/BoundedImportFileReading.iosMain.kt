@@ -6,5 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 
+internal actual fun platformImportFileLastModifiedAtMillis(file: PlatformFile): Long? = null
+
 internal actual suspend fun readPlatformImportFileBounded(file: PlatformFile, maxBytes: Int): ByteArray =
     withContext(Dispatchers.IO) { readBoundedImportSource(file.source(), maxBytes) }

@@ -82,6 +82,16 @@ def test_upload_isolates_bad_file_and_exposes_only_safe_session_view(context_run
     assert b"private-password" not in raw and b"synthetic-original" not in raw
 
 
+def test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data(context_runtime, monkeypatch):
+    client, store = _client(context_runtime, monkeypatch)
+    response = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "last_modified_at_ms": 1725000000123}]})
+    assert response.status_code == 201
+    view = response.json()
+    assert "last_modified_at_ms" not in view["files"][0]
+    staged = store.get(view["session_id"], workspace_id=context_runtime.workspace_id, user_id=USER)
+    assert staged.files[0].last_modified_at_ms == 1725000000123
+
+
 def test_missing_alipay_funding_exposes_wallet_fallback_group(context_runtime, monkeypatch):
     original = _document()
     row = original.rows[0]
@@ -141,6 +151,9 @@ def test_password_retry_parses_only_replaced_file_and_keeps_client_slot(context_
     '{"files":[{"client_file_ref":"client-a"}],"expected_session_revision":1.0}',
     '{"files":[{"client_file_ref":"client-a"}],"expected_session_revision":true}',
     '{"files":[{"client_file_ref":"client-a"}],"anything":NaN}', '[]', 'not json',
+    '{"files":[{"client_file_ref":"client-a","last_modified_at_ms":-1}]}',
+    '{"files":[{"client_file_ref":"client-a","last_modified_at_ms":1.0}]}',
+    '{"files":[{"client_file_ref":"client-a","last_modified_at_ms":true}]}',
 ])
 def test_bad_upload_protocol_is_safe_and_closes_files(context_runtime, monkeypatch, metadata):
     opened = _spools(monkeypatch)

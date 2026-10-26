@@ -50,6 +50,7 @@ class ParsedImportFile:
     error_code: str | None = None
     source_scope_label: str | None = None
     is_subset: bool = False
+    last_modified_at_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -95,6 +96,7 @@ def _valid_files(files):
         refs.add(item.file_ref); client_refs.add(item.client_file_ref)
         if (not isinstance(item.filename, str) or not item.filename or len(item.filename) > 255 or "/" in item.filename or "\\" in item.filename
             or type(item.is_subset) is not bool
+            or item.last_modified_at_ms is not None and (type(item.last_modified_at_ms) is not int or not 0 <= item.last_modified_at_ms < 2 ** 63)
             or not isinstance(item.digest, str) or not re.fullmatch(r"[0-9a-f]{64}", item.digest)
             or type(item.size) is not int or not 0 <= item.size < 2 ** 63
             or item.status == "parsed" and item.size > 100 * 1024 * 1024

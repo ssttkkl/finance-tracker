@@ -30,6 +30,7 @@ class StrictInput(BaseModel):
 
 
 Revision = Annotated[int, Field(strict=True, gt=0, lt=2 ** 63)]
+FileModifiedAtMs = Annotated[int, Field(strict=True, ge=0, lt=2 ** 63)]
 
 
 class UploadFileMetadata(StrictInput):
@@ -37,6 +38,7 @@ class UploadFileMetadata(StrictInput):
     password: str | None = Field(default=None, max_length=1024, repr=False)
     source_hint: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
     source_scope_label: str | None = Field(default=None, max_length=64)
+    last_modified_at_ms: FileModifiedAtMs | None = None
 
 
 class UploadMetadata(StrictInput):
@@ -230,7 +232,8 @@ async def upload_input(request, model):
             if scope is None and "source_scope_label" in item.model_fields_set:
                 scope = ""
             uploads.append(CashImportUpload(item.client_file_ref, part.filename or "账单", part.file,
-                password=item.password, source_hint=item.source_hint, source_scope_label=scope))
+                password=item.password, source_hint=item.source_hint, source_scope_label=scope,
+                last_modified_at_ms=item.last_modified_at_ms))
         yield metadata, tuple(uploads)
     except MultiPartException:
         raise CashImportProtocolError from None

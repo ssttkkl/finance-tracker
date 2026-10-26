@@ -7,6 +7,7 @@ import kotlinx.io.RawSource
 import kotlinx.io.readByteArray
 
 internal expect suspend fun readPlatformImportFileBounded(file: PlatformFile, maxBytes: Int): ByteArray
+internal expect fun platformImportFileLastModifiedAtMillis(file: PlatformFile): Long?
 
 /** 只额外读一个探测字节，读取失败和超限也始终关闭来源。 */
 internal fun readBoundedImportSource(source: RawSource, maxBytes: Int): ByteArray {

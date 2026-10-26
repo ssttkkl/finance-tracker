@@ -47,6 +47,7 @@ class CashImportUpload:
     password: str | None = field(default=None, repr=False)
     source_hint: str | None = None
     source_scope_label: str | None = None
+    last_modified_at_ms: int | None = None
 
 
 @dataclass(frozen=True)
@@ -138,7 +139,9 @@ class CashImportContextService:
                 or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", upload.client_file_ref) or upload.client_file_ref in refs
                 or not isinstance(upload.filename, str) or upload.source_hint is not None and not isinstance(upload.source_hint, str)
                 or upload.password is not None and not isinstance(upload.password, str)
-                or upload.source_scope_label is not None and not isinstance(upload.source_scope_label, str)):
+                or upload.source_scope_label is not None and not isinstance(upload.source_scope_label, str)
+                or upload.last_modified_at_ms is not None and (type(upload.last_modified_at_ms) is not int
+                    or not 0 <= upload.last_modified_at_ms < 2 ** 63)):
                 raise ValueError("import_files_invalid")
             refs.add(upload.client_file_ref)
 
@@ -146,7 +149,7 @@ class CashImportContextService:
         filename = _display_filename(upload.filename, upload.password)
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
         file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(b"").hexdigest(),
-            0, hint, "failed", error_code="statement_input_invalid")
+            0, hint, "failed", error_code="statement_input_invalid", last_modified_at_ms=upload.last_modified_at_ms)
         if previous_scope_label is not None:
             file = replace(file, source_type="wechat", source_scope_label=previous_scope_label)
         try:

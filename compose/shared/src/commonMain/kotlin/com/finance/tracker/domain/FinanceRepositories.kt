@@ -5,6 +5,7 @@ interface FileSource {
     val name: String
     val mediaType: String?
     val size: Long?
+    val lastModifiedAtMillis: Long? get() = null
     suspend fun read(): ByteArray
 }
 

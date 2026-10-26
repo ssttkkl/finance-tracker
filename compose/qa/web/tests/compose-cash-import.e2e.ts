@@ -29,8 +29,11 @@ async function setup(page: Page, unknown = false, unexpected = false) {
     created_at: "2026-10-24T04:00:00Z", status: unexpected ? "partial" : "completed", summary: { created_posted: 1, saved_draft: 1 },
     pending_item_count: 1, needs_attention_count: 1, projection_version: 2,
     commit_outcome: { has_new_failures: unexpected, has_business_writes: true, reason_codes: unexpected ? ["account_changed"] : [] }, pages: {} };
-  const pages: string[] = [], commits: string[] = [], resolves: string[] = [];
-  await page.route(/\/api\/v1\/cash-import\/sessions$/, route => route.fulfill({ status: 201, json: context }));
+  const pages: string[] = [], commits: string[] = [], resolves: string[] = [], uploadMetadata: string[] = [];
+  await page.route(/\/api\/v1\/cash-import\/sessions$/, route => {
+    uploadMetadata.push(route.request().postData() ?? "");
+    return route.fulfill({ status: 201, json: context });
+  });
   await page.route(new RegExp(`/api/v1/cash-import/sessions/${session}/plans$`), route => route.fulfill({ json: plan }));
   await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items(?:\?|$)/, route => {
     const filter = new URL(route.request().url()).searchParams.get("confirmation_status") ?? "all";
@@ -45,7 +48,7 @@ async function setup(page: Page, unknown = false, unexpected = false) {
     resolves.push(route.request().postDataJSON().idempotency_key);
     return route.fulfill({ json: { status: "committed", receipt } });
   });
-  return { fixtures, pages, commits, resolves, context };
+  return { fixtures, pages, commits, resolves, uploadMetadata, context };
 }
 
 async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = false) {
@@ -102,6 +105,8 @@ test("cash import reviews pending pages in the main task and shows only the actu
   await uploadAndReview(page);
   await expect(page.locator('[id="cash.import.items"]:visible')).not.toContainText("正常商户");
   expect(calls.pages).toEqual(["pending"]);
+  expect(calls.uploadMetadata).toHaveLength(1);
+  expect(calls.uploadMetadata[0]).toMatch(/"last_modified_at_ms":\d+/);
   await press(page, "cash.import.filter-all");
   await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("正常商户");
   await press(page, "cash.import.confirm");

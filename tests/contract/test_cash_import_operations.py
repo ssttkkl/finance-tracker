@@ -22,15 +22,19 @@ def _configured_currencies(draft_runtime):
             AccountModel.id.in_((101, 102))).values(currencies=["CNY"]))
 
 
-def _file(*, amount="-12.5", name="合成商户", note="原始备注", letter="a", provider="001", rows=None):
+def _file(*, amount="-12.5", name="合成商户", note="原始备注", letter="a", provider="001", rows=None,
+    source_status=None, last_modified_at_ms=None):
     fields = {"amount": amount, "currency": "CNY", "occurred_at": "2026-07-05T00:00:00Z",
         "record_type": "consumption", "record_subtype": "not_applicable", "counterparty": name,
         "counterparty_account": "", "counterparty_account_attrs": [], "note": note,
         "source_payload": {"交易号": provider, "备注": note}}
+    if source_status is not None:
+        fields["source_payload"]["状态"] = source_status
     row = ParsedCashRow(1, fields, "合成支付账户", provider)
     document = ParsedCashDocument("alipay", "table", "fixture-v1", tuple(rows) if rows is not None else (row,),
         "fixture-owner", None, SourceCoverage(), len(rows) if rows is not None else 1, len(rows) if rows is not None else 1)
-    return ParsedImportFile(f"file_{letter}", f"client_{letter}", "synthetic.csv", letter * 64, 100, "alipay", "parsed", document)
+    return ParsedImportFile(f"file_{letter}", f"client_{letter}", "synthetic.csv", letter * 64, 100, "alipay", "parsed", document,
+        last_modified_at_ms=last_modified_at_ms)
 
 
 _UNSET_OWNER = object()
@@ -157,6 +161,36 @@ def test_repeated_provider_row_across_files_creates_one_operation_with_all_row_r
         assert sorted(row["planned_action"] for row in prepared.rows) == ["create_posted", "duplicate_in_batch"]
         assert len({row["operation_ref"] for row in prepared.rows}) == 1
         assert len(prepared.operations[0]["source_updates"]) == 2
+
+
+def test_same_batch_uses_newest_file_snapshot_for_one_existing_source_update(draft_runtime):
+    runtime = draft_runtime
+    initial = _file(letter="s", source_status="等待确认收货")
+    with runtime.sessions.begin() as session:
+        _bind_existing(session, runtime, initial)
+    newer = _file(letter="a", source_status="交易成功", last_modified_at_ms=200)
+    older = _file(letter="b", source_status="等待确认收货", last_modified_at_ms=100)
+    files = (newer, older)
+    with runtime.sessions() as session:
+        prepared = _prepare(session, runtime, files, selections=_selections(files))
+    operation, = prepared.operations
+    assert operation["planned_action"] == "update_posted"
+    assert operation["values"]["source_payload"]["状态"] == "交易成功"
+    assert [(row["row_ref"], row["planned_action"]) for row in prepared.rows] == [
+        ("file_a:r1", "update_posted"), ("file_b:r1", "duplicate_in_batch")]
+
+
+def test_cross_batch_source_update_ignores_old_and_new_file_modification_order(draft_runtime):
+    runtime = draft_runtime
+    initial = _file(letter="s", source_status="等待确认收货", last_modified_at_ms=200)
+    with runtime.sessions.begin() as session:
+        _bind_existing(session, runtime, initial)
+    next_batch = _file(letter="a", source_status="交易成功", last_modified_at_ms=100)
+    with runtime.sessions() as session:
+        prepared = _prepare(session, runtime, (next_batch,))
+    operation, = prepared.operations
+    assert operation["planned_action"] == "update_posted"
+    assert operation["values"]["source_payload"]["状态"] == "交易成功"
 
 
 def test_source_changes_preserve_manual_note_and_do_not_require_active_account_mapping(draft_runtime):

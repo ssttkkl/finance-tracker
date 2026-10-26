@@ -103,8 +103,10 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
     var revision = initialRevision
     val failures = mutableListOf<CashImportLocalFileFailure>()
     for ((index, input) in files.withIndex()) {
+        val lastModifiedAtMillis = input.file.lastModifiedAtMillis
         if ((input.password?.length ?: 0) > 1024 || (input.sourceScope?.label?.length ?: 0) > 64 ||
-            input.sourceHint?.matches(Regex("[a-z][a-z0-9_-]{0,63}")) == false) {
+            input.sourceHint?.matches(Regex("[a-z][a-z0-9_-]{0,63}")) == false ||
+            lastModifiedAtMillis != null && lastModifiedAtMillis < 0) {
             failures += CashImportLocalFileFailure(input.clientFileRef, "import_payload_invalid")
             continue
         }
@@ -116,6 +118,7 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
                 input.password?.let { put("password", it) }
                 input.sourceHint?.let { put("source_hint", it) }
                 input.sourceScope?.let { put("source_scope_label", it.label?.let(::JsonPrimitive) ?: JsonNull) }
+                lastModifiedAtMillis?.let { put("last_modified_at_ms", it) }
             })))
         }.toString()
         val content: ByteArray

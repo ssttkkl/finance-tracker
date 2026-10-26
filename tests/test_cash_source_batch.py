@@ -20,9 +20,15 @@ class _Results(dict):
         self.groups = {group.group_ref: group for group in plan.groups}
 
 
-def _batch(rows, records=()):
-    from ft.domain.cash_source_batch import resolve_source_batch
-    plan = resolve_source_batch(rows, records)
+def _batch(rows, records=(), file_modified_at_ms=None):
+    from ft.domain.cash_source_batch import SourceBatchInput, resolve_source_batch
+    metadata = {}
+    for ref in rows:
+        file_ref = ref.split(":", 1)[0]
+        metadata.setdefault(file_ref, (len(metadata), (file_modified_at_ms or {}).get(file_ref)))
+    batch = SourceBatchInput(rows)
+    batch.file_metadata = metadata
+    plan = resolve_source_batch(batch, records)
     assert [row.row_ref for row in plan.rows] == list(rows)
     return _Results(plan)
 
@@ -140,14 +146,40 @@ def test_known_aliases_share_one_pending_record_when_old_correspondence_is_unkno
     assert results["b:r1"].candidate_ids == results["a:r1"].candidate_ids
 
 
-@pytest.mark.parametrize("fields", [{"counterparty": "更新"}, {"amount": "-21"}, {"occurred_at": "2026-08-16T00:00:00Z"}])
-def test_conflicting_reliable_snapshots_do_not_use_file_order_and_other_rows_continue(fields):
-    rows = {**_file("a", [_row(provider_id="A")]), **_file("b", [_row(provider_id="A", fields=fields)]),
+@pytest.mark.parametrize("fields", [{"counterparty": "更新"}, {"source_payload": {"状态": "交易成功"}}])
+def test_reliable_identity_selects_the_newest_snapshot_as_the_only_batch_operation(fields):
+    rows = {**_file("a", [_row(provider_id="A")]),
+            **_file("b", [_row(provider_id="A", fields=fields)]),
             **_file("c", [_row(provider_id="C")])}
-    for order in (rows, dict(reversed(list(rows.items())))):
-        results = _batch(order)
-        assert all(results[key].action == "conflict" and results[key].reason == "batch_identity_conflict" for key in ("a:r1", "b:r1"))
-        assert results["c:r1"].action == "new"
+    results = _batch(rows, file_modified_at_ms={"a": 100, "b": 200})
+    assert results["b:r1"].action == "new"
+    assert results["a:r1"].action == "batch_duplicate" and results["a:r1"].duplicate_of == "b:r1"
+    assert results["c:r1"].action == "new"
+
+
+@pytest.mark.parametrize("timestamps", [{"a": 100, "b": 100}, {"a": 200}, {}])
+def test_snapshot_timestamp_tie_or_missing_time_falls_back_to_later_selected_file(timestamps):
+    rows = {**_file("a", [_row(provider_id="A")]), **_file("b", [_row(provider_id="A", name="更新")])}
+    results = _batch(rows, file_modified_at_ms=timestamps)
+    assert results["b:r1"].action == "new"
+    assert results["a:r1"].action == "batch_duplicate" and results["a:r1"].duplicate_of == "b:r1"
+
+
+def test_distinct_modification_times_override_file_selection_order():
+    rows = {**_file("a", [_row(provider_id="A", name="较新")]),
+            **_file("b", [_row(provider_id="A", name="较旧")])}
+    results = _batch(rows, file_modified_at_ms={"a": 200, "b": 100})
+    assert results["a:r1"].action == "new"
+    assert results["b:r1"].action == "batch_duplicate" and results["b:r1"].duplicate_of == "a:r1"
+
+
+def test_selected_snapshot_still_uses_existing_fixed_financial_conflict_rule():
+    rows = {**_file("a", [_row(provider_id="A")]),
+            **_file("b", [_row(provider_id="A", fields={"amount": "-21"})])}
+    old = _old(provider_id="A")
+    results = _batch(rows, [old], file_modified_at_ms={"a": 100, "b": 200})
+    assert results["b:r1"].action == "conflict" and results["b:r1"].reason == "fixed_field_conflict"
+    assert results["a:r1"].action == "conflict" and results["a:r1"].reason == "fixed_field_conflict"
 
 
 def test_conflict_propagates_through_all_provider_and_verified_evidence_aliases():
@@ -250,12 +282,13 @@ def test_different_provider_ids_can_exclude_unknown_owner_cross_file_candidates(
     assert len(_writes(_batch({**_file("a", [first]), **_file("b", [second])}))) == 2
 
 
-def test_a_rejected_identity_still_blocks_its_unproven_cross_file_collision():
+def test_selected_identity_still_blocks_its_unproven_cross_file_collision():
     rows = {**_file("a", [_row(provider_id="A")]), **_file("b", [_row(provider_id="A", name="变化")]),
             **_file("c", [_row()]), **_file("d", [_row(provider_id="D")]),
             **_file("e", [_row(fields={"amount": "-99"})])}
     results = _batch(rows)
-    assert results["a:r1"].action == results["b:r1"].action == "conflict"
+    assert results["a:r1"].action == "batch_duplicate" and results["a:r1"].duplicate_of == "b:r1"
+    assert results["b:r1"].action == "new"
     assert results["c:r1"].action == "pending"
     assert results["d:r1"].action == results["e:r1"].action == "new"
 

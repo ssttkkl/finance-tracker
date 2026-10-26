@@ -3,6 +3,7 @@
 package com.finance.tracker
 
 import com.finance.tracker.data.readPlatformImportFileBounded
+import com.finance.tracker.data.platformImportFileLastModifiedAtMillis
 import com.finance.tracker.domain.FileReadLimitExceeded
 import io.github.vinceglb.filekit.BrowserFile
 import io.github.vinceglb.filekit.PlatformFile
@@ -15,6 +16,11 @@ import kotlinx.coroutines.withTimeout
 import kotlin.test.*
 
 class BrowserImportFileReadingTest {
+    @Test fun browserFileModificationTimeIsAvailableForSameBatchOrdering() {
+        val file = PlatformFile(WebFile.FileWrapper(syntheticModifiedBrowserFile()))
+        assertEquals(1_725_000_000_123L, platformImportFileLastModifiedAtMillis(file))
+    }
+
     @Test fun realReaderPreservesBinaryBytesAtTheExactLimitAndRejectsLargerFiles() = runTest {
         withContext(Dispatchers.Default) {
             val file = PlatformFile(WebFile.FileWrapper(syntheticNonemptyBrowserFile()))
@@ -59,6 +65,9 @@ class BrowserImportFileReadingTest {
 
 @JsFun("() => new File([], 'synthetic.csv')")
 private external fun syntheticBrowserFile(): BrowserFile
+
+@JsFun("() => new File([], 'synthetic.csv', {lastModified: 1725000000123})")
+private external fun syntheticModifiedBrowserFile(): BrowserFile
 
 @JsFun("() => new File([new Uint8Array([0,127,128,255])], 'synthetic.csv')")
 private external fun syntheticNonemptyBrowserFile(): BrowserFile

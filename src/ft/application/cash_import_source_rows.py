@@ -15,7 +15,8 @@ def source_batch_rows(files, *, resolved_fields=None, known_document_evidence=()
     files = tuple(files)
     evidence = (*file_document_evidence(files), *known_document_evidence)
     result = SourceBatchInput(document_evidence=evidence,
-        document_coverages=(item.coverage for item in evidence))
+        document_coverages=(item.coverage for item in evidence),
+        file_metadata={file.file_ref: (index, file.last_modified_at_ms) for index, file in enumerate(files)})
     file_refs = set()
     coverages = _combined_coverages(files, evidence)
     for file in files:

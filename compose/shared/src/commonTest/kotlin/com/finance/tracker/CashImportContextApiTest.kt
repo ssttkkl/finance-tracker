@@ -77,7 +77,7 @@ class CashImportContextApiTest {
     }
 
     @Test fun uploadUsesRawBytesAndPasswordsOnlyInMultipart() = runTest {
-        val first = ContextFile("one.csv", byteArrayOf(0, 1, 127, -1))
+        val first = ContextFile("one.csv", byteArrayOf(0, 1, 127, -1), lastModifiedAtMillis = 1725000000123)
         val second = ContextFile("two.pdf", "second-original".encodeToByteArray(), null)
         val wires = mutableListOf<ByteArray>()
         val calls = mutableListOf<HttpRequestData>()
@@ -99,6 +99,8 @@ class CashImportContextApiTest {
         val files = metadata(wire)["files"]!!.jsonArray
         assertEquals(listOf("a"), files.map { it.jsonObject["client_file_ref"]!!.jsonPrimitive.content })
         assertEquals("synthetic-secret", files.first().jsonObject["password"]!!.jsonPrimitive.content)
+        assertEquals(1725000000123L, files.first().jsonObject["last_modified_at_ms"]!!.jsonPrimitive.long)
+        assertFalse("last_modified_at_ms" in metadata(wires.last())["files"]!!.jsonArray.single().jsonObject)
         assertFalse("password" in metadata(wires.last())["files"]!!.jsonArray.single().jsonObject)
         assertTrue(wire.toList().windowed(4).any { it == listOf<Byte>(0, 1, 127, -1) })
         assertTrue("second-original" in wires.last().decodeToString())
@@ -364,7 +366,7 @@ private class ContextTokenStore : TokenStore {
     override suspend fun set(value: String) = Unit
     override suspend fun clear() = Unit
 }
-private class ContextFile(override val name: String, private val bytes: ByteArray, private val reportedSize: Long? = bytes.size.toLong(), private val onRead: () -> Unit = {}) : BoundedFileSource {
+private class ContextFile(override val name: String, private val bytes: ByteArray, private val reportedSize: Long? = bytes.size.toLong(), private val onRead: () -> Unit = {}, override val lastModifiedAtMillis: Long? = null) : BoundedFileSource {
     override val mediaType: String? = null
     override val size: Long? get() = reportedSize
     var reads = 0

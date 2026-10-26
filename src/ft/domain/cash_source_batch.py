@@ -42,10 +42,11 @@ class SourceBatchPlan:
 class SourceBatchInput(dict[str, SourceOccurrence]):
     """所有文件证据独立于行集合，空页也必须参与本批身份校验。"""
 
-    def __init__(self, *args, document_coverages=(), document_evidence=(), **kwargs):
+    def __init__(self, *args, document_coverages=(), document_evidence=(), file_metadata=None, **kwargs):
         super().__init__(*args, **kwargs)
         self.document_coverages = tuple(document_coverages)
         self.document_evidence = tuple(document_evidence)
+        self.file_metadata = dict(file_metadata or {})
 
 
 @dataclass(frozen=True)
@@ -96,6 +97,7 @@ def resolve_source_batch(
     result_groups: dict[str, SourceBatchGroup] = {}
     group_cache = {}
     roots, proof_owner, contents, targets = {}, {}, {}, {}
+    row_order = {ref: index for index, ref in enumerate(rows)}
     file_evidence = (rows.document_evidence or rows.document_coverages) if isinstance(rows, SourceBatchInput) else ()
     conflicting_pages = conflicting_source_document_pages(rows.values(), active,
         evidence=(*file_evidence, *known_document_coverages))
@@ -119,6 +121,28 @@ def resolve_source_batch(
             roots[ref] = roots[roots[ref]]
             ref = roots[ref]
         return ref
+
+    def file_ref(ref):
+        return ref.partition(":")[0]
+
+    def snapshot_winner(refs):
+        """在可靠身份组内选版本；混合／重复时间整体回退到会话文件顺序。"""
+        files = [file_ref(ref) for ref in refs]
+        if len(set(files)) != len(files):
+            return None
+        order_by_file = {}
+        timestamp_by_file = {}
+        for file in files:
+            fallback_order = min(row_order[ref] for ref in refs if file_ref(ref) == file)
+            metadata = rows.file_metadata.get(file, (fallback_order, None)) if isinstance(rows, SourceBatchInput) else (fallback_order, None)
+            if (not isinstance(metadata, tuple) or len(metadata) != 2 or type(metadata[0]) is not int
+                or metadata[0] < 0 or metadata[1] is not None and (type(metadata[1]) is not int or metadata[1] < 0)):
+                return None
+            order_by_file[file], timestamp_by_file[file] = metadata
+        timestamps = [timestamp_by_file[file] for file in files]
+        if all(value is not None for value in timestamps) and len(set(timestamps)) == len(timestamps):
+            return min(refs, key=lambda ref: (-timestamp_by_file[file_ref(ref)], order_by_file[file_ref(ref)], row_order[ref]))
+        return min(refs, key=lambda ref: (-order_by_file[file_ref(ref)], row_order[ref]))
 
     for ref, row in rows.items():
         try:
@@ -147,14 +171,29 @@ def resolve_source_batch(
     units: dict[str, _Unit] = {}
     rejected = defaultdict(dict)
     for refs in identified.values():
-        refs.sort()
+        refs.sort(key=row_order.__getitem__)
         first = rows[refs[0]]
         providers = {rows[ref].provider_id for ref in refs if rows[ref].provider_id}
         evidence = {rows[ref].stable_evidence for ref in refs if rows[ref].stable_evidence}
         ids = frozenset(target for ref in refs for target in targets[ref])
         sorted_ids = tuple(sorted(ids))
         failed = False
-        if (len({contents[ref] for ref in refs}) > 1 or len(providers) > 1 or len(evidence) > 1
+        different_contents = len({contents[ref] for ref in refs}) > 1
+        same_patch_shape = len({tuple(sorted(rows[ref].fields)) for ref in refs}) == 1
+        reliable_snapshot_group = (different_contents and (len(providers) == 1 or len(evidence) == 1)
+            and len(providers) <= 1 and len(evidence) <= 1 and len(ids) <= 1
+            and same_patch_shape
+            and len({(rows[ref].source_type, rows[ref].source_account_key) for ref in refs}) == 1
+            and not any(rows[ref].document_page and (rows[ref].source_type, rows[ref].parser_version,
+                *rows[ref].document_page) in conflicting_pages for ref in refs))
+        if reliable_snapshot_group:
+            winner = snapshot_winner(refs)
+            if winner is not None:
+                refs = [winner, *(ref for ref in refs if ref != winner)]
+                first = rows[winner]
+            else:
+                reliable_snapshot_group = False
+        if ((different_contents and not reliable_snapshot_group) or len(providers) > 1 or len(evidence) > 1
             or any(rows[ref].document_page and (rows[ref].source_type, rows[ref].parser_version,
                 *rows[ref].document_page) in conflicting_pages for ref in refs)
             or len({(rows[ref].source_type, rows[ref].source_account_key) for ref in refs}) > 1):
@@ -233,7 +272,8 @@ def resolve_source_batch(
             if unit.row.source_account_key is None and not unit.certain:
                 key = (unit.row.provider_id, unit.row.stable_evidence, unit.files)
                 if key not in alternatives_cache:
-                    alternatives = [other for other in known if len(other.files | unit.files) > 1 and _compatible(unit.row, other.row)]
+                    alternatives = [other for other in known if len(other.files | unit.files) > 1
+                        and not other.files & unit.files and _compatible(unit.row, other.row)]
                     if alternatives:
                         defer([unit], alternatives)
                         alternatives_cache[key] = output[unit.ref].group_ref
@@ -279,7 +319,9 @@ def resolve_source_batch(
         if not comparable or not equivalent:
             weak = []
             for unit in members:
-                if unit.certain:
+                has_distinct_same_file_occurrence = any(other is not unit and other.certain
+                    and other.files & unit.files for other in members)
+                if unit.certain or has_distinct_same_file_occurrence:
                     canonical[unit.ref] = unit
                     destinations[unit.ref] = (unit.ref,)
                 else:
