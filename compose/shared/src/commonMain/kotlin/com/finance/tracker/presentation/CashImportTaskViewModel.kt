@@ -159,6 +159,16 @@ class CashImportTaskViewModel(
             val page = repository.items(plan.planId, confirmationStatus = selected)
             if (current(request)) mutableState.value = state.value.acceptItemPage(request, plan.planId, selected, page, false)
         }
+        loadPageDetails(request, plan.planId)
+    }
+
+    private suspend fun loadPageDetails(request: ImportTaskRequest, planId: String) {
+        val missing = state.value.items.filter { it.detailAvailable && it.itemId !in state.value.details }.map { it.itemId }
+        for (itemId in missing) {
+            if (!current(request) || state.value.plan?.planId != planId) return
+            val detail = repository.item(planId, itemId)
+            if (current(request)) mutableState.value = state.value.acceptDetail(request, planId, detail)
+        }
     }
 
     fun loadItems(filter: String = state.value.filter, append: Boolean = false) {
@@ -171,6 +181,7 @@ class CashImportTaskViewModel(
         execute(state.value.beginRequest()) { request ->
             val page = repository.items(planId, cursor, confirmationStatus = filter)
             if (current(request)) mutableState.value = state.value.acceptItemPage(request, planId, filter, page, append)
+            loadPageDetails(request, planId)
         }
     }
 

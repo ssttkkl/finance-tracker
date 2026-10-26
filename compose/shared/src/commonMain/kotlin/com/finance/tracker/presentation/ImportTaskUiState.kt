@@ -70,7 +70,7 @@ data class ImportTaskUiState(
 
     fun acceptPlan(request: ImportTaskRequest, value: ImportPlan, submitted: ImportChoiceSet): ImportTaskUiState {
         if (activeRequest != request || frozenCommand != null || receipt != null || phase == ImportTaskPhase.RESULT || context?.sessionId != value.sessionId || value.sessionRevision < (context.revision ?: 0)) return this
-        val selected = if ((value.itemCounts["pending"] ?: 0L) == 0L) "all" else requestedFilter ?: "pending"
+        val selected = if ((value.itemCounts["pending"] ?: 0L) == 0L) "all" else requestedFilter ?: "all"
         return copy(phase = ImportTaskPhase.REVIEW, plan = value, choices = submitted,
             context = context.copy(revision = value.sessionRevision, lastPlanId = value.planId, lastChoices = submitted),
             items = if (selected == "all") value.items else emptyList(),

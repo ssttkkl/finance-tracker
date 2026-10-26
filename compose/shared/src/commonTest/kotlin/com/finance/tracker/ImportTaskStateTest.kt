@@ -5,6 +5,12 @@ import com.finance.tracker.presentation.*
 import kotlin.test.*
 
 class ImportTaskStateTest {
+    @Test fun importAccountTypeMatchesTheExistingNameRule() {
+        assertEquals("loan", cashImportAccountTypeForName("花呗账户"))
+        assertEquals("loan", cashImportAccountTypeForName("招商银行信用卡"))
+        assertEquals("cash", cashImportAccountTypeForName("微信零钱"))
+    }
+
     @Test fun repeatedMemberApplyPreservesEarlierPatchesAndExplicitNullWhileOtherDecisionsClearThem() {
         val fields = detail().copy(members = listOf(detail().members.single().copy(
             plannedAction = "update_posted", rowRevision = 3,
@@ -56,12 +62,15 @@ class ImportTaskStateTest {
         assertFailsWith<DomainFailure> { original.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("amount" to StructuredText("1"))))) }
     }
 
-    @Test fun pendingDefaultNeverReusesTheAllItemsPageOrCursor() {
+    @Test fun defaultAllUsesItsOwnPageWhileExplicitPendingNeverReusesAllCursor() {
         val initial = prepared().loadedPlan(plan().copy(itemCounts = mapOf("pending" to 2L)), ImportChoiceSet())
-        assertEquals("pending", initial.filter)
-        assertTrue(initial.items.isEmpty())
-        assertNull(initial.nextCursor)
-        assertFalse(initial.itemsInitialized)
+        assertEquals("all", initial.filter)
+        assertEquals(plan().items, initial.items)
+        assertTrue(initial.itemsInitialized)
+        val pending = initial.changeFilter("pending")
+        assertTrue(pending.items.isEmpty())
+        assertNull(pending.nextCursor)
+        assertFalse(pending.itemsInitialized)
     }
 
     @Test fun explicitAllSurvivesRepreviewWhileZeroPendingAutomaticallyShowsAll() {
@@ -74,7 +83,7 @@ class ImportTaskStateTest {
         assertEquals("all", cleared.filter)
         assertTrue(cleared.itemsInitialized)
         val pendingAgain = cleared.loadedPlan(pendingPlan, ImportChoiceSet())
-        assertEquals("pending", pendingAgain.filter)
+        assertEquals("all", pendingAgain.filter)
     }
 
     @Test fun authoritativeSameSessionReceiptDropsOldPlanButOrdinaryReceiptCannotBypassBinding() {

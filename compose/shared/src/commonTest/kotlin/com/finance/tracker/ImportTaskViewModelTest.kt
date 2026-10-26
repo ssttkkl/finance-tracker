@@ -25,40 +25,39 @@ class ImportTaskViewModelTest {
         assertTrue(vm.state.value.canConfirm)
     } }
 
-    @Test fun pendingFirstPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, store ->
+    @Test fun explicitPendingPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, _ ->
         repo.pendingCount = 1
-        repo.pageFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
+        assertEquals("all", vm.state.value.filter)
+        repo.pageFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
+        vm.loadItems("pending"); advanceUntilIdle()
         assertFalse(vm.state.value.itemsInitialized)
         assertFalse(vm.state.value.canConfirm)
         vm.confirm(); advanceUntilIdle()
-        assertTrue(repo.confirmations.isEmpty())
-        val restored = CashImportTaskViewModel(repo, store)
-        restored.restore(); advanceUntilIdle()
-        assertFalse(restored.state.value.itemsInitialized)
-        assertFalse(restored.state.value.canConfirm)
-        restored.confirm(); advanceUntilIdle()
         assertTrue(repo.confirmations.isEmpty())
         repo.pageFailure = null
         repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), null))
         vm.loadItems("pending"); advanceUntilIdle()
         assertTrue(vm.state.value.canConfirm)
+        assertTrue("pending-page" in vm.state.value.details)
     } }
 
-    @Test fun previewAndRestoreLoadThePendingPageBeforePublishingItsCursor() = runTest { task { vm, repo, store ->
+    @Test fun previewAndRestoreDefaultToAllWhileExplicitPendingUsesItsOwnCursor() = runTest { task { vm, repo, store ->
         repo.pendingCount = 1
-        repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), "pending-cursor"))
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
-        assertEquals("pending", vm.state.value.filter)
+        assertEquals("all", vm.state.value.filter)
+        assertEquals("all-cursor", vm.state.value.nextCursor)
+        assertTrue(repo.pageCalls.isEmpty())
+        val restored = CashImportTaskViewModel(repo, store)
+        restored.restore(); advanceUntilIdle()
+        assertEquals("all", restored.state.value.filter)
+        assertEquals("all-cursor", restored.state.value.nextCursor)
+        repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), "pending-cursor"))
+        vm.loadItems("pending"); advanceUntilIdle()
         assertEquals(listOf("pending-page"), vm.state.value.items.map { it.itemId })
         assertEquals("pending-cursor", vm.state.value.nextCursor)
         assertEquals(listOf<Pair<String?, String>>(null to "pending"), repo.pageCalls)
-        repo.pages.add(ImportItemPage(listOf(taskItem("restored-pending")), null))
-        val restored = CashImportTaskViewModel(repo, store)
-        restored.restore(); advanceUntilIdle()
-        assertEquals(listOf("restored-pending"), restored.state.value.items.map { it.itemId })
-        assertEquals("pending", restored.state.value.filter)
-        assertNull(restored.state.value.nextCursor)
+        assertTrue("pending-page" in vm.state.value.details)
     } }
 
     @Test fun definiteRollbackCanCancelOnlyAfterServerAndLocalRecoveryClear() = runTest { task { vm, repo, store ->
