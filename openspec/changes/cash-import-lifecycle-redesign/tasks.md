@@ -392,13 +392,13 @@
 - [x] 4.29.7 发布：原位核对 docs、references、示例、功能地图、技能及词表，记录当前命令／HEAD／基线／结果；按既有授权提交推送 `origin/average-snail`。
 - [x] 4.29.8 反思：保留精度标签和敏感错误标记的回归，防止统一错误包装再次丢失可证实位置，或将相关范围误报为坏行。
 
-基线与验证启动 HEAD：`b96d53b`，日期 2026-10-27，验证对象为本次工作树。Cross-platform Impact Check：Web、Android、iOS 共用诊断模型、错误状态和只读展示，全部受影响；没有依赖或平台控件变化。Web 使用 Chromium、`http://127.0.0.1:5191/w/workspace-1/cash-import`、1440×900，走过上传、待确认核对、故障响应、Tab 聚焦、Enter 展开、指针收起及返回账本。每例只有预期提交 `503`，控制台、页面、静态资源及网络失败均为 0。截图保留在 Git 忽略目录 `compose/qa/web/test-results/compose-cash-import.e2e.ts-cad59-record-without-row-recovery/diagnostic.png`、`compose-cash-import.e2e.ts-c0776--range-without-row-recovery/diagnostic.png` 及 `diagnostic-expanded.png`。
+实现 HEAD：`f6e9a97`；比较基线与验证启动 HEAD：`b96d53b`。日期 2026-10-27，验证对象为该实现提交及其对应工作树。Cross-platform Impact Check：Web、Android、iOS 共用诊断模型、错误状态和只读展示，全部受影响；没有依赖或平台控件变化。Web 使用 Chromium、`http://127.0.0.1:5191/w/workspace-1/cash-import`、1440×900，走过上传、待确认核对、故障响应、Tab 聚焦、Enter 展开、指针收起及返回账本。每例只有预期提交 `503`，控制台、页面、静态资源及网络失败均为 0。截图保留在 Git 忽略目录 `compose/qa/web/test-results/compose-cash-import.e2e.ts-cad59-record-without-row-recovery/diagnostic.png`、`compose-cash-import.e2e.ts-c0776--range-without-row-recovery/diagnostic.png` 及 `diagnostic-expanded.png`。
 
 审查覆盖范围、工程／API、安全、性能和最终 diff；独立上下文对五个转换／规划文件移除诊断 scope 后作 AST 对照，业务逻辑与基线相同。P2 已关闭：known 409 定位缺口；持久端点误关联唯一上传文件；日志缺安全位置引用；PDF 表序号零基显示；关系组重复建立完整索引；错误码转换丢失内层位置；无 scope 内部 `ValueError` 被误判输入错误。对应实现和回归原位修复，不添加冲突恢复或数据重放路径。Alembic 日志关闭问题已修复；过时失败子集单测按当前两参数合同更新，未恢复旧执行兼容。
 
 UI 对照 `HEAD` 的现有页面，保留布局、字体、颜色和返回动作。官方页面及规则见 workflow design。可见文字必要性及新增术语搜索通过；实际截图 Hallmark audit 与独立设计复核涵盖单条、多条收起及展开，结论 `0 critical · 0 major · 0 minor`。本次为现有错误页的局部只读信息补充，整体 UI 演示确认仍待完成。Hallmark 六轴自检：P5／H4／E4／S5／R5／V3；不引入额外视觉结构。
 
-验证结束日期 2026-10-27（Asia/Shanghai），当前实现与测试树 SHA-256：`77e5c9d927a2effaa1a3dcb85c2c759d28bb05f025723e95680c7bfaccc8b72e`。HEAD／比较基线为上方 `b96d53b`，验证同时包含下列最终专项补跑；未执行项不计通过。
+验证结束日期 2026-10-27（Asia/Shanghai），当前实现与测试树 SHA-256：`77e5c9d927a2effaa1a3dcb85c2c759d28bb05f025723e95680c7bfaccc8b72e`。比较基线为 `b96d53b`；`f6e9a97` 提交后同一 46 项专项、OpenSpec 35/35 与 diff 检查再次通过，日志 `/tmp/ft-diagnostics-postcommit.log`；本证据收尾仅改 tasks，验证同时包含下列最终专项补跑；未执行项不计通过。
 
 | 检查 | 实际命令与结果 |
 |---|---|
@@ -410,7 +410,7 @@ UI 对照 `HEAD` 的现有页面，保留布局、字体、颜色和返回动作
 | Web 冒烟 | `FT_COMPOSE_PREVIEW_PORT=5191 npm --prefix compose/qa/web run test:e2e -- --grep 'import diagnostics show'`：2 passed；键盘焦点使用原生 TextButton 的状态层核对，真实 Enter 展开和指针收起。日志 `/tmp/ft-diagnostics-web-final.log`。测试使用合成 HTTP 故障响应，不访问真实账本。 |
 | 构建与文档 | `uv build --out-dir /tmp/ft-diagnostics-dist` 成功；wheel 的 19 个变更／新增模块及 sdist 中的迁移日志配置与当前源码逐字节一致。`uv run python -m compileall -q src/ft migrations/env.py`、`openspec validate --all --strict --json`（35/35）、`uv run python /tmp/ft-tighten-check-links.py`（186 本地链接）及 `git diff --check` 通过。 |
 
-交付前已核对 README、现金导入流程、协议、功能地图、词表与适用技能；协议、功能地图和 OpenSpec apply 指南已原位更新，README／主流程没有新的入口或命令变更，无需改写。回退不触及数据库 schema 或正式账本：旧客户端可忽略新增响应字段；若回退旧后端，带新诊断字段的临时会话应关闭或等待原 TTL 后重选文件，不增加旧格式执行兼容。提交／推送目标为 `origin/average-snail`，不部署、不操作真实 `~/.ft` 数据。保留位置精度、隐私敏感标记、原错误码／原子回滚及官方按钮状态层回归防止复发。
+交付前已核对 README、现金导入流程、协议、功能地图、词表与适用技能；协议、功能地图和 OpenSpec apply 指南已原位更新，README／主流程没有新的入口或命令变更，无需改写。回退不触及数据库 schema 或正式账本：旧客户端可忽略新增响应字段；若回退旧后端，带新诊断字段的临时会话应关闭或等待原 TTL 后重选文件，不增加旧格式执行兼容。提交／推送目标为 `origin/average-snail`，不部署、不操作真实 `~/.ft` 数据；测试完成后专用临时 PostgreSQL 容器已停止并自动清理。保留位置精度、隐私敏感标记、原错误码／原子回滚及官方按钮状态层回归防止复发。
 
 验证证据以当前日志、矩阵和构建结果收尾，未完成项不计通过。Android／iOS 不执行设备 QA；现有 Compose 关闭弹层后的无障碍缺陷继续登记，不升级依赖。本次新增折叠控件的键盘与指针操作已实际验证。
 
