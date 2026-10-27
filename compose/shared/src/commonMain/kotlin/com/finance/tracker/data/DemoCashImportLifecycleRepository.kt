@@ -90,8 +90,11 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         return plan
     }
     override suspend fun plan(planId: String) = plans[planId] ?: fail("plan_not_found", 404)
-    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String) = ImportItemPage(
-        plan(planId).items.filter { confirmationStatus == "all" || it.confirmationStatus == confirmationStatus }, null)
+    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String, startIndex: Int?) : ImportItemPage {
+        val values = plan(planId).items.filter { confirmationStatus == "all" || it.confirmationStatus == confirmationStatus }
+        val offset = startIndex ?: 0
+        return ImportItemPage(values.drop(offset).take(limit), null, offset, values.size)
+    }
     override suspend fun item(planId: String, itemId: String): ImportItemDetail {
         val item = plan(planId).items.firstOrNull { it.itemId == itemId } ?: fail("plan_item_not_found", 404)
         val values = fields[planId]?.get(itemId) ?: fail("plan_item_not_found", 404)

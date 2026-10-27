@@ -275,8 +275,10 @@ def _validate_readable(plan):
     _objects(plan.get("invalidated_choices", []), {"kind", "reference", "code"})
 
 
-def _page(plan, kind, *, cursor=None, limit=50, confirmation_status=None):
+def _page(plan, kind, *, cursor=None, start_index=None, limit=50, confirmation_status=None, indexed=False):
     if (type(limit) is not int or not 1 <= limit <= 200
+        or start_index is not None and (type(start_index) is not int or start_index < 0)
+        or cursor is not None and start_index is not None
         or confirmation_status is not None and (not isinstance(confirmation_status, str)
             or confirmation_status not in {"all", "confirmed", "pending"})):
         raise CashImportPlanError("plan_page_invalid")
@@ -284,7 +286,7 @@ def _page(plan, kind, *, cursor=None, limit=50, confirmation_status=None):
     values = plan["items"] if kind == "items" else plan.get("processing_details", [])
     if kind == "items" and selected != "all":
         values = [item for item in values if item["confirmation_status"] == selected]
-    offset = 0
+    offset = start_index or 0
     if cursor is not None:
         try:
             if not isinstance(cursor, str) or not 1 <= len(cursor) <= 4096:
@@ -296,6 +298,8 @@ def _page(plan, kind, *, cursor=None, limit=50, confirmation_status=None):
             offset = data[3]
         except (ValueError, TypeError, binascii.Error, UnicodeError, RecursionError):
             raise CashImportPlanError("plan_cursor_invalid") from None
+    if offset > len(values):
+        raise CashImportPlanError("plan_page_invalid")
     next_offset = offset + limit
     next_cursor = None
     if next_offset < len(values):
@@ -306,7 +310,10 @@ def _page(plan, kind, *, cursor=None, limit=50, confirmation_status=None):
         items = [_public_item(item) for item in items]
     else:
         items = _processing(items)
-    return {"items": deepcopy(items), "next_cursor": next_cursor}
+    result = {"items": deepcopy(items), "next_cursor": next_cursor}
+    if indexed:
+        result.update(start_index=offset, total_count=len(values))
+    return result
 
 
 class CashImportPlanService(CashImportContextService):
@@ -393,9 +400,10 @@ class CashImportPlanService(CashImportContextService):
     def read_plan(self, plan_id):
         return self._read_plan(plan_id, project=self._view, projection_key=("plan",))
 
-    def items(self, plan_id, *, cursor=None, limit=50, confirmation_status=None):
-        return self._read_plan(plan_id, project=lambda plan: _page(plan, "items", cursor=cursor, limit=limit, confirmation_status=confirmation_status),
-            projection_key=("items", cursor, limit, confirmation_status))
+    def items(self, plan_id, *, cursor=None, start_index=None, limit=50, confirmation_status=None):
+        return self._read_plan(plan_id, project=lambda plan: _page(plan, "items", cursor=cursor, start_index=start_index,
+                limit=limit, confirmation_status=confirmation_status, indexed=True),
+            projection_key=("items", cursor, start_index, limit, confirmation_status))
 
     def processing_details(self, plan_id, *, cursor=None, limit=50):
         return self._read_plan(plan_id, project=lambda plan: _page(plan, "processing_details", cursor=cursor, limit=limit),

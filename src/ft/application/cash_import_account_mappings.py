@@ -55,8 +55,7 @@ class CashImportAccountMappings:
             basis = "confirmed_mapping" if current is not None else "legacy_mapping"
             candidates = {mapping.account_id} if mapping is not None else aliases.get(alias_groups.get(ref), set())
             valid = [accounts[identifier] for identifier in candidates if identifier in accounts
-                and accounts[identifier].active and accounts[identifier].type in {"cash", "loan", "lend"}
-                and set(group.currencies).issubset(accounts[identifier].currencies or ())]
+                and accounts[identifier].active and accounts[identifier].type in {"cash", "loan", "lend"}]
             account = valid[0] if len(valid) == 1 else None
             result[ref] = {"account_id": str(account.id) if account is not None else None,
                 "expected_account_revision": account.revision if account is not None else None,

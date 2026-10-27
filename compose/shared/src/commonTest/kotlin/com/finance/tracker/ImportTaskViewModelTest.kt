@@ -5,6 +5,7 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.presentation.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
+import androidx.paging.PagingSource
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -28,7 +29,7 @@ class ImportTaskViewModelTest {
     @Test fun explicitPendingPageFailureBlocksConfirmationUntilItIsLoaded() = runTest { task { vm, repo, _ ->
         repo.pendingCount = 1
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
-        assertEquals("all", vm.state.value.filter)
+        assertEquals("pending", vm.state.value.filter)
         repo.pageFailure = DomainFailure("request_failed", 0, FailureCategory.RECOVERABLE)
         vm.loadItems("pending"); advanceUntilIdle()
         assertFalse(vm.state.value.itemsInitialized)
@@ -42,16 +43,16 @@ class ImportTaskViewModelTest {
         assertTrue("pending-page" in vm.state.value.details)
     } }
 
-    @Test fun previewAndRestoreDefaultToAllWhileExplicitPendingUsesItsOwnCursor() = runTest { task { vm, repo, store ->
+    @Test fun previewAndRestoreDefaultToPendingUntilTheUserChoosesAll() = runTest { task { vm, repo, store ->
         repo.pendingCount = 1
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
-        assertEquals("all", vm.state.value.filter)
-        assertEquals("all-cursor", vm.state.value.nextCursor)
+        assertEquals("pending", vm.state.value.filter)
+        assertNull(vm.state.value.nextCursor)
         assertTrue(repo.pageCalls.isEmpty())
         val restored = CashImportTaskViewModel(repo, store)
         restored.restore(); advanceUntilIdle()
-        assertEquals("all", restored.state.value.filter)
-        assertEquals("all-cursor", restored.state.value.nextCursor)
+        assertEquals("pending", restored.state.value.filter)
+        assertNull(restored.state.value.nextCursor)
         repo.pages.add(ImportItemPage(listOf(taskItem("pending-page")), "pending-cursor"))
         vm.loadItems("pending"); advanceUntilIdle()
         assertEquals(listOf("pending-page"), vm.state.value.items.map { it.itemId })
@@ -59,6 +60,22 @@ class ImportTaskViewModelTest {
         assertEquals(listOf<Pair<String?, String>>(null to "pending"), repo.pageCalls)
         assertTrue("pending-page" in vm.state.value.details)
     } }
+
+    @Test fun importItemsPagingSourceLoadsAbsolutePageWithFilteredPlaceholderCounts() = runTest {
+        val repo = TaskRepository()
+        val items = (0 until 20).map { taskItem("pending-$it") }
+        repo.pages.add(ImportItemPage(items, null, startIndex = 40, totalCount = 100))
+        var pageLoaded = false
+        val source = CashImportItemsPagingSource(repo, TASK_PLAN, "pending") { pageLoaded = true }
+        val result = source.load(PagingSource.LoadParams.Refresh(40, 20, true)) as PagingSource.LoadResult.Page
+        assertTrue(pageLoaded)
+        assertEquals(40, result.itemsBefore)
+        assertEquals(20, result.prevKey)
+        assertEquals(60, result.nextKey)
+        assertEquals(20, result.data.size)
+        assertEquals(40, result.itemsAfter)
+        assertEquals(listOf<Triple<Int?, Int, String>>(Triple(40, 20, "pending")), repo.indexedCalls)
+    }
 
     @Test fun definiteRollbackCanCancelOnlyAfterServerAndLocalRecoveryClear() = runTest { task { vm, repo, store ->
         vm.restore(); advanceUntilIdle(); vm.preview(); advanceUntilIdle()
@@ -620,6 +637,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
     var lastChoices: ImportChoiceSet? = null
     val pages = ArrayDeque<ImportItemPage>()
     val pageCalls = mutableListOf<Pair<String?, String>>()
+    val indexedCalls = mutableListOf<Triple<Int?, Int, String>>()
     val confirmations = mutableListOf<ImportFrozenCommand>()
     val resolveCalls = mutableListOf<Pair<String, String>>()
     val resolutions = ArrayDeque<ImportResolveResult>()
@@ -659,8 +677,10 @@ internal class TaskRepository : CashImportLifecycleRepository {
         return current
     }
     override suspend fun plan(planId: String): ImportPlan = assertNotNull(latestPlan)
-    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String): ImportItemPage {
-        assertEquals(TASK_PLAN, planId); pageCalls += cursor to confirmationStatus; pageFailure?.let { throw it }; return pages.removeFirst()
+    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String, startIndex: Int?): ImportItemPage {
+        assertEquals(TASK_PLAN, planId); pageCalls += cursor to confirmationStatus; indexedCalls += Triple(startIndex, limit, confirmationStatus)
+        pageFailure?.let { throw it }
+        return pages.removeFirst().let { page -> page.copy(startIndex = startIndex ?: page.startIndex ?: 0, totalCount = page.totalCount ?: page.items.size) }
     }
     override suspend fun item(planId: String, itemId: String) = ImportItemDetail(itemId,
         listOf(ImportMemberDetail("f:r1", null, "create_draft", StructuredObject(emptyMap()), listOf("note"), listOf("apply", "defer"), null)),

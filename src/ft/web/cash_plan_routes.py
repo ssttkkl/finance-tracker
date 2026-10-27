@@ -19,7 +19,7 @@ from ft.web.cash_maintenance_protocol import (CashRecordView, DraftSaveInput, Dr
 from ft.web.cash_import_protocol import CashImportProtocolError, CashImportSessionView, json_input
 from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
 from ft.web.cash_plan_protocol import (
-    CashPlanErrorView, ImportCommitInput, ImportPlanView, ImportPreviewInput, ItemPageView,
+    CashPlanErrorView, ImportCommitInput, ImportItemPageView, ImportPlanView, ImportPreviewInput, ItemPageView,
     MutationReceiptView, MutationResultPageView, PlanItemDetailView, ProcessingPageView,
     ResolveInput, ResolveView, idempotency_key, json_contract, page_contract, page_input, receipt_key_input,
 )
@@ -33,6 +33,8 @@ _PLAN_ERRORS = {
     "receipt_not_found": (404, "暂未查到处理结果，请继续核实。"),
     "plan_changed": (409, "核对内容已变化，请刷新后重试。"),
     "plan_expired": (410, "本次核对已过期，请重新打开。"),
+    "plan_page_invalid": (422, "列表页码无效，请刷新后重试。"),
+    "plan_cursor_invalid": (422, "列表位置已失效，请刷新后重试。"),
     "category_unavailable": (422, "分类已不可用，请重新选择。"),
     "plan_input_invalid": (422, "核对选择有误，请重新核对。"),
     "plan_build_failed": (503, "暂时无法准备核对内容，请稍后重试。"),
@@ -203,11 +205,11 @@ def cash_plan_router(services):
     async def read_plan(plan_id: str):
         return await invoke(lambda: services.cash_import_commands().read_plan(plan_id))
 
-    @router.get("/cash-import/plans/{plan_id}/items", response_model=ItemPageView, response_model_exclude_unset=True,
-        openapi_extra=page_contract())
+    @router.get("/cash-import/plans/{plan_id}/items", response_model=ImportItemPageView, response_model_exclude_unset=True,
+        openapi_extra=page_contract(indexed=True))
     async def items(plan_id: str, request: Request):
         try:
-            page = page_input(request)
+            page = page_input(request, indexed=True)
         except _ERRORS as error:
             return plan_failure(error)
         return await invoke(lambda: services.cash_import_commands().items(plan_id, **page))

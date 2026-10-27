@@ -111,6 +111,7 @@ class CashImportTaskViewModel(
     fun showPreparation() { if (state.value.canEdit) mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE) }
 
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
+    fun selectReviewFilter(value: String) = edit { it.changeFilter(value) }
     fun editRow(choice: ImportRecordChoice) = edit { it.editRow(choice) }
     fun editEntry(choice: ImportEntryChoice) = edit { it.editEntry(choice) }
     fun editPair(choice: ImportPairChoice) = edit { it.editPair(choice) }
@@ -154,12 +155,12 @@ class CashImportTaskViewModel(
     private suspend fun publishPlan(request: ImportTaskRequest, plan: ImportPlan, choices: ImportChoiceSet) {
         if (!current(request)) return
         mutableState.value = state.value.acceptPlan(request, plan, choices)
-        val selected = state.value.filter
-        if (state.value.plan?.planId == plan.planId && !state.value.itemsInitialized) {
-            val page = repository.items(plan.planId, confirmationStatus = selected)
-            if (current(request)) mutableState.value = state.value.acceptItemPage(request, plan.planId, selected, page, false)
-        }
-        loadPageDetails(request, plan.planId)
+    }
+
+    fun markItemsLoaded(planId: String, filter: String) {
+        val before = state.value
+        if (before.plan?.planId == planId && before.filter == filter && !before.itemsInitialized)
+            mutableState.value = before.copy(itemsInitialized = true)
     }
 
     private suspend fun loadPageDetails(request: ImportTaskRequest, planId: String) {

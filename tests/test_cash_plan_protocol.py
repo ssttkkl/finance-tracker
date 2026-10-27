@@ -47,6 +47,7 @@ def test_plan_openapi_exposes_complete_input_and_bounded_pages_without_dangling_
     path = document["paths"]["/api/v1/cash-import/plans/{plan_id}/items"]["get"]
     parameters = {item["name"]: item for item in path["parameters"]}
     assert parameters["limit"]["schema"]["maximum"] == 200
+    assert parameters["start_index"]["schema"]["minimum"] == 0
     assert set(parameters["confirmation_status"]["schema"]["enum"]) == {"all", "confirmed", "pending"}
     commit = document["paths"]["/api/v1/cash-import/plans/{plan_id}/commit"]["post"]
     assert any(item["name"] == "Idempotency-Key" and item["required"] for item in commit["parameters"])

@@ -20,6 +20,34 @@ class ImportAccountViewModelTest {
         assertTrue(vm.state.value.needsExitDecision)
     } }
 
+    @Test fun nextStepAddsCombinedCurrenciesOnceAndReturnsTheLatestRevision() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        var completed: Map<String, ImportAccount>? = null
+        vm.ensureCurrencies(mapOf("1" to listOf("CNY", "USD", "EUR", "USD"))) { completed = it }
+        advanceUntilIdle()
+        assertEquals(1, repo.writes.size)
+        val write = repo.writes.single()
+        assertEquals("update", write.kind)
+        assertEquals(1, write.revision)
+        assertEquals(listOf("CNY", "USD", "EUR"),
+            (write.patch!!.fields["currencies"] as StructuredArray).values.map { (it as StructuredText).value })
+        assertEquals(listOf("CNY", "USD", "EUR"), assertNotNull(completed)["1"]?.currencies)
+        assertEquals(2L, completed?.get("1")?.revision)
+        assertEquals(setOf("1"), vm.state.value.changedAccountIds)
+    } }
+
+    @Test fun failedCurrencyExpansionStaysUnresolvedForTheCallingStep() = runTest { accountTask { vm, repo, _ ->
+        vm.restore(); advanceUntilIdle()
+        repo.writeFailure = DomainFailure("workspace_forbidden", 403, FailureCategory.RECOVERABLE)
+        var completed = false
+        vm.ensureCurrencies(mapOf("1" to listOf("USD"))) { completed = true }
+        advanceUntilIdle()
+        assertFalse(completed)
+        assertEquals("workspace_forbidden", vm.state.value.errorCode)
+        assertTrue(vm.state.value.changedAccountIds.isEmpty())
+        assertEquals(listOf("update"), repo.writes.map { it.kind })
+    } }
+
     @Test fun failedLocalPersistenceNeverSendsAccountCommand() = runTest { accountTask { vm, repo, recovery ->
         vm.restore(); advanceUntilIdle(); recovery.failAdd = true
         vm.create("Created", "cash", listOf("CNY")); advanceUntilIdle()
@@ -320,6 +348,7 @@ private class AccountRepository : CashImportLifecycleRepository by TaskRepositor
     }
     override suspend fun updateAccount(accountId: String, revision: Long, patch: StructuredObject, idempotencyKey: String): ImportAccount {
         beforeWrite(idempotencyKey); writes += AccountWrite("update", idempotencyKey, revision, patch = patch)
+        writeFailure?.let { throw it }
         if (unknownWrite || accountId in unknownIds) throw DomainFailure("account_result_unknown", 503, FailureCategory.RECOVERABLE)
         val prior = if (accountId == "2") second!! else current
         val other = if (accountId == "2") current else second

@@ -17,33 +17,46 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
     sizeClass: WindowSizeClass, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     errorCode: String?, onRetry: () -> Unit, onClose: () -> Unit) {
     var expanded by remember(planId, item.itemId) { mutableStateOf<String?>(null) }
-    CashRecordModalPanel(sizeClass, localizedText("cash_import_detail_title"), true,
+    var associationExpanded by remember(planId, item.itemId) { mutableStateOf(true) }
+    CashRecordModalPanel(sizeClass, localizedText("copy_8cb72a44a5"), true,
         semanticStateKey = "$planId:${item.itemId}", onDismiss = onClose, onBack = onClose) {
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-            .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 24.dp).testTag("cash.import.detail"),
-            verticalArrangement = Arrangement.spacedBy(24.dp)) {
-            Text(localizedText(if (item.anticipatedState == "draft") "cash_import_draft" else "cash_import_posted"),
-                style = MaterialTheme.typography.labelLarge, color = LocalFinanceColorRoles.current.warning)
-            Text(localizedText(if (!item.statisticsEligible) "cash_import_excluded_statistics" else "cash_import_included_statistics"),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            .padding(top = if (sizeClass == WindowSizeClass.COMPACT) 0.dp else 24.dp, bottom = 16.dp).testTag("cash.import.detail"),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            val recordType = detail?.members?.firstOrNull()?.fields?.fields?.get("record_type")?.cashText()
+                ?.let { cashRecordTypeLabel(it, options) }
             CashRecordSummary(if (item.display.amount == null) localizedText("cash_import_amount_unknown") else cashAmountWithCurrencyLabel(item.display.amount, item.display.currency), item.display.amount?.startsWith("-") == true,
-                item.display.counterparty, localDateTimeDisplayLabel(item.display.occurredAt),
+                item.display.counterparty, listOfNotNull(recordType, localDateTimeDisplayLabel(item.display.occurredAt)).joinToString(" · "),
                 buildList {
                     add("copy_c3d92b20c8" to item.display.accounts.joinToString("、").ifEmpty { localizedText("display_not_provided") })
                     add("copy_a42e73f0a7" to cashCategoryDisplayPath(categories.firstOrNull { it.id == item.display.categoryId }))
                     item.display.note?.takeIf { it.isNotBlank() }?.let { add("copy_e0361480e3" to it) }
-                })
+                }, amountTag = "cash.import.amount")
+            val issues = (detail?.issues.orEmpty() + item.attentionReasons).distinctBy { it.code to it.fieldPath }
+            val statusTitle = when {
+                item.anticipatedState == "draft" -> localizedText("cash_import_draft")
+                issues.isNotEmpty() || !item.statisticsEligible -> localizedText("cash_import_pending_title")
+                else -> null
+            }
+            val statusBody = when {
+                item.anticipatedState == "draft" -> {
+                    cashDraftIncompleteMessage(
+                        issues.filter { it.code in setOf("incomplete_record", "posting_incomplete") }.map { it.fieldPath },
+                        issues.map { it.message },
+                    )
+                }
+                issues.isNotEmpty() -> issues.joinToString("\n") { it.message }.ifBlank { localizedText("cash_import_excluded_statistics") }
+                !item.statisticsEligible -> localizedText("cash_import_excluded_statistics")
+                else -> null
+            }
+            if (statusTitle != null && statusBody != null) {
+                CashRecordStatusBanner(statusTitle, statusBody, Modifier.testTag("cash.import.status"))
+            }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
             if (detail == null) {
                 if (!busy) TextButton(onClick = onRetry) { Text(localizedText("copy_e2d53a6d3a")) }
             } else {
-                val issues = detail.issues.distinctBy { it.code to it.fieldPath }
-                if (issues.isNotEmpty()) CashImportDetailSection(localizedText("cash_import_issues")) {
-                    issues.forEach { issue ->
-                        Text(issue.message, color = LocalFinanceColorRoles.current.warning, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
                 val differences = detail.fieldDiffs.filter { it.current != it.incoming }.groupBy { ImportMemberRef(it.rowRef, it.transactionId) }
                 if (differences.isNotEmpty()) CashImportDetailSection(localizedText("cash_import_source_differences")) {
                     differences.forEach { (reference, values) ->
@@ -67,60 +80,68 @@ internal fun CashImportPreviewPanel(item: ImportProjectedItem, detail: ImportIte
                         }
                     }
                 }
-                if (detail.relationChoices.isNotEmpty()) CashImportDetailSection(localizedText("cash_import_relation_candidates")) {
-                    detail.relationChoices.distinctBy { it.suggestionId }.forEach { group ->
-                        val key = "relation:${group.suggestionId}"
-                        CashImportDisclosure(group.kind?.let { cashRelationTypeLabel(it, options) } ?: localizedText("cash_import_related_entries"),
-                            expanded == key, onClick = { expanded = if (expanded == key) null else key },
-                            modifier = Modifier.testTag("cash.import.relation-${group.suggestionId}")) {
+                val relationChoices = detail.relationChoices.distinctBy { it.suggestionId }
+                val relationEffects = detail.relationEffects.distinctBy { it.relationId }
+                val hasAssociation = detail.members.size > 1 || relationChoices.isNotEmpty() || relationEffects.isNotEmpty()
+                if (hasAssociation) CashImportDisclosure(localizedText("copy_f46e36d281"), associationExpanded,
+                    onClick = { associationExpanded = !associationExpanded },
+                    modifier = Modifier.testTag("cash.import.associations-toggle")) {
+                    val effectReferences = relationEffects.flatMap { it.members }.toSet()
+                    val ungroupedMembers = detail.members.filterNot { ImportMemberRef(it.rowRef, it.transactionId) in effectReferences }
+                    if (ungroupedMembers.size > 1) {
+                        Text(localizedText("ledger_detail_other_records"), style = MaterialTheme.typography.titleSmall)
+                        ungroupedMembers.forEach { CashImportMemberSummary(it, accounts) }
+                    }
+                    relationEffects.forEach { effect ->
+                        Text(cashRelationTypeLabel(effect.kind, options), style = MaterialTheme.typography.titleSmall)
+                        CashImportRelationMembers(effect.members, detail.relationMembers + detail.members, accounts)
+                    }
+                    relationChoices.forEach { group ->
+                        Column(Modifier.fillMaxWidth().testTag("cash.import.relation-${group.suggestionId}"),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text(group.kind?.let { cashRelationTypeLabel(it, options) } ?: localizedText("cash_import_related_entries"),
+                                style = MaterialTheme.typography.titleSmall)
                             Text(localizedText(if (group.action == "accept") "cash_import_pair_proposed" else "cash_import_pair_unmerged"),
                                 style = MaterialTheme.typography.bodyMedium)
-                            group.code?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
+                            group.code?.let { code -> cashRelationErrorText(code)?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                             if (group.candidates.isEmpty()) {
                                 CashImportRelationMembers(group.members, detail.relationMembers, accounts)
                             } else {
                                 group.candidates.forEachIndexed { index, candidate ->
                                     if (index > 0) HorizontalDivider()
                                     Column(Modifier.fillMaxWidth().testTag("cash.import.candidate-${candidate.candidateId}"),
-                                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        candidate.code?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Text(localizedText("cash_relation_candidate_label"), style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.primary)
+                                        candidate.code?.let { code -> cashRelationErrorText(code)?.let { Text(it, color = MaterialTheme.colorScheme.error) } }
                                         CashImportRelationMembers(candidate.members, detail.relationMembers, accounts)
                                     }
                                 }
                             }
-                            if (group.commonFieldConflicts.isNotEmpty()) {
-                                group.commonFieldConflicts.forEach { (field, values) ->
-                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        cashFieldLabel(field)?.let { Text(localizedText(it), style = MaterialTheme.typography.titleSmall) }
-                                        values.distinct().forEach { value ->
-                                            Text(if (value == StructuredNull || value == StructuredText("") || value == StructuredArray(emptyList())) localizedText("cash_clear_value")
-                                                else cashBusinessFieldValue(field, value, accounts, categories, options), style = MaterialTheme.typography.bodyMedium)
-                                        }
+                            group.commonFieldConflicts.forEach { (field, values) ->
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    cashFieldLabel(field)?.let { Text(localizedText(it), style = MaterialTheme.typography.titleSmall) }
+                                    values.distinct().forEach { value ->
+                                        Text(if (value == StructuredNull || value == StructuredText("") || value == StructuredArray(emptyList())) localizedText("cash_clear_value")
+                                            else cashBusinessFieldValue(field, value, accounts, categories, options), style = MaterialTheme.typography.bodyMedium)
                                     }
                                 }
                             }
                         }
                     }
                 }
-                if (detail.relationEffects.isNotEmpty()) CashImportDetailSection(localizedText("cash_import_existing_relations")) {
-                    detail.relationEffects.forEach { effect ->
-                        Text(cashRelationTypeLabel(effect.kind, options), style = MaterialTheme.typography.titleSmall)
-                        CashImportRelationMembers(effect.members, detail.relationMembers + detail.members, accounts)
-                    }
-                }
-                CashImportDetailSection(localizedText("cash_import_statement_original")) {
-                    CashImportDisclosure(localizedText("cash_statement_content"), expanded == "sources",
-                        onClick = { expanded = if (expanded == "sources") null else "sources" },
-                        modifier = Modifier.testTag("cash.import.sources")) {
-                        (detail.members + detail.relationMembers).distinctBy { ImportMemberRef(it.rowRef, it.transactionId) }.forEach { member ->
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                CashImportMemberSummary(member, accounts)
-                                val lines = cashStatementLines(member.fields.fields["source_payload"])
-                                if (lines.isEmpty()) Text(localizedText("cash_statement_empty"))
-                                else lines.forEach { (label, value) -> Text(if (label.isEmpty()) value else "$label：$value", style = MaterialTheme.typography.bodyMedium) }
-                            }
-                            HorizontalDivider()
+                HorizontalDivider()
+                CashStatementDisclosure(expanded == "sources",
+                    onToggle = { expanded = if (expanded == "sources") null else "sources" },
+                    testTag = "cash.import.sources") {
+                    detail.members.distinctBy { ImportMemberRef(it.rowRef, it.transactionId) }.forEach { member ->
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            CashImportMemberSummary(member, accounts)
+                            val lines = cashStatementLines(member.fields.fields["source_payload"])
+                            if (lines.isEmpty()) Text(localizedText("cash_statement_empty"))
+                            else lines.forEach { (label, value) -> Text(if (label.isEmpty()) value else "$label：$value", style = MaterialTheme.typography.bodyMedium) }
                         }
+                        HorizontalDivider()
                     }
                 }
             }

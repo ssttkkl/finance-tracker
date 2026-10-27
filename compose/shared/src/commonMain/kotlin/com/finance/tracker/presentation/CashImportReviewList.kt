@@ -1,112 +1,221 @@
 package com.finance.tracker.presentation
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
+import androidx.paging.LoadState
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.itemKey
 import com.finance.tracker.core.*
+import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.domain.*
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun CashImportReviewList(state: ImportTaskUiState, categories: List<CashCategory>, options: LedgerOptions,
-    sizeClass: WindowSizeClass, listState: LazyListState, onFilter: (String) -> Unit, onMore: () -> Unit, onOpen: (String) -> Unit,
-    onProcessing: (() -> Unit)? = null, modifier: Modifier = Modifier) {
-    var filter by remember(state.plan?.planId) { mutableStateOf("all") }
-    val counts = state.plan?.itemCounts.orEmpty()
-    val total = counts["all"] ?: if (counts.isNotEmpty()) (counts["confirmed"] ?: 0L) + (counts["pending"] ?: 0L) else state.items.size.toLong()
-    val complete = state.itemsInitialized && state.filter == "all" && state.nextCursor == null && state.items.size.toLong() == total
-    val detailsReady = state.items.all { !it.detailAvailable || it.itemId in state.details }
-    val drafts = state.items.count { it.anticipatedState == "draft" }
-    val items = state.items.filter { item -> when (filter) {
-        "draft" -> item.anticipatedState == "draft"
-        "relation_pending" -> state.details[item.itemId]?.relationChoices?.any { it.action == "defer" } == true
-        else -> true
-    } }.sortedWith(compareBy<ImportProjectedItem> {
-        if (it.anticipatedState == "draft") 0
-        else if (state.details[it.itemId]?.relationChoices?.any { relation -> relation.action == "defer" } == true) 1
-        else 2
-    })
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            listOf("cash_import_expected_items" to total.toString(), "cash_import_draft" to if (complete) drafts.toString() else "—",
-                "cash_import_posted" to if (complete) (state.items.size - drafts).toString() else "—").forEach { (label, value) ->
-                Column(Modifier.weight(1f).padding(vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text(value, style = MaterialTheme.typography.headlineMedium,
-                        color = if (label == "cash_import_draft" && drafts > 0) LocalFinanceColorRoles.current.warning else MaterialTheme.colorScheme.onSurface)
-                    Text(localizedText(label), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+internal fun CashImportReviewList(
+    state: ImportTaskUiState,
+    rows: LazyPagingItems<ImportProjectedItem>,
+    categories: List<CashCategory>,
+    options: LedgerOptions,
+    sizeClass: WindowSizeClass,
+    listState: LazyListState,
+    onFilter: (String) -> Unit,
+    onOpen: (ImportProjectedItem) -> Unit,
+    onProcessing: (() -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val pendingCount = state.plan?.itemCounts?.get("pending") ?: 0L
+    val allCount = state.plan?.itemCounts?.get("all")
+        ?: (state.plan?.itemCounts?.get("confirmed") ?: 0L) + pendingCount
+    LaunchedEffect(state.plan?.planId, state.filter) { listState.scrollToItem(0) }
+
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        FlowRow(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            if (pendingCount > 0L) {
+                FilterChip(
+                    selected = state.filter == "pending",
+                    onClick = { onFilter("pending") },
+                    label = { Text(localizedText("cash_import_pending_count", pendingCount.toString())) },
+                    enabled = state.canEdit,
+                    modifier = Modifier.testTag("cash.import.filter-pending"),
+                )
+            }
+            FilterChip(
+                selected = state.filter == "all",
+                onClick = { onFilter("all") },
+                label = { Text(localizedText("cash_import_all_count", allCount.toString())) },
+                enabled = state.canEdit,
+                modifier = Modifier.testTag("cash.import.filter-all"),
+            )
+        }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            LazyColumn(
+                Modifier.fillMaxSize().testTag("cash.import.items"),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                items(
+                    count = rows.itemCount,
+                    key = rows.itemKey { it.itemId },
+                ) { index ->
+                    val item = rows[index]
+                    if (item == null) {
+                        CashProjectionPlaceholderRow(compact = sizeClass == WindowSizeClass.COMPACT)
+                    } else {
+                        val month = localMonthKey(item.display.occurredAt)
+                        val previousMonth = if (index == 0) null else rows.peek(index - 1)?.display?.occurredAt?.let(::localMonthKey)
+                        val nextMonth = if (index == rows.itemCount - 1) null else rows.peek(index + 1)?.display?.occurredAt?.let(::localMonthKey)
+                        val monthStart = month != previousMonth
+                        val monthEnd = nextMonth?.let { it != month } ?: (index == rows.itemCount - 1)
+                        val detail = state.details[item.itemId]
+                        val relationPending = detail?.relationChoices?.any { it.action == "defer" } == true
+                        val statusTags = buildList {
+                            if (item.anticipatedState == "draft") add(CashLedgerRowStatusTag.DRAFT)
+                            if (relationPending) add(CashLedgerRowStatusTag.RELATION_PENDING)
+                            else if (item.confirmationStatus == "pending") add(CashLedgerRowStatusTag.NEEDS_REVIEW)
+                        }
+                        val pairLabels = detail?.let { currentDetail -> currentDetail.relationChoices
+                            .filter { it.action in setOf("accept", "defer") }
+                            .map { group ->
+                                val kind = group.kind?.let { cashRelationTypeLabel(it, options) }.orEmpty()
+                                val refs = group.members.ifEmpty { group.candidates.flatMap { it.members }.distinct() }
+                                val members = importRelationMembers(refs, currentDetail.relationMembers + currentDetail.members)
+                                val sources = members?.map { member ->
+                                    listOfNotNull(
+                                        member.fields.fields["source_type"].cashText(),
+                                        member.fields.fields["account_name"].cashText(),
+                                        member.fields.fields["counterparty"].cashText(),
+                                    ).distinct().joinToString(" · ").ifEmpty { localizedText("display_not_provided") }
+                                }?.joinToString(" ↔ ").orEmpty()
+                                listOf(kind, sources).filter(String::isNotBlank).joinToString(" · ")
+                            } }.orEmpty()
+                        val relationshipSummary = pairLabels.distinct().joinToString("；")
+                            .takeIf(String::isNotBlank)
+                            ?.let { localizedText("cash_import_relationship_summary", it) }
+                        val attentionSummary = item.attentionReasons.map { it.message }
+                            .filter(String::isNotBlank).distinct().joinToString("；")
+                            .takeIf(String::isNotBlank)
+                            ?.let { localizedText("cash_import_attention_summary", it) }
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth().padding(
+                                top = if (monthStart && index > 0) GeneratedTokens.Core.Space.Token3 else 0.dp,
+                            ),
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            tonalElevation = 0.dp,
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                if (monthStart) {
+                                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                        Text(localMonthLabel(month), style = MaterialTheme.typography.titleMedium)
+                                        if (sizeClass != WindowSizeClass.COMPACT) {
+                                            CashLedgerTableHeader(
+                                                modifier = Modifier.padding(top = 8.dp),
+                                                showSelection = false,
+                                                statusOnly = true,
+                                            )
+                                        }
+                                    }
+                                }
+                                CashLedgerRow(
+                                    item = CashLedgerRowContent(
+                                        id = "import-${item.itemId}",
+                                        occurredAt = item.display.occurredAt,
+                                        counterparty = item.display.counterparty.orEmpty(),
+                                        note = item.display.note.orEmpty(),
+                                        accountLabel = item.display.accounts.joinToString("、")
+                                            .ifEmpty { localizedText("cash_import_no_account") },
+                                        categoryLabel = cashCategoryDisplayPath(categories.firstOrNull { it.id == item.display.categoryId }),
+                                        economicLabel = null,
+                                        sourceLabel = null,
+                                        confirmationStatus = item.confirmationStatus,
+                                        amountLabel = if (item.display.amount == null) localizedText("cash_import_amount_unknown")
+                                            else cashAmountWithCurrencyLabel(item.display.amount, item.display.currency),
+                                        negative = item.display.amount?.startsWith("-") == true,
+                                        statusTags = statusTags,
+                                        showConfirmationStatus = false,
+                                        relationshipSummary = relationshipSummary,
+                                        attentionSummary = attentionSummary,
+                                    ),
+                                    checked = false,
+                                    canWrite = false,
+                                    sizeClass = sizeClass,
+                                    selectionMode = false,
+                                    lastInMonth = monthEnd,
+                                    onChecked = {},
+                                    onOpen = { onOpen(item) },
+                                    showSelection = false,
+                                )
+                            }
+                        }
+                    }
+                }
+                if (rows.loadState.append is LoadState.Loading) {
+                    item(key = "cash-import-items-append-loading") {
+                        Row(
+                            Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) { CircularProgressIndicator() }
+                    }
+                }
+                val appendError = rows.loadState.append as? LoadState.Error
+                if (appendError != null) {
+                    item(key = "cash-import-items-append-error") {
+                        StateMessage(cashImportTaskErrorText((appendError.error as? DomainFailure)?.code ?: "request_failed"), isError = true) {
+                            TextButton(onClick = rows::retry) { Text(localizedText("copy_e2d53a6d3a")) }
+                        }
+                    }
                 }
             }
-        }
-        HorizontalDivider()
-        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            FilterChip(filter == "draft", { filter = "draft" }, label = { Text(localizedText("cash_import_draft")) },
-                enabled = state.canEdit && complete, modifier = Modifier.testTag("cash.import.filter-draft"))
-            FilterChip(filter == "relation_pending", { filter = "relation_pending" }, label = { Text(localizedText("cash_import_relation_pending")) },
-                enabled = state.canEdit && complete && detailsReady, modifier = Modifier.testTag("cash.import.filter-relation-pending"))
-            FilterChip(filter == "all", { filter = "all"; if (state.filter != "all") onFilter("all") },
-                label = { Text(localizedText("ledger_quick_all")) }, enabled = state.canEdit, modifier = Modifier.testTag("cash.import.filter-all"))
-        }
-        Text(localizedText(if (complete) "cash_import_filter_scope" else "cash_import_loaded_scope", state.items.size.toString()),
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        LazyColumn(Modifier.fillMaxWidth().weight(1f).testTag("cash.import.items"), state = listState) {
-            if (sizeClass != WindowSizeClass.COMPACT) item { CashLedgerTableHeader(showSelection = false, statusOnly = true) }
-            itemsIndexed(items, key = { _, item -> item.itemId }) { index, item ->
-                val display = item.display
-                val detail = state.details[item.itemId]
-                val pairLabels = detail?.relationChoices.orEmpty().filter { it.action in setOf("accept", "defer") }.map { group ->
-                    val kind = group.kind?.let { cashRelationTypeLabel(it, options) }.orEmpty()
-                    val refs = group.members.ifEmpty { group.candidates.flatMap { it.members }.distinct() }
-                    val members = importRelationMembers(refs, detail!!.relationMembers + detail.members)
-                    val sources = members?.map { member ->
-                        listOfNotNull(member.fields.fields["source_type"].cashText(), member.fields.fields["account_name"].cashText(),
-                            member.fields.fields["counterparty"].cashText()).distinct().joinToString(" · ").ifEmpty { localizedText("display_not_provided") }
-                    }?.joinToString(" ↔ ").orEmpty()
-                    listOf(kind, sources).filter { it.isNotBlank() }.joinToString(" · ")
+
+            val refreshError = rows.loadState.refresh as? LoadState.Error
+            when {
+                refreshError != null -> StateMessage(
+                    cashImportTaskErrorText((refreshError.error as? DomainFailure)?.code ?: "request_failed"),
+                    isError = true,
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                ) {
+                    TextButton(onClick = rows::retry) { Text(localizedText("copy_e2d53a6d3a")) }
                 }
-                val relationshipSummary = pairLabels.distinct().joinToString("；")
-                    .takeIf { it.isNotBlank() }
-                    ?.let { localizedText("cash_import_relationship_summary", it) }
-                val attentionSummary = item.attentionReasons.map { it.message }.filter { it.isNotBlank() }.distinct().joinToString("；")
-                    .takeIf { it.isNotBlank() }
-                    ?.let { localizedText("cash_import_attention_summary", it) }
-                val statusTags = buildList {
-                    if (item.anticipatedState == "draft") add(CashLedgerRowStatusTag.DRAFT)
-                    if (detail?.relationChoices?.any { it.action == "defer" } == true) add(CashLedgerRowStatusTag.RELATION_PENDING)
-                }
-                CashLedgerRow(CashLedgerRowContent("import-${item.itemId}", display.occurredAt,
-                    display.counterparty.orEmpty(), display.note.orEmpty(),
-                    display.accounts.joinToString("、").ifEmpty { localizedText("cash_import_no_account") },
-                    cashCategoryDisplayPath(categories.firstOrNull { it.id == display.categoryId }),
-                    null,
-                    if (detail == null && item.detailAvailable) localizedText("cash_import_details_loading") else null,
-                    item.confirmationStatus, if (display.amount == null) localizedText("cash_import_amount_unknown") else cashAmountWithCurrencyLabel(display.amount, display.currency),
-                    display.amount?.startsWith("-") == true,
-                    statusTags = statusTags,
-                    showConfirmationStatus = false,
-                    relationshipSummary = relationshipSummary,
-                    attentionSummary = attentionSummary),
-                    checked = false, canWrite = false, sizeClass = sizeClass, selectionMode = false,
-                    lastInMonth = index == items.lastIndex, onChecked = {}, onOpen = { onOpen(item.itemId) }, showSelection = false)
+                rows.itemCount == 0 && rows.loadState.refresh is LoadState.Loading ->
+                    CircularProgressIndicator(Modifier.align(Alignment.Center))
+                rows.itemCount == 0 -> StateMessage(
+                    localizedText("cash_import_empty_filter"),
+                    modifier = Modifier.align(Alignment.Center).padding(24.dp),
+                )
             }
-            if (!state.itemsInitialized) item {
-                if (state.busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                else TextButton(onClick = { onFilter("all") }) { Text(localizedText("copy_e2d53a6d3a")) }
-            }
-            if (state.itemsInitialized && items.isEmpty()) item {
-                Text(localizedText("cash_import_empty_filter"), Modifier.padding(vertical = 24.dp))
-            }
-            if (state.nextCursor != null) item {
-                TextButton(onClick = onMore, enabled = state.canEdit, modifier = Modifier.testTag("cash.import.more")) { Text(localizedText("cash_import_more")) }
+
+            if (rows.itemCount > 0) {
+                CashLedgerScrollbar(
+                    listState = listState,
+                    totalCount = rows.itemCount,
+                    monthPositions = emptyList(),
+                    isOrdinalLoaded = { ordinal -> rows.peek(ordinal) != null },
+                    compact = sizeClass == WindowSizeClass.COMPACT,
+                    modifier = Modifier.align(Alignment.CenterEnd).zIndex(1f),
+                )
             }
         }
-        if (onProcessing != null) TextButton(onClick = onProcessing, enabled = state.canEdit,
-            modifier = Modifier.testTag("cash.import.processing")) { Text(localizedText("cash_import_processing_details")) }
+        if (onProcessing != null) {
+            TextButton(
+                onClick = onProcessing,
+                enabled = state.canEdit,
+                modifier = Modifier.testTag("cash.import.processing"),
+            ) { Text(localizedText("cash_import_processing_details")) }
+        }
     }
 }

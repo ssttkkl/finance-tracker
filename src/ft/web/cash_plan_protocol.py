@@ -134,6 +134,11 @@ class ItemPageView(Output):
     next_cursor: str | None
 
 
+class ImportItemPageView(ItemPageView):
+    start_index: int
+    total_count: Count
+
+
 class ProcessingItemView(MemberRef):
     file_ref: str | None = None
     planned_action: str
@@ -302,13 +307,19 @@ def idempotency_key(request):
     return key
 
 
-def page_input(request, *, results=False, processing=False):
+def page_input(request, *, results=False, processing=False, indexed=False):
     allowed = {"limit", "after"} if results else {"limit", "cursor"} | (set() if processing else {"confirmation_status"})
+    if indexed:
+        allowed.add("start_index")
     items = request.query_params.multi_items()
     if any(key not in allowed for key, _ in items) or len(dict(items)) != len(items):
         raise CashImportProtocolError
     value = dict(items)
+    if "cursor" in value and "start_index" in value:
+        raise CashImportProtocolError
     numbers = {"limit": "50", **({"after": "0"} if results else {})}
+    if indexed and "start_index" in value:
+        numbers["start_index"] = "0"
     for field, default in numbers.items():
         text = value.get(field, default)
         if not re.fullmatch(r"0|[1-9][0-9]{0,18}", text):
@@ -359,7 +370,7 @@ def receipt_key_input(request):
         raise CashImportProtocolError("import_input_invalid") from None
 
 
-def page_contract(*, results=False, processing=False):
+def page_contract(*, results=False, processing=False, indexed=False):
     properties = {"limit": {"type": "integer", "minimum": 1, "maximum": 200, "default": 50}}
     if results:
         properties["after"] = {"type": "string", "pattern": r"^(0|[1-9][0-9]{0,18})$", "default": "0"}
@@ -367,5 +378,7 @@ def page_contract(*, results=False, processing=False):
         properties["cursor"] = {"type": "string", "maxLength": 4096}
         if not processing:
             properties["confirmation_status"] = {"type": "string", "enum": ["all", "confirmed", "pending"], "default": "all"}
+        if indexed:
+            properties["start_index"] = {"type": "integer", "minimum": 0}
     return {"parameters": [{"in": "query", "name": name, "required": False, "schema": schema}
         for name, schema in properties.items()]}

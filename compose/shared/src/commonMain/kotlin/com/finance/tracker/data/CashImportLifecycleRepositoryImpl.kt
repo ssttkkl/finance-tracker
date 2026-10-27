@@ -20,7 +20,7 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
     override suspend fun cancel(sessionId: String): ImportContext = guarded { api.cancelCashImportSession(sessionId).toDomain() }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan = guarded { api.previewCashImport(sessionId, choices.toDto(revision, previousPlanId)).toDomain() }
     override suspend fun plan(planId: String): ImportPlan = guarded { api.readCashImportPlan(planId).toDomain() }
-    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String): ImportItemPage = guarded { api.readCashImportItems(planId, cursor, limit, confirmationStatus).toDomain() }
+    override suspend fun items(planId: String, cursor: String?, limit: Int, confirmationStatus: String, startIndex: Int?): ImportItemPage = guarded { api.readCashImportItems(planId, cursor, limit, confirmationStatus, startIndex).toDomain() }
     override suspend fun item(planId: String, itemId: String): ImportItemDetail = guarded { api.readCashImportItem(planId, itemId).toDomain() }
     override suspend fun processing(planId: String, cursor: String?, limit: Int): ImportProcessingPage = guarded { api.readCashImportProcessing(planId, cursor, limit).toDomain() }
     override suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt = guarded { api.commitCashImport(planId, revision, idempotencyKey).toDomain() }

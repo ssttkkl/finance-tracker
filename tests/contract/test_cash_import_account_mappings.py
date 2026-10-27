@@ -255,7 +255,8 @@ def test_suggestions_recheck_account_eligibility_without_writes(context_runtime,
             else:
                 account.currencies = ["USD"]
     before = _mappings(runtime)
-    assert _suggest(runtime, (file,))[group.source_account_ref]["account_id"] is None
+    expected = "101" if change == "currency" else None
+    assert _suggest(runtime, (file,))[group.source_account_ref]["account_id"] == expected
     assert _mappings(runtime) == before
 
 

@@ -18,7 +18,8 @@
 flowchart TD
     L[收支列表：当前筛选与待确认入口] --> D[整笔详情：金额、账户、公共信息]
     D --> P[按需展开待处理事项]
-    D --> S[折叠的来源记录：只读]
+    D --> R[关联流水：存在多笔或候选时默认展开]
+    R --> S[账单原文：默认折叠，只读]
     D --> E[编辑当前整笔：由编辑变更承载]
     P --> G[补齐草稿或采用来源差异]
     P --> R[确认、暂存、拒绝或解除已有配对]
@@ -31,9 +32,9 @@ flowchart TD
 | 区域 | 展示与动作 |
 |---|---|
 | 列表 | 保留当前筛选与月汇总；仅存在待确认项时增加快捷筛选；沿用大屏表格、手机列表 |
-| 详情总览 | 整笔金额、币种、日期、账户、分类、备注与对方；未知保持未知 |
-| 待处理 | 总览摘要下方警示卡片显示具体问题，点击后在当前详情展开对应操作；没有问题不留空教学区 |
-| 来源 | 默认折叠，展开看各自原文和字段，只读 |
+| 摘要 | 整笔金额、币种、日期、账户、分类、备注与对方；未知保持未知。待处理警示卡紧接摘要，显示具体问题并在当前详情展开处理 |
+| 关联流水 | 摘要之后、账单原文之前；仅多笔实际关联流水或存在候选时显示，默认展开。实际成员按关系组展示；候选嵌入所属关系并标明候选。主页允许接受一个完整方案、整组拒绝或暂不处理；导入详情只读。`insufficient_evidence` 表示可继续处理的待确认状态，不显示通用导入错误；其他明确关系错误保留对应提示 |
+| 账单原文 | 位于关联流水之后，默认折叠；展开按真实来源成员显示原始字段，只读 |
 | 操作 | 整笔编辑、更多操作与明确删除影响；查看者不获得写入口 |
 
 现有详情容器保持 Compact 全屏、Regular/Wide 末端全高面板。关系与来源处理采用当前容器内子状态，不增加独立关联任务。无待确认时隐藏快捷入口，但已生效状态筛选仍须可从现有筛选区清除，避免困在空列表。
@@ -44,8 +45,8 @@ flowchart TD
 
 | 所有者 | 文件／责任 | 其他模块如何使用 |
 |---|---|---|
-| 本变更 | 当前列表／详情 DTO 和映射；计划新增 `CashMaintenanceApi.kt`、`CashMaintenanceDtos.kt`、`CashMaintenanceModels.kt` 与 Repository；`CashLedgerScreen.kt`、`CashLedgerViewModel.kt`、`CashLedgerDetails.kt` 宿主及补处理 | 提供读取、草稿保存、维护预览／提交、结果核实、重新定位，以及编辑器挂载回调 |
-| 导入变更 | `CashImport*`、`ImportTask*`、`ImportAccount*`、导入恢复接线；App／Graph 的最终集成 | 使用冻结的公共字段／关系选择语义，不写账本 ViewModel |
+| 本变更 | 当前列表／详情 DTO 和映射；计划新增 `CashMaintenanceApi.kt`、`CashMaintenanceDtos.kt`、`CashMaintenanceModels.kt` 与 Repository；`CashLedgerScreen.kt`、`CashLedgerViewModel.kt`、`CashLedgerDetails.kt`、`CashRecordSummary.kt` 的详情宿主、共用摘要／账单原文入口及补处理 | 提供读取、草稿保存、维护预览／提交、结果核实、重新定位、共用详情摘要，以及编辑器挂载回调 |
+| 导入变更 | `CashImport*`、`ImportTask*`、`ImportAccount*`、导入恢复接线；App／Graph 的最终集成 | 预览详情调用本变更提供的共用摘要与账单原文入口；差异、候选、导入状态和任务动作仍由导入模块负责 |
 | 编辑变更 | 新编辑表单、输入／命令构造与独立状态、普通创建及明确转账适配 | 消费维护模型，在宿主给定插槽中渲染，不改列表和关联状态 |
 
 `FinanceModels.kt`、`FinanceDtos.kt`、现有 FinanceRepository、共享语义 ID／文案目录及演示基础由本变更统筹；导入和编辑各自新增局部文件或提交所需接口清单，不并行改写集中声明。App／Graph 由导入模块最终接线，维护模块先行提供需要注入的合同；依赖合并后各模块必须验证真实入口。
@@ -68,7 +69,7 @@ flowchart TD
 
 用户已确认保留整体外观，仅重做流程与操作布局。预检：共享框架为 Compose Material 3；[FinanceTheme](../../../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/FinanceTheme.kt) 提供浅／深色与形状，[token](../../specs/shared/design-system/tokens/core.tokens.json) 提供蓝色强调与 4 px 间距；Web 使用 Noto Sans SC，Android/iOS 使用当前系统无衬线字体。保持既有字体映射和组件状态，不新增视觉系统、装饰动画、原型或 Pen 产物。
 
-方向为任务型账本：列表优先扫读，详情按总览→待处理→来源→操作组织；使用现有 token 与标准 Material 3 控件。将删除旧新增关联搜索、逐条来源编辑、重复摘要、无问题时的空说明、实现术语和卡片套卡片。正常状态帮助最多两处且各不超过 16 汉字，字段校验按项目规则。
+方向为任务型账本：列表优先扫读，详情按总览→待处理→来源→操作组织；使用现有 token 与标准 Material 3 控件。两个入口渲染同一收支摘要，账户、分类、备注等按标签值平铺在详情主体内，不设置“流水信息”标题或内层信息卡；共同原文入口显示“账单原文 查看”，默认折叠。待处理草稿在现有橙色提示区域显示“草稿”标题与缺项说明。导入差异／关联候选与已保存关系维护保留为各自任务内容。将删除旧新增关联搜索、逐条来源编辑、重复摘要、无问题时的空说明、实现术语和卡片套卡片。正常状态帮助最多两处且各不超过 16 汉字，字段校验按项目规则。
 
 自查覆盖密度、只读／编辑边界、空／错误／提交／未知状态、无障碍名称和三类窗口。当前实际页面及截图的 Hallmark audit、独立设计复核和未完成用户确认集中见 tasks；规划自查不能替代实际审查。
 
@@ -76,19 +77,17 @@ flowchart TD
 
 后端变更保留服务器读取／统计与领域合同；本变更只增加真实页面验收，不复制后端算法。其原 4.12.4 的草稿、来源及关联页面任务移交本变更，正式公共编辑由编辑变更负责。主分支已同步并归档旧账本／弹窗变更，其有效布局和 M3 测量继续适用；本 change 的完整 delta 定义当前详情及允许动作，不能恢复旧平铺约束、逐条来源编辑或直接关联写入。
 
-### 修改前视觉基线与详情组织
+### 修改前视觉基线与共享详情摘要
 
-以实施前 `8aa0b40` 的 Compose 源码及 `d0b15a9` 的详情截图为基线；保留当前外层面板和主题。恢复有语义色及等宽数字的金额、交易对方标题、类型和时间次级行，以及带标题／分隔线的“流水信息”标签值卡片。固定信息只读摘要与可编辑输入不重复。待处理警示卡继续位于摘要下方，来源保持按需展开，不恢复来源逐条编辑或任意关系写入。
-
-移除无标签散排的账户／分类／备注及重复摘要，不增添功能说明和新视觉系统。
+以实施前 `8aa0b40` 的 Compose 源码及 `d0b15a9` 的详情截图为基线；保留外层面板、金额语义色、等宽数字、交易对方标题、类型／时间次级摘要、主题、字段分组表单及主要操作。主页和导入预览共用 `CashRecordSummary`：账户、分类、备注等只读字段直接按标签和值排在详情主体内，不再使用“流水信息”标题、分隔线或内层信息卡。两端共同使用“账单原文 查看”默认折叠入口，原文内容仍由各自当前数据提供。草稿状态使用橙色提示区域，标题为“草稿”，正文说明缺少的信息；不另设“需要留意”区。待处理警示仍紧接摘要，来源成员只读，导入差异／关联候选与已保存关系维护维持各自动作。
 
 ### 官方 Material 3 页面复核
 
-按用户要求实际打开官方页面并读取 JavaScript 渲染正文，不以技能摘要代替。参考 [Expressive](https://m3.material.io/foundations/usability/applying-m-3-expressive)、[间距](https://m3.material.io/foundations/layout/grids-spacing/spacing)、[文字层级](https://m3.material.io/styles/typography/applying-type)、[卡片](https://m3.material.io/components/cards/guidelines)、[按钮](https://m3.material.io/components/buttons/guidelines)、[文本输入](https://m3.material.io/components/text-fields/guidelines) 及其 [无障碍](https://m3.material.io/components/text-fields/accessibility)、[侧面板](https://m3.material.io/components/side-sheets/guidelines)、[列表与详情](https://m3.material.io/foundations/layout/canonical-examples/list-detail)、[状态](https://m3.material.io/foundations/interaction/states/overview) 和 [对比度](https://m3.material.io/foundations/designing/color-contrast)。
+按用户要求实际打开官方页面并读取 JavaScript 渲染正文，不以技能摘要代替。参考 [Expressive](https://m3.material.io/foundations/usability/applying-m-3-expressive)、[间距](https://m3.material.io/foundations/layout/grids-spacing/spacing)、[文字层级](https://m3.material.io/styles/typography/applying-type)、[卡片](https://m3.material.io/components/cards/guidelines)、[卡片规格](https://m3.material.io/components/cards/specs)、[按钮](https://m3.material.io/components/buttons/guidelines)、[文本输入](https://m3.material.io/components/text-fields/guidelines) 及其 [无障碍](https://m3.material.io/components/text-fields/accessibility)、[侧面板](https://m3.material.io/components/side-sheets/guidelines)、[列表与详情](https://m3.material.io/foundations/layout/canonical-examples/list-detail)、[状态](https://m3.material.io/foundations/interaction/states/overview) 和 [对比度](https://m3.material.io/foundations/designing/color-contrast)。卡片指南建议：当间距、标题或分隔线能形成更简单的层级时，不要强行把内容装入卡片；间距页面强调用邻近关系和留白区分相关信息与独立区域。因此详情总览采用无卡片标签值行。卡片 Overview 路径在真实浏览器中未加载正文；本次判断依据已成功读取的 Guidelines、Specs 和 Spacing 正文，不依赖 Overview 未读内容。
 
-组件另读文本输入、卡片、按钮及侧面板的 `overview`／`specs` 正文：输入使用默认 outlined 状态、标签与 supporting error；卡片只归拢同一主题，尺寸随内容；按钮沿用当前依赖的默认尺寸及主题角色；侧面板保留独立滚动和既有容器合同，不照搬官网新 API 或改变用户认可的面板宽度。
+组件另读文本输入、卡片、按钮及侧面板的 `overview`／`specs` 正文：输入使用默认 outlined 状态、标签与 supporting error；卡片只归拢同一主题，尺寸随内容；按钮沿用当前依赖的默认尺寸及主题角色；侧面板保留独立滚动和既有容器合同，不照搬官网新 API 或改变用户认可的面板宽度。本轮另读 Material 3 `Lists — Overview/Specs` 与 `Buttons — Overview/Specs` 正文：列表保持连续纵向扫读，支持清楚标识的展开／收起；披露入口使用默认 Material 3 按钮语义和触控目标，不固定控件尺寸。
 
-落实为业务组内紧邻、组间留白、现有 type scale、单主题信息卡、独立滚动正文和固定主要操作；不把每个字段装进卡片，不增加按钮或装饰。额外影响确认时，正文切到本次变化，使用独立滚动位置；底部原保存栏由“取消／确认保存”替换，不能同时出现可用与禁用两组保存，或将确认内容埋在表单下。取消确认回到原表单并保留本次输入，不发送写命令。每个明确目标只展示一次当前摘要，字段变化紧邻该目标展示旧／新值；已由具体差异完整表达的字段影响不再重复整笔预计金额与对方，其他影响及必要的预计组结构完整保留，不按种类合并或丢弃不同目标／字段。分配控件归记账组，位于对方组之前；金额格式错误提供明确文字反馈。
+落实为业务字段标签和值同行、相关字段靠近、区域间留白、现有 type scale、独立滚动正文和固定主要操作；不把每个字段装进卡片，不增加按钮或装饰。额外影响确认时，正文切到本次变化，使用独立滚动位置；底部原保存栏由“取消／确认保存”替换，不能同时出现可用与禁用两组保存，或将确认内容埋在表单下。取消确认回到原表单并保留本次输入，不发送写命令。每个明确目标只展示一次当前摘要，字段变化紧邻该目标展示旧／新值；已由具体差异完整表达的字段影响不再重复整笔预计金额与对方，其他影响及必要的预计组结构完整保留，不按种类合并或丢弃不同目标／字段。分配控件归记账组，位于对方组之前；金额格式错误提供明确文字反馈。
 
 官方网页说明设计，当前 JetBrains Material3 API 与实际编译负责平台支持，不升级依赖。原始 Expressive 链接路径失效，使用站内当前链接。用户已确认加深交互蓝并达到对比度要求。浅色交互蓝采用既有品牌蓝 `#0A63B8`，焦点与其一致；深色保留原蓝 `#0485F7`，按钮前景使用既有深色背景色 `#060607`，避免深色操作文字随浅色一起变暗。两主题分别验收按钮标签与页面操作文字至少 4.5:1、焦点边界至少 3:1；颜色仍只从 Git token 生成，无新视觉系统。
 

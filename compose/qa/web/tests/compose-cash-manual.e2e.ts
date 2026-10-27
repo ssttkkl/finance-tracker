@@ -118,7 +118,8 @@ test("ordinary creation retains its input across modes and saves only the active
 test("manual editor keeps amount with currency and actions visible while the full form scrolls", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const api = await currentManual(page, false, ["tail"]); await openManual(page);
-  await expect(page.getByText("流水信息", { exact: true })).toBeVisible();
+  await expect(page.getByText("流水信息", { exact: true })).toHaveCount(0);
+  await expect(page.locator('[id="cash.current.detail"]:visible')).toContainText("账户");
   await expect(page.getByText("账号尾号", { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath("detail-account-attributes.png") });
   await press(page, "cash.current.edit");

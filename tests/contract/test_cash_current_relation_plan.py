@@ -12,7 +12,7 @@ from ft.adapters.relational.models import (CashRelationCandidateModel, CashSourc
 from ft.application.cash_projections import CashProjectionService
 from tests.contract.test_cash_import_commit import configured
 from tests.contract.test_cash_mutation_business_plan import _plan_data, _preview
-from tests.contract.test_cash_mutation_commit import _service
+from tests.contract.test_cash_mutation_commit import _commit, _service
 from tests.contract.test_cash_record_maintenance import _service as _records
 from tests.contract.test_cash_relation_context import _add, _joint
 from tests.contract.test_parsed_cash_import_context import context_runtime
@@ -69,7 +69,7 @@ def _choose(service, runtime, view, choice, *, identifier="1101", patch=None):
 
 
 @pytest.mark.parametrize("state", ["confirmed", "draft", "ignored"])
-def test_default_preview_preserves_every_current_decision_and_never_discovers(context_runtime, monkeypatch, state):
+def test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups(context_runtime, monkeypatch, state):
     from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
     runtime = context_runtime
     service, _ = _start(runtime, state=state)
@@ -80,9 +80,31 @@ def test_default_preview_preserves_every_current_decision_and_never_discovers(co
     assert view["can_commit"]
     assert all(view["summary"].get(key, 0) == 0 for key in (
         "relations_accepted", "relations_deferred", "relations_ignored", "relations_removed"))
-    group, = _groups(service, view)
-    assert group["action"] == {"confirmed": "accept", "draft": "defer", "ignored": "ignore"}[state]
-    assert len(view["items"]) == (1 if state == "confirmed" else 2)
+    groups = _groups(service, view)
+    if state == "ignored":
+        assert groups == []
+    else:
+        group, = groups
+        assert group["action"] == {"confirmed": "accept", "draft": "defer"}[state]
+    assert len(view["items"]) == (2 if state == "draft" else 1)
+
+
+def test_rejected_current_candidate_does_not_reappear_after_detail_refresh(context_runtime):
+    runtime = context_runtime
+    service, rows = _start(runtime, state="draft")
+    opened = _preview(service, runtime, "1101", intent="maintain_relations")
+    group, = _groups(service, opened)
+    rejected = _choose(service, runtime, opened, {"suggestion_id": group["suggestion_id"], "action": "ignore"})
+    _commit(service, rejected, "synthetic-ignore-current-relation")
+
+    persisted, = _rows(runtime)
+    assert persisted["id"] == rows[0]["id"]
+    assert persisted["state"] == "ignored"
+    assert persisted["candidates"] == []
+
+    refreshed = _preview(service, runtime, "1101", intent="maintain_relations")
+    assert _groups(service, refreshed) == []
+    assert len(refreshed["items"]) == 1
 
 
 def test_joint_draft_loads_both_mirrors_and_accepts_only_as_one_full_preview(context_runtime):

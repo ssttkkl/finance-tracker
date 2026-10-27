@@ -155,15 +155,28 @@ internal fun CashLedgerScreen(
             currentEvidence = null
         }
     }
+    LaunchedEffect(currentState.transactionId, currentState.record?.rowRevision, currentState.busy, currentState.plan?.planId) {
+        val record = currentState.record ?: return@LaunchedEffect
+        val hasPendingRelations = record.relations.any { it.active && it.state == "draft" }
+        if (!currentState.busy && currentState.plan == null && hasPendingRelations &&
+            record.recordOrigin !in setOf("manual", "manual_transfer")) {
+            currentTask.beginRelations()
+        }
+    }
     LaunchedEffect(currentState.record?.projectionRef) {
         currentState.record?.projectionRef?.let { ref ->
-            if (currentProjection?.projectionVersion != ref.projectionVersion || currentProjection?.projectionId != ref.projectionId) {
+            if (currentEvidence?.projectionVersion != ref.projectionVersion || currentEvidence?.projection?.projectionId != ref.projectionId) {
+                sourceError = null
                 try {
                     val evidence = maintenanceRepository.sources(ref.projectionId)
                     if (evidence.projectionVersion != ref.projectionVersion) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
                     currentProjection = evidence.projection
+                    currentEvidence = evidence
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (_: Exception) { currentProjection = null }
+                catch (failure: Exception) {
+                    currentEvidence = null
+                    sourceError = (failure as? DomainFailure)?.code ?: "request_failed"
+                }
             }
         }
     }
@@ -584,7 +597,10 @@ internal fun CashLedgerScreen(
                     try {
                         val evidence = maintenanceRepository.sources(ref)
                         if (evidence.projectionVersion != version) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
-                        if (currentTask.state.value.transactionId == target && currentTask.state.value.record?.projectionRef?.projectionVersion == version) currentEvidence = evidence
+                        if (currentTask.state.value.transactionId == target && currentTask.state.value.record?.projectionRef?.projectionVersion == version) {
+                            currentProjection = evidence.projection
+                            currentEvidence = evidence
+                        }
                     } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                     catch (failure: Exception) { if (currentTask.state.value.transactionId == target) sourceError = (failure as? DomainFailure)?.code ?: "request_failed" }
                 }
@@ -699,7 +715,7 @@ internal fun CashLedgerScreen(
 }
 
 @Composable
-private fun CashProjectionPlaceholderRow(compact: Boolean) {
+internal fun CashProjectionPlaceholderRow(compact: Boolean) {
     if (compact) {
         Surface(
             modifier = Modifier.fillMaxWidth()
@@ -1250,6 +1266,7 @@ internal data class CashLedgerRowContent(
 
 internal enum class CashLedgerRowStatusTag(val testKey: String, val labelId: String) {
     DRAFT("draft", "cash_import_draft_tag"),
+    NEEDS_REVIEW("needs-review", "cash_confirmation_pending"),
     RELATION_PENDING("relation-pending", "cash_import_relation_pending"),
 }
 
@@ -1262,7 +1279,7 @@ internal fun CashLedgerRow(
 ) {
     val recordBackground = when {
         CashLedgerRowStatusTag.DRAFT in item.statusTags -> LocalFinanceColorRoles.current.warningSurface
-        CashLedgerRowStatusTag.RELATION_PENDING in item.statusTags -> MaterialTheme.colorScheme.primaryContainer
+        CashLedgerRowStatusTag.NEEDS_REVIEW in item.statusTags || CashLedgerRowStatusTag.RELATION_PENDING in item.statusTags -> MaterialTheme.colorScheme.primaryContainer
         else -> null
     }
     val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
@@ -1406,6 +1423,7 @@ private fun CashLedgerRowStatusTags(item: CashLedgerRowContent) {
         item.statusTags.forEach { tag ->
             val (containerColor, contentColor) = when (tag) {
                 CashLedgerRowStatusTag.DRAFT -> colorRoles.warning to colorRoles.background
+                CashLedgerRowStatusTag.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
                 CashLedgerRowStatusTag.RELATION_PENDING -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
             }
             Surface(

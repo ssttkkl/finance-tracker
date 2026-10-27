@@ -122,6 +122,21 @@ class CashImportPlanApiTest {
         client.close()
     }
 
+    @Test fun indexedImportPageCarriesFilteredTotalAndNeverMixesCursorWithOffset() = runTest {
+        var call: HttpRequestData? = null
+        val client = client("""{"items":[],"next_cursor":null,"start_index":37,"total_count":92}""") { call = it }
+        val page = client.readCashImportItems("ip_one", limit = 20, confirmationStatus = "pending", startIndex = 37)
+        assertEquals(37, page.startIndex)
+        assertEquals(92, page.totalCount)
+        assertEquals("37", assertNotNull(call).url.parameters["start_index"])
+        assertNull(call!!.url.parameters["cursor"])
+        assertEquals("20", call!!.url.parameters["limit"])
+        assertFailsWith<ApiFailure> {
+            client.readCashImportItems("ip_one", cursor = "legacy", startIndex = 0)
+        }
+        client.close()
+    }
+
     @Test fun detailRetainsUnknownFactsDiffsAndCompleteRelationChoices() = runTest {
         var path = ""
         val client = client(DETAIL) { path = it.url.encodedPath }

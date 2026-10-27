@@ -99,7 +99,11 @@ data class CashImportPlanDto(
     @SerialName("invalidated_choices") val invalidatedChoices: List<CashInvalidatedChoiceDto>,
 )
 @Serializable
-data class CashPlanItemPageDto(val items: List<CashPlanItemDto>, @SerialName("next_cursor") val nextCursor: String?)
+data class CashPlanItemPageDto(
+    val items: List<CashPlanItemDto>, @SerialName("next_cursor") val nextCursor: String?,
+    @SerialName("start_index") val startIndex: Int? = null,
+    @SerialName("total_count") val totalCount: Int? = null,
+)
 @Serializable
 data class CashPlanProcessingDto(
     @SerialName("row_ref") val rowRef: String? = null,

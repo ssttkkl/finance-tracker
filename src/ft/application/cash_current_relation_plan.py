@@ -62,6 +62,8 @@ class CashCurrentRelationPlanner:
             active = [edge for edge in edges if edge.active]
             if not active:
                 continue
+            if all(edge.state == "ignored" for edge in active):
+                continue
             parents = {parent for edge in edges for parent in (edge.primary_transaction_id, edge.secondary_transaction_id)
                 if parent is not None and parent in snapshot.facts}
             dependencies = {str(row[key]) for row in rows for key in ("primary_transaction_id", "secondary_transaction_id") if row[key] is not None}

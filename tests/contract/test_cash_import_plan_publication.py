@@ -107,6 +107,26 @@ def test_items_and_processing_details_are_paged_with_plan_and_filter_bound_curso
             service.items(plan["plan_id"], limit=limit)
 
 
+def test_import_items_support_filter_bound_absolute_positions_and_exact_totals(context_runtime):
+    from ft.application.cash_import_plans import CashImportPlanError
+    service = _service(context_runtime)
+    created = service.create((_upload(),))
+    plan = service.preview(created.session_id, expected_session_revision=1)
+
+    page = service.items(plan["plan_id"], start_index=10, limit=20, confirmation_status="pending")
+    assert page["start_index"] == 10
+    assert page["total_count"] == 60
+    assert [item["preview_item_id"] for item in page["items"]] == [f"item_{i}" for i in range(21, 60, 2)]
+    assert page["next_cursor"]
+
+    empty = service.items(plan["plan_id"], start_index=60, limit=20, confirmation_status="pending")
+    assert empty == {"items": [], "next_cursor": None, "start_index": 60, "total_count": 60}
+    with pytest.raises(CashImportPlanError, match="plan_page_invalid"):
+        service.items(plan["plan_id"], start_index=61, confirmation_status="pending")
+    with pytest.raises(CashImportPlanError, match="plan_page_invalid"):
+        service.items(plan["plan_id"], cursor="cursor", start_index=0)
+
+
 def test_file_change_cancel_and_expiration_invalidate_the_current_plan(context_runtime):
     from ft.application.cash_import_plans import CashImportPlanError
     clock = [datetime(2026, 10, 21, tzinfo=timezone.utc)]

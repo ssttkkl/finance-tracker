@@ -20,6 +20,7 @@ type FixtureOptions = {
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
   cashTransferSubtypes?: string[];
+  cashProjectionOverrides?: Record<string, unknown>;
 };
 
 export type ComposeApiFixtures = {
@@ -485,7 +486,7 @@ export async function installComposeApiFixtures(
               }],
         });
       }
-      const totalItems = options.cashPageEmpty ? [] : [cashProjection];
+      const totalItems = options.cashPageEmpty ? [] : [{ ...cashProjection, ...options.cashProjectionOverrides }];
       const items = totalItems.slice(startIndex, startIndex + pageSize);
       return json({
         projection_version: 1,

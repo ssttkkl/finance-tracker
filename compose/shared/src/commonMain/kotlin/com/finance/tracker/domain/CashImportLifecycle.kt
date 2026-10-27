@@ -70,7 +70,10 @@ data class ImportPlan(
     val items: List<ImportProjectedItem>, val files: List<ImportPlanFile>, val nextCursor: String?,
     val invalidatedChoices: List<ImportInvalidatedChoice>,
 )
-data class ImportItemPage(val items: List<ImportProjectedItem>, val nextCursor: String?)
+data class ImportItemPage(
+    val items: List<ImportProjectedItem>, val nextCursor: String?,
+    val startIndex: Int? = null, val totalCount: Int? = null,
+)
 data class ImportProcessingDetail(
     val rowRef: String?, val transactionId: String?, val fileRef: String?, val plannedAction: String,
     val operationRef: String?, val duplicateOf: String?, val code: String?, val message: String?,
@@ -130,7 +133,7 @@ interface CashImportLifecycleRepository {
     suspend fun cancel(sessionId: String): ImportContext
     suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan
     suspend fun plan(planId: String): ImportPlan
-    suspend fun items(planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all"): ImportItemPage
+    suspend fun items(planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all", startIndex: Int? = null): ImportItemPage
     suspend fun item(planId: String, itemId: String): ImportItemDetail
     suspend fun processing(planId: String, cursor: String? = null, limit: Int = 50): ImportProcessingPage
     suspend fun confirm(planId: String, revision: Long, idempotencyKey: String): ImportReceipt

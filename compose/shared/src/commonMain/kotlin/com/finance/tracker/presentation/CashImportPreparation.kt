@@ -86,7 +86,9 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                 }
                                 statusLabel?.let { Text(localizedText(it), color = if (file.status in setOf("password_required", "failed")) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                                     style = MaterialTheme.typography.bodySmall) }
-                                file.issues.distinctBy { it.code }.forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
+                                file.issues.distinctBy { it.code }
+                                    .filterNot { file.status == "password_required" && it.code == "password_required" }
+                                    .forEach { Text(it.message, style = MaterialTheme.typography.bodySmall) }
                                  file.diagnostic?.let { CashImportDiagnostic(it) }
                                 if (file.status == "password_required") OutlinedTextField(password, { password = it }, label = { Text(localizedText("cash_import_password")) },
                                     visualTransformation = PasswordVisualTransformation(), singleLine = true, enabled = !busy,
@@ -131,10 +133,6 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                         Text(group.displayName, style = MaterialTheme.typography.titleMedium)
                         Text(localizedText("cash_import_source_rows", group.rowCount.toString(), group.currencies.joinToString(" / ")),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val selectedAccount = target?.accountId?.let { accountId -> accountState.accounts.firstOrNull { it.id == accountId } }
-                        val missingCurrencies = selectedAccount?.currencies?.let { supported ->
-                            group.currencies.filterNot { it in supported }
-                        }.orEmpty()
                         val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
                             accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == target?.accountId }
                                 .map { it.id to it.name } +
@@ -145,11 +143,6 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                 else onSelectAccount(group.sourceAccountRef, selected.takeIf(String::isNotEmpty))
                             }, enabled = !busy && accountState.ready,
                             semanticId = "cash.import.account-${group.sourceAccountRef}")
-                        if (missingCurrencies.isNotEmpty()) {
-                            Text(localizedText("cash_import_account_currency_missing", missingCurrencies.joinToString(" / ")),
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.testTag("cash.import.account-currency-missing-${group.sourceAccountRef}"))
-                        }
                     }
                     HorizontalDivider()
                 }
@@ -254,7 +247,8 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "import_file_picker_failed" -> localizedText("copy_cb28b5a6f2")
     "plan_changed", "session_changed", "entry_changed", "record_changed", "relation_context_changed" -> localizedText("cash_import_changed")
     "plan_expired", "session_expired" -> localizedText("cash_import_expired")
-    "plan_input_invalid", "import_payload_invalid" -> localizedText("cash_import_input_invalid")
+    "plan_input_invalid" -> localizedText("cash_import_input_invalid")
+    "import_payload_invalid" -> localizedText("cash_import_system_error")
     "category_unavailable" -> localizedText("cash_import_category_unavailable")
     "account_name_unavailable" -> localizedText("cash_import_account_name_unavailable")
     "account_in_use" -> localizedText("cash_import_account_in_use")
@@ -263,3 +257,7 @@ internal fun cashImportTaskErrorText(code: String): String = when (code) {
     "workspace_forbidden" -> localizedText("copy_dd9a4bdee0")
     else -> localizedText("copy_8d856685b1")
 }
+
+@Composable
+internal fun cashRelationErrorText(code: String): String? =
+    if (code == "insufficient_evidence") null else cashImportTaskErrorText(code)

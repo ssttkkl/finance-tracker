@@ -202,13 +202,26 @@ def test_http_full_refund_zero_is_available_for_review_and_current_result(contex
 
 
 @pytest.mark.parametrize("query", ["limit=0", "limit=201", "limit=1.0", "limit=1&limit=2", "other=private",
-    "confirmation_status=invalid", "cursor=private-invalid"])
+    "confirmation_status=invalid", "cursor=private-invalid", "start_index=-1", "start_index=1.5",
+    "cursor=old&start_index=0", "start_index=0&start_index=1"])
 def test_http_plan_query_errors_are_safe(context_runtime, monkeypatch, query):
     client, _, view = _setup(context_runtime, monkeypatch)
     plan = _preview(client, view).json()
     assert "plan_id" in plan
     response = client.get("/api/v1/cash-import/plans/" + plan["plan_id"] + "/items?" + query)
     assert response.status_code == 422 and "private" not in response.text
+
+
+def test_http_import_items_support_absolute_pages_and_return_filtered_total(context_runtime, monkeypatch):
+    client, _, view = _setup(context_runtime, monkeypatch)
+    plan = _preview(client, view).json()
+    path = "/api/v1/cash-import/plans/" + plan["plan_id"] + "/items"
+    response = client.get(path, params={"start_index": 0, "limit": 10, "confirmation_status": "pending"})
+    assert response.status_code == 200, response.text
+    page = response.json()
+    assert page["start_index"] == 0
+    assert page["total_count"] == plan["item_counts"]["pending"]
+    assert all(item["confirmation_status"] == "pending" for item in page["items"])
 
 
 def test_http_failed_commit_is_atomic_and_original_request_can_retry(context_runtime, monkeypatch):

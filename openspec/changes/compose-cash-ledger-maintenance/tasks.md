@@ -23,7 +23,7 @@
 - [x] 4.4 以失败测试实现已有完整关系组确认／延后／拒绝／解除、公共冲突选择及解除继承；移除任意关联搜索和直接关系写入。
 - [x] 4.5 接入编辑器插槽、当前分类／删除影响及保存后的稳定定位，集成合成演示；删除无人使用的旧详情和维护适配，未实现动作保持准确受限状态。
 
-- [x] 4.6 按修改前视觉基线恢复内容层级、业务字段分组及主要操作位置，保持现有新协议和用户已确认流程。
+- [x] 4.6 按修改前视觉基线恢复金额摘要、业务字段分组及主要操作位置，保持现有新协议和用户已确认流程。
 
 ### 4.7 草稿已填资金校验
 
@@ -36,7 +36,55 @@
 - [x] 4.7.7 发布：功能地图、文档和技能原位核对，保留整体演示确认待办，按已有授权提交推送同分支。
 - [x] 4.7.8 反思：表单与后端共同拒绝明确矛盾，避免修复导入表单却遗漏主页草稿入口。
 
+### 4.8 共享主页与导入预计详情摘要
+
+- [x] 4.8.1 思考／澄清：用户确认两处详情表达同一收支对象，要求主页详情采用导入预览的平面字段排版；状态与操作随“待写入／已保存”保持各自语义。
+- [x] 4.8.2 计划：更新详情要求和文件归属；正式读取 Material 3 Cards Guidelines／Specs 与 Grids & Spacing 正文，采用相关内容靠近、用留白分组、不强制包入卡片的规则。Cards Overview 页面未加载正文，不作为决策依据。
+- [x] 4.8.3 测试先行：主页详情回归已增加平面字段、草稿提示和账单原文断言；当前正式 QA 构建在旧代码上有效失败，指出“流水信息”仍出现 1 次。离线演示包因其内存登录绕过 API 夹具，失败不计入测试证据；切换正式 QA 启动器后确认红测。
+- [x] 4.8.4 构建：主页和导入预览共用 `CashRecordSummary`、`CashRecordStatusBanner` 与账单原文折叠入口；删除导入页重复摘要与原文标题；两处详情均取消“流水信息”卡片，导入差异／关联与主页维护操作仍归各自页面。
+- [x] 4.8.5 审查：按 Hallmark audit 参考执行人工视觉审查。390 px 截图确认金额、对方、时间和标签值层级清楚；768／1440 px 与首页列表配合正常；长字段可读、按钮语义可操作；无卡片重复层级、裁切或新增装饰。未发现 critical／major；官方 M3 卡片与间距正文支持按留白组织摘要。
+- [x] 4.8.6 验证：Web Chromium 正式 QA 主页详情及导入只读详情用例最终均通过；首轮导入原文检查使用了变更后失效的文案定位，改用稳定 testTag 后 390／768／1440 px 均通过。Android 强制重跑共享代码编译与 Host 单测通过；iOS 按用户决定不验证。命令、HEAD、浏览器、视口、截图和限制见下方“4.8 共享详情验证”。
+- [x] 4.8.7 发布准备：已同步导入 workflow、maintenance 规格与功能地图；OpenSpec strict 35/35、diff 检查通过。已把实际主页 Web 截图留在忽略的 QA 结果目录供确认；重大 UI 的演示接受尚待用户确认，故不标记整体 change 完成或归档。
+- [x] 4.8.8 反思：两处页面表达同一业务对象，共用稳定的显示摘要和原文折叠；预计投影／已保存记录的数据映射及各自状态、差异、关系和维护操作仍分开。移除“流水信息”标题资源，不再维护两套摘要布局。
+
+### 4.9 收支详情的关联流水与原文层级
+
+- [x] 4.9.1 思考／澄清：用户确认详情顺序为摘要 → 关联流水 → 账单原文；关联流水默认展开，账单原文默认折叠。待处理警示紧接摘要；导入详情只读显示候选，主页可接受一个完整方案或拒绝整组；证据不足仅显示待确认状态。
+- [x] 4.9.2 测试先行：浏览器回归覆盖已保存多成员、单笔无候选、多候选、整组拒绝后刷新及接受完整方案；证据不足时隐藏通用错误的回归先失败后通过。关系计划 SQLite 契约覆盖拒绝后重读。
+- [x] 4.9.3 实现关联区的实际成员和候选分组；候选标识清楚，接受一个完整方案、整组拒绝、暂不处理；隐藏无内容的关联区。
+- [x] 4.9.4 将“账单原文”移到关联区后，默认折叠并显示实际来源成员原始字段；导入预计详情保持同一信息顺序且候选只读。`insufficient_evidence` 只显示关系待确认状态，不映射为通用导入错误。
+- [x] 4.9.5 对照 390 px 全屏和 1440 px 右侧详情完成 Web 冒烟、可见文字自检、Hallmark audit 人工替代及截图复核；已修复证据不足候选被误报为通用导入错误的问题，无未解决 critical／major finding。重大 UI 的用户演示验收仍单列于 6.5。
+
+### 4.10 已保存关联流水详情加载修复
+
+- [x] 4.10.1 思考／澄清：用户要求尝试修复真实工行账单 QA 中记录的问题。已保存的两成员投影在账本详情持续转圈；读取合同本应展示实际成员。根因是列表摘要版本与详情引用相同就跳过证据请求，导致证据一直为空。保持现有详情信息架构和 Compose 版本；不改财务写入、关系算法或数据库。
+- [x] 4.10.2 计划：使用现有来源证据接口，证据缺失时即使列表摘要版本相同也读取；读取失败时在关联区显示原有错误提示及重试操作，不无限转圈。先用版本匹配的两成员夹具复现，再修复共享 Compose 页面；Web 实际浏览器检查列表打开、成员展示和失败重试。Android／iOS 只做相称编译与单测，不执行设备 QA。
+- [x] 4.10.3 测试先行：版本相同的列表投影打开两成员详情时，Chromium 回归先因缺少成员而失败；证据接口首读 503 时原位重试回归先因无重试入口而失败。两项均使用去标识化 API 夹具，无真实账本写入。
+- [x] 4.10.4 构建：证据为空时按详情引用读取，即使列表摘要版本相同也不跳过；失败时在关联区显示原有来源读取错误与重试，不更改成员和原文布局。
+- [x] 4.10.5 审查：对照 UI 规范、已读 Material 3 列表／加载指示器正文和真实详情截图检查关联成员、加载失败、重试及文字必要性；用户确认修复版页面。按 Hallmark audit 参考人工审查及范围 diff 复核，0 critical、0 major、0 minor；Hallmark 专用运行工具不可用，未声称执行了工具审计。
+- [x] 4.10.6 验证：Web 当前详情与导入浏览器回归 37/37、Node 3/3、Wasm 单测及 Android 主机编译／单测通过；真实账本详情证据 GET 200、2 条成员显示。OpenSpec strict 35/35、diff 检查通过。iOS 按用户要求未运行。
+- [x] 4.10.7 发布准备：README 无入口变动、`docs/cash-ledger.md` 和功能地图已描述当前关联展示，本次不新增页面或覆盖声明；演示 `http://127.0.0.1:5187/health` 返回 200，用户已确认此修复版详情。整体 change 的其他演示与验收仍按原任务保持待办；未获 `develop` 的提交推送授权，本次保留工作树。
+- [x] 4.10.8 反思：浏览器回归固定“列表摘要版本与详情引用相同，证据仍为空”场景，禁止用投影摘要代替来源证据；读取失败另固定原位重试。Compose 1.12.1 的弹层关闭后无障碍树停更发生于框架语义镜像，局部重组／自动化坐标点击不能恢复屏幕阅读器语义；整页刷新会中断导入任务，本次不作为产品修复，继续保留 CMP-10623 缺陷与失败回归。
+
+当前证据：2026-10-27 19:42 CST，`HEAD=1ee935eb88e1c3bac05685feec4d032221a2fcb3`，比较基线同该提交，工作树含此前未提交的关联／导入 UI 改动。`cd compose/qa/web && FT_COMPOSE_PREVIEW_PORT=5336 npm run test:e2e -- tests/compose-cash-detail.e2e.ts tests/compose-cash-import.e2e.ts --reporter=line`：Chromium 37/37 通过（包括两成员详情、首次来源请求 503 后重试、文件 422 文案）。`cd compose/qa/web && npm run test:node`：3/3；`cd compose && ./gradlew :shared:wasmJsTest :shared:compileAndroidMain :shared:testAndroidHostTest --no-configuration-cache --console=plain`：BUILD SUCCESSFUL，74 个任务。`openspec validate --all --strict --json`：35/35；`git diff --check` 通过。真实 Chromium 1440×1000 通过 `http://127.0.0.1:5187/` 打开本机账本“出入境证件费”：来源证据 GET 200、2 条成员显示、8 秒无转圈，页面错误 0；忽略目录外的受控截图见 `~/.ft/reports/icbc-import-live-20261027-fix-check/persisted-formal-relation-after-fix.png`。未进行财务写入。用户已确认修复版详情。Cross-platform Impact Check：`commonMain` 的证据加载和失败／重试状态影响 Web、Android、iOS，共用同一表现合同，无平台专用分支；Web 已验证，Android 编译与主机单测通过，按用户决定不运行 iOS 或原生设备 QA。Compose 版本及已知无障碍树缺陷不变。
+
+#### 4.9 关联详情验证
+
+2026-10-27，验证对象 `HEAD=1ee935eb88e1c3bac05685feec4d032221a2fcb3`，与当前提交基线相同。Web Chromium 在 390×900 和 1440×1000 覆盖主页与导入详情：顺序为摘要 → 关联流水 → 账单原文；多成员／候选时关联区默认展开，原文默认折叠；单笔无候选隐藏关联区；候选均标明且导入只读。`insufficient_evidence` 先因红色通用错误文案断言失败，修复后主页及导入候选回归 3/3 通过。整组接受浏览器回归 1/1 通过；SQLite 关系计划契约 28 passed，28 个 PostgreSQL 专用用例因未配置专用库而跳过。截图位于忽略目录 `compose/qa/web/test-results/compose-cash-detail.e2e.ts-F-04-当前详情：候选嵌入关联区并可打开整组处理/current-detail-relation-candidate-1440.png`、`compose/qa/web/test-results/compose-cash-import.e2e.ts-21472-ly-in-the-import-detail-390/import-relation-detail-390.png`、`compose/qa/web/test-results/compose-cash-import.e2e.ts-18ce4-y-in-the-import-detail-1440/import-relation-detail-1440.png`。Android 编译与 Host 单测见本轮 QA 命令；iOS 按用户明确要求不验证。Hallmark runtime 不可用，按 `audit` 参考完成截图人工复核，未调用 Hallmark 工具；发现的重复错误提示已修复，复核未发现其他 critical／major/minor finding。
+
+
 Cross-platform Impact Check：Web、Android、iOS 的共享校验、错误状态、DTO 和能力接口均受影响，无平台分支或新依赖。当前基线 `0930b73`。新增错误状态 Web 冒烟 1/1、共享 Wasm／Android／iOS 编译与单测通过，独立设计复核及 Hallmark audit 为 0 critical／0 major／0 minor；实际命令、计数与截图见 [lifecycle 4.28](../cash-import-lifecycle-redesign/tasks.md#428-人工输入与原子提交收紧)。已登记禁用控件无障碍语义缺陷按用户要求保留，对应断言不记通过；整体演示确认仍未完成，不关闭 change。
+
+#### 4.8 共享详情验证
+
+2026-10-27 16:17 CST，验证对象 `HEAD=1ee935eb88e1c3bac05685feec4d032221a2fcb3`，与本次开始时的提交基线相同；工作树还包含本任务以外的既有改动，未将其纳入本次验证范围。Cross-platform Impact Check：共享 Compose 摘要、草稿提示和原文折叠影响 Web、Android、iOS；无平台分支或新依赖。iOS 按用户明确决定不验证。
+
+| 检查 | 结果与证据 |
+|---|---|
+| Web 浏览器 | Chromium，`http://127.0.0.1:5242`—`5248`，浅色主题及 API 夹具。主页摘要、草稿／原文、长文本／只读来源、错误重试、导入详情与分页返回 14 个不同用例最终全通过，覆盖 390×1000、768×1000、1440×1000；导入来源断言修正稳定定位后在三个视口分别重跑通过。主页编辑、导入来源展开可操作；有诊断断言的流程未发现控制台或失败请求错误。忽略目录截图：`compose/qa/web/test-results/visual-review/home-detail-390.png`、`home-detail-1440.png`、`import-detail-1440.png`，不提交。 |
+| Compose 共享与 Android | `./compose/gradlew -p compose :shared:wasmJsTest --no-configuration-cache --rerun-tasks`：47 个任务执行，成功；`./compose/gradlew -p compose :shared:compileAndroidMain :shared:testAndroidHostTest --no-configuration-cache --rerun-tasks`：35 个任务执行，成功。既有 Kotlin 警告，无新增编译错误。 |
+| 规格及工作树 | `openspec validate --all --strict`：35/35；7 份本次相关 Markdown 的本地目标链接检查及 `git diff --check` 通过。无数据库／服务端合同变化。 |
+| 设计复核与遗留 | 按已读 Hallmark audit 参考完成人工替代审查，未调用不可用的独立 Hallmark 工具；截图对照主页和导入预览层级、间距、颜色、文案、响应式、按钮语义及长文本，没有 critical／major finding。用户尚未确认演示；不归档，不把该等待记作实现或验证失败。 |
 
 ## 5. 审查
 

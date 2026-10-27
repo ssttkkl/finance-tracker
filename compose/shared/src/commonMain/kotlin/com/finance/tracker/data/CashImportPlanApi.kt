@@ -17,10 +17,13 @@ suspend fun FinanceApiClient.previewCashImport(sessionId: String, input: CashImp
 suspend fun FinanceApiClient.readCashImportPlan(planId: String): CashImportPlanDto = request(HttpMethod.Get, importPlanPath(planId))
 
 suspend fun FinanceApiClient.readCashImportItems(
-    planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all",
+    planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all", startIndex: Int? = null,
 ): CashPlanItemPageDto {
     if (confirmationStatus !in setOf("all", "confirmed", "pending")) invalidCashInput()
-    return request(HttpMethod.Get, appendQuery(importPlanPath(planId) + "/items", cashPageQuery(cursor, limit) + ("confirmation_status" to confirmationStatus)))
+    if (startIndex != null && (startIndex < 0 || cursor != null)) invalidCashInput()
+    val page = if (startIndex == null) cashPageQuery(cursor, limit)
+        else listOf("start_index" to startIndex.toString(), "limit" to limit.toString())
+    return request(HttpMethod.Get, appendQuery(importPlanPath(planId) + "/items", page + ("confirmation_status" to confirmationStatus)))
 }
 
 suspend fun FinanceApiClient.readCashImportItem(planId: String, itemId: String): CashPlanItemDetailDto =

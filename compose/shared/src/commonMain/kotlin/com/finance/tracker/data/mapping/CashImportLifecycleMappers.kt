@@ -41,7 +41,7 @@ internal fun CashPlanItemDto.toDomain() = ImportProjectedItem(previewItemId, con
 internal fun CashImportPlanDto.toDomain() = ImportPlan(planId, sessionId, sessionRevision, expiresAt, summary, itemCounts, canCommit,
     items.map(CashPlanItemDto::toDomain), fileResults.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.code, it.canRetry, it.diagnostic?.toDomain()) },
     pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) })
-internal fun CashPlanItemPageDto.toDomain() = ImportItemPage(items.map(CashPlanItemDto::toDomain), nextCursor)
+internal fun CashPlanItemPageDto.toDomain() = ImportItemPage(items.map(CashPlanItemDto::toDomain), nextCursor, startIndex, totalCount)
 internal fun CashPlanProcessingPageDto.toDomain() = ImportProcessingPage(items.map { ImportProcessingDetail(it.rowRef, it.transactionId, it.fileRef, it.plannedAction, it.operationRef, it.duplicateOf, it.code, it.message, it.fieldPath, it.blockingScope, it.nextAction) }, nextCursor)
 internal fun CashPlanMemberDto.toDomain() = ImportMemberDetail(rowRef, transactionId, plannedAction, fields.toStructuredObject(), editableFields, allowedActions, rowRevision)
 internal fun CashPlanItemDetailDto.toDomain() = ImportItemDetail(previewItemId,

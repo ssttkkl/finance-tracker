@@ -101,6 +101,42 @@ class ImportAccountViewModel(
         begin(Command(newKey(), "account_update", before.accountId, before.revision, patch = freeze(patch) as StructuredObject, before = before.copy(currencies = before.currencies.toList(), capabilities = before.capabilities.toMap())))
     }
 
+    fun ensureCurrencies(requiredByAccount: Map<String, List<String>>, onComplete: (Map<String, ImportAccount>) -> Unit) {
+        if (!available()) return
+        execute { token ->
+            val ready = linkedMapOf<String, ImportAccount>()
+            for ((accountId, required) in requiredByAccount.entries.sortedBy { it.key }.map { it.key to it.value }) {
+                if (!current(token)) return@execute
+                val currentAccount = repository.account(accountId)
+                if (!current(token)) return@execute
+                adoptCurrent(token, currentAccount, accountId)
+                val missing = required.distinct().filterNot { it in currentAccount.currencies }
+                if (missing.isNotEmpty()) {
+                    if (currentAccount.deleted || currentAccount.capabilities["can_update"] != true) {
+                        mutableState.value = state.value.copy(errorCode = "workspace_forbidden")
+                        return@execute
+                    }
+                    val command = Command(
+                        newKey(), "account_update", accountId, currentAccount.revision,
+                        patch = StructuredObject(mapOf("currencies" to StructuredArray(
+                            (currentAccount.currencies + missing).distinct().map(::StructuredText),
+                        ))),
+                        before = currentAccount.copy(currencies = currentAccount.currencies.toList(), capabilities = currentAccount.capabilities.toMap()),
+                        order = ++nextStep,
+                    )
+                    recovery.add(command.key)
+                    if (!current(token)) return@execute
+                    pending[command.key] = Pending(command)
+                    publish()
+                    if (!send(token, command.key)) return@execute
+                }
+                val latest = state.value.currentAccounts[accountId] ?: currentAccount
+                ready[accountId] = latest
+            }
+            if (current(token) && state.value.errorCode == null) onComplete(ready)
+        }
+    }
+
     private fun begin(original: Command) = execute { token ->
         val command = original.copy(order = ++nextStep)
         recovery.add(command.key)

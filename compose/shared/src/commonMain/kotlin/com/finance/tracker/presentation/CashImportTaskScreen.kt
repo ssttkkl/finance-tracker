@@ -16,6 +16,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.dp
+import androidx.paging.Pager
+import androidx.paging.PagingConfig
+import androidx.paging.PagingData
+import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.lifecycle.ViewModelStore
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
@@ -34,6 +38,7 @@ import io.github.vinceglb.filekit.dialogs.FileKitMode
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.flow.flowOf
 import kotlin.random.Random
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -79,7 +84,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     var replacementPassword by remember { mutableStateOf<String?>(null) }
     var accountUnknownNotice by remember { mutableStateOf(false) }
     var processingOpen by remember { mutableStateOf(false) }
-    var selectedItem by remember { mutableStateOf<String?>(null) }
+    var selectedItem by remember { mutableStateOf<ImportProjectedItem?>(null) }
     var accountForm by remember { mutableStateOf<String?>(null) }
     var accountFormSource by remember { mutableStateOf<ImportSourceAccount?>(null) }
     var accountCreateSourceRef by remember { mutableStateOf<String?>(null) }
@@ -95,6 +100,18 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     var selecting by remember { mutableStateOf<Pair<String, String>?>(null) }
     val listState = rememberLazyListState()
     var mappingStep by remember(state.taskId) { mutableStateOf(false) }
+    val reviewItemsFlow = remember(state.plan?.planId, state.filter, repository) {
+        val planId = state.plan?.planId
+        if (planId == null) flowOf(PagingData.empty())
+        else Pager(
+            config = PagingConfig(pageSize = 20, initialLoadSize = 20, prefetchDistance = 5,
+                enablePlaceholders = true, jumpThreshold = 20),
+            pagingSourceFactory = { CashImportItemsPagingSource(repository, planId, state.filter) {
+                task.markItemsLoaded(planId, state.filter)
+            } },
+        ).flow
+    }
+    val reviewRows = reviewItemsFlow.collectAsLazyPagingItems()
 
     fun closeAccountForm() {
         accountForm = null
@@ -284,9 +301,9 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
             if (!auxiliaryReady) TextButton(onClick = { localError = null; reload++ }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
             if (state.plan?.invalidatedChoices?.isNotEmpty() == true) Text(localizedText("cash_import_preview_invalid"), color = MaterialTheme.colorScheme.error)
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                if (state.phase == ImportTaskPhase.REVIEW) CashImportReviewList(state, categories, options, sizeClass, listState,
-                    onFilter = { task.loadItems(it) }, onMore = { task.loadItems(append = true) },
-                    onOpen = { selectedItem = it; if (it !in state.details) task.loadDetail(it) },
+                if (state.phase == ImportTaskPhase.REVIEW) CashImportReviewList(state, reviewRows, categories, options, sizeClass, listState,
+                    onFilter = task::selectReviewFilter,
+                    onOpen = { item -> selectedItem = item; if (item.itemId !in state.details) task.loadDetail(item.itemId) },
                     onProcessing = if (hasProcessing) ({ processingOpen = true; task.loadProcessing() }) else null,
                     modifier = Modifier.fillMaxSize())
                 else CashImportPreparation(if (canWrite) state else state.copy(busy = true), accountState, fileNames,
@@ -337,7 +354,24 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     enabled = !busy && canWrite, modifier = Modifier.testTag("cash.import.restart")) { Text(localizedText("cash_import_restart_review")) }
                 else if (state.phase == ImportTaskPhase.REVIEW && !state.previewDirty) Button(onClick = task::confirm,
                     enabled = !busy && canWrite && state.canConfirm, modifier = Modifier.testTag("cash.import.confirm")) { Text(localizedText("cash_import_confirm_all")) }
-                else Button(onClick = task::preview, enabled = !busy && canWrite && auxiliaryReady && state.canEdit && state.context?.canPreview == true,
+                else Button(onClick = {
+                    val groups = state.context?.sourceAccounts.orEmpty()
+                    val selections = state.choices.accountSelections.associateBy { it.sourceAccountRef }
+                    val currenciesByAccount = linkedMapOf<String, MutableSet<String>>()
+                    for (group in groups) {
+                        val accountId = selections[group.sourceAccountRef]?.target?.accountId ?: continue
+                        currenciesByAccount.getOrPut(accountId) { linkedSetOf() }.addAll(group.currencies)
+                    }
+                    account.ensureCurrencies(currenciesByAccount.mapValues { it.value.toList() }) { latestAccounts ->
+                        for (group in groups) {
+                            val current = selections[group.sourceAccountRef]?.target ?: continue
+                            val accountId = current.accountId ?: continue
+                            val latest = latestAccounts[accountId] ?: continue
+                            task.selectAccount(group.sourceAccountRef, ImportAccountTarget(accountId, latest.revision))
+                        }
+                        task.preview()
+                    }
+                }, enabled = !busy && canWrite && auxiliaryReady && accountState.ready && state.canEdit && state.context?.canPreview == true,
                     modifier = Modifier.testTag("cash.import.review")) {
                     Text(localizedText("cash_import_next"))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
@@ -351,7 +385,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
     }
     if (processingOpen && state.plan != null) CashImportProcessingPanel(state, sizeClass,
         onMore = { task.loadProcessing(append = true) }, onRetry = { task.loadProcessing() }, onClose = { if (!state.busy) processingOpen = false })
-    val item = state.items.firstOrNull { it.itemId == selectedItem }
+    val item = selectedItem
     if (item != null && state.plan != null) CashImportPreviewPanel(item, state.details[item.itemId], state.plan!!.planId, busy || !canWrite,
         sizeClass, currentAccounts, categories, options, state.errorCode, { task.loadDetail(item.itemId) }, { selectedItem = null })
     accountForm?.let { id ->

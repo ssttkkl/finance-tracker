@@ -62,15 +62,25 @@ class ImportTaskStateTest {
         assertFailsWith<DomainFailure> { original.editEntry(ImportEntryChoice("ie_whole", StructuredObject(mapOf("amount" to StructuredText("1"))))) }
     }
 
-    @Test fun defaultAllUsesItsOwnPageWhileExplicitPendingNeverReusesAllCursor() {
+    @Test fun defaultReviewLoadsPendingPageAndExplicitAllGetsItsOwnPage() {
         val initial = prepared().loadedPlan(plan().copy(itemCounts = mapOf("pending" to 2L)), ImportChoiceSet())
-        assertEquals("all", initial.filter)
-        assertEquals(plan().items, initial.items)
-        assertTrue(initial.itemsInitialized)
+        assertEquals("pending", initial.filter)
+        assertTrue(initial.items.isEmpty())
+        assertFalse(initial.itemsInitialized)
         val pending = initial.changeFilter("pending")
         assertTrue(pending.items.isEmpty())
         assertNull(pending.nextCursor)
         assertFalse(pending.itemsInitialized)
+        val all = initial.changeFilter("all")
+        assertEquals("all", all.filter)
+        assertTrue(all.items.isEmpty())
+        assertNull(all.nextCursor)
+        assertFalse(all.itemsInitialized)
+        val requested = all.beginRequest()
+        val page = requested.acceptItemPage(assertNotNull(requested.activeRequest), "ip_one", "all",
+            ImportItemPage(plan().items, null, startIndex = 0, totalCount = 1), append = false).finishRequest(assertNotNull(requested.activeRequest))
+        assertEquals(plan().items, page.items)
+        assertTrue(page.itemsInitialized)
     }
 
     @Test fun explicitAllSurvivesRepreviewWhileZeroPendingAutomaticallyShowsAll() {
@@ -81,9 +91,14 @@ class ImportTaskStateTest {
         assertEquals(pendingPlan.items, all.items)
         val cleared = initial.loadedPlan(pendingPlan.copy(itemCounts = mapOf("pending" to 0L)), ImportChoiceSet())
         assertEquals("all", cleared.filter)
-        assertTrue(cleared.itemsInitialized)
+        assertFalse(cleared.itemsInitialized)
+        val emptyRequest = cleared.beginRequest()
+        val loadedEmpty = emptyRequest.acceptItemPage(assertNotNull(emptyRequest.activeRequest), "ip_one", "all",
+            ImportItemPage(emptyList(), null, startIndex = 0, totalCount = 0), append = false)
+            .finishRequest(assertNotNull(emptyRequest.activeRequest))
+        assertTrue(loadedEmpty.itemsInitialized)
         val pendingAgain = cleared.loadedPlan(pendingPlan, ImportChoiceSet())
-        assertEquals("all", pendingAgain.filter)
+        assertEquals("pending", pendingAgain.filter)
     }
 
     @Test fun authoritativeSameSessionReceiptDropsOldPlanButOrdinaryReceiptCannotBypassBinding() {
@@ -243,7 +258,11 @@ class ImportTaskStateTest {
         val first = prepared().beginConfirmation("first").failed(DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN)).beginResolution()
         val oldRequest = assertNotNull(first.activeRequest)
         val absent = first.acceptResolution(oldRequest, ImportResolveResult("not_committed", null)).finishRequest(oldRequest)
-        val second = absent.loadedContext(context(ImportChoiceSet())).loadedPlan(plan("ip_two", 5), ImportChoiceSet()).beginConfirmation("second")
+        val secondPlan = absent.loadedContext(context(ImportChoiceSet())).loadedPlan(plan("ip_two", 5), ImportChoiceSet())
+        val pageRequest = secondPlan.beginRequest()
+        val pageRequestToken = assertNotNull(pageRequest.activeRequest)
+        val second = pageRequest.acceptItemPage(pageRequestToken, "ip_two", secondPlan.filter,
+            ImportItemPage(plan("ip_two", 5).items, null), append = false).finishRequest(pageRequestToken).beginConfirmation("second")
         assertEquals(second, second.acceptResolution(oldRequest, ImportResolveResult("not_committed", null)))
         assertEquals(second, second.confirmationFailed(oldRequest, DomainFailure("unknown_error", 0, FailureCategory.UNKNOWN)))
         assertEquals(second, second.acceptReceipt(oldRequest, receipt()))
@@ -281,7 +300,10 @@ class ImportTaskStateTest {
 
     private fun prepared(): ImportTaskUiState {
         val context = context(ImportChoiceSet())
-        return ImportTaskUiState().loadedContext(context).loadedPlan(plan(), ImportChoiceSet())
+        val ready = ImportTaskUiState().loadedContext(context).loadedPlan(plan(), ImportChoiceSet())
+        val requested = ready.beginRequest()
+        val token = assertNotNull(requested.activeRequest)
+        return requested.acceptItemPage(token, "ip_one", ready.filter, ImportItemPage(plan().items, null), append = false).finishRequest(token)
     }
     private fun context(choices: ImportChoiceSet?) = ImportContext("s1", 3, "2099-01-01", "open", emptyList(), listOf(
         ImportSourceAccount("src", "wechat", "零钱", listOf("CNY"), 1, ImportAccountTarget("a1", 7), "confirmed_mapping", null)), choices, null, true, null)
