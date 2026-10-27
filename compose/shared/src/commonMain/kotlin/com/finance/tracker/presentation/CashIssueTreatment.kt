@@ -27,8 +27,7 @@ internal fun CashIssueTreatment(record: CashCurrentRecord, issue: CashRecordIssu
                 } else {
                     Text(localizedText("cash_current_value"), style = MaterialTheme.typography.labelSmall)
                     Text(cashBusinessFieldValue(field, record.fields.fields[field], accounts, categories, options), style = MaterialTheme.typography.bodyMedium)
-                    Text(localizedText("cash_statement_value"), style = MaterialTheme.typography.labelSmall)
-                    Text(cashBusinessFieldValue(field, incoming, accounts, categories, options), style = MaterialTheme.typography.bodyMedium)
+                    Text(localizedText("cash_import_incoming_value", cashBusinessFieldValue(field, incoming, accounts, categories, options)), style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }

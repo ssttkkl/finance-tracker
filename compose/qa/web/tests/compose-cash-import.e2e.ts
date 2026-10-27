@@ -141,20 +141,20 @@ async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = fal
   const task = page.locator('[id="cash.import.task"]:visible');
   await expect(task).toContainText("1  选择文件");
   await expect(task).not.toContainText("添加本次要导入的账单文件。");
-  await expect(task).not.toContainText("指定账户映射");
+  await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
   if (prepareOnly) return;
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(1);
-  await expect(task).toContainText("2  账户映射");
+  await expect(task).toContainText("2  选择对应账户");
   await expect(task).not.toContainText("为账单中的账户选择对应的账本账户。");
-  await expect(task).not.toContainText("指定账户映射");
+  await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
   await press(page, "cash.import.review");
   await expect(page.locator('[id="cash.import.items"]:visible')).toContainText(expectedPreviewText);
   await expect(task).toContainText("3  核对");
   await expect(task).toContainText("核对本次将导入的收支和待确认内容。");
-  await expect(task).not.toContainText("指定账户映射");
+  await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
 }
 
@@ -534,7 +534,7 @@ test("an unknown import result resolves the original command without another sub
   await press(page, "cash.import.confirm");
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("正在确认导入结果");
   await press(page, "cash.import.resolve");
-  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("导入完成");
+  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("导入结果");
   expect(calls.commits).toHaveLength(1);
   expect(calls.resolves).toEqual(calls.commits);
   await diagnostics.settle();
@@ -621,7 +621,7 @@ test("a completed import reloads the cached ledger when returning from the task"
   const before = reads();
   expect(before).toBeGreaterThan(0);
   await press(page, "cash.import.confirm");
-  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("导入完成");
+  await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("导入结果");
   await press(page, "cash.import.return");
   await expect(page).toHaveURL(/workspace-1\/$/);
   await expect.poll(reads).toBeGreaterThan(before);
@@ -747,7 +747,7 @@ test("import empty incoming allocations remain explicitly visible and readonly",
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(detail).toContainText("日常账户 · -12.5000 · CNY");
-  await expect(detail).toContainText(/账单信息\s*未提供/);
+  await expect(detail).toContainText(/账单原文\s*未提供/);
   await expectReadonlyImportDetail(detail);
 });
 
@@ -771,7 +771,7 @@ for (const multi of [false, true]) {
     await expect(result).toContainText("a".repeat(32));
     await expect(result).not.toContainText("private server exception");
     if (multi) {
-      await expect(result).toContainText("无法确定具体哪一条记录");
+      await expect(result).toContainText("问题可能涉及以下账单明细，无法确定具体哪一条。");
       await expect(result).not.toContainText("定位账单.csv");
       const toggle = page.locator('[id="cash.import.diagnostic-toggle"]:visible');
       await clickLocator(page, toggle);

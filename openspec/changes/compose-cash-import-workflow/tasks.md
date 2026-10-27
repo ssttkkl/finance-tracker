@@ -2,7 +2,7 @@
 
 - [x] 1.1 通过 `grill-me → grilling` 明确实现文件 → 账户映射 → 待确认优先核对（可切换全部）→ 一次确认 → 实际结果；导入核对只读。读取现金导入合同、账本展示合同、当前 change、项目 UI 规则和 Compose 实现。
 - [x] 1.2 原账户创建／退出补偿与财务规划规则不变；新范围仅扩展计划只读序号分页，并在进入预览前复用独立账户更新命令补充已选目标账户缺失币种。
-- [x] 1.3 Cross-platform Impact Check：`commonMain` 的页面结构、文案、状态、确认与错误语义影响 Web、Android、iOS。文件选择控件保留平台适配；Native 仅执行编译与单元测试，不宣称设备 QA。
+- [x] 1.3 Cross-platform Impact Check：`commonMain` 的页面结构、共享中文资源、状态、确认与错误语义影响 Web、Android、iOS；平台渲染控件仍允许适配。Native 只执行相称编译和单元测试，不宣称设备 QA。
 
 ## 2. 计划
 
@@ -47,7 +47,7 @@
 - [x] 4.14.7 发布准备：README、导入流程、功能地图与本次错误映射核对，无新增入口、流程、页面或覆盖状态，故无需修改；最新演示入口 `http://127.0.0.1:5187/` 可用。未获 `develop` 的提交推送授权，本次保留工作树；整体导入流程演示仍按 6.5 待用户验收。
 - [x] 4.14.8 反思：后续真实试跑保留 HTTP 状态、安全错误码、环节及诊断编号，不再仅凭 422 和共用文案归因；虚拟列表 QA 按可见行扫描，自动化定位失败不等同于产品滚轮错误。
 
-当前证据：2026-10-27 19:42 CST，`HEAD=1ee935eb88e1c3bac05685feec4d032221a2fcb3`，比较基线同该提交。Chromium 文件重试 422 用例先出现“核对选择无效”而失败，映射修复后在完整当前详情／导入浏览器回归中 37/37 通过（命令见维护 change 4.10）；Wasm 单测、Android 主机编译／单测、Node 3/3、OpenSpec strict 35/35 与 diff 检查通过。使用 `~/.ft/bills` 两份工行 PDF 对本机数据库执行仅预览试跑，上传 201、密码重试 200、预览 200，**未提交账单**；无法由现有证据归因较早两次 422，保留待观察。安全运行记录在 `~/.ft/reports/icbc-import-live-20261027-fix-check/preview-recheck.log`。Cross-platform Impact Check：错误码文案映射在 `commonMain`，Web／Android／iOS 均受影响；Web 真实浏览器和 Android 编译／单测已覆盖，按用户决定不运行 iOS 或原生设备 QA。当前详情演示已获用户确认，整体导入流程演示仍待确认。
+当前证据：2026-10-27 21:20 CST，`HEAD=72285577144055a0f875e985917678603a49f95c`，比较基线为该 HEAD，当前工作树含未提交术语／文案改动。现金详情与导入文案浏览器回归 9/9 通过（`FT_COMPOSE_PREVIEW_PORT=5358 npm run test:e2e -- tests/compose-cash-detail.e2e.ts tests/compose-cash-import.e2e.ts --grep "关联成员读取失败|import empty incoming allocations|diagnostics show a readonly related range|import account task|cash import defaults|an unknown import result|a completed import reloads" --reporter=line`）；`npm run test:node` 3/3；`cd compose && ./gradlew :shared:wasmJsTest :shared:compileAndroidMain :shared:testAndroidHostTest --no-configuration-cache --console=plain` BUILD SUCCESSFUL；OpenSpec strict 35/35，XML 834 keys in three Chinese resource files align, glossary table shape and `git diff --check` passed. Latest offline demo root and import route on 5360 return HTTP 200. iOS not tested by user decision. 2026-10-27 two ICBC PDF preview evidence and unresolved earlier 422 observation remain as recorded in 4.14.7; no real account/bill writes in this terminology pass.
 
 
 ## 5. 审查
@@ -58,7 +58,7 @@
 
 ## 6. 测试与 QA
 
-- [x] 6.1 当前详情实现 `cd compose && ./gradlew :shared:compileAndroidMain :shared:testAndroidHostTest --no-configuration-cache --console=plain`：BUILD SUCCESSFUL。Web E2E runner 同时编译 `:shared:compileKotlinWasmJs`。未验证 iOS，符合本次用户指示；未运行原生设备 QA。
+- [x] 6.1 最新共享资源后执行 `cd compose && ./gradlew :shared:wasmJsTest :shared:compileAndroidMain :shared:testAndroidHostTest --no-configuration-cache --console=plain`：BUILD SUCCESSFUL；未验证 iOS，符合用户决定；未运行原生设备 QA。
 - [x] 6.2 `npm run test:node`：3 passed；`FT_COMPOSE_PREVIEW_PORT=5227 npm run test:e2e -- tests/compose-cash-import.e2e.ts --reporter=line`：Chromium 26 passed，包含账户币种补齐、零待确认默认全部、分页跳转与详情返回。
 - [x] 6.3 Chromium 1440×900 的 47 项计划中滚到第 47 项，确认请求读取绝对后续页、右侧滚动条贴列表右边、详情为右侧面板并在返回后保留该项与位置；390 px、768 px、1440 px 详情视口均有回归。截图：`compose/qa/web/test-results/compose-cash-import.e2e.ts-44007-s-to-the-same-list-position/import-review-paged-first-page.png`、`import-review-paged-before-detail.png`、`import-review-paged-detail.png`、`import-review-paged-after-detail.png`。页面／网络诊断无错误；已知 CMP-10623 关闭弹层后无障碍语义树不刷新仍待上游修复。
 - [x] 6.4 无新持久化规则或存储变化，双后端、性能和安全专项不适用；Web、Android 共享代码与 Android Host 单测通过。未运行设备 QA。
@@ -66,10 +66,11 @@
 - [x] 6.6 Chromium 回归检查普通已确认记录无标签、草稿与待确认关系标签及底色、关系筛选与窄屏排版；390 px、1440 px 各 1 项通过。
 - [x] 6.7 Chromium 回归断言流水业务备注、关联摘要和核对原因分别呈现，桌面与窄屏各 1 项通过；修复前两视口均因缺少业务备注节点而失败。
 - [x] 6.8 Chromium 核对详情标题、类型／时间摘要及无卡片字段行；确认草稿标题与缺项正文位于同一橙色卡片、没有“流水信息”重复标题和独立“需要留意”分区；确认原文入口唯一、默认折叠且可展开；390／768／1440 px 只读内容通过，截图见 `compose/qa/web/test-results/compose-cash-import.e2e.ts-0364f-y-the-account-selection-390/import-detail-390.png` 和 `compose/qa/web/test-results/compose-cash-import.e2e.ts-53efe--the-account-selection-1440/import-detail-1440.png`。
+- [x] 6.9 现金界面用语回归：`FT_COMPOSE_PREVIEW_PORT=5358 npm run test:e2e -- tests/compose-cash-detail.e2e.ts tests/compose-cash-import.e2e.ts --grep "关联成员读取失败|import empty incoming allocations|diagnostics show a readonly related range|import account task|cash import defaults|an unknown import result|a completed import reloads" --reporter=line`：Chromium 9 passed；覆盖“选择对应账户”“导入结果”“关联流水”和“账单原文”等当前显示文案。`npm run test:node`：3 passed。
 
 ## 7. 发布
 
-- [x] 7.1 收尾复核 README、导入流程、功能地图和词表：README 无入口／命令变化；更新 `docs/cash-import-flow.md` 的币种补齐与序号分页协议、`docs/feature-map.md` 的实际接入状态；无新领域术语，不需改词表。
+- [x] 7.1 收尾复核现金流程文档、词表及当前导入界面用语：更新 `AGENTS.md` 术语规则、`DOMAIN_GLOSSARY.md` 的用户用语／开发内部名称分区和现金示例；对齐三个中文 Compose 资源、导入规格和相关文档，保留账户币种补齐、分页协议和真实接入状态。
 - [x] 7.2 已按用户明确授权合并到 `average-snail`；本地合并提交，不推送、不部署。
 
 ## 8. 反思
@@ -78,7 +79,7 @@
 
 ## 当前演示检查点
 
-按用户要求，每轮反馈修改后完成相称编译和 Web 视觉校验，再启动最新演示供确认。本轮加入主页同款分页流水、右侧序号滚动条、待确认默认筛选和下一步账户币种补齐，并调整两处详情的关联与原文顺序。最新版离线演示：`http://127.0.0.1:5299/w/demo-workspace/cash-import`。使用合成数据，不连接 API。
+按用户要求，每轮反馈修改后完成相称编译和 Web 视觉校验，再启动最新演示供确认。本轮加入主页同款分页流水、右侧序号滚动条、待确认默认筛选和下一步账户币种补齐，并调整两处详情的关联与原文顺序。最新版离线演示：`http://127.0.0.1:5359/w/demo-workspace/cash-import`。根页和导入页返回 HTTP 200，使用合成数据，不连接 API。
 
 仍待确认：用户演示验收。CMP-10623 导致关闭弹层后语义镜像停止刷新的缺陷保留，按用户决定不升级 Compose；浏览器回归用页面截图核对实际画布状态。
 

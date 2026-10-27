@@ -94,14 +94,14 @@ Cross-platform Impact Check：Web、Android、iOS 的共享校验、错误状态
 ## 6. 测试与 QA
 
 - [x] 6.1 在 `compose/` 执行 Wasm 和 Android 主机单测、Web 开发／QA 构建、Android 包及 iOS 共享编译，记录实际 HEAD、命令与结果。本轮 iOS 平台单测及设备／应用包 QA 按用户明确决定不执行。
-- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node` 和受影响 Playwright，在代表视口冒烟受影响主流程、关键交互和直接相关复现分支，区分 HTTP 合同夹具、真实后端合同与离线演示证据，记录浏览器、URL、步骤、必要截图及 console／network；不默认穷举状态、主题或三类窗口。
+- [x] 6.2 在 `compose/qa/web/` 执行 `npm run test:node`（3 passed）和现金详情／导入文案 Playwright（相关 10 项通过），核对关联成员读取失败提示、账单原文和导入结果文案；完整流程与页面 QA 证据仍按本 change 既有记录，不扩为未执行状态、主题或视口的穷举。
 - [x] 6.3 按当前默认策略核对 Android、iOS 相称编译和单元测试证据；设备／模拟器交互、截图和端到端 QA 不在本次验收范围，不以未执行阻断，也不记为通过。
 - [x] 6.4 使用专用 SQLite 及显式 `_test` PostgreSQL 服务验证受影响真实请求与业务结果，不自动探测数据库、不写真实账本；演示只用去标识化合成场景。不得改变万行后端独立性能验收范围。
 - [ ] 6.5 在 Compose 演示模式以 Web 代表视口交付受影响流程，取得用户演示确认后才勾选 UI 完成；执行 OpenSpec strict、链接和 `git diff --check`。
 
 ## 7. 发布
 
-- [x] 7.1 验证与审查后修订 README／业务说明／接口示例／功能地图和旧变更取代关系，原位清理过时表述，检查链接；无需修改的文档记录理由。
+- [x] 7.1 验证与审查后修订现金业务说明、词表和活动 change；详情文案统一使用“收支记录／关联流水／账单原文”，更新账户操作提示，未触及归档 OpenSpec。
 - [ ] 7.2 记录交付范围、依赖版本、回退和未解决风险；相称检查后按已授权仓库／分支小步提交推送，PR／合并／部署另需授权。不得通过回退恢复已关闭接口。
 
 ## 8. 反思
@@ -112,7 +112,7 @@ Cross-platform Impact Check：Web、Android、iOS 的共享校验、错误状态
 
 2026-10-25，验证对象为 `average-snail` 的当前合并树：提交前 `HEAD=bb66b38`，合入 `origin/main=adcb081`，共同基线 `5b41517`。保留用户认可的视觉基线 `8aa0b40` 和本分支恢复后的信息卡、业务分组及交互蓝，接入主分支索引滚动、刷新、管理导航和 M3 容器测量；不恢复旧详情／任意关系写入，不升级依赖。完整 change 尚未取得用户演示确认，不归档。
 
-Cross-platform Impact Check：共享列表、详情／编辑宿主、创建表单、索引读取和导航影响 Web、Android、iOS。Web 用 Chromium 在 `http://127.0.0.1:5308` 验证当前 HTTP 合同夹具和受影响主分支流程，代表视口 1440×900，直接相关响应式补验 390×844、768×1024、1440×1000；演示使用 `5309` 的合成内存数据。Android 编译、主机单测及设备测试源码编译；iOS 仅共享编译，本轮平台单测、应用包及设备 QA 按用户决定不执行，不记通过。
+Cross-platform Impact Check：共享列表、详情／编辑宿主、创建表单、索引读取和导航影响 Web、Android、iOS。Web 用 Chromium 在 `http://127.0.0.1:5308` 验证当前 HTTP 合同夹具和受影响主分支流程，代表视口 1440×900，直接相关响应式补验 390×844、768×1024、1440×1000；现金文案反馈版离线演示使用 `http://127.0.0.1:5359/w/demo-workspace/cash-import` 的合成内存数据。Android 编译、主机单测及设备测试源码编译；iOS 仅共享编译，本轮平台单测、应用包及设备 QA 按用户决定不执行，不记通过。
 
 | 验证 | 当前结果与证据 |
 |---|---|
@@ -123,7 +123,7 @@ Cross-platform Impact Check：共享列表、详情／编辑宿主、创建表�
 | 后端回归 | SQLite／显式专用 PostgreSQL 受影响全集 294/294，392.00s，日志 `/tmp/ft-main-merge-backend-reviewed.log`；最后冷页单次聚合调整再执行全部查询及生命周期读取 96/96，118.96s，日志 `/tmp/ft-main-merge-cold-read-reviewed.log`，包含新服务中页、空筛选、越界空页及同版本软删除。全仓 4770 项的无关扩展未完成，不宣称全仓回归通过 |
 | 读取性能 | 固定万行同服务热读预算及索引查询计划 4/4，121.54s；SQLite 浅／中／深索引页 p95 32.0／61.6／84.0ms，PostgreSQL 61.2／69.9／80.6ms；原 100ms 门槛未放宽。日志 `/tmp/ft-main-merge-read-performance-direct.log`。冷请求聚合以双库功能合同验证，不宣称 HTTP 冷请求延迟已通过同一性能预算；未扩入独立导入写性能待办 |
 | 当前演示 | 最终源码离线构建及产物指纹一致；原流程与新增账户三窗口共 10/10，45.8s，日志 `/tmp/ft-main-merge-demo-reviewed.log`。真实走通导入准备→核对→结果、详情编辑保存、普通／转账创建及账户表单；截图 `/tmp/ft-cash-ui-restored/*.png`，确认图位于 `/tmp/ft-cash-current-contract-results/`。只使用合成内存数据，主流程零 API 请求和 JS 异常，不写真实账本，不替代后端合同；用户尚未确认 |
-| 工具与文档 | Node 3/3，日志 `/tmp/ft-main-merge-node.log`；OpenSpec strict 35/35、doctor healthy，当前非归档 Markdown 链接／锚点通过。当前范围术语与可见文字自检无新增实现术语／教学说明；最终 diff 检查在提交前执行 |
+| 工具与文档 | 现金用语调整后 Node 3/3；OpenSpec strict 35/35，非归档 Markdown 链接／锚点、三份中文 Compose 资源 XML 和词表表格均通过；可见文案自检不含模型／实现名。当前术语版离线演示 5359 返回 HTTP 200，等待用户确认 |
 | 独立审查 | 当前协议／工程、冷请求分支及 delta 回查无 blocking／major。来源 ID 自动合并退化、旧平铺及任意关系操作、账户操作区遗漏均已修复并重审关闭。当前实际普通／转账、详情／编辑、导入、确认及账户三窗口截图的 Hallmark audit／独立设计复核为 0 critical／0 major／0 minor。保留字段分组、配色与唯一主要操作；不将规划自查算实际审查 |
 | 限制与回退 | Compose `1.12.1`／Material3 `1.12.0-alpha03` 不升级。已登记弹层后无障碍树停更、禁用语义及输入镜像缺陷仍保留，画布交互通过不代表屏幕阅读器通过。回退只撤销本次集成，不恢复退役写入口；未合入 main、未部署、未归档 |
 

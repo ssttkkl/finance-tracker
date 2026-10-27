@@ -166,6 +166,7 @@ test("F-04 当前详情：关联成员读取失败可原位重试", async ({ pag
   await openDetail(page, 1440);
   const associations = byId(page, "cash.current.associations");
   const retry = byId(page, "cash.current.associations-retry");
+  await expect(associations).toContainText("暂时无法读取关联流水。");
   await expect(retry).toBeVisible();
   await expect(associations.locator('[id="cash.current.associations-loading"]')).toHaveCount(0);
   await press(page, retry);
