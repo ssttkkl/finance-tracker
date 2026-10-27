@@ -84,5 +84,8 @@
 ## 小步提交与外部写授权
 
 - 按可验证、范围明确的小步推进代码、测试、规格、文档、配置和约定；完成后相称检查通过即尽快提交推送，不长期堆积多个完成小步。每次提交前检查 `git status`、`git diff --check` 及受影响验证。
+- 分支模型：`main` 是正式发布线；`develop` 是已完成需求的候上线集成分支，并作为自动化测试和部署目标。日常需求从最新 `develop` 创建工作分支，完成审查和适用验证后合入 `develop`；准备发布时将 `develop` 合入 `main`。
+- 每次推送前先运行 `git fetch origin`，并确认当前待推送提交已包含最新 `origin/main`：`git merge-base --is-ancestor origin/main HEAD`。若检查失败，将当前分支 rebase 到最新 `origin/main`，解决冲突后重跑检查；不要通过 merge `origin/main` 引入额外 merge commit。推送前仍须检查 `git status`、`git diff --check` 和受影响验证。
+- 若上述 rebase 改写了已推送的 `develop` 历史，只有在重新 fetch 并确认远端状态后，才可对 `origin/develop` 使用 `git push --force-with-lease`；其他分支需要非快进推送时，先取得针对该分支的明确授权。
 - 本地提交、推送、PR、合并、部署、流量切换、回滚、第三方资源及外部文档／公告写入，均需用户明确授权具体动作与目标。已有 commit／push 授权只延续到同仓库同目标分支；目标改变、撤回授权或其他外部写动作须重新确认，范围外改动拆分或请求确认，不能静默打包。未授权保留工作树与证据；`openspec archive` 只整理仓库记录，不代表发布授权。
 - 删除／覆盖前确认精确目标，优先可恢复操作；范围外重构、未知根因、新增数据／权限／迁移风险先调查并回写结论。
