@@ -39,9 +39,10 @@ async function setup(page: Page, unknown = false, unexpected = false, uploadDela
   const session = "i".repeat(43), planId = `ip_${session}.${"p".repeat(16)}`;
   const display = { occurred_at: "2026-10-24T04:00:00Z", amount: "-12.5000", currency: "CNY", counterparty: "待核对商户", note: "待核对备注", accounts: [] };
   const pending = { preview_item_id: "pending-item", confirmation_status: "pending", anticipated_state: "draft", display,
-    statistics_eligible: false, member_refs: [{ row_ref: "row-pending" }], attention_reasons: [], detail_available: true };
+    statistics_eligible: false, member_refs: [{ row_ref: "row-pending" }], attention_reasons: [] as Array<Record<string, unknown>>, detail_available: true };
   const confirmed = { ...pending, preview_item_id: "confirmed-item", confirmation_status: "confirmed", anticipated_state: "posted",
-    display: { ...display, counterparty: "正常商户" }, statistics_eligible: true, member_refs: [{ row_ref: "row-confirmed" }] };
+    display: { ...display, counterparty: "正常商户" }, statistics_eligible: true, member_refs: [{ row_ref: "row-confirmed" }],
+    attention_reasons: [] as Array<Record<string, unknown>> };
   const context = { session_id: session, session_revision: 1, expires_at: "2099-01-01T00:00:00Z", state: "open",
     files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay", source_scope_label: null,
       status: "ready", recognized_row_count: 2, issues: [], can_retry: false }], source_accounts: [] as Array<Record<string, unknown>>, last_choices: null, last_plan_id: null,
@@ -94,7 +95,7 @@ async function setup(page: Page, unknown = false, unexpected = false, uploadDela
     resolves.push(route.request().postDataJSON().idempotency_key);
     return route.fulfill({ json: { status: "committed", receipt } });
   });
-  return { fixtures, pages, previews, commits, resolves, removals, context };
+  return { fixtures, pages, previews, commits, resolves, removals, context, plan };
 }
 
 async function enterAccountMapping(page: Page) {
@@ -128,14 +129,14 @@ async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = fal
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
   const task = page.locator('[id="cash.import.task"]:visible');
   await expect(task).toContainText("1  选择文件");
-  await expect(task).toContainText("添加本次要导入的账单文件。");
+  await expect(task).not.toContainText("添加本次要导入的账单文件。");
   await expect(task).not.toContainText("指定账户映射");
   await expect(task).not.toContainText("核对预计结果");
   if (prepareOnly) return;
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(1);
   await expect(task).toContainText("2  账户映射");
-  await expect(task).toContainText("为账单中的账户选择对应的账本账户。");
+  await expect(task).not.toContainText("为账单中的账户选择对应的账本账户。");
   await expect(task).not.toContainText("指定账户映射");
   await expect(task).not.toContainText("核对预计结果");
   await press(page, "cash.import.review");
@@ -232,12 +233,18 @@ test("cash import reviews all items with drafts first in the main task and shows
   const diagnostics = captureBrowserDiagnostics(page);
   const calls = await setup(page);
   await uploadAndReview(page);
-  await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("正常商户");
+  const items = page.locator('[id="cash.import.items"]:visible');
+  await expect(items).toContainText("正常商户");
+  await expect(page.locator('[id="ledger.status-tag-import-pending-item-draft"]:visible')).toHaveText("草稿");
+  const ordinaryRow = page.locator('[id="ledger.record-import-confirmed-item"]:visible');
+  await expect(ordinaryRow).not.toContainText("已确认");
+  await expect(ordinaryRow).not.toContainText("正式收支");
+  await expect(page.locator('[id="ledger.status-tag-import-confirmed-item-relation-pending"]:visible')).toHaveCount(0);
   expect(calls.pages).toEqual([]);
   await press(page, "cash.import.filter-draft");
-  await expect(page.locator('[id="cash.import.items"]:visible')).not.toContainText("正常商户");
+  await expect(items).not.toContainText("正常商户");
   await press(page, "cash.import.filter-all");
-  await expect(page.locator('[id="cash.import.items"]:visible')).toContainText("正常商户");
+  await expect(items).toContainText("正常商户");
   await press(page, "cash.import.confirm");
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("已处理 2 条账单明细");
   await expect(page.locator('[id="cash.import.result"]:visible')).toContainText("待确认 1");
@@ -246,6 +253,54 @@ test("cash import reviews all items with drafts first in the main task and shows
   expect(diagnostics.consoleErrors).toEqual([]);
   expect(diagnostics.failedRequests).toEqual([]);
 });
+
+for (const width of [390, 1440]) {
+test(`relationship-pending records get a vivid tag and confirmed records stay untagged ${width}`, async ({ page }, info) => {
+  await page.setViewportSize({ width, height: 900 });
+  const calls = await setup(page);
+  const confirmedItem = calls.plan.items.find(item => item.preview_item_id === "confirmed-item");
+  if (!confirmedItem) throw new Error("Missing confirmed test item");
+  confirmedItem.attention_reasons = [{ code: "missing_business_field", message: "缺少业务字段", blocking_scope: "item", next_action: "review" }];
+  await page.route(/\/api\/v1\/cash-import\/plans\/[^/]+\/items\/confirmed-item$/, route => route.fulfill({ json: {
+    preview_item_id: "confirmed-item",
+    members: [{ row_ref: "row-confirmed", planned_action: "create_posted", fields: {
+      occurred_at: "2026-10-24T04:00:00Z", amount: "-12.5000", currency: "CNY", counterparty: "正常商户", note: "待核对备注",
+    }, editable_fields: [], allowed_actions: [] }],
+    field_diffs: [], issues: [],
+    relation_choices: [{ suggestion_id: "deferred-relation", kind: "payment_mirror", action: "defer", code: "insufficient_evidence",
+      member_refs: [{ row_ref: "row-confirmed" }], candidates: [{ candidate_id: "candidate", member_refs: [{ row_ref: "row-pending" }] }],
+      allowed_actions: ["accept", "defer"] }],
+    relation_effects: [], relation_members: [],
+  } }));
+  await uploadAndReview(page);
+
+  const relationRow = page.locator('[id="ledger.record-import-confirmed-item"]:visible');
+  await expect(relationRow).toContainText("关系待确认");
+  await expect(relationRow).not.toContainText("手动配对");
+  await expect(relationRow).not.toContainText("已确认");
+  if (width >= 600) {
+    await expect(relationRow.locator('[id="ledger.note-import-confirmed-item"]')).toHaveText("待核对备注");
+    await expect(relationRow.locator('[id="ledger.relationship-import-confirmed-item"]')).toHaveText("关联：同笔支付 · 正常商户");
+    await expect(relationRow.locator('[id="ledger.attention-import-confirmed-item"]')).toHaveText("需核对：缺少业务字段");
+  } else {
+    await expect(relationRow).toContainText("待核对备注");
+    await expect(relationRow).toContainText("关联：同笔支付 · 正常商户");
+    await expect(relationRow).toContainText("需核对：缺少业务字段");
+  }
+  const rowBounds = await relationRow.boundingBox();
+  expect(rowBounds?.width).toBeGreaterThan(0);
+  if (width >= 600) {
+    const relationTag = page.locator('[id="ledger.status-tag-import-confirmed-item-relation-pending"]:visible');
+    await expect(relationTag).toHaveText("关系待确认");
+  }
+  await page.screenshot({ path: info.outputPath(`import-status-tags-${width}.png`) });
+
+  await press(page, "cash.import.filter-relation-pending");
+  const items = page.locator('[id="cash.import.items"]:visible');
+  await expect(items).toContainText("正常商户");
+  await expect(items).not.toContainText("待核对商户");
+});
+}
 
 test("file parsing shows row progress and removes a file immediately from the right action area", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });

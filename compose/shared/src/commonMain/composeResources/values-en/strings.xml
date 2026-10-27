@@ -568,8 +568,6 @@
     <string name="cash_import_apply_account_changes">Apply changes</string>
     <string name="cash_import_previous">Previous</string>
     <string name="cash_import_next">Next</string>
-    <string name="cash_import_step_files_description">Add the statement files for this import.</string>
-    <string name="cash_import_step_accounts_description">Choose the ledger account for each account in the statement.</string>
     <string name="cash_import_step_review_description">Review the entries to import and anything that needs attention.</string>
     <string name="cash_import_mapping_heading">Choose target accounts</string>
     <string name="cash_import_edit_new_account">Edit</string>
@@ -823,9 +821,11 @@
     <string name="cash_import_aftercare">Review drafts and pending relationships in the ledger</string>
     <string name="cash_import_expected_items">Expected items</string>
     <string name="cash_import_draft">Drafts</string>
+    <string name="cash_import_draft_tag">Draft</string>
     <string name="cash_import_posted">Posted records</string>
-    <string name="cash_import_auto_pair">Automatic pairing</string>
-    <string name="cash_import_manual_pair">Manual pairing</string>
+    <string name="cash_import_relation_pending">Relationship pending</string>
+    <string name="cash_import_relationship_summary">Relationship: %1$s</string>
+    <string name="cash_import_attention_summary">Review: %1$s</string>
     <string name="cash_import_filter_scope">Filters only change the view</string>
     <string name="cash_import_loaded_scope">%1$s items loaded; load more to review the rest</string>
     <string name="cash_import_details_loading">Details pending</string>

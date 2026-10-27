@@ -568,8 +568,6 @@
     <string name="cash_import_apply_account_changes">应用更改</string>
     <string name="cash_import_previous">上一步</string>
     <string name="cash_import_next">下一步</string>
-    <string name="cash_import_step_files_description">添加本次要导入的账单文件。</string>
-    <string name="cash_import_step_accounts_description">为账单中的账户选择对应的账本账户。</string>
     <string name="cash_import_step_review_description">核对本次将导入的收支和待确认内容。</string>
     <string name="cash_import_mapping_heading">选择目标账户</string>
     <string name="cash_import_edit_new_account">修改</string>
@@ -823,9 +821,11 @@
     <string name="cash_import_aftercare">草稿与待确认关系请到账本详情处理</string>
     <string name="cash_import_expected_items">预计条目</string>
     <string name="cash_import_draft">草稿</string>
+    <string name="cash_import_draft_tag">草稿</string>
     <string name="cash_import_posted">正式收支</string>
-    <string name="cash_import_auto_pair">自动配对</string>
-    <string name="cash_import_manual_pair">手动配对</string>
+    <string name="cash_import_relation_pending">关系待确认</string>
+    <string name="cash_import_relationship_summary">关联：%1$s</string>
+    <string name="cash_import_attention_summary">需核对：%1$s</string>
     <string name="cash_import_filter_scope">筛选只改变查看范围</string>
     <string name="cash_import_loaded_scope">已加载 %1$s 项，继续加载可核对其余条目</string>
     <string name="cash_import_details_loading">详情待读取</string>

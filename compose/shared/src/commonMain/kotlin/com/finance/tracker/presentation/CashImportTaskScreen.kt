@@ -272,16 +272,11 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
         else {
             val step = if (state.phase == ImportTaskPhase.REVIEW) 2 else if (mappingStep) 1 else 0
             CashImportTaskSteps(step)
-            Text(
-                localizedText(when (step) {
-                    0 -> "cash_import_step_files_description"
-                    1 -> "cash_import_step_accounts_description"
-                    else -> "cash_import_step_review_description"
-                }),
+            if (step == 2) Text(
+                localizedText("cash_import_step_review_description"),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = if (step == 2) Modifier.fillMaxWidth()
-                    else Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.CenterHorizontally)
+                modifier = Modifier.fillMaxWidth()
             )
             localError?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }
             state.errorCode?.let { Text(cashImportTaskErrorText(it), color = MaterialTheme.colorScheme.error) }

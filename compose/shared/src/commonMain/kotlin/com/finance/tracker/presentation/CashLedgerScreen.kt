@@ -1244,15 +1244,29 @@ internal data class CashLedgerRowContent(
     val id: String, val occurredAt: String?, val counterparty: String, val note: String,
     val accountLabel: String, val categoryLabel: String, val economicLabel: String?, val sourceLabel: String?,
     val confirmationStatus: String, val amountLabel: String, val negative: Boolean,
+    val statusTags: List<CashLedgerRowStatusTag> = emptyList(), val showConfirmationStatus: Boolean = true,
+    val relationshipSummary: String? = null, val attentionSummary: String? = null,
 )
 
+internal enum class CashLedgerRowStatusTag(val testKey: String, val labelId: String) {
+    DRAFT("draft", "cash_import_draft_tag"),
+    RELATION_PENDING("relation-pending", "cash_import_relation_pending"),
+}
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun CashLedgerRow(
     item: CashLedgerRowContent, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
     selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
     showSelection: Boolean = true,
 ) {
+    val recordBackground = when {
+        CashLedgerRowStatusTag.DRAFT in item.statusTags -> LocalFinanceColorRoles.current.warningSurface
+        CashLedgerRowStatusTag.RELATION_PENDING in item.statusTags -> MaterialTheme.colorScheme.primaryContainer
+        else -> null
+    }
     val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
+        .then(recordBackground?.let { Modifier.background(it) } ?: Modifier)
     if (sizeClass == WindowSizeClass.COMPACT) {
         Column(
             modifier = recordModifier.fillMaxWidth().combinedClickable(
@@ -1278,17 +1292,27 @@ internal fun CashLedgerRow(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(item.counterparty.ifBlank { "—" }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(item.note.ifBlank { "—" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(item.note.ifBlank { "—" }, Modifier.testTag("ledger.note-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    item.relationshipSummary?.let {
+                        Text(it, Modifier.testTag("ledger.relationship-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    item.attentionSummary?.let {
+                        Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    CashLedgerRowStatusTags(item)
                     Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("${item.accountLabel} · ${item.categoryLabel}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val source = item.sourceLabel
-                    Text(
-                        listOfNotNull(item.economicLabel, source, localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed")).joinToString(" · "),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    val confirmation = if (item.showConfirmationStatus) localizedText(
+                        if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
+                    ) else null
+                    listOfNotNull(item.economicLabel, source, confirmation).takeIf { it.isNotEmpty() }?.let { labels ->
+                        Text(labels.joinToString(" · "), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 FinanceAmount(item.amountLabel, negative = item.negative)
             }
@@ -1322,9 +1346,19 @@ internal fun CashLedgerRow(
                     )
                     Text(
                         item.note.ifBlank { "—" },
+                        Modifier.testTag("ledger.note-${item.id}"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    item.relationshipSummary?.let {
+                        Text(it, Modifier.testTag("ledger.relationship-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    item.attentionSummary?.let {
+                        Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    CashLedgerRowStatusTags(item)
                 }
                 FinanceTableCell(item.categoryLabel, weight = 0.12f)
                 Column(
@@ -1332,8 +1366,9 @@ internal fun CashLedgerRow(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                    Text(localizedText(if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed"),
-                        style = MaterialTheme.typography.labelSmall,
+                    if (item.showConfirmationStatus) Text(localizedText(
+                        if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
+                    ), style = MaterialTheme.typography.labelSmall,
                         color = if (item.confirmationStatus == "pending") LocalFinanceColorRoles.current.warning else MaterialTheme.colorScheme.onSurfaceVariant)
                     item.sourceLabel?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1358,6 +1393,30 @@ internal fun CashLedgerRow(
                 }
             }
             if (!lastInMonth) HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-${item.id}"))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CashLedgerRowStatusTags(item: CashLedgerRowContent) {
+    if (item.statusTags.isEmpty()) return
+    val colorRoles = LocalFinanceColorRoles.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item.statusTags.forEach { tag ->
+            val (containerColor, contentColor) = when (tag) {
+                CashLedgerRowStatusTag.DRAFT -> colorRoles.warning to colorRoles.background
+                CashLedgerRowStatusTag.RELATION_PENDING -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+            }
+            Surface(
+                modifier = Modifier.testTag("ledger.status-tag-${item.id}-${tag.testKey}"),
+                color = containerColor,
+                contentColor = contentColor,
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(localizedText(tag.labelId), Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }
