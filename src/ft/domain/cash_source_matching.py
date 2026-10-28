@@ -18,8 +18,11 @@ from ft.domain.cash_record_policy import (
 from ft.domain.decimal import exact_decimal
 
 
+_DIGEST_ENCODER = json.JSONEncoder(ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+
+
 def _digest(*values: Any) -> str:
-    return sha256(json.dumps(values, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str).encode()).hexdigest()
+    return sha256(_DIGEST_ENCODER.encode(values).encode()).hexdigest()
 
 
 def provider_identity_key(provider_id: str) -> str:

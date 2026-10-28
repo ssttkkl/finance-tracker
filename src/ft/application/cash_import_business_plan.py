@@ -242,14 +242,21 @@ class CashImportBusinessPlanBuilder:
                 merged[-1] = (merged[-1][0], max(end, merged[-1][1]))
             else:
                 merged.append((start, end))
+        from types import SimpleNamespace
+        from ft.domain.relations.core.routing import source_group
+        expense_only = all(op["values"]["record_type"] == "consumption"
+            and _normalize("amount", op["values"]["amount"]) < 0 for op in operations)
         result = set()
         for batch in _batches(merged, 100):
-            result.update(session.scalars(select(CashTransactionModel.id).where(
+            candidates = session.execute(select(CashTransactionModel.id, CashTransactionModel.source_type).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.state == "posted",
                 CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_type.in_(candidate_types),
                 or_(*(and_(CashTransactionModel.occurred_at >= start,
-                    CashTransactionModel.occurred_at <= end) for start, end in batch)))))
+                    CashTransactionModel.occurred_at <= end) for start, end in batch))))
+            result.update(identifier for identifier, source in candidates
+                if not (expense_only and type(source) is str and source.strip()
+                    and source_group(SimpleNamespace(bill_source=source, source=source)) == "other"))
         result.update(self._hard_key_ids(session, operations, source_rows))
         return result
 

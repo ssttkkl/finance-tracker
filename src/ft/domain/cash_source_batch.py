@@ -5,6 +5,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, replace
 from datetime import datetime
 from decimal import Decimal
+from functools import cached_property
 from typing import Mapping, Sequence
 
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
@@ -54,10 +55,14 @@ class _Unit:
     ref: str
     refs: tuple[str, ...]
     row: SourceOccurrence
-    content_key: str
+    normalized: dict
     certain: bool
     targets: frozenset[str]
     files: frozenset[str]
+
+    @cached_property
+    def content_key(self):
+        return _digest(_content_value(self.normalized))
 
 
 def _content_value(value):
@@ -78,6 +83,55 @@ def _content_value(value):
     return value
 
 
+def _unpaged_evidence(values):
+    from ft.domain.cash_source_matching import SourceCoverage, SourceDocumentEvidence
+    if type(values) not in (tuple, list):
+        return False
+    for value in values:
+        coverage = value.coverage if type(value) is SourceDocumentEvidence else value
+        if type(coverage) is not SourceCoverage or coverage.document_key is not None:
+            return False
+    return True
+
+
+def _new_provider_batch(rows, known_document_coverages=()):
+    from ft.domain.cash_source_matching import SourceCoverage
+    if type(rows) not in (dict, SourceBatchInput) or not _unpaged_evidence(known_document_coverages):
+        return None
+    if isinstance(rows, SourceBatchInput) and (not _unpaged_evidence(rows.document_evidence)
+        or not _unpaged_evidence(rows.document_coverages)):
+        return None
+    namespace, file_ref, providers, positions = None, None, set(), set()
+    for ref, row in rows.items():
+        if (type(ref) is not str or type(row) is not SourceOccurrence or type(row.coverage) is not SourceCoverage
+            or row.coverage.document_key is not None or row.document_position is not None or row.stable_evidence is not None
+            or type(row.provider_id) is not str or not row.provider_id
+            or type(row.fields) is not dict or any(type(key) is not str for key in row.fields)
+            or row.fields.get("amount") is not None and type(row.fields["amount"]) not in (str, int, Decimal)
+            or row.fields.get("currency") is not None and type(row.fields["currency"]) is not str
+            or row.fields.get("occurred_at") is not None and type(row.fields["occurred_at"]) is not str):
+            return None
+        current = (row.source_type, row.source_account_key, row.file_digest, row.parser_version, row.table_key)
+        if any(type(value) is not str or not value for value in current):
+            return None
+        current_file = ref.partition(":")[0]
+        if namespace is None:
+            namespace, file_ref = current, current_file
+        if current != namespace or current_file != file_ref or row.provider_id in providers or row.position in positions:
+            return None
+        providers.add(row.provider_id)
+        positions.add(row.position)
+    output = []
+    for ref, row in rows.items():
+        try:
+            prepare_cash_record_update({"state": "draft"}, _patch(row))
+        except CashRecordPolicyError as error:
+            output.append(SourceBatchResolution(ref, "conflict", reason=error.code))
+        else:
+            output.append(SourceBatchResolution(ref, "new", bind=True))
+    return SourceBatchPlan(tuple(output))
+
+
 def resolve_source_batch(
     rows: Mapping[str, SourceOccurrence], records: Sequence[SourceRecord], *, known_document_coverages=(),
 ) -> SourceBatchPlan:
@@ -85,6 +139,10 @@ def resolve_source_batch(
     if any(not isinstance(ref, str) or not ref for ref in rows):
         raise ValueError("invalid_source_row_ref")
     active = [record for record in records if not record.deleted]
+    if not active:
+        fast = _new_provider_batch(rows, known_document_coverages)
+        if fast is not None:
+            return fast
     by_binding, by_index = defaultdict(set), defaultdict(list)
     for record in active:
         for key in _record_binding_keys(record):
@@ -151,7 +209,7 @@ def resolve_source_batch(
         except CashRecordPolicyError as error:
             output[ref] = SourceBatchResolution(ref, "conflict", reason=error.code)
             continue
-        contents[ref] = _digest(_content_value(normalized))
+        contents[ref] = normalized
         roots[ref] = ref
         keys = (*row.binding_keys, row.stable_evidence_binding_key)
         targets[ref] = {target for key in keys if key for target in by_binding[key]}
@@ -177,7 +235,7 @@ def resolve_source_batch(
         ids = frozenset(target for ref in refs for target in targets[ref])
         sorted_ids = tuple(sorted(ids))
         failed = False
-        different_contents = len({contents[ref] for ref in refs}) > 1
+        different_contents = len(refs) > 1 and len({_digest(_content_value(contents[ref])) for ref in refs}) > 1
         same_patch_shape = len({tuple(sorted(rows[ref].fields)) for ref in refs}) == 1
         reliable_snapshot_group = (different_contents and (len(providers) == 1 or len(evidence) == 1)
             and len(providers) <= 1 and len(evidence) <= 1 and len(ids) <= 1

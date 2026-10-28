@@ -54,11 +54,13 @@ def _wire_in_place(value):
         return value
     if isinstance(value, dict):
         for key, item in value.items():
-            value[key] = _wire_in_place(item)
+            if type(value) is not dict or item is not None and type(item) not in (str, int, bool, float):
+                value[key] = _wire_in_place(item)
         return value
     if isinstance(value, list):
         for index, item in enumerate(value):
-            value[index] = _wire_in_place(item)
+            if type(value) is not list or item is not None and type(item) not in (str, int, bool, float):
+                value[index] = _wire_in_place(item)
         return value
     if isinstance(value, tuple):
         return [_wire_in_place(item) for item in value]

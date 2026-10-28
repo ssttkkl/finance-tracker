@@ -162,7 +162,9 @@ class CashRecordOperationPlanner:
                 source_explanation=row.relation_metadata, protected_fields=protected)
         from ft.adapters.relational.cash_entries import CashEntryRepository
         entries = CashEntryRepository(self.session, self.workspace_id)
-        entry = entries.current(row.id)
+        entry_members, entry_rows = entries.for_transactions({row.id})
+        entry_member = entry_members.get(row.id)
+        entry = entry_rows.get(entry_member.entry_id) if entry_member else None
         entry_edit = None
         policy_patch = dict(patch)
         if row.state == "posted":
@@ -171,7 +173,6 @@ class CashRecordOperationPlanner:
             if "source_payload" in patch:
                 raise CashRecordPolicyError("field_not_editable", ("source_payload",))
             if entry is not None:
-                members, _ = entries.for_transactions({row.id})
                 from ft.adapters.relational.models import CashEntryMemberModel
                 group_size = len(list(self.session.scalars(select(CashEntryMemberModel.transaction_id).where(
                     CashEntryMemberModel.workspace_id == self.workspace_id, CashEntryMemberModel.entry_id == entry.id))))
@@ -262,7 +263,7 @@ class CashRecordOperationPlanner:
             issue = issues[0]
             raise CashRecordPolicyError(issue["code"], ())
         return {**({"entry_edit": entry_edit} if entry_edit else {}),
-            "entry_snapshot": entries.snapshot({row.id}), **({"source_explanation": explanation} if explanation is not None else {}),
+            "entry_snapshot": entries.snapshot_values(entry_members, entry_rows), **({"source_explanation": explanation} if explanation is not None else {}),
             **({"issue_resolutions": list(resolutions), "resolved_issue_ids": sorted(resolved)} if resolutions else {}),
             "transaction_id": str(row.id), "expected_revision": row.row_revision, "planned_action": action,
             "current": _wire(current), "values": _wire(values), "manual_fields": manual,

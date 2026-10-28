@@ -54,7 +54,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 ## 当前已知覆盖缺口
 
-F-04 开发中：导入流水自由搜索新增关联、按实际关系标注全部成员原文，以及在弹窗中完成关联操作，已接入 [共享详情](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashDetailRelations.kt) 及维护任务，影响 Web、Android、iOS。关联流水和账单原文均直接展示；单备选建议与已有关联流水共用完整基础信息布局，备注带标签；有效待确认关系展示无按钮的警示提示，接受／核对与拒绝在弹窗处理；添加关联在搜索前以单选分段按钮选择关系类型；桌面选择复用表格，COMPACT 复用卡片。范围与当前验证缺口见 [详情关联实施记录](../openspec/changes/cash-record-detail-relations-redesign/tasks.md)，仍待演示确认、完整回归、真实 PostgreSQL 及最终审查，不计为已交付能力，页面数不变。
+F-04 开发中：导入流水自由搜索新增关联、按实际关系标注全部成员原文，以及在弹窗中完成关联操作，已接入 [共享详情](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashDetailRelations.kt) 及维护任务，影响 Web、Android、iOS。关联流水和账单原文均直接展示；单备选建议与已有关联流水共用完整基础信息布局，备注带标签；有效待确认关系展示无按钮的警示提示，接受／核对与拒绝在弹窗处理；添加关联在搜索前以单选分段按钮选择关系类型；桌面选择复用表格，COMPACT 复用卡片。范围与当前验证缺口见 [详情关联实施记录](../openspec/changes/cash-record-detail-relations-redesign/tasks.md)，已完成代表视口反馈验证、非性能回归及受影响 SQLite／真实 PostgreSQL 契约；复杂浏览器保存与完整最终验收仍待完成，不计为已最终交付能力，页面数不变。
 
 - F-04／F-05：复杂导入分支及演示确认仍需完成；当前详情、来源原文、草稿和分摊保存／转正式已通过代表视口真实 API 冒烟。关闭 Web 弹层后的无障碍树更新及禁用状态语义缺陷仍保留；不升级 Compose。以下原生设备覆盖缺口记录未验证范围，不作为默认验证门禁。
 

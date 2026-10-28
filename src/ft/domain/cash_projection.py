@@ -409,6 +409,20 @@ def build_cash_projections(
         return _build_cash_projections(facts, relations)
 
 
+def _single_projection(fact):
+    if fact.funding_relation_id is not None:
+        kind, amount, visible, hidden, subtype = EconomicType.INTERNAL_TRANSFER, Decimal("0"), True, None, "bank_security_transfer"
+    elif fact.amount < 0:
+        kind, amount, visible, hidden, subtype = EconomicType.EXPENSE, fact.amount, True, None, None
+    elif fact.amount > 0:
+        kind, amount, visible, hidden, subtype = EconomicType.INCOME, fact.amount, True, None, None
+    else:
+        kind, amount, visible, hidden, subtype = EconomicType.INTERNAL_TRANSFER, Decimal("0"), False, "balance_adjustment", "balance_adjustment"
+    return CashProjection(f"cash:{fact.id}", fact, amount, kind, visible, hidden, subtype,
+        (fact.id,), ((fact, ("root",)),), (), (), funding_relation_id=fact.funding_relation_id,
+        attention_count=int(fact.needs_attention))
+
+
 def _build_cash_projections(facts, relations):
     try:
         fact_list, relation_list = tuple(facts), tuple(relations)
@@ -426,25 +440,28 @@ def _build_cash_projections(facts, relations):
         if (relation.primary_fact_id == relation.secondary_fact_id or relation.primary_fact_id not in fact_by_id or relation.secondary_fact_id not in fact_by_id
             or fact_by_id[relation.primary_fact_id].state != "posted" or fact_by_id[relation.secondary_fact_id].state != "posted"):
             raise CashProjectionError("projection.invalid_relation")
-    groups = _components({identifier: fact for identifier, fact in fact_by_id.items() if fact.state == "posted"}, accepted)
-    component_by_fact = {
-        fact_id: component_index
-        for component_index, group in enumerate(groups)
-        for fact_id in group
-    }
-    relations_by_component: list[list[ProjectionRelation]] = [
-        [] for _group in groups
-    ]
-    for relation in accepted:
-        primary_component = component_by_fact.get(relation.primary_fact_id)
-        secondary_component = component_by_fact.get(relation.secondary_fact_id)
-        if primary_component is None or primary_component != secondary_component:
-            raise CashProjectionError("projection.invalid_relation")
-        relations_by_component[primary_component].append(relation)
-    projections = tuple(
-        _validate_group(group, fact_by_id, tuple(relations_by_component[index]))
-        for index, group in enumerate(groups)
-    )
+    if not accepted and all(type(fact) is CashProjectionFact for fact in fact_list):
+        projections = tuple(_single_projection(fact) for fact in fact_list if fact.state == "posted")
+    else:
+        groups = _components({identifier: fact for identifier, fact in fact_by_id.items() if fact.state == "posted"}, accepted)
+        component_by_fact = {
+            fact_id: component_index
+            for component_index, group in enumerate(groups)
+            for fact_id in group
+        }
+        relations_by_component: list[list[ProjectionRelation]] = [
+            [] for _group in groups
+        ]
+        for relation in accepted:
+            primary_component = component_by_fact.get(relation.primary_fact_id)
+            secondary_component = component_by_fact.get(relation.secondary_fact_id)
+            if primary_component is None or primary_component != secondary_component:
+                raise CashProjectionError("projection.invalid_relation")
+            relations_by_component[primary_component].append(relation)
+        projections = tuple(
+            _validate_group(group, fact_by_id, tuple(relations_by_component[index]))
+            for index, group in enumerate(groups)
+        )
     projections += tuple(CashProjection(
         projection_id=f"cash:{fact.id}", primary_record=fact, net_amount=fact.amount, economic_type=None,
         visible=True, hidden_reason=None, transfer_subtype=None, member_ids=(fact.id,),

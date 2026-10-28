@@ -21,7 +21,7 @@
 
 - [x] 5.1 完成独立产品／工程／安全和最终 diff 复核；阻断 finding 已修复并重审，当前无未处理阻断项。
 
-审查覆盖完整成员归属、来源与公共属性隔离、JSON／复制边界、候选类型超集、父／子编号命名空间、迁移回滚、专库隔离及 CI 汇总失败传播。P1：分类逐项查询、删除触发全量重建、遗漏成员和创建方式误判已修复。P2：索引缺失、旧夹具、映射测试状态依赖、嵌套 UOW 自锁、CI 超时，以及字符串子类键／自定义复制 memo 的兼容缺口已以失败回归修复。精确普通容器复制快路径遇到未知类型时整体回退标准深复制，不混用复制协议；独立复核无新增 finding。
+审查覆盖产品范围、财务和权限、复制／JSON 协议、可靠来源身份、完整候选和图、ORM 会话与查询批次、分类保护及当前 diff。独立只读上下文完成最终复核，无未处理阻断。P2：可靠编号快路径遗漏文件级证据边界；改为仅精确非分页证据通过，未知或分页证据回完整算法，以 `SourceDocumentEvidence` 携带无效 coverage 的失败反例验证。原通用退款匹配不限制来源；全负消费裁剪依赖显式退款种子条件，以相同账户、明确其他来源的正退款和强文本信号做完整候选的最终计划差分。金额、时间、币种自定义转换和容器／字符串子类保留原路径。小批对象读取覆盖会话身份、待写／过期成员、缺对象／跨工作区及 400／401 批次；单笔投影按正负零、资金关联、待确认状态与通用算法逐字段比较。最终复核未发现 UI、预算、财务规则或权限扩大。
 
 ## 6. 测试与 QA
 
@@ -44,21 +44,20 @@ README 增补现行分片和复现命令，项目 apply skill 同步后端验证
 
 ## 当前证据
 
-执行日期：2026-10-28。当前验证 HEAD／比较基线为 `5f41438646a2a4b31eec3b8d2c3f5d7eed67faa6` 加当前修复，目标仍为 `ssttkkl/finance-tracker` PR #101 的 `average-snail`。隔离实施位置 `/tmp/ft-pr101-fix`；原工作树的未提交 UI、文档及导入工作保持原位。用户已明确授权本仓库该分支的提交及推送，不含合并或部署。
+执行日期：2026-10-28。验证基线与当前 HEAD 为 `013f0683058b6b9d455b8b796257280558d94414` 加本轮修复。源码／测试内容清单为仓库外 `validated-source.json`，清单摘要 `8a34fa692c63531b22240f3edf334b76f164c9505c40c579324bace3b011c7f1`。机器重启清理了原 `/tmp` 工作树、未提交修改及本机日志，旧结果不作为当前源码证据。恢复位置为 `/Users/huangwenlong/.paseo/worktrees/1zalea72/pr101-check-fixes`，证据根目录 `/Users/huangwenlong/.cache/ft-pr101`；原工作树用户改动保持原位。用户授权本仓库 `average-snail` 分支的提交和推送，不含合并或部署。
 
-所有 Python 验证使用 `/Users/huangwenlong/.paseo/worktrees/1zalea72/average-snail/.venv/bin/python`，设置 `PYTHONPATH=tests:.:src`、`PYTHONDONTWRITEBYTECODE=1`、`PYTEST_ADDOPTS='-o cache_dir=/tmp/ft-pr101-pytest-cache'`。真实 PostgreSQL 使用人工准备的 16.14 专用 `_test` 库，显式设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_pr101_test@127.0.0.1:55481/<专库>` 和 `FT_REQUIRE_TEST_POSTGRES=1`；测试不启动或探测数据库。运行缓存、日志、构建产物及合成数据库均在仓库外。
+Python 使用 `/Users/huangwenlong/.paseo/worktrees/1zalea72/average-snail/.venv/bin/python`，`PYTHONPATH=tests:.:src`、`PYTHONDONTWRITEBYTECODE=1`，pytest 缓存和构建产物位于上述仓库外目录。人工准备 PostgreSQL 16.14，端口 55481、用户 `ft_pr101_test`，显式设置 `FT_REQUIRE_TEST_POSTGRES=1` 和 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_pr101_test@127.0.0.1:55481/<专用_test库>`；测试不启动或探测数据库。
 
-| 范围 | 当前命令、结果及证据 |
+| 范围 | 实际命令与当前结果 |
 | --- | --- |
-| 测试先行与根因 | 分类、成员、父子编号、分片及复制协议反例先失败；Linux run `40614965247` 的原性能任务 63 passed／6 failed。追加同事务重复读取及发布重复读源反例先失败，再实现有界复用；`/tmp/ft-pr101-fresh-red.log`、`/tmp/ft-pr101-publish-count-red.log`。发现阶段优化使无匹配工作的旧异常注入不可达，补真实正向银行候选并保持异常传播及全表回滚断言；8 例双后端通过，`/tmp/ft-pr101-discovery-injection-final-green.log` |
-| 完整常规回归 | `python scripts/run_backend_tests.py --shard-index <0..7> --shard-count 8`，各片使用独立 `ft_pr101_shard<N>_test`，源码冻结后顺序接续性能矩阵启动；**4920 passed、2 skipped**，覆盖全部 4922 个普通节点，skip 不计通过；同一收集指纹 `20aa02cfc2a0853833b35a537e10a30c393c6119d395f72a46c58e34b9588985`。夹具修复后仅重跑受影响完整分片 2、6，其他 6 片源码、依赖和用例未变。清单 `/tmp/ft-pr101-linux-regression-results.json`；日志 `/tmp/ft-pr101-linux-postgresql-{0,1,3,4,5,7}.log` 与 `/tmp/ft-pr101-linux-postgresql-rerun-{2,6}.log` |
-| 完整原性能矩阵 | `python -m pytest -q -s -m performance --tb=short`，专库 `ft_pr101_test` → **69 passed、无 skip**，523.69 s。SQLite／PostgreSQL 万行完整预览 3.627／3.820 s，原 5 s／256 MiB；万行重建 P95 3.070／3.560 s，原 10 s；当前关系选择加提交 P95 18.3／56.7 ms，原 100 ms。全部原预算、工作量、runner 和校验保留；计时未并行运行其他测试或构建。运行时源码此后未变，后续只修复故障注入夹具。`/tmp/ft-pr101-linux-full-performance.log` |
-| 受影响边界 | 双后端相关回归 349 passed；暂存及发布 217 passed；追加来源证明／数值／匹配及暂存 217 passed；取消旧快照 2 passed。各命令有交叠，不相加作覆盖数。`/tmp/ft-pr101-linux-affected.log`、`/tmp/ft-pr101-snapshot-final-green.log`、`/tmp/ft-pr101-linux-proof-final.log`。跨仓库、跨事务、数量不一致、DTO 嵌套变异、旧快照 CAS／取消／归属／TTL 均有反例；独立最终复核无未处理阻断 |
-| 构建／迁移 | `PYTHONPYCACHEPREFIX=/tmp/ft-pr101-linux-pycache python -m compileall -q src migrations scripts/run_backend_tests.py`、`uv build --offline --out-dir /tmp/ft-pr101-linux-dist` 通过，wheel 的 16 个受影响源码模块逐字节一致。`/tmp/ft-pr101-linux-build.log`。本轮不新增 schema／迁移；首个修复的分类索引已执行双后端迁移与真实 PostgreSQL upgrade→downgrade→upgrade，当前完整回归继续覆盖迁移合同 |
-| 规格／文档／diff | `openspec validate --all --strict` 36 passed、`openspec doctor` 正常，`git diff --check` 通过；提交前再次核对最新文档与链接。`/tmp/ft-pr101-linux-openspec.log`、`/tmp/ft-pr101-linux-doctor.log` |
+| 失败回归 | `python -m pytest -q tests/test_cash_hotpath_equivalence.py` 的投影、空图、可靠编号与资金解析成本约束先失败；小批对象读取与候选裁剪、文件证据和已知非分页证据另有先失败反例。`red.log`、`lookup-red.log`、`candidate-red.log`、`file-evidence-red.log`、`known-evidence-red.log`。未知证据及 ORM 夹具修正后以完整回归为准，不把夹具缺陷计为业务失败 |
+| 双后端相关边界 | 相同服务在 SQLite／真实 PostgreSQL 的对象、导入业务、关系上下文、导入操作及分类回归 243 passed；独立审查追加边界 17 passed；纯领域和来源快路径 91 passed。存在用例交叠，不相加作覆盖数。`dual-affected.log`、`review-boundaries.log`、`provider-final-green.log`；后续完整回归覆盖最终源码 |
+| 完整常规回归 | `python scripts/run_backend_tests.py --shard-index <0..7> --shard-count 8`，4 个执行进程分别使用独立 `ft_pr101_shard<N>_test`；8 片全部退出 0，**4987 passed、2 skipped，另 5 subtests passed**，共 4989 个主节点。同一收集指纹 `ab251be9aab81cf1ff3f0f8ae3c20b9a746482ce185bd6a9be202ed5ee48babd`。两个 skip 分别需要真实 PDF、`FT_TEST_SQLITE_SOURCE` 真实数据库副本，不计通过；本任务使用合成数据，不读取真实财务数据。结果 `regression-results.json`、`regression-<N>.xml`、`regression-<N>.log` |
+| 针对性性能 | 原导入、当前关系、HTTP 维护及分类性能 28 passed，130.68 s；SQLite／PostgreSQL 万行预览 3.028／3.083 s，PostgreSQL 关系选择提交 P95 54.6 ms。计时中本任务没有并行运行其他测试或构建；随后仅收紧和完善来源快路径证据判断，最终性能以完整矩阵为准。`target-performance.log` |
+| 完整原性能矩阵 | `python -m pytest -q -s -m performance --tb=short`，专库 `ft_pr101_test`；65 passed、4 failed、无 skip，841.19 s。SQLite 重建 10.318 s／10 s、PostgreSQL 旧关系维护及草稿保存、SQLite 投资查询超限；主机可见其他构建及多组 Python 测试并行负载。本任务未改投资查询，不能据此直接归因为负载或把失败计通过。同源码／预算单独复测全部 4 passed，161.99 s；SQLite 重建 P95 6.076 s，PostgreSQL 草稿保存并读取 P95 61.4 ms。完整 69 个原性能场景均有通过证据，不宣称单次完整矩阵全绿；未调整任何预算、工作量或校验。`full-performance.log`、`performance-recheck.log` |
+| 构建／编译 | `uv build --offline --out-dir <证据根>/dist`，wheel 中全部 11 个本轮受影响运行模块与工作树逐字节一致；`PYTHONPYCACHEPREFIX=<证据根>/pycache python -m compileall -q src migrations scripts/run_backend_tests.py` 通过。`build.log`。本轮没有 schema／迁移变更；完整回归仍覆盖原分类索引迁移合同 |
+| 规格／文档／diff | `openspec validate --all --strict` 36 passed、`openspec doctor` 正常、`git diff --check` 通过。README、docs、references、接口／命令、功能地图与词表已核对：没有新增页面、客户端能力、用户术语或公共协议，无需改变当前业务说明；项目 apply skill 同步内部优化边界。`openspec.log`、`doctor.log` |
 
 ## 当前远端状态
 
-当前远端结果仍对应 `5f41438`：16 个普通后端分片、两个汇总及两个 Compose 检查通过；性能任务 `122575186639` 有 6 项超时，日志 `/tmp/ft-pr101-ci-performance-failed.log`。本轮未改业务规则、性能标准、UI、依赖或 runner；提交后须检查新 HEAD 的全部 GitHub checks，不能以本地通过替代远端通过。远端门禁通过前保留 active change，万行预览待办不标完成。
-
-README、docs、references、接口／命令示例、功能地图和词表已按最终实现核对：没有新增页面、客户端能力、用户术语或公共协议，现有业务说明保持；项目 apply skill 原位说明内部暂存及重建复用边界。回滚只需撤回本轮纯实现优化；首个修复的索引降级仍只删除索引，不改变财务数据。本次没有合并、部署或访问真实财务数据。
+`013f068` 的 20 个常规及 Compose 检查成功，性能任务 `122608030082` 为 63 passed／6 failed：PostgreSQL 分类删除 513.8 ms／500 ms、关系选择提交 P95 153.7 ms／100 ms、千行来源更新 15.85 s／15 s、SQLite／PostgreSQL 万行预览 8.20／8.32 s／5 s、PostgreSQL HTTP 维护 P95 103.3 ms／100 ms。远端通过前保留 active change，相关待办不标完成。

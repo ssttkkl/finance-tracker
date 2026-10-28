@@ -2,7 +2,7 @@
 from copy import deepcopy
 from uuid import uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, select
 
 from ft.adapters.relational.models import CashEntryMemberModel, CashEntryModel, CashTransactionModel
 from ft.domain.cash_record_policy import COMMON_CASH_FIELDS, CashRecordPolicyError, _normalize
@@ -19,11 +19,22 @@ class CashEntryRepository:
 
     def for_transactions(self, identifiers):
         identifiers = list({int(value) for value in identifiers})
-        members = {}
-        for offset in range(0, len(identifiers), 400):
-            members.update((row.transaction_id, row) for row in self.session.scalars(select(CashEntryMemberModel).where(
-                CashEntryMemberModel.workspace_id == self.workspace_id,
-                CashEntryMemberModel.transaction_id.in_(identifiers[offset:offset + 400]))))
+        if not identifiers:
+            return {}, {}
+        if len(identifiers) <= 400 and self.session.autoflush:
+            rows = list(self.session.execute(select(CashEntryMemberModel, CashEntryModel).outerjoin(CashEntryModel, and_(
+                CashEntryModel.workspace_id == self.workspace_id, CashEntryModel.id == CashEntryMemberModel.entry_id)).where(
+                    CashEntryMemberModel.workspace_id == self.workspace_id,
+                    CashEntryMemberModel.transaction_id.in_(identifiers))))
+            members = {member.transaction_id: member for member, _ in rows}
+            if all(entry is not None and member.entry_id == entry.id for member, entry in rows):
+                return members, {entry.id: entry for _, entry in rows}
+        else:
+            members = {}
+            for offset in range(0, len(identifiers), 400):
+                members.update((row.transaction_id, row) for row in self.session.scalars(select(CashEntryMemberModel).where(
+                    CashEntryMemberModel.workspace_id == self.workspace_id,
+                    CashEntryMemberModel.transaction_id.in_(identifiers[offset:offset + 400]))))
         entries = {}
         wanted = list({member.entry_id for member in members.values()})
         for offset in range(0, len(wanted), 400):

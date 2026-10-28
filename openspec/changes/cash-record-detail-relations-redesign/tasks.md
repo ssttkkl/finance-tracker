@@ -45,7 +45,7 @@
 
 - [x] 7.1 功能地图登记 F-04 共享实现及三端待验收范围，页面数不变；词表登记用户可见“关联建议”，内部候选标识保留。
 - [x] 7.2 核对 README、现金流水、接口、UI 规范、词表和功能地图，更新过时行为及接口说明；README 无新增入口，协议集中在现有参考文档。尚未归档，归档前同步 delta。
-- [ ] 7.3 完成适用门禁后记录交付、回滚和观察项；提交、推送、PR 或部署需具体授权。
+- [x] 7.3 记录本开发小步的验证、回滚与观察项，按用户授权提交并推送 `origin/average-snail`；不创建 PR，不部署，完整变更最终验收仍按未完成项推进。
 
 ## 8. 反思
 
@@ -54,22 +54,23 @@
 
 ## 当前审查与验证
 
-2026-10-28（Asia/Shanghai）。分支 `average-snail`，当前 HEAD `4ad7223fdc8a5e93b65217a2c6c91cb876053fec`；已整合 `013f0683058b6b9d455b8b796257280558d94414` 的未提交合并树，以下结果针对该代码树及本变更。Node.js `v26.8.1`、OpenSpec `1.7.0`。用户已授权本地提交并推送当前分支；旧文件名展示修复及旧 React lockfile 保留备份，未纳入本次代码。
+2026-10-28（Asia/Shanghai）。分支 `average-snail`，当前 HEAD `02d5d81fff7b9b7333fd84a3dea89e32d9dcd8c5`；开发小步含已验证的 `013f0683058b6b9d455b8b796257280558d94414` 合并树，本轮另整合远端 `178c7237089a85f6376d83dcf0e7a51844484fd1`，补跑以下受影响验证。Node.js `v26.8.1`、OpenSpec `1.7.0`。用户已授权本地提交并推送当前分支；旧文件名展示修复及旧 React lockfile 保留备份，未纳入本次代码。
 
 本次交付是已验证的开发小步，保留当前实现、失败回归、独立审查和证据；未宣称整个 A 类变更已最终验收，不归档、不部署。未勾选的完整浏览器保存／复杂分支验证继续保留，不能由本次提交推断已完成。
 
 | 检查 | 实际命令及结果 |
 |---|---|
-| 全量非性能回归 | `PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index N --shard-count 8`，N 为 0–7；合计 3605 passed、1351 skipped，所有分片 exit 0，集合指纹均为 `3d15b009dc4b71ba8e109607a268c604d7c22e74c748f766db90a8c3548e6b70`。skip 主要为未配置的全量 PostgreSQL／外部数据夹具，不作通过计数。最后一片移除继承给子进程的 `--basetemp` 后重跑通过；代码未改变。 |
+| 全量非性能回归（02d5d81 代码树） | `PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index N --shard-count 8`，N 为 0–7；合计 3605 passed、1351 skipped，所有分片 exit 0，集合指纹均为 `3d15b009dc4b71ba8e109607a268c604d7c22e74c748f766db90a8c3548e6b70`。skip 主要为未配置的全量 PostgreSQL／外部数据夹具，不作通过计数。最后一片移除继承给子进程的 `--basetemp` 后重跑通过；代码未改变。 |
 | 当前完整关系计划双后端 | 显式设置专用 `FT_TEST_POSTGRES_URL`，运行 `PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cash_current_relation_plan.py -q --tb=short`，60 passed、0 skipped（157.83s），包括混合关系摘要、候选端点及公开过滤。 |
 | 新增搜索／关联及拆分双后端 | 同一专用配置运行 `PYTHONPATH=tests:.:src uv run pytest tests/contract/test_cash_manual_associations.py tests/contract/test_cash_association_split.py -q -x --tb=short`，30 passed、0 skipped（63.61s），包括本地日期边界和明确清空后的预览、提交。 |
 | 共享编译和单测 | 在 `compose/` 运行 `./gradlew :shared:compileKotlinWasmJs :shared:testAndroidHostTest :shared:compileKotlinIosSimulatorArm64 --no-configuration-cache`，成功（51s）；Android host XML 为 414 tests、0 failures、0 errors、0 skipped。 |
 | Web 主流程与反馈 | 在 `compose/qa/web/` 运行 `npm run test:e2e -- compose-cash-detail-redesign.e2e.ts`，7 passed（29.5s），Wasm distribution 通过 freshness gate。 |
+| 178c723 整合后验证 | `PYTHONPATH=tests:.:src uv run pytest tests/test_cash_hotpath_equivalence.py tests/test_value_copy.py tests/contract/test_cash_entry_lookup.py tests/contract/test_cash_import_business_plan.py tests/contract/test_cash_manual_associations.py tests/contract/test_cash_association_split.py tests/contract/test_cash_current_relation_plan.py tests/contract/test_cash_mutation_commit.py tests/contract/test_cash_draft_balances.py tests/contract/test_cash_projection_parity.py -q -x --tb=short`，186 passed、140 skipped（82.19s）。显式设置同一专用 PG 配置后重跑新增搜索、拆分和当前关系计划三文件，90 passed、0 skipped（76.84s）。共享源、资源及构建配置与 02d5d81 完全相同，Web／原生既有结果仍适用，不重复无影响的编译。 |
 | 基础检查 | `uv run python -m compileall -q src`、`openspec validate cash-record-detail-relations-redesign --strict`、`git diff --check` 均通过；项目未配置独立 Python 类型检查器。 |
 
 双后端使用本机专用 PostgreSQL 容器的 `ft_cash_detail_test` 库，显式配置而非测试自动探测／启动；不连接真实账本，不在记录中保存凭据。只读搜索专项在仓库外 SQLite 夹具加入 10000 条合成流水，默认页 20 条、精确搜索 1 条、未找到 0 条，分别 22.77／7.66／6.14 ms，并核对分页标志；没有以这组读性能代替财务写入验证。日志位于仓库外 `/tmp/cash-detail-*.log` 和 `/tmp/cash-detail-shards/`。
 
-独立产品／工程／安全复核覆盖新增参数到真实端点、证明、完整图与同事务写入，以及 UI 与 ViewModel 的状态衔接。发现公共冲突页面 P1，本地日期、清空和首条类型冒充完整组三个 P2；均已修复并重审，无剩余 P1/P2。金额、方向、币种、退款额度、占用仍由既有关系策略和最终图校验，提交再次校验；没有绕过公共规则。公共清空只增加对应空值，未开放任意新公共值；公开关系摘要和端点保持白名单过滤。此前各问题均先有失败契约／单测或具体复现，再修复。
+独立复核另检查 178c723 的 18 个文件及两个自动合并交点：小批读取的工作区边界、待写回退、人工目标加载不受自动候选裁剪影响，拆分字段和混合摘要未被覆盖；未发现新的 P1/P2。独立产品／工程／安全复核覆盖新增参数到真实端点、证明、完整图与同事务写入，以及 UI 与 ViewModel 的状态衔接。发现公共冲突页面 P1，本地日期、清空和首条类型冒充完整组三个 P2；均已修复并重审，无剩余 P1/P2。金额、方向、币种、退款额度、占用仍由既有关系策略和最终图校验，提交再次校验；没有绕过公共规则。公共清空只增加对应空值，未开放任意新公共值；公开关系摘要和端点保持白名单过滤。此前各问题均先有失败契约／单测或具体复现，再修复。
 
 Web 证据为 Playwright Chromium，1440 × 1000、390 × 1000，合成 API fixture：提示仅标题和说明、无按钮；拒绝危险色文字按钮在左，接受／核对描边在最右；0／1／2 个备选和混合关系标题；完整基础信息、备注标签；普通标题直接呈现关联及原文；全部实际成员及身份标签；宽屏表格、紧凑卡片、顶部关系类型分段选择、搜索、预览参数和取消重开。新增冲突分支实际点击验证未选择时不发送预览，清空后仍携原 accept/candidate_id 并到达确认保存。截图在 Git 忽略的 `compose/qa/web/test-results/compose-cash-detail-redesi-*/`，未写入真实财务数据。
 

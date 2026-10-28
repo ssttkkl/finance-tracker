@@ -602,3 +602,42 @@ def test_relation_candidate_members_are_resolved_readonly_from_the_same_plan(dra
         assert member["fields"]["counterparty"] == first.document.rows[0].fields["counterparty"]
         assert member["editable_fields"] == [] and member["allowed_actions"] == []
         assert "fields_ref" not in member
+
+
+@pytest.mark.parametrize('source,expected', [('fixture-other', False), ('icbc_debit', True), ('alipay', True), ('   ', True)])
+def test_negative_consumption_candidates_keep_bank_platform_and_unknown_source(draft_runtime, source, expected):
+    from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
+    from ft.application.cash_import_operations import CashImportOperationPlanner
+    file = _file()
+    with draft_runtime.sessions.begin() as session:
+        _bind_existing(session, draft_runtime, file)
+        parent = session.get(CashTransactionModel, 1003)
+        parent.source_type, parent.record_origin, parent.record_type = source, 'import', 'consumption'
+        session.flush()
+        plan = CashImportOperationPlanner(session, draft_runtime.workspace_id).prepare((file,), account_selections=_selections((file,)), row_choices=[])
+        # Force a new operation to exercise automatic candidates independently of source binding.
+        operation = {**plan.operations[0], 'values': {**plan.operations[0]['values'], 'record_type': 'consumption', 'amount': '-12.5'}}
+        builder = CashImportBusinessPlanBuilder(draft_runtime.workspace_id)
+        assert (1003 in builder._candidate_ids(session, [operation], {})) is expected
+        operation['values']['record_type'], operation['values']['amount'] = 'refund', '12.5'
+        assert 1003 in builder._candidate_ids(session, [operation], {})
+
+
+def test_candidate_pruning_matches_complete_discovery_with_other_source_refund(draft_runtime, monkeypatch):
+    from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder
+    file = _file(provider='new-payment')
+    with draft_runtime.sessions.begin() as session:
+        _bind_existing(session, draft_runtime, _file(provider='old-payment'))
+        parent = session.get(CashTransactionModel, 1003)
+        parent.source_type, parent.record_origin = 'merchant-export', 'import'
+        parent.record_type, parent.record_subtype, parent.amount = 'refund', 'not_applicable', Decimal('12.5')
+        parent.note, parent.counterparty = '原订单退款', '合成商户'
+        session.get(CashTransactionComponentModel, 1003).amount = parent.amount
+        session.flush()
+        pruned = _build(session, draft_runtime, (file,))
+        original = CashImportBusinessPlanBuilder._candidate_ids
+        monkeypatch.setattr(CashImportBusinessPlanBuilder, '_candidate_ids', lambda self, *a: original(self, *a) | {1003})
+        complete = _build(session, draft_runtime, (file,), previous=pruned)
+        for key in ('items', 'item_details', 'summary', 'relation_groups', 'relation_failures', 'type_effects'):
+            assert pruned[key] == complete[key]
+        assert pruned['relation_groups'] == []
