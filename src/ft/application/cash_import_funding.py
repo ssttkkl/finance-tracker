@@ -157,13 +157,16 @@ def _parts(file, row):
 
 
 def scan_cash_funding(files) -> CashFundingScan:
-    groups, rows, refs = OrderedDict(), [], set()
+    from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
+    from ft.application.parsed_import_staging import ParsedImportFile
+    groups, rows, refs, group_keys = OrderedDict(), [], set(), {}
     for file in files:
         if file.file_ref in refs:
             raise CashFundingInputError
         refs.add(file.file_ref)
         if file.status != "parsed" or file.document is None:
             continue
+        parts_cache = {}
         for row in file.document.rows:
             if row.disposition == "skipped" or row.fields is None:
                 continue
@@ -172,13 +175,34 @@ def scan_cash_funding(files) -> CashFundingScan:
                 with cash_diagnostic_scope("row_planning", row_locations((ref,)), scope="row", files=(file,)):
                     if fields.get("currency") is not None and (not isinstance(fields["currency"], str) or not re.fullmatch(r"[A-Z]{3}", fields["currency"])):
                         raise ValueError("funding_currency_invalid")
-                    parts, issues = _parts(file, row)
+                    parameters = None
+                    document = file.document
+                    if (type(file) is ParsedImportFile and type(document) is ParsedCashDocument
+                        and type(row) is ParsedCashRow and type(document.source_type) is str and document.source_type == "alipay"
+                        and type(file.digest) is str and type(document.parser_version) is str
+                        and type(row.fields) is dict and type(row.fields.get("source_payload")) is dict):
+                        raw = (row.source_account_identifier, document.source_account_identifier, file.source_scope_label,
+                            row.payment_method, row.fields.get("amount"), row.fields["source_payload"].get("商品说明", ""))
+                        if all(value is None or type(value) is str for value in raw):
+                            parameters = raw
+                    if parameters is not None and parameters in parts_cache:
+                        parts, issues = parts_cache[parameters]
+                    else:
+                        parts, issues = _parts(file, row)
+                        if parameters is not None and len(parts_cache) < 128:
+                            parts_cache[parameters] = parts, issues
                     values = []
                     for kind, origin, key, label, amount in parts:
                         if kind == "unresolved":
                             values.append(_FundingPart(None, amount))
                             continue
-                        group_ref = _digest("funding-group-v1", file.document.source_type, kind, origin, key)
+                        identity = (file.document.source_type, kind, origin, key)
+                        if all(type(value) is str for value in identity):
+                            if identity not in group_keys:
+                                group_keys[identity] = _digest("funding-group-v1", *identity)
+                            group_ref = group_keys[identity]
+                        else:
+                            group_ref = _digest("funding-group-v1", *identity)
                         if group_ref not in groups:
                             groups[group_ref] = {"source_account_ref": group_ref, "source_type": file.document.source_type,
                                 "identity_kind": kind, "origin_key": origin, "identity_key": key,

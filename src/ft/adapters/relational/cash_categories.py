@@ -18,6 +18,8 @@ def _set_category(session, workspace_id, conditions, category_id, *, return_rows
         protected = func.jsonb_set(document, array(["category_id"], type_=Text),
             category.op("||")(func.jsonb_build_object(literal("value"), cast(literal(category_id), String))), True)
         protection_changed = existing["value"].is_distinct_from(cast(literal(json.dumps(category_id)), JSONB))
+        protected = case((cast(overrides, Text) == "{}",
+            cast(literal(json.dumps({"category_id": {"value": category_id}}, separators=(",", ":"))), JSONB)), else_=protected)
         protected = cast(protected, JSON)
     else:
         category = case((func.json_type(overrides, "$.category_id") == "object",
@@ -54,7 +56,8 @@ def clear_manual_category(session, workspace_id, category_id, *, return_rows=Tru
 def _category_protection(session, column):
     if session.bind.dialect.name == "postgresql":
         document = cast(column, JSONB)
-        return cast(case((document.contains(["category_id"]), document),
+        return cast(case((cast(column, Text) == "[]", cast(literal('["category_id"]'), JSONB)),
+            (document.contains(["category_id"]), document),
             else_=document.op("||")(cast(literal('["category_id"]'), JSONB))), JSON)
     items = func.json_each(column).table_valued("value")
     present = select(items.c.value).where(items.c.value == "category_id").exists()

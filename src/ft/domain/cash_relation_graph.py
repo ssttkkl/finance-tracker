@@ -154,6 +154,14 @@ def _build(facts, components, relations, funding):
     parents, by_component = _components(facts, components)
     if not funding <= by_component.keys():
         raise CashRelationError("relation_endpoint_incomplete")
+    if (not relations and all(type(fact) is CashProjectionFact for fact in facts)
+        and all(type(part) is RelationEndpoint and type(part.amount) is Decimal
+            and type(part.component_id) is str and type(part.transaction_id) is str for part in components)
+        and all(type(identifier) is str for identifier in funding)):
+        try:
+            return build_cash_projections(facts, ())
+        except CashProjectionError:
+            raise CashRelationError("relation_graph_invalid") from None
     funding.update(part.component_id for part in components if parents[part.transaction_id].funding_relation_id is not None)
     component_mirrors, parent_mirrors = _Equivalence(by_component), _Equivalence(parents)
     prepared, identifiers, business_keys, transfer_occupied = [], set(), set(), set()

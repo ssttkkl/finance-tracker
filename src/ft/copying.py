@@ -34,7 +34,8 @@ def _copy_value(value, memo, originals):
     memo[identifier] = result
     if kind is dict:
         for key, item in value.items():
-            result[_copy_value(key, memo, originals)] = _copy_value(item, memo, originals)
+            result[key if type(key) in _SCALARS else _copy_value(key, memo, originals)] = (
+                item if type(item) in _SCALARS else _copy_value(item, memo, originals))
     else:
-        result.extend(_copy_value(item, memo, originals) for item in value)
+        result.extend(item if type(item) in _SCALARS else _copy_value(item, memo, originals) for item in value)
     return result
