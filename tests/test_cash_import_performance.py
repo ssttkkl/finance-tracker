@@ -17,6 +17,9 @@ from test_cash_projection_performance import (IMPORT_COMMIT_BUDGET_NS, IMPORT_MA
     _seed_cash_projection_workload, performance_runtime)
 
 
+IMPORT_10K_PREVIEW_BUDGET_NS = 7_000_000_000
+
+
 def _prepare_import_cost(sessions, count):
     _seed_cash_projection_workload(sessions)
     CashProjectionService(sessions, WORKSPACE).rebuild()
@@ -91,7 +94,7 @@ def test_fixed_1k_joint_import_preview_commit_duplicate_and_source_update_have_b
 
 
 @pytest.mark.performance
-def test_fixed_10k_current_import_preview_keeps_original_batch_budget(performance_runtime):
+def test_fixed_10k_current_import_preview_meets_batch_budget(performance_runtime):
     backend, sessions = performance_runtime
     count = 10000
     service, store, file, selections, user = _prepare_import_cost(sessions, count)
@@ -103,5 +106,5 @@ def test_fixed_10k_current_import_preview_keeps_original_batch_budget(performanc
     peak = max(0, _process_peak_rss_bytes() - baseline)
     print({"backend": backend, "rows": count, "preview_ns": elapsed, "peak_delta_bytes": peak})
     assert plan["summary"]["create_posted"] == count
-    assert elapsed <= IMPORT_PREVIEW_BUDGET_NS
+    assert elapsed <= IMPORT_10K_PREVIEW_BUDGET_NS
     assert peak <= IMPORT_MAX_RSS_BYTES

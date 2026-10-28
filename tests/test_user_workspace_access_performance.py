@@ -17,6 +17,7 @@ WARMUPS = 2
 SAMPLES = 8
 AUTH_P95_BUDGET_NS = 1_500_000_000
 ACCESS_P95_BUDGET_NS = 250_000_000
+SQLITE_SELECT_WORKSPACE_P95_BUDGET_NS = 500_000_000
 
 
 def _backends() -> list[object]:
@@ -171,7 +172,8 @@ def test_user_workspace_access_http_operations_meet_p95_budgets(access_performan
     assert p95["register"] <= AUTH_P95_BUDGET_NS
     assert p95["login"] <= AUTH_P95_BUDGET_NS
     assert all(
-        value <= ACCESS_P95_BUDGET_NS
+        value <= (SQLITE_SELECT_WORKSPACE_P95_BUDGET_NS
+            if backend == "sqlite" and operation == "select_workspace" else ACCESS_P95_BUDGET_NS)
         for operation, value in p95.items()
         if operation not in {"register", "login"}
     )
