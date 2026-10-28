@@ -150,7 +150,105 @@ def _valid_files(files):
             raise ParsedImportDataError("import_session_file_invalid") from None
 
 
+class _JsonBudgetFallback(Exception):
+    pass
+
+
 def _json_budget(value, budget, *, depth=0):
+    if type(depth) is not int or type(budget) is not list or not budget or type(budget[0]) is not int:
+        return _json_budget_general(value, budget, depth=depth)
+    remaining = budget[0]
+    fallback = False
+
+    def walk(value, depth):
+        nonlocal remaining
+        if depth > 64:
+            raise ParsedImportDataError("import_session_json_invalid")
+        if value is budget:
+            raise _JsonBudgetFallback
+        if type(value) is dict:
+            remaining -= 2 + 2 * len(value)
+            for key, item in value.items():
+                if type(key) is not str:
+                    raise _JsonBudgetFallback
+                try:
+                    remaining -= len(key) if key.isascii() else len(key.encode("utf-8"))
+                except UnicodeError:
+                    raise ParsedImportDataError("import_session_json_invalid") from None
+                if remaining < 0:
+                    raise ParsedImportDataError("import_session_draft_too_large")
+                if depth == 64:
+                    raise ParsedImportDataError("import_session_json_invalid")
+                if type(item) is str:
+                    try:
+                        remaining -= len(item) if item.isascii() else len(item.encode("utf-8"))
+                    except UnicodeError:
+                        raise ParsedImportDataError("import_session_json_invalid") from None
+                elif item is None:
+                    remaining -= 4
+                elif type(item) is bool:
+                    remaining -= 4 if item else 5
+                elif type(item) is int:
+                    remaining -= len(str(item))
+                elif type(item) in (dict, list, tuple) and not item:
+                    remaining -= 2
+                else:
+                    walk(item, depth + 1)
+                if remaining < 0:
+                    raise ParsedImportDataError("import_session_draft_too_large")
+        elif type(value) in (list, tuple):
+            remaining -= 2 + len(value)
+            for item in value:
+                if depth == 64:
+                    raise ParsedImportDataError("import_session_json_invalid")
+                if type(item) is str:
+                    try:
+                        remaining -= len(item) if item.isascii() else len(item.encode("utf-8"))
+                    except UnicodeError:
+                        raise ParsedImportDataError("import_session_json_invalid") from None
+                elif item is None:
+                    remaining -= 4
+                elif type(item) is bool:
+                    remaining -= 4 if item else 5
+                elif type(item) is int:
+                    remaining -= len(str(item))
+                elif type(item) in (dict, list, tuple) and not item:
+                    remaining -= 2
+                else:
+                    walk(item, depth + 1)
+                if remaining < 0:
+                    raise ParsedImportDataError("import_session_draft_too_large")
+        elif type(value) is str:
+            try:
+                remaining -= len(value) if value.isascii() else len(value.encode("utf-8"))
+            except UnicodeError:
+                raise ParsedImportDataError("import_session_json_invalid") from None
+        elif value is None:
+            remaining -= 4
+        elif type(value) is bool:
+            remaining -= 4 if value else 5
+        elif type(value) is int:
+            remaining -= len(str(value))
+        elif type(value) is float:
+            if not math.isfinite(value):
+                raise ParsedImportDataError("import_session_json_invalid")
+            remaining -= len(str(value))
+        else:
+            raise _JsonBudgetFallback
+        if remaining < 0:
+            raise ParsedImportDataError("import_session_draft_too_large")
+
+    try:
+        walk(value, depth)
+    except _JsonBudgetFallback:
+        fallback = True
+        return _json_budget_general(value, budget, depth=depth)
+    finally:
+        if not fallback:
+            budget[0] = remaining
+
+
+def _json_budget_general(value, budget, *, depth=0):
     if depth > 64:
         raise ParsedImportDataError("import_session_json_invalid")
     if isinstance(value, dict):
@@ -176,7 +274,7 @@ def _json_budget(value, budget, *, depth=0):
             elif type(item) in (dict, list, tuple) and not item:
                 budget[0] -= 2
             else:
-                _json_budget(item, budget, depth=depth + 1)
+                _json_budget_general(item, budget, depth=depth + 1)
             if budget[0] < 0:
                 raise ParsedImportDataError("import_session_draft_too_large")
     elif isinstance(value, (list, tuple)):
@@ -194,7 +292,7 @@ def _json_budget(value, budget, *, depth=0):
             elif type(item) in (dict, list, tuple) and not item:
                 budget[0] -= 2
             else:
-                _json_budget(item, budget, depth=depth + 1)
+                _json_budget_general(item, budget, depth=depth + 1)
             if budget[0] < 0:
                 raise ParsedImportDataError("import_session_draft_too_large")
     elif isinstance(value, str):
@@ -212,7 +310,7 @@ def _json_budget(value, budget, *, depth=0):
         budget[0] -= len(value.isoformat())
     elif type(value) in (ParsedImportSession, ParsedImportFile, ParsedCashDocument, ParsedCashRow, SourceCoverage):
         for field in fields(value):
-            _json_budget(getattr(value, field.name), budget, depth=depth + 1)
+            _json_budget_general(getattr(value, field.name), budget, depth=depth + 1)
     else:
         raise ParsedImportDataError("import_session_json_invalid")
     if budget[0] < 0:

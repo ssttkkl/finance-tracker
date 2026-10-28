@@ -381,3 +381,13 @@ def test_parent_only_draft_can_be_deferred_or_cleared_without_guessing_parts(con
     assert selected["items"][0]["anticipated_state"] == "draft"
     assert selected["items"][0]["display"]["amount"] is None
     assert _records(runtime).read("1101")["state"] == "draft"
+
+
+def test_relation_preview_does_not_read_unused_top_level_entry(context_runtime, monkeypatch):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    service, _ = _start(context_runtime)
+    revision = _records(context_runtime).read('1101')['row_revision']
+    monkeypatch.setattr(CashEntryRepository, 'current', lambda *args: pytest.fail('unused entry read'))
+    view = service.preview({'intent': 'maintain_relations', 'transaction_id': '1101',
+        'expected_revision': revision, 'patch': {}})
+    assert view['items']

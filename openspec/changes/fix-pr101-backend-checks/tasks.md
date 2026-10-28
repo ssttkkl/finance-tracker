@@ -21,11 +21,11 @@
 
 - [x] 5.1 完成独立产品／工程／安全和最终 diff 复核；阻断 finding 已修复并重审，当前无未处理阻断项。
 
-审查覆盖产品范围、财务和权限、复制／JSON 协议、可靠来源身份、完整候选和图、ORM 会话与查询批次、分类保护及当前 diff。独立只读上下文完成最终复核，无未处理阻断。P2：可靠编号快路径遗漏文件级证据边界；改为仅精确非分页证据通过，未知或分页证据回完整算法，以 `SourceDocumentEvidence` 携带无效 coverage 的失败反例验证。原通用退款匹配不限制来源；全负消费裁剪依赖显式退款种子条件，以相同账户、明确其他来源的正退款和强文本信号做完整候选的最终计划差分。金额、时间、币种自定义转换和容器／字符串子类保留原路径。小批对象读取覆盖会话身份、待写／过期成员、缺对象／跨工作区及 400／401 批次；单笔投影按正负零、资金关联、待确认状态与通用算法逐字段比较。最终复核未发现 UI、预算、财务规则或权限扩大。
+审查覆盖产品范围、财务和权限、复制／JSON 协议、可靠来源身份、完整候选和图、ORM 会话与查询批次、分类保护及当前 diff。独立只读上下文最终复核无未处理阻断。可靠来源快路径限定精确非分页证据；未知或分页证据回完整算法。负消费候选裁剪以完整候选最终计划差分约束，退款种子仍执行原通用匹配。小批对象读取保留待写／旧成员、缺对象、跨工作区、禁用 autoflush 和批界合同。JSON 预算与原算法比较错误、剩余预算和协议回调，未知深度类型直接回原算法。组成项／资金外连接覆盖同父多个组成项、有效／历史资金、无资金组成项及 501 父批界。投影写后保留完整对象版本与损坏成员检查。未改变 UI、预算、财务规则或权限。
 
 ## 6. 测试与 QA
 
-- [x] 6.1 SQLite 开发回归后，人工准备 PostgreSQL 16 专用 `_test` 库，完成同服务完整常规回归及全部原性能矩阵。
+- [ ] 6.1 SQLite 开发回归后，人工准备 PostgreSQL 16 专用 `_test` 库，完成同服务完整常规回归及全部原性能矩阵。
 - [x] 6.2 完成 Python 编译、安装包构建、工作流 YAML、OpenSpec strict／doctor、文档与 diff 检查。
 
 Cross-platform Impact Check：Web、Native 及共享 presentation 没有页面、文案、交互或契约变化。浏览器、Hallmark、Native 编译和设备 QA 不适用；不据此宣称 UI 验收。项目未配置独立 Python 类型检查命令，执行源码编译、完整回归和安装包构建。
@@ -44,20 +44,20 @@ README 增补现行分片和复现命令，项目 apply skill 同步后端验证
 
 ## 当前证据
 
-执行日期：2026-10-28。验证基线与当前 HEAD 为 `013f0683058b6b9d455b8b796257280558d94414` 加本轮修复。源码／测试内容清单为仓库外 `validated-source.json`，清单摘要 `8a34fa692c63531b22240f3edf334b76f164c9505c40c579324bace3b011c7f1`。机器重启清理了原 `/tmp` 工作树、未提交修改及本机日志，旧结果不作为当前源码证据。恢复位置为 `/Users/huangwenlong/.paseo/worktrees/1zalea72/pr101-check-fixes`，证据根目录 `/Users/huangwenlong/.cache/ft-pr101`；原工作树用户改动保持原位。用户授权本仓库 `average-snail` 分支的提交和推送，不含合并或部署。
+执行日期：2026-10-28。当前验证基线及 HEAD 为 `c8032531124024108b7687179aaa5c5c5b904b98` 加本轮修复，包含合并后的详情关联实现。隔离工作树 `/Users/huangwenlong/.paseo/worktrees/1zalea72/pr101-check-fixes`，证据根目录 `/Users/huangwenlong/.cache/ft-pr101`；原工作树的用户改动保持原位。用户授权同仓库 `average-snail` 分支的提交和推送，不含合并或部署。
 
-Python 使用 `/Users/huangwenlong/.paseo/worktrees/1zalea72/average-snail/.venv/bin/python`，`PYTHONPATH=tests:.:src`、`PYTHONDONTWRITEBYTECODE=1`，pytest 缓存和构建产物位于上述仓库外目录。人工准备 PostgreSQL 16.14，端口 55481、用户 `ft_pr101_test`，显式设置 `FT_REQUIRE_TEST_POSTGRES=1` 和 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_pr101_test@127.0.0.1:55481/<专用_test库>`；测试不启动或探测数据库。
+Python 使用 `/Users/huangwenlong/.paseo/worktrees/1zalea72/average-snail/.venv/bin/python`，设置 `PYTHONPATH=tests:.:src`、`PYTHONDONTWRITEBYTECODE=1`，缓存与构建产物在仓库外。人工准备 PostgreSQL 16.14，端口 55481、用户 `ft_pr101_test`，显式设置 `FT_REQUIRE_TEST_POSTGRES=1` 和 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_pr101_test@127.0.0.1:55481/<专用_test库>`；测试不启动或探测数据库。
 
 | 范围 | 实际命令与当前结果 |
 | --- | --- |
-| 失败回归 | `python -m pytest -q tests/test_cash_hotpath_equivalence.py` 的投影、空图、可靠编号与资金解析成本约束先失败；小批对象读取与候选裁剪、文件证据和已知非分页证据另有先失败反例。`red.log`、`lookup-red.log`、`candidate-red.log`、`file-evidence-red.log`、`known-evidence-red.log`。未知证据及 ORM 夹具修正后以完整回归为准，不把夹具缺陷计为业务失败 |
-| 双后端相关边界 | 相同服务在 SQLite／真实 PostgreSQL 的对象、导入业务、关系上下文、导入操作及分类回归 243 passed；独立审查追加边界 17 passed；纯领域和来源快路径 91 passed。存在用例交叠，不相加作覆盖数。`dual-affected.log`、`review-boundaries.log`、`provider-final-green.log`；后续完整回归覆盖最终源码 |
-| 完整常规回归 | `python scripts/run_backend_tests.py --shard-index <0..7> --shard-count 8`，4 个执行进程分别使用独立 `ft_pr101_shard<N>_test`；8 片全部退出 0，**4987 passed、2 skipped，另 5 subtests passed**，共 4989 个主节点。同一收集指纹 `ab251be9aab81cf1ff3f0f8ae3c20b9a746482ce185bd6a9be202ed5ee48babd`。两个 skip 分别需要真实 PDF、`FT_TEST_SQLITE_SOURCE` 真实数据库副本，不计通过；本任务使用合成数据，不读取真实财务数据。结果 `regression-results.json`、`regression-<N>.xml`、`regression-<N>.log` |
-| 针对性性能 | 原导入、当前关系、HTTP 维护及分类性能 28 passed，130.68 s；SQLite／PostgreSQL 万行预览 3.028／3.083 s，PostgreSQL 关系选择提交 P95 54.6 ms。计时中本任务没有并行运行其他测试或构建；随后仅收紧和完善来源快路径证据判断，最终性能以完整矩阵为准。`target-performance.log` |
-| 完整原性能矩阵 | `python -m pytest -q -s -m performance --tb=short`，专库 `ft_pr101_test`；65 passed、4 failed、无 skip，841.19 s。SQLite 重建 10.318 s／10 s、PostgreSQL 旧关系维护及草稿保存、SQLite 投资查询超限；主机可见其他构建及多组 Python 测试并行负载。本任务未改投资查询，不能据此直接归因为负载或把失败计通过。同源码／预算单独复测全部 4 passed，161.99 s；SQLite 重建 P95 6.076 s，PostgreSQL 草稿保存并读取 P95 61.4 ms。完整 69 个原性能场景均有通过证据，不宣称单次完整矩阵全绿；未调整任何预算、工作量或校验。`full-performance.log`、`performance-recheck.log` |
-| 构建／编译 | `uv build --offline --out-dir <证据根>/dist`，wheel 中全部 11 个本轮受影响运行模块与工作树逐字节一致；`PYTHONPYCACHEPREFIX=<证据根>/pycache python -m compileall -q src migrations scripts/run_backend_tests.py` 通过。`build.log`。本轮没有 schema／迁移变更；完整回归仍覆盖原分类索引迁移合同 |
-| 规格／文档／diff | `openspec validate --all --strict` 36 passed、`openspec doctor` 正常、`git diff --check` 通过。README、docs、references、接口／命令、功能地图与词表已核对：没有新增页面、客户端能力、用户术语或公共协议，无需改变当前业务说明；项目 apply skill 同步内部优化边界。`openspec.log`、`doctor.log` |
+| 失败回归 | JSON 预算普通容器的重复递归成本先失败，原算法差分保持 603 个语义用例；自定义深度回调先以 2 次／原 1 次失败，再补精确深度类型保护。组成项／资金及重复父读取成本先失败。`budget-red.log`、`budget-depth-red.log`、`relation-query-red.log`；夹具错误不计业务失败 |
+| JSON 预算 | `python -m pytest -q tests/test_json_budget_equivalence.py tests/test_parsed_import_staging.py`，770 passed；`budget-green.log` |
+| 双后端关系边界 | `python -m pytest -q tests/contract/test_cash_relation_context.py tests/contract/test_cash_current_relation_plan.py tests/contract/test_cash_projection_graph_reads.py tests/contract/test_cash_projection_parity.py tests/contract/test_cash_current_relation_commit.py`，SQLite／真实 PostgreSQL 219 passed、150.75 s；`relation-final-green.log` |
+| 完整常规回归 | `python scripts/run_backend_tests.py --shard-index <0..7> --shard-count 8`，4 个进程各用独立 `ft_pr101_shard<N>_test`；正在运行，不能计通过。`current-regression-summary.log`、`current-regression-<N>.log`／XML |
+| 原性能矩阵 | 当前最终源码尚待隔离运行完整 69 个原性能场景，不能沿用旧 HEAD 结果计通过；`python -m pytest -q -s -m performance --tb=short` |
+| 构建／编译 | `uv build --offline --out-dir <证据根>/current-dist` 和 `PYTHONPYCACHEPREFIX=<证据根>/pycache python -m compileall -q src migrations scripts/run_backend_tests.py` 通过；`current-build.log`。本轮不新增 schema／迁移 |
+| 规格／文档／diff | `openspec validate --all --strict` 37 passed、`openspec doctor` 正常、`git diff --check` 通过；`current-openspec.log`、`current-doctor.log`。README、docs、references、接口／命令、配置／迁移、功能地图与词表已核对；没有新增页面、客户端能力、用户术语或公共协议，现行说明不需改变。项目 apply skill 同步优化边界 |
 
 ## 当前远端状态
 
-`013f068` 的 20 个常规及 Compose 检查成功，性能任务 `122608030082` 为 63 passed／6 failed：PostgreSQL 分类删除 513.8 ms／500 ms、关系选择提交 P95 153.7 ms／100 ms、千行来源更新 15.85 s／15 s、SQLite／PostgreSQL 万行预览 8.20／8.32 s／5 s、PostgreSQL HTTP 维护 P95 103.3 ms／100 ms。远端通过前保留 active change，相关待办不标完成。
+当前 PR HEAD `c8032531124024108b7687179aaa5c5c5b904b98` 的 20 项常规及 Compose 检查成功，性能任务 `122663957369` 为 66 passed／3 failed：PostgreSQL 关系选择提交 P95 157.2 ms／100 ms、SQLite／PostgreSQL 万行预览 6.348／6.471 s／5 s。原检查被后续推送取消不计代码失败。新修复尚未推送，远端通过前保留 active change，相关待办不标完成。本地计时和旧 HEAD 完整回归不替代当前 GitHub checks。

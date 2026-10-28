@@ -265,8 +265,8 @@ class CurrentCashRelationRepository:
             or result["anchor_component_id"] is not None and result["anchor_component_id"] not in {result["primary_component_id"], result["secondary_component_id"]}):
             raise CashRelationError("relation_endpoint_incompatible")
         if result["active"] and result["state"] != "ignored":
-            from ft.adapters.relational.cash_relation_origin import assert_relation_origin
-            assert_relation_origin(self._session, self._workspace_id, parents, kind=result["kind"])
+            from ft.adapters.relational.cash_relation_origin import _assert_loaded_relation_origin
+            _assert_loaded_relation_origin(parents.values(), kind=result["kind"])
         if result["state"] == "confirmed" and result["active"]:
             endpoints = []
             for role in ("primary", "secondary"):
