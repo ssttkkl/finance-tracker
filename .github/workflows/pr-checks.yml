@@ -16,6 +16,53 @@ env:
   PYTHON_VERSION: "3.11"
 
 jobs:
+  backend-profile:
+    name: Backend profiling (temporary)
+    if: github.event.pull_request.number == 101
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: finance_tracker_profile_test
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d finance_tracker_profile_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          --tmpfs /var/lib/postgresql/data:rw,size=2g
+    env:
+      FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_profile_test
+      FT_REQUIRE_TEST_POSTGRES: "1"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+      - name: Prepare matching temporary disk
+        run: |
+          profile_tmp="$RUNNER_TEMP/pr101-profile-tmp"
+          mkdir -p "$profile_tmp"
+          sudo mount -t tmpfs -o size=2g,mode=1777 tmpfs "$profile_tmp"
+      - name: Profile synthetic failures without replacing the performance gate
+        env:
+          TMPDIR: ${{ runner.temp }}/pr101-profile-tmp
+        run: PYTHONPATH=tests:.:src uv run python scripts/profile_pr101_backend.py "$RUNNER_TEMP/pr101-profile"
+      - name: Unmount diagnostic temporary disk
+        if: always()
+        run: |
+          profile_tmp="$RUNNER_TEMP/pr101-profile-tmp"
+          if mountpoint -q "$profile_tmp"; then
+            sudo umount "$profile_tmp"
+          fi
+
   compose:
     name: Compose client
     runs-on: macos-26
