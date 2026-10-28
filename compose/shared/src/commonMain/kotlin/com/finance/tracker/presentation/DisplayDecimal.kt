@@ -100,7 +100,7 @@ private fun parseDisplayDecimal(value: String): DisplayDecimalParts? {
     val digits = rawDigits.trimStart('0').ifEmpty { "0" }
     var scale = fraction.length
     var normalizedDigits = digits
-    while (scale > 0 && normalizedDigits.endsWith('0')) {
+    while (scale > 0 && normalizedDigits.length > 1 && normalizedDigits.endsWith('0')) {
         normalizedDigits = normalizedDigits.dropLast(1)
         scale--
     }

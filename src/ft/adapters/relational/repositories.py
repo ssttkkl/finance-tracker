@@ -4,7 +4,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import date, datetime, time, timedelta, timezone
 from uuid import uuid4
-from decimal import Decimal
+from decimal import Decimal, localcontext
 import re
 import hashlib
 import json
@@ -19,6 +19,7 @@ from .models import (
     AccountAliasModel,
     AccountModel,
     CashInvestmentFundingRelationModel,
+    CashRelationCandidateModel,
     CashTransactionModel,
     CashTransactionComponentModel,
     InvestmentEventModel,
@@ -30,10 +31,7 @@ from .models import (
 )
 from ft.domain.relations import (
     OPEN_LEG_CANDIDATE_TOP_K,
-    OPEN_LEG_ORDERED_B_SENTINEL,
     RelationStatus,
-    is_open_leg_relation,
-    ordered_fact_pair,
 )
 
 
@@ -76,8 +74,8 @@ def _parse_timestamp(value) -> datetime:
     return parsed.astimezone(timezone.utc)
 
 
-def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+def _format_timestamp(value: datetime | None) -> str | None:
+    return value.astimezone(timezone.utc).isoformat() if value is not None else None
 
 
 def _validate_currency(value: str) -> str:
@@ -329,11 +327,13 @@ class RelationalCashflowRepository:
         # API callers and hand-written records.
         if parent_amount < 0 and supplied_magnitudes and all(item["amount"] >= 0 for item in specs):
             for item in specs:
-                item["amount"] = -item["amount"]
+                item["amount"] = item["amount"].copy_negate()
         if parent_amount >= 0 and any(item["amount"] < 0 for item in specs):
             raise ValueError("组成项金额方向必须与父流水一致")
-        if sum((item["amount"] for item in specs), Decimal("0")) != parent_amount:
-            raise ValueError("组成项金额之和必须等于父流水金额")
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            if sum((item["amount"] for item in specs), Decimal("0")) != parent_amount:
+                raise ValueError("组成项金额之和必须等于父流水金额")
         return specs
 
     def _sync_components(
@@ -383,15 +383,17 @@ class RelationalCashflowRepository:
                     TransactionRelationModel.primary_component_id.in_(component_ids),
                     TransactionRelationModel.secondary_component_id.in_(component_ids),
                     TransactionRelationModel.anchor_component_id.in_(component_ids),
-                    TransactionRelationModel.ordered_component_a.in_(component_ids),
-                    TransactionRelationModel.ordered_component_b.in_(component_ids),
                 ),
+            ).limit(1))
+            candidate_exists = self._session.scalar(select(CashRelationCandidateModel.id).where(
+                CashRelationCandidateModel.workspace_id == self._workspace_id,
+                CashRelationCandidateModel.candidate_component_id.in_(component_ids),
             ).limit(1))
             funding_exists = self._session.scalar(select(CashInvestmentFundingRelationModel.id).where(
                 CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
                 CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(component_ids),
             ).limit(1))
-            if relation_exists is not None or funding_exists is not None:
+            if relation_exists is not None or funding_exists is not None or candidate_exists is not None:
                 raise ValueError("cash_transaction_components_in_use")
         # Relations are component-owned. Callers that edit a related parent
         # must unlink/rebuild the relation first; RESTRICT then protects us
@@ -690,6 +692,8 @@ class RelationalCashflowRepository:
             workspace_id=self._workspace_id,
             account_id=account.id,
             cash_granularity="atomic",
+            record_origin=row.get("record_origin", "import"),
+            manual_transfer_id=row.get("manual_transfer_id"),
             source_type=(source_type or None),
             record_id=record_id,
             source_payload=payload,
@@ -800,6 +804,8 @@ class RelationalCashflowRepository:
                 normalized_value = exact_decimal(value)
             elif field == "counterparty_account_attrs":
                 normalized_value = list(value or [])
+            elif field == "category_id":
+                normalized_value = str(value).strip() or None if value is not None else None
             elif field in {
                 "currency", "counterparty", "counterparty_account", "note",
                 "category_id", "record_type", "record_subtype",
@@ -810,14 +816,20 @@ class RelationalCashflowRepository:
             previous_value = getattr(row, field)
             if (
                 manual
-                and row.source_type
+                and row.source_type and field not in {"note", "category_id"}
                 and field not in source_values
                 and field not in overrides
                 and _json_safe(normalized_value) == _json_safe(previous_value)
             ):
                 continue
             setattr(row, field, normalized_value)
-            if manual and row.source_type:
+            if manual and field in {"note", "category_id"}:
+                protected = dict(overrides.get(field) or {})
+                protected["value"] = _json_safe(normalized_value)
+                if field in source_values:
+                    protected["source_value"] = _json_safe(source_values[field])
+                overrides[field] = protected
+            elif manual and row.source_type:
                 source_value = source_values.get(field, overrides.get(field, {}).get("source_value"))
                 if source_value is not None and _json_safe(normalized_value) == _json_safe(source_value):
                     overrides.pop(field, None)
@@ -944,9 +956,9 @@ class RelationalCashflowRepository:
             field: row[field]
             for field in (
                 "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
-                "counterparty_account_attrs", "note", "record_type", "record_subtype",
+                "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
             )
-            if field in row and row[field] is not None
+            if field in row and (row[field] is not None or field == "category_id")
         }
         overrides = _json_safe(existing.manual_overrides or {})
         values = dict(row)
@@ -998,10 +1010,10 @@ class RelationalCashflowRepository:
         ]
         if not accepted_relation_rows:
             return
-        facts, relations = RelationalCashProjectionRepository(
-            self._session, self._workspace_id,
-        ).read_sources()
         try:
+            facts, relations = RelationalCashProjectionRepository(
+                self._session, self._workspace_id,
+            ).read_sources()
             build_cash_projections(facts, relations)
         except CashProjectionError as exc:
             related_ids = {
@@ -1119,16 +1131,15 @@ class RelationalCashflowRepository:
             component_account = self._session.scalar(select(AccountModel).where(
                 AccountModel.workspace_id == self._workspace_id,
                 AccountModel.id == component.account_id,
-            ))
-            if component_account is None:
-                continue
-            component_accounts.append(component_account)
+            )) if component.account_id is not None else None
+            if component_account is not None:
+                component_accounts.append(component_account)
             component_rows.append({
                 "id": component.id,
                 "cash_transaction_id": component.cash_transaction_id,
                 "account_id": component.account_id,
-                "account_name": component_account.name,
-                "account_type": component_account.type,
+                "account_name": component_account.name if component_account is not None else None,
+                "account_type": component_account.type if component_account is not None else None,
                 "amount": component.amount,
                 "currency": component.currency,
                 "ordinal": component.ordinal,
@@ -1136,9 +1147,15 @@ class RelationalCashflowRepository:
                 "source_key": component.source_key,
                 "metadata": _json_safe(component.metadata_json or {}),
             })
-        effective_account = account if account is not None else (component_accounts[0] if len(component_accounts) == 1 else None)
+        effective_account = account
+        if effective_account is None and row.state != "draft" and len(component_accounts) == 1:
+            effective_account = component_accounts[0]
         return {
             "id": row.id,
+            "state": row.state,
+            "record_origin": row.record_origin,
+            "manual_transfer_id": row.manual_transfer_id,
+            "row_revision": row.row_revision,
             "record_id": row.record_id,
             "source_type": row.source_type or "",
             "source_payload": row.source_payload,
@@ -1157,9 +1174,9 @@ class RelationalCashflowRepository:
             "category_id": row.category_id,
             "record_type": row.record_type,
             "record_subtype": row.record_subtype,
-            "account_name": effective_account.name if effective_account is not None else "",
-            "account_id": effective_account.id if effective_account is not None else None,
-            "account_type": effective_account.type if effective_account is not None else "",
+            "account_name": effective_account.name if effective_account is not None else (None if row.state == "draft" else ""),
+            "account_id": row.account_id,
+            "account_type": effective_account.type if effective_account is not None else (None if row.state == "draft" else ""),
             "cash_granularity": row.cash_granularity,
             "components": component_rows,
             "deleted_at": row.deleted_at,
@@ -1404,7 +1421,9 @@ class RelationalSnapshotRepository:
         if not isinstance(bucket, dict):
             raise ValueError("snapshot account balance must be a currency mapping")
         current = exact_decimal(bucket.get(currency, 0))
-        bucket[currency] = format(exact_decimal(current + exact_decimal(delta)), "f")
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            bucket[currency] = format(exact_decimal(current + exact_decimal(delta)), "f")
 
 
 
@@ -1486,10 +1505,17 @@ class RelationalRelationRepository:
             raise ValueError("关系端点不能为空")
         return self._resolve_component(fact_id)
 
-    def _to_dict(self, row: TransactionRelationModel) -> dict:
-        primary_parent = self._component_parent(row.primary_component_id)
-        secondary_parent = self._component_parent(row.secondary_component_id)
-        anchor_parent = self._component_parent(row.anchor_component_id)
+    @staticmethod
+    def _status(row):
+        return {"draft": "pending_review", "confirmed": "accepted", "ignored": "rejected"}[row.state] if row.active else "superseded"
+
+    def _to_dict(self, row: TransactionRelationModel, *, candidates=None) -> dict:
+        if candidates is None:
+            candidates = self._session.scalars(select(CashRelationCandidateModel.candidate_component_id).where(
+                CashRelationCandidateModel.workspace_id == self._workspace_id,
+                CashRelationCandidateModel.relation_id == row.id,
+                CashRelationCandidateModel.candidate_component_id.is_not(None),
+            ).order_by(CashRelationCandidateModel.candidate_component_id)).all()
         return {
             "id": row.id,
             "workspace_id": row.workspace_id,
@@ -1499,41 +1525,97 @@ class RelationalRelationRepository:
             # IDs are carried separately for browser navigation and audit.
             "primary_fact_id": row.primary_component_id,
             "secondary_fact_id": row.secondary_component_id,
-            "primary_record_id": primary_parent,
-            "secondary_record_id": secondary_parent,
+            "primary_record_id": row.primary_transaction_id,
+            "secondary_record_id": row.secondary_transaction_id,
             "primary_component_id": row.primary_component_id,
             "secondary_component_id": row.secondary_component_id,
-            "primary_fact_type": row.primary_fact_type,
-            "secondary_fact_type": row.secondary_fact_type,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash" if row.secondary_transaction_id is not None else None,
             "anchor_fact_id": row.anchor_component_id,
-            "anchor_record_id": anchor_parent or primary_parent,
+            "anchor_record_id": row.anchor_transaction_id,
             "anchor_component_id": row.anchor_component_id,
             "applied_amount": row.applied_amount,
-            "status": row.status,
+            "status": self._status(row),
             "rule_id": row.rule_id,
-            "candidate_fact_ids": _candidate_fact_ids(row.candidate_fact_ids),
+            "candidate_fact_ids": _candidate_fact_ids(candidates),
             "created_by": row.created_by,
             "created_at": row.created_at,
             "decided_by": row.decided_by,
             "decided_at": row.decided_at,
             "decision_reason": row.decision_reason,
-            "superseded_by_id": row.superseded_by_id,
-            "active_slot": row.active_slot,
+            "superseded_by_id": None,
+            "active_slot": "active" if row.active else str(row.id),
         }
+
+    def _to_dicts(self, rows):
+        rows, grouped = tuple(rows), {}
+        if rows:
+            for relation_id, component_id in self._session.execute(select(
+                CashRelationCandidateModel.relation_id, CashRelationCandidateModel.candidate_component_id,
+            ).where(CashRelationCandidateModel.workspace_id == self._workspace_id,
+                CashRelationCandidateModel.relation_id.in_([row.id for row in rows]),
+                CashRelationCandidateModel.candidate_component_id.is_not(None))):
+                grouped.setdefault(relation_id, []).append(component_id)
+        return [self._to_dict(row, candidates=grouped.get(row.id, [])) for row in rows]
+
+    @staticmethod
+    def _state_values(status):
+        if status not in {"pending_review", "accepted", "rejected", "superseded"}:
+            raise ValueError("关系状态无效")
+        return {"active": status != "superseded", **({"state": {
+            "pending_review": "draft", "accepted": "confirmed", "rejected": "ignored",
+        }[status]} if status != "superseded" else {})}
+
+    def _endpoint_values(self, kind, subtype, primary, secondary, anchor):
+        from .cash_relations import legacy_relation_roles
+        components = {row.id: row for row in self._session.scalars(select(CashTransactionComponentModel).where(
+            CashTransactionComponentModel.workspace_id == self._workspace_id,
+            CashTransactionComponentModel.id.in_({primary, secondary, anchor} - {None})))}
+        if any(component not in components for component in (primary, anchor, *([secondary] if secondary is not None else []))):
+            raise ValueError("关系组成项不存在")
+        roles = legacy_relation_roles(kind, subtype, components[primary].amount) if secondary is not None else (None, None)
+        return {"kind": kind, "subtype": subtype,
+            "primary_component_id": primary, "secondary_component_id": secondary, "anchor_component_id": anchor,
+            "primary_transaction_id": components[primary].cash_transaction_id,
+            "secondary_transaction_id": components[secondary].cash_transaction_id if secondary is not None else None,
+            "anchor_transaction_id": components[anchor].cash_transaction_id,
+            "primary_role": roles[0] if secondary is not None else None,
+            "secondary_role": roles[1] if secondary is not None else None}
+
+    def _replace_candidates(self, relation_id, candidate_fact_ids):
+        self._session.execute(delete(CashRelationCandidateModel).where(
+            CashRelationCandidateModel.workspace_id == self._workspace_id, CashRelationCandidateModel.relation_id == relation_id))
+        ids = _candidate_fact_ids(candidate_fact_ids)
+        if not ids:
+            return
+        anchor_parent = self._session.scalar(select(TransactionRelationModel.anchor_transaction_id).where(
+            TransactionRelationModel.workspace_id == self._workspace_id, TransactionRelationModel.id == relation_id))
+        for component, parent in self._session.execute(select(CashTransactionComponentModel, CashTransactionModel).join(
+            CashTransactionModel, (CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id)
+            & (CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id),
+        ).where(CashTransactionComponentModel.workspace_id == self._workspace_id, CashTransactionComponentModel.id.in_(ids))):
+            if parent.id == anchor_parent:
+                continue
+            self._session.add(CashRelationCandidateModel(workspace_id=self._workspace_id, relation_id=relation_id,
+                candidate_transaction_id=parent.id, candidate_component_id=component.id,
+                expected_row_revision=parent.row_revision, evidence={}, validity="valid" if parent.state == "posted" and parent.deleted_at is None else "incomplete"))
 
     def list_active(self, *, kind: str | None = None, status: str | None = None) -> list[dict]:
         statement = select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.status != RelationStatus.SUPERSEDED.value,
+            TransactionRelationModel.active.is_(True),
         )
         if kind is not None:
             statement = statement.where(TransactionRelationModel.kind == kind)
         if status is not None:
-            statement = statement.where(TransactionRelationModel.status == status)
+            values = self._state_values(status)
+            statement = statement.where(TransactionRelationModel.active.is_(values["active"]))
+            if "state" in values:
+                statement = statement.where(TransactionRelationModel.state == values["state"])
         rows = self._session.scalars(
             statement.order_by(TransactionRelationModel.created_at, TransactionRelationModel.id)
         )
-        return [self._to_dict(row) for row in rows]
+        return self._to_dicts(rows)
 
     def get(self, relation_id) -> dict | None:
         row = self._session.scalar(select(TransactionRelationModel).where(
@@ -1546,42 +1628,18 @@ class RelationalRelationRepository:
         self, *, kind: str, fact_a, fact_b, subtype: str = "",
         component_a=None, component_b=None,
     ) -> dict | None:
-        # Relation matching supplies explicit component IDs. Manual callers
-        # address parent records and are resolved only when no component
-        # endpoint is provided.
-        left = _as_int_id(component_a if component_a is not None else fact_a) if fact_a not in (None, "") or component_a not in (None, "") else None
-        right_value = component_b if component_b is not None else fact_b
-        right = _as_int_id(right_value) if right_value not in (None, "") else None
-        right_column = (
-            TransactionRelationModel.ordered_component_b.is_(None)
-            if right is None
-            else TransactionRelationModel.ordered_component_b == right
-        )
-        exact = self._session.scalar(select(TransactionRelationModel).where(
-            TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.kind == kind,
-            TransactionRelationModel.ordered_component_a == left,
-            right_column,
-            TransactionRelationModel.subtype == (subtype or ""),
-            TransactionRelationModel.active_slot == "active",
-        ))
-        if exact is not None:
-            return self._to_dict(exact)
         left = self._resolve_component_endpoint(fact_a, component_a)
         right = None if fact_b in (None, "") and component_b in (None, "") else self._resolve_component_endpoint(fact_b, component_b)
-        left, right = ordered_fact_pair(left, right)
-        right_column = (
-            TransactionRelationModel.ordered_component_b.is_(None)
-            if right == OPEN_LEG_ORDERED_B_SENTINEL
-            else TransactionRelationModel.ordered_component_b == _as_int_id(right)
-        )
+        endpoints = ((TransactionRelationModel.primary_component_id == left) & TransactionRelationModel.secondary_transaction_id.is_(None)
+            if right is None else or_(
+                (TransactionRelationModel.primary_component_id == left) & (TransactionRelationModel.secondary_component_id == right),
+                (TransactionRelationModel.primary_component_id == right) & (TransactionRelationModel.secondary_component_id == left)))
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
             TransactionRelationModel.kind == kind,
-            TransactionRelationModel.ordered_component_a == _as_int_id(left),
-            right_column,
+            endpoints,
             TransactionRelationModel.subtype == (subtype or ""),
-            TransactionRelationModel.active_slot == "active",
+            TransactionRelationModel.active.is_(True),
         ))
         return None if row is None else self._to_dict(row)
 
@@ -1609,14 +1667,15 @@ class RelationalRelationRepository:
         )
         if active_only:
             statement = statement.where(
-                TransactionRelationModel.status != RelationStatus.SUPERSEDED.value
+                TransactionRelationModel.active.is_(True)
             )
         rows = self._session.scalars(
             statement.order_by(TransactionRelationModel.created_at, TransactionRelationModel.id)
         )
-        return [self._to_dict(row) for row in rows]
+        return self._to_dicts(rows)
 
     def add(self, relation: dict):
+        from ft.adapters.relational.cash_relation_origin import assert_relation_origin
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
             secondary = None
@@ -1637,13 +1696,13 @@ class RelationalRelationRepository:
             if len(component_amounts) != 2:
                 raise ValueError("关系组成项不存在")
             if applied_amount == 0:
-                applied_amount = min(abs(exact_decimal(amount)) for amount in component_amounts)
+                applied_amount = min(exact_decimal(amount).copy_abs() for amount in component_amounts)
         if applied_amount:
             component_amounts = self._session.scalars(select(CashTransactionComponentModel.amount).where(
                 CashTransactionComponentModel.workspace_id == self._workspace_id,
                 CashTransactionComponentModel.id.in_([primary_component] + ([secondary_component] if secondary_component else [])),
             )).all()
-            if any(applied_amount > abs(exact_decimal(amount)) for amount in component_amounts):
+            if any(applied_amount > exact_decimal(amount).copy_abs() for amount in component_amounts):
                 raise ValueError("关系分摊金额超过组成项金额")
             if relation.get("kind") == "refund_offset":
                 endpoint_ids = [primary_component]
@@ -1657,82 +1716,56 @@ class RelationalRelationRepository:
                     CashTransactionComponentModel.id.in_(endpoint_ids),
                 )).all())
                 for component_id in endpoint_ids:
-                    existing_total = self._session.scalar(select(
-                        func.coalesce(func.sum(TransactionRelationModel.applied_amount), 0)
-                    ).where(
+                    existing_amounts = self._session.scalars(select(TransactionRelationModel.applied_amount).where(
                         TransactionRelationModel.workspace_id == self._workspace_id,
                         TransactionRelationModel.kind == "refund_offset",
-                        TransactionRelationModel.status == RelationStatus.ACCEPTED.value,
-                        TransactionRelationModel.active_slot == "active",
+                        TransactionRelationModel.state == "confirmed",
+                        TransactionRelationModel.active.is_(True),
                         (
                             (TransactionRelationModel.primary_component_id == component_id)
                             | (TransactionRelationModel.secondary_component_id == component_id)
                         ),
-                    ))
-                    if exact_decimal(existing_total or "0") + applied_amount > abs(exact_decimal(component_amount_by_id[component_id])):
-                        raise ValueError("组成项退款分摊金额超过可用金额")
-        left, right = ordered_fact_pair(primary_component, secondary_component)
-        from ft.domain.relations.core.types import OPEN_LEG_ORDERED_B_SENTINEL
-        if right in ("", None, OPEN_LEG_ORDERED_B_SENTINEL):
-            right = None
+                    )).yield_per(500)
+                    with localcontext() as arithmetic:
+                        arithmetic.prec = 80
+                        existing_total = sum(existing_amounts, Decimal("0"))
+                        if existing_total + applied_amount > exact_decimal(component_amount_by_id[component_id]).copy_abs():
+                            raise ValueError("组成项退款分摊金额超过可用金额")
         status = relation.get("status") or RelationStatus.PENDING_REVIEW.value
-        active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(relation.get("id") or "superseded")
         anchor = relation.get("anchor_fact_id") or relation["primary_fact_id"]
         if anchor in ("", None):
             anchor = relation["primary_fact_id"]
         subtype = relation.get("subtype") or ""
-        sec_type = relation.get("secondary_fact_type")
-        if secondary is None:
-            sec_type = None
-        elif not sec_type:
-            sec_type = "cash"
         candidate_fact_ids = (
             _candidate_fact_ids(relation.get("candidate_fact_ids"))
             if secondary is None and status == RelationStatus.PENDING_REVIEW.value
             else []
         )
+        endpoints = self._endpoint_values(relation["kind"], subtype, primary_component, secondary_component,
+            self._resolve_component_endpoint(anchor, relation.get("anchor_component_id")))
+        assert_relation_origin(self._session, self._workspace_id,
+            [endpoints[key] for key in ("primary_transaction_id", "secondary_transaction_id", "anchor_transaction_id")],
+            kind=relation.get("kind"))
         model = TransactionRelationModel(
             workspace_id=self._workspace_id,
-            kind=relation["kind"],
-            subtype=subtype,
-            primary_component_id=primary_component,
-            secondary_component_id=secondary_component,
-            primary_fact_type=relation.get("primary_fact_type") or "cash",
-            secondary_fact_type=sec_type,
-            ordered_component_a=_as_int_id(left),
-            ordered_component_b=_as_int_id(right),
-            active_slot=str(active_slot),
-            status=status,
+            **endpoints,
+            **self._state_values(status),
             applied_amount=applied_amount,
             rule_id=str(relation.get("rule_id") or ""),
-            candidate_fact_ids=candidate_fact_ids,
             created_by=str(relation.get("created_by") or "system"),
+            decision_source="rule" if (relation.get("decided_by") or relation.get("created_by") or "system") == "system" else "manual",
             decided_by=str(relation.get("decided_by") or ""),
             decision_reason=str(relation.get("decision_reason") or ""),
-            superseded_by_id=_as_int_id(relation.get("superseded_by_id")),
-            anchor_component_id=self._resolve_component_endpoint(anchor, relation.get("anchor_component_id")),
         )
         self._session.add(model)
+        self._session.flush()
+        self._replace_candidates(model.id, candidate_fact_ids)
         self._session.flush()
         return model.id
 
     def find_open_leg(
         self, *, kind: str, anchor_fact_id, subtype: str = "", anchor_component_id=None,
     ) -> dict | None:
-        anchor_component = _as_int_id(anchor_component_id) if anchor_component_id is not None else None
-        if anchor_component is None:
-            anchor_component = _as_int_id(anchor_fact_id)
-        exact = self._session.scalar(select(TransactionRelationModel).where(
-            TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.kind == kind,
-            TransactionRelationModel.subtype == (subtype or ""),
-            TransactionRelationModel.anchor_component_id == anchor_component,
-            TransactionRelationModel.secondary_component_id.is_(None),
-            TransactionRelationModel.status != RelationStatus.SUPERSEDED.value,
-            TransactionRelationModel.active_slot == "active",
-        ))
-        if exact is not None:
-            return self._to_dict(exact)
         anchor_component = self._resolve_component_endpoint(anchor_fact_id, anchor_component_id)
         row = self._session.scalar(select(TransactionRelationModel).where(
             TransactionRelationModel.workspace_id == self._workspace_id,
@@ -1740,8 +1773,7 @@ class RelationalRelationRepository:
             TransactionRelationModel.subtype == (subtype or ""),
             TransactionRelationModel.anchor_component_id == _as_int_id(anchor_component),
             TransactionRelationModel.secondary_component_id.is_(None),
-            TransactionRelationModel.status != RelationStatus.SUPERSEDED.value,
-            TransactionRelationModel.active_slot == "active",
+            TransactionRelationModel.active.is_(True),
         ))
         return None if row is None else self._to_dict(row)
 
@@ -1764,7 +1796,7 @@ class RelationalRelationRepository:
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
-        if row.secondary_fact_id is not None:
+        if row.secondary_component_id is not None:
             raise ValueError("该关系已有对侧流水")
         other = self._resolve_component_endpoint(other_fact_id, other_component_id)
         primary = (
@@ -1773,29 +1805,20 @@ class RelationalRelationRepository:
             else row.primary_component_id
         )
         secondary = row.primary_component_id if primary_fact_id is not None else other
-        left, right = ordered_fact_pair(primary, secondary)
-        conflict = self._session.scalar(select(TransactionRelationModel).where(
-            TransactionRelationModel.workspace_id == self._workspace_id,
-            TransactionRelationModel.kind == row.kind,
-            TransactionRelationModel.ordered_component_a == _as_int_id(left),
-            TransactionRelationModel.ordered_component_b == _as_int_id(right),
-            TransactionRelationModel.subtype == (row.subtype or ""),
-            TransactionRelationModel.active_slot == "active",
-            TransactionRelationModel.id != row.id,
-        ))
-        if conflict is not None:
+        conflict = self.find_by_business_key(kind=row.kind, subtype=row.subtype,
+            fact_a=primary, fact_b=secondary, component_a=primary, component_b=secondary)
+        if conflict is not None and conflict["id"] != row.id:
             raise ValueError(
-                f"无法绑定对侧流水：这两条账本记录已存在有效双边关系（{conflict.id}）"
+                f"无法绑定对侧流水：这两条账本记录已存在有效双边关系（{conflict['id']}）"
             )
-        row.primary_component_id = primary
-        row.secondary_component_id = secondary
-        row.secondary_fact_type = other_fact_type or "cash"
-        row.ordered_component_a = _as_int_id(left)
-        row.ordered_component_b = _as_int_id(right)
-        row.status = status
-        row.active_slot = "active" if status != RelationStatus.SUPERSEDED.value else str(row.id)
-        row.candidate_fact_ids = []
+        for key, value in self._endpoint_values(row.kind, row.subtype, primary, secondary, row.anchor_component_id).items():
+            setattr(row, key, value)
+        for key, value in self._state_values(status).items():
+            setattr(row, key, value)
+        self._replace_candidates(row.id, [])
+        row.row_revision += 1
         row.decided_by = decided_by
+        row.decision_source = "rule" if decided_by == "system" else "manual"
         row.decided_at = datetime.now(timezone.utc)
         row.decision_reason = decision_reason or ""
         self._session.flush()
@@ -1808,9 +1831,10 @@ class RelationalRelationRepository:
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
-        if row.secondary_component_id is not None or row.status != RelationStatus.PENDING_REVIEW.value:
+        if row.secondary_component_id is not None or row.state != "draft" or not row.active:
             raise ValueError("只能更新待配对关系的候选")
-        row.candidate_fact_ids = _candidate_fact_ids(candidate_fact_ids)
+        self._replace_candidates(row.id, candidate_fact_ids)
+        row.row_revision += 1
         self._session.flush()
         return self._to_dict(row)
 
@@ -1825,20 +1849,17 @@ class RelationalRelationRepository:
         ))
         if row is None:
             raise ValueError(f"relation not found: {relation_id}")
-        row.status = status
-        if status == RelationStatus.SUPERSEDED.value:
-            row.active_slot = str(row.id)
-        else:
-            row.active_slot = "active"
+        for key, value in self._state_values(status).items():
+            setattr(row, key, value)
         if status != RelationStatus.PENDING_REVIEW.value:
-            row.candidate_fact_ids = []
+            self._replace_candidates(row.id, [])
+        row.row_revision += 1
         if decided_by:
             row.decided_by = decided_by
             row.decided_at = datetime.now(timezone.utc)
+            row.decision_source = "rule" if decided_by == "system" else "manual"
         if decision_reason:
             row.decision_reason = decision_reason
-        if superseded_by_id is not None:
-            row.superseded_by_id = _as_int_id(superseded_by_id)
         self._session.flush()
         return self._to_dict(row)
 
@@ -1849,19 +1870,19 @@ class RelationalRelationRepository:
         ids = [_as_int_id(item) for item in relation_ids]
         if not ids:
             return
-        values = {
-            "status": status,
-            "active_slot": "active" if status != RelationStatus.SUPERSEDED.value else None,
-        }
+        values = self._state_values(status)
         if status == RelationStatus.SUPERSEDED.value:
             # Superseded rows need a per-row slot; this batch helper is only
             # intended for current-group decisions and must not be used for it.
             raise ValueError("批量更新不支持失效关系")
         if status != RelationStatus.PENDING_REVIEW.value:
-            values["candidate_fact_ids"] = []
+            self._session.execute(delete(CashRelationCandidateModel).where(
+                CashRelationCandidateModel.workspace_id == self._workspace_id,
+                CashRelationCandidateModel.relation_id.in_(ids)))
         if decided_by:
             values["decided_by"] = decided_by
             values["decided_at"] = datetime.now(timezone.utc)
+            values["decision_source"] = "rule" if decided_by == "system" else "manual"
         if decision_reason:
             values["decision_reason"] = decision_reason
         self._session.execute(update(TransactionRelationModel).where(
@@ -1869,6 +1890,25 @@ class RelationalRelationRepository:
             TransactionRelationModel.id.in_(ids),
         ).values(**values))
         self._session.flush()
+
+    def update_kind(self, relation_id, *, kind, subtype, actor, reason):
+        row = self._session.scalar(select(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == self._workspace_id,
+            TransactionRelationModel.id == _as_int_id(relation_id)))
+        if row is None:
+            raise ValueError("找不到这条关联记录")
+        changed = row.kind != kind or row.subtype != subtype
+        for key, value in self._endpoint_values(kind, subtype, row.primary_component_id,
+            row.secondary_component_id, row.anchor_component_id).items():
+            setattr(row, key, value)
+        row.rule_id, row.created_by, row.decided_by = "manual.web.v1", actor, actor
+        row.decision_source = "rule" if actor == "system" else "manual"
+        row.decided_at, row.decision_reason = datetime.now(timezone.utc), reason
+        row.row_revision += 1
+        if changed:
+            self._replace_candidates(row.id, [])
+        self._session.flush()
+        return self._to_dict(row)
 
 
 

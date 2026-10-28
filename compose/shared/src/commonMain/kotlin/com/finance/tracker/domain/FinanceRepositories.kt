@@ -5,6 +5,7 @@ interface FileSource {
     val name: String
     val mediaType: String?
     val size: Long?
+    val lastModifiedAtMillis: Long? get() = null
     suspend fun read(): ByteArray
 }
 
@@ -22,22 +23,7 @@ interface CashLedgerRepository {
     suspend fun classifyCashProjections(ids: List<String>, projectionVersion: Long, categoryId: String?): CashClassificationResult
     suspend fun fetchCashProjectionDeleteImpact(ids: List<String>, projectionVersion: Long): CashProjectionDeleteImpact
     suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long): CashProjectionDeleteResult
-    suspend fun fetchCashRecord(id: String): CashRecordDetail
-    suspend fun fetchCashRecords(
-        query: String? = null,
-        excludeId: String? = null,
-        dateFrom: String? = null,
-        dateTo: String? = null,
-        cursor: String? = null,
-        limit: Int = 20,
-    ): CashRecordPage
-    suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail
-    suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail
-    suspend fun deleteCashRecord(id: String, mode: String): CashRecordDeleteResult
-    suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail
-    suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail
-    suspend fun cancelCashRelation(id: String)
-    suspend fun dissolveCashRelations(factId: String): CashRecordDetail
+
 }
 
 interface CashCategoryRepository {
@@ -47,37 +33,6 @@ interface CashCategoryRepository {
     suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategory
     suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact
     suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult
-}
-
-interface CashImportRepository {
-    suspend fun detectCashImport(file: FileSource, currency: String? = null, password: String? = null): ImportDetection
-    suspend fun scanCashImport(
-        files: List<FileSource>,
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        importToken: String? = null,
-    ): ImportScan
-    suspend fun previewCashImport(
-        importToken: String,
-        source: String = "",
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        mapping: List<ImportMappingDecision>? = null,
-        batch: Boolean = false,
-    ): ImportPreview
-    suspend fun commitCashImport(
-        importToken: String,
-        source: String = "",
-        currency: String? = null,
-        passwords: Map<String, String> = emptyMap(),
-        previewDigest: String? = null,
-        previewRelationDigest: String? = null,
-        previewChannel: String? = null,
-        relations: List<StructuredObject>? = null,
-        mapping: List<ImportMappingDecision>? = null,
-        idempotencyKey: String? = null,
-        batch: Boolean = false,
-    ): ImportCommitResult
 }
 
 interface InvestmentRepository {
@@ -98,4 +53,4 @@ interface InvestmentRepository {
     )
 }
 
-interface FinanceRepository : CashLedgerRepository, CashCategoryRepository, CashImportRepository, InvestmentRepository
+interface FinanceRepository : CashLedgerRepository, CashCategoryRepository, InvestmentRepository

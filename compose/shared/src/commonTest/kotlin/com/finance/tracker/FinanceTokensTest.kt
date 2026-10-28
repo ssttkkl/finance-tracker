@@ -32,6 +32,16 @@ class FinanceTokensTest {
         assertTrue(contrast(dark.danger, dark.background) >= 4.5f)
     }
 
+    @Test
+    fun interactiveColorsKeepReadableLabelsAndText() {
+        for (roles in listOf(FinanceTokens.lightColors, FinanceTokens.darkColors)) {
+            assertTrue(contrast(roles.accent, roles.accentForeground) >= 4.5f, "Button label contrast")
+            assertTrue(contrast(roles.accent, roles.surface) >= 4.5f, "Action text on surface")
+            assertTrue(contrast(roles.accent, roles.background) >= 4.5f, "Action text on background")
+            assertTrue(contrast(roles.focus, roles.field) >= 3f, "Focus outline contrast")
+        }
+    }
+
     private fun contrast(first: Color, second: Color): Float {
         fun luminance(color: Color): Float {
             fun linear(channel: Float) = if (channel <= 0.04045f) channel / 12.92f

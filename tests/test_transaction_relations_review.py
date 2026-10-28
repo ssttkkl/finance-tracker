@@ -1,19 +1,21 @@
 """US6 review inbox + US8 supersede tests."""
 from __future__ import annotations
 
+from test_transaction_relations_support import add_imported_transaction
+
 from decimal import Decimal
 
 
 def test_review_accept_and_reject(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-40.00"), counterparty="商户甲", account_name="支付宝",
         currency="CNY", date="2026-06-01 09:00:00", note="订单AAA 尾号1111",
         category="expense", bill_source="alipay", source="alipay",
         record_type="consumption",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-40.00"), counterparty="商户乙", account_name="支付宝",
         currency="CNY", date="2026-06-01 09:00:05", note="订单BBB 尾号1111",
         category="expense", bill_source="icbc", source="icbc",
@@ -34,13 +36,13 @@ def test_review_accept_and_reject(relation_runtime):
     else:
         assert active[0]["status"] == "accepted"
 
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-12.00"), counterparty="弱A", account_name="支付宝",
         currency="CNY", date="2026-06-02 09:00:00", note="描述一",
         category="expense",
         record_type="consumption",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-12.00"), counterparty="弱B", account_name="支付宝",
         currency="CNY", date="2026-06-02 09:00:05", note="描述二",
         category="expense",
@@ -74,8 +76,10 @@ def test_review_accept_and_reject(relation_runtime):
     with services.uow as uow:
         active = uow.relations.find_by_business_key(
             kind=pending2[0]["kind"],
-            fact_a=pending2[0]["primary_fact_id"],
-            fact_b=pending2[0]["secondary_fact_id"],
+            fact_a=pending2[0]["primary_record_id"],
+            fact_b=pending2[0]["secondary_record_id"],
+            component_a=pending2[0]["primary_component_id"],
+            component_b=pending2[0]["secondary_component_id"],
             subtype=pending2[0].get("subtype") or "",
         )
     assert active is not None
@@ -85,13 +89,13 @@ def test_review_accept_and_reject(relation_runtime):
 def test_supersede_preserves_history(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("A", "cash", "CNY").ok
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10"), counterparty="X", account_name="A",
         currency="CNY", date="2026-06-01 10:00:00", note="尾号1111",
         category="expense", bill_source="alipay", source="alipay",
         record_type="consumption",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-10"), counterparty="X", account_name="A",
         currency="CNY", date="2026-06-01 10:00:05", note="尾号1111",
         category="expense", bill_source="icbc", source="icbc",
@@ -123,5 +127,5 @@ def test_supersede_preserves_history(relation_runtime):
         old = uow.relations.get(old_id)
         new = uow.relations.get(result.details["new_id"])
     assert old["status"] == "superseded"
-    assert old["superseded_by_id"] == new["id"]
+    assert old["superseded_by_id"] is None
     assert new["rule_id"].endswith("v2")

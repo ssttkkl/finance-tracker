@@ -29,7 +29,8 @@ export default defineConfig({
     // Always run the build freshness gate. Reusing a manually started server can
     // make QA pass against a bundle from an earlier checkout state.
     reuseExistingServer: false,
-    timeout: 180_000,
+    // A fresh optimized Wasm build can exceed three minutes on local QA machines.
+    timeout: 360_000,
   },
   reporter: "list",
 });

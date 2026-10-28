@@ -1024,6 +1024,9 @@ internal fun DestinationScaffold(
                     state.onNavigate,
                     state.diagnosticLogger,
                     state.cashLedgerReloadRevision,
+                    maintenanceRepository = state.cashMaintenanceRepository,
+                    creationRepository = state.cashCreationRepository,
+                    maintenanceRecovery = state.cashMaintenanceRecovery,
                 )
                 AppPage.CASH_IMPORT -> Unit
                 AppPage.CASH_CATEGORIES -> Unit
@@ -1073,5 +1076,10 @@ internal fun DestinationScaffold(
                 }
             }
         }
+    }
+    if (state.route.page == AppPage.CASH_IMPORT) {
+        CashImportTaskScreen(state.cashImportRepository, state.financeRepository,
+            state.importRecovery, state.importAccountRecovery, state.session.activeWorkspaceId.orEmpty(),
+            state.sizeClass, canWrite, state.registerImportExit, state.onCloseSecondaryPage, state.onImportDone, state.demoStatement)
     }
 }

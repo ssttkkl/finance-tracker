@@ -115,8 +115,8 @@ def test_ordinary_transfer_uses_workspace_scoped_account_identifier(tmp_path, ba
         with sessions() as session:
             relation = _relation(session)
             assert relation is not None
-            assert relation.status == RelationStatus.ACCEPTED.value
-            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, target_id}
+            assert relation.state == "confirmed" and relation.active
+            assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, target_id}
             assert relation.subtype == "ordinary_transfer"
     finally:
         engine.dispose()
@@ -161,8 +161,8 @@ def test_masked_account_attrs_are_persisted_and_consumed_equally(tmp_path, backe
         with sessions() as session:
             relation = _relation(session)
             assert relation is not None
-            assert relation.status == RelationStatus.ACCEPTED.value
-            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, in_id}
+            assert relation.state == "confirmed" and relation.active
+            assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
     finally:
         engine.dispose()
 
@@ -271,8 +271,8 @@ def test_cross_border_cross_currency_uses_normalized_fields_not_source(tmp_path,
         with sessions() as session:
             relation = _relation(session)
             assert relation is not None
-            assert relation.status == RelationStatus.ACCEPTED.value
-            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, in_id}
+            assert relation.state == "confirmed" and relation.active
+            assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
             assert relation.subtype == "cross_currency_remittance"
     finally:
         engine.dispose()
@@ -312,8 +312,8 @@ def test_cross_border_same_currency_uses_full_targeted_window(tmp_path, backend)
         with sessions() as session:
             relation = _relation(session)
             assert relation is not None
-            assert relation.status == RelationStatus.ACCEPTED.value
-            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, in_id}
+            assert relation.state == "confirmed" and relation.active
+            assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
             assert relation.subtype == "ordinary_transfer"
     finally:
         engine.dispose()
@@ -352,8 +352,8 @@ def test_internal_cross_currency_transfer_allows_the_same_account(tmp_path, back
         with sessions() as session:
             relation = _relation(session)
             assert relation is not None
-            assert relation.status == RelationStatus.ACCEPTED.value
-            assert {relation.primary_fact_id, relation.secondary_fact_id} == {out_id, in_id}
+            assert relation.state == "confirmed" and relation.active
+            assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
             assert relation.subtype == "currency_exchange"
     finally:
         engine.dispose()

@@ -24,31 +24,15 @@ import kotlin.test.assertTrue
 @OptIn(ExperimentalCoroutinesApi::class)
 class CashLedgerViewModelTest {
     @Test
-    fun reportsVisibleRecordAndFilterValidationErrorsWithFixedFields() {
+    fun reportsFilterValidationErrorsWithFixedFields() {
         val logger = RecordingDiagnosticLogger()
         val repository = FakeCashLedgerRepository()
         val viewModel = CashLedgerViewModel(repository, repository, diagnostics = logger)
 
-        viewModel.reportInvalidRecordAmount()
-        viewModel.reportInvalidRecordDateTime()
         viewModel.reportInvalidAmountFilter()
 
         assertEquals(
             listOf(
-                RecordedDiagnostic(
-                    DiagnosticFeature.CASH_LEDGER,
-                    DiagnosticAction.VALIDATE_INPUT,
-                    "invalid_record",
-                    null,
-                    "InputValidationFailure",
-                ),
-                RecordedDiagnostic(
-                    DiagnosticFeature.CASH_LEDGER,
-                    DiagnosticAction.VALIDATE_INPUT,
-                    "invalid_record",
-                    null,
-                    "InputValidationFailure",
-                ),
                 RecordedDiagnostic(
                     DiagnosticFeature.CASH_LEDGER,
                     DiagnosticAction.VALIDATE_INPUT,
@@ -147,54 +131,7 @@ class CashLedgerViewModelTest {
         }
     }
 
-    @Test
-    fun savesRecordThroughDomainRepositoryAndKeepsWriteFieldsTyped() = runTest {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        try {
-            val repository = FakeCashLedgerRepository()
-            val viewModel = CashLedgerViewModel(repository, repository)
-            viewModel.initialize()
-            advanceUntilIdle()
-            viewModel.startNewRecord("2026-09-26T10:30")
-            viewModel.updateRecordDraft(viewModel.state.value.recordDraft!!.copy(amount = "12.3400"))
-            viewModel.saveRecord(canWrite = true)
-            advanceUntilIdle()
 
-            assertEquals("12.3400", repository.createdWrite?.amount)
-            assertEquals("Cash", repository.createdWrite?.accountName)
-            assertNull(viewModel.state.value.recordDraft)
-            assertFalse(viewModel.state.value.recordBusy)
-        } finally {
-            Dispatchers.resetMain()
-        }
-    }
-
-    @Test
-    fun detailRelationSearchKeepsCursorPagingInViewModelState() = runTest {
-        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        try {
-            val repository = FakeCashLedgerRepository()
-            val viewModel = CashLedgerViewModel(repository, repository)
-            viewModel.initialize()
-            advanceUntilIdle()
-            viewModel.openRow(CashProjection("first", "2026-09-26T09:00:00Z", amount = "-10", currency = "CNY", economicType = "expense", recordId = "record-first"))
-            advanceUntilIdle()
-
-            viewModel.openRelationComposer()
-            advanceUntilIdle()
-            assertEquals(listOf("candidate-1"), viewModel.state.value.relationCandidates.map { it.id })
-            assertEquals("relation-next", viewModel.state.value.relationNextCursor)
-
-            viewModel.nextRelationPage()
-            advanceUntilIdle()
-
-            assertEquals(2, viewModel.state.value.relationPageNumber)
-            assertEquals(listOf("candidate-2"), viewModel.state.value.relationCandidates.map { it.id })
-            assertEquals(listOf(null, "relation-next"), repository.relationPageCursors)
-        } finally {
-            Dispatchers.resetMain()
-        }
-    }
 }
 
 private class FakeCashLedgerRepository(
@@ -204,9 +141,7 @@ private class FakeCashLedgerRepository(
     val pageIndexes = mutableListOf<Int>()
     val pageVersions = mutableListOf<Long?>()
     val pageFilters = mutableListOf<CashFilters>()
-    val relationPageCursors = mutableListOf<String?>()
     var classificationCalls = 0
-    var createdWrite: CashRecordWrite? = null
     var nextPageProjectionVersion = 3L
     var totalRows = 5
 
@@ -257,35 +192,6 @@ private class FakeCashLedgerRepository(
         CashProjectionDeleteImpact(ids.size, ids.size, 0)
     override suspend fun deleteCashProjections(ids: List<String>, projectionVersion: Long) =
         CashProjectionDeleteResult(ids.size, ids.size, 0, true, projectionVersion)
-    override suspend fun fetchCashRecord(id: String) = CashRecordDetail(cashRecord(id))
-    override suspend fun fetchCashRecords(query: String?, excludeId: String?, dateFrom: String?, dateTo: String?, cursor: String?, limit: Int): CashRecordPage {
-        relationPageCursors += cursor
-        return if (cursor == null) {
-            CashRecordPage(listOf(cashRecord("candidate-1")), "relation-next")
-        } else {
-            CashRecordPage(listOf(cashRecord("candidate-2")), null)
-        }
-    }
-    override suspend fun createCashRecord(write: CashRecordWrite): CashRecordDetail {
-        createdWrite = write
-        return CashRecordDetail(
-            CashRecord(
-                id = "created",
-                occurredAt = write.occurredAt,
-                amount = write.amount,
-                currency = write.currency,
-                recordType = write.recordType,
-                accountName = write.accountName,
-            ),
-        )
-    }
-    override suspend fun updateCashRecord(id: String, write: CashRecordWrite): CashRecordDetail = error("Not used by this test")
-    override suspend fun deleteCashRecord(id: String, mode: String) = CashRecordDeleteResult(true, 0)
-    override suspend fun createCashRelation(primaryFactId: String, secondaryFactId: String, kind: String): CashRecordDetail = error("Not used by this test")
-    override suspend fun updateCashRelation(id: String, kind: String): CashRecordDetail = error("Not used by this test")
-    override suspend fun cancelCashRelation(id: String) = Unit
-    override suspend fun dissolveCashRelations(factId: String): CashRecordDetail = error("Not used by this test")
-
     private fun projection(id: String) = CashProjection(
         projectionId = id,
         occurredAt = "2026-09-26T09:00:00Z",
@@ -293,6 +199,7 @@ private class FakeCashLedgerRepository(
         currency = "CNY",
         economicType = "expense",
         recordId = "record-$id",
+        transactionId = "record-$id",
     )
 
     private fun cashRecord(id: String) = CashRecord(

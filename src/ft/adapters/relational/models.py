@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from uuid import uuid4
 
 from sqlalchemy import (
@@ -24,6 +24,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, synonym
 from sqlalchemy.types import TypeDecorator
 from ft.domain.decimal import exact_decimal as _domain_exact_decimal
+from ft.domain.cash_projection import RULES_VERSION as _cash_projection_rules_version
 
 
 def _uuid() -> str:
@@ -32,6 +33,14 @@ def _uuid() -> str:
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _projection_sort_at(context) -> datetime:
+    values = context.get_current_parameters()
+    value = values.get("occurred_at") or values.get("created_at")
+    if value is None:
+        raise ValueError("projection sort time required")
+    return value
 
 
 def exact_decimal(value) -> Decimal:
@@ -75,7 +84,9 @@ class ExactDecimal(TypeDecorator):
         # PostgreSQL NUMERIC(38,18) pads trailing zeros on read.  Strip only that
         # representation padding so domain multiplications keep the same exact
         # bounds as SQLite text storage, which never invents scale-18 zeros.
-        return Decimal("0") if decimal == 0 else decimal.normalize()
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            return Decimal("0") if decimal == 0 else decimal.normalize()
 
 
 class UTCDateTime(TypeDecorator):
@@ -175,6 +186,8 @@ class AccountModel(Base):
         UniqueConstraint("workspace_id", "id", name="uq_accounts_workspace_id"),
         UniqueConstraint("workspace_id", "name", name="uq_accounts_workspace_name"),
         Index("ix_accounts_workspace", "workspace_id"),
+        CheckConstraint("revision >= 1", name="ck_accounts_revision"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -184,6 +197,7 @@ class AccountModel(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     type: Mapped[str] = mapped_column(String(32), nullable=False)
     active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", nullable=False)
     # Account-supported currencies are database configuration, not a user-facing
     # setting in the cash ledger.  Keep the collection normalized at write
     # boundaries and expose it as read-only data to the transaction form.
@@ -191,6 +205,7 @@ class AccountModel(Base):
     metadata_json: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+    __mapper_args__ = {"version_id_col": revision}
 
 
 
@@ -227,27 +242,55 @@ class StatementAccountMappingModel(Base):
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
 
 
-class CashImportCommitModel(Base):
-    """Durable result fence for browser cash-import confirmation retries."""
-
-    __tablename__ = "cash_import_commits"
+class CashMutationReceiptModel(Base):
+    __tablename__ = "cash_mutation_receipts"
     __table_args__ = (
-        UniqueConstraint(
-            "workspace_id", "idempotency_key",
-            name="uq_cash_import_commits_workspace_key",
-        ),
-        Index("ix_cash_import_commits_workspace", "workspace_id"),
+        UniqueConstraint("workspace_id", "id", name="uq_cash_mutation_receipt_workspace_id"),
+        UniqueConstraint("workspace_id", "user_id", "idempotency_key", name="uq_cash_mutation_receipt_user_key"),
+        Index("uq_cash_mutation_receipt_session", "workspace_id", "user_id", "session_digest", unique=True,
+            sqlite_where=text("session_digest IS NOT NULL"), postgresql_where=text("session_digest IS NOT NULL")),
+        Index("uq_cash_mutation_receipt_edit_context", "workspace_id", "user_id", "edit_context_digest", unique=True,
+            sqlite_where=text("edit_context_digest IS NOT NULL"), postgresql_where=text("edit_context_digest IS NOT NULL")),
+        CheckConstraint("length(idempotency_key) > 0 AND length(request_digest) = 64", name="ck_cash_mutation_receipt_request"),
+        CheckConstraint("session_digest IS NULL OR length(session_digest) = 64", name="ck_cash_mutation_receipt_session"),
+        CheckConstraint("edit_context_digest IS NULL OR length(edit_context_digest) = 64", name="ck_cash_mutation_receipt_edit_context"),
+        CheckConstraint("session_digest IS NULL OR edit_context_digest IS NULL", name="ck_cash_mutation_receipt_one_context"),
     )
-
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    workspace_id: Mapped[str] = mapped_column(
-        String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False,
-    )
-    user_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[str] = mapped_column(String(128), nullable=False)
     idempotency_key: Mapped[str] = mapped_column(String(255), nullable=False)
-    session_digest: Mapped[str] = mapped_column(String(64), nullable=False)
-    result_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    request_digest: Mapped[str] = mapped_column(String(64), nullable=False)
+    operation_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    plan_id: Mapped[str | None] = mapped_column(String(128))
+    session_digest: Mapped[str | None] = mapped_column(String(64))
+    edit_context_digest: Mapped[str | None] = mapped_column(String(64))
+    result_summary: Mapped[dict] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+
+
+class CashMutationResultModel(Base):
+    __tablename__ = "cash_mutation_results"
+    __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "receipt_id"], ["cash_mutation_receipts.workspace_id", "cash_mutation_receipts.id"],
+            ondelete="CASCADE", name="fk_cash_mutation_result_receipt"),
+        UniqueConstraint("workspace_id", "receipt_id", "result_kind", "item_ref", name="uq_cash_mutation_result_item"),
+        Index("ix_cash_mutation_result_page", "workspace_id", "receipt_id", "result_kind", "id"),
+        Index("ix_cash_mutation_result_all_page", "workspace_id", "receipt_id", "id"),
+        CheckConstraint("result_kind IN ('row', 'relation', 'file', 'account')", name="ck_cash_mutation_result_kind"),
+    )
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    receipt_id: Mapped[str] = mapped_column(String(36), nullable=False)
+    result_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    item_ref: Mapped[str] = mapped_column(String(255), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    code: Mapped[str | None] = mapped_column(String(64))
+    operation_ref: Mapped[str | None] = mapped_column(String(128))
+    # 永久结果可引用后来已删除的对象，不能成为账户删除的引用占用。
+    transaction_id: Mapped[str | None] = mapped_column(String(128))
+    relation_id: Mapped[str | None] = mapped_column(String(128))
+    account_id: Mapped[str | None] = mapped_column(String(128))
 
 
 class CashCategoryModel(Base):
@@ -292,6 +335,20 @@ class CashCategoryStateModel(Base):
 class CashTransactionModel(Base):
     __tablename__ = "cash_transactions"
     __table_args__ = (
+        CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_transactions_state"),
+        CheckConstraint("record_origin IN ('import', 'manual', 'manual_transfer', 'legacy')", name="ck_cash_transactions_record_origin"),
+        CheckConstraint("row_revision >= 1", name="ck_cash_transactions_row_revision"),
+        CheckConstraint(
+            "state <> 'posted' OR (amount IS NOT NULL AND occurred_at IS NOT NULL "
+            "AND currency IS NOT NULL AND record_type IS NOT NULL AND record_subtype IS NOT NULL "
+            "AND ((cash_granularity = 'aggregate' AND account_id IS NULL) "
+            "OR (cash_granularity = 'atomic' AND account_id IS NOT NULL)))",
+            name="ck_cash_transactions_posted_complete",
+        ),
+        CheckConstraint(
+            "currency IS NULL OR (length(currency) = 3 AND currency = upper(currency))",
+            name="ck_cash_transactions_currency",
+        ),
         CheckConstraint(
             "record_type IN ('consumption', 'refund', 'reversal', 'transfer_reversal', 'withdrawal_in', 'withdrawal_out', 'transfer_in', 'transfer_out', 'repayment', 'income', 'investment_in', 'investment_out', 'interest', 'fee', 'fx_in', 'fx_out', 'other')",
             name="ck_cash_transactions_record_type",
@@ -323,6 +380,7 @@ class CashTransactionModel(Base):
         Index("ix_cash_transactions_workspace_date", "workspace_id", "occurred_at"),
         Index("ix_cash_transactions_workspace_account", "workspace_id", "account_id"),
         Index("ix_cash_transactions_workspace_category", "workspace_id", "category_id"),
+        Index("ix_cash_transactions_workspace_state", "workspace_id", "state", "occurred_at", "id"),
         Index("ix_cash_transactions_workspace_source_record", "workspace_id", "source_type", "record_id"),
         Index(
             "uq_cash_transactions_active_source_record",
@@ -339,6 +397,7 @@ class CashTransactionModel(Base):
                 "AND deleted_at IS NULL"
             ),
         ),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -348,6 +407,12 @@ class CashTransactionModel(Base):
     # Aggregate parents intentionally have no single account; the component
     # rows are the authoritative account-level ledger entries.
     account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)
+    record_origin: Mapped[str] = mapped_column(String(24), default="legacy", server_default="legacy", nullable=False)
+    manual_transfer_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    row_revision: Mapped[int] = mapped_column(
+        BigInteger, default=1, server_default="1", onupdate=text("row_revision + 1"), nullable=False,
+    )
     cash_granularity: Mapped[str] = mapped_column(String(16), default="atomic", nullable=False)
     source_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
     record_id: Mapped[str] = mapped_column(String(512), default="", nullable=False)
@@ -355,9 +420,9 @@ class CashTransactionModel(Base):
     relation_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     source_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     manual_overrides: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
-    amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    occurred_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     counterparty_account: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     counterparty_account_attrs: Mapped[list[str]] = mapped_column(
@@ -365,8 +430,8 @@ class CashTransactionModel(Base):
     )
     note: Mapped[str] = mapped_column(Text, default="", nullable=False)
     category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    record_type: Mapped[str] = mapped_column(String(32), default="other", nullable=False)
-    record_subtype: Mapped[str] = mapped_column(String(32), default="not_applicable", nullable=False)
+    record_type: Mapped[str | None] = mapped_column(String(32).evaluates_none(), default="other", nullable=True)
+    record_subtype: Mapped[str | None] = mapped_column(String(32).evaluates_none(), default="not_applicable", nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     deleted_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
@@ -379,6 +444,7 @@ class CashTransactionComponentModel(Base):
     __tablename__ = "cash_transaction_components"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_cash_transaction_components_workspace_id"),
+        UniqueConstraint("workspace_id", "cash_transaction_id", "id", name="uq_cash_components_workspace_parent_id"),
         UniqueConstraint(
             "workspace_id", "cash_transaction_id", "ordinal",
             name="uq_cash_transaction_components_workspace_transaction_ordinal",
@@ -399,14 +465,15 @@ class CashTransactionComponentModel(Base):
         CheckConstraint("length(currency) = 3", name="ck_cash_transaction_components_currency"),
         Index("ix_cash_transaction_components_workspace_account", "workspace_id", "account_id"),
         Index("ix_cash_transaction_components_workspace_transaction", "workspace_id", "cash_transaction_id"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
     cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    account_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     ordinal: Mapped[int] = mapped_column(Integer, nullable=False)
     label: Mapped[str] = mapped_column(String(255), default="", nullable=False)
     source_key: Mapped[str] = mapped_column(String(255), default="", nullable=False)
@@ -414,11 +481,103 @@ class CashTransactionComponentModel(Base):
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
 
 
+class CashSourceEmptyPageModel(Base):
+    """认证空页的最小证据；不创建占位流水或保存原始页面。"""
+
+    __tablename__ = "cash_source_empty_pages"
+    __table_args__ = (CheckConstraint("page_number BETWEEN 1 AND 2000", name="ck_cash_source_empty_page_number"),)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), primary_key=True)
+    source_type: Mapped[str] = mapped_column(String(64), primary_key=True)
+    parser_version: Mapped[str] = mapped_column(String(64), primary_key=True)
+    document_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    page_number: Mapped[int] = mapped_column(Integer, primary_key=True)
+    coverage: Mapped[dict] = mapped_column(JSON, nullable=False)
+
+
+class CashSourceBindingModel(Base):
+    """当前来源定位及别名；来源变化不更换内部流水身份。"""
+
+    __tablename__ = "cash_source_bindings"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "source_type", "source_scope_kind", "source_scope_key", "identity_kind", "identity_key", name="uq_cash_source_binding_identity"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_source_binding_transaction"),
+        CheckConstraint("source_scope_kind IN ('account', 'file_local')", name="ck_cash_source_binding_scope"),
+        CheckConstraint("length(source_scope_key) > 0 AND length(identity_key) > 0", name="ck_cash_source_binding_keys"),
+        CheckConstraint("identity_kind IN ('provider_id', 'file_occurrence')", name="ck_cash_source_binding_identity"),
+        CheckConstraint("identity_strength IN ('provider', 'validated', 'manual', 'file_local')", name="ck_cash_source_binding_strength"),
+        CheckConstraint("revision >= 1", name="ck_cash_source_binding_revision"),
+        Index("ix_cash_source_binding_transaction", "workspace_id", "transaction_id"),
+        Index("ix_cash_source_binding_evidence", "workspace_id", "stable_evidence_key"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    source_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_scope_kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    source_scope_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    identity_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    identity_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_strength: Mapped[str] = mapped_column(String(16), nullable=False)
+    stable_evidence_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    strategy_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    coverage: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", onupdate=text("revision + 1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
+class CashTransactionIssueModel(Base):
+    """尚需处理的当前信息，解决后移除，不保存状态历史。"""
+
+    __tablename__ = "cash_transaction_issues"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_issue_workspace_id"),
+        UniqueConstraint("workspace_id", "transaction_id", "issue_key", name="uq_cash_issue_transaction_key"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_issue_transaction"),
+        CheckConstraint("revision >= 1", name="ck_cash_issue_revision"),
+        Index("ix_cash_issue_transaction", "workspace_id", "transaction_id"),
+        {"sqlite_autoincrement": True},
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    issue_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    field_path: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pending_source_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    pending_fields: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    origin: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", onupdate=text("revision + 1"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, onupdate=_now, nullable=False)
+
+
+class CashIssueCandidateModel(Base):
+    __tablename__ = "cash_issue_candidates"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "issue_id", "candidate_transaction_id", name="uq_cash_issue_candidate"),
+        ForeignKeyConstraint(["workspace_id", "issue_id"], ["cash_transaction_issues.workspace_id", "cash_transaction_issues.id"], ondelete="CASCADE", name="fk_cash_issue_candidate_issue"),
+        ForeignKeyConstraint(["workspace_id", "candidate_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE", name="fk_cash_issue_candidate_transaction"),
+        CheckConstraint("expected_row_revision >= 1", name="ck_cash_issue_candidate_revision"),
+        Index("ix_cash_issue_candidate_transaction", "workspace_id", "candidate_transaction_id"),
+    )
+
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    issue_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    candidate_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    expected_row_revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+
 class CashProjectionStateModel(Base):
     """每个工作区的收支投影活动指针和构建诊断。"""
 
     __tablename__ = "cash_projection_states"
     __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "active_dataset_id"], ["cash_projection_datasets.workspace_id", "cash_projection_datasets.id"],
+            ondelete="NO ACTION", name="fk_cash_projection_states_workspace_dataset"),
         CheckConstraint("availability IN ('uninitialized', 'ready')", name="ck_cash_projection_states_availability"),
         CheckConstraint("last_build_status IN ('never', 'running', 'succeeded', 'failed')", name="ck_cash_projection_states_build_status"),
         CheckConstraint("availability <> 'ready' OR active_dataset_id IS NOT NULL", name="ck_cash_projection_states_ready_dataset"),
@@ -428,7 +587,8 @@ class CashProjectionStateModel(Base):
     active_dataset_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     projection_version: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
     source_revision: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
-    rules_version: Mapped[str] = mapped_column(String(64), default="cash-projection-v1", nullable=False)
+    rules_version: Mapped[str] = mapped_column(String(64), default=_cash_projection_rules_version,
+        server_default=_cash_projection_rules_version, nullable=False)
     availability: Mapped[str] = mapped_column(String(16), default="uninitialized", nullable=False)
     last_build_status: Mapped[str] = mapped_column(String(16), default="never", nullable=False)
     last_build_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -442,11 +602,14 @@ class CashProjectionStateModel(Base):
 
 
 class CashProjectionDatasetModel(Base):
-    """收支投影的暂存、活动或已退休数据集。"""
+    """收支投影的暂存或活动数据集。"""
 
     __tablename__ = "cash_projection_datasets"
     __table_args__ = (
-        CheckConstraint("state IN ('staging', 'active', 'retired')", name="ck_cash_projection_datasets_state"),
+        UniqueConstraint("workspace_id", "id", name="uq_cash_projection_datasets_workspace_id"),
+        CheckConstraint("state IN ('staging', 'active')", name="ck_cash_projection_datasets_state"),
+        Index("uq_cash_projection_datasets_active_workspace", "workspace_id", unique=True,
+            sqlite_where=text("state = 'active'"), postgresql_where=text("state = 'active'")),
         Index("ix_cash_projection_datasets_workspace_state", "workspace_id", "state"),
     )
 
@@ -460,17 +623,63 @@ class CashProjectionDatasetModel(Base):
     published_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
+class CashEntryModel(Base):
+    """不随计算数据集替换的当前收支对象及公共属性。"""
+
+    __tablename__ = "cash_entries"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "id", name="uq_cash_entries_workspace_id"),
+        Index("ix_cash_entries_workspace_category", "workspace_id", "category_id"),
+        CheckConstraint("revision >= 1", name="ck_cash_entries_revision"),
+        ForeignKeyConstraint(["workspace_id", "category_id"], ["cash_categories.workspace_id", "cash_categories.id"], ondelete="RESTRICT"),
+    )
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    root_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    revision: Mapped[int] = mapped_column(BigInteger, default=1, nullable=False)
+    category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    counterparty_account: Mapped[str] = mapped_column(String(512), default="", nullable=False)
+    counterparty_account_attrs: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    manual_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+    split_inherit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+
+
+class CashEntryMemberModel(Base):
+    """当前归属及拆分恢复值；不是历史版本。"""
+
+    __tablename__ = "cash_entry_members"
+    __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "entry_id"], ["cash_entries.workspace_id", "cash_entries.id"], ondelete="CASCADE"),
+        ForeignKeyConstraint(["workspace_id", "transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="CASCADE"),
+        Index("ix_cash_entry_members_entry", "workspace_id", "entry_id"),
+    )
+    workspace_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    transaction_id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True)
+    entry_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    standalone_values: Mapped[dict] = mapped_column(JSON, nullable=False)
+    standalone_manual_fields: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
+
+
 class CashProjectionModel(Base):
     """活动数据集内的一条收支投影。"""
 
     __tablename__ = "cash_projections"
     __table_args__ = (
-        ForeignKeyConstraint(["dataset_id"], ["cash_projection_datasets.id"], ondelete="CASCADE", name="fk_cash_projections_dataset"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id"], ["cash_projection_datasets.workspace_id", "cash_projection_datasets.id"], ondelete="CASCADE", name="fk_cash_projections_dataset"),
         ForeignKeyConstraint(["workspace_id", "account_id"], ["accounts.workspace_id", "accounts.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_account"),
         ForeignKeyConstraint(["workspace_id", "root_cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_root"),
         ForeignKeyConstraint(["workspace_id", "funding_relation_id"], ["cash_investment_funding_relations.workspace_id", "cash_investment_funding_relations.id"], ondelete="RESTRICT", name="fk_cash_projections_workspace_funding_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "projection_id", name="uq_cash_projections_dataset_projection"),
+        UniqueConstraint("workspace_id", "dataset_id", "id", name="uq_cash_projections_workspace_dataset_id"),
         CheckConstraint("economic_type IN ('expense', 'income', 'internal_transfer')", name="ck_cash_projections_economic_type"),
+        CheckConstraint("state IN ('draft', 'posted')", name="ck_cash_projections_state"),
+        CheckConstraint("statistics_eligible = (state = 'posted')", name="ck_cash_projections_statistics"),
+        CheckConstraint("attention_count >= 0 AND attention_count <= member_count", name="ck_cash_projections_attention"),
+        CheckConstraint("state <> 'posted' OR (economic_type IS NOT NULL AND net_amount IS NOT NULL AND currency IS NOT NULL AND occurred_at IS NOT NULL)", name="ck_cash_projections_posted_complete"),
+        CheckConstraint("state <> 'draft' OR (member_count = 1 AND accepted_relation_count = 0 AND attention_count = 1 AND economic_type IS NULL AND funding_relation_id IS NULL AND NOT has_payment_mirror AND NOT has_refund_offset AND NOT has_transfer_pair)", name="ck_cash_projections_draft_singleton"),
+        CheckConstraint("member_count >= 1 AND accepted_relation_count >= 0", name="ck_cash_projections_counts"),
         Index("ix_cash_projections_visible_list", "workspace_id", "dataset_id", "visible", "occurred_at", "projection_id"),
         Index("ix_cash_projections_account", "workspace_id", "dataset_id", "account_id"),
         Index("ix_cash_projections_currency", "workspace_id", "dataset_id", "currency"),
@@ -478,19 +687,27 @@ class CashProjectionModel(Base):
         Index("ix_cash_projections_category_id", "workspace_id", "dataset_id", "category_id"),
         Index("ix_cash_projections_category_path", "workspace_id", "dataset_id", "category_path"),
         Index("ix_cash_projections_root", "workspace_id", "dataset_id", "root_cash_transaction_id"),
+        Index("ix_cash_projections_current_sort", "workspace_id", "dataset_id", "sort_at", "projection_id"),
+        Index("ix_cash_projections_state_sort", "workspace_id", "dataset_id", "state", "sort_at", "projection_id"),
+        Index("ix_cash_projections_attention_sort", "workspace_id", "dataset_id", "attention_count", "sort_at", "projection_id"),
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(String(64), nullable=False)
     dataset_id: Mapped[str] = mapped_column(String(64), nullable=False)
     projection_id: Mapped[str] = mapped_column(String(96), nullable=False)
+    entry_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     root_cash_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
     funding_relation_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    economic_type: Mapped[str] = mapped_column(String(24), nullable=False)
+    state: Mapped[str] = mapped_column(String(16), default="posted", server_default="posted", nullable=False)
+    statistics_eligible: Mapped[bool] = mapped_column(Boolean, default=True, server_default=text("true"), nullable=False)
+    attention_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
+    sort_at: Mapped[datetime] = mapped_column(UTCDateTime().evaluates_none(), default=_projection_sort_at, nullable=False)
+    economic_type: Mapped[str | None] = mapped_column(String(24), nullable=True)
     transfer_subtype: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    net_amount: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    net_amount: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    occurred_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     account_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     counterparty: Mapped[str] = mapped_column(String(512), default="", nullable=False)
     category_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -513,7 +730,7 @@ class CashProjectionModel(Base):
 class CashProjectionMemberModel(Base):
     __tablename__ = "cash_projection_members"
     __table_args__ = (
-        ForeignKeyConstraint(["projection_row_id"], ["cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_members_projection"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id", "projection_row_id"], ["cash_projections.workspace_id", "cash_projections.dataset_id", "cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_members_projection"),
         ForeignKeyConstraint(["workspace_id", "cash_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"], ondelete="RESTRICT", name="fk_cash_projection_members_cash"),
         UniqueConstraint("workspace_id", "dataset_id", "cash_transaction_id", name="uq_cash_projection_members_dataset_cash"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_members_ordinal"),
@@ -533,7 +750,7 @@ class CashProjectionMemberModel(Base):
 class CashProjectionRelationModel(Base):
     __tablename__ = "cash_projection_relations"
     __table_args__ = (
-        ForeignKeyConstraint(["projection_row_id"], ["cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_relations_projection"),
+        ForeignKeyConstraint(["workspace_id", "dataset_id", "projection_row_id"], ["cash_projections.workspace_id", "cash_projections.dataset_id", "cash_projections.id"], ondelete="CASCADE", name="fk_cash_projection_relations_projection"),
         ForeignKeyConstraint(["workspace_id", "transaction_relation_id"], ["transaction_relations.workspace_id", "transaction_relations.id"], ondelete="RESTRICT", name="fk_cash_projection_relations_relation"),
         UniqueConstraint("workspace_id", "dataset_id", "transaction_relation_id", name="uq_cash_projection_relations_dataset_relation"),
         UniqueConstraint("projection_row_id", "ordinal", name="uq_cash_projection_relations_ordinal"),
@@ -677,85 +894,80 @@ class LedgerSnapshotModel(Base):
 
 
 
+_MIRROR_KEY_SWAP = "kind = 'payment_mirror' AND ((primary_component_id IS NOT NULL AND secondary_component_id IS NOT NULL AND primary_component_id > secondary_component_id) OR ((primary_component_id IS NULL OR secondary_component_id IS NULL) AND primary_transaction_id > secondary_transaction_id))"
+
+
+def _relation_key_endpoint(primary, secondary, *, component=False):
+    expression = f"CASE WHEN {_MIRROR_KEY_SWAP} THEN {secondary} ELSE {primary} END"
+    return text(f"coalesce(({expression}), 0)" if component else f"({expression})")
+
+
 class TransactionRelationModel(Base):
     __tablename__ = "transaction_relations"
     __table_args__ = (
         ForeignKeyConstraint(
-            ["workspace_id", "primary_component_id"],
-            ["cash_transaction_components.workspace_id", "cash_transaction_components.id"],
-            ondelete="RESTRICT", name="fk_transaction_relations_workspace_primary_component",
+            ["workspace_id", "primary_transaction_id"],
+            ["cash_transactions.workspace_id", "cash_transactions.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_primary_parent",
         ),
         ForeignKeyConstraint(
-            ["workspace_id", "secondary_component_id"],
-            ["cash_transaction_components.workspace_id", "cash_transaction_components.id"],
-            ondelete="RESTRICT", name="fk_transaction_relations_workspace_secondary_component",
+            ["workspace_id", "secondary_transaction_id"],
+            ["cash_transactions.workspace_id", "cash_transactions.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_secondary_parent",
         ),
         ForeignKeyConstraint(
-            ["workspace_id", "anchor_component_id"],
-            ["cash_transaction_components.workspace_id", "cash_transaction_components.id"],
-            ondelete="RESTRICT", name="fk_transaction_relations_workspace_anchor_component",
+            ["workspace_id", "anchor_transaction_id"],
+            ["cash_transactions.workspace_id", "cash_transactions.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_anchor_parent",
         ),
         ForeignKeyConstraint(
-            ["workspace_id", "ordered_component_a"],
-            ["cash_transaction_components.workspace_id", "cash_transaction_components.id"],
-            ondelete="RESTRICT", name="fk_transaction_relations_workspace_ordered_a",
+            ["workspace_id", "primary_transaction_id", "primary_component_id"],
+            ["cash_transaction_components.workspace_id", "cash_transaction_components.cash_transaction_id", "cash_transaction_components.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_primary_component",
         ),
         ForeignKeyConstraint(
-            ["workspace_id", "ordered_component_b"],
-            ["cash_transaction_components.workspace_id", "cash_transaction_components.id"],
-            ondelete="RESTRICT", name="fk_transaction_relations_workspace_ordered_b",
+            ["workspace_id", "secondary_transaction_id", "secondary_component_id"],
+            ["cash_transaction_components.workspace_id", "cash_transaction_components.cash_transaction_id", "cash_transaction_components.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_secondary_component",
+        ),
+        ForeignKeyConstraint(
+            ["workspace_id", "anchor_transaction_id", "anchor_component_id"],
+            ["cash_transaction_components.workspace_id", "cash_transaction_components.cash_transaction_id", "cash_transaction_components.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_anchor_component",
         ),
         UniqueConstraint("workspace_id", "id", name="uq_transaction_relations_workspace_id"),
-        UniqueConstraint(
-            "workspace_id",
-            "kind",
-            "ordered_component_a",
-            "ordered_component_b",
-            "subtype",
-            "active_slot",
-            name="uq_transaction_relations_active_business_key",
-        ),
-        Index("ix_transaction_relations_workspace_status", "workspace_id", "status"),
-        Index("ix_transaction_relations_workspace_kind", "workspace_id", "kind"),
-        Index("ix_transaction_relations_primary", "workspace_id", "primary_component_id"),
-        Index("ix_transaction_relations_secondary", "workspace_id", "secondary_component_id"),
-        Index("ix_transaction_relations_component_primary", "workspace_id", "status", "primary_component_id"),
-        Index("ix_transaction_relations_component_secondary", "workspace_id", "status", "secondary_component_id"),
-        Index("ix_transaction_relations_anchor", "workspace_id", "anchor_component_id"),
-        # Partial unique for unpaired relation active occupancy (PG + SQLite 3.8+).
-        Index(
-            "uq_transaction_relations_open_leg_active",
-            "workspace_id",
-            "kind",
-            "subtype",
-            "anchor_component_id",
-            unique=True,
-            sqlite_where=text("secondary_component_id IS NULL AND active_slot = 'active'"),
-            postgresql_where=text("secondary_component_id IS NULL AND active_slot = 'active'"),
-        ),
+        Index("ix_cash_relation_state", "workspace_id", "active", "state", "kind"),
+        Index("ix_cash_relation_primary", "workspace_id", "primary_transaction_id", "active", "state"),
+        Index("ix_cash_relation_secondary", "workspace_id", "secondary_transaction_id", "active", "state"),
+        Index("ix_cash_relation_anchor", "workspace_id", "anchor_transaction_id", "active"),
+        Index("ix_cash_relation_group", "workspace_id", "decision_group_id", "active"),
+        Index("ix_cash_relation_primary_component", "workspace_id", "primary_component_id", "active", "state"),
+        Index("ix_cash_relation_secondary_component", "workspace_id", "secondary_component_id", "active", "state"),
+        Index("ix_cash_relation_anchor_component", "workspace_id", "anchor_component_id", "active"),
+        Index("uq_cash_relation_pair", "workspace_id", "kind", "subtype",
+            _relation_key_endpoint("primary_transaction_id", "secondary_transaction_id"),
+            _relation_key_endpoint("secondary_transaction_id", "primary_transaction_id"),
+            _relation_key_endpoint("primary_component_id", "secondary_component_id", component=True),
+            _relation_key_endpoint("secondary_component_id", "primary_component_id", component=True), unique=True,
+            sqlite_where=text("active AND secondary_transaction_id IS NOT NULL"),
+            postgresql_where=text("active AND secondary_transaction_id IS NOT NULL")),
+        Index("uq_cash_relation_open_anchor", "workspace_id", "kind", "subtype", "anchor_transaction_id",
+            text("coalesce(anchor_component_id, 0)"), unique=True,
+            sqlite_where=text("active AND secondary_transaction_id IS NULL"),
+            postgresql_where=text("active AND secondary_transaction_id IS NULL")),
         CheckConstraint(
             "kind IN ('payment_mirror','transfer_pair','refund_offset')",
             name="ck_transaction_relations_kind",
         ),
-        CheckConstraint(
-            "status IN ('pending_review','accepted','rejected','superseded')",
-            name="ck_transaction_relations_status",
-        ),
-        CheckConstraint(
-            "status != 'accepted' OR secondary_component_id IS NOT NULL",
-            name="ck_transaction_relations_accepted_bilateral",
-        ),
-        CheckConstraint(
-            "kind != 'payment_mirror' OR secondary_component_id IS NOT NULL",
-            name="ck_transaction_relations_mirror_bilateral",
-        ),
-        CheckConstraint(
-            "(secondary_component_id IS NOT NULL) OR ("
-            "status IN ('pending_review','rejected','superseded') "
-            "AND kind IN ('refund_offset','transfer_pair')"
-            ")",
-            name="ck_transaction_relations_open_leg_shape",
-        ),
+        CheckConstraint("state IN ('draft','confirmed','ignored')", name="ck_cash_relation_state"),
+        CheckConstraint("row_revision >= 1", name="ck_cash_relation_revision"),
+        CheckConstraint("secondary_transaction_id IS NOT NULL OR (secondary_component_id IS NULL AND secondary_role IS NULL)", name="ck_cash_relation_secondary_shape"),
+        CheckConstraint("secondary_transaction_id IS NULL OR primary_transaction_id <> secondary_transaction_id", name="ck_cash_relation_distinct_parents"),
+        CheckConstraint("(anchor_transaction_id = primary_transaction_id OR (secondary_transaction_id IS NOT NULL AND anchor_transaction_id = secondary_transaction_id)) AND (anchor_component_id IS NULL OR (primary_component_id IS NOT NULL AND anchor_component_id = primary_component_id) OR (secondary_component_id IS NOT NULL AND anchor_component_id = secondary_component_id))", name="ck_cash_relation_anchor"),
+        CheckConstraint("state <> 'confirmed' OR (secondary_transaction_id IS NOT NULL AND primary_component_id IS NOT NULL AND secondary_component_id IS NOT NULL AND anchor_component_id IS NOT NULL AND primary_role IS NOT NULL AND secondary_role IS NOT NULL)", name="ck_cash_relation_confirmed_shape"),
+        CheckConstraint("primary_role IS NULL OR primary_role IN ('expense','refund','p2p_out','p2p_in','outgoing','incoming')", name="ck_cash_relation_primary_role"),
+        CheckConstraint("secondary_role IS NULL OR secondary_role IN ('expense','refund','p2p_out','p2p_in','outgoing','incoming')", name="ck_cash_relation_secondary_role"),
+        {"sqlite_autoincrement": True},
     )
 
     id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
@@ -764,35 +976,56 @@ class TransactionRelationModel(Base):
     )
     kind: Mapped[str] = mapped_column(String(32), nullable=False)
     subtype: Mapped[str] = mapped_column(String(64), default="", nullable=False)
-    primary_component_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    primary_fact_id = synonym("primary_component_id")
-    # Null only for unpaired relation refund_offset / transfer_pair pending/reject occupancy.
+    primary_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    secondary_transaction_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    primary_component_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
     secondary_component_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    secondary_fact_id = synonym("secondary_component_id")
-    primary_fact_type: Mapped[str] = mapped_column(String(32), default="cash", nullable=False)
-    secondary_fact_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
-    # `open_leg` relations retain a nullable ordered endpoint after the 016 cutover.
-    ordered_component_a: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    ordered_component_b: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    ordered_fact_a = synonym("ordered_component_a")
-    ordered_fact_b = synonym("ordered_component_b")
-    # active_slot is 'active' for non-superseded rows; superseded rows use id slot to free the key.
-    active_slot: Mapped[str] = mapped_column(String(36), default="active", nullable=False)
-    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    anchor_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    anchor_component_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    primary_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    secondary_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    state: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=text("true"))
+    row_revision: Mapped[int] = mapped_column(BigInteger, default=1, server_default="1", onupdate=text("row_revision + 1"), nullable=False)
+    decision_group_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    decision_source: Mapped[str] = mapped_column(String(32), nullable=False, default="rule")
+    evidence: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     applied_amount: Mapped[Decimal] = mapped_column(
         ExactDecimal(), nullable=False, default=Decimal("0"), server_default="0"
     )
     rule_id: Mapped[str] = mapped_column(String(128), default="", nullable=False)
-    candidate_fact_ids: Mapped[list[int]] = mapped_column(JSON, default=list, nullable=False)
     created_by: Mapped[str] = mapped_column(String(128), default="system", nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=_now, nullable=False)
     decided_by: Mapped[str] = mapped_column(String(128), default="", nullable=False)
     decided_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     decision_reason: Mapped[str] = mapped_column(Text, default="", nullable=False)
-    superseded_by_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
-    # Durable unpaired relation / role anchor (refund row, transfer out, etc.).
-    anchor_component_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
-    anchor_fact_id = synonym("anchor_component_id")
+
+
+class CashRelationCandidateModel(Base):
+    __tablename__ = "cash_relation_candidates"
+    __table_args__ = (
+        ForeignKeyConstraint(["workspace_id", "relation_id"], ["transaction_relations.workspace_id", "transaction_relations.id"],
+            ondelete="CASCADE", name="fk_cash_relation_candidate_relation"),
+        ForeignKeyConstraint(["workspace_id", "candidate_transaction_id"], ["cash_transactions.workspace_id", "cash_transactions.id"],
+            ondelete="CASCADE", name="fk_cash_relation_candidate_parent"),
+        ForeignKeyConstraint(["workspace_id", "candidate_transaction_id", "candidate_component_id"],
+            ["cash_transaction_components.workspace_id", "cash_transaction_components.cash_transaction_id", "cash_transaction_components.id"],
+            ondelete="RESTRICT", name="fk_cash_relation_candidate_component"),
+        Index("uq_cash_relation_candidate", "workspace_id", "relation_id", "candidate_transaction_id",
+            text("coalesce(candidate_component_id, 0)"), unique=True),
+        Index("ix_cash_relation_candidate_parent", "workspace_id", "candidate_transaction_id", "relation_id"),
+        Index("ix_cash_relation_candidate_component", "workspace_id", "candidate_component_id", "relation_id"),
+        CheckConstraint("expected_row_revision >= 1", name="ck_cash_relation_candidate_revision"),
+        CheckConstraint("validity IN ('valid','incomplete','stale')", name="ck_cash_relation_candidate_validity"),
+    )
+    id: Mapped[int] = mapped_column(SurrogatePK, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(64), ForeignKey("workspaces.id", ondelete="CASCADE"), nullable=False)
+    relation_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    candidate_transaction_id: Mapped[int] = mapped_column(SurrogatePK, nullable=False)
+    candidate_component_id: Mapped[int | None] = mapped_column(SurrogatePK, nullable=True)
+    expected_row_revision: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    evidence: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    validity: Mapped[str] = mapped_column(String(16), nullable=False, default="valid")
 
 
 

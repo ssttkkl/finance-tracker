@@ -172,6 +172,28 @@ def test_storage_error_messages_are_sanitized():
     assert "postgresql" in message
 
 
+@pytest.mark.parametrize("attribute,value,expected", [
+    ("sqlstate", "55P03", "storage.busy"),
+    ("pgcode", "55P03", "storage.busy"),
+    ("sqlstate", "25006", "storage.readonly"),
+    ("sqlstate", "57014", "storage.connect"),
+    ("sqlite_errorcode", 5, "storage.busy"),
+    ("sqlite_errorcode", 262, "storage.busy"),
+    ("sqlite_errorcode", 8, "storage.readonly"),
+    ("sqlite_errorcode", 14, "storage.connect"),
+])
+def test_storage_error_uses_native_codes_before_driver_message(attribute, value, expected):
+    from sqlalchemy.exc import OperationalError
+    from ft.adapters.relational.runtime import storage_error
+
+    native = RuntimeError("private driver details" if expected == "storage.busy" else
+        "synthetic locked message with private driver details")
+    setattr(native, attribute, value)
+    error = storage_error(OperationalError(None, None, native), "postgresql+psycopg://test@localhost/example_test")
+    assert error.code == expected
+    assert "private driver details" not in str(error)
+
+
 def test_current_runtime_schema_exposes_funding_relation_service(tmp_path):
     from alembic import command
     from alembic.config import Config

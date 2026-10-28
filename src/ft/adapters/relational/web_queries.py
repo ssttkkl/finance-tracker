@@ -1,19 +1,31 @@
 """收支投影的关系型只读查询。"""
 from __future__ import annotations
 from contextlib import contextmanager
-from datetime import timezone
-from decimal import Decimal
-from sqlalchemy import and_, func, or_, select
+from datetime import datetime, timezone
+from decimal import Decimal, localcontext
+from sqlalchemy import and_, case, func, literal, or_, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
+from ft.adapters.relational.cash_projection_visibility import active_source_conditions, maintainable_projection_conditions
+from ft.adapters.relational.cash_attention import read_cash_attention
+from ft.adapters.relational.cash_relations import _batches
 from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashInvestmentFundingRelationModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionRelationModel, CashProjectionStateModel, CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel, TransactionRelationModel
 from ft.adapters.relational.runtime import StorageError, storage_error
-from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthPositionDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashTransferDTO, ProjectionDTO, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.application.web_queries import CashAccountDTO, CashAccountSummaryDTO, CashCategoryDTO, CashCategoryPathItemDTO, CashEconomicTypeFilterOptionDTO, CashFilterOptionsDTO, CashMonthlyCurrencySummaryDTO, CashMonthlySummaryDTO, CashMonthPositionDTO, CashTransferDTO, ProjectionDTO, ProjectionReadPage, ProjectionUnavailableError, ProjectionUpdatedError, local_bounds
+from ft.domain.queries import FlowDTO
+from ft.application.cash_import_issues import cash_import_issue
+from ft.application.web_queries import CurrentProjectionRefDTO, ProjectionDetailDTO, ProjectionIssueDTO, ProjectionMemberDTO
+from ft.adapters.relational.models import CashTransactionIssueModel
 
 def _amount(value):
-    amount = Decimal(value).normalize()
-    return "0" if amount.is_zero() else format(amount, "f")
+    if value is None:
+        return None
+    amount = Decimal(value)
+    if amount.is_zero():
+        return "0"
+    result = format(amount, "f")
+    return result.rstrip("0").rstrip(".") if "." in result else result
 
 
 _SOURCE_SNAPSHOT_KEYS = frozenset({
@@ -83,7 +95,7 @@ def _record_summary(row, account, categories=None):
         "id": account.id, "name": account.name, "type": account.type, "active": account.active,
     }
     return {
-        "id": str(row.id), "occurred_at": row.occurred_at.isoformat(),
+        "id": str(row.id), "occurred_at": row.occurred_at.isoformat() if row.occurred_at is not None else None,
         "account": account_payload,
         "account_name": account.name if account is not None else "",
         "account_id": account.id if account is not None else None,
@@ -92,23 +104,23 @@ def _record_summary(row, account, categories=None):
         "amount": _amount(row.amount), "currency": row.currency,
         "source_type": row.source_type,
         "counterparty_account": row.counterparty_account or "",
-        "record_type": row.record_type, "record_subtype": row.record_subtype or "not_applicable",
+        "record_type": row.record_type, "record_subtype": row.record_subtype, "state": row.state, "row_revision": row.row_revision,
     }
 
 
 def _component_detail(component, account):
     return {
-        "id": int(component.id),
-        "cash_transaction_id": int(component.cash_transaction_id),
-        "account": {
+        "id": str(component.id),
+        "cash_transaction_id": str(component.cash_transaction_id),
+        "account": None if account is None else {
             "id": account.id,
             "name": account.name,
             "type": account.type,
             "active": account.active,
         },
-        "account_id": account.id,
-        "account_name": account.name,
-        "account_type": account.type,
+        "account_id": account.id if account is not None else None,
+        "account_name": account.name if account is not None else "",
+        "account_type": account.type if account is not None else None,
         "amount": _amount(component.amount),
         "currency": component.currency,
         "ordinal": component.ordinal,
@@ -133,13 +145,13 @@ def _component_summary(component, parent, account, categories=None):
     }
     summary["amount"] = _amount(component.amount)
     summary["currency"] = component.currency
-    summary["account"] = {
+    summary["account"] = None if account is None else {
         "id": account.id, "name": account.name,
         "type": account.type, "active": account.active,
     }
-    summary["account_name"] = account.name
-    summary["account_id"] = account.id
-    summary["account_type"] = account.type
+    summary["account_name"] = account.name if account is not None else ""
+    summary["account_id"] = account.id if account is not None else None
+    summary["account_type"] = account.type if account is not None else None
     return summary
 
 
@@ -162,7 +174,7 @@ class RelationalCashLedgerQueryRepository:
             raise self._storage_error(exc) from exc
 
     @contextmanager
-    def _evidence_snapshot(self):
+    def _read_snapshot(self):
         try:
             with self._sessions() as session:
                 with session.begin():
@@ -185,10 +197,118 @@ class RelationalCashLedgerQueryRepository:
         return state
     def active_version(self):
         with self._session() as s: return self._active(s).projection_version
-    def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None):
+
+    def get_current_projection_reference(self, identifier):
+        with self._read_snapshot() as session:
+            state = self._active(session)
+            parent = session.scalar(select(CashTransactionModel.id).where(
+                CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.id == identifier,
+                CashTransactionModel.deleted_at.is_(None)))
+            if parent is None:
+                raise LookupError("record_not_found")
+            row = session.scalar(select(CashProjectionModel).join(CashProjectionMemberModel, and_(
+                CashProjectionMemberModel.workspace_id == CashProjectionModel.workspace_id,
+                CashProjectionMemberModel.dataset_id == CashProjectionModel.dataset_id,
+                CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)).where(
+                    CashProjectionModel.workspace_id == self._workspace_id,
+                    CashProjectionModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.cash_transaction_id == identifier,
+                    *active_source_conditions(self._workspace_id, state.active_dataset_id)))
+            if row is None:
+                raise ProjectionUnavailableError()
+            return CurrentProjectionRefDTO(str(identifier), row.projection_id, row.attention_count, state.projection_version)
+
+    def get_current_projection(self, projection_id):
+        with self._read_snapshot() as session:
+            state = self._active(session)
+            row = session.scalar(select(CashProjectionModel).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == state.active_dataset_id, CashProjectionModel.projection_id == projection_id,
+                *maintainable_projection_conditions(self._workspace_id, state.active_dataset_id)))
+            if row is None:
+                raise LookupError("projection_not_found")
+            parents = session.scalars(select(CashTransactionModel).join(CashProjectionMemberModel, and_(
+                CashProjectionMemberModel.workspace_id == CashTransactionModel.workspace_id,
+                CashProjectionMemberModel.cash_transaction_id == CashTransactionModel.id)).where(
+                    CashProjectionMemberModel.workspace_id == self._workspace_id,
+                    CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.projection_row_id == row.id).order_by(CashProjectionMemberModel.ordinal)).all()
+            identifiers = {parent.id for parent in parents}
+            if len(parents) != row.member_count or row.root_cash_transaction_id not in identifiers:
+                raise ProjectionUnavailableError()
+            attention = read_cash_attention(session, self._workspace_id, identifiers)
+            members = tuple(ProjectionMemberDTO(str(parent.id), parent.row_revision, parent.state,
+                "pending" if parent.state == "draft" or parent.id in attention.transaction_ids else "confirmed") for parent in parents)
+            issues = []
+            for batch in _batches(sorted(identifiers)):
+                for issue in session.execute(select(CashTransactionIssueModel.id, CashTransactionIssueModel.transaction_id,
+                    CashTransactionIssueModel.revision, CashTransactionIssueModel.code, CashTransactionIssueModel.field_path).where(
+                        CashTransactionIssueModel.workspace_id == self._workspace_id,
+                        CashTransactionIssueModel.transaction_id.in_(batch)).order_by(CashTransactionIssueModel.id)):
+                    try:
+                        reason = cash_import_issue(issue.code, field_path=issue.field_path)
+                    except ValueError:
+                        reason = cash_import_issue("posting_incomplete")
+                    issues.append(ProjectionIssueDTO(transaction_id=str(issue.transaction_id), issue_id=str(issue.id),
+                        revision=issue.revision, **reason))
+            account = session.scalar(select(AccountModel).where(
+                AccountModel.workspace_id == self._workspace_id, AccountModel.id == row.account_id))
+            relations = session.scalars(select(CashProjectionRelationModel).where(
+                CashProjectionRelationModel.workspace_id == self._workspace_id,
+                CashProjectionRelationModel.dataset_id == state.active_dataset_id,
+                CashProjectionRelationModel.projection_row_id == row.id).order_by(CashProjectionRelationModel.ordinal)).all()
+            source_types = tuple(dict.fromkeys(parent.source_type for parent in parents if parent.source_type))
+            transfer = self._transfer_details(session, state.active_dataset_id, (row.id,)).get(row.id)
+            categories = _category_rows(session, self._workspace_id) if row.category_id else {}
+            projection = self._dto(row, account, relations, source_types, transfer, categories,
+                projection_version=state.projection_version)
+            return ProjectionDetailDTO(state.projection_version, projection, members, tuple(issues))
+
+    def read_finance_report(self, *, month=None):
+        """旧管理报表复用当前正式投影，金额及资金流共享读取快照。"""
+        start = end = None
+        if month:
+            start = datetime.strptime(month, "%Y-%m").replace(day=1, tzinfo=timezone.utc)
+            end = start.replace(year=start.year + 1, month=1) if start.month == 12 else start.replace(month=start.month + 1)
+        with self._read_snapshot() as session, localcontext() as arithmetic:
+            arithmetic.prec = 80
+            state = self._active(session)
+            conditions = (CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.dataset_id == state.active_dataset_id, CashProjectionModel.state == "posted",
+                *active_source_conditions(self._workspace_id, state.active_dataset_id))
+            totals_query = select(CashProjectionModel.currency, CashProjectionModel.economic_type,
+                CashProjectionModel.net_amount).where(*conditions, CashProjectionModel.statistics_eligible.is_(True))
+            if start is not None:
+                totals_query = totals_query.where(CashProjectionModel.occurred_at >= start, CashProjectionModel.occurred_at < end)
+            income, expenses = {}, {}
+            for currency, economic_type, amount in session.execute(totals_query).yield_per(500):
+                if economic_type not in {"income", "expense"}:
+                    continue
+                target = income if economic_type == "income" else expenses
+                target[currency] = target.get(currency, Decimal("0")) + amount.copy_abs()
+            cash = aliased(CashTransactionModel)
+            flows_query = select(cash.note, cash.currency, cash.amount).select_from(CashProjectionModel).join(
+                CashProjectionMemberModel, and_(
+                    CashProjectionMemberModel.workspace_id == CashProjectionModel.workspace_id,
+                    CashProjectionMemberModel.dataset_id == CashProjectionModel.dataset_id,
+                    CashProjectionMemberModel.projection_row_id == CashProjectionModel.id)).join(cash, and_(
+                        cash.workspace_id == CashProjectionMemberModel.workspace_id,
+                        cash.id == CashProjectionMemberModel.cash_transaction_id)).where(*conditions,
+                            cash.state == "posted", cash.deleted_at.is_(None), cash.record_type == "transfer_out")
+            grouped = {}
+            for note, currency, amount in session.execute(flows_query).yield_per(500):
+                key = (note, currency)
+                grouped[key] = grouped.get(key, Decimal("0")) + amount.copy_abs()
+            flows = tuple(FlowDTO(note, currency, amount) for (note, currency), amount in
+                sorted(grouped.items(), key=lambda item: (-item[1], item[0]))[:10])
+            return {"income": income, "expenses": expenses, "flows": flows}
+
+    def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None, *, projection_version):
         kinds=tuple(sorted({r.kind for r in relations})); summary=tuple({"kind":kind,"subtype":subtype,"count":sum(r.kind==kind and r.subtype==subtype for r in relations)} for kind,subtype in sorted({(r.kind,r.subtype) for r in relations}))
         account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)
-        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat(),account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer)
+        return ProjectionDTO(row.projection_id,row.occurred_at.isoformat() if row.occurred_at is not None else None,account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.transfer_subtype,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer,
+            state=row.state, statistics_eligible=row.statistics_eligible, attention_count=row.attention_count,
+            confirmation_status="pending" if row.state == "draft" or row.attention_count else "confirmed", projection_version=projection_version, entry_id=row.entry_id, transaction_id=str(row.root_cash_transaction_id))
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -356,8 +476,11 @@ class RelationalCashLedgerQueryRepository:
                     cash_dto, _amount(component.amount), component.currency,
                 )
         return transfers
-    def _filter_options(self, session, dataset_id, *, version=None, categories=None):
-        cache_key = (dataset_id, version)
+    def _active_source_conditions(self, dataset_id):
+        return active_source_conditions(self._workspace_id, dataset_id)
+
+    def _filter_options(self, session, dataset_id, *, version=None, categories=None, deleted_sources=()):
+        cache_key = (dataset_id, version, deleted_sources)
         cached = self._filter_options_cache.get(cache_key)
         if cached is not None:
             return cached
@@ -365,7 +488,8 @@ class RelationalCashLedgerQueryRepository:
             select(CashProjectionModel.category_id, CashProjectionModel.currency, CashProjectionModel.economic_type, CashProjectionModel.transfer_subtype).where(
                 CashProjectionModel.workspace_id == self._workspace_id,
                 CashProjectionModel.dataset_id == dataset_id,
-                CashProjectionModel.visible.is_(True),
+                or_(CashProjectionModel.visible.is_(True), CashProjectionModel.attention_count > 0),
+                *self._active_source_conditions(dataset_id),
             ).distinct()
         ).all()
         category_rows = categories or _category_rows(session, self._workspace_id)
@@ -396,76 +520,84 @@ class RelationalCashLedgerQueryRepository:
             self._filter_options_cache.pop(next(iter(self._filter_options_cache)))
         return result
     @staticmethod
-    def _monthly_summary_data(rows, timezone_name):
+    def _monthly_summaries(rows, timezone_name):
         from zoneinfo import ZoneInfo
 
-        zone = ZoneInfo(timezone_name)
-        month_counts = {}
-        totals = {}
-        for occurred_at, economic_type, amount, currency in rows:
-            if occurred_at is None:
-                continue
-            local_time = occurred_at.astimezone(zone) if occurred_at.tzinfo else occurred_at.replace(tzinfo=timezone.utc).astimezone(zone)
-            month = local_time.strftime("%Y-%m")
-            month_counts[month] = month_counts.get(month, 0) + 1
-            if economic_type not in ("expense", "income") or not currency:
-                continue
-            key = (month, str(currency).strip().upper())
-            income, expense = totals.get(key, (Decimal("0"), Decimal("0")))
-            if economic_type == "income":
-                income += Decimal(amount)
-            else:
-                expense += Decimal(amount)
-            totals[key] = (income, expense)
-        summaries = tuple(
-            CashMonthlySummaryDTO(
-                month,
-                tuple(
-                    CashMonthlyCurrencySummaryDTO(currency, _amount(totals[(month, currency)][0]), _amount(totals[(month, currency)][1]))
-                    for _month, currency in sorted(totals) if _month == month
-                ),
+        with localcontext() as context:
+            context.prec = 80
+            zone = ZoneInfo(timezone_name)
+            months = set()
+            totals = {}
+            for occurred_at, economic_type, amount, currency in rows:
+                if occurred_at is None:
+                    continue
+                local_time = occurred_at.astimezone(zone) if occurred_at.tzinfo else occurred_at.replace(tzinfo=timezone.utc).astimezone(zone)
+                month = local_time.strftime("%Y-%m")
+                months.add(month)
+                if economic_type not in ("expense", "income") or not currency:
+                    continue
+                key = (month, str(currency).strip().upper())
+                income, expense = totals.get(key, (Decimal("0"), Decimal("0")))
+                if economic_type == "income":
+                    income += Decimal(amount)
+                else:
+                    expense += Decimal(amount)
+                totals[key] = (income, expense)
+            return tuple(
+                CashMonthlySummaryDTO(
+                    month,
+                    tuple(
+                        CashMonthlyCurrencySummaryDTO(currency, _amount(totals[(month, currency)][0]), _amount(totals[(month, currency)][1]))
+                        for _month, currency in sorted(totals) if _month == month
+                    ),
+                )
+                for month in sorted(months, reverse=True)
             )
-            for month in sorted(month_counts, reverse=True)
-        )
-        month_positions = []
-        start_index = 0
-        for month in sorted(month_counts, reverse=True):
-            end_index = start_index + month_counts[month]
-            month_positions.append(CashMonthPositionDTO(month, start_index, end_index))
-            start_index = end_index
-        return summaries, tuple(month_positions)
-
     @staticmethod
-    def _monthly_summaries(rows, timezone_name):
-        return RelationalCashLedgerQueryRepository._monthly_summary_data(rows, timezone_name)[0]
+    def _monthly_summary_data(rows, timezone_name):
+        from zoneinfo import ZoneInfo
+        summaries = RelationalCashLedgerQueryRepository._monthly_summaries(
+            [row[:4] for row in rows if len(row) < 5 or row[4]], timezone_name)
+        zone = ZoneInfo(timezone_name)
+        positions = []
+        for index, row in enumerate(rows):
+            occurred_at = row[0]
+            month = "unknown" if occurred_at is None else (
+                occurred_at.replace(tzinfo=timezone.utc) if occurred_at.tzinfo is None else occurred_at
+            ).astimezone(zone).strftime("%Y-%m")
+            if positions and positions[-1].month == month:
+                previous = positions[-1]
+                positions[-1] = CashMonthPositionDTO(month, previous.start_index, index + 1)
+            else:
+                positions.append(CashMonthPositionDTO(month, index, index + 1))
+        return summaries, tuple(positions)
+
     def list_projection_page(self, filters, cursor, limit, *, start_index=None, expected_version=None):
         from ft.application.web_queries import _decode
         indexed = start_index is not None
-        session_context = self._evidence_snapshot if indexed else self._session
-        with session_context() as s:
+        with self._read_snapshot() as s:
+            snapshot_state = self._active(s) if indexed else None
+            if expected_version is not None and snapshot_state.projection_version != expected_version:
+                raise ProjectionUpdatedError()
             cursor_version, position = (None, None)
             if cursor:
                 cursor_version, *position = _decode(cursor, self._workspace_id, filters)
                 position = tuple(position)
-            snapshot_state = None
-            total_count = None
-            if indexed:
-                snapshot_state = s.scalar(select(CashProjectionStateModel).where(
-                    CashProjectionStateModel.workspace_id == self._workspace_id,
-                ))
-                if snapshot_state is None or snapshot_state.availability != "ready" or not snapshot_state.active_dataset_id:
-                    raise ProjectionUnavailableError()
-                if expected_version is not None and expected_version != snapshot_state.projection_version:
-                    raise ProjectionUpdatedError()
             state=select(
                 CashProjectionStateModel.projection_version.label("projection_version"),
                 CashProjectionStateModel.active_dataset_id.label("active_dataset_id"),
                 CashProjectionStateModel.availability.label("availability"),
             ).where(CashProjectionStateModel.workspace_id==self._workspace_id).cte("active_state")
+            page_dataset = snapshot_state.active_dataset_id if indexed else state.c.active_dataset_id
             filter_conditions=[
                 CashProjectionModel.workspace_id==self._workspace_id,
-                CashProjectionModel.visible.is_(True),
+                or_(CashProjectionModel.visible.is_(True), CashProjectionModel.attention_count > 0),
+                *self._active_source_conditions(page_dataset),
             ]
+            if filters.state != "all":
+                filter_conditions.append(CashProjectionModel.state == filters.state)
+            if filters.confirmation_status is not None:
+                filter_conditions.append(CashProjectionModel.attention_count > 0 if filters.confirmation_status == "pending" else CashProjectionModel.attention_count == 0)
             start,end=local_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)
@@ -508,13 +640,13 @@ class RelationalCashLedgerQueryRepository:
                 ))
             if filters.amount_min:
                 filter_conditions.append(
-                    func.decimal_compare(CashProjectionModel.net_amount, filters.amount_min) >= 0
+                    case((CashProjectionModel.net_amount.is_not(None), func.decimal_compare(CashProjectionModel.net_amount, filters.amount_min)), else_=None) >= 0
                     if s.bind.dialect.name == "sqlite"
                     else CashProjectionModel.net_amount >= Decimal(filters.amount_min)
                 )
             if filters.amount_max:
                 filter_conditions.append(
-                    func.decimal_compare(CashProjectionModel.net_amount, filters.amount_max) <= 0
+                    case((CashProjectionModel.net_amount.is_not(None), func.decimal_compare(CashProjectionModel.net_amount, filters.amount_max)), else_=None) <= 0
                     if s.bind.dialect.name == "sqlite"
                     else CashProjectionModel.net_amount <= Decimal(filters.amount_max)
                 )
@@ -522,48 +654,59 @@ class RelationalCashLedgerQueryRepository:
             elif filters.composition=="payment_mirror":filter_conditions.append(CashProjectionModel.has_payment_mirror)
             elif filters.composition=="refund_offset":filter_conditions.append(CashProjectionModel.has_refund_offset)
             elif filters.composition=="combined":filter_conditions.append(or_(and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_refund_offset),and_(CashProjectionModel.has_payment_mirror,CashProjectionModel.has_transfer_pair),and_(CashProjectionModel.has_refund_offset,CashProjectionModel.has_transfer_pair)))
-            conditions = [CashProjectionModel.dataset_id==state.c.active_dataset_id, *filter_conditions]
+            conditions = [CashProjectionModel.dataset_id==page_dataset, *filter_conditions]
             if cursor_version is not None: conditions.append(state.c.projection_version==cursor_version)
-            if position:conditions.append(or_(CashProjectionModel.occurred_at<position[0],and_(CashProjectionModel.occurred_at==position[0],CashProjectionModel.projection_id<position[1])))
+            if position:conditions.append(or_(CashProjectionModel.sort_at<position[0],and_(CashProjectionModel.sort_at==position[0],CashProjectionModel.projection_id<position[1])))
+            # Soft-deleted members must disappear even before the next publication.
+            deleted_sources = tuple(s.scalars(select(CashTransactionModel.id).where(
+                CashTransactionModel.workspace_id == self._workspace_id,
+                CashTransactionModel.deleted_at.is_not(None),
+            ).order_by(CashTransactionModel.id)))
 
             def monthly_data(dataset_id, version):
-                summary_key = (
-                    dataset_id,
-                    version,
-                    tuple(sorted(filters.as_cursor_data().items())),
-                )
-                cached = self._monthly_summary_cache.get(summary_key)
+                key = (dataset_id, version, deleted_sources, tuple(sorted(filters.as_cursor_data().items())))
+                cached = self._monthly_summary_cache.get(key)
+                if cached is None and expected_version is not None:
+                    # HTTP requests may use a fresh service. Versioned pages omit
+                    # month metadata, so count in SQL rather than loading all rows.
+                    total, pending = s.execute(select(
+                        func.count(),
+                        func.coalesce(func.sum(case((CashProjectionModel.attention_count > 0, 1), else_=0)), 0),
+                    ).where(CashProjectionModel.dataset_id == dataset_id, *filter_conditions)).one()
+                    return (), (), total, pending
                 if cached is None:
-                    summary_rows = s.execute(
-                        select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type, CashProjectionModel.net_amount, CashProjectionModel.currency).where(
-                            CashProjectionModel.dataset_id == dataset_id,
-                            *filter_conditions,
-                        )
-                    ).all()
-                    cached = self._monthly_summary_data(summary_rows, filters.timezone)
-                    self._monthly_summary_cache[summary_key] = cached
+                    summary_rows = s.execute(select(CashProjectionModel.occurred_at, CashProjectionModel.economic_type,
+                        CashProjectionModel.net_amount, CashProjectionModel.currency, CashProjectionModel.statistics_eligible,
+                        CashProjectionModel.attention_count).where(
+                        CashProjectionModel.dataset_id == dataset_id, *filter_conditions).order_by(
+                        CashProjectionModel.sort_at.desc(), CashProjectionModel.projection_id.desc())).all()
+                    summaries, months = self._monthly_summary_data(summary_rows, filters.timezone)
+                    cached = (summaries, months, len(summary_rows), sum(row[5] > 0 for row in summary_rows))
+                    self._monthly_summary_cache[key] = cached
                     if len(self._monthly_summary_cache) > 16:
                         self._monthly_summary_cache.pop(next(iter(self._monthly_summary_cache)))
                 return cached
 
-            if indexed:
-                total_count = s.scalar(
-                    select(func.count(CashProjectionModel.id)).where(
-                        CashProjectionModel.dataset_id == snapshot_state.active_dataset_id,
-                        *filter_conditions,
-                    )
-                ) or 0
-            page_query = select(
+            page_query=select(
                 state.c.projection_version,
                 state.c.active_dataset_id,
                 state.c.availability,
                 CashProjectionModel.id.label("projection_row_id"),
             ).select_from(
                 state.outerjoin(CashProjectionModel,and_(*conditions))
-            ).order_by(CashProjectionModel.occurred_at.desc(),CashProjectionModel.projection_id.desc())
+            ).order_by(CashProjectionModel.sort_at.desc(),CashProjectionModel.projection_id.desc())
             if indexed:
-                page_query = page_query.offset(start_index)
-            page=page_query.limit(limit).cte("projection_page")
+                # The state was read in this same snapshot. Bind its dataset directly
+                # so deep pages can use the projection sort index before joining details.
+                page_query = select(
+                    literal(snapshot_state.projection_version).label("projection_version"),
+                    literal(snapshot_state.active_dataset_id).label("active_dataset_id"),
+                    literal(snapshot_state.availability).label("availability"),
+                    CashProjectionModel.id.label("projection_row_id"),
+                ).where(*conditions).order_by(
+                    CashProjectionModel.sort_at.desc(), CashProjectionModel.projection_id.desc(),
+                ).offset(start_index)
+            page = page_query.limit(limit).cte("projection_page")
             q=select(
                 page.c.projection_version,
                 page.c.active_dataset_id,
@@ -582,7 +725,7 @@ class RelationalCashLedgerQueryRepository:
                         CashProjectionRelationModel.projection_row_id==CashProjectionModel.id,
                     ),
                 )
-            ).order_by(CashProjectionModel.occurred_at.desc(),CashProjectionModel.projection_id.desc(),CashProjectionRelationModel.ordinal)
+            ).order_by(CashProjectionModel.sort_at.desc(),CashProjectionModel.projection_id.desc(),CashProjectionRelationModel.ordinal)
             result=s.execute(q).all()
             if not result:
                 # A ready dataset may legitimately contain no visible rows.
@@ -600,47 +743,19 @@ class RelationalCashLedgerQueryRepository:
                     raise ProjectionUpdatedError()
                 if expected_version is not None and expected_version != empty_state.projection_version:
                     raise ProjectionUpdatedError()
-                if indexed:
-                    if expected_version is None and total_count:
-                        monthly_summaries, month_positions = monthly_data(
-                            empty_state.active_dataset_id,
-                            empty_state.projection_version,
-                        )
-                    else:
-                        monthly_summaries, month_positions = (), ()
-                    return (
-                        empty_state.projection_version,
-                        [],
-                        self._filter_options(
-                            s, empty_state.active_dataset_id,
-                            version=empty_state.projection_version, categories=categories or {},
-                        ),
-                        monthly_summaries,
-                        total_count,
-                        month_positions,
-                    )
-                return (
-                    empty_state.projection_version,
-                    [],
-                    self._filter_options(
-                        s, empty_state.active_dataset_id,
-                        version=empty_state.projection_version, categories={},
-                    ),
-                    (),
-                    None,
-                    (),
-                )
+                summaries, months, total, pending = monthly_data(empty_state.active_dataset_id, empty_state.projection_version)
+                if expected_version is not None:
+                    summaries, months = (), ()
+                return ProjectionReadPage(empty_state.projection_version, (), (), self._filter_options(
+                    s, empty_state.active_dataset_id, version=empty_state.projection_version, categories=categories or {}, deleted_sources=deleted_sources),
+                    summaries, pending, total if indexed else None, months if indexed else ())
             version,dataset_id,availability,_,_,_=result[0]
             if availability != "ready" or not dataset_id: raise ProjectionUnavailableError()
             if cursor_version is not None and cursor_version != version: raise ProjectionUpdatedError()
             if expected_version is not None and expected_version != version: raise ProjectionUpdatedError()
-            if indexed and expected_version is not None:
+            monthly_summaries, month_positions, total_count, pending_item_count = monthly_data(dataset_id, version)
+            if expected_version is not None:
                 monthly_summaries, month_positions = (), ()
-            elif indexed:
-                monthly_summaries, month_positions = monthly_data(dataset_id, version)
-            else:
-                monthly_summaries, _month_positions = monthly_data(dataset_id, version)
-                month_positions = ()
             rows=[]; by={}
             for _,_,_,row,account,relation in result:
                 if row is None: continue
@@ -663,10 +778,13 @@ class RelationalCashLedgerQueryRepository:
             if categories is None:
                 category_ids = {row.category_id for row, _account in rows if row.category_id}
                 categories = _category_rows(s, self._workspace_id) if category_ids else {}
-            return version, [self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories) for row,account in rows], self._filter_options(s, dataset_id, version=version, categories=categories), monthly_summaries, total_count, month_positions
+            return ProjectionReadPage(version,
+                tuple(self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories, projection_version=version) for row,account in rows),
+                tuple((row.sort_at.isoformat(), row.projection_id) for row, _account in rows),
+                self._filter_options(s, dataset_id, version=version, categories=categories, deleted_sources=deleted_sources), monthly_summaries, pending_item_count, total_count if indexed else None, month_positions if indexed else ())
     def get_evidence(self, projection_id):
-        with self._evidence_snapshot() as s:
-            state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id))
+        with self._read_snapshot() as s:
+            state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,CashProjectionModel.projection_id==projection_id, *self._active_source_conditions(state.active_dataset_id)))
             if row is None: raise LookupError(projection_id)
             account=s.scalar(select(AccountModel).where(AccountModel.workspace_id==self._workspace_id,AccountModel.id==row.account_id))
             rels=s.scalars(select(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id==row.id).order_by(CashProjectionRelationModel.ordinal)).all()
@@ -709,7 +827,7 @@ class RelationalCashLedgerQueryRepository:
                 if cash.id not in member_rows:
                     member_rows[cash.id] = (cash, member_account)
                     member_records.append((member, cash, member_account))
-                if component is not None and component_account_row is not None:
+                if component is not None:
                     components_by_parent.setdefault(component.cash_transaction_id, []).append(
                         _component_detail(component, component_account_row)
                     )
@@ -731,14 +849,13 @@ class RelationalCashLedgerQueryRepository:
             inactive = s.scalars(
                 select(TransactionRelationModel).where(
                     TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.status.in_(("pending_review", "rejected", "superseded")),
-                    TransactionRelationModel.primary_fact_type == "cash",
-                    or_(TransactionRelationModel.secondary_fact_id.is_(None), TransactionRelationModel.secondary_fact_type == "cash"),
-                    or_(TransactionRelationModel.primary_fact_id.in_(member_component_ids), TransactionRelationModel.secondary_fact_id.in_(member_component_ids)),
-                ).order_by(TransactionRelationModel.status, TransactionRelationModel.id)
+                    or_(TransactionRelationModel.state != "confirmed", TransactionRelationModel.active.is_(False)),
+                    or_(TransactionRelationModel.primary_transaction_id.in_(member_ids), TransactionRelationModel.secondary_transaction_id.in_(member_ids)),
+                ).order_by(case((TransactionRelationModel.active.is_(False), "superseded"),
+                    (TransactionRelationModel.state == "draft", "pending_review"), else_="rejected"), TransactionRelationModel.id)
             ).all()
             endpoint_ids = sorted({
-                endpoint for relation in (*inactive, *accepted_by_id.values()) for endpoint in (relation.primary_fact_id, relation.secondary_fact_id)
+                endpoint for relation in (*inactive, *accepted_by_id.values()) for endpoint in (relation.primary_component_id, relation.secondary_component_id)
                 if endpoint is not None
             })
             endpoints = s.execute(
@@ -747,7 +864,7 @@ class RelationalCashLedgerQueryRepository:
                     CashTransactionModel.workspace_id == CashTransactionComponentModel.workspace_id,
                     CashTransactionModel.id == CashTransactionComponentModel.cash_transaction_id,
                 ))
-                .join(AccountModel, and_(
+                .outerjoin(AccountModel, and_(
                     AccountModel.workspace_id == CashTransactionComponentModel.workspace_id,
                     AccountModel.id == CashTransactionComponentModel.account_id,
                 ))
@@ -803,7 +920,7 @@ class RelationalCashLedgerQueryRepository:
                     }
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels, source_types, transfer, categories),
+                "projection": self._dto(row, account, rels, source_types, transfer, categories, projection_version=state.projection_version),
                 "root_record": root_record,
                 "members": [
                     {
@@ -818,9 +935,9 @@ class RelationalCashLedgerQueryRepository:
                     {
                         "id": str(relation.transaction_relation_id), "kind": relation.kind, "subtype": relation.subtype,
                         "rule_id": accepted_by_id[relation.transaction_relation_id].rule_id if relation.transaction_relation_id in accepted_by_id else "",
-                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_fact_id) if relation.transaction_relation_id in accepted_by_id else None,
+                        "primary_fact_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
                         "primary_component_id": str(accepted_by_id[relation.transaction_relation_id].primary_component_id) if relation.transaction_relation_id in accepted_by_id else None,
-                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_fact_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_fact_id is not None else None,
+                        "secondary_fact_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
                         "secondary_component_id": str(accepted_by_id[relation.transaction_relation_id].secondary_component_id) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].secondary_component_id is not None else None,
                         "applied_amount": _amount(accepted_by_id[relation.transaction_relation_id].applied_amount) if relation.transaction_relation_id in accepted_by_id else "0",
                         "primary_record": _component_summary(*endpoint_rows[accepted_by_id[relation.transaction_relation_id].primary_component_id], categories) if relation.transaction_relation_id in accepted_by_id and accepted_by_id[relation.transaction_relation_id].primary_component_id in endpoint_rows else None,
@@ -830,10 +947,11 @@ class RelationalCashLedgerQueryRepository:
                 ],
                 "inactive_relation_hints": [
                     {
-                        "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype, "status": relation.status,
-                        "primary_fact_id": str(relation.primary_fact_id),
-                        "primary_component_id": str(relation.primary_component_id),
-                        "secondary_fact_id": str(relation.secondary_fact_id) if relation.secondary_fact_id is not None else None,
+                        "id": str(relation.id), "kind": relation.kind, "subtype": relation.subtype,
+                        "status": {"draft": "pending_review", "confirmed": "accepted", "ignored": "rejected"}[relation.state] if relation.active else "superseded",
+                        "primary_fact_id": str(relation.primary_component_id) if relation.primary_component_id is not None else None,
+                        "primary_component_id": str(relation.primary_component_id) if relation.primary_component_id is not None else None,
+                        "secondary_fact_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
                         "secondary_component_id": str(relation.secondary_component_id) if relation.secondary_component_id is not None else None,
                         "applied_amount": _amount(relation.applied_amount),
                         "primary_record": _component_summary(*endpoint_rows[relation.primary_component_id], categories) if relation.primary_component_id in endpoint_rows else None,

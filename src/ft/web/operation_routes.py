@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from ft.adapters.relational.dialect import RelationalEngineError
 from ft.adapters.relational.runtime import StorageError
+from ft.application.web_queries import ProjectionUnavailableError
 from ft.web.serialization import error_payload, json_value
 
 
@@ -105,52 +106,8 @@ def _connector(provider: str):
 
 def operation_router(services) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
-
-    @router.post("/accounts")
-    async def create_account(request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("account_payload_invalid")
-            result = services.legacy_accounts().create_account(
-                _text(payload, "name"),
-                _text(payload, "type"),
-                _text(payload, "currency", required=False),
-            )
-            return _application_result(result, success_status=201)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.put("/accounts/{account_name}")
-    async def rename_account(account_name: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("account_payload_invalid")
-            result = services.legacy_accounts().rename_account(
-                account_name, _text(payload, "new_name"),
-            )
-            return _application_result(result)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.patch("/accounts/{account_name}/active")
-    async def set_account_active(account_name: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict) or not isinstance(payload.get("active"), bool):
-                raise ValueError("account_active_required")
-            result = services.legacy_accounts().set_active(account_name, payload["active"])
-            return _application_result(result)
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.delete("/accounts/{account_name}")
-    def delete_account(account_name: str, request: Request):
-        try:
-            return _application_result(services.legacy_accounts().delete_account(account_name))
-        except ValueError as exc:
-            return _json_body_error(exc)
+    from ft.web.account_routes import account_router
+    router.include_router(account_router(services))
 
     @router.post("/cashflow/add", status_code=201)
     async def add_cashflow(request: Request):
@@ -229,64 +186,11 @@ def operation_router(services) -> APIRouter:
     def finance_report(month: str | None = None):
         try:
             return JSONResponse(json_value(services.legacy_queries().report(month=month)))
+        except ProjectionUnavailableError:
+            return _error("projection.unavailable", "账本数据暂不可用，请先完成更新。", 503)
         except ValueError:
             return _error("invalid_filter", "报表月份无效。")
 
-    @router.get("/relations/pending")
-    def pending_relations(kind: str | None = None):
-        try:
-            return {"items": json_value(services.legacy_relations().list_pending(kind=kind))}
-        except ValueError:
-            return _error("invalid_relation", "关系筛选条件无效。")
-
-    @router.post("/relations/check")
-    async def check_relations(request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("relation_payload_invalid")
-            fact_ids = payload.get("fact_ids")
-            if fact_ids is not None and (not isinstance(fact_ids, list) or not all(isinstance(item, str) for item in fact_ids)):
-                raise ValueError("relation_fact_ids_invalid")
-            result = services.legacy_relations().check(
-                seed_fact_ids=fact_ids or None,
-                seed_batch_id=_text(payload, "batch_id", required=False),
-                trigger="manual_range" if fact_ids or payload.get("batch_id") else "full_recompute",
-            )
-            return _application_result(result, failure_message="关系检查失败，请稍后重试。")
-        except ValueError as exc:
-            return _json_body_error(exc)
-
-    @router.post("/relations/{relation_id}/accept")
-    async def accept_relation(relation_id: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                payload = {}
-            result = services.legacy_relations().accept(
-                relation_id,
-                actor=_actor(request),
-                reason=_text(payload, "reason", required=False) or "",
-                other_fact_id=_text(payload, "other_fact_id", required=False),
-            )
-            return _application_result(result, failure_message="关系确认失败，请刷新后重试。")
-        except ValueError as exc:
-            return _error("invalid_relation", str(exc) or "关系确认失败。", 409)
-
-    @router.post("/relations/{relation_id}/reject")
-    async def reject_relation(relation_id: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                payload = {}
-            result = services.legacy_relations().reject(
-                relation_id,
-                actor=_actor(request),
-                reason=_text(payload, "reason", required=False) or "rejected",
-            )
-            return _application_result(result, failure_message="关系驳回失败，请刷新后重试。")
-        except ValueError as exc:
-            return _error("invalid_relation", str(exc) or "关系驳回失败。", 409)
 
     @router.post("/relations/aliases")
     async def add_relation_alias(request: Request):
@@ -302,19 +206,6 @@ def operation_router(services) -> APIRouter:
         except ValueError as exc:
             return _error("invalid_relation", str(exc) or "账户别名无效。")
 
-    @router.delete("/cash-facts/{fact_id}")
-    async def logical_delete_cash_fact(fact_id: str, request: Request):
-        try:
-            payload = await request.json()
-            if not isinstance(payload, dict):
-                raise ValueError("fact_delete_payload_invalid")
-            reason = _text(payload, "reason")
-            result = services.legacy_relations().logical_delete_cash(
-                fact_id, actor=_actor(request), reason=reason,
-            )
-            return _application_result(result, failure_message="流水删除失败，请刷新后重试。")
-        except ValueError as exc:
-            return _error("invalid_fact_delete", str(exc) or "删除原因不能为空。")
 
     @router.get("/funding-relations/pending")
     def pending_funding_relations():

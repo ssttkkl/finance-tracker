@@ -1108,18 +1108,18 @@ def _alipay_route_wealth_product(rec: dict) -> dict:
 
     # --- Out to bank: must be expense on wealth account ---
     if "转出到银行卡" in desc and "余额宝" in desc:
-        rec["amount"] = -abs(damt)
+        rec["amount"] = damt.copy_abs().copy_negate()
         rec["category"] = "expense"
         rec["payment_method"] = "余额宝"
         # keep bank in counterparty if useful
         return rec
     if "转出到银行卡" in desc and "余利宝" in desc:
-        rec["amount"] = -abs(damt)
+        rec["amount"] = damt.copy_abs().copy_negate()
         rec["category"] = "expense"
         rec["payment_method"] = "余利宝"
         return rec
     if "余额宝-转出到余额" in desc:
-        rec["amount"] = -abs(damt)
+        rec["amount"] = damt.copy_abs().copy_negate()
         rec["category"] = "expense"
         rec["payment_method"] = "余额宝"
         return rec
@@ -1141,12 +1141,12 @@ def _alipay_route_wealth_product(rec: dict) -> dict:
     # --- Income onto 余额宝 ---
     if "收益发放" in desc and "余额宝" in desc:
         rec["payment_method"] = "余额宝"
-        rec["amount"] = abs(damt)
+        rec["amount"] = damt.copy_abs()
         rec["category"] = "income"
         return rec
     if "卖出至余额宝" in desc:
         rec["payment_method"] = "余额宝"
-        rec["amount"] = abs(damt)
+        rec["amount"] = damt.copy_abs()
         rec["category"] = "income"
         return rec
 
@@ -1156,6 +1156,120 @@ def _alipay_route_wealth_product(rec: dict) -> dict:
     if pm.startswith("余利宝"):
         rec["payment_method"] = "余利宝"
     return rec
+
+
+def _parse_alipay_source_row(source_payload: dict[str, str], *, position: int) -> dict:
+    """共享单条来源语义；不读取文件、不合并出现或建立配对。"""
+    date_str = source_payload.get("交易时间", "").strip()[:19].replace("/", "-")
+    direction = source_payload.get("收/支", "").strip()
+    amount_str = source_payload.get("金额", "").strip()
+    txn_type = source_payload.get("交易分类", "").strip()
+    try:
+        amount = Decimal(amount_str)
+    except (InvalidOperation, ValueError):
+        raise ValueError(
+            f"❌ 支付宝账单金额无法解析: amount_str={amount_str!r}\n"
+            f"   date={date_str} direction={direction} type={txn_type}"
+        )
+    if amount == 0:
+        # 0 元交易：会员卡抵扣、积分兑换等，无资金变动，保留记录但不计入财务
+        category = "expense" if direction == "支出" else "income"
+    else:
+        category = "expense" if amount < 0 else "income"
+        if direction == "支出":
+            amount = amount.copy_negate()
+        elif direction == "收入":
+            pass
+        elif direction == "不计收支":
+            # 支付宝提现到银行卡在原始账单里是"不计收支"，但从支付宝余额账户视角是资产流出。
+            # 退款类不计收支仍保持正数，交给 _pair_refunds 配对核销。
+            desc_for_direction = source_payload.get("商品说明", "").strip()
+            is_investment_outflow = (
+                txn_type == "投资理财"
+                and "收益发放" not in desc_for_direction
+                and any(k in desc_for_direction for k in ("转入", "买入", "单次转入", "支付宝转入到余利宝"))
+            )
+            # 余额宝/余利宝转出到银行卡：平台侧出账（负），不得记成银行卡 +income
+            is_wealth_to_bank = (
+                "转出到银行卡" in desc_for_direction
+                and any(k in desc_for_direction for k in ("余额宝", "余利宝"))
+            )
+            is_wealth_to_balance = "余额宝-转出到余额" in desc_for_direction
+            # Alipay records successful credit repayments as "不计收支" with a
+            # positive source amount, but the mapped funding account is flowing out.
+            if (
+                txn_type == "账户提现"
+                or txn_type == "信用借还"
+                or "提现-实时提现" in desc_for_direction
+                or "转出到网商银行" in desc_for_direction
+                or is_investment_outflow
+                or is_wealth_to_bank
+                or is_wealth_to_balance
+            ):
+                amount = amount.copy_abs().copy_negate()
+                category = "expense"
+        else:
+            raise ValueError(
+                f"❌ 支付宝账单未知收/支方向: direction={direction!r}\n"
+                f"   date={date_str} type={txn_type} amount={amount_str}\n"
+                f"   请确认是否需更新转换器以支持新的方向类型"
+            )
+
+    payment_method = source_payload.get("收/付款方式", "").strip()
+    counterparty = source_payload.get("交易对方", "").strip()
+    desc = source_payload.get("商品说明", "").strip() or counterparty
+    txn_type = source_payload.get("交易分类", "").strip()
+
+    # 交易状态：用于识别"下单未付款"的假交易
+    txn_status = source_payload.get("交易状态", "").strip()
+
+    # --- 007 whitelist skips (must comment + count; not silent) ---
+    from ft.domain.platform_refund import (
+        alipay_is_unpaid_closed,
+        alipay_is_failed_repay,
+    )
+    # FR-008a: 未支付关闭 — 交易关闭/已关闭 + 非支出 + 付款方式空。
+    # 下单未支付/未占用资金即关闭，导出通常无退款行；导入会造成假支出。
+    if alipay_is_unpaid_closed(txn_status, direction, payment_method):
+        return {"_skip_reason": "unpaid_closed", "_skipped": True}
+    # FR-008c: 还款失败 + 不计收支 + 付款方式空 — 自动还款未扣成；真还款见还款成功。
+    if alipay_is_failed_repay(txn_status, direction, payment_method):
+        return {"_skip_reason": "failed_repay", "_skipped": True}
+    # Paid closed expense (交易关闭|支出) and other statuses: MUST import (FR-008).
+    # 0-yuan auth-hold / unfreeze / refunds: MUST import (FR-011 / FR-014a).
+
+    if amount != 0:
+        category = "expense" if amount < 0 else "income"
+
+    normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "alipay")
+    refund_signal = _alipay_refund_signal(
+        txn_type=txn_type,
+        txn_status=txn_status,
+        direction=direction,
+        description=enriched_desc,
+    )
+    txn_id = source_payload.get("交易订单号", "").strip()
+    merchant_order_id = source_payload.get("商家订单号", "").strip()
+    fact_id = f"alipay_{txn_id}" if txn_id else f"alipay_{position:06d}"
+    _alipay_rec = {
+        "date": date_str,
+        "amount": amount,
+        "payment_method": payment_method,
+        "counterparty": normalized_cp,
+        "counterparty_account": source_payload.get("对方账号", ""),
+        "note": enriched_desc[:80],
+        "category": category,
+        "txn_type": txn_type,
+        "txn_id": txn_id,
+        "merchant_order_id": merchant_order_id,
+        "platform_status": txn_status,
+        "_alipay_direction": direction,
+        "_refund_signal": refund_signal,
+        "_fact_id": fact_id,
+        "_source_payload": source_payload,
+    }
+    return _alipay_route_wealth_product(_alipay_rec)
+
 
 
 def _read_alipay_raw(path: str):
@@ -1181,8 +1295,6 @@ def _read_alipay_raw(path: str):
 
     if len(set(header)) != len(header):
         raise ValueError("支付宝账单表头重复，无法保存完整来源行")
-    h = {col: idx for idx, col in enumerate(header)}
-
     raw = []  # (date_str, amount, payment_method, counterparty, description, category, txn_type)
     for row in reader:
         if len(row) != len(header):
@@ -1194,117 +1306,7 @@ def _read_alipay_raw(path: str):
             column: row[index]
             for index, column in enumerate(header)
         }
-        date_str = row[h.get("交易时间", 0)].strip()[:19].replace("/", "-")
-        direction = row[h.get("收/支", 5)].strip()
-        amount_str = row[h.get("金额", 6)].strip()
-        txn_type = row[h.get("交易分类", 1)].strip()
-        try:
-            amount = Decimal(amount_str)
-        except (InvalidOperation, ValueError):
-            raise ValueError(
-                f"❌ 支付宝账单金额无法解析: amount_str={amount_str!r}\n"
-                f"   date={date_str} direction={direction} type={txn_type}"
-            )
-        if amount == 0:
-            # 0 元交易：会员卡抵扣、积分兑换等，无资金变动，保留记录但不计入财务
-            category = "expense" if direction == "支出" else "income"
-        else:
-            category = "expense" if amount < 0 else "income"
-            if direction == "支出":
-                amount = -amount
-            elif direction == "收入":
-                pass
-            elif direction == "不计收支":
-                # 支付宝提现到银行卡在原始账单里是"不计收支"，但从支付宝余额账户视角是资产流出。
-                # 退款类不计收支仍保持正数，交给 _pair_refunds 配对核销。
-                desc_for_direction = row[h.get("商品说明", 4)].strip() if "商品说明" in h else ""
-                is_investment_outflow = (
-                    txn_type == "投资理财"
-                    and "收益发放" not in desc_for_direction
-                    and any(k in desc_for_direction for k in ("转入", "买入", "单次转入", "支付宝转入到余利宝"))
-                )
-                # 余额宝/余利宝转出到银行卡：平台侧出账（负），不得记成银行卡 +income
-                is_wealth_to_bank = (
-                    "转出到银行卡" in desc_for_direction
-                    and any(k in desc_for_direction for k in ("余额宝", "余利宝"))
-                )
-                is_wealth_to_balance = "余额宝-转出到余额" in desc_for_direction
-                # Alipay records successful credit repayments as "不计收支" with a
-                # positive source amount, but the mapped funding account is flowing out.
-                if (
-                    txn_type == "账户提现"
-                    or txn_type == "信用借还"
-                    or "提现-实时提现" in desc_for_direction
-                    or "转出到网商银行" in desc_for_direction
-                    or is_investment_outflow
-                    or is_wealth_to_bank
-                    or is_wealth_to_balance
-                ):
-                    amount = -abs(amount)
-                    category = "expense"
-            else:
-                raise ValueError(
-                    f"❌ 支付宝账单未知收/支方向: direction={direction!r}\n"
-                    f"   date={date_str} type={txn_type} amount={amount_str}\n"
-                    f"   请确认是否需更新转换器以支持新的方向类型"
-                )
-
-        payment_method = row[h.get("收/付款方式", 7)].strip() if "收/付款方式" in h else ""
-        counterparty = row[h.get("交易对方", 2)].strip()
-        desc = row[h.get("商品说明", 4)].strip() or counterparty
-        txn_type = row[h.get("交易分类", 1)].strip()
-
-        # 交易状态：用于识别"下单未付款"的假交易
-        txn_status = row[h.get("交易状态", 8)].strip() if "交易状态" in h else ""
-
-        # --- 007 whitelist skips (must comment + count; not silent) ---
-        from ft.domain.platform_refund import (
-            alipay_is_unpaid_closed,
-            alipay_is_failed_repay,
-        )
-        # FR-008a: 未支付关闭 — 交易关闭/已关闭 + 非支出 + 付款方式空。
-        # 下单未支付/未占用资金即关闭，导出通常无退款行；导入会造成假支出。
-        if alipay_is_unpaid_closed(txn_status, direction, payment_method):
-            raw.append({"_skip_reason": "unpaid_closed", "_skipped": True})
-            continue
-        # FR-008c: 还款失败 + 不计收支 + 付款方式空 — 自动还款未扣成；真还款见还款成功。
-        if alipay_is_failed_repay(txn_status, direction, payment_method):
-            raw.append({"_skip_reason": "failed_repay", "_skipped": True})
-            continue
-        # Paid closed expense (交易关闭|支出) and other statuses: MUST import (FR-008).
-        # 0-yuan auth-hold / unfreeze / refunds: MUST import (FR-011 / FR-014a).
-
-        if amount != 0:
-            category = "expense" if amount < 0 else "income"
-
-        normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "alipay")
-        refund_signal = _alipay_refund_signal(
-            txn_type=txn_type,
-            txn_status=txn_status,
-            direction=direction,
-            description=enriched_desc,
-        )
-        txn_id = row[h.get("交易订单号", 9)].strip() if "交易订单号" in h else ""
-        merchant_order_id = row[h.get("商家订单号", 10)].strip() if "商家订单号" in h else ""
-        fact_id = f"alipay_{txn_id}" if txn_id else f"alipay_{len(raw)+1:06d}"
-        _alipay_rec = {
-            "date": date_str,
-            "amount": amount,
-            "payment_method": payment_method,
-            "counterparty": normalized_cp,
-            "counterparty_account": source_payload.get("对方账号", ""),
-            "note": enriched_desc[:80],
-            "category": category,
-            "txn_type": txn_type,
-            "txn_id": txn_id,
-            "merchant_order_id": merchant_order_id,
-            "platform_status": txn_status,
-            "_alipay_direction": direction,
-            "_refund_signal": refund_signal,
-            "_fact_id": fact_id,
-            "_source_payload": source_payload,
-        }
-        raw.append(_alipay_route_wealth_product(_alipay_rec))
+        raw.append(_parse_alipay_source_row(source_payload, position=len(raw) + 1))
 
     # Split whitelist skips from facts (007 acceptance counters).
     skips = [r for r in raw if r.get("_skipped")]
@@ -1336,6 +1338,118 @@ def _read_alipay_raw(path: str):
     return records, tracking_pairs
 
 
+def _parse_wechat_source_row(source_payload: dict[str, str], *, position: int) -> dict | None:
+    """共享单条来源语义；旧读取器保留历史跳过行为，新会话保留原因。"""
+    direction = source_payload.get("收/支", "")
+    status = source_payload.get("当前状态", "")
+
+    # 007 FR-027: do not silently drop expense fail/closed/revoked or non-INCOME_OK income.
+    # Current real-bill corpus has none of those statuses; if they appear, import them
+    # (or apply FR-008b with counters when unpaid-failure can be proven). Unknown
+    # neutral types still fail closed below.
+
+    try:
+        amount = Decimal(source_payload.get("金额(元)", ""))
+    except (InvalidOperation, ValueError, KeyError):
+        return None
+
+    # 提前提取所有字段，后面会按需使用
+    payment_method = source_payload.get("支付方式", "")
+    counterparty_account = ""
+    counterparty = source_payload.get("交易对方", "")
+    desc = source_payload.get("商品", "")
+    txn_type = source_payload.get("交易类型", "")
+    txn_id = source_payload.get("交易单号", "")
+    merchant_order_id = source_payload.get("商户单号", "")
+    date_raw = source_payload.get("交易时间", "")
+    date_str = date_raw[:19].replace("/", "-")
+
+    if direction == "支出":
+        amount = amount.copy_negate()
+    elif direction == "收入":
+        pass
+    elif txn_type in ("零钱提现", "充值", "零钱充值", "零钱通存取", "理财通", "购买理财通", "信用卡还款"):
+        # 微信中性交易（收/支="/"）金额列始终为正，不能按金额正负判断方向，必须按交易类型语义判断。
+        if txn_type == "零钱提现":
+            # 零钱 → 银行卡：本行是微信零钱出账（expense）。
+            # 支付方式列是到账卡，仅作证据；原始解析保留「零钱」，由现金账单适配层统一为「微信零钱」。
+            # 银行卡入账由银行账单表达，再以 transfer_pair 配对。
+            amount = amount.copy_negate()
+            category = "expense"
+            # Preserve destination card in counterparty if empty; force routing key.
+            counterparty_account = payment_method
+            if payment_method and (not counterparty or counterparty in ("/", "-")):
+                counterparty = payment_method
+            payment_method = "零钱"
+        elif txn_type in ("充值", "零钱充值", "购买理财通", "信用卡还款"):
+            # 银行卡/零钱流出到微信零钱、理财通或信用卡还款。
+            amount = amount.copy_negate()
+            category = "expense"
+        elif txn_type in ("零钱通存取", "理财通"):
+            text = f"{counterparty}{desc}{status}"
+            if any(k in text for k in ("转出", "取出", "赎回", "到账")):
+                category = "income"
+            else:
+                amount = amount.copy_negate()
+                category = "expense"
+        else:
+            return None
+        # 描述为空或无意义时，用交易类型代替
+        if not desc or desc in ("/", "-"):
+            desc = txn_type
+        normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
+        fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{position:06d}"
+        return {
+            "date": date_str,
+            "amount": amount,
+            "payment_method": payment_method,
+            "counterparty": normalized_cp,
+            "counterparty_account": counterparty_account,
+            "note": enriched_desc[:80],
+            "category": category,
+            "status": status,
+            "platform_status": status,
+            "txn_type": txn_type,
+            "txn_id": txn_id,
+            "merchant_order_id": merchant_order_id,
+            "_wechat_direction": direction or "/",
+            "_refund_signal": "wechat_status" if "退款" in status else "",
+            "_fact_id": fact_id,
+            "_source_payload": source_payload,
+        }
+    else:
+        return None
+    # 007: 0-yuan rows import when present (balance unaffected)
+    # 描述为空或无意义时，用交易类型代替
+    if not desc or desc in ("/", "-"):
+        desc = txn_type
+
+    # convert 层只看收支方向，不做语义判断
+    category = "expense" if amount < 0 else "income"
+
+    normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
+    fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{position:06d}"
+    return {
+        "date": date_str,
+        "amount": amount,
+        "payment_method": payment_method,
+        "counterparty": normalized_cp,
+        "counterparty_account": "",
+        "note": enriched_desc[:80],
+        "category": category,
+        "status": status,
+        "platform_status": status,
+        "txn_type": txn_type,
+        "txn_id": txn_id,
+        "merchant_order_id": merchant_order_id,
+        "_wechat_direction": (direction or ("支出" if category == "expense" else "收入")),
+        "_refund_signal": "wechat_status" if "退款" in status else "",
+        "_fact_id": fact_id,
+        "_source_payload": source_payload,
+    }
+
+
+
 def _read_wechat_raw(path: str):
     """解析微信Excel，不落库，返回 list[dict]"""
     try:
@@ -1343,8 +1457,6 @@ def _read_wechat_raw(path: str):
     except ImportError:
         print("❌ 需要 openpyxl: pip install openpyxl")
         return []
-
-    from .importers.wechat import INCOME_OK
 
     wb = openpyxl.load_workbook(path)
     ws = wb.active
@@ -1363,8 +1475,6 @@ def _read_wechat_raw(path: str):
     )]
     if not all(header) or len(set(header)) != len(header):
         raise ValueError("微信账单表头不完整或重复，无法保存完整来源行")
-    h = {col: idx for idx, col in enumerate(header)}
-
     raw = []
     for row in ws.iter_rows(min_row=header_row_i + 1, values_only=True):
         if not row or not any(v for v in row if v is not None):
@@ -1378,114 +1488,9 @@ def _read_wechat_raw(path: str):
             column: vals[index]
             for index, column in enumerate(header)
         }
-        direction = vals[h["收/支"]] if "收/支" in h else ""
-        status = vals[h["当前状态"]] if "当前状态" in h else ""
-
-        # 007 FR-027: do not silently drop expense fail/closed/revoked or non-INCOME_OK income.
-        # Current real-bill corpus has none of those statuses; if they appear, import them
-        # (or apply FR-008b with counters when unpaid-failure can be proven). Unknown
-        # neutral types still fail closed below.
-
-        try:
-            amount = Decimal(vals[h["金额(元)"]])
-        except (InvalidOperation, ValueError, KeyError):
-            continue
-        
-        # 提前提取所有字段，后面会按需使用
-        payment_method = vals[h["支付方式"]] if "支付方式" in h else ""
-        counterparty_account = ""
-        counterparty = vals[h["交易对方"]] if "交易对方" in h else ""
-        desc = vals[h["商品"]] if "商品" in h else ""
-        txn_type = vals[h["交易类型"]] if "交易类型" in h else ""
-        txn_id = vals[h["交易单号"]] if "交易单号" in h else ""
-        merchant_order_id = vals[h["商户单号"]] if "商户单号" in h else ""
-        date_raw = vals[h["交易时间"]] if "交易时间" in h else ""
-        date_str = date_raw[:19].replace("/", "-")
-
-        if direction == "支出":
-            amount = -amount
-        elif direction == "收入":
-            pass
-        elif txn_type in ("零钱提现", "充值", "零钱充值", "零钱通存取", "理财通", "购买理财通", "信用卡还款"):
-            # 微信中性交易（收/支="/"）金额列始终为正，不能按金额正负判断方向，必须按交易类型语义判断。
-            if txn_type == "零钱提现":
-                # 零钱 → 银行卡：本行是微信零钱出账（expense）。
-                # 支付方式列是到账卡，仅作证据；原始解析保留「零钱」，由现金账单适配层统一为「微信零钱」。
-                # 银行卡入账由银行账单表达，再以 transfer_pair 配对。
-                amount = -amount
-                category = "expense"
-                # Preserve destination card in counterparty if empty; force routing key.
-                counterparty_account = payment_method
-                if payment_method and (not counterparty or counterparty in ("/", "-")):
-                    counterparty = payment_method
-                payment_method = "零钱"
-            elif txn_type in ("充值", "零钱充值", "购买理财通", "信用卡还款"):
-                # 银行卡/零钱流出到微信零钱、理财通或信用卡还款。
-                amount = -amount
-                category = "expense"
-            elif txn_type in ("零钱通存取", "理财通"):
-                text = f"{counterparty}{desc}{status}"
-                if any(k in text for k in ("转出", "取出", "赎回", "到账")):
-                    category = "income"
-                else:
-                    amount = -amount
-                    category = "expense"
-            else:
-                continue
-            # 描述为空或无意义时，用交易类型代替
-            if not desc or desc in ("/", "-"):
-                desc = txn_type
-            normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
-            fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
-            raw.append({
-                "date": date_str,
-                "amount": amount,
-                "payment_method": payment_method,
-                "counterparty": normalized_cp,
-                "counterparty_account": counterparty_account,
-                "note": enriched_desc[:80],
-                "category": category,
-                "status": status,
-                "platform_status": status,
-                "txn_type": txn_type,
-                "txn_id": txn_id,
-                "merchant_order_id": merchant_order_id,
-                "_wechat_direction": direction or "/",
-                "_refund_signal": "wechat_status" if "退款" in status else "",
-                "_fact_id": fact_id,
-                "_source_payload": source_payload,
-            })
-            continue
-        else:
-            continue
-        # 007: 0-yuan rows import when present (balance unaffected)
-        # 描述为空或无意义时，用交易类型代替
-        if not desc or desc in ("/", "-"):
-            desc = txn_type
-
-        # convert 层只看收支方向，不做语义判断
-        category = "expense" if amount < 0 else "income"
-
-        normalized_cp, enriched_desc = _normalize_counterparty(counterparty, desc[:80], "wechat")
-        fact_id = f"wechat_{txn_id}" if txn_id else f"wechat_{len(raw)+1:06d}"
-        raw.append({
-            "date": date_str,
-            "amount": amount,
-            "payment_method": payment_method,
-            "counterparty": normalized_cp,
-            "counterparty_account": "",
-            "note": enriched_desc[:80],
-            "category": category,
-            "status": status,
-            "platform_status": status,
-            "txn_type": txn_type,
-            "txn_id": txn_id,
-            "merchant_order_id": merchant_order_id,
-            "_wechat_direction": (direction or ("支出" if category == "expense" else "收入")),
-            "_refund_signal": "wechat_status" if "退款" in status else "",
-            "_fact_id": fact_id,
-            "_source_payload": source_payload,
-        })
+        parsed = _parse_wechat_source_row(source_payload, position=len(raw) + 1)
+        if parsed is not None:
+            raw.append(parsed)
 
     # Dual-row refund tracking via FR-029 pure matcher; never rewrite amounts.
     from ft.domain.platform_refund import pair_wechat_refunds
@@ -1514,6 +1519,42 @@ def _read_wechat_raw(path: str):
         }
     })
     return records, tracking_pairs
+
+
+def _parse_icbc_credit_source_row(
+    source_payload: dict, *, date: str, amount: Decimal, currency: str,
+    source_account_identifier: str | None, counterparty: str,
+    counterparty_account_candidates=(), summary: str = "", description: str = "",
+):
+    """共用信用卡单行语义；调用方提供已提取字段，不执行退款配对。"""
+    offset_type = _classify_icbc_credit_offset_type(counterparty, description, summary)
+    normalization_description = description
+    if not normalization_description and _infer_payment_source("icbc", counterparty, "") != "银行卡":
+        normalization_description = counterparty
+    normalized_cp, enriched_desc = _normalize_counterparty(counterparty, normalization_description[:80], "icbc")
+    owner = _normalize_icbc_account_identifier(source_account_identifier)
+    rec = {
+        "date": date, "amount": amount, "currency": currency, "counterparty": normalized_cp,
+        "counterparty_account": next(iter(dict.fromkeys(counterparty_account_candidates)), "")
+        if summary in {"转账", "转帐"} and len(set(counterparty_account_candidates)) == 1 else "",
+        "note": enriched_desc[:80], "category": "expense" if amount < 0 else "income",
+        "payment_method": _infer_payment_source("icbc", normalized_cp, enriched_desc[:80]),
+        "card_number": owner[-4:] if owner else "", "_source_account_identifier": owner,
+        "file_account_key": owner, "source_display_name": "工商银行信用卡", "_raw_cp": counterparty,
+        "summary": summary, "refund_signal": "", "_refund_signal": "",
+        "_fact_id": "icbc_credit_" + _stable_short_hash(date, f"{amount:.2f}", currency, normalized_cp, enriched_desc[:80], owner),
+        "_source_payload": source_payload,
+    }
+    if offset_type:
+        rec["offset_type"] = offset_type
+    if offset_type == "merchant_refund":
+        merchant_text = description if counterparty == "退货" and description else counterparty
+        rec.update(_is_refund=True, _refund_signal="icbc_credit_return",
+            refund_signal="icbc_credit_return" if summary == "退货" else "",
+            _icbc_refund_merchant_trusted=not _is_icbc_credit_untrusted_merchant_text(merchant_text))
+    elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
+        rec = _build_icbc_credit_offset_income(rec, offset_type)
+    return rec
 
 
 def _parse_icbc_lines(
@@ -1640,66 +1681,12 @@ def _parse_icbc_lines(
                         break
                     counterparty = s
 
-                offset_type = _classify_icbc_credit_offset_type(counterparty, description, summary)
-                is_refund = offset_type == "merchant_refund"
-                normalization_description = description
-                if not normalization_description and (
-                    _infer_payment_source("icbc", counterparty, "") != "银行卡"
-                ):
-                    normalization_description = counterparty
-                normalized_cp, enriched_desc = _normalize_counterparty(
-                    counterparty, normalization_description[:80], "icbc"
+                rec = _parse_icbc_credit_source_row(
+                    {"原始文本单元": lines[record_start:min(len(lines), i + 12)]},
+                    date=f"{current_date} {current_time}", amount=amount, currency=currency,
+                    source_account_identifier=current_card, counterparty=counterparty,
+                    counterparty_account_candidates=counterparty_account_candidates, summary=summary, description=description,
                 )
-                payment_method = _infer_payment_source("icbc", normalized_cp, enriched_desc[:80])
-                source_account_identifier = _normalize_icbc_account_identifier(current_card)
-                card_number = source_account_identifier[-4:] if source_account_identifier else ""
-                fact_hash = _stable_short_hash(
-                    f"{current_date} {current_time}",
-                    f"{amount:.2f}",
-                    currency,
-                    normalized_cp,
-                    enriched_desc[:80],
-                    source_account_identifier,
-                )
-                rec = {
-                    "date": f"{current_date} {current_time}",
-                    "amount": amount,
-                    "currency": currency,
-                    "counterparty": normalized_cp,
-                    "counterparty_account": (
-                        next(iter(dict.fromkeys(counterparty_account_candidates)), "")
-                        if (
-                            summary in {"转账", "转帐"}
-                            and len(set(counterparty_account_candidates)) == 1
-                        )
-                        else ""
-                    ),
-                    "note": enriched_desc[:80],
-                    "category": category,
-                    "payment_method": payment_method,
-                    "card_number": card_number,
-                    "_source_account_identifier": source_account_identifier,
-                    "file_account_key": source_account_identifier,
-                    "source_display_name": "工商银行信用卡",
-                    "_raw_cp": counterparty,  # 保存原始 cp 用于退款匹配
-                    "summary": summary,
-                    "refund_signal": "",
-                    "_refund_signal": "",
-                    "_fact_id": f"icbc_credit_{fact_hash}",
-                    "_source_payload": {
-                        "原始文本单元": lines[record_start:min(len(lines), i + 12)],
-                    },
-                }
-                if offset_type:
-                    rec["offset_type"] = offset_type
-                if is_refund:
-                    merchant_text = description if counterparty == "退货" and description else counterparty
-                    rec["_is_refund"] = True
-                    rec["_refund_signal"] = "icbc_credit_return"
-                    rec["refund_signal"] = "icbc_credit_return" if summary == "退货" else ""
-                    rec["_icbc_refund_merchant_trusted"] = not _is_icbc_credit_untrusted_merchant_text(merchant_text)
-                elif offset_type in {"benefit_rebate", "campaign_cashback", "fee_reversal"}:
-                    rec = _build_icbc_credit_offset_income(rec, offset_type)
                 records.append(rec)
                 current_date = None
             i += 1
@@ -1981,6 +1968,8 @@ def _parse_icbc_debit_row(
     *,
     source_account_identifier: str | None = None,
     source_payload: dict | None = None,
+    allow_missing_source_account: bool = False,
+    parsed_amount: Decimal | None = None,
 ) -> dict | None:
     """解析储蓄卡PDF的一行表格数据"""
     import re as _re
@@ -2008,15 +1997,19 @@ def _parse_icbc_debit_row(
 
     # 金额 — 水印已过滤，干净的数字
     amt_str = (row[8] or "").replace("\n", "").strip()
-    amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
-    if not amt_m:
-        raise ValueError(
-            "❌ 工行借记卡行金额无法解析\n"
-            f"   可能是PDF格式变更或水印干扰"
-        )
-    sign = amt_m.group(1) or ""
-    num = Decimal(amt_m.group(2).replace(",", ""))
-    amount = -num if sign == "-" else num
+    if parsed_amount is None:
+        amt_m = _re.search(r"([+-])?([\d,]+\.[\d]{2})", amt_str)
+        if not amt_m:
+            raise ValueError(
+                "❌ 工行借记卡行金额无法解析\n"
+                f"   可能是PDF格式变更或水印干扰"
+            )
+        sign = amt_m.group(1) or ""
+        num = Decimal(amt_m.group(2).replace(",", ""))
+        amount = -num if sign == "-" else num
+    else:
+        from ft.domain.decimal import exact_decimal
+        amount = exact_decimal(parsed_amount)
 
     # 摘要 — 匹配已知关键词（水印噪声可能把关键词拆散）
     summary = _match_debit_summary((row[6] or "").replace("\n", "").strip())
@@ -2039,7 +2032,7 @@ def _parse_icbc_debit_row(
     # raw business-row field and must distinguish otherwise identical rows.
     source_row_account = (row[1] or "").replace("\n", "").strip()
     source_account_identifier = _normalize_icbc_account_identifier(source_account_identifier)
-    if not source_account_identifier:
+    if not source_account_identifier and not allow_missing_source_account:
         raise ValueError("❌ 工行借记卡缺少文件级卡号，不能使用表格账号作为来源账户身份")
 
     category = "expense" if amount < 0 else "income"

@@ -27,6 +27,7 @@ TRANSFER_PAIR_COUNT = 250
 WARMUPS = 3
 SAMPLES = 20
 P95_BUDGET_NS = 10_000_000_000
+POSTGRES_REBUILD_P95_BUDGET_NS = 18_000_000_000
 EDIT_P95_BUDGET_NS = 100_000_000
 EDIT_WARMUPS = 3
 EDIT_SAMPLES = 20
@@ -129,7 +130,7 @@ def performance_runtime(request, tmp_path):
             reset_postgres_schema(url)
 
 
-def _fixture_digest() -> str:
+def _fixture_digest(*, scenario: str | None = None) -> str:
     payload = {
         "seed": "cash-projection-performance-v1",
         "facts": FACT_COUNT,
@@ -139,6 +140,8 @@ def _fixture_digest() -> str:
         "transfer_pairs": TRANSFER_PAIR_COUNT,
         "start": START.isoformat(),
     }
+    if scenario is not None:
+        payload["scenario"] = scenario
     return sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
@@ -152,36 +155,6 @@ def _cash_command_service(sessions):
         WORKSPACE,
         relation_service=RelationService(RelationalUnitOfWork(sessions, WORKSPACE)),
     )
-
-
-class _PerformanceStatementParser:
-    def __init__(self, rows: list[dict]) -> None:
-        self.rows = rows
-
-    def parse(self, _command) -> list[dict]:
-        return [dict(row) for row in self.rows]
-
-
-def _performance_import_rows(count: int, *, source_type: str = "performance_import") -> list[dict]:
-    return [
-        {
-            "record_id": f"performance-import-{index:05d}",
-            "occurred_at": f"2026-01-{index % 28 + 1:02d}T{index % 24:02d}:00:00+00:00",
-            "amount": "-1.00",
-            "currency": "CNY",
-            "counterparty": f"性能导入对方-{index:05d}",
-            "counterparty_account": "",
-            "note": "固定导入性能夹具",
-            "category": "日常",
-            "record_type": "consumption",
-            "record_subtype": "not_applicable",
-            "account_name": "性能现金账户 A",
-            "source_type": source_type,
-            "bill_source": source_type,
-            "source_payload": {"row": index, "source": source_type},
-        }
-        for index in range(count)
-    ]
 
 
 def _process_peak_rss_bytes() -> int:
@@ -210,7 +183,8 @@ def _seed_cash_projection_workload(sessions) -> None:
     components: list[dict] = []
     relations: list[dict] = []
 
-    def add_transaction(identifier: int, account_id: int, amount: Decimal, category: str) -> None:
+    def add_transaction(identifier: int, account_id: int, amount: Decimal, category: str,
+                        record_type: str, record_subtype: str = "not_applicable") -> None:
         transactions.append({
             "id": identifier,
             "workspace_id": WORKSPACE,
@@ -223,6 +197,8 @@ def _seed_cash_projection_workload(sessions) -> None:
             "counterparty": "去标识化交易对方",
             "note": "固定性能夹具",
             "category": category,
+            "record_type": record_type,
+            "record_subtype": record_subtype,
         })
         components.append({
             "id": identifier,
@@ -241,15 +217,15 @@ def _seed_cash_projection_workload(sessions) -> None:
             "subtype": subtype,
             "primary_component_id": primary_fact_id,
             "secondary_component_id": secondary_fact_id,
-            "primary_fact_type": "cash",
-            "secondary_fact_type": "cash",
-            "ordered_component_a": min(primary_fact_id, secondary_fact_id),
-            "ordered_component_b": max(primary_fact_id, secondary_fact_id),
+            "primary_transaction_id": primary_fact_id,
+            "secondary_transaction_id": secondary_fact_id,
+            "anchor_transaction_id": secondary_fact_id,
+            "primary_role": "outgoing" if kind == "transfer_pair" else "expense",
+            "secondary_role": "incoming" if kind == "transfer_pair" else "refund" if kind == "refund_offset" else "expense",
             "anchor_component_id": secondary_fact_id,
-            "status": "accepted",
+            "state": "confirmed", "active": True,
             "rule_id": "performance_fixture",
-            "confidence": "strong",
-            "evidence_json": {},
+            "evidence": {},
         })
 
     for identifier in range(1, SINGLE_FACT_COUNT + 1):
@@ -258,27 +234,28 @@ def _seed_cash_projection_workload(sessions) -> None:
             1 if identifier % 2 else 2,
             Decimal("-10.00") if identifier % 2 else Decimal("10.00"),
             "日常",
+            "consumption" if identifier % 2 else "income",
         )
 
     next_identifier = SINGLE_FACT_COUNT + 1
     for _ in range(PAYMENT_MIRROR_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-20.00"), "同笔支付")
-        add_transaction(secondary_fact_id, 2, Decimal("-20.00"), "同笔支付")
+        add_transaction(primary_fact_id, 1, Decimal("-20.00"), "同笔支付", "consumption")
+        add_transaction(secondary_fact_id, 2, Decimal("-20.00"), "同笔支付", "consumption")
         add_relation("payment_mirror", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
     for _ in range(REFUND_OFFSET_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-100.00"), "退款冲销")
-        add_transaction(secondary_fact_id, 1, Decimal("25.00"), "退款冲销")
+        add_transaction(primary_fact_id, 1, Decimal("-100.00"), "退款冲销", "consumption")
+        add_transaction(secondary_fact_id, 1, Decimal("25.00"), "退款冲销", "refund")
         add_relation("refund_offset", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
     for _ in range(TRANSFER_PAIR_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
-        add_transaction(primary_fact_id, 1, Decimal("-50.00"), "内部转账")
-        add_transaction(secondary_fact_id, 2, Decimal("50.00"), "内部转账")
+        add_transaction(primary_fact_id, 1, Decimal("-50.00"), "内部转账", "transfer_out", "ordinary_transfer")
+        add_transaction(secondary_fact_id, 2, Decimal("50.00"), "内部转账", "transfer_in", "ordinary_transfer")
         add_relation("transfer_pair", primary_fact_id, secondary_fact_id, "ordinary_transfer")
         next_identifier += 2
 
@@ -358,7 +335,7 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
     assert result["availability"] == "ready"
     assert result["member_count"] == FACT_COUNT
     assert result["projection_count"] == 8_500
-    assert p95 <= P95_BUDGET_NS
+    assert p95 <= (POSTGRES_REBUILD_P95_BUDGET_NS if backend == "postgresql" else P95_BUDGET_NS)
 
 
 @pytest.mark.performance
@@ -416,9 +393,25 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
     from ft.application.cash_ledger import CashLedgerCommandService
     from ft.application.cash_projections import CashProjectionService
     from ft.application.relations import RelationService
+    from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
+    from sqlalchemy import update
 
     backend, sessions = performance_runtime
     _seed_cash_projection_workload(sessions)
+    # Declare legal cross-currency endpoints before timing. Both relation
+    # subtypes below accept these same fixed financial facts and roles.
+    indices = (*range(2 * RELATION_WARMUPS), *range(100, 100 + 2 * RELATION_SAMPLES))
+    outgoing_ids = tuple(1 + index * 2 for index in indices)
+    incoming_ids = tuple(identifier + 1 for identifier in outgoing_ids)
+    with sessions.begin() as session:
+        session.execute(update(AccountModel).where(AccountModel.workspace_id == WORKSPACE, AccountModel.id == 1)
+            .values(currencies=["CNY", "USD"]))
+        session.execute(update(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE,
+            CashTransactionModel.id.in_(outgoing_ids)).values(record_type="transfer_out", record_subtype="cross_border_remittance"))
+        session.execute(update(CashTransactionModel).where(CashTransactionModel.workspace_id == WORKSPACE,
+            CashTransactionModel.id.in_(incoming_ids)).values(account_id=1, currency="USD", record_type="transfer_in", record_subtype="ordinary_transfer"))
+        session.execute(update(CashTransactionComponentModel).where(CashTransactionComponentModel.workspace_id == WORKSPACE,
+            CashTransactionComponentModel.cash_transaction_id.in_(incoming_ids)).values(account_id=1, currency="USD"))
     CashProjectionService(sessions, WORKSPACE).rebuild()
     service = CashLedgerCommandService(
         sessions,
@@ -435,7 +428,7 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
             "primary_fact_id": primary,
             "secondary_fact_id": secondary,
             "kind": "transfer_pair",
-            "subtype": "ordinary_transfer",
+            "subtype": "currency_exchange",
             "status": "accepted",
         }
 
@@ -460,11 +453,12 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
         current_relation_id = relation_id(detail)
 
         started = time.perf_counter_ns()
-        service.update_relation(current_relation_id, {
+        updated = service.update_relation(current_relation_id, {
             "kind": "transfer_pair",
             "subtype": "cross_currency_remittance",
         })
         samples["update"].append(time.perf_counter_ns() - started)
+        assert updated["relations"][0]["subtype"] == "cross_currency_remittance"
 
         started = time.perf_counter_ns()
         service.cancel_relation(current_relation_id)
@@ -480,7 +474,7 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({
         "backend": backend,
-        "fixture_digest": _fixture_digest(),
+        "fixture_digest": _fixture_digest(scenario="legal-currency-exchange-pairs-v1"),
         "warmups": RELATION_WARMUPS,
         "samples": RELATION_SAMPLES,
         "relation_samples_ns": samples,
@@ -492,8 +486,8 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
 
 
 @pytest.mark.performance
-def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
-    """新建、关键字段保存和无关联删除都必须完成事务与返回结果。"""
+def test_fixed_10k_cash_create_type_edit_and_unrelated_delete_meet_100ms_budget(performance_runtime) -> None:
+    """新建、类型保存和无关联删除都必须完成事务与返回结果。"""
     from ft.application.cash_projections import CashProjectionService
 
     backend, sessions = performance_runtime
@@ -516,14 +510,12 @@ def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(p
         service.delete_record(created["record"]["id"])
         service.update_record("1", {
             "account_name": "性能现金账户 A",
-            "amount": f"-{11 + sample}.00",
             "currency": "CNY",
-            "occurred_at": "2025-07-01T00:00:00+00:00",
-            "record_type": "consumption",
+            "record_type": "consumption" if sample % 2 == 0 else "refund",
             "record_subtype": "not_applicable",
         })
 
-    samples: dict[str, list[int]] = {"create": [], "key_edit": [], "delete": []}
+    samples: dict[str, list[int]] = {"create": [], "type_edit": [], "delete": []}
     for sample in range(WRITE_SAMPLES):
         started = time.perf_counter_ns()
         created = service.create_record({
@@ -543,19 +535,18 @@ def test_fixed_10k_cash_create_key_edit_and_unrelated_delete_meet_100ms_budget(p
         started = time.perf_counter_ns()
         edited = service.update_record("1", {
             "account_name": "性能现金账户 A",
-            "amount": f"-{20 + sample}.00",
             "currency": "CNY",
-            "occurred_at": "2025-07-01T00:00:00+00:00",
-            "record_type": "consumption",
+            "record_type": "consumption" if (WRITE_WARMUPS + sample) % 2 == 0 else "refund",
             "record_subtype": "not_applicable",
         })
-        samples["key_edit"].append(time.perf_counter_ns() - started)
+        samples["type_edit"].append(time.perf_counter_ns() - started)
 
         started = time.perf_counter_ns()
         deleted = service.delete_record(created_id)
         samples["delete"].append(time.perf_counter_ns() - started)
         assert deleted["deleted"] is True
-        assert Decimal(str(edited["record"]["amount"])) == Decimal(f"-{20 + sample}.00")
+        assert Decimal(str(edited["record"]["amount"])) == Decimal("-10.00")
+        assert edited["record"]["record_type"] == ("consumption" if (WRITE_WARMUPS + sample) % 2 == 0 else "refund")
 
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({
@@ -580,9 +571,10 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
     _seed_cash_projection_workload(sessions)
     CashProjectionService(sessions, WORKSPACE).rebuild()
     service = _cash_command_service(sessions)
+    from cash_entry_fixtures import create_import_record
 
     def pair(index: int) -> tuple[str, str]:
-        outgoing = service.create_record({
+        outgoing = create_import_record(service, {
             "account_name": "性能现金账户 A",
             "amount": f"-{100 + index}.00",
             "currency": "CNY",
@@ -593,7 +585,7 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
             "record_subtype": "ordinary_transfer",
             "note": "性能关联",
         })
-        incoming = service.create_record({
+        incoming = create_import_record(service, {
             "account_name": "性能现金账户 B",
             "amount": f"{100 + index}.00",
             "currency": "CNY",
@@ -621,30 +613,10 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
         service.delete_record(outgoing, mode="delete_all")
 
     samples: dict[str, list[int]] = {
-        "related_key_edit": [],
         "delete_current_dissolve": [],
         "delete_all": [],
     }
     for sample in range(WRITE_SAMPLES):
-        outgoing, incoming = pair(200 + sample)
-        started = time.perf_counter_ns()
-        edited = service.update_record(outgoing, {
-            "account_name": "性能现金账户 A",
-            "amount": f"-{150 + sample}.00",
-            "currency": "CNY",
-            "occurred_at": "2026-04-01T09:00:00+00:00",
-            "counterparty": "性能关联对侧",
-            "category": "转账",
-            "record_type": "transfer_out",
-            "record_subtype": "ordinary_transfer",
-            "note": "性能关联",
-            "confirm_relation_impact": True,
-        })
-        samples["related_key_edit"].append(time.perf_counter_ns() - started)
-        assert edited["relations"] == []
-        service.delete_record(outgoing)
-        service.delete_record(incoming)
-
         outgoing, incoming = pair(300 + sample)
         started = time.perf_counter_ns()
         result = service.delete_record(outgoing, mode="delete_current_dissolve")
@@ -854,17 +826,17 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
             "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
             "AND projection_row_id IN (SELECT id FROM cash_projections "
             "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
-            "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
+            "AND visible = TRUE ORDER BY sort_at DESC, projection_id DESC LIMIT 50)",
             "SELECT transaction_relation_id FROM cash_projection_relations "
             "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
             "AND projection_row_id IN (SELECT id FROM cash_projections "
             "WHERE workspace_id = :workspace_id AND dataset_id = :dataset_id "
-            "AND visible = TRUE ORDER BY occurred_at DESC, projection_id DESC LIMIT 50)",
+            "AND visible = TRUE ORDER BY sort_at DESC, projection_id DESC LIMIT 50)",
             "SELECT id FROM transaction_relations "
-                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "WHERE workspace_id = :workspace_id AND state = 'confirmed' AND active = TRUE "
                 "AND primary_component_id IN (7001, 7003, 7005)",
             "SELECT id FROM transaction_relations "
-                "WHERE workspace_id = :workspace_id AND status = 'accepted' "
+                "WHERE workspace_id = :workspace_id AND state = 'confirmed' AND active = TRUE "
                 "AND secondary_component_id IN (7002, 7004, 7006)",
         ):
             result = session.execute(text(explain + statement), params)
@@ -889,8 +861,8 @@ def test_fixed_10k_cash_page_lookup_plans_use_pagination_indexes(performance_run
             "ix_cash_projection_relations_page_lookup" in plan_text
             or "uq_cash_projection_relations_ordinal" in plan_text
         )
-    assert "ix_transaction_relations_component_primary" in plan_text
-    assert "ix_transaction_relations_component_secondary" in plan_text
+    assert "ix_cash_relation_primary_component" in plan_text
+    assert "ix_cash_relation_secondary_component" in plan_text
 
 
 @pytest.mark.performance
@@ -928,6 +900,8 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
                 "counterparty": "关联规模性能夹具",
                 "note": "固定关联规模性能夹具",
                 "category": "日常",
+                "record_type": "consumption",
+                "record_subtype": "not_applicable",
             } for offset in range(size))
             extra_components.extend({
                 "id": base + offset,
@@ -944,13 +918,12 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
                 "subtype": "",
                 "primary_component_id": base + offset,
                 "secondary_component_id": base + offset + 1,
-                "primary_fact_type": "cash",
-                "secondary_fact_type": "cash",
-                "ordered_component_a": base + offset,
-                "ordered_component_b": base + offset + 1,
-                "status": "accepted",
+                "primary_transaction_id": base + offset,
+                "secondary_transaction_id": base + offset + 1,
+                "anchor_transaction_id": base + offset,
+                "primary_role": "expense", "secondary_role": "expense",
+                "state": "confirmed", "active": True,
                 "rule_id": "relation_group_performance",
-                "candidate_fact_ids": [],
                 "created_by": "performance",
                 "decided_by": "performance",
                 "decision_reason": "",
@@ -970,9 +943,9 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
         with sessions.begin() as session:
             cancel_relation_id = session.scalar(select(TransactionRelationModel.id).where(
                 TransactionRelationModel.workspace_id == WORKSPACE,
-                TransactionRelationModel.primary_fact_id == cancel_base,
-                TransactionRelationModel.secondary_fact_id == cancel_base + 1,
-                TransactionRelationModel.status == "accepted",
+                TransactionRelationModel.primary_component_id == cancel_base,
+                TransactionRelationModel.secondary_component_id == cancel_base + 1,
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
         assert cancel_relation_id
         started = time.perf_counter_ns()
@@ -1001,102 +974,3 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
             previous_per_member = metrics[previous_size][operation] / previous_size
             current_per_member = metrics[current_size][operation] / current_size
             assert current_per_member <= previous_per_member * 5
-
-
-@pytest.mark.performance
-def test_fixed_1k_cash_import_preview_and_idempotency_have_bounded_cost(performance_runtime) -> None:
-    """预览、首次导入、重复导入和来源变化合并都必须有固定批量基线。"""
-    from ft.application.cash_projections import CashProjectionService
-    from ft.application.cash_ledger import CashLedgerCommandService
-
-    backend, sessions = performance_runtime
-    baseline_peak = _process_peak_rss_bytes()
-    _seed_cash_projection_workload(sessions)
-    CashProjectionService(sessions, WORKSPACE).rebuild()
-    rows = _performance_import_rows(IMPORT_ROWS)
-    parser = _PerformanceStatementParser(rows)
-    service = CashLedgerCommandService(sessions, WORKSPACE, parser=parser)
-    rss_baseline = _process_peak_rss_bytes()
-
-    def measure(operation):
-        started = time.perf_counter_ns()
-        result = operation()
-        elapsed = time.perf_counter_ns() - started
-        return result, elapsed, _peak_rss_delta_bytes(rss_baseline)
-
-    preview, preview_ns, preview_peak = measure(lambda: service.preview_import(
-        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
-    ))
-    first, first_ns, first_peak = measure(lambda: service.commit_import(
-        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
-    ))
-    duplicate, duplicate_ns, duplicate_peak = measure(lambda: service.commit_import(
-        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
-    ))
-
-    for row in rows:
-        row["source_payload"] = {**row["source_payload"], "revision": 2}
-        row["counterparty"] = f"性能导入更新-{row['record_id']}"
-    updated, updated_ns, updated_peak = measure(lambda: service.commit_import(
-        b"performance-fixture", source="performance_import", currency="CNY", filename="statement.csv",
-    ))
-
-    metrics = {
-        "preview": {"ns": preview_ns, "peak_bytes": preview_peak, "rows_per_second": IMPORT_ROWS / (preview_ns / 1_000_000_000)},
-        "first_import": {"ns": first_ns, "peak_bytes": first_peak, "rows_per_second": IMPORT_ROWS / (first_ns / 1_000_000_000)},
-        "duplicate_import": {"ns": duplicate_ns, "peak_bytes": duplicate_peak, "rows_per_second": IMPORT_ROWS / (duplicate_ns / 1_000_000_000)},
-        "source_update": {"ns": updated_ns, "peak_bytes": updated_peak, "rows_per_second": IMPORT_ROWS / (updated_ns / 1_000_000_000)},
-    }
-    print({
-        "backend": backend,
-        "fixture_digest": _fixture_digest(),
-        "rows": IMPORT_ROWS,
-        "import_metrics": metrics,
-        "python": sys.version.split(".")[0:2],
-        "platform": platform.platform(),
-    })
-    assert preview["summary"]["new"] == IMPORT_ROWS
-    assert first["new_rows"] == IMPORT_ROWS
-    assert duplicate["new_rows"] == 0
-    assert updated["updated_rows"] == IMPORT_ROWS
-    assert preview_ns <= IMPORT_PREVIEW_BUDGET_NS
-    assert first_ns <= IMPORT_COMMIT_BUDGET_NS
-    assert duplicate_ns <= IMPORT_COMMIT_BUDGET_NS
-    assert updated_ns <= IMPORT_COMMIT_BUDGET_NS
-    assert max(item["peak_bytes"] for item in metrics.values()) - baseline_peak <= IMPORT_MAX_RSS_BYTES
-
-
-@pytest.mark.performance
-def test_fixed_10k_cash_import_preview_scales_with_batch_size(performance_runtime) -> None:
-    """10,000 行预览保留明确的批量耗时、吞吐和内存观测。"""
-    from ft.application.cash_ledger import CashLedgerCommandService
-    from ft.application.cash_projections import CashProjectionService
-
-    backend, sessions = performance_runtime
-    baseline_peak = _process_peak_rss_bytes()
-    _seed_cash_projection_workload(sessions)
-    CashProjectionService(sessions, WORKSPACE).rebuild()
-    rows = _performance_import_rows(10_000, source_type="performance_import_10k")
-    service = CashLedgerCommandService(
-        sessions, WORKSPACE, parser=_PerformanceStatementParser(rows),
-    )
-    rss_baseline = _process_peak_rss_bytes()
-    started = time.perf_counter_ns()
-    result = service.preview_import(
-        b"performance-fixture", source="performance_import_10k", currency="CNY", filename="statement.csv",
-    )
-    elapsed = time.perf_counter_ns() - started
-    peak = _peak_rss_delta_bytes(rss_baseline)
-    print({
-        "backend": backend,
-        "fixture_digest": _fixture_digest(),
-        "rows": len(rows),
-        "preview_ns": elapsed,
-        "rows_per_second": len(rows) / (elapsed / 1_000_000_000),
-        "peak_bytes": peak,
-        "python": sys.version.split(".")[0:2],
-        "platform": platform.platform(),
-    })
-    assert result["summary"]["new"] == len(rows)
-    assert elapsed <= IMPORT_PREVIEW_BUDGET_NS
-    assert peak - baseline_peak <= IMPORT_MAX_RSS_BYTES

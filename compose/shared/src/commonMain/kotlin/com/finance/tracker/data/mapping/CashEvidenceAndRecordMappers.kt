@@ -11,8 +11,8 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 
 fun CashComponentDetailDto.toDomain(): CashComponentDetail = CashComponentDetail(
-    id = id.toString(),
-    cashTransactionId = cashTransactionId?.toString(),
+    id = id,
+    cashTransactionId = cashTransactionId,
     account = account?.toDomain(),
     accountName = accountName,
     accountId = accountId,
@@ -24,8 +24,8 @@ fun CashComponentDetailDto.toDomain(): CashComponentDetail = CashComponentDetail
 )
 
 fun CashComponentDetail.toDto(): CashComponentDetailDto = CashComponentDetailDto(
-    id = requireNotNull(id.toLongOrNull()) { "Cash component identifiers must be numeric" },
-    cashTransactionId = cashTransactionId?.toLongOrNull(),
+    id = id,
+    cashTransactionId = cashTransactionId,
     account = account?.toDto(),
     accountName = accountName,
     accountId = accountId,
@@ -221,7 +221,7 @@ fun Evidence.toDto(): EvidenceDto = EvidenceDto(
 )
 
 fun CashRecordDto.toDomain(): CashRecord = CashRecord(
-    id = id.toString(),
+    id = id,
     occurredAt = occurredAt,
     amount = amount,
     currency = currency,
@@ -242,7 +242,7 @@ fun CashRecordDto.toDomain(): CashRecord = CashRecord(
 )
 
 fun CashRecord.toDto(): CashRecordDto = CashRecordDto(
-    id = requireNotNull(id.toLongOrNull()) { "Cash record identifiers must be numeric" },
+    id = id,
     componentId = componentId,
     occurredAt = occurredAt,
     amount = amount,

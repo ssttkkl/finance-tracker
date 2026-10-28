@@ -1,6 +1,8 @@
 """Unpaired pending relations (FR-042–047 / US6b): one pending item; acceptance needs --other."""
 from __future__ import annotations
 
+from test_transaction_relations_support import add_imported_transaction
+
 from decimal import Decimal
 
 import pytest
@@ -288,7 +290,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
     # Three same-merchant expenses and one refund produce one unpaired pending relation.
     for i, day in enumerate(("01", "02", "02"), start=1):
-        services.cashflow.add_manual_transaction(
+        add_imported_transaction(services,
             amount=Decimal("-100.00"),
             counterparty="京东",
             account_name="支付宝",
@@ -298,7 +300,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
             category="expense",
             record_type="consumption",
         )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-100.00"),
         counterparty="无关商户",
         account_name="支付宝",
@@ -308,7 +310,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
         category="expense",
         record_type="consumption",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("100.00"),
         counterparty="京东",
         account_name="支付宝",
@@ -392,7 +394,7 @@ def test_open_leg_accept_requires_other_and_binds(relation_runtime):
 def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
-    assert services.cashflow.add_manual_transaction(
+    assert add_imported_transaction(services,
         amount=Decimal("-70.00"),
         counterparty="京东",
         account_name="支付宝",
@@ -400,8 +402,9 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
         date="2026-04-01 10:00:00",
         note="原消费",
         category="expense",
+        record_type="consumption",
     ).ok
-    assert services.cashflow.add_manual_transaction(
+    assert add_imported_transaction(services,
         amount=Decimal("70.00"),
         counterparty="京东",
         account_name="支付宝",
@@ -409,6 +412,7 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
         date="2026-04-02 10:00:00",
         note="退款",
         category="income",
+        record_type="refund",
     ).ok
 
     with services.uow as uow:
@@ -482,7 +486,7 @@ def test_system_open_refund_auto_accept_keeps_expense_as_primary(relation_runtim
 def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
-    assert services.cashflow.add_manual_transaction(
+    assert add_imported_transaction(services,
         amount=Decimal("-100.00"),
         counterparty="商家A",
         account_name="支付宝",
@@ -492,7 +496,7 @@ def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
         category="expense",
         record_type="consumption",
     ).ok
-    assert services.cashflow.add_manual_transaction(
+    assert add_imported_transaction(services,
         amount=Decimal("30.00"),
         counterparty="商家A",
         account_name="支付宝",
@@ -519,7 +523,7 @@ def test_partial_refund_keeps_expense_eligible_across_scans(relation_runtime):
     )
     assert first.ok, first.message
 
-    assert services.cashflow.add_manual_transaction(
+    assert add_imported_transaction(services,
         amount=Decimal("20.00"),
         counterparty="商家A",
         account_name="支付宝",
@@ -556,7 +560,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
     services = relation_runtime.services
     assert services.accounts.create_account("支付宝", "cash", "CNY").ok
     for day in ("01", "01"):
-        services.cashflow.add_manual_transaction(
+        add_imported_transaction(services,
             amount=Decimal("-80.00"),
             counterparty="京东",
             account_name="支付宝",
@@ -566,7 +570,7 @@ def test_open_leg_reject_suppresses_reopen(relation_runtime):
                 category="expense",
                 record_type="consumption",
         )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("80.00"),
         counterparty="京东",
         account_name="支付宝",
@@ -719,7 +723,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
     assert services.accounts.create_account("A", "cash", "CNY").ok
     assert services.accounts.create_account("B1", "cash", "CNY").ok
     assert services.accounts.create_account("B2", "cash", "CNY").ok
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("-500.00"),
         counterparty="",
         account_name="A",
@@ -729,7 +733,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
             category="expense",
             record_type="transfer_out",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("500.00"),
         counterparty="",
         account_name="B1",
@@ -739,7 +743,7 @@ def test_transfer_open_leg_persisted_and_accept(relation_runtime):
             category="income",
             record_type="transfer_in",
     )
-    services.cashflow.add_manual_transaction(
+    add_imported_transaction(services,
         amount=Decimal("500.00"),
         counterparty="",
         account_name="B2",

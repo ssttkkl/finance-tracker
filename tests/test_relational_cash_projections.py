@@ -1,6 +1,8 @@
 """收支投影关系型数据集写入合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -78,20 +80,16 @@ def test_replace_dataset_bulk_writes_restricted_parent_mapping_and_preserves_rol
             currency="CNY",
             ordinal=0,
         ))
-        session.add(TransactionRelationModel(
-            id=501,
-            workspace_id=cash_web_runtime.workspace_id,
-            kind="payment_mirror",
-            subtype="",
-            primary_fact_id=1003,
-            secondary_fact_id=1004,
-            primary_fact_type="cash",
-            secondary_fact_type="cash",
-            ordered_fact_a=1003,
-            ordered_fact_b=1004,
-            status="accepted",
-            anchor_fact_id=1003,
-        ))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        id=501,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="payment_mirror",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1004,
+                        state='confirmed',
+                        anchor_component_id=1003
+                    ))
         facts, _ = repository.read_sources()
         relation = ProjectionRelation(501, "payment_mirror", 1003, 1004)
         build = build_cash_projections(facts, (relation,))
@@ -322,3 +320,27 @@ def test_replace_dataset_rejects_incomplete_parent_lookup(cash_web_runtime, monk
         monkeypatch.setattr(session, "execute", drop_parent_lookup)
         with pytest.raises(RuntimeError, match="projection.incomplete"):
             repository.replace_dataset(dataset_id, build_cash_projections(facts, relations), projection_version=1)
+
+
+@pytest.mark.parametrize("invalid", ["repository", "transaction", "count"])
+def test_validated_source_proof_cannot_cross_repository_or_transaction(cash_web_runtime, invalid):
+    from dataclasses import replace
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    from ft.domain.cash_projection import build_cash_projections
+    with cash_web_runtime.sessions() as session:
+        repository = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
+        sources = repository.read_validated_sources()
+        dataset_id = repository.create_staging_dataset(source_digest=sources.digest, rules_version="cash-projection-v1")
+        repository.replace_dataset(dataset_id, build_cash_projections(sources.facts, sources.relations), projection_version=1)
+        if invalid == "repository":
+            publisher = RelationalCashProjectionRepository(session, cash_web_runtime.workspace_id)
+        else:
+            publisher = repository
+        if invalid == "transaction":
+            session.commit()
+        elif invalid == "count":
+            sources = replace(sources, facts=sources.facts[:-1])
+        with pytest.raises(RuntimeError, match="projection.incomplete"):
+            publisher.publish_dataset(dataset_id, source_digest=sources.digest, rules_version="cash-projection-v1",
+                _validated_sources=sources)
+        session.rollback()

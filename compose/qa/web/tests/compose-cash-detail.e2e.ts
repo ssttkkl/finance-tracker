@@ -1,272 +1,288 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
-import path from "node:path";
-import { mkdir } from "node:fs/promises";
-import { activeSession, captureBrowserDiagnostics, installComposeApiFixtures, type BrowserDiagnostics } from "./compose-fixtures";
+import { expect, test, type Page, type Locator } from "@playwright/test";
+import { activeSession, captureBrowserDiagnostics, installComposeApiFixtures } from "./compose-fixtures";
 
-const evidence = path.resolve("test-results/evidence/cash-detail-typography");
-const byId = (page: Page, id: string) => page.locator(`[id="${id}"]`).last();
-const diagnostics = new WeakMap<Page, BrowserDiagnostics>();
-
-test.beforeEach(({ page }) => { diagnostics.set(page, captureBrowserDiagnostics(page)); });
-test.afterEach(async ({ page }) => {
-  const result = diagnostics.get(page)!;
-  await result.settle();
-  expect(result.consoleErrors).toEqual([]);
-  expect(result.failedRequests).toEqual([]);
-  expect(result.staticHttpErrors).toEqual([]);
-});
-
-async function click(page: Page, target: Locator) {
-  await target.waitFor({ state: "visible" });
-  const rendered: { box: Awaited<ReturnType<Locator["boundingBox"]>> } = { box: null };
-  await expect.poll(async () => {
-    rendered.box = await target.boundingBox();
-    return rendered.box != null;
-  }).toBe(true);
-  let box = rendered.box;
-  if (!box) throw new Error("Compose target has no rendered bounds");
-  for (let attempt = 0; attempt < 4; attempt++) {
-    await page.waitForTimeout(350);
-    const next = await target.boundingBox();
-    if (!next) continue;
-    const stable = Math.abs(next.x - box.x) < 1 && Math.abs(next.y - box.y) < 1 && Math.abs(next.height - box.height) < 1;
-    box = next;
-    if (stable) break;
-  }
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await page.waitForTimeout(350);
-  return box;
+const byId = (page: Page, id: string) => page.locator(`[id="${id}"]:visible`).last();
+async function press(page: Page, target: Locator) {
+  await expect(target).toBeVisible();
+  const bounds = await target.boundingBox();
+  if (!bounds) throw new Error("Missing current cash control bounds");
+  await page.waitForTimeout(200);
+  await page.mouse.click(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
 }
-
 async function openDetail(page: Page, width: number) {
   await page.goto("/w/workspace-1/");
   const row = byId(page, "ledger.record-projection-1");
-  await row.waitFor({ state: "visible" });
-  const target = width < 600 ? row : row.locator('[id="ledger.open-record"]').last();
-  if (width >= 600) {
-    const [targetBox, scrollbarBox] = await Promise.all([
-      target.boundingBox(),
-      byId(page, "ledger.scrollbar").boundingBox(),
-    ]);
-    expect(targetBox).not.toBeNull();
-    expect(scrollbarBox).not.toBeNull();
-    expect(targetBox!.x + targetBox!.width / 2).toBeLessThan(scrollbarBox!.x);
-  }
-  await mkdir(evidence, { recursive: true });
-  await page.screenshot({ path: path.join(evidence, `ledger-entry-${width}.png`) });
-  const entryBounds = await click(page, target);
-  await byId(page, "ledger.record-panel").waitFor({ state: "visible" });
-  return entryBounds!;
+  await expect(row).toBeVisible();
+  await press(page, width < 600 ? row : row.locator('[id="ledger.open-record"]').last());
+  await expect(byId(page, "cash.current.detail")).toBeVisible();
 }
-
-async function capture(page: Page, name: string) {
-  await mkdir(evidence, { recursive: true });
-  await page.waitForTimeout(350);
-  await page.screenshot({ path: path.join(evidence, `${name}.png`) });
+function currentRecord(note = "拿铁", counterparty = "咖啡店") {
+  return { transaction_id: "record-1", state: "posted", row_revision: 1, record_origin: "import", confirmation_status: "confirmed",
+    fields: { amount: "-28.50", currency: "CNY", occurred_at: "2026-09-24T10:30:00+08:00", record_type: "consumption", account_id: "1", category_id: "coffee", note, counterparty },
+    editable_fields: [], issues: [], relations: [], entry: { entry_id: "entry-1", revision: 1,
+      fields: { note, counterparty }, manual_fields: [], editable_fields: ["note", "counterparty"], supports_transfer_edit: false } };
 }
-
-async function changedPixels(page: Page, before: Buffer, after: Buffer) {
-  return page.evaluate(async ({ a, b }) => {
-    const load = async (data: string) => {
-      const image = new Image();
-      image.src = `data:image/png;base64,${data}`;
-      await image.decode();
-      return image;
-    };
-    const [first, second] = await Promise.all([load(a), load(b)]);
-    const canvas = document.createElement("canvas");
-    canvas.width = first.naturalWidth;
-    canvas.height = first.naturalHeight;
-    const context = canvas.getContext("2d")!;
-    context.drawImage(first, 0, 0);
-    const previous = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.drawImage(second, 0, 0);
-    const current = context.getImageData(0, 0, canvas.width, canvas.height).data;
-    let changed = 0, samples = 0;
-    for (let y = 12; y < canvas.height; y += 24) for (let x = 12; x < canvas.width; x += 24) {
-      const offset = (y * canvas.width + x) * 4;
-      const difference = Math.abs(current[offset] - previous[offset]) + Math.abs(current[offset + 1] - previous[offset + 1]) + Math.abs(current[offset + 2] - previous[offset + 2]);
-      if (difference > 72) changed++;
-      samples++;
-    }
-    return changed / samples;
-  }, { a: before.toString("base64"), b: after.toString("base64") });
-}
-
 for (const width of [390, 768, 1440]) {
-  test(`F-04 详情排版 ${width}：时间进入平铺字段且摘要只有金额与对方`, async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", error => errors.push(error.message));
+  test(`F-04 当前详情 ${width}：摘要、只读信息及同容器编辑`, async ({ page }, info) => {
+    const diagnostics = captureBrowserDiagnostics(page);
     const api = await installComposeApiFixtures(page);
+    await page.route(/\/api\/v1\/cash-records\/record-1$/, route => route.fulfill({ json: currentRecord() }));
     await page.setViewportSize({ width, height: 1000 });
-    const entry = await openDetail(page, width);
+    await openDetail(page, width);
     const panel = byId(page, "ledger.record-panel");
-    await expect(panel.getByText("发生时间", { exact: true })).toBeVisible();
-    const summary = byId(page, "record.detail.summary");
-    const facts = byId(page, "record.detail.facts");
-    await expect(summary).toContainText("咖啡店");
-    await expect(summary).not.toContainText("2026-09-24");
-    await expect(facts).toContainText("2026-09-24");
-    await expect(facts).toContainText("拿铁");
-    const summaryBox = await summary.boundingBox();
-    const headerBox = await byId(page, "ledger.record-panel.header").boundingBox();
-    expect(summaryBox!.y - headerBox!.y - headerBox!.height).toBeCloseTo(25, 0);
-    const factsBox = await facts.boundingBox();
-    const panelBox = await panel.boundingBox();
-    expect(factsBox!.x - panelBox!.x).toBeCloseTo(24, 0);
-    expect(panelBox!.x + panelBox!.width - factsBox!.x - factsBox!.width).toBeCloseTo(24, 0);
-    await expect(byId(page, "record.related.toggle")).toHaveCount(0);
-    await capture(page, `single-${width}`);
-    await click(page, byId(page, "record.detail.edit"));
-    await expect(byId(page, "record.amount")).toBeVisible();
-    await click(page, byId(page, "record.cancel"));
-    await expect(summary).toContainText("咖啡店");
-    await page.waitForTimeout(350);
-    const beforeEscape = await page.screenshot();
-    await page.keyboard.press("Escape");
-    await page.waitForTimeout(500);
-    // CMP-10623 can retain a closed Dialog's mirrored DOM. Verify the rendered
-    // scene and a fresh API-backed interaction with the revealed ledger.
-    expect(await changedPixels(page, beforeEscape, await page.screenshot())).toBeGreaterThan(0.02);
-    const readsBefore = api.calls.filter(call => call.path === "/api/v1/cash-records/1001" && call.method === "GET").length;
-    await page.mouse.click(entry.x + entry.width / 2, entry.y + entry.height / 2);
-    await expect.poll(() => api.calls.filter(call => call.path === "/api/v1/cash-records/1001" && call.method === "GET").length).toBe(readsBefore + 1);
-    expect(errors).toEqual([]);
-  });
-
-  test(`F-04 详情排版 ${width}：关联展开仍在同一面板且保留管理操作`, async ({ page }) => {
-    await installComposeApiFixtures(page, { withAcceptedCashRelation: true });
-    await page.setViewportSize({ width, height: 1000 });
-    await openDetail(page, width);
-    const content = byId(page, "record.related.content");
-    await expect(content).toHaveCount(0);
-    await click(page, byId(page, "record.related.toggle"));
-    await expect(content).toContainText("当前流水");
-    await expect(content).toContainText("便利店");
-    await expect(content).toContainText("超市");
-    await expect(page.locator('[id="ledger.record-panel"]')).toHaveCount(1);
-    await capture(page, `related-${width}`);
-    const panelBox = await byId(page, "ledger.record-panel").boundingBox();
-    await page.mouse.move(panelBox!.x + panelBox!.width / 2, 600);
-    await page.mouse.wheel(0, 1200);
-    await page.waitForTimeout(250);
-    await expect(byId(page, "record.related.kind.edit-trigger")).toBeVisible();
-    await expect(byId(page, "record.related.unlink-trigger")).toBeVisible();
-    await expect(byId(page, "record.detail.edit")).toBeVisible();
-    await capture(page, `related-scrolled-${width}`);
-  });
-
-  test(`F-04 详情排版 ${width}：长字段与关联金额可完整阅读`, async ({ page }) => {
-    await installComposeApiFixtures(page);
-    await page.setViewportSize({ width, height: 1100 });
-    await page.emulateMedia({ colorScheme: width === 768 ? "dark" : "light" });
-    const note = "跨地区服务及账单核对备注。".repeat(8);
-    const merchant = "长名称商户与跨地区业务服务中心";
-    const amount = "12345678901234567890.123456789";
-    const record = {
-      id: 1001, occurred_at: "2026-09-24T10:30:00+08:00", amount: "28.50", currency: "CNY",
-      counterparty: merchant, counterparty_account: "BANK-123456789012345678901234567890",
-      note, record_type: "expense", record_subtype: "not_applicable",
-      account_name: "日常账户与跨地区结算账户", account_id: 1, account_type: "cash",
-      category_id: "coffee", category: { id: "coffee", name: "咖啡与早餐", path: [{ id: "food", name: "日常生活与家庭消费" }, { id: "dining", name: "餐饮及聚会" }] },
-    };
-    await page.route("**/api/v1/cash-records/1001", async route => {
-      if (route.request().method() !== "GET") return route.fallback();
-      await route.fulfill({ json: {
-        record,
-        relations: [{ id: "relation-1", kind: "payment_mirror", label: "同笔支付", status: "accepted", primary_record: record, secondary_record: { ...record, id: 1002, amount, note: "" } }],
-        options: {},
-      } });
-    });
-    await openDetail(page, width);
-    const noteValue = byId(page, "record.detail.fact.note.value");
-    await expect(noteValue).toContainText(note);
-    const facts = await byId(page, "record.detail.facts").boundingBox();
-    const value = await noteValue.boundingBox();
-    expect(value!.x).toBeGreaterThanOrEqual(facts!.x);
-    expect(value!.x + value!.width).toBeLessThanOrEqual(facts!.x + facts!.width + 1);
-    const panel = await byId(page, "ledger.record-panel").boundingBox();
-    await page.mouse.move(panel!.x + panel!.width / 2, 700);
-    await page.mouse.wheel(0, 500);
-    await page.waitForTimeout(200);
-    await capture(page, `long-fields-${width}`);
-    await click(page, byId(page, "record.related.toggle"));
-    const related = byId(page, "record.related.content");
-    await expect(related).toContainText(`${amount} CNY`);
-    await page.mouse.move(panel!.x + panel!.width / 2, 700);
-    await page.mouse.wheel(0, 1800);
-    await page.waitForTimeout(250);
-    await capture(page, `long-related-${width}`);
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await expect(byId(page, "record.detail.edit")).toBeVisible();
-  });
-
-  test(`F-04 详情排版 ${width}：更多菜单与删除确认仍可取消`, async ({ page }) => {
-    const api = await installComposeApiFixtures(page, { withAcceptedCashRelation: true });
-    await page.setViewportSize({ width, height: 1000 });
-    await openDetail(page, width);
-    await click(page, byId(page, "record.detail.more-actions"));
-    await expect(byId(page, "record.detail.action.associate")).toBeVisible();
-    await expect(byId(page, "record.detail.action.dissolve")).toBeVisible();
-    await capture(page, `more-actions-${width}`);
-    await click(page, byId(page, "record.detail.action.delete"));
-    await expect(byId(page, "ledger.record.delete-dialog")).toBeVisible();
-    await capture(page, `delete-confirm-${width}`);
-    await click(page, byId(page, "record.delete.cancel"));
-    await expect(byId(page, "record.detail.summary")).toContainText("咖啡店");
-    expect(api.calls.filter(call => call.method === "DELETE")).toEqual([]);
+    const bounds = await panel.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    const detail = byId(page, "cash.current.detail");
+    await expect(detail.getByText("流水信息", { exact: true })).toHaveCount(0);
+    await expect(detail).toContainText("账户");
+    await expect(detail).toContainText("分类");
+    await expect(detail).toContainText("拿铁");
+    await expect(detail.locator('[id="cash.current.associations"]')).toHaveCount(0);
+    await expect(byId(page, "cash.current.amount")).toContainText("28.50 CNY");
+    await page.screenshot({ path: info.outputPath(`current-detail-${width}.png`) });
+    await press(page, byId(page, "cash.current.edit"));
+    await expect(byId(page, "cash.entry.editor")).toBeVisible();
+    await expect(page.locator('[id="ledger.record-panel"]:visible')).toHaveCount(1);
+    await expect(page.locator('[id="cash.entry.amount"]:visible')).toHaveCount(0);
+    await expect(byId(page, "cash.entry.note")).toContainText("拿铁");
+    await diagnostics.settle();
+    expect(diagnostics.consoleErrors).toEqual([]); expect(diagnostics.failedRequests).toEqual([]);
+    expect(diagnostics.staticHttpErrors).toEqual([]);
+    expect(api.calls.filter(call => call.method !== "GET")).toEqual([]);
   });
 }
 
-test("F-04 详情排版：加载失败可重试", async ({ page }) => {
+test("F-04 当前草稿详情：橙色提示包含标题和缺项，原文默认折叠", async ({ page }, info) => {
   await installComposeApiFixtures(page);
-  await page.setViewportSize({ width: 390, height: 900 });
-  let release!: () => void;
-  let first = true;
-  const held = new Promise<void>(resolve => { release = resolve; });
-  await page.route("**/api/v1/cash-records/1001", async route => {
-    if (!first) return route.fallback();
-    first = false;
-    await held;
-    await route.fulfill({ status: 503, json: { detail: "temporarily unavailable" } });
-  });
-  try {
-    await openDetail(page, 390);
-    await expect(byId(page, "record.detail.summary")).toHaveCount(0);
-    await capture(page, "loading-390");
-    release();
-    const retry = byId(page, "ledger.record-panel").getByRole("button", { name: "重试", exact: true });
-    await expect(retry).toBeVisible();
-    await capture(page, "error-390");
-    await click(page, retry);
-    await expect(byId(page, "record.detail.facts")).toContainText("发生时间");
-    await capture(page, "retried-390");
-  } finally { release(); }
+  const draft = currentRecord();
+  draft.state = "draft";
+  draft.confirmation_status = "pending";
+  draft.fields.amount = null;
+  draft.issues = [{ issue_id: "draft-incomplete", revision: 1, code: "incomplete_record", message: "流水信息尚未补齐",
+    field_path: "amount", blocking_scope: "row", next_action: "edit", allowed_resolutions: [], pending_fields: {} }];
+  await page.route(/\/api\/v1\/cash-records\/record-1$/, route => route.fulfill({ json: draft }));
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await openDetail(page, 390);
+  const detail = byId(page, "cash.current.detail");
+  const status = byId(page, "cash.current.pending-draft");
+  await expect(status).toContainText("草稿");
+  await expect(status).toContainText("金额信息尚未补齐");
+  await expect(status).not.toContainText("当前不参与收支统计");
+  await expect(detail.getByText("流水信息", { exact: true })).toHaveCount(0);
+  const sources = byId(page, "cash.current.sources-toggle");
+  await expect(sources).toContainText("账单原文");
+  await expect(sources).toContainText("查看");
+  await expect(detail).not.toContainText("来源商户");
+  await page.screenshot({ path: info.outputPath("current-draft-detail-390.png") });
 });
 
-test("F-04 详情排版：只读成员能查看且没有写操作", async ({ page }) => {
-  await installComposeApiFixtures(page, { initialSession: { ...activeSession, workspaces: [{ ...activeSession.workspaces[0], role: "viewer" }] } });
-  await page.setViewportSize({ width: 768, height: 1000 });
-  await openDetail(page, 768);
-  await expect(byId(page, "record.detail.facts")).toContainText("发生时间");
-  await expect(byId(page, "record.detail.edit")).toHaveCount(0);
-  await expect(byId(page, "record.detail.more-actions")).toHaveCount(0);
-  await capture(page, "readonly-768");
+test("F-04 当前详情：关联流水默认展开并排在默认折叠的账单原文之前", async ({ page }, info) => {
+  await installComposeApiFixtures(page, { cashProjectionOverrides: { projection_version: 1,
+    member_count: 2, accepted_relation_summary: [{ kind: "payment_mirror", count: 2 }] } });
+  const record = {
+    ...currentRecord(),
+    projection_ref: { transaction_id: "record-1", projection_id: "projection-1", attention_count: 0, projection_version: 1 },
+    relations: [{ relation_id: "relation-1", kind: "payment_mirror", subtype: "", state: "confirmed", active: true,
+      row_revision: 1, decision_group_id: "group-1" }],
+  };
+  await page.route(/\/api\/v1\/cash-records\/record-(?:1|2)$/, route => {
+    const transactionId = new URL(route.request().url()).pathname.endsWith("record-2") ? "record-2" : "record-1";
+    return route.fulfill({ json: { ...record, transaction_id: transactionId,
+      fields: { ...record.fields, source_payload: { "原始字段": `来自${transactionId}` } },
+      projection_ref: { ...record.projection_ref, transaction_id: transactionId } } });
+  });
+  await page.route(/\/api\/v1\/cash-projections\/projection-1$/, route => route.fulfill({ json: { projection_version: 1, members: [
+    { transaction_id: "record-1", row_revision: 1, confirmation_status: "confirmed" },
+    { transaction_id: "record-2", row_revision: 1, confirmation_status: "confirmed" },
+  ] } }));
+  let evidenceReads = 0;
+  await page.route(/\/api\/v1\/evidence\/cash-projections\/projection-1$/, route => { evidenceReads += 1; return route.fulfill({ json: {
+    projection_version: 1,
+    projection: { projection_id: "projection-1", record_id: "source-1", transaction_id: "record-1",
+      occurred_at: "2026-09-24T10:30:00+08:00", amount: "-28.50", currency: "CNY", economic_type: "expense",
+      counterparty: "平台合并收支", member_count: 2, accepted_relation_summary: [{ kind: "payment_mirror", count: 2 }] },
+    members: [
+      { id: "record-1", row_revision: 1, occurred_at: "2026-09-24T10:30:00+08:00", amount: "-28.50", currency: "CNY",
+        counterparty: "当前来源商户", note: "当前来源备注", account_name: "日常账户", components: [] },
+      { id: "record-2", row_revision: 1, occurred_at: "2026-09-24T10:31:00+08:00", amount: "-28.50", currency: "CNY",
+        counterparty: "关联来源商户", note: "关联来源备注", account_name: "微信支付", components: [] },
+    ],
+  } }); });
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await openDetail(page, 390);
+
+  const detail = byId(page, "cash.current.detail");
+  const associations = byId(page, "cash.current.associations");
+  const sources = byId(page, "cash.current.sources-toggle");
+  await expect(associations).toBeVisible();
+  await expect(associations).toContainText("关联来源商户");
+  await expect(associations.locator('[id="cash.current.associations-loading"]')).toHaveCount(0);
+  expect(evidenceReads).toBe(1);
+  await expect(sources).toContainText("账单原文");
+  await expect(sources).toContainText("查看");
+  await expect(detail).not.toContainText("来自record-1");
+  const associationBounds = await associations.boundingBox();
+  const sourceBounds = await sources.boundingBox();
+  expect(associationBounds).not.toBeNull();
+  expect(sourceBounds).not.toBeNull();
+  expect(associationBounds!.y).toBeLessThan(sourceBounds!.y);
+
+  await page.screenshot({ path: info.outputPath("current-detail-associations-default-390.png") });
+  await sources.scrollIntoViewIfNeeded();
+  await press(page, sources);
+  await expect(detail).toContainText("来自record-1");
+  await page.screenshot({ path: info.outputPath("current-detail-sources-expanded-390.png") });
 });
 
-for (const label of ["消费", "收入"]) {
-  test(`F-04 详情排版：类型显示${label === "消费" ? "相同去重" : "不同保留"}`, async ({ page }) => {
-    await installComposeApiFixtures(page);
-    if (label === "收入") await page.route("**/api/v1/cash-records/1001", route => route.fulfill({ json: {
-      record: { id: 1001, occurred_at: "2026-09-24T10:30:00+08:00", amount: "28.50", currency: "CNY", counterparty: "咖啡店", counterparty_account: "", note: "拿铁", category: null, category_id: null, record_type: "income", record_subtype: "not_applicable", account_name: "日常账户", account_id: 1, account_type: "cash" },
-      relations: [], options: {},
-    } }));
-    await openDetail(page, 390);
-    const facts = byId(page, "record.detail.facts");
-    await expect(facts.getByText("消费", { exact: true })).toHaveCount(1);
-    await expect(facts.getByText("流水类型", { exact: true })).toHaveCount(1);
-    await expect(facts.getByText("收支类型", { exact: true })).toHaveCount(label === "消费" ? 0 : 1);
-    if (label === "收入") await expect(facts.getByText("收入", { exact: true })).toHaveCount(1);
+test("F-04 当前详情：关联成员读取失败可原位重试", async ({ page }) => {
+  await installComposeApiFixtures(page, { cashProjectionOverrides: { projection_version: 1, member_count: 2 } });
+  await page.route(/\/api\/v1\/cash-records\/record-(?:1|2)$/, route => route.fulfill({ json: {
+    ...currentRecord(), transaction_id: new URL(route.request().url()).pathname.endsWith("record-2") ? "record-2" : "record-1",
+    projection_ref: { transaction_id: new URL(route.request().url()).pathname.endsWith("record-2") ? "record-2" : "record-1",
+      projection_id: "projection-1", attention_count: 0, projection_version: 1 },
+    relations: [{ relation_id: "relation-1", kind: "payment_mirror", subtype: "", state: "confirmed", active: true,
+      row_revision: 1, decision_group_id: "group-1" }],
+  } }));
+  await page.route(/\/api\/v1\/cash-projections\/projection-1$/, route => route.fulfill({ json: { projection_version: 1, members: [
+    { transaction_id: "record-1", row_revision: 1, confirmation_status: "confirmed" },
+    { transaction_id: "record-2", row_revision: 1, confirmation_status: "confirmed" },
+  ] } }));
+  let evidenceReads = 0;
+  await page.route(/\/api\/v1\/evidence\/cash-projections\/projection-1$/, route => {
+    evidenceReads += 1;
+    return evidenceReads === 1
+      ? route.fulfill({ status: 503, json: { error: { code: "temporarily_unavailable" } } })
+      : route.fulfill({ json: { projection_version: 1,
+          projection: { projection_id: "projection-1", record_id: "record-1", transaction_id: "record-1",
+            occurred_at: "2026-09-24T10:30:00+08:00", amount: "-28.50", currency: "CNY", economic_type: "expense", member_count: 2 },
+          members: [
+            { id: "record-1", row_revision: 1, amount: "-28.50", currency: "CNY", counterparty: "当前流水", components: [] },
+            { id: "record-2", row_revision: 1, amount: "-28.50", currency: "CNY", counterparty: "另一笔流水", components: [] },
+          ] } });
   });
-}
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openDetail(page, 1440);
+  const associations = byId(page, "cash.current.associations");
+  const retry = byId(page, "cash.current.associations-retry");
+  await expect(associations).toContainText("暂时无法读取关联流水。");
+  await expect(retry).toBeVisible();
+  await expect(associations.locator('[id="cash.current.associations-loading"]')).toHaveCount(0);
+  await press(page, retry);
+  await expect(associations).toContainText("另一笔流水");
+  expect(evidenceReads).toBe(2);
+});
+
+test("F-04 当前详情：候选嵌入关联区并可打开整组处理", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  const current = {
+    ...currentRecord(),
+    relations: [{ relation_id: "relation-draft", kind: "payment_mirror", subtype: "", state: "draft", active: true,
+      row_revision: 1, decision_group_id: "decision-group-1" }],
+  };
+  await page.route(/\/api\/v1\/cash-records\/record-(?:1|2)$/, route => {
+    const transactionId = new URL(route.request().url()).pathname.endsWith("record-2") ? "record-2" : "record-1";
+    return route.fulfill({ json: { ...current, transaction_id: transactionId,
+      fields: transactionId === "record-2" ? { ...current.fields, counterparty: "另一来源商户", note: "候选备注" } : current.fields } });
+  });
+  await page.route(/\/api\/v1\/cash-mutations\/plans$/, route => route.fulfill({ json: {
+    plan_id: "relation-plan", edit_context_id: "relation-context", plan_revision: 1, expires_at: "2099-01-01T00:00:00Z",
+    summary: {}, item_counts: {}, can_commit: true,
+    items: [{ preview_item_id: "relation-item", confirmation_status: "pending", anticipated_state: "posted",
+      display: { occurred_at: "2026-09-24T10:30:00+08:00", amount: "-28.50", currency: "CNY", counterparty: "咖啡店",
+        note: "拿铁", accounts: [] }, statistics_eligible: true,
+      member_refs: [{ transaction_id: "record-1" }], attention_reasons: [], detail_available: true }],
+    pages: { items: null }, invalidated_choices: [], additional_effects: [],
+  } }));
+  await page.route(/\/api\/v1\/cash-mutations\/plans\/relation-plan\/items\/relation-item$/, route => route.fulfill({ json: {
+    preview_item_id: "relation-item",
+    members: [{ transaction_id: "record-1", row_revision: 1, planned_action: "skip", fields: current.fields,
+      editable_fields: [], allowed_actions: [] }],
+    field_diffs: [], issues: [],
+    relation_choices: [{ suggestion_id: "suggestion-1", kind: "payment_mirror", subtype: "", action: "defer", code: "insufficient_evidence",
+      candidates: [{ candidate_id: "candidate-1", code: "insufficient_evidence", display: { occurred_at: "2026-09-24T10:31:00+08:00", amount: "-28.50",
+        currency: "CNY", counterparty: "另一来源商户", note: "候选备注", accounts: [] },
+        member_refs: [{ transaction_id: "record-2" }], code: null }],
+      member_refs: [{ transaction_id: "record-1" }], allowed_actions: ["accept", "defer", "ignore"], code: null }],
+    relation_effects: [],
+  } }));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openDetail(page, 1440);
+
+  const detail = byId(page, "cash.current.detail");
+  const associations = byId(page, "cash.current.associations");
+  await expect(associations).toContainText("候选");
+  await expect(associations).toContainText("另一来源商户");
+  await expect(associations).toContainText("候选备注");
+  await expect(detail).not.toContainText("暂时无法完成导入，请稍后重试。");
+  await page.screenshot({ path: info.outputPath("current-detail-relation-candidate-1440.png") });
+  const sources = byId(page, "cash.current.sources-toggle");
+  await expect(sources).toContainText("账单原文");
+  await expect(sources).toContainText("查看");
+  const action = byId(page, "cash.current.process-relations");
+  await action.scrollIntoViewIfNeeded();
+  await press(page, action);
+  const treatment = byId(page, "cash.relations.treatment");
+  await expect(treatment.getByText("拒绝配对", { exact: true })).toBeVisible();
+  await expect(byId(page, "cash.relation.action-suggestion-1-accept")).toBeVisible();
+  await expect(byId(page, "cash.relation.action-suggestion-1-ignore")).toBeVisible();
+  await press(page, byId(page, "cash.relation.action-suggestion-1-accept"));
+  await expect(byId(page, "cash.relation.candidate-suggestion-1-candidate-1")).toBeVisible();
+  await expect(treatment.getByRole("button", { name: "保存", exact: true })).toBeEnabled();
+});
+
+test("F-04 当前详情：长字段换行且来源成员保持只读", async ({ page }, info) => {
+  await installComposeApiFixtures(page);
+  const note = "这是一段需要完整阅读的备注。".repeat(24);
+  const merchant = "这是很长的交易对方名称".repeat(8);
+  await page.route(/\/api\/v1\/cash-records\/record-1$/, route => route.fulfill({ json: { ...currentRecord(note, merchant), projection_ref: { projection_id: "projection-1", projection_version: 1, transaction_id: "record-1", attention_count: 0 } } }));
+  await page.route(/\/api\/v1\/cash-projections\/projection-1$/, route => route.fulfill({ json: { projection_version: 1, members: [
+    { transaction_id: "record-1", row_revision: 1, confirmation_status: "confirmed" },
+  ] } }));
+  await page.route(/\/api\/v1\/evidence\/cash-projections\/projection-1$/, route => route.fulfill({ json: {
+    projection_version: 1, projection: { projection_id: "projection-1", record_id: "source-1", transaction_id: "record-1", occurred_at: "2026-09-24T10:30:00+08:00", amount: "-28.50", currency: "CNY", economic_type: "expense", counterparty: merchant },
+    members: [{ id: "record-1", row_revision: 1, amount: "-28.50", currency: "CNY", counterparty: "来源商户", note: "来源备注", components: [] }],
+  } }));
+  await page.setViewportSize({ width: 390, height: 1000 });
+  await openDetail(page, 390);
+  await expect(byId(page, "cash.current.detail")).toContainText(note);
+  const panel = await byId(page, "ledger.record-panel").boundingBox();
+  for (const value of [note, merchant]) {
+    const bounds = await byId(page, "cash.current.detail").getByText(value, { exact: true }).boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(panel!.x);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(panel!.x + panel!.width);
+  }
+  await page.mouse.move(190, 550); await page.mouse.wheel(0, 1800); await page.waitForTimeout(300);
+  const sourcesButton = byId(page, "cash.current.sources-toggle");
+  await expect(sourcesButton).toContainText("账单原文");
+  await expect(sourcesButton).toContainText("查看");
+  await press(page, sourcesButton);
+  await expect(byId(page, "cash.current.detail")).toContainText("来源商户");
+  await expect(page.locator('[id^="record.related-edit"]')).toHaveCount(0);
+  await page.screenshot({ path: info.outputPath("current-detail-long-source.png") });
+});
+
+test("F-04 当前详情：读取失败可在原容器重试", async ({ page }) => {
+  await installComposeApiFixtures(page);
+  let reads = 0;
+  await page.route(/\/api\/v1\/cash-records\/record-1$/, route => ++reads === 1
+    ? route.fulfill({ status: 503, json: { error: { code: "temporarily_unavailable" } } })
+    : route.fulfill({ json: currentRecord() }));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openDetail(page, 1440);
+  const error = byId(page, "cash.current.error");
+  await expect(error).toBeVisible(); await press(page, error.getByRole("button"));
+  await expect(byId(page, "cash.current.amount")).toContainText("28.50 CNY");
+  expect(reads).toBe(2);
+});
+
+test("F-04 当前详情：只读成员没有编辑入口", async ({ page }) => {
+  const initialSession = { ...activeSession, workspaces: activeSession.workspaces.map(row => ({ ...row, role: "viewer" })) };
+  await installComposeApiFixtures(page, { initialSession });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openDetail(page, 1440);
+  await expect(byId(page, "cash.current.detail")).toContainText("咖啡店");
+  await expect(page.locator('[id="cash.current.edit"]:visible')).toHaveCount(0);
+});

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from ft.domain.relations.core.keys import compatible_platform_scope
 from ft.domain.relations.core.keys import stable_fact_order_key, top_k_candidate_ids
 
 from collections import defaultdict
@@ -115,6 +116,8 @@ def evaluate_refund_offset(
         # matching so a same-name transaction on another account cannot become
         # either a strong candidate or a pending review candidate.
         if str(cand.account_id) != str(seed.account_id):
+            continue
+        if not compatible_platform_scope(seed, cand):
             continue
         if str(cand.currency).upper() != str(seed.currency).upper():
             continue

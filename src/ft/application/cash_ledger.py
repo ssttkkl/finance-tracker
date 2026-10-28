@@ -1,52 +1,23 @@
 """Writable cash-ledger boundary used by the browser workbench."""
 from __future__ import annotations
 
-from contextlib import contextmanager
+from copy import deepcopy
 from datetime import date, datetime, timezone
-from decimal import Decimal, InvalidOperation
-from pathlib import Path
+from decimal import Decimal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import base64
 import binascii
-import hashlib
 import json
-import tempfile
-from types import SimpleNamespace
 
-from sqlalchemy import and_, delete as sa_delete, select as sa_select, update as sa_update
+from sqlalchemy import and_, select as sa_select
 
-from ft.adapters.relational.models import (
-    AccountModel,
-    CashCategoryModel,
-    CashImportCommitModel,
-    CashInvestmentFundingRelationModel,
-    CashProjectionRelationModel,
-    CashProjectionMemberModel,
-    CashProjectionModel,
-    CashProjectionStateModel,
-    CashTransactionModel,
-    CashTransactionComponentModel,
-    TransactionRelationModel,
-    WorkspaceModel,
-)
+from ft.adapters.relational.models import AccountModel, CashCategoryModel, CashProjectionMemberModel, CashProjectionModel, CashProjectionStateModel, CashTransactionModel
 from ft.adapters.relational.repositories import RelationalCashflowRepository
 from ft.adapters.relational.uow import RelationalUnitOfWork
-from ft.adapters.statement_import import StatementParser
+from ft.application.cash_balances import counts_toward_balance, apply_snapshot_components
 from ft.application.cash_projections import CashProjectionService
-from ft.application.statement_import import StatementImportService, _row_record_id
-from ft.application.statement_account_mapping import (
-    SourceAccountGroup,
-    historical_mapping_for_group,
-    new_account_draft,
-    scan_source_rows,
-    scan_source_rows_with_issues,
-    source_component_identity_keys,
-    source_identity_key,
-    suggest_mapping,
-)
 from ft.domain.application import RelationImpactRequired
 from ft.domain.cash_projection import CashProjectionError
-from ft.domain.imports import StatementImportCommand
 from ft.domain.record_type import (
     CashRecordType,
     CashRecordSubtype,
@@ -54,7 +25,7 @@ from ft.domain.record_type import (
     validate_cash_record_subtype,
 )
 from ft.domain.decimal import exact_decimal
-from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair, source_group
+from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair
 
 
 RECORD_TYPE_LABELS = {
@@ -90,54 +61,36 @@ RELATION_LABELS = {
     RelationKind.TRANSFER_PAIR.value: "个人转账",
     RelationKind.REFUND_OFFSET.value: "退款冲销",
 }
-IMPORT_CHANNEL_LABELS = {
-    "alipay": "支付宝",
-    "wechat": "微信",
-    "icbc_credit": "工行信用卡",
-    "icbc_debit": "工行借记卡",
-    "ccb_debit": "建行借记卡",
-    "icbc_asia": "工银亚洲",
-    "mixed": "多渠道",
-}
 STANDARD_IMPORT_COLUMNS = (
     "occurred_at", "amount", "currency", "account_name", "counterparty",
     "counterparty_account", "record_type", "record_subtype", "category",
     "note", "channel", "status",
 )
-IMPORT_CHANNEL_CANDIDATES = (
-    "alipay", "wechat", "icbc-debit", "icbc", "ccb-debit", "icbc-asia",
-)
-IMPORT_FORMAL_TO_PARSER = {
-    "icbc_credit": "icbc",
-    "icbc_debit": "icbc-debit",
-}
 
 
-class _ActiveUowProxy:
-    """Let the legacy import service reuse an already-open final transaction."""
-
-    def __init__(self, uow):
-        self._uow = uow
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, _exc_type, _exc, _tb):
-        return None
-
-    def commit(self):
-        # The caller owns the final commit after mappings and account changes.
-        return None
-
-    def rollback(self):
-        return self._uow.rollback()
-
-    def __getattr__(self, name):
-        return getattr(self._uow, name)
 EDITABLE_FIELDS = (
     "occurred_at", "amount", "currency", "counterparty", "counterparty_account",
     "counterparty_account_attrs", "note", "category_id", "record_type", "record_subtype",
 )
+
+
+class ManualCashRecordInputError(ValueError):
+    """手工新建只能声明公开业务字段。"""
+
+
+def _manual_create_payload(payload):
+    fields = {"account_name", "amount", "currency", "occurred_at", "counterparty",
+        "counterparty_account", "counterparty_account_attrs", "note", "category_id", "category",
+        "record_type", "record_subtype", "components"}
+    component_fields = {"account_name", "account_id", "amount", "currency", "label"}
+    if not isinstance(payload, dict) or set(payload) - fields:
+        raise ManualCashRecordInputError("请检查填写内容后重试。")
+    components = payload.get("components")
+    if components is not None and (not isinstance(components, list) or len(components) > 64 or any(
+        not isinstance(item, dict) or set(item) - component_fields for item in components
+    )):
+        raise ManualCashRecordInputError("请检查账户分摊后重试。")
+    return deepcopy(payload)
 
 
 def _wire(value):
@@ -182,11 +135,10 @@ class CashLedgerCommandService:
     to their source facts before writing.
     """
 
-    def __init__(self, sessions, workspace_id: str, *, parser=None, relation_service=None):
+    def __init__(self, sessions, workspace_id: str, *, relation_service=None):
         self._sessions = sessions
         self._workspace_id = workspace_id
         self._uow = RelationalUnitOfWork(sessions, workspace_id)
-        self._parser = parser or StatementParser()
         self._relation_service = relation_service
 
     @staticmethod
@@ -235,38 +187,15 @@ class CashLedgerCommandService:
         return account
 
     def _snapshot_deltas(self, uow, changes: list[tuple[dict | None, dict | None]]) -> None:
-        if not changes:
+        if not any(counts_toward_balance(old) or counts_toward_balance(new) for old, new in changes):
             return
         snapshot = uow.snapshot.load(lock=True)
         latest = None
 
-        def apply_row(row, multiplier):
-            if not row or str(row.get("record_type") or "other") in {"transfer_in", "transfer_out"}:
-                return
-            components = row.get("components") or []
-            if not components:
-                components = [{
-                    "account_name": row.get("account_name"),
-                    "account_type": row.get("account_type") or "cash",
-                    "amount": row.get("amount"),
-                    "currency": row.get("currency"),
-                }]
-            for component in components:
-                account_name = str(component.get("account_name") or "").strip()
-                if not account_name:
-                    raise ValueError("组成项缺少目标账户")
-                uow.snapshot.update_balance(
-                    snapshot,
-                    account_name,
-                    component.get("account_type") or "cash",
-                    str(component.get("currency") or row.get("currency") or "").upper(),
-                    Decimal(str(component.get("amount") or "0")) * Decimal(str(multiplier)),
-                )
-
         for old, new in changes:
-            apply_row(old, -1)
-            apply_row(new, 1)
-            latest = new or old or latest
+            apply_snapshot_components(snapshot, uow, old, -1)
+            apply_snapshot_components(snapshot, uow, new, 1)
+            latest = new if counts_toward_balance(new) else old if counts_toward_balance(old) else latest
         snapshot["updated_at"] = (latest or {}).get("occurred_at", "")
         uow.snapshot.save(snapshot)
 
@@ -297,7 +226,7 @@ class CashLedgerCommandService:
 
         members = RelationalCashProjectionRepository(
             uow._state().session, uow.workspace_id,
-        ).accepted_relation_component_ids({target})
+        ).confirmed_transaction_closure({target})
         relations = [
             relation for relation in uow.relations.list_for_facts(sorted(members), active_only=True)
             if relation.get("status") == RelationStatus.ACCEPTED.value
@@ -338,10 +267,10 @@ class CashLedgerCommandService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
         from ft.domain.cash_projection import CashProjectionError, build_cash_projections
 
-        facts, relations = RelationalCashProjectionRepository(
-            uow._state().session, uow.workspace_id,
-        ).read_sources_for_facts(fact_ids)
         try:
+            facts, relations = RelationalCashProjectionRepository(
+                uow._state().session, uow.workspace_id,
+            ).read_sources_for_facts(fact_ids)
             build_cash_projections(facts, relations)
         except CashProjectionError as exc:
             raise RelationImpactRequired(
@@ -358,6 +287,7 @@ class CashLedgerCommandService:
         )
 
     def create_record(self, payload: dict) -> dict:
+        payload = _manual_create_payload(payload)
         with self._uow as uow:
             account_name = str(payload.get("account_name") or "").strip()
             if not account_name:
@@ -394,6 +324,7 @@ class CashLedgerCommandService:
                 "record_type": record_type,
                 "record_subtype": record_subtype,
                 "source_type": "",
+                "record_origin": "manual",
                 "record_id": "",
                 "source_payload": None,
             }
@@ -403,6 +334,10 @@ class CashLedgerCommandService:
                 account=account,
                 return_model=True,
             )
+            fact_model.manual_overrides = {
+                field: {"value": getattr(fact_model, field)}
+                for field in ("note", "category_id") if field in payload
+            }
             fact_id = fact_model.id
             current = uow.cashflows._to_row(fact_model, account)
             self._snapshot_delta(uow, None, current)
@@ -454,12 +389,9 @@ class CashLedgerCommandService:
                 values["components"] = current.get("components") or []
             values["account_name"] = account.name
             values["source_values"] = payload.get("source_values") or {}
-            category_changed = (
-                "category_id" in values
-                and str(values.get("category_id") or "") != str(current.get("category_id") or "")
-            )
+            category_supplied = "category_id" in values
             category_id = str(values.get("category_id") or "") or None
-            if category_changed:
+            if category_supplied:
                 projection_state = uow._state().session.scalar(sa_select(CashProjectionStateModel).where(
                     CashProjectionStateModel.workspace_id == self._workspace_id,
                 ))
@@ -486,9 +418,24 @@ class CashLedgerCommandService:
                 field in values and not self._same_edit_value(field, current.get(field), values[field])
                 for field in key_fields
             )
+            type_changed = any(
+                field in values and not self._same_edit_value(field, current.get(field), values[field])
+                for field in ("record_type", "record_subtype")
+            )
+            type_context = None
+            previous_row_revision = current_model.row_revision
             component_ids: set[int] = {int(fact_id)}
             component_relations: list[dict] = []
-            if key_changed or category_changed:
+            if type_changed:
+                from ft.application.cash_relation_context import CashRelationGraphService
+                from ft.domain.cash_relation_policy import CashRelationError
+
+                try:
+                    type_context = CashRelationGraphService(uow._state().session, self._workspace_id).load({int(fact_id)})
+                except CashRelationError:
+                    raise ValueError("相关流水已变化，请重新打开后保存。") from None
+                component_ids = set(type_context.transaction_ids)
+            elif key_changed or category_supplied:
                 component_ids, component_relations = self._accepted_relation_component(uow, fact_id)
             updated = uow.cashflows.update(
                 int(fact_id),
@@ -496,13 +443,12 @@ class CashLedgerCommandService:
                 _row=current_model,
                 _account=account,
             )
-            if category_changed and len(component_ids) > 1:
-                uow._state().session.execute(sa_update(CashTransactionModel).where(
-                    CashTransactionModel.workspace_id == self._workspace_id,
-                    CashTransactionModel.id.in_(component_ids),
-                    CashTransactionModel.deleted_at.is_(None),
-                ).values(category_id=category_id))
-            if component_relations and key_changed:
+            changed_ids = {int(fact_id)} if current_model.row_revision != previous_row_revision else set()
+            if category_supplied:
+                from ft.adapters.relational.cash_categories import set_manual_category
+                changed_ids.update(set_manual_category(
+                    uow._state().session, self._workspace_id, component_ids, category_id))
+            if component_relations and key_changed and type_context is None:
                 try:
                     self._validate_projection_graph(uow, component_ids)
                 except RelationImpactRequired:
@@ -514,11 +460,30 @@ class CashLedgerCommandService:
                         reason="user_unlinked_by_edit",
                     )
             self._snapshot_delta(uow, updated.pop("previous"), updated)
-            if (key_changed or category_changed) and not component_relations:
+            if type_context is None:
+                from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+
+                if changed_ids:
+                    CurrentCashRelationRepository(uow._state().session, self._workspace_id).mark_candidates_stale(
+                        changed_ids,
+                    )
+            if type_context is not None:
+                from ft.application.cash_relation_type_updates import CashRelationTypeUpdateService
+                from ft.domain.cash_relation_policy import CashRelationError
+
+                try:
+                    CashRelationTypeUpdateService(uow._state().session, self._workspace_id).maintain(
+                        type_context, {int(fact_id)},
+                        updated_transaction_ids=changed_ids,
+                    )
+                except CashRelationError as exc:
+                    message = "相关流水已变化，请重新打开后保存。" if exc.code == "relation_context_changed" else "本次修改与已有配对冲突，请先调整配对。"
+                    raise ValueError(message) from None
+            elif (key_changed or category_supplied) and not component_relations:
                 CashProjectionService.replace_standalone_fact_if_ready_in_session(
                     uow._state().session, uow.workspace_id, current_model,
                 )
-            elif key_changed or category_changed:
+            elif key_changed or category_supplied:
                 CashProjectionService.maintain_if_ready_in_session(
                     uow._state().session,
                     uow.workspace_id,
@@ -559,18 +524,18 @@ class CashLedgerCommandService:
             current_model, current_account = current_model_row
             if current_model.deleted_at is not None:
                 raise ValueError("找不到这条流水记录")
-            current = uow.cashflows._to_row(current_model, current_account)
             if mode not in {"delete_all", "delete_current_dissolve"}:
                 raise ValueError("无效的删除方式")
             from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
             component_ids = RelationalCashProjectionRepository(
                 session, uow.workspace_id,
-            ).accepted_relation_component_ids({int(fact_id)})
+            ).confirmed_transaction_closure({int(fact_id)})
             target_ids = component_ids if mode == "delete_all" else {int(fact_id)}
-            relation_rows = uow.relations.list_for_facts(
-                list(component_ids), active_only=False,
-            ) if component_ids else []
+            from ft.application.cash_record_deletion import CashRecordDeletion
+
+            deletion = CashRecordDeletion(session, self._workspace_id, target_ids)
+            relation_rows = deletion.relations
             target_id_list = sorted(target_ids)
             models_by_id = {int(current_model.id): (current_model, current_account)}
             remaining_target_ids = [
@@ -601,80 +566,7 @@ class CashLedgerCommandService:
             ]
             if not models:
                 raise ValueError("找不到这条流水记录")
-            standalone_delete = component_ids == {int(fact_id)} and not relation_rows and len(models) == 1
-            relation_ids = [int(relation["id"]) for relation in relation_rows]
-            if relation_ids:
-                # Projection rows hold RESTRICT references to the current
-                # relation. Remove those derived links before deleting the
-                # relation itself; the affected projection group is rebuilt
-                # below in the same transaction.
-                session.execute(sa_delete(CashProjectionRelationModel).where(
-                    CashProjectionRelationModel.workspace_id == self._workspace_id,
-                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
-                ))
-                session.execute(sa_delete(TransactionRelationModel).where(
-                    TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.id.in_(relation_ids),
-                ))
-            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
-                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
-                    sa_select(CashTransactionComponentModel.id).where(
-                        CashTransactionComponentModel.workspace_id == self._workspace_id,
-                        CashTransactionComponentModel.cash_transaction_id.in_(target_id_list),
-                    )
-                ),
-            ))
-            if standalone_delete:
-                CashProjectionService.remove_if_ready_in_session(
-                    session, uow.workspace_id, {int(fact_id)},
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
-            elif mode == "delete_all":
-                # Every fact in the current component is being deleted. There
-                # is no remaining group to rebuild, so remove the active
-                # derived rows directly instead of rebuilding an empty group.
-                CashProjectionService.remove_if_ready_in_session(
-                    session, uow.workspace_id, component_ids,
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
-            else:
-                for model in models:
-                    model.deleted_at = datetime.now(timezone.utc)
-                    model.deleted_by = actor
-                    model.delete_reason = mode
-                session.flush()
-                CashProjectionService.maintain_if_ready_in_session(
-                    session,
-                    uow.workspace_id,
-                    set(target_ids) | component_ids,
-                    known_component_ids=component_ids,
-                )
-                self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
-                session.execute(
-                    sa_delete(CashTransactionModel)
-                    .where(
-                        CashTransactionModel.workspace_id == self._workspace_id,
-                        CashTransactionModel.id.in_(target_id_list),
-                    )
-                    .execution_options(synchronize_session=False)
-                )
+            self._delete_records_in_uow(uow, models, previous_rows, deletion, actor=actor, reason=mode)
             uow.commit()
         return {
             "deleted": True,
@@ -685,10 +577,24 @@ class CashLedgerCommandService:
             "related_fact_ids": sorted({
                 str(endpoint)
                 for relation in relation_rows
-                for endpoint in (relation.get("primary_fact_id"), relation.get("secondary_fact_id"))
+                for endpoint in (relation.get("primary_transaction_id"), relation.get("secondary_transaction_id"))
                 if endpoint not in (None, "") and str(endpoint) != str(fact_id)
             }),
         }
+
+    def _delete_records_in_uow(self, uow, models, previous_rows, deletion, *, actor, reason):
+        session = uow._state().session
+        deletion.clear_references()
+        now = datetime.now(timezone.utc)
+        for model in models:
+            model.deleted_at, model.deleted_by, model.delete_reason = now, actor, reason
+        session.flush()
+        if deletion.affected_ids <= deletion.target_ids:
+            status = CashProjectionService.remove_if_ready_in_session(session, self._workspace_id, set(deletion.target_ids))
+        else:
+            status = CashProjectionService.maintain_if_ready_in_session(session, self._workspace_id, set(deletion.affected_ids))
+        self._snapshot_deltas(uow, [(row, None) for row in previous_rows])
+        return status
 
     @staticmethod
     def _normalize_projection_ids(projection_ids) -> list[str]:
@@ -733,11 +639,13 @@ class CashLedgerCommandService:
         if int(state.projection_version) != projection_version:
             raise ValueError("projection.version_conflict")
 
+        from ft.adapters.relational.cash_projection_visibility import maintainable_projection_conditions
+
         projection_statement = sa_select(CashProjectionModel).where(
             CashProjectionModel.workspace_id == self._workspace_id,
             CashProjectionModel.dataset_id == state.active_dataset_id,
             CashProjectionModel.projection_id.in_(ids),
-            CashProjectionModel.visible.is_(True),
+            *maintainable_projection_conditions(self._workspace_id, state.active_dataset_id),
         )
         if lock:
             projection_statement = projection_statement.with_for_update()
@@ -780,46 +688,19 @@ class CashLedgerCommandService:
         if len(models_by_id) != len(member_ids):
             raise ValueError("projection.version_conflict")
 
-        from sqlalchemy.orm import aliased
+        from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 
-        primary_component = aliased(CashTransactionComponentModel)
-        secondary_component = aliased(CashTransactionComponentModel)
-        relation_rows = session.execute(
-            sa_select(
-                TransactionRelationModel,
-                primary_component.cash_transaction_id.label("primary_parent_id"),
-                secondary_component.cash_transaction_id.label("secondary_parent_id"),
-            )
-            .join(
-                primary_component,
-                (primary_component.workspace_id == TransactionRelationModel.workspace_id)
-                & (primary_component.id == TransactionRelationModel.primary_component_id),
-            )
-            .outerjoin(
-                secondary_component,
-                (secondary_component.workspace_id == TransactionRelationModel.workspace_id)
-                & (secondary_component.id == TransactionRelationModel.secondary_component_id),
-            )
-            .where(
-                TransactionRelationModel.workspace_id == self._workspace_id,
-                (
-                    primary_component.cash_transaction_id.in_(member_ids)
-                    | secondary_component.cash_transaction_id.in_(member_ids)
-                ),
-            )
-        ).all()
+        relation_rows = CurrentCashRelationRepository(session, self._workspace_id).list_for_transactions(
+            member_ids, active_only=False)
         member_projection_ids = {
             int(row.cash_transaction_id): int(row.projection_row_id)
             for row in member_rows
         }
         relation_group_projection_ids = {
             member_projection_ids[int(endpoint)]
-            for row, primary_parent_id, secondary_parent_id in relation_rows
-            if row.status in {
-                RelationStatus.ACCEPTED.value,
-                RelationStatus.PENDING_REVIEW.value,
-            }
-            for endpoint in (primary_parent_id, secondary_parent_id)
+            for row in relation_rows
+            if row["active"] and row["state"] in {"confirmed", "draft"}
+            for endpoint in (row["primary_transaction_id"], row["secondary_transaction_id"], row["anchor_transaction_id"])
             if endpoint is not None and int(endpoint) in member_projection_ids
         }
         cash_repo = RelationalCashflowRepository(session, self._workspace_id)
@@ -868,46 +749,14 @@ class CashLedgerCommandService:
                 session, projection_ids, projection_version, lock=True,
             )
             member_ids = set(targets["member_ids"])
-            relation_rows = uow.relations.list_for_facts(
-                list(member_ids), active_only=False,
-            )
-            relation_ids = sorted({int(row["id"]) for row in relation_rows})
-            if relation_ids:
-                # Derived links must be removed before their source relation
-                # rows; projection rows themselves are removed below.
-                session.execute(sa_delete(CashProjectionRelationModel).where(
-                    CashProjectionRelationModel.workspace_id == self._workspace_id,
-                    CashProjectionRelationModel.transaction_relation_id.in_(relation_ids),
-                ))
+            from ft.application.cash_record_deletion import CashRecordDeletion
 
-            projection_status = CashProjectionService.remove_if_ready_in_session(
-                session, uow.workspace_id, member_ids,
-            )
+            deletion = CashRecordDeletion(session, self._workspace_id, member_ids)
+            projection_status = self._delete_records_in_uow(uow,
+                [model for model, _account in targets["models_by_id"].values()], targets["previous_rows"], deletion,
+                actor=actor, reason="delete_all")
             if projection_status is None:
                 raise ValueError("projection.unavailable")
-            if relation_ids:
-                session.execute(sa_delete(TransactionRelationModel).where(
-                    TransactionRelationModel.workspace_id == self._workspace_id,
-                    TransactionRelationModel.id.in_(relation_ids),
-                ))
-            session.execute(sa_delete(CashInvestmentFundingRelationModel).where(
-                CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(
-                    sa_select(CashTransactionComponentModel.id).where(
-                        CashTransactionComponentModel.workspace_id == self._workspace_id,
-                        CashTransactionComponentModel.cash_transaction_id.in_(member_ids),
-                    )
-                ),
-            ))
-            self._snapshot_deltas(uow, [(row, None) for row in targets["previous_rows"]])
-            session.execute(
-                sa_delete(CashTransactionModel)
-                .where(
-                    CashTransactionModel.workspace_id == self._workspace_id,
-                    CashTransactionModel.id.in_(member_ids),
-                )
-                .execution_options(synchronize_session=False)
-            )
             uow.commit()
             return {
                 "deleted": True,
@@ -1340,15 +1189,8 @@ class CashLedgerCommandService:
             )
             if conflict is not None:
                 raise ValueError("这两条流水已经存在同类型关联")
-            model = session.get(TransactionRelationModel, int(relation_id))
-            model.kind = kind
-            model.subtype = subtype
-            model.rule_id = "manual.web.v1"
-            model.created_by = "web"
-            model.decided_by = "web"
-            model.decided_at = datetime.now(timezone.utc)
-            model.decision_reason = "user_updated"
-            session.flush()
+            relation = uow.relations.update_kind(relation_id, kind=kind, subtype=subtype,
+                actor="web", reason="user_updated")
             if relation.get("status") == RelationStatus.ACCEPTED.value:
                 if self._relation_service is not None:
                     self._relation_service._validate_transfer_endpoint_availability(
@@ -1377,1711 +1219,3 @@ class CashLedgerCommandService:
             )
             uow.commit()
             return result
-
-    @staticmethod
-    def _import_digest(content: bytes) -> str:
-        return hashlib.sha256(content).hexdigest()
-
-    @staticmethod
-    def _clean_import_rows(rows: list[dict]) -> list[dict]:
-        cleaned = []
-        for row in rows:
-            item = dict(row)
-            item.pop("_import_meta", None)
-            cleaned.append(item)
-        return cleaned
-
-    @staticmethod
-    def _formal_import_channel(rows: list[dict], fallback: str) -> str:
-        channels = {
-            str(row.get("bill_source") or row.get("source_type") or fallback or "").strip()
-            for row in rows
-        }
-        channels.discard("")
-        if len(channels) != 1:
-            raise ValueError("无法识别账单导入渠道")
-        return next(iter(channels))
-
-    def _parse_with_candidate(
-        self,
-        content: bytes,
-        *,
-        candidate: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str]:
-        suffix = Path(filename or "statement").suffix
-        with tempfile.NamedTemporaryFile(prefix="ft-web-preview-", suffix=suffix, delete=True) as handle:
-            handle.write(content)
-            handle.flush()
-            command = StatementImportCommand(
-                source_path=handle.name, source=candidate, currency=currency, password=password,
-            )
-            rows = self._parse_import_command(command)
-        if not rows:
-            raise ValueError("账单中没有可导入的记录")
-        return rows, self._formal_import_channel(rows, candidate)
-
-    def _parse_import_command(self, command) -> list[dict]:
-        rows = self._clean_import_rows(self._parser.parse(command))
-        if not rows:
-            raise ValueError("账单中没有可导入的记录")
-        return rows
-
-    def _parse_source_with_candidate(
-        self,
-        content: bytes,
-        *,
-        candidate: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str]:
-        suffix = Path(filename or "statement").suffix
-        with tempfile.NamedTemporaryFile(prefix="ft-web-source-scan-", suffix=suffix, delete=True) as handle:
-            handle.write(content)
-            handle.flush()
-            command = StatementImportCommand(
-                source_path=handle.name, source=candidate, currency=currency, password=password,
-            )
-            rows = self._parse_source_command(command)
-        if not rows:
-            raise ValueError("账单中没有可导入的记录")
-        return rows, self._formal_import_channel(rows, candidate)
-
-    def _parse_source_command(self, command) -> list[dict]:
-        parser = getattr(self._parser, "parse_source_rows", None)
-        rows = self._clean_import_rows(
-            (parser(command) if parser is not None else self._parser.parse(command))
-        )
-        if not rows:
-            raise ValueError("账单中没有可导入的记录")
-        return rows
-
-    @staticmethod
-    @contextmanager
-    def _candidate_commands(
-        content: bytes,
-        *,
-        currency: str | None,
-        filename: str,
-        password: str | None,
-        prefix: str,
-    ):
-        suffix = Path(filename or "statement").suffix
-        with tempfile.NamedTemporaryFile(prefix=prefix, suffix=suffix, delete=True) as handle:
-            handle.write(content)
-            handle.flush()
-            yield [
-                StatementImportCommand(
-                    source_path=handle.name,
-                    source=candidate,
-                    currency=currency,
-                    password=password,
-                )
-                for candidate in IMPORT_CHANNEL_CANDIDATES
-            ]
-
-    def _probe_unique_candidate(
-        self,
-        content: bytes,
-        *,
-        currency: str | None,
-        filename: str,
-        password: str | None,
-        prefix: str,
-        parse_command,
-    ):
-        """Probe all production parser candidates before parsing one unique match."""
-        can_parse = getattr(self._parser, "can_parse", None)
-        if not callable(can_parse):
-            # Existing injected test doubles predate the parser probe contract.
-            # The runtime StatementParser implements can_parse and never enters this path.
-            return None
-
-        with self._candidate_commands(
-            content,
-            currency=currency,
-            filename=filename,
-            password=password,
-            prefix=prefix,
-        ) as commands:
-            matches = []
-            for command in commands:
-                if can_parse(command):
-                    matches.append(command)
-            if len(matches) != 1:
-                raise ValueError("import_channel_unrecognized")
-            command = matches[0]
-            return parse_command(command), command.source
-
-    def _detect_source_candidate(
-        self,
-        content: bytes,
-        *,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str, str]:
-        if len(content) > 100 * 1024 * 1024:
-            raise ValueError("账单超过 100 MiB 输入上限")
-        probed = self._probe_unique_candidate(
-            content,
-            currency=currency,
-            filename=filename,
-            password=password,
-            prefix="ft-web-source-probe-",
-            parse_command=self._parse_source_command,
-        )
-        if probed is not None:
-            rows, candidate = probed
-            channel = self._formal_import_channel(rows, candidate)
-            groups, issues = scan_source_rows_with_issues(rows)
-            if not groups and issues:
-                raise ValueError(issues[0].code)
-            return rows, channel, candidate
-
-        matches: list[tuple[list[dict], str, str]] = []
-        password_errors = []
-        source_identity_failure = False
-        composite_payment_failure = False
-        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
-        for candidate in IMPORT_CHANNEL_CANDIDATES:
-            try:
-                rows, channel = self._parse_source_with_candidate(
-                    content, candidate=candidate, currency=currency, filename=filename,
-                    password=password,
-                )
-                groups, issues = scan_source_rows_with_issues(rows)
-                if not groups and issues:
-                    raise ValueError(issues[0].code)
-            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
-                password_errors.append(exc)
-                continue
-            except ValueError as exc:
-                if "来源账户" in str(exc):
-                    source_identity_failure = True
-                if str(exc) == "import_composite_payment_unresolved":
-                    composite_payment_failure = True
-                continue
-            except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
-                continue
-            matches.append((rows, channel, candidate))
-        channels = {channel for _rows, channel, _candidate in matches}
-        if len(channels) != 1:
-            if not matches and password_errors:
-                raise password_errors[0]
-            if not matches and composite_payment_failure:
-                raise ValueError("import_composite_payment_unresolved")
-            if not matches and source_identity_failure:
-                raise ValueError("import_source_account_unrecognized")
-            raise ValueError("import_channel_unrecognized")
-        return next(match for match in matches if match[1] == next(iter(channels)))
-
-    def _resolve_source_rows(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str, str]:
-        requested = str(source or "").strip()
-        if not requested:
-            return self._detect_source_candidate(
-                content, currency=currency, filename=filename, password=password,
-            )
-        candidate = IMPORT_FORMAL_TO_PARSER.get(requested, requested)
-        rows, channel = self._parse_source_with_candidate(
-            content, candidate=candidate, currency=currency, filename=filename,
-            password=password,
-        )
-        groups, issues = scan_source_rows_with_issues(rows)
-        if not groups and issues:
-            raise ValueError(issues[0].code)
-        return rows, channel, candidate
-
-    @staticmethod
-    def _wire_import_account(account: dict | None) -> dict | None:
-        if account is None:
-            return None
-        return {
-            "id": int(account["id"]),
-            "name": account["name"],
-            "type": account["type"],
-            "active": bool(account["active"]),
-            "currencies": list(account.get("currencies", ())),
-        }
-
-    @staticmethod
-    def _batch_digest(files: list[dict]) -> str:
-        canonical = [
-            {
-                "index": index,
-                "filename": str(item.get("filename") or "statement"),
-                "digest": str(item.get("digest") or ""),
-                "size": int(item.get("size") or len(item.get("content") or b"")),
-            }
-            for index, item in enumerate(files)
-        ]
-        return hashlib.sha256(json.dumps(
-            canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
-        ).encode("utf-8")).hexdigest()
-
-    def _resolve_batch_rows(
-        self,
-        files: list[dict],
-        *,
-        currency: str | None,
-        passwords: dict[str, str] | None = None,
-    ) -> tuple[list[dict], list[dict], list[str], str, bool]:
-        if not isinstance(files, list) or not files or len(files) > 20:
-            raise ValueError("import_session_file_count_invalid")
-        passwords = passwords if isinstance(passwords, dict) else {}
-        rows: list[dict] = []
-        file_results: list[dict] = []
-        channels: list[str] = []
-        normalized: list[dict] = []
-        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
-
-        for index, item in enumerate(files):
-            if not isinstance(item, dict):
-                raise ValueError("import_session_file_invalid")
-            content = bytes(item.get("content") or b"")
-            if len(content) > 100 * 1024 * 1024:
-                raise ValueError("账单超过 100 MiB 输入上限")
-            filename = str(item.get("filename") or "statement")
-            digest = str(item.get("digest") or self._import_digest(content))
-            if digest != self._import_digest(content):
-                raise ValueError("import_session_source_changed")
-            normalized.append({
-                "filename": filename,
-                "digest": digest,
-                "size": len(content),
-                "content": content,
-            })
-            password = passwords.get(str(index)) or passwords.get(index)
-            try:
-                parsed_rows, channel, _candidate = self._resolve_source_rows(
-                    content,
-                    source=str(item.get("source") or ""),
-                    currency=currency,
-                    filename=filename,
-                    password=password,
-                )
-            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
-                file_results.append({
-                    "index": index, "name": filename, "filename": filename,
-                    "digest": digest, "size": len(content),
-                    "status": "password_required", "error_code": (
-                        "password_invalid" if isinstance(exc, PDFPasswordInvalidError) else "password_required"
-                    ),
-                })
-                continue
-            except Exception as exc:  # noqa: BLE001 - file status is the user-facing boundary.
-                file_results.append({
-                    "index": index, "name": filename, "filename": filename,
-                    "digest": digest, "size": len(content), "status": "error",
-                    "error_code": str(exc) or "import_file_parse_failed",
-                })
-                continue
-            for row in parsed_rows:
-                normalized_row = dict(row)
-                normalized_row["source_type"] = channel
-                normalized_row["bill_source"] = channel
-                normalized_row["_import_file_index"] = index
-                rows.append(normalized_row)
-            channels.append(channel)
-            file_results.append({
-                "index": index, "name": filename, "filename": filename,
-                "digest": digest, "size": len(content), "channel": channel,
-                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-                "row_count": len(parsed_rows), "status": "ready",
-            })
-        batch_digest = self._batch_digest(normalized)
-        unique_channels = sorted(set(channels))
-        ready = len(file_results) == len(files) and all(item["status"] == "ready" for item in file_results)
-        return rows, file_results, unique_channels, batch_digest, ready
-
-    def scan_import_batch(
-        self,
-        files: list[dict],
-        *,
-        currency: str | None = None,
-        passwords: dict[str, str] | None = None,
-    ) -> dict:
-        rows, file_results, channels, batch_digest, ready = self._resolve_batch_rows(
-            files, currency=currency, passwords=passwords,
-        )
-        base = {
-            "contract": "cash-account-mapping-v1",
-            "ready": ready,
-            "channel": channels[0] if len(channels) == 1 and ready else ("mixed" if channels and ready else None),
-            "channel_label": IMPORT_CHANNEL_LABELS.get(
-                channels[0] if len(channels) == 1 and ready else "mixed", "多渠道",
-            ) if ready else None,
-            "channels": channels,
-            "file": {"name": f"{len(files)} 个文件", "digest": batch_digest},
-            "digest": batch_digest,
-            "batch_digest": batch_digest,
-            "files": file_results,
-            "groups": [],
-            "accounts": [],
-        }
-        if not ready:
-            base["unresolved_count"] = 0
-            return base
-        groups, issues = scan_source_rows_with_issues(rows)
-        with self._uow as uow:
-            suggestions = [suggest_mapping(uow, group) for group in groups]
-            accounts = [
-                {
-                    "id": row.id,
-                    "name": row.name,
-                    "type": row.type,
-                    "active": row.active,
-                    "currencies": [str(item).upper() for item in (row.currencies or ())],
-                }
-                for row in uow._state().session.scalars(sa_select(AccountModel).where(
-                    AccountModel.workspace_id == self._workspace_id,
-                    AccountModel.type.in_(("cash", "loan", "lend")),
-                    AccountModel.active.is_(True),
-                )).all()
-            ]
-            uow.rollback()
-        base["unresolved_count"] = len(issues)
-        base["accounts"] = accounts
-        base["groups"] = [
-            {
-                "group_id": group.group_id,
-                "source_type": group.source_type,
-                "channel": group.source_type,
-                "channel_label": IMPORT_CHANNEL_LABELS.get(group.source_type, group.source_type),
-                "display_name": group.display_name,
-                "masked_evidence": group.masked_evidence,
-                "currencies": list(group.currencies),
-                "row_count": group.row_count,
-                "suggestion": {
-                    "account_id": suggestion["account_id"],
-                    "account": self._wire_import_account(suggestion["account"]),
-                    "missing_currencies": list(suggestion["missing_currencies"]),
-                    "mapping_revision": suggestion["mapping_revision"],
-                },
-            }
-            for group, suggestion in zip(groups, suggestions, strict=True)
-        ]
-        return base
-
-    def scan_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
-        rows, channel, _candidate = self._detect_source_candidate(
-            content, currency=currency, filename=filename, password=password,
-        )
-        groups, issues = scan_source_rows_with_issues(rows)
-        with self._uow as uow:
-            suggestions = [suggest_mapping(uow, group) for group in groups]
-            accounts = [
-                {
-                    "id": row.id,
-                    "name": row.name,
-                    "type": row.type,
-                    "active": row.active,
-                    "currencies": [str(item).upper() for item in (row.currencies or ())],
-                }
-                for row in uow._state().session.scalars(sa_select(AccountModel).where(
-                    AccountModel.workspace_id == self._workspace_id,
-                    AccountModel.type.in_(("cash", "loan", "lend")),
-                    AccountModel.active.is_(True),
-                )).all()
-            ]
-            uow.rollback()
-        digest = self._import_digest(content)
-        return {
-            "contract": "cash-account-mapping-v1",
-            "channel": channel,
-            "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-            "file": {"name": filename or "statement", "digest": digest},
-            "digest": digest,
-            "unresolved_count": len(issues),
-            "accounts": accounts,
-            "groups": [
-                {
-                    "group_id": group.group_id,
-                    "display_name": group.display_name,
-                    "masked_evidence": group.masked_evidence,
-                    "currencies": list(group.currencies),
-                    "row_count": group.row_count,
-                    "suggestion": {
-                        "account_id": suggestion["account_id"],
-                        "account": self._wire_import_account(suggestion["account"]),
-                        "missing_currencies": list(suggestion["missing_currencies"]),
-                        "mapping_revision": suggestion["mapping_revision"],
-                    },
-                }
-                for group, suggestion in zip(groups, suggestions, strict=True)
-            ],
-        }
-
-    def _detect_import_candidate(
-        self,
-        content: bytes,
-        *,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str, str]:
-        if len(content) > 100 * 1024 * 1024:
-            raise ValueError("账单超过 100 MiB 输入上限")
-        probed = self._probe_unique_candidate(
-            content,
-            currency=currency,
-            filename=filename,
-            password=password,
-            prefix="ft-web-import-probe-",
-            parse_command=self._parse_import_command,
-        )
-        if probed is not None:
-            rows, candidate = probed
-            channel = self._formal_import_channel(rows, candidate)
-            if not any(item.get("account_name") for item in rows):
-                raise ValueError("import_channel_unrecognized")
-            return rows, channel, candidate
-
-        matches: list[tuple[list[dict], str, str]] = []
-        password_errors = []
-        from ft.importers.pdf_tools import PDFPasswordInvalidError, PDFPasswordRequiredError
-        for candidate in IMPORT_CHANNEL_CANDIDATES:
-            try:
-                rows, channel = self._parse_with_candidate(
-                    content, candidate=candidate, currency=currency, filename=filename,
-                    password=password,
-                )
-            except (PDFPasswordRequiredError, PDFPasswordInvalidError) as exc:
-                password_errors.append(exc)
-                continue
-            except Exception:  # noqa: BLE001 - channel probing must not leak parser details.
-                continue
-            if not any(item.get("account_name") for item in rows):
-                continue
-            matches.append((rows, channel, candidate))
-        channels = {channel for _rows, channel, _candidate in matches}
-        if len(channels) != 1:
-            if not matches and password_errors:
-                raise password_errors[0]
-            raise ValueError("import_channel_unrecognized")
-        return next(match for match in matches if match[1] == next(iter(channels)))
-
-    def _resolve_import_rows(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-    ) -> tuple[list[dict], str, str]:
-        requested = str(source or "").strip()
-        if not requested:
-            return self._detect_import_candidate(
-                content, currency=currency, filename=filename, password=password,
-            )
-        candidate = IMPORT_FORMAL_TO_PARSER.get(requested, requested)
-        rows, channel = self._parse_with_candidate(
-            content, candidate=candidate, currency=currency, filename=filename,
-            password=password,
-        )
-        return rows, channel, candidate
-
-    def detect_import(self, content: bytes, *, filename: str, currency: str | None = None, password: str | None = None) -> dict:
-        rows, channel, _candidate = self._detect_import_candidate(
-            content, currency=currency, filename=filename, password=password,
-        )
-        digest = self._import_digest(content)
-        return {
-            "channel": channel,
-            "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-            "file": {"name": filename or "statement", "digest": digest},
-            "digest": digest,
-            "row_count": len(rows),
-        }
-
-    @staticmethod
-    def _relation_preview_record(row: dict, *, preview: bool, channel: str) -> dict:
-        record_id = str(row.get("record_id") or row.get("id") or "")
-        return {
-            "record_id": record_id,
-            "relation_ref": f"{channel}:{record_id}" if channel and record_id else record_id,
-            "preview": preview,
-            "occurred_at": row.get("occurred_at") or row.get("date") or "",
-            "amount": str(row.get("amount") or "0"),
-            "currency": str(row.get("currency") or "CNY").upper(),
-            "account_name": row.get("account_name") or "",
-            "counterparty": row.get("counterparty") or "",
-            "record_type": row.get("record_type") or "other",
-            "record_subtype": row.get("record_subtype") or "not_applicable",
-            "category": row.get("category") or "",
-            "note": row.get("note") or "",
-            "channel": channel,
-        }
-
-    @staticmethod
-    def _component_allocation_is_relation_ready(row: dict) -> bool:
-        allocation = row.get("component_allocation")
-        if not isinstance(allocation, dict):
-            return True
-        if allocation.get("status") == "requires_allocation":
-            return False
-        components = allocation.get("components")
-        if not isinstance(components, (list, tuple)) or not components:
-            return False
-        try:
-            amounts = [
-                Decimal(str(component["amount"]))
-                for component in components
-                if isinstance(component, dict)
-            ]
-            if len(amounts) != len(components):
-                return False
-            parent_amount = Decimal(str(row["amount"]))
-        except (KeyError, InvalidOperation, TypeError, ValueError):
-            return False
-        return (
-            all(amount.is_finite() for amount in amounts)
-            and sum(amounts, Decimal("0")) == parent_amount
-        )
-
-    def _preview_relation_suggestions(
-        self,
-        uow,
-        *,
-        prepared: list[tuple[dict, str]],
-        items_by_id: dict[str, dict],
-        channel: str,
-        accounts_by_name: dict[str, AccountModel],
-        cache_relation_plan: bool = False,
-    ) -> tuple[list[dict], str, dict | None]:
-        """Serialize the shared read-only relation plan for the browser."""
-        if self._relation_service is None:
-            return [], "", None
-
-        existing_rows = uow.cashflows.list_detailed(include_deleted=False)
-        existing_by_identity = {
-            (str(row.get("source_type") or row.get("bill_source") or "").strip(), str(row.get("record_id") or "").strip()): row
-            for row in existing_rows if str(row.get("record_id") or "").strip()
-        }
-        preview_rows = []
-        preview_ids: list[str] = []
-        for row, record_id in prepared:
-            if not self._component_allocation_is_relation_ready(row):
-                continue
-            account = accounts_by_name.get(row.get("account_name"))
-            row_channel = str(row.get("source_type") or row.get("bill_source") or channel or "").strip()
-            if account is None or (row_channel, str(record_id).strip()) in existing_by_identity:
-                continue
-            preview_id = (
-                f"preview:{row_channel}:{record_id}"
-                if channel == "mixed"
-                else f"preview:{record_id}"
-            )
-            synthetic = {
-                **row,
-                "id": preview_id,
-                "record_id": record_id,
-                "account_id": getattr(account, "id", None),
-                "account_type": account.type,
-                "source_type": row_channel,
-                "bill_source": row_channel,
-                "raw_payload": row.get("raw_payload") or row.get("source_payload"),
-            }
-            preview_rows.append(synthetic)
-            preview_ids.append(synthetic["id"])
-        if not preview_rows:
-            return [], "", None
-        plan = self._relation_service.plan_in_uow(
-            uow,
-            preview_rows=preview_rows,
-            seed_ids=[str(item) for item in preview_ids],
-        )
-        by_id = {str(fact.id): fact for fact in plan.facts}
-
-        def wire_fact(fact_id: str | None) -> dict | None:
-            if fact_id in (None, ""):
-                return None
-            key = str(fact_id)
-            fact = by_id.get(key)
-            if fact is None:
-                return None
-            if key.startswith("preview:"):
-                item = items_by_id.get(key) or items_by_id.get(key.removeprefix("preview:"), {})
-                return dict(item, preview=True)
-            record = self._relation_preview_record({"id": fact.id, "record_id": fact.record_id, "occurred_at": fact.occurred_at, "amount": fact.amount, "currency": fact.currency, "account_name": fact.account_name, "counterparty": fact.counterparty, "record_type": fact.record_type, "record_subtype": fact.record_subtype, "category": getattr(fact, "category", None), "note": fact.note, "source_type": fact.bill_source}, preview=False, channel=fact.bill_source)
-            try:
-                record["fact_id"] = int(fact.id)
-            except (TypeError, ValueError):
-                pass
-            return record
-
-        result = []
-        from ft.application.relations import relation_proposal_key, serialize_import_relation_plan
-        for proposal in plan.proposals:
-            primary = wire_fact(proposal.primary_fact_id)
-            secondary = wire_fact(proposal.secondary_fact_id)
-            candidates = [wire_fact(str(item)) for item in proposal.evidence.candidate_fact_ids]
-            candidates = [item for item in candidates if item is not None]
-            if primary is None or (secondary is None and not candidates):
-                continue
-            result.append({
-                "id": relation_proposal_key(proposal, plan.facts), "kind": proposal.kind,
-                "label": RELATION_LABELS.get(proposal.kind, proposal.kind),
-                "subtype": proposal.subtype or "", "status": proposal.status,
-                "automatic": proposal.status == RelationStatus.ACCEPTED.value and secondary is not None,
-                "rule_id": proposal.rule_id,
-                "reason": ", ".join(proposal.evidence.signals) or "标准化字段匹配",
-                "primary": primary, "secondary": secondary, "candidates": candidates,
-            })
-        return (
-            result,
-            plan.context_digest,
-            serialize_import_relation_plan(plan) if cache_relation_plan else None,
-        )
-
-    def _apply_mapping_to_source_rows(
-        self,
-        uow,
-        rows: list[dict],
-        channel: str,
-        mapping: list[dict],
-        *,
-        mixed: bool = False,
-    ):
-        groups, issues = scan_source_rows_with_issues(rows)
-        by_group_id = {group.group_id: group for group in groups}
-        if not isinstance(mapping, list):
-            raise ValueError("import_mapping_incomplete")
-        decisions = {}
-        allocation_overrides: dict[str, object] = {}
-        for decision in mapping:
-            if not isinstance(decision, dict) or not decision.get("group_id"):
-                raise ValueError("import_mapping_incomplete")
-            group_id = str(decision["group_id"])
-            if group_id in decisions or group_id not in by_group_id:
-                raise ValueError("import_mapping_stale")
-            decisions[group_id] = decision
-            # The web contract may carry row-level allocation values alongside
-            # the account decision. Accept both names while keeping the
-            # persisted model independent of this transport detail.
-            for key in ("component_allocations", "allocations"):
-                values = decision.get(key)
-                if isinstance(values, dict):
-                    allocation_overrides.update({str(k): v for k, v in values.items()})
-                elif isinstance(values, list):
-                    # Accept [{record_id, components}] alongside the keyed form.
-                    for entry in values:
-                        if not isinstance(entry, dict):
-                            raise ValueError("import_component_allocation_incomplete")
-                        record_id = str(entry.get("record_id") or "").strip()
-                        relation_ref = str(entry.get("relation_ref") or "").strip()
-                        source_type = str(
-                            entry.get("source_type") or entry.get("channel") or ""
-                        ).strip()
-                        key = relation_ref or (
-                            f"{source_type}:{record_id}"
-                            if source_type and record_id else record_id
-                        )
-                        if not key:
-                            raise ValueError("import_component_allocation_incomplete")
-                        allocation_overrides[key] = (
-                            entry.get("components") or entry.get("allocations")
-                        )
-        if set(decisions) != set(by_group_id):
-            raise ValueError("import_mapping_incomplete")
-
-        resolved = {}
-        drafts_by_id: dict[str, dict] = {}
-        draft_names: dict[str, str] = {}
-        for group in groups:
-            decision = decisions[group.group_id]
-            current = historical_mapping_for_group(uow, group)
-            expected_revision = decision.get("mapping_revision")
-            current_revision = current["revision"] if current is not None else None
-            if current_revision != expected_revision:
-                raise ValueError("import_mapping_stale")
-            if decision.get("account_id") not in (None, ""):
-                try:
-                    account_id = int(decision["account_id"])
-                except (TypeError, ValueError) as exc:
-                    raise ValueError("import_mapping_incomplete") from exc
-                account = uow.accounts.get_by_id(account_id)
-                if account is None or not account.get("active") or account.get("type") not in {"cash", "loan", "lend"}:
-                    raise ValueError("import_account_unavailable")
-                supported = {str(value).upper() for value in account.get("currencies", ()) if value}
-                missing = tuple(sorted(set(group.currencies) - supported))
-                resolved[group.group_id] = {
-                    "account_id": account_id,
-                    "account": account,
-                    "missing_currencies": missing,
-                    "new_account": None,
-                    "mapping_source_account_key": (
-                        current["source_account_key"]
-                        if current is not None
-                        else group.source_account_key
-                    ),
-                }
-                continue
-            draft = decision.get("new_account")
-            if not isinstance(draft, dict):
-                raise ValueError("import_mapping_incomplete")
-            draft_id = str(draft.get("draft_id") or group.group_id).strip()
-            name = str(draft.get("name") or "").strip()
-            account_type = str(draft.get("type") or "").strip()
-            currencies = tuple(sorted({str(value).upper() for value in (draft.get("currencies") or ()) if value}))
-            if (
-                not draft_id or len(draft_id) > 128 or not name
-                or account_type not in {"cash", "loan", "lend"}
-                or not set(group.currencies).issubset(currencies)
-            ):
-                raise ValueError("import_account_draft_invalid")
-            existing_draft = drafts_by_id.get(draft_id)
-            if existing_draft is not None:
-                if existing_draft["name"] != name or existing_draft["type"] != account_type:
-                    raise ValueError("import_account_draft_invalid")
-                merged_currencies = sorted(set(existing_draft["currencies"]) | set(currencies) | set(group.currencies))
-                existing_draft["currencies"] = merged_currencies
-                existing_draft["account"]["currencies"] = merged_currencies
-                existing_draft["new_account"]["currencies"] = merged_currencies
-            else:
-                prior_draft_id = draft_names.get(name)
-                if prior_draft_id is not None and prior_draft_id != draft_id:
-                    raise ValueError("import_account_name_conflict")
-                if uow.accounts.find(name) is not None:
-                    raise ValueError("import_account_name_conflict")
-                draft_names[name] = draft_id
-                drafts_by_id[draft_id] = {
-                    "draft_id": draft_id,
-                    "name": name,
-                    "type": account_type,
-                    "currencies": list(currencies),
-                    "account": {
-                        "id": None, "name": name, "type": account_type,
-                        "active": True, "currencies": list(currencies),
-                    },
-                    "new_account": {
-                        "draft_id": draft_id, "name": name, "type": account_type,
-                        "currencies": list(currencies),
-                    },
-                }
-            draft_entry = drafts_by_id[draft_id]
-            resolved[group.group_id] = {
-                "account_id": None,
-                "account": draft_entry["account"],
-                "missing_currencies": (),
-                "new_account": draft_entry["new_account"],
-                "draft_id": draft_id,
-                "mapping_source_account_key": (
-                    current["source_account_key"]
-                    if current is not None
-                    else group.source_account_key
-                ),
-            }
-
-        issue_by_index = {issue.row_index: issue for issue in issues}
-        occurrences: dict[str, int] = {}
-        all_record_ids = [_row_record_id(row, occurrences) for row in rows]
-        mapped_rows = []
-        mapped_record_ids = []
-        unresolved_items = []
-        groups_by_identity = {
-            (group.source_type, group.identity_kind, group.source_account_key): group
-            for group in groups
-        }
-
-        def allocation_for(row: dict, record_id: str):
-            source = str(row.get("source_type") or row.get("bill_source") or "").strip()
-            keys = (f"{source}:{record_id}", record_id) if mixed and source else (record_id,)
-            for key in keys:
-                if key in allocation_overrides:
-                    return allocation_overrides[key]
-            return None
-
-        for row_index, (row, record_id) in enumerate(zip(rows, all_record_ids, strict=True)):
-            if row_index in issue_by_index:
-                unresolved_items.append({
-                    "row_index": row_index,
-                    "row": dict(row),
-                    "record_id": record_id,
-                    "code": issue_by_index[row_index].code,
-                })
-                continue
-            identities = source_component_identity_keys(row)
-            if not identities:
-                raise ValueError("import_mapping_stale")
-            row_targets = []
-            for identity in identities:
-                group = groups_by_identity.get(identity)
-                if group is None:
-                    raise ValueError("import_mapping_stale")
-                row_targets.append((identity, group, resolved[group.group_id]))
-            target = row_targets[0][2]["account"]
-            mapped = dict(row)
-            # Preserve the ID computed over the original row sequence.  This
-            # keeps re-import idempotency stable when unresolved rows are
-            # filtered out before StatementImportService sees the data.
-            mapped["record_id"] = record_id
-            if len(row_targets) == 1:
-                mapped["account_name"] = target["name"]
-            else:
-                mapped["account_name"] = ""
-                mapped["component_account_names"] = {
-                    identity[2]: item["account"]["name"]
-                    for identity, _group, item in row_targets
-                }
-                mapped["component_account_ids"] = {
-                    identity[2]: item.get("account_id")
-                    for identity, _group, item in row_targets
-                    if item.get("account_id") is not None
-                }
-                # Keep the source component labels and attach mapped account
-                # IDs. The repository will reject the row if an allocation is
-                # still incomplete, so no amount is guessed here.
-                from ft.application.statement_account_mapping import (
-                    build_component_allocation_draft,
-                )
-                allocations = allocation_for(row, record_id)
-                draft = build_component_allocation_draft(row, allocations=allocations) if allocations is not None else build_component_allocation_draft(row)
-                for component in draft["components"]:
-                    key = component.get("account_key")
-                    component["account_id"] = mapped["component_account_ids"].get(key)
-                    component["account_name"] = mapped["component_account_names"].get(key, "")
-                mapped["component_allocation"] = draft
-                mapped["components"] = draft["components"]
-            single_allocations = allocation_for(row, record_id)
-            if len(row_targets) == 1:
-                allocation = row.get("component_allocation")
-                if single_allocations is not None:
-                    from ft.application.statement_account_mapping import build_component_allocation_draft
-                    draft = build_component_allocation_draft(row, allocations=single_allocations)
-                elif isinstance(allocation, dict) and isinstance(allocation.get("components"), list):
-                    draft = {
-                        **allocation,
-                        "components": [dict(component) for component in allocation["components"]],
-                    }
-                else:
-                    draft = None
-                if draft is not None:
-                    for component in draft["components"]:
-                        component["account_id"] = row_targets[0][2].get("account_id")
-                        component["account_name"] = target["name"]
-                    mapped["component_allocation"] = draft
-                    mapped["components"] = draft["components"]
-            mapped["currency"] = str(mapped.get("currency") or "CNY").upper()
-            if "source_payload" not in mapped and isinstance(mapped.get("_source_payload"), dict):
-                mapped["source_payload"] = mapped["_source_payload"]
-            mapped_rows.append(mapped)
-            mapped_record_ids.append(record_id)
-
-        if mixed:
-            existing_targets = {}
-            by_source: dict[str, list[str]] = {}
-            for row, record_id in zip(mapped_rows, mapped_record_ids, strict=True):
-                row_source = str(row.get("source_type") or row.get("bill_source") or "").strip()
-                by_source.setdefault(row_source, []).append(record_id)
-            for row_source, source_record_ids in by_source.items():
-                existing_targets.update({
-                    (row_source, record_id): target
-                    for record_id, target in uow.imports.existing_fact_targets(
-                        source_type=row_source, record_ids=source_record_ids,
-                    ).items()
-                })
-        else:
-            existing_targets = uow.imports.existing_fact_targets(
-                source_type=channel, record_ids=mapped_record_ids,
-            )
-        # A mapping change affects future rows only.  Existing facts are rendered
-        # and re-imported against their current account so the merge cannot move
-        # them to the newly selected account.
-        for row, record_id in zip(mapped_rows, mapped_record_ids, strict=True):
-            row_source = str(row.get("source_type") or row.get("bill_source") or channel).strip()
-            existing_target = existing_targets.get((row_source, record_id) if mixed else record_id)
-            if existing_target is not None:
-                row["account_name"] = existing_target[0]
-                row["currency"] = existing_target[1]
-        return mapped_rows, groups, resolved, mapped_record_ids, existing_targets, unresolved_items
-
-    def _preview_mapped_import(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None,
-        mapping: list[dict],
-        cache_relation_plan: bool = False,
-    ) -> dict:
-        rows, channel, _candidate = self._resolve_source_rows(
-            content, source=source, currency=currency, filename=filename, password=password,
-        )
-        digest = self._import_digest(content)
-        with self._uow as uow:
-            mapped_rows, groups, resolved, record_ids, existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
-                uow, rows, channel, mapping,
-            )
-            accounts_by_name = {
-                row.name: row for row in uow._state().session.scalars(sa_select(AccountModel).where(
-                    AccountModel.workspace_id == self._workspace_id,
-                )).all()
-            }
-            for index, group in enumerate(groups):
-                target = resolved[group.group_id]["account"]
-                if target["name"] not in accounts_by_name:
-                    accounts_by_name[target["name"]] = SimpleNamespace(
-                        id=-(index + 1), name=target["name"], type=target["type"],
-                        currencies=list(target.get("currencies", ())),
-                    )
-            prepared = list(zip(mapped_rows, record_ids, strict=True))
-            items = []
-            for row, rid in prepared:
-                status = "existing" if rid in existing_targets else "new"
-                allocation = row.get("component_allocation")
-                if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
-                    status = "requires_allocation"
-                item = {
-                    "record_id": rid,
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": str(row.get("currency") or currency or "CNY").upper(),
-                    "account_name": row.get("account_name") or "",
-                    "counterparty": row.get("counterparty") or "",
-                    "counterparty_account": row.get("counterparty_account") or "",
-                    "record_type": row.get("record_type") or "other",
-                    "record_subtype": row.get("record_subtype") or "not_applicable",
-                    "category": row.get("category") or "",
-                    "note": row.get("note") or "",
-                    "channel": channel,
-                    "status": status,
-                    "message": "请补齐组合支付各组成项金额" if status == "requires_allocation" else "",
-                }
-                if isinstance(allocation, dict):
-                    item["cash_granularity"] = allocation.get("cash_granularity")
-                    item["component_allocation"] = _wire(allocation)
-                    item["components"] = _wire(allocation.get("components") or [])
-                items.append(item)
-            for unresolved in unresolved_items:
-                row = unresolved["row"]
-                items.append({
-                    "record_id": unresolved["record_id"],
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": str(row.get("currency") or currency or "CNY").upper(),
-                    "account_name": "",
-                    "counterparty": row.get("counterparty") or "",
-                    "counterparty_account": row.get("counterparty_account") or "",
-                    "record_type": row.get("record_type") or "other",
-                    "record_subtype": row.get("record_subtype") or "not_applicable",
-                    "category": row.get("category") or "",
-                    "note": row.get("note") or "",
-                    "channel": channel,
-                    "status": "unresolved",
-                    "message": "无法准确归属组合支付，确认导入时跳过",
-                })
-            counts = {
-                "total": len(items),
-                "new": sum(item["status"] == "new" for item in items),
-                "existing": sum(item["status"] == "existing" for item in items),
-                "unsupported": len(unresolved_items),
-                "unresolved": len(unresolved_items),
-                "requires_allocation": sum(item["status"] == "requires_allocation" for item in items),
-            }
-            mapping_wire = [
-                {
-                    "group_id": group.group_id,
-                    "account_id": resolved[group.group_id]["account_id"],
-                    "missing_currencies": list(resolved[group.group_id]["missing_currencies"]),
-                    "new_account": resolved[group.group_id]["new_account"],
-                }
-                for group in groups
-            ]
-            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
-                uow,
-                prepared=prepared,
-                items_by_id={item["record_id"]: item for item in items},
-                channel=channel,
-                accounts_by_name=accounts_by_name,
-                cache_relation_plan=cache_relation_plan,
-            )
-            uow.rollback()
-            result = {
-                "channel": channel,
-                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-                "file": {"name": filename or "statement", "digest": digest},
-                "relation_digest": relation_digest,
-                "columns": list(STANDARD_IMPORT_COLUMNS),
-                "items": items,
-                "summary": counts,
-                "mapping": mapping_wire,
-                "relations": relations,
-            }
-            if relation_plan is not None:
-                result["_relation_plan"] = relation_plan
-            return result
-
-    def preview_import_batch(
-        self,
-        files: list[dict],
-        *,
-        currency: str | None = None,
-        passwords: dict[str, str] | None = None,
-        mapping: list[dict] | None = None,
-        cache_relation_plan: bool = False,
-    ) -> dict:
-        if mapping is None:
-            raise ValueError("import_mapping_incomplete")
-        rows, file_results, channels, batch_digest, ready = self._resolve_batch_rows(
-            files, currency=currency, passwords=passwords,
-        )
-        if not ready:
-            raise ValueError("import_files_not_ready")
-        channel = channels[0] if len(channels) == 1 else "mixed"
-        with self._uow as uow:
-            mixed = len(channels) > 1
-            mapped_rows, groups, resolved, record_ids, existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
-                uow, rows, channel, mapping, mixed=mixed,
-            )
-            accounts_by_name = {
-                row.name: row for row in uow._state().session.scalars(sa_select(AccountModel).where(
-                    AccountModel.workspace_id == self._workspace_id,
-                )).all()
-            }
-            for index, group in enumerate(groups):
-                target = resolved[group.group_id]["account"]
-                if target["name"] not in accounts_by_name:
-                    accounts_by_name[target["name"]] = SimpleNamespace(
-                        id=-(index + 1), name=target["name"], type=target["type"],
-                        currencies=list(target.get("currencies", ())),
-                    )
-            prepared = list(zip(mapped_rows, record_ids, strict=True))
-            items = []
-            items_by_id: dict[str, dict] = {}
-            for row, rid in prepared:
-                row_channel = str(row.get("source_type") or row.get("bill_source") or channel)
-                existing_key = (row_channel, rid) if mixed else rid
-                status = "existing" if existing_key in existing_targets else "new"
-                allocation = row.get("component_allocation")
-                if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
-                    status = "requires_allocation"
-                relation_ref = f"{row_channel}:{rid}"
-                item = {
-                    "record_id": rid,
-                    "relation_ref": relation_ref,
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": str(row.get("currency") or currency or "CNY").upper(),
-                    "account_name": row.get("account_name") or "",
-                    "counterparty": row.get("counterparty") or "",
-                    "counterparty_account": row.get("counterparty_account") or "",
-                    "record_type": row.get("record_type") or "other",
-                    "record_subtype": row.get("record_subtype") or "not_applicable",
-                    "category": row.get("category") or "",
-                    "note": row.get("note") or "",
-                    "channel": row_channel,
-                    "status": status,
-                    "message": "请补齐组合支付各组成项金额" if status == "requires_allocation" else "",
-                }
-                if isinstance(allocation, dict):
-                    item["cash_granularity"] = allocation.get("cash_granularity")
-                    item["component_allocation"] = _wire(allocation)
-                    item["components"] = _wire(allocation.get("components") or [])
-                items.append(item)
-                preview_key = f"preview:{row_channel}:{rid}" if mixed else f"preview:{rid}"
-                items_by_id[preview_key] = item
-                items_by_id.setdefault(rid, item)
-            for unresolved in unresolved_items:
-                row = unresolved["row"]
-                row_channel = str(row.get("source_type") or row.get("bill_source") or channel)
-                relation_ref = f"{row_channel}:{unresolved['record_id']}"
-                items.append({
-                    "record_id": unresolved["record_id"],
-                    "relation_ref": relation_ref,
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": str(row.get("currency") or currency or "CNY").upper(),
-                    "account_name": "",
-                    "counterparty": row.get("counterparty") or "",
-                    "counterparty_account": row.get("counterparty_account") or "",
-                    "record_type": row.get("record_type") or "other",
-                    "record_subtype": row.get("record_subtype") or "not_applicable",
-                    "category": row.get("category") or "",
-                    "note": row.get("note") or "",
-                    "channel": row_channel,
-                    "status": "unresolved",
-                    "message": "无法准确归属组合支付，确认导入时跳过",
-                })
-            counts = {
-                "total": len(items),
-                "new": sum(item["status"] == "new" for item in items),
-                "existing": sum(item["status"] == "existing" for item in items),
-                "unsupported": len(unresolved_items),
-                "unresolved": len(unresolved_items),
-                "requires_allocation": sum(item["status"] == "requires_allocation" for item in items),
-            }
-            mapping_wire = [
-                {
-                    "group_id": group.group_id,
-                    "source_type": group.source_type,
-                    "channel": group.source_type,
-                    "channel_label": IMPORT_CHANNEL_LABELS.get(group.source_type, group.source_type),
-                    "account_id": resolved[group.group_id]["account_id"],
-                    "missing_currencies": list(resolved[group.group_id]["missing_currencies"]),
-                    "new_account": resolved[group.group_id]["new_account"],
-                }
-                for group in groups
-            ]
-            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
-                uow,
-                prepared=prepared,
-                items_by_id=items_by_id,
-                channel=channel,
-                accounts_by_name=accounts_by_name,
-                cache_relation_plan=cache_relation_plan,
-            )
-            uow.rollback()
-            result = {
-                "channel": channel,
-                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-                "channels": channels,
-                "file": {"name": f"{len(files)} 个文件", "digest": batch_digest},
-                "digest": batch_digest,
-                "batch_digest": batch_digest,
-                "files": file_results,
-                "relation_digest": relation_digest,
-                "columns": list(STANDARD_IMPORT_COLUMNS),
-                "items": items,
-                "summary": counts,
-                "mapping": mapping_wire,
-                "relations": relations,
-            }
-            if relation_plan is not None:
-                result["_relation_plan"] = relation_plan
-            return result
-
-    def commit_import_batch(
-        self,
-        files: list[dict],
-        *,
-        currency: str | None = None,
-        passwords: dict[str, str] | None = None,
-        preview_digest: str | None = None,
-        preview_relation_digest: str | None = None,
-        preview_channel: str | None = None,
-        relation_decisions: list[dict] | None = None,
-        mapping: list[dict] | None = None,
-        cached_relation_plan: dict | None = None,
-        idempotency_key: str | None = None,
-        idempotency_scope: str | None = None,
-        idempotency_user_id: str | None = None,
-    ) -> dict:
-        if mapping is None:
-            raise ValueError("import_mapping_incomplete")
-        normalized_key = str(idempotency_key or "").strip() or None
-        normalized_user = str(idempotency_user_id or "__anonymous__")
-        if normalized_key and len(normalized_key) > 255:
-            raise ValueError("import_idempotency_key_invalid")
-        rows, file_results, channels, batch_digest, ready = self._resolve_batch_rows(
-            files, currency=currency, passwords=passwords,
-        )
-        if not ready:
-            raise ValueError("import_files_not_ready")
-        if preview_digest and preview_digest != batch_digest:
-            raise ValueError("import_preview_stale")
-        channel = channels[0] if len(channels) == 1 else "mixed"
-        if preview_channel and preview_channel != channel:
-            raise ValueError("import_preview_stale")
-        with self._uow as uow:
-            session = uow._state().session
-            if normalized_key:
-                session.execute(sa_select(WorkspaceModel.id).where(
-                    WorkspaceModel.id == self._workspace_id,
-                ).with_for_update()).scalar_one()
-                existing = session.scalar(sa_select(CashImportCommitModel).where(
-                    CashImportCommitModel.workspace_id == self._workspace_id,
-                    CashImportCommitModel.idempotency_key == normalized_key,
-                ))
-                if existing is not None:
-                    expected_scope = idempotency_scope or batch_digest
-                    if existing.user_id != normalized_user or existing.session_digest != expected_scope:
-                        raise ValueError("import_idempotency_conflict")
-                    uow.rollback()
-                    return dict(existing.result_json)
-            if cached_relation_plan is not None:
-                if self._relation_service is None or not preview_relation_digest:
-                    raise ValueError("import_relation_reconfirmation_required")
-                self._relation_service.validate_cached_import_plan_context_in_uow(
-                    uow, cached_relation_plan, expected_plan_digest=preview_relation_digest,
-                )
-            mapped_rows, groups, resolved, _record_ids, _existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
-                uow, rows, channel, mapping, mixed=len(channels) > 1,
-            )
-            snapshot = uow.snapshot.load(lock=True)
-            created_drafts: dict[str, dict] = {}
-            for group in groups:
-                target = resolved[group.group_id]
-                account = target["account"]
-                if target["new_account"] is not None:
-                    draft_id = target["new_account"]["draft_id"]
-                    created = created_drafts.get(draft_id)
-                    if created is None:
-                        model = AccountModel(
-                            workspace_id=self._workspace_id,
-                            name=account["name"],
-                            type=account["type"],
-                            active=True,
-                            currencies=list(account["currencies"]),
-                            metadata_json={},
-                        )
-                        session.add(model)
-                        session.flush()
-                        created = {"model": model, "account": account}
-                        created_drafts[draft_id] = created
-                    model = created["model"]
-                    target["account_id"] = model.id
-                    account["id"] = model.id
-                else:
-                    model = session.get(AccountModel, int(account["id"]))
-                    if model is None or not model.active:
-                        raise ValueError("import_account_unavailable")
-                    currencies = [str(item).upper() for item in (model.currencies or ()) if item]
-                    for item in group.currencies:
-                        if item not in currencies:
-                            currencies.append(item)
-                    model.currencies = currencies
-                    account["currencies"] = currencies
-                bucket = snapshot.setdefault("accounts", {}).setdefault(account["type"], {})
-                pockets = bucket.setdefault(account["name"], {})
-                if isinstance(pockets, dict):
-                    for item in account["currencies"]:
-                        pockets.setdefault(item, "0")
-            uow.snapshot.save(snapshot)
-
-            class MappedParser:
-                def parse(self, _command):
-                    return [dict(row) for row in mapped_rows]
-
-            first_filename = str(files[0].get("filename") or "statement")
-            first_content = bytes(files[0].get("content") or b"")
-            with tempfile.NamedTemporaryFile(
-                prefix="ft-mapped-import-batch-", suffix=Path(first_filename).suffix, delete=True,
-            ) as handle:
-                handle.write(first_content)
-                handle.flush()
-                result = StatementImportService(
-                    _ActiveUowProxy(uow), MappedParser(), relation_service=self._relation_service,
-                    enforce_account_currencies=True,
-                    allow_mixed_sources=True,
-                ).import_statement(
-                    StatementImportCommand(
-                        source_path=handle.name,
-                        source="",
-                        currency=currency,
-                        password=None,
-                    ),
-                    relation_decisions=relation_decisions,
-                    relation_plan_digest=preview_relation_digest,
-                    cached_relation_plan=cached_relation_plan,
-                )
-            if not result.ok:
-                raise ValueError(result.message or "导入失败")
-            for group in groups:
-                decision = next(item for item in mapping if item["group_id"] == group.group_id)
-                mapping_source_key = resolved[group.group_id].get(
-                    "mapping_source_account_key", group.source_account_key,
-                )
-                uow.statement_account_mappings.upsert(
-                    source_type=group.source_type,
-                    identity_kind=group.identity_kind,
-                    source_account_key=group.source_account_key,
-                    account_id=resolved[group.group_id]["account_id"],
-                    confirmed_by="web",
-                    expected_revision=(
-                        decision.get("mapping_revision")
-                        if mapping_source_key == group.source_account_key else None
-                    ),
-                )
-            details = result.details or {}
-            wire_result = _wire({
-                "message": result.message,
-                "new_rows": details.get("new_rows", result.count),
-                "updated_rows": details.get("updated_rows", 0),
-                "by_account": details.get("by_account", {}),
-                "channel": channel,
-                "channels": channels,
-                "file": {"name": f"{len(files)} 个文件", "digest": batch_digest},
-                "files": file_results,
-                "digest": batch_digest,
-                "batch_digest": batch_digest,
-                "mapping_saved": len(groups),
-                "skipped_rows": len(unresolved_items),
-            })
-            if normalized_key:
-                session.add(CashImportCommitModel(
-                    workspace_id=self._workspace_id,
-                    user_id=normalized_user,
-                    idempotency_key=normalized_key,
-                    session_digest=idempotency_scope or batch_digest,
-                    result_json=wire_result,
-                ))
-            uow.commit()
-            return wire_result
-
-    def preview_import(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-        mapping: list[dict] | None = None,
-        cache_relation_plan: bool = False,
-    ) -> dict:
-        if mapping is not None:
-            return self._preview_mapped_import(
-                content, source=source, currency=currency, filename=filename,
-                password=password, mapping=mapping, cache_relation_plan=cache_relation_plan,
-            )
-        rows, channel, _candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename, password=password,
-        )
-        digest = self._import_digest(content)
-        with self._uow as uow:
-            session = uow._state().session
-            account_names = {row.name: row for row in session.query(AccountModel).filter(
-                AccountModel.workspace_id == self._workspace_id,
-            ).all()}
-            occurrences: dict[str, int] = {}
-            record_ids = []
-            prepared = []
-            for row in rows:
-                row = dict(row)
-                row["currency"] = str(row.get("currency") or currency or "CNY").upper()
-                rid = _row_record_id(row, occurrences)
-                record_ids.append(rid)
-                prepared.append((row, rid))
-            from ft.adapters.relational.imports import RelationalImportRepository
-            targets = RelationalImportRepository(session, self._workspace_id).existing_fact_targets(
-                source_type=channel, record_ids=record_ids,
-            )
-            items = []
-            for row, rid in prepared:
-                account = account_names.get(row.get("account_name"))
-                status = "new"
-                message = ""
-                if account is None:
-                    status, message = "unsupported", "找不到目标账户"
-                elif str(row["currency"]).upper() not in {str(item).upper() for item in (account.currencies or ())}:
-                    status, message = "unsupported", "请更新账户配置后重新导入"
-                elif rid in targets:
-                    status = "existing"
-                allocation = row.get("component_allocation")
-                if isinstance(allocation, dict) and allocation.get("status") == "requires_allocation":
-                    status = "requires_allocation"
-                    message = "请补齐组合支付各组成项金额"
-                item = {
-                    "record_id": rid,
-                    "occurred_at": row.get("occurred_at") or row.get("date") or "",
-                    "amount": str(row.get("amount") or "0"),
-                    "currency": row["currency"],
-                    "account_name": row.get("account_name") or "",
-                    "counterparty": row.get("counterparty") or "",
-                    "counterparty_account": row.get("counterparty_account") or "",
-                    "record_type": row.get("record_type") or "other",
-                    "record_subtype": row.get("record_subtype") or "not_applicable",
-                    "category": row.get("category") or "",
-                    "note": row.get("note") or "",
-                    "channel": channel,
-                    "status": status,
-                    "message": message,
-                }
-                if isinstance(allocation, dict):
-                    item["cash_granularity"] = allocation.get("cash_granularity")
-                    item["component_allocation"] = _wire(allocation)
-                    item["components"] = _wire(allocation.get("components") or [])
-                items.append(item)
-            counts = {
-                "total": len(items),
-                "new": sum(item["status"] == "new" for item in items),
-                "existing": sum(item["status"] == "existing" for item in items),
-                "unsupported": sum(item["status"] == "unsupported" for item in items),
-                "requires_allocation": sum(item["status"] == "requires_allocation" for item in items),
-            }
-            relations, relation_digest, relation_plan = self._preview_relation_suggestions(
-                uow,
-                prepared=prepared,
-                items_by_id={item["record_id"]: item for item in items},
-                channel=channel,
-                accounts_by_name=account_names,
-                cache_relation_plan=cache_relation_plan,
-            )
-            result = {
-                "channel": channel,
-                "channel_label": IMPORT_CHANNEL_LABELS.get(channel, channel),
-                "file": {"name": filename or "statement", "digest": digest},
-                "relation_digest": relation_digest,
-                "columns": list(STANDARD_IMPORT_COLUMNS),
-                "items": items,
-                "summary": counts,
-                "relations": relations,
-            }
-            if relation_plan is not None:
-                result["_relation_plan"] = relation_plan
-            return result
-
-    def _commit_mapped_import(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None,
-        preview_digest: str | None,
-        preview_relation_digest: str | None,
-        preview_channel: str | None,
-        relation_decisions: list[dict] | None,
-        mapping: list[dict],
-        cached_relation_plan: dict | None = None,
-        idempotency_key: str | None = None,
-        idempotency_scope: str | None = None,
-        idempotency_user_id: str | None = None,
-    ) -> dict:
-        digest = self._import_digest(content)
-        normalized_idempotency_key = str(idempotency_key or "").strip() or None
-        normalized_idempotency_user_id = str(idempotency_user_id or "__anonymous__")
-        if normalized_idempotency_key and len(normalized_idempotency_key) > 255:
-            raise ValueError("import_idempotency_key_invalid")
-        if preview_digest and preview_digest != digest:
-            raise ValueError("import_preview_stale")
-        rows, channel, candidate = self._resolve_source_rows(
-            content, source=source, currency=currency, filename=filename, password=password,
-        )
-        if preview_channel and preview_channel != channel:
-            raise ValueError("import_preview_stale")
-        with self._uow as uow:
-            session = uow._state().session
-            if normalized_idempotency_key:
-                # Serialize confirmation attempts for one workspace on PostgreSQL.
-                # SQLite already starts this UoW with BEGIN IMMEDIATE; the row lock
-                # closes the check-then-insert window on the shared database.
-                session.execute(sa_select(WorkspaceModel.id).where(
-                    WorkspaceModel.id == self._workspace_id,
-                ).with_for_update()).scalar_one()
-                existing = session.scalar(sa_select(CashImportCommitModel).where(
-                    CashImportCommitModel.workspace_id == self._workspace_id,
-                    CashImportCommitModel.idempotency_key == normalized_idempotency_key,
-                ))
-                if existing is not None:
-                    expected_scope = idempotency_scope or digest
-                    if (
-                        existing.user_id != normalized_idempotency_user_id
-                        or existing.session_digest != expected_scope
-                    ):
-                        raise ValueError("import_idempotency_conflict")
-                    uow.rollback()
-                    return dict(existing.result_json)
-            if cached_relation_plan is not None:
-                if self._relation_service is None or not preview_relation_digest:
-                    raise ValueError("import_relation_reconfirmation_required")
-                self._relation_service.validate_cached_import_plan_context_in_uow(
-                    uow,
-                    cached_relation_plan,
-                    expected_plan_digest=preview_relation_digest,
-                )
-            mapped_rows, groups, resolved, _record_ids, _existing_targets, unresolved_items = self._apply_mapping_to_source_rows(
-                uow, rows, channel, mapping,
-            )
-            snapshot = uow.snapshot.load(lock=True)
-            created_drafts: dict[str, dict] = {}
-            for group in groups:
-                target = resolved[group.group_id]
-                account = target["account"]
-                if target["new_account"] is not None:
-                    draft_id = target["new_account"]["draft_id"]
-                    created = created_drafts.get(draft_id)
-                    if created is None:
-                        model = AccountModel(
-                            workspace_id=self._workspace_id,
-                            name=account["name"],
-                            type=account["type"],
-                            active=True,
-                            currencies=list(account["currencies"]),
-                            metadata_json={},
-                        )
-                        session.add(model)
-                        session.flush()
-                        created = {"model": model, "account": account}
-                        created_drafts[draft_id] = created
-                    model = created["model"]
-                    target["account_id"] = model.id
-                    account["id"] = model.id
-                else:
-                    model = session.get(AccountModel, int(account["id"]))
-                    if model is None or not model.active:
-                        raise ValueError("import_account_unavailable")
-                    currencies = [str(item).upper() for item in (model.currencies or ()) if item]
-                    for item in group.currencies:
-                        if item not in currencies:
-                            currencies.append(item)
-                    model.currencies = currencies
-                    account["currencies"] = currencies
-                bucket = snapshot.setdefault("accounts", {}).setdefault(account["type"], {})
-                pockets = bucket.setdefault(account["name"], {})
-                if isinstance(pockets, dict):
-                    for item in account["currencies"]:
-                        pockets.setdefault(item, "0")
-            uow.snapshot.save(snapshot)
-
-            class MappedParser:
-                def parse(self, _command):
-                    return [dict(row) for row in mapped_rows]
-
-            with tempfile.NamedTemporaryFile(
-                prefix="ft-mapped-import-", suffix=Path(filename or "statement").suffix, delete=True,
-            ) as handle:
-                handle.write(content)
-                handle.flush()
-                result = StatementImportService(
-                    _ActiveUowProxy(uow), MappedParser(), relation_service=self._relation_service,
-                    enforce_account_currencies=True,
-                ).import_statement(
-                    StatementImportCommand(
-                        source_path=handle.name,
-                        source=candidate,
-                        currency=currency,
-                        password=password,
-                    ),
-                    relation_decisions=relation_decisions,
-                    relation_plan_digest=preview_relation_digest,
-                    cached_relation_plan=cached_relation_plan,
-                )
-            if not result.ok:
-                raise ValueError(result.message or "导入失败")
-            for group in groups:
-                decision = next(item for item in mapping if item["group_id"] == group.group_id)
-                mapping_source_key = resolved[group.group_id].get(
-                    "mapping_source_account_key", group.source_account_key,
-                )
-                uow.statement_account_mappings.upsert(
-                    source_type=group.source_type,
-                    identity_kind=group.identity_kind,
-                    source_account_key=group.source_account_key,
-                    account_id=resolved[group.group_id]["account_id"],
-                    confirmed_by="web",
-                    expected_revision=(
-                        decision.get("mapping_revision")
-                        if mapping_source_key == group.source_account_key
-                        else None
-                    ),
-                )
-            details = result.details or {}
-            wire_result = _wire({
-                "message": result.message,
-                "new_rows": details.get("new_rows", result.count),
-                "updated_rows": details.get("updated_rows", 0),
-                "by_account": details.get("by_account", {}),
-                "channel": channel,
-                "digest": digest,
-                "mapping_saved": len(groups),
-                "skipped_rows": len(unresolved_items),
-            })
-            if normalized_idempotency_key:
-                session.add(CashImportCommitModel(
-                    workspace_id=self._workspace_id,
-                    user_id=normalized_idempotency_user_id,
-                    idempotency_key=normalized_idempotency_key,
-                    session_digest=idempotency_scope or digest,
-                    result_json=wire_result,
-                ))
-            uow.commit()
-            return wire_result
-
-    def commit_import(
-        self,
-        content: bytes,
-        *,
-        source: str,
-        currency: str | None,
-        filename: str,
-        password: str | None = None,
-        preview_digest: str | None = None,
-        preview_relation_digest: str | None = None,
-        preview_channel: str | None = None,
-        relation_decisions: list[dict] | None = None,
-        mapping: list[dict] | None = None,
-        cached_relation_plan: dict | None = None,
-        idempotency_key: str | None = None,
-        idempotency_scope: str | None = None,
-        idempotency_user_id: str | None = None,
-    ) -> dict:
-        if mapping is not None:
-            return self._commit_mapped_import(
-                content, source=source, currency=currency, filename=filename,
-                password=password, preview_digest=preview_digest,
-                preview_relation_digest=preview_relation_digest,
-                preview_channel=preview_channel, relation_decisions=relation_decisions,
-                mapping=mapping, cached_relation_plan=cached_relation_plan,
-                idempotency_key=idempotency_key,
-                idempotency_scope=idempotency_scope,
-                idempotency_user_id=idempotency_user_id,
-            )
-        if idempotency_key:
-            raise ValueError("import_mapping_incomplete")
-        digest = self._import_digest(content)
-        if preview_digest and preview_digest != digest:
-            raise ValueError("import_preview_stale")
-        _rows, channel, candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename, password=password,
-        )
-        if preview_channel and preview_channel != channel:
-            raise ValueError("import_preview_stale")
-        with tempfile.NamedTemporaryFile(prefix="ft-web-import-", suffix=Path(filename or "statement").suffix, delete=True) as handle:
-            handle.write(content)
-            handle.flush()
-            result = StatementImportService(
-                self._uow, self._parser, relation_service=self._relation_service,
-                enforce_account_currencies=True,
-            ).import_statement(
-                StatementImportCommand(source_path=handle.name, source=candidate, currency=currency, password=password),
-                relation_decisions=relation_decisions,
-                relation_plan_digest=preview_relation_digest,
-            )
-        if not result.ok:
-            raise ValueError(result.message or "导入失败")
-        return _wire({
-            "message": result.message,
-            "new_rows": result.details.get("new_rows", result.count) if result.details else result.count,
-            "updated_rows": result.details.get("updated_rows", 0) if result.details else 0,
-            "by_account": result.details.get("by_account", {}) if result.details else {},
-            "channel": channel,
-            "digest": digest,
-        })
-
-    def get_import_commit_result(self, idempotency_key: str, *, idempotency_scope: str, user_id: str = "__anonymous__") -> dict | None:
-        key = str(idempotency_key or "").strip()
-        if not key:
-            return None
-        with self._sessions() as session:
-            row = session.scalar(sa_select(CashImportCommitModel).where(
-                CashImportCommitModel.workspace_id == self._workspace_id,
-                CashImportCommitModel.idempotency_key == key,
-            ))
-            if row is None:
-                return None
-            if row.user_id != str(user_id) or row.session_digest != idempotency_scope:
-                raise ValueError("import_idempotency_conflict")
-            return dict(row.result_json)
-
-    def _parse_rows(self, content: bytes, *, source: str, currency: str | None, filename: str, password: str | None = None) -> tuple[list[dict], str]:
-        rows, channel, _candidate = self._resolve_import_rows(
-            content, source=source, currency=currency, filename=filename, password=password,
-        )
-        return rows, channel

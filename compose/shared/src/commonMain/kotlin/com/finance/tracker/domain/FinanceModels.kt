@@ -62,14 +62,14 @@ data class CashTransfer(
 
 data class CashProjection(
     val projectionId: String,
-    val occurredAt: String,
+    val occurredAt: String?,
     val account: Account? = null,
     val counterparty: String = "",
     val category: CashCategory? = null,
     val note: String = "",
-    val amount: String,
-    val currency: String,
-    val economicType: String,
+    val amount: String?,
+    val currency: String?,
+    val economicType: String?,
     val transferSubtype: String? = null,
     val composition: List<String> = emptyList(),
     val memberCount: Int = 1,
@@ -80,6 +80,13 @@ data class CashProjection(
     val visible: Boolean = true,
     val hiddenReason: String? = null,
     val transfer: CashTransfer? = null,
+    val state: String = "posted",
+    val statisticsEligible: Boolean = true,
+    val attentionCount: Long = 0,
+    val confirmationStatus: String = "confirmed",
+    val projectionVersion: Long? = null,
+    val entryId: String? = null,
+    val transactionId: String,
 )
 
 data class CashEconomicTypeFilterOption(
@@ -118,6 +125,7 @@ data class CashPage(
     val filters: Map<String, String?> = emptyMap(),
     val filterOptions: CashFilterOptions = CashFilterOptions(),
     val monthlySummaries: List<CashMonthlySummary> = emptyList(),
+    val pendingItemCount: Long = 0,
     val monthPositions: List<CashMonthPosition> = emptyList(),
     val startIndex: Int? = null,
     val totalCount: Int? = null,
@@ -304,210 +312,6 @@ data class CashRecordWrite(
     val confirmRelationImpact: Boolean? = null,
 )
 
-data class ImportComponent(
-    val ordinal: Int,
-    val sourceLabel: String,
-    val accountKey: String,
-    val accountId: Long? = null,
-    val accountName: String? = null,
-    val amount: String? = null,
-    val amountRequired: Boolean = false,
-    val kind: String = "atomic",
-)
-
-data class ImportComponentAllocation(
-    val recordId: String? = null,
-    val cashGranularity: String,
-    val status: String,
-    val totalAmount: String,
-    val conserved: Boolean,
-    val components: List<ImportComponent> = emptyList(),
-)
-
-data class ImportPreviewItem(
-    val recordId: String,
-    val relationRef: String? = null,
-    val occurredAt: String,
-    val amount: String,
-    val currency: String,
-    val accountName: String,
-    val counterparty: String = "",
-    val counterpartyAccount: String = "",
-    val recordType: String,
-    val recordSubtype: String,
-    val category: String = "",
-    val note: String = "",
-    val channel: String = "",
-    val status: String,
-    val message: String = "",
-    val components: List<ImportComponent>? = null,
-    val componentAllocation: ImportComponentAllocation? = null,
-)
-
-data class ImportRelationRecord(
-    val recordId: String,
-    val relationRef: String? = null,
-    val occurredAt: String,
-    val amount: String,
-    val currency: String,
-    val accountName: String,
-    val counterparty: String = "",
-    val counterpartyAccount: String = "",
-    val recordType: String,
-    val recordSubtype: String,
-    val category: String = "",
-    val note: String = "",
-    val channel: String = "",
-    val status: String,
-    val message: String = "",
-    val components: List<ImportComponent>? = null,
-    val componentAllocation: ImportComponentAllocation? = null,
-    val preview: Boolean,
-    val factId: Long? = null,
-)
-
-data class ImportRelation(
-    val id: String,
-    val kind: String,
-    val label: String,
-    val subtype: String,
-    val status: String,
-    val automatic: Boolean,
-    val ruleId: String,
-    val reason: String,
-    val primary: ImportRelationRecord,
-    val secondary: ImportRelationRecord? = null,
-    val candidates: List<ImportRelationRecord> = emptyList(),
-)
-
-data class ImportNewAccount(
-    val draftId: String? = null,
-    val name: String,
-    val type: String,
-    val currencies: List<String> = emptyList(),
-)
-
-data class ImportMappingSuggestion(
-    val accountId: Long? = null,
-    val account: Account? = null,
-    val missingCurrencies: List<String> = emptyList(),
-    val mappingRevision: Long? = null,
-)
-
-data class ImportSourceGroup(
-    val groupId: String,
-    val sourceType: String? = null,
-    val channel: String? = null,
-    val channelLabel: String? = null,
-    val displayName: String,
-    val maskedEvidence: String = "",
-    val currencies: List<String> = emptyList(),
-    val rowCount: Int = 0,
-    val suggestion: ImportMappingSuggestion,
-)
-
-data class ImportMappingResult(
-    val groupId: String,
-    val sourceType: String? = null,
-    val channel: String? = null,
-    val channelLabel: String? = null,
-    val accountId: Long? = null,
-    val missingCurrencies: List<String> = emptyList(),
-    val newAccount: ImportNewAccount? = null,
-)
-
-data class ImportAmount(
-    val amount: String,
-)
-
-data class ImportMappingDecision(
-    val groupId: String,
-    val accountId: Long? = null,
-    val mappingRevision: Long? = null,
-    val newAccount: ImportNewAccount? = null,
-    val componentAllocations: Map<String, List<ImportAmount>>? = null,
-)
-
-data class ImportFileDescriptor(
-    val name: String,
-    val digest: String,
-)
-
-data class ImportFileScan(
-    val index: Int,
-    val name: String,
-    val filename: String? = null,
-    val digest: String,
-    val size: Long,
-    val channel: String? = null,
-    val channelLabel: String? = null,
-    val rowCount: Int? = null,
-    val status: String,
-    val errorCode: String? = null,
-)
-
-data class ImportDetection(
-    val channel: String,
-    val channelLabel: String,
-    val file: ImportFileDescriptor,
-    val digest: String,
-    val rowCount: Int,
-)
-
-data class ImportScan(
-    val importToken: String? = null,
-    val contract: String,
-    val channel: String,
-    val channelLabel: String,
-    val ready: Boolean? = null,
-    val batchDigest: String? = null,
-    val channels: List<String> = emptyList(),
-    val files: List<ImportFileScan> = emptyList(),
-    val file: ImportFileDescriptor,
-    val digest: String,
-    val unresolvedCount: Int = 0,
-    val accounts: List<Account> = emptyList(),
-    val groups: List<ImportSourceGroup> = emptyList(),
-)
-
-data class ImportPreviewSummary(
-    val total: Int,
-    val new: Int,
-    val existing: Int,
-    val unsupported: Int,
-    val unresolved: Int = 0,
-    val requiresAllocation: Int = 0,
-)
-
-data class ImportPreview(
-    val importToken: String? = null,
-    val channel: String,
-    val channelLabel: String,
-    val file: ImportFileDescriptor,
-    val batchDigest: String? = null,
-    val channels: List<String> = emptyList(),
-    val files: List<ImportFileScan> = emptyList(),
-    val relationDigest: String? = null,
-    val columns: List<String> = emptyList(),
-    val items: List<ImportPreviewItem> = emptyList(),
-    val summary: ImportPreviewSummary,
-    val mapping: List<ImportMappingResult> = emptyList(),
-    val relations: List<ImportRelation> = emptyList(),
-)
-
-data class ImportCommitResult(
-    val message: String,
-    val newRows: Int,
-    val updatedRows: Int,
-    val skippedRows: Int = 0,
-    val channel: String,
-    val digest: String,
-    val batchDigest: String? = null,
-    val channels: List<String> = emptyList(),
-    val files: List<ImportFileScan> = emptyList(),
-    val pendingRelations: Int = 0,
-)
-
 data class CashFilters(
     val dateFrom: String? = null,
     val dateTo: String? = null,
@@ -521,6 +325,8 @@ data class CashFilters(
     val economicType: String? = null,
     val transferSubtype: String? = null,
     val composition: String? = null,
+    val state: String? = null,
+    val confirmationStatus: String? = null,
 )
 
 data class AccountList(
@@ -552,16 +358,6 @@ data class CashRecordDeleteResult(
     val deleted: Boolean,
     val relatedCount: Int,
     val deletedFactIds: List<String> = emptyList(),
-)
-
-data class ImportFileUpload(
-    val filename: String,
-    val contentBase64: String,
-)
-
-data class ImportBatchUpload(
-    val files: List<ImportFileUpload>,
-    val currency: String? = null,
 )
 
 data class InvestmentAsset(

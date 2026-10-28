@@ -68,7 +68,7 @@ def _normalize_icbc_account_identifier(value: object) -> str:
 
 
 _ALIPAY_NON_FUNDING_MARKERS = (
-    "红包", "立减", "优惠", "抵扣", "福利金", "券", "骑行卡", "天天减", "每日必减",
+    "红包", "立减", "优惠", "抵扣", "福利金", "政府补贴", "券", "骑行卡", "天天减", "每日必减",
 )
 
 
@@ -210,7 +210,7 @@ def build_component_allocation_draft(row: dict, *, allocations=None) -> dict:
 
 def _normalize_wechat_payment_identity(value: object) -> str:
     payment_method = _text(value)
-    return "微信零钱" if payment_method in {"零钱", "微信零钱"} else payment_method
+    return "微信零钱" if payment_method in {"/", "零钱", "微信零钱"} else payment_method
 
 
 def _alipay_payment_identity(row: dict) -> str:

@@ -1,6 +1,8 @@
 """收支投影的 SQLite 与 PostgreSQL 共享结果合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -102,19 +104,15 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="transfer_pair",
-                subtype="ordinary_transfer",
-                primary_fact_id=1003,
-                secondary_fact_id=counterparty.id,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=min(1003, counterparty.id),
-                ordered_fact_b=max(1003, counterparty.id),
-                anchor_fact_id=1003,
-                status="accepted",
-            ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                            workspace_id=runtime.workspace_id,
+                            kind="transfer_pair",
+                            subtype="ordinary_transfer",
+                            primary_component_id=1003,
+                            secondary_component_id=counterparty.id,
+                            anchor_component_id=1003,
+                            state='confirmed'
+                        ))
 
         with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
             CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
@@ -161,20 +159,21 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="transfer_pair",
-                subtype=subtype,
-                primary_fact_id=1003,
-                secondary_fact_id=counterparty.id,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=min(1003, counterparty.id),
-                ordered_fact_b=max(1003, counterparty.id),
-                anchor_fact_id=1003,
-                status="accepted",
-            ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                            workspace_id=runtime.workspace_id,
+                            kind="transfer_pair",
+                            subtype=subtype,
+                            primary_component_id=1003,
+                            secondary_component_id=counterparty.id,
+                            anchor_component_id=1003,
+                            state='confirmed'
+                        ))
 
+        if subtype not in {"currency_exchange", "cross_currency_remittance"}:
+            from ft.domain.cash_projection import CashProjectionError
+            with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
+                CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+            continue
         assert CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()["availability"] == "ready"
         with runtime.sessions() as session:
             state = session.get(CashProjectionStateModel, runtime.workspace_id)
@@ -202,7 +201,10 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             Decimal("0"),
             2,
         )
-    assert projections[0] == projections[1]
+    if subtype in {"currency_exchange", "cross_currency_remittance"}:
+        assert len(projections) == 2 and projections[0] == projections[1]
+    else:
+        assert projections == []
 
 
 @pytest.mark.parametrize(
@@ -243,19 +245,15 @@ def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
             session.add(counterparty)
             session.flush()
             _add_singleton_component(session, counterparty)
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="transfer_pair",
-                subtype="currency_exchange",
-                primary_fact_id=1003,
-                secondary_fact_id=counterparty.id,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=min(1003, counterparty.id),
-                ordered_fact_b=max(1003, counterparty.id),
-                anchor_fact_id=1003,
-                status="accepted",
-            ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                            workspace_id=runtime.workspace_id,
+                            kind="transfer_pair",
+                            subtype="currency_exchange",
+                            primary_component_id=1003,
+                            secondary_component_id=counterparty.id,
+                            anchor_component_id=1003,
+                            state='confirmed'
+                        ))
 
         service = CashProjectionService(runtime.sessions, runtime.workspace_id)
         if expected_ready:
@@ -318,7 +316,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             component.currency = expense.currency
             refund = CashTransactionModel(
                 workspace_id=runtime.workspace_id,
-                account_id=102,
+                account_id=expense.account_id,
                 occurred_at=datetime(2026, 7, 4, tzinfo=ZoneInfo("UTC")),
                 amount=Decimal(refund_amount),
                 currency=refund_currency,
@@ -330,19 +328,15 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             session.add(refund)
             session.flush()
             _add_singleton_component(session, refund)
-            relation = TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="refund_offset",
-                subtype="",
-                primary_fact_id=1003,
-                secondary_fact_id=refund.id,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=min(1003, refund.id),
-                ordered_fact_b=max(1003, refund.id),
-                anchor_fact_id=1003,
-                status="accepted",
-            )
+            relation = cash_relation_fixture(session, complete_legacy_types=True,
+                           workspace_id=runtime.workspace_id,
+                           kind="refund_offset",
+                           subtype="",
+                           primary_component_id=1003,
+                           secondary_component_id=refund.id,
+                           anchor_component_id=1003,
+                           state='confirmed'
+                       )
             session.add(relation)
             session.flush()
 
@@ -375,7 +369,7 @@ def test_zero_amount_refund_contract_is_identical_on_both_backends(
             len(member_ids),
             len(relation_ids),
         ))
-        assert projections[-1] == ("expense", Decimal("0"), False, "full_refund", 2, 1)
+        assert projections[-1] == ("expense", Decimal("0"), True, None, 2, 1)
     if expected_ready:
         assert projections[0] == projections[1]
 
@@ -437,44 +431,32 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
             _add_singleton_component(session, mirrored_refund)
             _add_singleton_component(session, transfer)
             session.add_all((
-                TransactionRelationModel(
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="refund_offset",
                     subtype="",
-                    primary_fact_id=1003,
-                    secondary_fact_id=refund.id,
-                    primary_fact_type="cash",
-                    secondary_fact_type="cash",
-                    ordered_fact_a=min(1003, refund.id),
-                    ordered_fact_b=max(1003, refund.id),
-                    anchor_fact_id=1003,
-                    status="accepted",
+                    primary_component_id=1003,
+                    secondary_component_id=refund.id,
+                    anchor_component_id=1003,
+                    state='confirmed'
                 ),
-                TransactionRelationModel(
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="payment_mirror",
                     subtype="",
-                    primary_fact_id=refund.id,
-                    secondary_fact_id=mirrored_refund.id,
-                    primary_fact_type="cash",
-                    secondary_fact_type="cash",
-                    ordered_fact_a=min(refund.id, mirrored_refund.id),
-                    ordered_fact_b=max(refund.id, mirrored_refund.id),
-                    anchor_fact_id=refund.id,
-                    status="accepted",
+                    primary_component_id=refund.id,
+                    secondary_component_id=mirrored_refund.id,
+                    anchor_component_id=refund.id,
+                    state='confirmed'
                 ),
-                TransactionRelationModel(
+                cash_relation_fixture(session, complete_legacy_types=True,
                     workspace_id=runtime.workspace_id,
                     kind="transfer_pair",
                     subtype="ordinary_transfer",
-                    primary_fact_id=transfer.id,
-                    secondary_fact_id=mirrored_refund.id,
-                    primary_fact_type="cash",
-                    secondary_fact_type="cash",
-                    ordered_fact_a=min(transfer.id, mirrored_refund.id),
-                    ordered_fact_b=max(transfer.id, mirrored_refund.id),
-                    anchor_fact_id=transfer.id,
-                    status="pending_review",
+                    primary_component_id=transfer.id,
+                    secondary_component_id=mirrored_refund.id,
+                    anchor_component_id=transfer.id,
+                    state='draft'
                 ),
             ))
             session.flush()
@@ -491,8 +473,8 @@ def test_relation_kind_conflict_is_pending_for_auto_scan_but_rejected_on_confirm
 
         with runtime.sessions.begin() as session:
             relation = session.get(TransactionRelationModel, int(candidate_id))
-            assert relation.status == "pending_review"
-            relation.status = "accepted"
+            assert relation.state == "draft"
+            relation.state = "confirmed"
 
         with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
             CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()

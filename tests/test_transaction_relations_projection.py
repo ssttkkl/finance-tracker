@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -9,11 +11,15 @@ def test_accept_rejects_a_refund_that_cannot_form_a_cash_projection(cash_web_run
     from ft.application.relations import RelationService
 
     with cash_web_runtime.sessions.begin() as session:
-        relation = TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash", secondary_fact_type="cash",
-            ordered_fact_a=1001, ordered_fact_b=1003, anchor_fact_id=1001, status="pending_review",
-        )
+        relation = cash_relation_fixture(session, complete_legacy_types=True,
+                       workspace_id=cash_web_runtime.workspace_id,
+                       kind="refund_offset",
+                       subtype="",
+                       primary_component_id=1003,
+                       secondary_component_id=1001,
+                       anchor_component_id=1001,
+                       state='draft'
+                   )
         session.add(relation)
         session.flush()
         relation_id = str(relation.id)
@@ -24,7 +30,7 @@ def test_accept_rejects_a_refund_that_cannot_form_a_cash_projection(cash_web_run
         service.accept(relation_id, actor="tester")
 
     with cash_web_runtime.sessions() as session:
-        assert session.get(TransactionRelationModel, int(relation_id)).status == "pending_review"
+        assert session.get(TransactionRelationModel, int(relation_id)).state == "draft"
 
 
 def test_personal_fx_relation_check_replaces_income_and_expense_projections(relation_runtime):

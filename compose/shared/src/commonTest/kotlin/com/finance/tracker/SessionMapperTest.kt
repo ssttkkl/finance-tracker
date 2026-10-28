@@ -42,21 +42,21 @@ class SessionMapperTest {
     }
 
     @Test
-    fun mapsApiFailuresWithoutCarryingImportTokensOrRawResponseText() {
-        val failure = ApiFailure("invalid_credentials", 401, importToken = "sensitive-import-token")
+    fun mapsApiFailuresWithoutRawResponseText() {
+        val failure = ApiFailure("invalid_credentials", 401)
         val mapped = failure.toDomainFailure()
 
         assertEquals("invalid_credentials", mapped.code)
         assertEquals(401, mapped.status)
         assertEquals(FailureCategory.RECOVERABLE, mapped.category)
-        assertEquals(null, mapped.importToken)
         assertEquals("invalid_credentials", mapped.message)
     }
 
     @Test
-    fun carriesOnlyImportResumeTokensAcrossTheDataBoundary() {
-        val mapped = ApiFailure("import_password_required", 400, importToken = "resume-token").toDomainFailure()
-        assertEquals("resume-token", mapped.importToken)
+    fun carriesOnlyOriginalCommandRecoveryMetadataAcrossTheDataBoundary() {
+        val mapped = ApiFailure("plan_changed", 409, receiptId = "receipt", commitState = "not_committed").toDomainFailure()
+        assertEquals("receipt", mapped.receiptId)
+        assertEquals("not_committed", mapped.commitState)
     }
 
     @Test

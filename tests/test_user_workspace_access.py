@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from fastapi.testclient import TestClient
 import pytest
 
@@ -289,6 +291,7 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
         CashProjectionModel,
         CashProjectionRelationModel,
         CashProjectionDatasetModel,
+        CashProjectionStateModel,
         CashTransactionModel,
         TransactionRelationModel,
         UserModel,
@@ -309,6 +312,9 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
             id="wechat-dataset", workspace_id=target_id, state="active", source_revision=1,
             source_digest="wechat-source", rules_version="cash-projection-v1",
         ))
+        session.flush()
+        session.add(CashProjectionStateModel(workspace_id=target_id, active_dataset_id="wechat-dataset",
+            availability="ready", projection_version=1, source_revision=1, projection_count=1, member_count=1))
         session.add(CashProjectionModel(
             id=2001, workspace_id=target_id, dataset_id="wechat-dataset", projection_id="cash:1003",
             root_cash_transaction_id=1003, economic_type="expense", net_amount=Decimal("-12.50"),
@@ -317,14 +323,20 @@ def test_admin_deletes_workspace_with_imported_wechat_cash_and_projection(cash_w
             accepted_relation_count=0, built_projection_version=1,
         ))
         session.flush()
-        session.add(TransactionRelationModel(
-            id=4001, workspace_id=target_id, kind="transfer_pair", subtype="internal_transfer",
-            primary_fact_id=1003, secondary_fact_id=None, primary_fact_type="cash",
-            secondary_fact_type=None, ordered_fact_a=1003, ordered_fact_b=None,
-            active_slot="active", status="pending_review", rule_id="",
-            candidate_fact_ids=[], created_by="system", decided_by="", decision_reason="",
-            anchor_fact_id=1003,
-        ))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        id=4001,
+                        workspace_id=target_id,
+                        kind="transfer_pair",
+                        subtype="internal_transfer",
+                        primary_component_id=1003,
+                        secondary_component_id=None,
+                        state='draft',
+                        rule_id="",
+                        created_by="system",
+                        decided_by="",
+                        decision_reason="",
+                        anchor_component_id=1003
+                    ))
         session.flush()
         session.add(CashProjectionRelationModel(
             id=5001, workspace_id=target_id, dataset_id="wechat-dataset", projection_row_id=2001,

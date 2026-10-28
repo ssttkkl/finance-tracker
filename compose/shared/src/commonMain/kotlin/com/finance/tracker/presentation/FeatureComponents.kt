@@ -311,17 +311,18 @@ internal fun DateTimePickerInput(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     onInvalidValue: () -> Unit = {},
+    allowEmpty: Boolean = false,
 ) {
     LaunchedEffect(value) {
-        if (!isValidLocalDateTime(value)) onInvalidValue()
+        if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) onInvalidValue()
     }
-    val date = value.take(10)
+    val date = value.substringBefore('T')
     val time = value.substringAfter('T', "").take(5)
     var activeInlinePicker by remember { mutableStateOf<String?>(null) }
     val dateField: @Composable (Modifier) -> Unit = { fieldModifier ->
         DatePickerInput(
             value = date,
-            onValueChange = { selectedDate -> onValueChange("${selectedDate}T$time") },
+            onValueChange = { selectedDate -> onValueChange(localDateTimeWithDate(value, selectedDate, allowEmpty)) },
             label = localizedText("copy_b6fed9af83"),
             modifier = fieldModifier,
             enabled = enabled,
@@ -333,7 +334,7 @@ internal fun DateTimePickerInput(
     val timeField: @Composable (Modifier) -> Unit = { fieldModifier ->
         TimePickerInput(
             value = time,
-            onValueChange = { selectedTime -> onValueChange("${date}T$selectedTime") },
+            onValueChange = { selectedTime -> onValueChange(localDateTimeWithTime(value, selectedTime, allowEmpty)) },
             label = localizedText("copy_89b4aa6364"),
             modifier = fieldModifier,
             enabled = enabled,
@@ -355,7 +356,7 @@ internal fun DateTimePickerInput(
                 timeField(Modifier.weight(1f))
             }
         }
-        if (!isValidLocalDateTime(value)) Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        if (!(allowEmpty && value.isEmpty()) && !isValidLocalDateTime(value)) Text(localizedText("copy_d96835c5f4"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -538,7 +539,7 @@ internal fun userErrorResourceKey(cause: Throwable): String {
         "authentication_required" -> "copy_8e38717a57"
         "workspace_forbidden" -> "copy_dd9a4bdee0"
         "network_unavailable" -> "copy_e0a1c9fd69"
-        "conflict", "projection_version_conflict", "revision_conflict" -> "copy_e6bcabc334"
+        "conflict", "projection_version_conflict", "revision_conflict", "record_changed", "entry_changed", "plan_changed", "plan_expired", "issue_changed", "relation_context_changed", "choice_invalid" -> "copy_e6bcabc334"
         "invalid_record", "invalid_category", "invalid_workspace_name" -> "copy_245533bbc7"
         "relation_impact_required" -> "copy_158b593262"
         "invalid_filter" -> "copy_a3181b5117"

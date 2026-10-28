@@ -4,15 +4,12 @@ import com.finance.tracker.core.*
 import com.finance.tracker.domain.*
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_add
-import com.finance.tracker.resources.ic_check
 import com.finance.tracker.resources.ic_checklist
 import com.finance.tracker.resources.ic_close
 import com.finance.tracker.resources.ic_delete
 import com.finance.tracker.resources.ic_file_download
 import com.finance.tracker.resources.ic_keyboard_arrow_down
 import com.finance.tracker.resources.ic_label
-import com.finance.tracker.resources.ic_link
-import com.finance.tracker.resources.ic_link_off
 import com.finance.tracker.resources.ic_search
 import com.finance.tracker.resources.ic_visibility
 
@@ -55,9 +52,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BottomSheetDefaults
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -69,7 +65,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -85,6 +80,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -98,7 +94,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -117,6 +112,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import androidx.paging.compose.itemKey
 import com.finance.tracker.core.design.GeneratedTokens
 import org.jetbrains.compose.resources.painterResource
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -127,12 +123,64 @@ internal fun CashLedgerScreen(
     onNavigate: (AppPage) -> Unit,
     diagnostics: DiagnosticLogger = NoOpDiagnosticLogger,
     cashLedgerReloadRevision: Int = 0,
+    maintenanceRepository: CashMaintenanceRepository,
+    creationRepository: CashCreationRepository,
+    maintenanceRecovery: CashMaintenanceRecoveryStore,
 ) {
     val viewModel: CashLedgerViewModel = viewModel(
-        key = "cash-ledger:${session.activeWorkspaceId.orEmpty()}",
+        key = "cash-ledger:${session.user.email}:${session.activeWorkspaceId.orEmpty()}:${repository.hashCode()}",
         factory = viewModelFactory { initializer { CashLedgerViewModel(repository, repository, diagnostics = diagnostics) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val creationTask: CashCreationViewModel = viewModel(
+        key = "cash-creation:${session.user.email}:${session.activeWorkspaceId}:${creationRepository.hashCode()}",
+        factory = viewModelFactory { initializer { CashCreationViewModel(creationRepository) } },
+    )
+    val creationState by creationTask.state.collectAsStateWithLifecycle()
+    LaunchedEffect(creationState.savedRevision) { if (creationState.savedRevision > 0) viewModel.reload() }
+    val currentTask: CashRecordTaskViewModel = viewModel(
+        key = "cash-current:${session.user.email}:${session.activeWorkspaceId}:${maintenanceRepository.hashCode()}",
+        factory = viewModelFactory { initializer { CashRecordTaskViewModel(maintenanceRepository, maintenanceRecovery) } },
+    )
+    val currentState by currentTask.state.collectAsStateWithLifecycle()
+    var showCurrentDetail by remember(currentTask) { mutableStateOf(false) }
+    var currentProjection by remember(currentTask) { mutableStateOf<CashProjection?>(null) }
+    var currentEvidence by remember(currentTask) { mutableStateOf<CashSourceEvidence?>(null) }
+    var sourceError by remember(currentTask) { mutableStateOf<String?>(null) }
+    val currentScope = androidx.compose.runtime.rememberCoroutineScope()
+    LaunchedEffect(currentTask) { currentTask.restore() }
+    LaunchedEffect(currentState.recoveryReady) { if (currentState.unresolved) showCurrentDetail = true }
+    LaunchedEffect(currentState.savedRevision) {
+        if (currentState.savedRevision > 0) {
+            viewModel.reload()
+            currentEvidence = null
+        }
+    }
+    LaunchedEffect(currentState.transactionId, currentState.record?.rowRevision, currentState.busy, currentState.plan?.planId) {
+        val record = currentState.record ?: return@LaunchedEffect
+        val hasPendingRelations = record.relations.any { it.active && it.state == "draft" }
+        if (!currentState.busy && currentState.plan == null && hasPendingRelations &&
+            record.recordOrigin !in setOf("manual", "manual_transfer")) {
+            currentTask.beginRelations()
+        }
+    }
+    LaunchedEffect(currentState.record?.projectionRef) {
+        currentState.record?.projectionRef?.let { ref ->
+            if (currentEvidence?.projectionVersion != ref.projectionVersion || currentEvidence?.projection?.projectionId != ref.projectionId) {
+                sourceError = null
+                try {
+                    val evidence = maintenanceRepository.sources(ref.projectionId)
+                    if (evidence.projectionVersion != ref.projectionVersion) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
+                    currentProjection = evidence.projection
+                    currentEvidence = evidence
+                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                catch (failure: Exception) {
+                    currentEvidence = null
+                    sourceError = (failure as? DomainFailure)?.code ?: "request_failed"
+                }
+            }
+        }
+    }
     val pagedRows = viewModel.cashProjections.collectAsLazyPagingItems()
     val listState = rememberLazyListState()
     LaunchedEffect(viewModel, cashLedgerReloadRevision) {
@@ -142,8 +190,6 @@ internal fun CashLedgerScreen(
     LaunchedEffect(state.filters, state.listRevision, cashLedgerReloadRevision) {
         listState.scrollToItem(0)
     }
-    val recordPanelOpen = state.selectedRow != null || state.recordDraft != null
-    var relatedSectionExpanded by remember(state.selectedRow?.recordId) { mutableStateOf(false) }
 
     val canWrite = session.workspaces.firstOrNull { it.id == session.activeWorkspaceId }?.role?.canWrite == true
     val referencesError = state.referencesErrorCode?.let { ledgerErrorText(it) }
@@ -152,8 +198,6 @@ internal fun CashLedgerScreen(
     val fullRefreshError = state.listLoadErrorCode?.let { ledgerErrorText(it) }
     val classifyError = state.classifyErrorCode?.let { ledgerErrorText(it) }
     val deleteProjectionError = state.deleteProjectionErrorCode?.let { ledgerErrorText(it) }
-    val recordSaveError = state.recordSaveErrorCode?.let { ledgerErrorText(it) }
-    val detailActionError = state.detailActionErrorCode?.let { ledgerErrorText(it) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
     var batchCategoryDraft by remember(batchCategoryDialogOpen) { mutableStateOf(state.selectedCategory) }
@@ -171,6 +215,8 @@ internal fun CashLedgerScreen(
             viewModel.reload()
         }
     }
+    val canPullRefresh by rememberUpdatedState(listReady && !selectionMode)
+    val currentListRefresh by rememberUpdatedState(requestListRefresh)
     LaunchedEffect(pullRefreshRevision, state.listRevision, listReady, fullRefreshError) {
         val targetRevision = pullRefreshRevision ?: return@LaunchedEffect
         if (targetRevision != state.listRevision || listReady || fullRefreshError != null) {
@@ -215,6 +261,15 @@ internal fun CashLedgerScreen(
                 )
             }
         }
+        val pendingItemCount = state.page?.pendingItemCount ?: 0
+        if (pendingItemCount > 0 || state.filters.confirmationStatus == "pending") {
+            FilterChip(
+                selected = state.filters.confirmationStatus == "pending",
+                onClick = { viewModel.updateFilters(state.filters.copy(confirmationStatus = if (state.filters.confirmationStatus == "pending") null else "pending")) },
+                label = { Text(if (pendingItemCount > 0) localizedText("cash_pending_count", pendingItemCount.toString()) else localizedText("cash_confirmation_pending")) },
+                modifier = Modifier.testTag("ledger.filter.pending"),
+            )
+        }
         val summariesByMonth = if (listReady) state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month) else emptyMap()
         val monthPositions = if (listReady) state.page?.monthPositions.orEmpty() else emptyList()
         val totalCount = if (listReady) state.page?.totalCount ?: pagedRows.itemCount else 0
@@ -234,14 +289,13 @@ internal fun CashLedgerScreen(
                 enabled = listReady && !selectionMode,
             ) {
                 Box(
-                    Modifier.fillMaxSize().pointerInput(state.listRevision, listReady, selectionMode) {
-                        if (!listReady || selectionMode) return@pointerInput
+                    Modifier.fillMaxSize().pointerInput(listState) {
                         awaitEachGesture {
                             val down = awaitFirstDown(
                                 requireUnconsumed = false,
                                 pass = PointerEventPass.Initial,
                             )
-                            val startedAtTop = !listState.canScrollBackward
+                            val startedAtTop = canPullRefresh && !listState.canScrollBackward
                             var dragDistance = 0f
                             while (true) {
                                 val event = awaitPointerEvent(PointerEventPass.Initial)
@@ -249,8 +303,8 @@ internal fun CashLedgerScreen(
                                 if (!change.pressed) break
                                 dragDistance += change.positionChangeIgnoreConsumed().y
                             }
-                            if (startedAtTop && dragDistance >= pullRefreshThresholdPx) {
-                                requestListRefresh()
+                            if (startedAtTop && canPullRefresh && dragDistance >= pullRefreshThresholdPx) {
+                                currentListRefresh()
                             }
                         }
                     },
@@ -342,7 +396,13 @@ internal fun CashLedgerScreen(
                                 selectionMode = selectionMode,
                                 lastInMonth = monthEnd,
                                 onChecked = { viewModel.toggleSelection(row.projectionId, it) },
-                                onOpen = { viewModel.openRow(row) },
+                                onOpen = {
+                                    if (!currentState.unresolved) {
+                                        currentProjection = row; currentEvidence = null; sourceError = null
+                                        currentTask.open(row.transactionId)
+                                    }
+                                    showCurrentDetail = true
+                                },
                             )
                         }
                     }
@@ -380,7 +440,7 @@ internal fun CashLedgerScreen(
             else null
             val stickyMonthGroup = if (!listReady || !listState.canScrollBackward) null else firstVisibleRecord?.let { (visibleItem, row) ->
                 val month = localMonthKey(row.occurredAt)
-                val monthStartIndex = monthPositions.firstOrNull { it.month == month }?.startIndex ?: 0
+                val monthStartIndex = cashLedgerMonthPositionForOrdinal(monthPositions, visibleItem.index)?.startIndex ?: 0
                 val measuredHeaderHeight = monthHeaderHeightsPx[month] ?: 0
                 val monthStartItem = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == monthStartIndex }
                 val monthHeaderTopInset = with(LocalDensity.current) {
@@ -506,7 +566,7 @@ internal fun CashLedgerScreen(
                 FloatingActionButtonMenuItem(
                     onClick = {
                         actionsMenuExpanded = false
-                        if (canWrite) viewModel.startNewRecord(localDateTimeForInput())
+                        if (canWrite) creationTask.open(state.accounts, localDateTimeForInput())
                     },
                     icon = { Icon(painterResource(Res.drawable.ic_add), contentDescription = null) },
                     text = { Text(localizedText("copy_1f62e3f53f")) },
@@ -523,6 +583,53 @@ internal fun CashLedgerScreen(
                 )
             }
         }
+    }
+
+    if (showCurrentDetail) {
+        CashCurrentRecordPanel(currentState, currentProjection, sizeClass, currentEvidence, sourceError,
+            onLoadSources = {
+                val ref = currentState.record?.projectionRef?.projectionId ?: currentProjection?.projectionId
+                val target = currentState.transactionId
+                val version = currentState.record?.projectionRef?.projectionVersion
+                if (sourceError == "record_changed" && target != null) {
+                    sourceError = null; currentEvidence = null; currentTask.open(target)
+                } else if (ref != null) currentScope.launch {
+                    sourceError = null
+                    try {
+                        val evidence = maintenanceRepository.sources(ref)
+                        if (evidence.projectionVersion != version) throw DomainFailure("record_changed", 409, FailureCategory.RECOVERABLE)
+                        if (currentTask.state.value.transactionId == target && currentTask.state.value.record?.projectionRef?.projectionVersion == version) {
+                            currentProjection = evidence.projection
+                            currentEvidence = evidence
+                        }
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (failure: Exception) { if (currentTask.state.value.transactionId == target) sourceError = (failure as? DomainFailure)?.code ?: "request_failed" }
+                }
+            },
+            onRetry = { currentState.transactionId?.let(currentTask::open) },
+            onResolve = currentTask::resolve,
+            onRetryOriginal = currentTask::retryOriginal,
+            onClose = { if (currentTask.close()) showCurrentDetail = false },
+            onResolveIssue = if (canWrite) currentTask::resolveIssue else null,
+            onSaveDraft = if (canWrite) ({ patch, finalize ->
+                if (finalize) currentState.record?.let { currentTask.prepare(CashMaintenanceRequest("finalize_draft", it.transactionId, it.rowRevision, patch)) }
+                else currentTask.saveDraft(patch)
+            }) else null,
+            onSaveEntry = if (canWrite) ({ request -> currentTask.prepare(request) }) else null,
+            onCancelEntry = currentTask::cancelEdit,
+            onBeginRelations = if (canWrite) currentTask::beginRelations else null,
+            onSearchAssociations = currentTask::associationTargets,
+            onAddAssociation = currentTask::addRelation,
+            onRelationCommonFields = currentTask::resolveRelationCommonFields,
+            onSaveRelationChoices = currentTask::saveRelationChoices,
+            onConfirmPlan = currentTask::confirmPlan,
+            onCancelPlan = currentTask::dismissPlan,
+            onResolveMemberIssue = if (canWrite) currentTask::resolveMemberIssue else null,
+            onOpenMember = currentTask::open,
+            accounts = state.accounts,
+            categories = state.categories,
+            options = state.options,
+        )
     }
 
     PlatformModalEscapeHandler(
@@ -592,346 +699,10 @@ internal fun CashLedgerScreen(
         )
     }
 
-    val hasRecordConfirmation = state.confirmRecordDiscard || state.confirmRelationImpact ||
-        state.deleteRecordConfirm || state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll
-    val hasRecordAcknowledgement = recordSaveError != null || detailActionError != null
-    val showRecordTaskPanel = recordPanelOpen && !hasRecordConfirmation && !hasRecordAcknowledgement && !state.relationComposerOpen
-    val showRelationComposer = recordPanelOpen && state.relationComposerOpen && !hasRecordConfirmation && !hasRecordAcknowledgement
+    if (creationState.draft != null) CashCreationPanel(creationState, state.accounts, state.categories, state.options, sizeClass,
+        onChange = creationTask::update, onClose = { if (creationTask.close() && creationState.unknown) viewModel.reload() },
+        onSave = { if (canWrite) creationTask.save(state.accounts, getLocalTimeZoneId()) })
 
-    if (showRecordTaskPanel) {
-        val draft = state.recordDraft
-        val compactFullScreen = sizeClass == WindowSizeClass.COMPACT
-        val panelTitle = when {
-            draft?.id != null -> localizedText("copy_6a5c4515c6")
-            draft != null -> localizedText("copy_1f62e3f53f")
-            else -> localizedText("copy_8cb72a44a5")
-        }
-        CashRecordModalPanel(
-            sizeClass = sizeClass,
-            title = panelTitle,
-            compactFullScreen = compactFullScreen,
-            semanticStateKey = if (draft == null) "record-detail" else "record-editor",
-            onDismiss = viewModel::dismissRecordPanel,
-            onBack = viewModel::dismissRecordPanel,
-            footer = when {
-                draft == null && !state.recordLoading && state.recordDetail?.record != null -> ({
-                    CashRecordDetailActions(state, viewModel, canWrite, sizeClass, viewModel::editRecord)
-                })
-                draft != null -> ({
-                    val sideSheet = sizeClass != WindowSizeClass.COMPACT
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
-                    ) {
-                        if (sideSheet) {
-                            Button(
-                                onClick = { viewModel.saveRecord(canWrite) },
-                                enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
-                                    draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
-                                modifier = Modifier.testTag(SemanticIds.recordSave),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                                Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
-                            }
-                            TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
-                                Text(localizedText("copy_4d0b4688c7"))
-                            }
-                        } else {
-                            TextButton(onClick = viewModel::cancelRecordEdit, modifier = Modifier.testTag(SemanticIds.recordCancel)) {
-                                Text(localizedText("copy_4d0b4688c7"))
-                            }
-                            Button(
-                                onClick = { viewModel.saveRecord(canWrite) },
-                                enabled = canWrite && draft.amount.isNotBlank() && isExactDecimalString(draft.amount) &&
-                                    draft.accountName.isNotBlank() && draft.recordType.isNotBlank() && isValidLocalDateTime(draft.occurredAt),
-                                modifier = Modifier.testTag(SemanticIds.recordSave),
-                            ) {
-                                Icon(painterResource(Res.drawable.ic_check), contentDescription = null)
-                                Text(if (state.recordBusy) localizedText("copy_6644f06197") else localizedText("copy_fadf24dbc5"))
-                            }
-                        }
-                    }
-                })
-                else -> null
-            },
-        ) {
-            if (draft != null) {
-                CashRecordEditorContent(
-                    draft = draft,
-                    sizeClass = sizeClass,
-                    canWrite = canWrite,
-                    accounts = state.accounts,
-                    categories = state.categories,
-                    options = state.options,
-                    busy = state.recordBusy,
-                    error = null,
-                    onChange = viewModel::updateRecordDraft,
-                    onInvalidAmount = viewModel::reportInvalidRecordAmount,
-                    onInvalidDateTime = viewModel::reportInvalidRecordDateTime,
-                )
-            } else {
-                CashRecordDetailContent(
-                    state = state,
-                    sizeClass = sizeClass,
-                    viewModel = viewModel,
-                    canWrite = canWrite,
-                    options = state.options,
-                    relatedExpanded = relatedSectionExpanded,
-                    onToggleRelated = { relatedSectionExpanded = !relatedSectionExpanded },
-                    onEditRelated = viewModel::editRecord,
-                )
-            }
-        }
-    }
-
-    if (showRelationComposer) {
-        val compactFullScreen = sizeClass == WindowSizeClass.COMPACT
-        CashRecordModalPanel(
-            sizeClass = sizeClass,
-            title = localizedText("copy_f1c5c548ba"),
-            compactFullScreen = compactFullScreen,
-            semanticStateKey = "relation-composer",
-            onDismiss = viewModel::closeRelationComposer,
-            onBack = viewModel::closeRelationComposer,
-            footer = {
-                val sideSheet = sizeClass != WindowSizeClass.COMPACT
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (sideSheet) Arrangement.Start else Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    if (sideSheet) {
-                        Button(
-                            onClick = { viewModel.createRelation(canWrite) },
-                            enabled = canWrite && state.relationTarget != null,
-                            modifier = Modifier.testTag("record.relation-create.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
-                            Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
-                        }
-                        TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                    } else {
-                        TextButton(onClick = viewModel::closeRelationComposer, modifier = Modifier.testTag("record.relation-create.cancel")) {
-                            Text(localizedText("copy_4d0b4688c7"))
-                        }
-                        Button(
-                            onClick = { viewModel.createRelation(canWrite) },
-                            enabled = canWrite && state.relationTarget != null,
-                            modifier = Modifier.testTag("record.relation-create.confirm"),
-                        ) {
-                            Icon(painterResource(Res.drawable.ic_link), contentDescription = null)
-                            Text(if (state.relationBusy) localizedText("copy_12c5c83f56") else localizedText("copy_8120c99c99"))
-                        }
-                    }
-                }
-            },
-        ) {
-            CashRecordRelationComposerContent(
-                state = state,
-                viewModel = viewModel,
-                canWrite = canWrite,
-                options = state.options,
-            )
-        }
-    }
-
-    if (recordPanelOpen && state.confirmRecordDiscard) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRecordDiscardConfirmation)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.discard-dialog"),
-            onDismissRequest = viewModel::dismissRecordDiscardConfirmation,
-            title = { Text(localizedText("ledger_record_discard_title")) },
-            text = { Text(localizedText("ledger_record_discard_message")) },
-            confirmButton = {
-                TextButton(
-                    onClick = viewModel::confirmRecordDiscard,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.testTag("ledger.record.discard-confirm"),
-                ) { Text(localizedText("ledger_record_discard_confirm")) }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissRecordDiscardConfirmation, modifier = Modifier.testTag("ledger.record.discard-continue")) {
-                    Text(localizedText("ledger_record_discard_continue"))
-                }
-            },
-        )
-    } else if (recordPanelOpen && state.deleteRecordConfirm && state.recordDetail?.record != null) {
-        val recordDetail = requireNotNull(state.recordDetail)
-        val hasRelations = recordDetail.relations.any { it.status == "accepted" }
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDeleteRecord)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.delete-dialog"),
-            onDismissRequest = viewModel::dismissDeleteRecord,
-            title = { Text(localizedText("copy_a995e3b53e")) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(if (hasRelations) localizedText("copy_7a51756482") else localizedText("copy_42ece48726"))
-                    if (hasRelations) {
-                        Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth().selectable(
-                                    selected = state.deleteRecordMode == "delete_current_dissolve",
-                                    onClick = { viewModel.selectDeleteRecordMode("delete_current_dissolve") },
-                                    role = Role.RadioButton,
-                                ).testTag("record.delete.scope.current"),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(selected = state.deleteRecordMode == "delete_current_dissolve", onClick = null)
-                                Text(localizedText("copy_6f762bedaa"))
-                            }
-                            Row(
-                                Modifier.fillMaxWidth().selectable(
-                                    selected = state.deleteRecordMode == "delete_all",
-                                    onClick = { viewModel.selectDeleteRecordMode("delete_all") },
-                                    role = Role.RadioButton,
-                                ).testTag("record.delete.scope.group"),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                RadioButton(selected = state.deleteRecordMode == "delete_all", onClick = null)
-                                Text(localizedText("copy_22edecb09e"))
-                            }
-                        }
-                    }
-                    InlineError(detailActionError)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.deleteRecord(state.deleteRecordMode, canWrite) },
-                    enabled = canWrite,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.testTag("record.delete.confirm"),
-                ) {
-                    Text(if (state.deleteRecordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_3c06abe116"))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissDeleteRecord, modifier = Modifier.testTag("record.delete.cancel")) {
-                    Text(localizedText("copy_4d0b4688c7"))
-                }
-            },
-        )
-    } else if (recordPanelOpen && (state.pendingRelationRemovalId != null || state.pendingRelationDissolveAll)) {
-        val pendingRelation = state.recordDetail?.relations?.firstOrNull { it.id == state.pendingRelationRemovalId }
-        val relatedRecord = pendingRelation?.let { relation ->
-            if (relation.primaryRecord?.id == state.recordDetail?.record?.id) relation.secondaryRecord else relation.primaryRecord
-        }
-        val unlinkingOne = state.pendingRelationRemovalId != null
-        val dismiss = viewModel::dismissPendingRelationRemoval
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = dismiss)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.relation-removal-dialog"),
-            onDismissRequest = dismiss,
-            title = { Text(localizedText(if (unlinkingOne) "ledger_relation_unlink_title" else "ledger_relation_dissolve_title")) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (unlinkingOne) {
-                            localizedText(
-                                "ledger_relation_unlink_message",
-                                relatedRecord?.counterparty?.takeIf(String::isNotBlank)
-                                    ?: relatedRecord?.accountName
-                                    ?: localizedText("copy_6ea13ee38c"),
-                            )
-                        } else localizedText("ledger_relation_dissolve_message"),
-                    )
-                    InlineError(detailActionError)
-                }
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.confirmPendingRelationRemoval(canWrite) },
-                    enabled = canWrite,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                    modifier = Modifier.testTag("record.relation-removal.confirm"),
-                ) {
-                    Text(
-                        if (state.relationBusy) localizedText(if (unlinkingOne) "ledger_relation_unlinking" else "ledger_relation_dissolving")
-                        else localizedText(if (unlinkingOne) "ledger_relation_unlink_confirm" else "ledger_relation_dissolve_confirm"),
-                    )
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = dismiss, modifier = Modifier.testTag("record.relation-removal.cancel")) {
-                    Text(localizedText("ledger_relation_keep"))
-                }
-            },
-        )
-    } else if (recordPanelOpen && recordSaveError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRecordSaveError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.save-error-dialog"),
-            onDismissRequest = viewModel::dismissRecordSaveError,
-            title = { Text(localizedText("ledger_record_save_error_title")) },
-            text = { Text(recordSaveError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissRecordSaveError, modifier = Modifier.testTag("ledger.record.save-error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    } else if (recordPanelOpen && state.confirmRelationImpact) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRelationImpactConfirmation)
-        AlertDialog(
-            modifier = Modifier.testTag("record.relation-impact.dialog"),
-            onDismissRequest = viewModel::dismissRelationImpactConfirmation,
-            title = { Text(localizedText("copy_e17cb4ec33")) },
-            text = { Text(localizedText("copy_24c943b133")) },
-            confirmButton = {
-                TextButton(
-                    onClick = { viewModel.saveRecord(canWrite, confirmImpact = true) },
-                    enabled = canWrite,
-                    modifier = Modifier.testTag("record.relation-impact.confirm"),
-                ) { Text(if (state.recordBusy) localizedText("copy_1cac8ac7f5") else localizedText("copy_2b9228c01b")) }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissRelationImpactConfirmation, modifier = Modifier.testTag("record.relation-impact.cancel")) {
-                    Text(localizedText("copy_4d0b4688c7"))
-                }
-            },
-        )
-    } else if (recordPanelOpen && detailActionError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDetailActionError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.action-error-dialog"),
-            onDismissRequest = viewModel::dismissDetailActionError,
-            title = { Text(localizedText("ledger_record_action_error_title")) },
-            text = { Text(detailActionError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDetailActionError, modifier = Modifier.testTag("ledger.record.action-error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    } else if (!recordPanelOpen && recordSaveError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissRecordSaveError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.save-error-dialog"),
-            onDismissRequest = viewModel::dismissRecordSaveError,
-            title = { Text(localizedText("ledger_record_save_error_title")) },
-            text = { Text(recordSaveError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissRecordSaveError, modifier = Modifier.testTag("ledger.record.save-error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    } else if (!recordPanelOpen && detailActionError != null) {
-        PlatformModalEscapeHandler(enabled = isWebPlatform, onEscape = viewModel::dismissDetailActionError)
-        AlertDialog(
-            modifier = Modifier.testTag("ledger.record.action-error-dialog"),
-            onDismissRequest = viewModel::dismissDetailActionError,
-            title = { Text(localizedText("ledger_record_action_error_title")) },
-            text = { Text(detailActionError) },
-            confirmButton = {
-                TextButton(onClick = viewModel::dismissDetailActionError, modifier = Modifier.testTag("ledger.record.action-error-acknowledge")) {
-                    Text(localizedText("dialog_error_acknowledge"))
-                }
-            },
-        )
-    }
     state.deleteProjectionImpact?.let { impact ->
         ConfirmationDialog(
             title = localizedText("copy_77fe08d5f9"),
@@ -948,7 +719,7 @@ internal fun CashLedgerScreen(
 }
 
 @Composable
-private fun CashProjectionPlaceholderRow(compact: Boolean) {
+internal fun CashProjectionPlaceholderRow(compact: Boolean) {
     if (compact) {
         Surface(
             modifier = Modifier.fillMaxWidth()
@@ -1024,17 +795,17 @@ private fun CashLedgerSkeletonLines(
 }
 
 @Composable
-private fun CashLedgerTableHeader(modifier: Modifier = Modifier) {
+internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection: Boolean = true, statusOnly: Boolean = false) {
     Row(
         modifier = modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Spacer(Modifier.weight(0.05f))
+        if (showSelection) Spacer(Modifier.weight(0.05f))
         FinanceTableCell(localizedText("ledger_column_occurred_at"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnDate))
         FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 0.15f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnAccount))
         FinanceTableCell(localizedText("ledger_column_transaction_info"), weight = 0.24f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnTransactionInfo))
         FinanceTableCell(localizedText("copy_435c5259e4"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnCategory))
-        FinanceTableCell(localizedText("copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
+        FinanceTableCell(localizedText(if (statusOnly) "cash_import_status" else "copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
         FinanceTableCell(localizedText("copy_34943c40c9"), weight = 0.13f, header = true, textAlign = TextAlign.End, modifier = Modifier.testTag(SemanticIds.ledgerColumnAmount))
         Spacer(Modifier.weight(0.08f))
     }
@@ -1433,6 +1204,12 @@ private fun CashDetailedFilters(
                 semanticId = SemanticIds.ledgerFilterGroupCategory,
             ) {
                 categoryFilter(Modifier.fillMaxWidth())
+                ChoicePicker(localizedText("cash_confirmation_filter"), value.confirmationStatus.orEmpty(),
+                    listOf("" to localizedText("ledger_quick_all"), "pending" to localizedText("cash_confirmation_pending"), "confirmed" to localizedText("cash_confirmation_confirmed")),
+                    { onChange(value.copy(confirmationStatus = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.confirmation")
+                ChoicePicker(localizedText("cash_record_state"), value.state.orEmpty(),
+                    listOf("" to localizedText("ledger_quick_all"), "draft" to localizedText("cash_state_draft"), "posted" to localizedText("cash_state_posted")),
+                    { onChange(value.copy(state = it.ifEmpty { null })) }, modifier = Modifier.fillMaxWidth(), semanticId = "ledger.filter.state")
             }
             CashFilterGroup(
                 title = localizedText("ledger_filter_group_account"),
@@ -1476,19 +1253,47 @@ private fun CashDetailedFilters(
 
 @Composable
 private fun CashProjectionRow(
-    item: CashProjection,
-    checked: Boolean,
-    canWrite: Boolean,
-    sizeClass: WindowSizeClass,
-    selectionMode: Boolean,
-    lastInMonth: Boolean,
-    onChecked: (Boolean) -> Unit,
-    onOpen: () -> Unit,
+    item: CashProjection, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
+    selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
+) = CashLedgerRow(CashLedgerRowContent(item.projectionId, item.occurredAt, item.counterparty, item.note,
+    cashProjectionAccountLabel(item), cashCategoryDisplayPath(item.category), cashProjectionEconomicTypeLabel(item),
+    cashProjectionSourceLabel(item), item.confirmationStatus, cashProjectionAmountLabel(item), item.amount?.startsWith("-") == true),
+    checked, canWrite, sizeClass, selectionMode, lastInMonth, onChecked, onOpen)
+
+internal data class CashLedgerRowContent(
+    val id: String, val occurredAt: String?, val counterparty: String, val note: String,
+    val accountLabel: String, val categoryLabel: String, val economicLabel: String?, val sourceLabel: String?,
+    val confirmationStatus: String, val amountLabel: String, val negative: Boolean,
+    val statusTags: List<CashLedgerRowStatusTag> = emptyList(), val showConfirmationStatus: Boolean = true,
+    val relationshipSummary: String? = null, val attentionSummary: String? = null,
+)
+
+internal enum class CashLedgerRowStatusTag(val testKey: String, val labelId: String) {
+    DRAFT("draft", "cash_import_draft_tag"),
+    NEEDS_REVIEW("needs-review", "cash_confirmation_pending"),
+    RELATION_PENDING("relation-pending", "cash_import_relation_pending"),
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+internal fun CashLedgerRow(
+    item: CashLedgerRowContent, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
+    selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
+    showSelection: Boolean = true,
+    singleSelection: Boolean = false,
+    showOpenAction: Boolean = true,
 ) {
-    val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.projectionId}")
+    val recordBackground = when {
+        CashLedgerRowStatusTag.DRAFT in item.statusTags -> LocalFinanceColorRoles.current.warningSurface
+        CashLedgerRowStatusTag.NEEDS_REVIEW in item.statusTags || CashLedgerRowStatusTag.RELATION_PENDING in item.statusTags -> MaterialTheme.colorScheme.primaryContainer
+        else -> null
+    }
+    val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
+        .then(recordBackground?.let { Modifier.background(it) } ?: Modifier)
     if (sizeClass == WindowSizeClass.COMPACT) {
         Column(
             modifier = recordModifier.fillMaxWidth().combinedClickable(
+                enabled = selectionMode || showOpenAction,
                 onClick = { if (selectionMode) onChecked(!checked) else onOpen() },
                 onLongClick = { if (canWrite && !selectionMode) onChecked(true) },
             ),
@@ -1498,12 +1303,17 @@ private fun CashProjectionRow(
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (selectionMode) {
-                    Checkbox(
+                if (selectionMode && showSelection) {
+                    if (singleSelection) RadioButton(
+                        selected = checked,
+                        onClick = { onChecked(true) },
+                        enabled = canWrite,
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                    ) else Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
                     )
                 }
                 Column(
@@ -1511,19 +1321,29 @@ private fun CashProjectionRow(
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     Text(item.counterparty.ifBlank { "—" }, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    Text(item.note.ifBlank { "—" }, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(item.note.ifBlank { "—" }, Modifier.testTag("ledger.note-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    item.relationshipSummary?.let {
+                        Text(it, Modifier.testTag("ledger.relationship-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    item.attentionSummary?.let {
+                        Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    CashLedgerRowStatusTags(item)
                     Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("${cashProjectionAccountLabel(item)} · ${cashCategoryDisplayPath(item.category)}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    val source = cashProjectionSourceLabel(item)
-                    Text(
-                        listOfNotNull(cashProjectionEconomicTypeLabel(item), source).joinToString(" · "),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Text("${item.accountLabel} · ${item.categoryLabel}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    val source = item.sourceLabel
+                    val confirmation = if (item.showConfirmationStatus) localizedText(
+                        if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
+                    ) else null
+                    listOfNotNull(item.economicLabel, source, confirmation).takeIf { it.isNotEmpty() }?.let { labels ->
+                        Text(labels.joinToString(" · "), style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
-                FinanceAmount(cashProjectionAmountLabel(item), negative = item.amount.startsWith("-"))
+                FinanceAmount(item.amountLabel, negative = item.negative)
             }
             if (!lastInMonth) HorizontalDivider(Modifier.padding(start = GeneratedTokens.Core.Space.Token4))
         }
@@ -1531,19 +1351,24 @@ private fun CashProjectionRow(
         Column(recordModifier.fillMaxWidth()) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(vertical = 8.dp)
-                    .testTag("${SemanticIds.ledgerTableRowContent}-${item.projectionId}"),
+                    .testTag("${SemanticIds.ledgerTableRowContent}-${item.id}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
-                    Checkbox(
+                if (showSelection) Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
+                    if (singleSelection) RadioButton(
+                        selected = checked,
+                        onClick = { onChecked(true) },
+                        enabled = canWrite,
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                    ) else Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
-                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.projectionId}"),
+                        modifier = Modifier.testTag("${SemanticIds.ledgerRecordCheckbox}-${item.id}"),
                     )
                 }
                 FinanceTableCell(localDateTimeDisplayLabel(item.occurredAt), weight = 0.12f)
-                FinanceTableCell(cashProjectionAccountLabel(item), weight = 0.15f)
+                FinanceTableCell(item.accountLabel, weight = 0.15f)
                 Column(
                     Modifier.weight(0.24f).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
@@ -1555,28 +1380,42 @@ private fun CashProjectionRow(
                     )
                     Text(
                         item.note.ifBlank { "—" },
+                        Modifier.testTag("ledger.note-${item.id}"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                    item.relationshipSummary?.let {
+                        Text(it, Modifier.testTag("ledger.relationship-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    item.attentionSummary?.let {
+                        Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    }
+                    CashLedgerRowStatusTags(item)
                 }
-                FinanceTableCell(cashCategoryDisplayPath(item.category), weight = 0.12f)
+                FinanceTableCell(item.categoryLabel, weight = 0.12f)
                 Column(
                     Modifier.weight(0.11f).padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
-                    Text(cashProjectionEconomicTypeLabel(item), style = MaterialTheme.typography.bodySmall)
-                    cashProjectionSourceLabel(item)?.let {
+                    item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    if (item.showConfirmationStatus) Text(localizedText(
+                        if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
+                    ), style = MaterialTheme.typography.labelSmall,
+                        color = if (item.confirmationStatus == "pending") LocalFinanceColorRoles.current.warning else MaterialTheme.colorScheme.onSurfaceVariant)
+                    item.sourceLabel?.let {
                         Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 FinanceAmount(
-                    cashProjectionAmountLabel(item),
+                    item.amountLabel,
                     modifier = Modifier.weight(0.13f).padding(horizontal = 8.dp),
-                    negative = item.amount.startsWith("-"),
+                    negative = item.negative,
                     textAlign = TextAlign.End,
                 )
                 Box(Modifier.weight(0.08f).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                    IconButton(
+                    if (showOpenAction) IconButton(
                         onClick = onOpen,
                         modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord),
                     ) {
@@ -1587,7 +1426,32 @@ private fun CashProjectionRow(
                     }
                 }
             }
-            if (!lastInMonth) HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-${item.projectionId}"))
+            if (!lastInMonth) HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-${item.id}"))
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CashLedgerRowStatusTags(item: CashLedgerRowContent) {
+    if (item.statusTags.isEmpty()) return
+    val colorRoles = LocalFinanceColorRoles.current
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        item.statusTags.forEach { tag ->
+            val (containerColor, contentColor) = when (tag) {
+                CashLedgerRowStatusTag.DRAFT -> colorRoles.warning to colorRoles.background
+                CashLedgerRowStatusTag.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+                CashLedgerRowStatusTag.RELATION_PENDING -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+            }
+            Surface(
+                modifier = Modifier.testTag("ledger.status-tag-${item.id}-${tag.testKey}"),
+                color = containerColor,
+                contentColor = contentColor,
+                shape = MaterialTheme.shapes.small,
+            ) {
+                Text(localizedText(tag.labelId), Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+            }
         }
     }
 }

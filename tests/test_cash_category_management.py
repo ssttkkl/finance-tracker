@@ -1,6 +1,8 @@
 """收支分类目录的 Application Service 合同。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from pathlib import Path
 
 import pytest
@@ -95,6 +97,9 @@ def test_category_edit_and_delete_report_usage_and_require_current_revision(tmp_
                 currency="CNY", counterparty="商家", category_id=category["id"],
                 record_type="consumption", record_subtype="not_applicable",
             ))
+        from tests.cash_entry_fixtures import seed_cash_entries
+        with sessions.begin() as session:
+            seed_cash_entries(session, "category-workspace")
         edited = service.update(category["id"], name="外食", description="午餐和晚餐", expected_revision=category["revision"])
         assert edited["name"] == "外食"
         assert edited["path"] == ["外食"]
@@ -115,7 +120,7 @@ def test_category_edit_and_delete_report_usage_and_require_current_revision(tmp_
         engine.dispose()
 
 
-def test_classifying_a_projection_updates_all_members_and_batches_are_atomic(tmp_path):
+def test_classifying_a_projection_updates_only_entry_and_batches_are_atomic(tmp_path):
     from datetime import datetime, timezone
     from decimal import Decimal
 
@@ -181,6 +186,9 @@ def test_classifying_a_projection_updates_all_members_and_batches_are_atomic(tmp
                 ),
             ))
 
+        from tests.cash_entry_fixtures import seed_cash_entries
+        with sessions.begin() as session:
+            seed_cash_entries(session, "category-workspace")
         classifier = CashClassificationService(sessions, "category-workspace")
         result = classifier.set_category(projection_ids=["cash:1101"], projection_version=7, category_id=shopping["id"])
         assert result["updated_transaction_count"] == 2
@@ -188,7 +196,7 @@ def test_classifying_a_projection_updates_all_members_and_batches_are_atomic(tmp
             assert session.scalars(
                 __import__("sqlalchemy", fromlist=["select"]).select(CashTransactionModel.category_id)
                 .where(CashTransactionModel.id.in_([1101, 1102]))
-            ).all() == [shopping["id"], shopping["id"]]
+            ).all() == [dining["id"], dining["id"]]
 
         with pytest.raises(ValueError, match="projection.version_conflict"):
             classifier.set_category(projection_ids=["cash:1101", "cash:1103"], projection_version=6, category_id=None)
@@ -196,7 +204,7 @@ def test_classifying_a_projection_updates_all_members_and_batches_are_atomic(tmp
             assert session.scalars(
                 __import__("sqlalchemy", fromlist=["select"]).select(CashTransactionModel.category_id)
                 .where(CashTransactionModel.id.in_([1101, 1102, 1103])).order_by(CashTransactionModel.id)
-            ).all() == [shopping["id"], shopping["id"], dining["id"]]
+            ).all() == [dining["id"], dining["id"], dining["id"]]
     finally:
         engine.dispose()
 
@@ -237,7 +245,7 @@ def test_category_move_rejects_duplicate_destination_sibling(tmp_path):
         engine.dispose()
 
 
-def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_path):
+def test_relation_maintenance_keeps_source_categories_and_uses_one_public_category(tmp_path):
     from datetime import datetime, timezone
     from decimal import Decimal
 
@@ -280,14 +288,17 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
                     id=2102, workspace_id="category-workspace", cash_transaction_id=2102,
                     account_id=2001, amount=Decimal("-10"), currency="CNY", ordinal=0,
                 ),
-                TransactionRelationModel(
-                    workspace_id="category-workspace", kind="payment_mirror", subtype="",
-                    primary_fact_id=2101, secondary_fact_id=2102,
-                    primary_fact_type="cash", secondary_fact_type="cash",
-                    ordered_fact_a=2101, ordered_fact_b=2102, anchor_fact_id=2101,
-                    status="accepted", created_by="fixture",
-                ),
             ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                    workspace_id="category-workspace",
+                    kind="payment_mirror",
+                    subtype="",
+                    primary_component_id=2101,
+                    secondary_component_id=2102,
+                    anchor_component_id=2101,
+                    state='confirmed',
+                    created_by="fixture"
+                ))
         CashProjectionService(sessions, "category-workspace").rebuild()
         statements: list[str] = []
 
@@ -302,7 +313,7 @@ def test_relation_maintenance_adopts_display_root_category_for_all_members(tmp_p
             rows = session.query(CashTransactionModel.category_id).filter(
                 CashTransactionModel.id.in_((2101, 2102)),
             ).order_by(CashTransactionModel.id).all()
-            assert [row[0] for row in rows] == [base["id"], base["id"]]
+            assert [row[0] for row in rows] == [base["id"], other["id"]]
         assert not [
             statement for statement in statements
             if statement.lstrip().upper().startswith("UPDATE") and "cash_transactions" in statement

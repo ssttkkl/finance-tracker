@@ -149,6 +149,29 @@ def match_phase_a_platform_refunds(
     linked_pairs: set[tuple[str, str]] | None = None,
     remaining_by_expense: Mapping[str, Decimal] | None = None,
 ) -> list[RelationProposal]:
+    grouped = defaultdict(list)
+    for row in detailed_rows:
+        fact = facts_by_id.get(str(row.get("id") or ""))
+        if fact is not None:
+            grouped[fact.source_identity].append(row)
+    proposals = []
+    for scope in sorted(grouped):
+        rows = grouped[scope]
+        local_facts = {str(row.get("id")): facts_by_id[str(row.get("id"))] for row in rows}
+        remaining = ({identifier: remaining_by_expense[identifier] for identifier in local_facts
+            if identifier in remaining_by_expense} if remaining_by_expense is not None else None)
+        proposals.extend(_match_phase_a_in_scope(rows, facts_by_id=local_facts,
+            linked_pairs=linked_pairs, remaining_by_expense=remaining))
+    return proposals
+
+
+def _match_phase_a_in_scope(
+    detailed_rows: Sequence[Mapping[str, Any]],
+    *,
+    facts_by_id: Mapping[str, FactView],
+    linked_pairs: set[tuple[str, str]] | None = None,
+    remaining_by_expense: Mapping[str, Decimal] | None = None,
+) -> list[RelationProposal]:
     """Return hard-key refund_offset proposals (no DB side effects)."""
     linked = linked_pairs or set()
     linked_fs: set[frozenset[str]] = set()

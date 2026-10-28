@@ -249,7 +249,21 @@ def _seed_projection_workload(sessions, *, projection_count: int = 10_000, batch
         session.execute(insert(CashProjectionModel), projections)
         session.execute(insert(CashProjectionMemberModel), members)
 
+    _seed_current_entries(sessions)
     return tuple(f"cash:{index}" for index in range(1, batch_count + 1))
+
+
+def _seed_current_entries(sessions):
+    from ft.adapters.relational.models import CashEntryModel, CashEntryMemberModel, CashTransactionModel, CashProjectionMemberModel
+    from ft.adapters.relational.cash_entries import public_values
+    with sessions.begin() as session:
+        roots = {row.cash_transaction_id: row.projection_row_id for row in session.scalars(select(CashProjectionMemberModel))}
+        rows = session.scalars(select(CashTransactionModel)).all()
+        entries = {roots.get(row.id, row.id): row for row in rows if roots.get(row.id, row.id) == row.id}
+        session.execute(insert(CashEntryModel), [{"id": f"entry-{root}", "workspace_id": WORKSPACE,
+            "root_transaction_id": root, **public_values(row)} for root, row in entries.items()])
+        session.execute(insert(CashEntryMemberModel), [{"workspace_id": WORKSPACE, "transaction_id": row.id,
+            "entry_id": f"entry-{roots.get(row.id, row.id)}", "standalone_values": public_values(row)} for row in rows])
 
 
 def _capture_call(engine, call):
@@ -303,6 +317,7 @@ def test_large_category_deletion_impact_uses_indexed_count(category_performance_
             for index in range(DIRECT_USAGE_COUNT)
         ])
 
+    _seed_current_entries(sessions)
     measurements = _sample_calls(
         sessions.kw["bind"], lambda: CashCategoryService(sessions, WORKSPACE).deletion_impact("category-5-0"),
     )
@@ -335,6 +350,7 @@ def test_large_category_delete_clears_usage_in_one_write(category_performance_ru
             }
             for index in range(DIRECT_USAGE_COUNT)
         ])
+    _seed_current_entries(sessions)
     service = CashCategoryService(sessions, WORKSPACE)
     measurements = _sample_calls(
         sessions.kw["bind"], lambda: service.deletion_impact("category-5-0"), samples=1,
@@ -568,9 +584,9 @@ def test_category_usage_lookup_has_workspace_category_index(category_performance
     from sqlalchemy import inspect
 
     _backend, sessions = category_performance_runtime
-    indexes = inspect(sessions.kw["bind"]).get_indexes("cash_transactions")
+    indexes = inspect(sessions.kw["bind"]).get_indexes("cash_entries")
     assert any(
-        index["name"] == "ix_cash_transactions_workspace_category"
+        index["name"] == "ix_cash_entries_workspace_category"
         and index["column_names"] == ["workspace_id", "category_id"]
         for index in indexes
     )

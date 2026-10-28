@@ -30,6 +30,8 @@ fun CashProjectionDto.toDomain(): CashProjection = CashProjection(
     visible = visible,
     hiddenReason = hiddenReason,
     transfer = transfer?.toDomain(),
+    state = state, statisticsEligible = statisticsEligible, attentionCount = attentionCount,
+    confirmationStatus = confirmationStatus, projectionVersion = projectionVersion, entryId = entryId, transactionId = transactionId,
 )
 
 fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
@@ -52,6 +54,8 @@ fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
     visible = visible,
     hiddenReason = hiddenReason,
     transfer = transfer?.toDto(),
+    state = state, statisticsEligible = statisticsEligible, attentionCount = attentionCount,
+    confirmationStatus = confirmationStatus, projectionVersion = projectionVersion, entryId = entryId, transactionId = transactionId,
 )
 
 fun CashEconomicTypeFilterOptionDto.toDomain(): CashEconomicTypeFilterOption = CashEconomicTypeFilterOption(
@@ -118,6 +122,7 @@ fun CashPageDto.toDomain(): CashPage = CashPage(
     filters = filters,
     filterOptions = filterOptions.toDomain(),
     monthlySummaries = monthlySummaries.map { it.toDomain() },
+    pendingItemCount = pendingItemCount,
     monthPositions = monthPositions.map { it.toDomain() },
     startIndex = startIndex,
     totalCount = totalCount,
@@ -133,6 +138,7 @@ fun CashPage.toDto(): CashPageDto = CashPageDto(
     filters = filters,
     filterOptions = filterOptions.toDto(),
     monthlySummaries = monthlySummaries.map { it.toDto() },
+    pendingItemCount = pendingItemCount,
     monthPositions = monthPositions.map { it.toDto() },
     startIndex = startIndex,
     totalCount = totalCount,

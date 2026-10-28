@@ -39,13 +39,14 @@ class CashProjectionService:
                     session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 repository = RelationalCashProjectionRepository(session, self._workspace_id)
                 failure_context = repository.rebuild_failure_context()
-                digest = repository.source_digest()
-                facts, relations = repository.read_sources()
+                sources = repository.read_validated_sources()
+                digest, facts, relations = sources.digest, sources.facts, sources.relations
                 build = build_cash_projections(facts, relations)
                 dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
                 next_version = repository.status()["projection_version"] + 1
                 repository.replace_dataset(dataset_id, build, projection_version=next_version)
-                result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+                result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION,
+                    _validated_sources=sources)
                 self._synchronize_component_categories(session, self._workspace_id, build)
                 return result
         except Exception as exc:
@@ -77,12 +78,13 @@ class CashProjectionService:
         assert state is not None
         if state.availability == "ready" and state.active_dataset_id:
             return repository.status()
-        digest = repository.source_digest()
-        facts, relations = repository.read_sources()
+        sources = repository.read_validated_sources()
+        digest, facts, relations = sources.digest, sources.facts, sources.relations
         build = build_cash_projections(facts, relations)
         dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
         repository.replace_dataset(dataset_id, build, projection_version=state.projection_version + 1)
-        result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+        result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION,
+            _validated_sources=sources)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return result
 
@@ -116,13 +118,21 @@ class CashProjectionService:
             logger.warning("无法写入收支投影失败诊断", exc_info=True)
 
     @staticmethod
-    def maintain_in_session(session, workspace_id: str, affected_fact_ids: set[int]) -> dict:
+    def maintain_in_session(session, workspace_id: str, affected_fact_ids: set[int], *, locked_state=None) -> dict:
         """在源写入所属事务内替换受影响投影连通组。"""
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
-        state = repository.require_ready_state_lock()
-        component_ids = repository.accepted_relation_component_ids(affected_fact_ids)
+        if locked_state is None:
+            state = repository.require_ready_state_lock()
+        else:
+            from sqlalchemy.orm import object_session
+            # 只接收本事务调用方已经锁定的状态，不跨会话复用。
+            if (object_session(locked_state) is not session or locked_state.workspace_id != workspace_id
+                or locked_state.availability != "ready" or not locked_state.active_dataset_id):
+                raise RuntimeError("projection.unavailable")
+            state = locked_state
+        component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
@@ -130,37 +140,8 @@ class CashProjectionService:
 
     @staticmethod
     def _synchronize_component_categories(session, workspace_id: str, build) -> None:
-        """已确认关系使用展示基准流水分类，并同步整个现金部分。"""
-        from sqlalchemy import or_, update
-        from ft.adapters.relational.models import CashTransactionModel
-
-        for projection in build.projections:
-            category_id = projection.primary_record.category_id
-            member_ids = [
-                member.id
-                for member, _roles in projection.members
-                if member.category_id != category_id
-            ]
-            if not member_ids:
-                continue
-            category_mismatch = (
-                CashTransactionModel.category_id.is_not(None)
-                if category_id is None
-                else or_(
-                    CashTransactionModel.category_id.is_(None),
-                    CashTransactionModel.category_id != category_id,
-                )
-            )
-            session.execute(
-                update(CashTransactionModel)
-                .where(
-                    CashTransactionModel.workspace_id == workspace_id,
-                    CashTransactionModel.id.in_(member_ids),
-                    CashTransactionModel.deleted_at.is_(None),
-                    category_mismatch,
-                )
-                .values(category_id=category_id)
-            )
+        """公共分类保存在稳定收支对象，来源成员不回写。"""
+        return None
 
     @staticmethod
     def maintain_if_ready_in_session(
@@ -176,13 +157,18 @@ class CashProjectionService:
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.ready_state_lock_or_none()
         if state is None:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            component_ids = repository.confirmed_transaction_closure(affected_fact_ids)
+            facts, relations = repository.read_sources_for_facts(component_ids)
+            build = build_cash_projections(facts, relations)
+            entries = CashEntryRepository(session, workspace_id)
+            entries.remove_members(set(affected_fact_ids) - {member.id for projection in build.projections for member, _ in projection.members})
+            entries.reconcile(build.projections)
             return None
-        component_ids = repository.accepted_relation_component_ids(affected_fact_ids)
+        component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
         if known_component_ids is not None:
-            component_ids |= repository.accepted_relation_component_ids(
-                {int(item) for item in known_component_ids},
-                input_is_components=True,
-            )
+            component_ids = repository.affected_transaction_closure(component_ids | repository._parent_ids_for_components(
+                {int(item) for item in known_component_ids}), state=state)
         facts, relations = repository.read_sources_for_facts(component_ids)
         build = build_cash_projections(facts, relations)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
@@ -201,10 +187,11 @@ class CashProjectionService:
         from ft.adapters.relational.projections import RelationalCashProjectionRepository
 
         repository = RelationalCashProjectionRepository(session, workspace_id)
+        build = build_cash_projections((repository._fact_from_model(row),), ())
+        repository._reconcile_entries(build.projections)
         state = repository.ready_state_lock_or_none()
         if state is None:
             return None
-        build = build_cash_projections((repository._fact_from_model(row),), ())
         return repository.replace_active_components(
             build,
             {int(row.id)},
@@ -250,5 +237,7 @@ class CashProjectionService:
         repository = RelationalCashProjectionRepository(session, workspace_id)
         state = repository.ready_state_lock_or_none()
         if state is None:
+            from ft.adapters.relational.cash_entries import CashEntryRepository
+            CashEntryRepository(session, workspace_id).remove_members(affected_fact_ids)
             return None
         return repository.remove_active_components(affected_fact_ids, state=state)

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from fastapi.testclient import TestClient
 from sqlalchemy import event, select
 from sqlalchemy.exc import OperationalError
@@ -93,20 +95,16 @@ def test_file_sqlite_evidence_read_uses_one_projection_snapshot(cash_web_runtime
             currency="CNY",
             ordinal=0,
         ))
-        session.add(TransactionRelationModel(
-            workspace_id=runtime.workspace_id,
-            kind="refund_offset",
-            subtype="",
-            primary_fact_id=1003,
-            secondary_fact_id=1004,
-            primary_fact_type="cash",
-            secondary_fact_type="cash",
-            ordered_fact_a=1003,
-            ordered_fact_b=1004,
-            anchor_fact_id=1004,
-            status="accepted",
-            rule_id="refund.fixture.v1",
-        ))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        workspace_id=runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1004,
+                        anchor_component_id=1004,
+                        state='confirmed',
+                        rule_id="refund.fixture.v1"
+                    ))
     baseline = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
     rebuilt = False
@@ -124,22 +122,18 @@ def test_file_sqlite_evidence_read_uses_one_projection_snapshot(cash_web_runtime
             root.counterparty = "并发商户"
             accepted = session.scalar(select(TransactionRelationModel).where(
                 TransactionRelationModel.workspace_id == runtime.workspace_id,
-                TransactionRelationModel.status == "accepted",
+                (TransactionRelationModel.state == "confirmed") & TransactionRelationModel.active.is_(True),
             ))
             accepted.rule_id = "refund.fixture.v2"
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="transfer_pair",
-                subtype="",
-                primary_fact_id=1003,
-                secondary_fact_id=1002,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=1002,
-                ordered_fact_b=1003,
-                anchor_fact_id=1003,
-                status="pending_review",
-            ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                            workspace_id=runtime.workspace_id,
+                            kind="transfer_pair",
+                            subtype="",
+                            primary_component_id=1003,
+                            secondary_component_id=1002,
+                            anchor_component_id=1003,
+                            state='draft'
+                        ))
         CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
     event.listen(engine, "after_cursor_execute", rebuild_after_active_state)

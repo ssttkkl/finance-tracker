@@ -43,6 +43,23 @@ from ft.domain.relations.refund.signals import (
 from ft.domain.relations.transfer.match import match_transfer_pairs_phase_c
 
 
+def needs_relation_discovery(facts: Sequence[FactView], *, seed_ids=None) -> bool:
+    """仅排除四阶段均不可能产生建议的消费种子，完整事实集合仍参与判断。"""
+    if not facts:
+        return False
+    if seed_ids is None:
+        return True
+    seeds = set(seed_ids)
+    selected = [fact for fact in facts if fact.id in seeds]
+    if not selected or len(selected) != len(seeds) or any(
+        fact.record_type != "consumption" or fact.signed_amount >= 0 for fact in selected
+    ):
+        return True
+    families = [(fact, source_group(fact)) for fact in facts]
+    return ({"platform", "bank"} <= {family for _, family in families}
+        or any(family in {"platform", "bank"} and fact.signed_amount >= 0 for fact, family in families))
+
+
 def _edge(kind: str, a: str, b: str, subtype: str = "") -> RelationEdge:
     return RelationEdge(fact_a_id=a, fact_b_id=b, kind=kind, subtype=subtype or "")
 
@@ -539,6 +556,7 @@ def run_relation_phases(
     transfer_blocked_ids: set[str] | None = None,
     refund_blocked_ids: set[str] | None = None,
     merchant_refund_seed_ids: Sequence[str] | None = None,
+    require_unique_mirrors: bool = False,
 ) -> list[RelationProposal]:
     """Run Phase B → C → D0 diamond → D merchant/open refund matching.
 
@@ -595,6 +613,7 @@ def run_relation_phases(
         seed_ids=seed_ids,
         index=index,
         occupied_fact_ids=occupied_mirror_fact_ids,
+        require_unique_mirrors=require_unique_mirrors,
     )
     for p in mirror_props:
         out.append(p)

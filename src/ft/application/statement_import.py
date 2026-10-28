@@ -9,48 +9,13 @@ from pathlib import Path
 import tempfile
 from collections import Counter
 
+from ft.application.cash_balances import counts_toward_balance as _counts_toward_balance, apply_snapshot_components as _snapshot_components
 from ft.domain.application import OperationResult
 from ft.domain.investment_projection import apply_investment_event
 from ft.domain.relations import RelationKind, RelationStatus, ordered_fact_pair
 
 
 MAX_STATEMENT_BYTES = 100 * 1024 * 1024
-
-
-def _counts_toward_balance(row: dict | None) -> bool:
-    """Return whether a cash record changes the account balance snapshot.
-
-    Record type owns the financial direction semantics.  The old free-text
-    ``category`` field is intentionally ignored because it is now user data.
-    """
-    return str((row or {}).get("record_type") or "other") not in {
-        "transfer_in", "transfer_out",
-    }
-
-
-def _snapshot_components(snapshot, uow, row: dict, multiplier) -> None:
-    """Apply one parent row's component allocations to the balance snapshot."""
-    if not row or not _counts_toward_balance(row):
-        return
-    components = row.get("components") or []
-    if not components:
-        components = [{
-            "account_name": row.get("account_name"),
-            "account_type": row.get("account_type") or "cash",
-            "amount": row.get("amount"),
-            "currency": row.get("currency"),
-        }]
-    for component in components:
-        account_name = str(component.get("account_name") or "").strip()
-        if not account_name:
-            raise ValueError("组成项缺少目标账户")
-        uow.snapshot.update_balance(
-            snapshot,
-            account_name,
-            component.get("account_type") or "cash",
-            str(component.get("currency") or row.get("currency") or "").upper(),
-            Decimal(str(component.get("amount") or "0")) * Decimal(str(multiplier)),
-        )
 
 
 def _json_safe(value):

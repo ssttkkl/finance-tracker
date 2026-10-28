@@ -1,11 +1,11 @@
 package com.finance.tracker
 
 import com.finance.tracker.app.createDemoFinanceTrackerGraph
+import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.domain.CashRecordWrite
 import com.finance.tracker.domain.CashFilters
 import com.finance.tracker.domain.CashMonthPosition
 import com.finance.tracker.domain.DomainFailure
-import com.finance.tracker.domain.ImportMappingDecision
 import com.finance.tracker.domain.WorkspaceRole
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -39,9 +39,9 @@ class ComposeDemoModeTest {
             counterparty = "演示测试",
         )
 
-        val created = graph.financeRepository.createCashRecord(write)
-        val currentRows = graph.financeRepository.fetchCashRecords().items
-        val restartedRows = createDemoFinanceTrackerGraph().financeRepository.fetchCashRecords().items
+        val created = (graph.financeRepository as DemoFinanceRepository).createCashRecord(write)
+        val currentRows = (graph.financeRepository as DemoFinanceRepository).fetchCashRecords().items
+        val restartedRows = (createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository).fetchCashRecords().items
 
         assertTrue(currentRows.any { it.id == created.record.id && it.amount == "-12.50" })
         assertFalse(restartedRows.any { it.amount == "-12.50" && it.counterparty == "演示测试" })
@@ -49,7 +49,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoCashRecordsSupportCreateUpdateAndDeleteInMemory() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository
+        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
         val write = CashRecordWrite(
             occurredAt = "2026-10-12T10:00:00Z",
             amount = "-12.50",
@@ -73,7 +73,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoLedgerAppliesExactSignedAmountFiltersAndRejectsInvalidAmounts() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository
+        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
 
         val betweenNegativeBounds = repository.fetchCashPage(CashFilters(amountMin = "-20", amountMax = "-10"))
         val minimumOnly = repository.fetchCashPage(CashFilters(amountMin = "10000.01"))
@@ -137,29 +137,5 @@ class ComposeDemoModeTest {
         val restartedSession = createDemoFinanceTrackerGraph().sessionRepository.restoreSession()
         assertEquals("demo-workspace", restartedSession.activeWorkspaceId)
         assertFalse(restartedSession.workspaces.any { it.id == createdWorkspaceId })
-    }
-
-    @Test
-    fun builtInStatementCompletesTheLocalImportContract() = runTest {
-        val graph = createDemoFinanceTrackerGraph()
-        val statement = assertNotNull(graph.demoStatement)
-        val detection = graph.financeRepository.detectCashImport(statement)
-        val scan = graph.financeRepository.scanCashImport(listOf(statement))
-        val token = assertNotNull(scan.importToken)
-        val preview = graph.financeRepository.previewCashImport(token)
-        val decisions = preview.mapping.map { ImportMappingDecision(it.groupId, accountId = it.accountId) }
-        val result = graph.financeRepository.commitCashImport(
-            importToken = token,
-            previewDigest = preview.file.digest,
-            previewRelationDigest = preview.relationDigest,
-            mapping = decisions,
-        )
-
-        assertTrue(detection.rowCount > 0)
-        assertTrue(scan.ready == true)
-        assertTrue(preview.summary.new > 0)
-        assertTrue(result.newRows > 0)
-        assertTrue(graph.financeRepository.fetchCashRecords().items.any { it.sourceType == "statement_import" })
-        assertFalse(createDemoFinanceTrackerGraph().financeRepository.fetchCashRecords().items.any { it.sourceType == "statement_import" })
     }
 }

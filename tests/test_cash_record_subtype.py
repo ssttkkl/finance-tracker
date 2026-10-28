@@ -67,12 +67,17 @@ def test_icbc_asia_counterparty_account_preserves_subaccount_and_reconstructs_ve
     ).value == "879825****47"
 
 
-def test_cash_transaction_model_exposes_non_nullable_record_subtype():
+def test_cash_transaction_model_allows_draft_subtype_but_requires_posted_subtype():
     from ft.adapters.relational.models import CashTransactionModel
 
     column = CashTransactionModel.__table__.c.record_subtype
-    assert column.nullable is False
+    assert column.nullable is True
     assert column.default is not None or column.server_default is not None
+    constraint = next(
+        item for item in CashTransactionModel.__table__.constraints
+        if item.name == "ck_cash_transactions_posted_complete"
+    )
+    assert "record_subtype IS NOT NULL" in str(constraint.sqltext)
 
 
 @pytest.mark.parametrize(

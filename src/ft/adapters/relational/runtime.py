@@ -27,7 +27,7 @@ from .investments import RelationalInvestmentCommandRepository
 from ft.adapters.statement_import import StatementParser
 
 
-SCHEMA_REVISION = "20261018_37"
+SCHEMA_REVISION = "20261028_51"
 REQUIRED_TABLES = {
     "workspaces", "accounts", "cash_transactions", "cash_transaction_components", "investment_events",
     "ledger_snapshots",
@@ -37,7 +37,10 @@ REQUIRED_TABLES = {
     "cash_projection_members", "cash_projection_relations",
     "cash_investment_funding_relations",
     "users", "workspace_memberships", "user_sessions", "workspace_invitations",
-    "cash_categories", "cash_category_states", "statement_account_mappings", "cash_import_commits",
+    "cash_categories", "cash_category_states", "statement_account_mappings",
+    "cash_source_bindings", "cash_source_empty_pages", "cash_transaction_issues", "cash_issue_candidates",
+    "cash_mutation_receipts", "cash_mutation_results",
+    "cash_relation_candidates",
 }
 
 
@@ -61,10 +64,19 @@ class StorageError(RuntimeError):
 
 def storage_error(exc: BaseException, database_url: str) -> StorageError:
     """Map dialect-native failures without exposing driver text to callers."""
-    code = getattr(getattr(exc, "orig", exc), "sqlite_errorcode", None)
-    if code in {5, 6} or "locked" in str(exc).lower() or "busy" in str(exc).lower():
+    native = getattr(exc, "orig", exc)
+    state = getattr(native, "sqlstate", None) or getattr(native, "pgcode", None)
+    if state is not None:
+        label = {"55P03": "storage.busy", "25006": "storage.readonly"}.get(state, "storage.connect")
+        return StorageError(label, database_url)
+    code = getattr(native, "sqlite_errorcode", None)
+    if isinstance(code, int):
+        primary = code & 0xff
+        label = "storage.busy" if primary in {5, 6} else "storage.readonly" if primary == 8 else "storage.connect"
+        return StorageError(label, database_url)
+    if "locked" in str(exc).lower() or "busy" in str(exc).lower():
         return StorageError("storage.busy", database_url)
-    if code == 8 or "readonly" in str(exc).lower() or "read-only" in str(exc).lower():
+    if "readonly" in str(exc).lower() or "read-only" in str(exc).lower():
         return StorageError("storage.readonly", database_url)
     return StorageError("storage.connect", database_url)
 
@@ -91,6 +103,8 @@ def validate_runtime(engine, workspace_id: str, database_url: str) -> None:
 
 
 def build_relational_services(settings) -> ServiceBundle:
+    from .web_queries import RelationalCashLedgerQueryRepository
+
     try:
         engine = create_relational_engine(settings.database_url)
     except RelationalEngineError as exc:
@@ -109,7 +123,7 @@ def build_relational_services(settings) -> ServiceBundle:
         snapshots=RelationalSnapshotQueryRepository(sessions, settings.workspace_id),
         market_data=market_data,
         valuation=valuation,
-        relation_projector=relations_preview.project,
+        cash_reporter=RelationalCashLedgerQueryRepository(sessions, settings.workspace_id).read_finance_report,
     )
     relations = relations_preview
     funding_relations = CashInvestmentFundingRelationService(sessions, settings.workspace_id)

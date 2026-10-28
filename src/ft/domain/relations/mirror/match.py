@@ -252,6 +252,7 @@ def evaluate_payment_mirror(
     *,
     aliases_by_tail: Mapping[str, Sequence[str]] | None = None,
     account_identifiers_by_value: Mapping[str, Sequence[str]] | None = None,
+    require_unique_mirrors: bool = False,
 ) -> RelationProposal | None:
     """Propose one platform×bank payment_mirror for *seed*.
 
@@ -520,11 +521,13 @@ def evaluate_payment_mirror(
     if (
         status == RelationStatus.ACCEPTED.value
         and (
-            _mirror_channel(seed) in _ICBC_MIRROR_SOURCES
+            require_unique_mirrors
+            or _mirror_channel(seed) in _ICBC_MIRROR_SOURCES
             or _mirror_channel(cand) in _ICBC_MIRROR_SOURCES
         )
     ):
-        equal_score = [match for match in matches if match[4] == best[4]]
+        equal_score = [match for match in matches if match[4] == best[4] and (
+            not require_unique_mirrors or match[1].time_delta_seconds == best[1].time_delta_seconds)]
         if len(equal_score) > 1:
             status = RelationStatus.PENDING_REVIEW.value
             conf = CONFIDENCE_WEAK
@@ -553,6 +556,65 @@ def evaluate_payment_mirror(
     )
 
 
+def _match_unique_payment_mirrors(facts, *, seed_ids, index, occupied_fact_ids, blocked_pairs,
+    aliases_by_tail, account_identifiers_by_value):
+    occupied, blocked = set(occupied_fact_ids or ()), blocked_pairs or set()
+    active = {fact.id: fact for fact in facts if not fact.deleted and fact.fact_type == FactType.CASH.value and fact.id not in occupied}
+    requested = set(active) if seed_ids is None else set(seed_ids).intersection(active)
+    candidates, preferred = {}, {}
+    def pool(identifier):
+        if identifier not in candidates:
+            source = index.mirror_candidates(active[identifier]) if index is not None else active.values()
+            candidates[identifier] = tuple(fact for fact in source if fact.id in active and fact.id != identifier
+                and frozenset((identifier, fact.id)) not in blocked)
+        return candidates[identifier]
+    def evaluate(identifier, values):
+        return evaluate_payment_mirror(active[identifier], values, aliases_by_tail=aliases_by_tail,
+            account_identifiers_by_value=account_identifiers_by_value, require_unique_mirrors=True)
+    def best(identifier):
+        if identifier not in preferred:
+            preferred[identifier] = evaluate(identifier, pool(identifier))
+        return preferred[identifier]
+    def pair(proposal):
+        return frozenset((proposal.primary_fact_id, proposal.secondary_fact_id))
+
+    strong, weak = {}, {}
+    for identifier in sorted(requested, key=lambda value: stable_fact_order_key(active[value])):
+        forward = best(identifier)
+        if forward is None:
+            continue
+        other = next(value for value in pair(forward) if value != identifier)
+        reverse = best(other)
+        if (forward.status == RelationStatus.ACCEPTED.value and reverse is not None
+            and reverse.status == RelationStatus.ACCEPTED.value and pair(forward) == pair(reverse)):
+            strong.setdefault(pair(forward), forward)
+            continue
+        anchor, proof = identifier, forward
+        if reverse is not None and reverse.evidence.candidate_count > forward.evidence.candidate_count:
+            anchor, proof = other, reverse
+        weak.setdefault(anchor, (forward, proof))
+
+    result = list(strong.values())
+    used = {identifier for proposal in result for identifier in pair(proposal)}
+    for anchor, (default, proof) in sorted(weak.items(),
+        key=lambda item: (-item[1][1].evidence.candidate_count, stable_fact_order_key(active[item[0]]))):
+        if anchor in used:
+            continue
+        offered = set(proof.evidence.candidate_fact_ids) | (pair(default) - {anchor})
+        available = [fact for fact in pool(anchor) if fact.id in offered and fact.id not in used
+            and (anchor in requested or fact.id in requested)]
+        chosen = evaluate(anchor, available)
+        if chosen is None:
+            continue
+        result.append(replace(chosen, anchor_fact_id=anchor,
+            status=RelationStatus.PENDING_REVIEW.value, confidence=CONFIDENCE_WEAK,
+            rule_id=RULE_PAYMENT_MIRROR_WEAK_V1, evidence=replace(chosen.evidence, rule_id=RULE_PAYMENT_MIRROR_WEAK_V1,
+                candidate_count=proof.evidence.candidate_count, candidate_fact_ids=proof.evidence.candidate_fact_ids,
+                signals=(*chosen.evidence.signals, "mutual_uniqueness_required"))))
+        used.update(pair(chosen))
+    return result
+
+
 def match_payment_mirrors_greedy(
     facts: Sequence[FactView],
     *,
@@ -562,6 +624,7 @@ def match_payment_mirrors_greedy(
     index: FactCandidateIndex | None = None,
     occupied_fact_ids: set[str] | None = None,
     blocked_pairs: set[frozenset[str]] | None = None,
+    require_unique_mirrors: bool = False,
 ) -> list[RelationProposal]:
     """Global 1:1 greedy payment_mirror matching (main dedup spirit).
 
@@ -572,6 +635,10 @@ def match_payment_mirrors_greedy(
     When ``index`` is provided, candidates are pruned by amount/currency/day
     buckets (FR-025) instead of scanning all active facts.
     """
+    if require_unique_mirrors:
+        return _match_unique_payment_mirrors(facts, seed_ids=seed_ids, index=index,
+            occupied_fact_ids=occupied_fact_ids, blocked_pairs=blocked_pairs,
+            aliases_by_tail=aliases_by_tail, account_identifiers_by_value=account_identifiers_by_value)
     occupied = set(occupied_fact_ids or ())
     blocked_pairs = blocked_pairs or set()
     active = [

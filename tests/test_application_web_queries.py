@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 from datetime import datetime
 from decimal import Decimal
 from zoneinfo import ZoneInfo
@@ -49,6 +51,18 @@ def test_monthly_summaries_follow_requested_browser_timezone():
     assert [(position.month, position.start_index, position.end_index) for position in tokyo_positions] == [
         ("2026-07", 0, 1),
     ]
+
+
+def test_monthly_summaries_keep_full_money_precision_under_a_small_caller_context():
+    from decimal import localcontext
+    from ft.adapters.relational.web_queries import RelationalCashLedgerQueryRepository
+    rows = [(datetime(2026, 1, 1, tzinfo=ZoneInfo("UTC")), "expense", Decimal("-12345678901234567890.123456789012345678"), "CNY"),
+        (datetime(2026, 1, 2, tzinfo=ZoneInfo("UTC")), "expense", Decimal("-0.000000000000000001"), "CNY")]
+    with localcontext() as context:
+        context.prec = 6
+        summaries = RelationalCashLedgerQueryRepository._monthly_summaries(rows, "UTC")
+        assert context.prec == 6
+    assert summaries[0].currencies[0].expense == "-12345678901234567890.123456789012345679"
 
 
 def test_projection_page_filters_and_stable_cursor(cash_web_runtime):
@@ -446,8 +460,8 @@ def test_non_object_cursor_is_invalid(cash_web_runtime, payload):
         ("version", True),
         ("workspace", 1),
         ("filters", []),
-        ("occurred_at", 1),
-        ("occurred_at", "2026-07-03"),
+        ("sort_at", 1),
+        ("sort_at", "2026-07-03"),
         ("projection_id", 1),
         ("projection_id", True),
         ("projection_id", None),
@@ -522,19 +536,15 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
                 currency="CNY",
                 ordinal=0,
             ))
-            session.add(TransactionRelationModel(
-                workspace_id=runtime.workspace_id,
-                kind="refund_offset",
-                subtype="",
-                primary_fact_id=1003,
-                secondary_fact_id=1004,
-                primary_fact_type="cash",
-                secondary_fact_type="cash",
-                ordered_fact_a=1003,
-                ordered_fact_b=1004,
-                anchor_fact_id=1004,
-                status="accepted",
-            ))
+            session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                            workspace_id=runtime.workspace_id,
+                            kind="refund_offset",
+                            subtype="",
+                            primary_component_id=1003,
+                            secondary_component_id=1004,
+                            anchor_component_id=1004,
+                            state='confirmed'
+                        ))
         CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
 
     def rebuild_between_state_and_page(_connection, _cursor, statement, _parameters, _context, _executemany):
@@ -565,3 +575,59 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
     assert CashProjectionService(runtime.sessions, runtime.workspace_id).status()["projection_version"] == baseline_version + 1
     with pytest.raises(ProjectionUpdatedError):
         baseline.list_cash_projections(limit=2, cursor=page.next_cursor)
+
+
+@pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics(request, runtime_name):
+    from sqlalchemy import select
+    from ft.adapters.relational.models import CashProjectionModel
+    from ft.application.web_queries import CashLedgerQueryService
+
+    runtime = request.getfixturevalue(runtime_name)
+    service = _service(runtime)
+    with runtime.sessions.begin() as session:
+        rows = {row.projection_id: row for row in session.scalars(select(CashProjectionModel).where(
+            CashProjectionModel.workspace_id == runtime.workspace_id)).all()}
+        for key, day in [("cash:1003", 31), ("cash:1002", 30), ("cash:1001", 29)]:
+            rows[key].sort_at = datetime(2026, 10, day, tzinfo=ZoneInfo("UTC"))
+            rows[key].occurred_at = rows[key].sort_at
+        draft = rows["cash:1002"]
+        draft.state = "draft"
+        draft.occurred_at = None
+        draft.statistics_eligible = False
+        draft.attention_count = 1
+        draft.economic_type = None
+
+    first = service.list_cash_projections(start_index=0, limit=1)
+    middle = service.list_cash_projections(start_index=1, limit=1, projection_version=first.projection_version)
+    cold_middle = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=1, limit=1, projection_version=first.projection_version)
+    assert cold_middle.items == middle.items
+    assert cold_middle.total_count == 3 and cold_middle.pending_item_count == 1
+    assert cold_middle.month_positions == cold_middle.monthly_summaries == ()
+    cold_empty = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=0, projection_version=first.projection_version, counterparty="no-matching-counterparty")
+    assert not cold_empty.items and cold_empty.total_count == cold_empty.pending_item_count == 0
+    cold_beyond = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(
+        start_index=99, projection_version=first.projection_version)
+    assert not cold_beyond.items and cold_beyond.total_count == 3 and cold_beyond.pending_item_count == 1
+    end = service.list_cash_projections(start_index=2, limit=1, projection_version=first.projection_version)
+    cursor_first = service.list_cash_projections(limit=1)
+    cursor_second = service.list_cash_projections(limit=1, cursor=cursor_first.next_cursor)
+    cursor_last = service.list_cash_projections(limit=1, cursor=cursor_second.next_cursor)
+    assert [row.transaction_id for page in (first, middle, end) for row in page.items] == [
+        row.transaction_id for page in (cursor_first, cursor_second, cursor_last) for row in page.items]
+    assert [(p.month, p.start_index, p.end_index) for p in first.month_positions] == [
+        ("2026-10", 0, 1), ("unknown", 1, 2), ("2026-10", 2, 3)]
+    assert [(p.total_count, p.pending_item_count) for p in (first, middle, end)] == [(3, 1)] * 3
+    assert middle.items[0].occurred_at is None
+    assert middle.items[0].statistics_eligible is False
+    assert middle.month_positions == end.month_positions == ()
+    assert middle.monthly_summaries == end.monthly_summaries == ()
+    currencies = first.monthly_summaries[0].currencies
+    assert sum(Decimal(row.expense) for row in currencies) == Decimal(first.items[0].amount)
+    assert sum(Decimal(row.income) for row in currencies) == Decimal(end.items[0].amount)
+    pending = service.list_cash_projections(start_index=0, state="draft", confirmation_status="pending", limit=1)
+    assert pending.total_count == pending.pending_item_count == 1
+    assert pending.monthly_summaries == ()
+    assert [(p.month, p.start_index, p.end_index) for p in pending.month_positions] == [("unknown", 0, 1)]

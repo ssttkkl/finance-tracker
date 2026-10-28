@@ -73,10 +73,14 @@ jobs:
       - name: Check live and offline Compose preview servers
         run: node --test compose/qa/web/tests/compose-preview-proxy.node-test.mjs
 
-  backend-sqlite:
-    name: Backend (SQLite)
+  backend-sqlite-shards:
+    name: Backend (SQLite shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -99,10 +103,23 @@ jobs:
         run: uv run python -m compileall -q src
 
       - name: Run SQLite backend tests
-        run: PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"
+        run: >-
+          PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py
+          --shard-index "${{ matrix.shard }}" --shard-count 8
 
-  backend-postgres:
-    name: Backend (PostgreSQL)
+  backend-sqlite:
+    name: Backend (SQLite)
+    if: ${{ always() }}
+    needs: backend-sqlite-shards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every shard to succeed
+        env:
+          SHARD_RESULT: ${{ needs.backend-sqlite-shards.result }}
+        run: test "$SHARD_RESULT" = success
+
+  backend-postgres-shards:
+    name: Backend (PostgreSQL shard ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -122,6 +139,10 @@ jobs:
     env:
       FT_TEST_POSTGRES_URL: postgresql+psycopg://postgres:postgres@127.0.0.1:5432/finance_tracker_test
       FT_REQUIRE_TEST_POSTGRES: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7]
     steps:
       - name: Check out repository
         uses: actions/checkout@v5
@@ -144,7 +165,20 @@ jobs:
         run: uv run python -m compileall -q src
 
       - name: Run PostgreSQL backend tests
-        run: PYTHONPATH=tests:.:src uv run pytest -q -m "not performance"
+        run: >-
+          PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py
+          --shard-index "${{ matrix.shard }}" --shard-count 8
+
+  backend-postgres:
+    name: Backend (PostgreSQL)
+    if: ${{ always() }}
+    needs: backend-postgres-shards
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every shard to succeed
+        env:
+          SHARD_RESULT: ${{ needs.backend-postgres-shards.result }}
+        run: test "$SHARD_RESULT" = success
 
   backend-performance:
     name: Backend (Performance)

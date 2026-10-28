@@ -116,6 +116,31 @@ def _note(source_payload: dict[str, str]) -> str:
     return " ".join(dict.fromkeys(part for part in parts if part))
 
 
+def _parse_icbc_asia_source_row(source_payload, *, amount, date, currency, account_identifier, card_number):
+    """共享单条来源业务语义，不去重或处理其他行。"""
+    fact_id = _record_id(account_identifier, currency, source_payload)
+    return {
+        "date": date,
+        "amount": amount,
+        "currency": currency,
+        "card_number": card_number,
+        "counterparty": source_payload["對方戶名"].strip(),
+        "counterparty_account": source_payload["對方賬號"],
+        "note": _note(source_payload),
+        "category": "income" if amount >= 0 else "expense",
+        "payment_method": (
+            f"工银亚洲活期账户({card_number})" if card_number else "工银亚洲活期账户"
+        ),
+        "summary": source_payload["摘要"].strip(),
+        "txn_type": source_payload["業務類型"].strip(),
+        "_source_account_identifier": account_identifier,
+        "location": source_payload["交易場所"].strip(),
+        "_raw_cp": source_payload["對方戶名"].strip(),
+        "_fact_id": fact_id,
+        "_source_payload": source_payload,
+    }
+
+
 def read_icbc_asia_current_account(path: str) -> tuple[list[dict], str, list[dict]]:
     """读取受支持的工银亚洲活期账户 CSV，不写入运行时存储。"""
     try:
@@ -168,26 +193,9 @@ def read_icbc_asia_current_account(path: str) -> tuple[list[dict], str, list[dic
         if fact_id in seen_record_ids:
             raise ValueError("工银亚洲账单存在无法安全区分的重复业务行")
         seen_record_ids.add(fact_id)
-        records.append({
-            "date": occurred_at.strftime("%Y-%m-%d %H:%M:%S"),
-            "amount": amount,
-            "currency": currency,
-            "card_number": card_number,
-            "counterparty": source_payload["對方戶名"].strip(),
-            "counterparty_account": source_payload["對方賬號"],
-            "note": _note(source_payload),
-            "category": "income" if amount >= 0 else "expense",
-            "payment_method": (
-                f"工银亚洲活期账户({card_number})" if card_number else "工银亚洲活期账户"
-            ),
-            "summary": source_payload["摘要"].strip(),
-            "txn_type": source_payload["業務類型"].strip(),
-            "_source_account_identifier": account_identifier,
-            "location": source_payload["交易場所"].strip(),
-            "_raw_cp": source_payload["對方戶名"].strip(),
-            "_fact_id": fact_id,
-            "_source_payload": source_payload,
-        })
+        records.append(_parse_icbc_asia_source_row(source_payload, amount=amount,
+            date=occurred_at.strftime("%Y-%m-%d %H:%M:%S"), currency=currency,
+            account_identifier=account_identifier, card_number=card_number))
     if not records:
         raise ValueError("工银亚洲账单中没有可导入的交易行")
     return records, SOURCE_TYPE, []

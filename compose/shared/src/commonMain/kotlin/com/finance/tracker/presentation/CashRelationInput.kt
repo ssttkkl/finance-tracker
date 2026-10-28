@@ -1,0 +1,66 @@
+package com.finance.tracker.presentation
+
+import com.finance.tracker.domain.*
+
+internal fun cashRelationRequest(record: CashCurrentRecord, choices: List<CashRelationDecision>, options: List<ImportPairOption>,
+    patch: StructuredObject = StructuredObject(emptyMap())): CashMaintenanceRequest {
+    fun invalid(): Nothing = throw DomainFailure("choice_invalid", 0, FailureCategory.RECOVERABLE)
+    if (record.recordOrigin in setOf("manual", "manual_transfer") || choices.isEmpty() || choices.map { it.suggestionId }.distinct().size != choices.size) invalid()
+    if (patch.fields.keys.any { it !in record.editableFields }) invalid()
+    val groups = options.groupBy { it.suggestionId }.mapValues { (_, values) -> values.distinct().singleOrNull() ?: invalid() }
+    for (choice in choices) {
+        val option = groups[choice.suggestionId] ?: invalid()
+        if (choice.action !in setOf("accept", "ignore", "remove") || choice.action !in option.allowedActions) invalid()
+        if (choice.action == "accept") {
+            if (option.candidates.isNotEmpty() && option.candidates.none { it.candidateId == choice.candidateId }) invalid()
+            if (option.candidates.isEmpty() && choice.candidateId != null && choice.candidateId != option.candidateId) invalid()
+            if (option.commonFieldConflicts.any { (field, values) -> choice.commonFields?.fields?.get(field) !in cashRelationCommonValues(field, values) }) invalid()
+            if (choice.commonFields?.fields.orEmpty().any { (field, value) ->
+                field !in option.commonFieldConflicts && (field !in option.commonFields?.fields.orEmpty() || option.commonFields?.fields?.get(field) != value)
+            }) invalid()
+        } else if (choice.candidateId != null || choice.commonFields != null) invalid()
+        if (choice.action != "remove" && choice.inheritCommonFields != null) invalid()
+    }
+    return CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision, patch, relationChoices = choices)
+}
+
+internal fun cashRelationMemberRecords(refs: List<ImportMemberRef>, records: Map<String, CashCurrentRecord>): List<CashCurrentRecord>? {
+    if (refs.isEmpty() || refs.any { it.transactionId.isNullOrBlank() }) return null
+    val ids = refs.map { it.transactionId!! }.distinct()
+    if (ids.any { records[it]?.transactionId != it }) return null
+    return ids.map { records.getValue(it) }
+}
+internal fun cashRelationChoicesLoaded(choices: List<CashRelationDecision>, options: List<ImportPairOption>, records: Map<String, CashCurrentRecord>): Boolean =
+    choices.filter { it.action == "accept" }.all { choice ->
+        val group = options.filter { it.suggestionId == choice.suggestionId }.distinct().singleOrNull() ?: return@all false
+        val candidate = group.candidates.singleOrNull { it.candidateId == choice.candidateId }
+        cashRelationMemberRecords(group.members, records) != null &&
+            (if (group.candidates.isEmpty()) true else candidate?.let { cashRelationMemberRecords(it.members, records) != null } == true)
+    }
+
+internal fun cashRelationCommonValues(field: String, values: List<StructuredValue>): List<StructuredValue> =
+    (values + when (field) {
+        "note", "counterparty", "counterparty_account" -> listOf(StructuredText(""))
+        "category_id" -> listOf(StructuredNull)
+        "counterparty_account_attrs" -> listOf(StructuredArray(emptyList()))
+        else -> emptyList()
+    }).distinct()
+
+
+internal fun cashRelationIsJoint(group: ImportPairOption): Boolean =
+    group.relations.size > 1 || group.candidates.any { it.relations.size > 1 }
+
+internal fun cashRelationInitialCandidate(group: ImportPairOption): String? =
+    group.candidates.singleOrNull()?.candidateId ?: group.candidateId.takeIf { group.candidates.isEmpty() }
+
+
+internal fun cashRelationConflictGroups(input: CashMaintenanceRequest?, groups: List<ImportPairOption>): List<ImportPairOption> {
+    if (input == null) return emptyList()
+    val accepted = input.relationChoices.filter { it.action == "accept" }.map { it.suggestionId }.toSet()
+    return groups.filter { group ->
+        group.suggestionId in accepted || input.relationAdditions.any { addition ->
+            group.kind == addition.kind && group.subtype.orEmpty() == addition.subtype &&
+                group.members.mapNotNull { it.transactionId }.toSet() == setOf(input.transactionId, addition.targetTransactionId)
+        }
+    }
+}

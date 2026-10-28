@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from ft.application.cash_import_staging import InMemoryImportStagingStore
-from ft.config import ImportStagingSettings, StorageConfigurationError, build_import_staging_store
+from ft.application.parsed_import_staging import InMemoryParsedImportStore
+from ft.config import ImportStagingSettings, StorageConfigurationError, build_parsed_import_store
 
 
 def test_import_staging_backend_must_be_explicit():
@@ -22,11 +22,13 @@ def test_memory_import_staging_requires_an_explicit_local_switch():
     })
     assert settings.backend == "memory"
     assert settings.ttl_seconds == 900
-    assert isinstance(build_import_staging_store(environ={
+    store, cleanup = build_parsed_import_store(environ={
         "FT_IMPORT_STAGING_BACKEND": "memory",
         "FT_IMPORT_STAGING_ALLOW_MEMORY": "1",
         "FT_IMPORT_STAGING_TTL_SECONDS": "900",
-    }), InMemoryImportStagingStore)
+    })
+    assert isinstance(store, InMemoryParsedImportStore)
+    assert cleanup is not None
 
 
 def test_import_staging_rejects_invalid_ttl_and_unknown_backend():

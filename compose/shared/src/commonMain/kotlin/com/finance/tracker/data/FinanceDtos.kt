@@ -67,14 +67,14 @@ data class CashTransferDto(
 @Serializable
 data class CashProjectionDto(
     @SerialName("projection_id") val projectionId: String,
-    @SerialName("occurred_at") val occurredAt: String,
+    @SerialName("occurred_at") val occurredAt: String?,
     val account: AccountDto? = null,
     val counterparty: String = "",
     val category: CashCategoryDto? = null,
     val note: String = "",
-    val amount: String,
-    val currency: String,
-    @SerialName("economic_type") val economicType: String,
+    val amount: String?,
+    val currency: String?,
+    @SerialName("economic_type") val economicType: String?,
     @SerialName("transfer_subtype") val transferSubtype: String? = null,
     val composition: List<String> = emptyList(),
     @SerialName("member_count") val memberCount: Int = 1,
@@ -85,6 +85,13 @@ data class CashProjectionDto(
     val visible: Boolean = true,
     @SerialName("hidden_reason") val hiddenReason: String? = null,
     val transfer: CashTransferDto? = null,
+    val state: String = "posted",
+    @SerialName("statistics_eligible") val statisticsEligible: Boolean = true,
+    @SerialName("attention_count") val attentionCount: Long = 0,
+    @SerialName("confirmation_status") val confirmationStatus: String = "confirmed",
+    @SerialName("projection_version") val projectionVersion: Long? = null,
+    @SerialName("entry_id") val entryId: String? = null,
+    @SerialName("transaction_id") val transactionId: String,
 )
 
 @Serializable
@@ -122,6 +129,7 @@ data class CashPageDto(
     val filters: Map<String, String?> = emptyMap(),
     @SerialName("filter_options") val filterOptions: CashFilterOptionsDto = CashFilterOptionsDto(),
     @SerialName("monthly_summaries") val monthlySummaries: List<CashMonthlySummaryDto> = emptyList(),
+    @SerialName("pending_item_count") val pendingItemCount: Long = 0,
     @SerialName("month_positions") val monthPositions: List<CashMonthPositionDto> = emptyList(),
     @SerialName("start_index") val startIndex: Int? = null,
     @SerialName("total_count") val totalCount: Int? = null,
@@ -147,8 +155,8 @@ data class CashProjectionDeleteResultDto(
 
 @Serializable
 data class CashComponentDetailDto(
-    val id: Long,
-    @SerialName("cash_transaction_id") val cashTransactionId: Long? = null,
+    val id: String,
+    @SerialName("cash_transaction_id") val cashTransactionId: String? = null,
     val account: AccountDto? = null,
     @SerialName("account_name") val accountName: String? = null,
     @SerialName("account_id") val accountId: Long? = null,
@@ -260,7 +268,7 @@ data class EvidenceDto(
 
 @Serializable
 data class CashRecordDto(
-    val id: Long,
+    val id: String,
     @SerialName("component_id") val componentId: String? = null,
     @SerialName("occurred_at") val occurredAt: String,
     val amount: String,
@@ -337,6 +345,8 @@ data class CashFiltersDto(
     @SerialName("economic_type") val economicType: String? = null,
     @SerialName("transfer_subtype") val transferSubtype: String? = null,
     val composition: String? = null,
+    val state: String? = null,
+    @SerialName("confirmation_status") val confirmationStatus: String? = null,
 )
 
 @Serializable

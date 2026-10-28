@@ -10,7 +10,7 @@ internal data class CashProjectionMonthGroup(
     val summary: CashMonthlySummary?,
 )
 
-internal fun cashLedgerMonthForOrdinal(positions: List<CashMonthPosition>, ordinal: Int): String? {
+internal fun cashLedgerMonthPositionForOrdinal(positions: List<CashMonthPosition>, ordinal: Int): CashMonthPosition? {
     var low = 0
     var high = positions.lastIndex
     while (low <= high) {
@@ -19,11 +19,14 @@ internal fun cashLedgerMonthForOrdinal(positions: List<CashMonthPosition>, ordin
         when {
             ordinal < position.startIndex -> high = middle - 1
             ordinal >= position.endIndex -> low = middle + 1
-            else -> return position.month
+            else -> return position
         }
     }
     return null
 }
+
+internal fun cashLedgerMonthForOrdinal(positions: List<CashMonthPosition>, ordinal: Int): String? =
+    cashLedgerMonthPositionForOrdinal(positions, ordinal)?.month
 
 internal fun cashProjectionMonthGroups(
     items: List<CashProjection>,
@@ -50,7 +53,7 @@ internal fun cashProjectionEconomicTypeResourceKey(item: CashProjection): String
     item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.economicType == "expense" -> "cash_type_expense"
     item.economicType == "income" -> "cash_type_income"
-    item.economicType == "internal_transfer" -> "cash_type_merged"
+    item.economicType == "internal_transfer" -> "ledger_quick_transfer"
     else -> "display_not_provided"
 }
 
@@ -63,7 +66,7 @@ internal fun cashProjectionAccountValue(item: CashProjection): String? = item.tr
 
 @Composable
 internal fun cashProjectionAccountLabel(item: CashProjection): String =
-    cashProjectionAccountValue(item) ?: localizedText("cash_account_multiple")
+    cashProjectionAccountValue(item) ?: localizedText(if (item.memberCount > 1) "cash_account_multiple" else "display_not_provided")
 
 internal fun cashProjectionAmountLabel(item: CashProjection): String {
     val transfer = item.transfer.takeIf { item.economicType == "internal_transfer" }
@@ -76,12 +79,17 @@ internal fun cashProjectionAmountLabel(item: CashProjection): String {
             "$fromAmount ${transfer.fromCurrency} → $toAmount ${transfer.toCurrency}"
         }
     }
+    return cashAmountWithCurrencyLabel(item.amount, item.currency)
+}
+
+internal fun cashAmountWithCurrencyLabel(value: String?, currency: String?): String {
+    if (value == null) return listOfNotNull("—", currency).joinToString(" ")
     val amount = when {
-        displayDecimalSign(item.amount) == 0 -> item.amount.removePrefix("-").removePrefix("+")
-        item.amount.startsWith("-") || item.amount.startsWith("+") -> item.amount
-        else -> "+${item.amount}"
+        displayDecimalSign(value) == 0 -> value.removePrefix("-").removePrefix("+")
+        value.startsWith("-") || value.startsWith("+") -> value
+        else -> "+$value"
     }
-    return "$amount ${item.currency}"
+    return listOfNotNull(amount, currency).joinToString(" ")
 }
 
 internal fun cashProjectionSourceResourceKey(item: CashProjection): String? = when {
@@ -183,7 +191,7 @@ internal fun cashEvidenceSourceLabel(evidence: Evidence): String {
 }
 
 @Composable
-private fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lowercase()) {
+internal fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lowercase()) {
     "manual" -> localizedText("cash_source_manual")
     "alipay" -> localizedText("cash_source_alipay")
     "wechat", "wechatpay", "wechat_pay" -> localizedText("cash_source_wechat")

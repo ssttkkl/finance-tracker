@@ -24,3 +24,7 @@
 - 影响 `src/ft/application/cash_ledger.py` 的账单关系预览，以及 Compose Web 和 Native 共用的导入 API。
 - 不新增数据库表、迁移、依赖或 UI 控件；不改变原始来源证据、金额精度、账户映射和关系规则。
 - 不修改旧 SQLite 库；回滚代码会恢复到未分摊流水触发预览异常的状态。
+
+## 后续现金导入重设计的同步边界
+
+`cash-import-lifecycle-redesign` 已声明本变更部分导入条款的后续取代，具体范围见 [取代清单](../cash-import-lifecycle-redesign/design.md#active-changes-取代与同步顺序)。新变更尚未实施时不改变当前行为；新合同生效后，本变更不得重新同步已经取代的旧流程或规则，须先清理或合并相应 delta。原未完成验证及用户演示仍按原记录保留，不因此自动完成。

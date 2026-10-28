@@ -1,6 +1,8 @@
 """收支投影全量构建编排。"""
 from __future__ import annotations
 
+from tests.cash_relation_fixtures import cash_relation_fixture
+
 import pytest
 
 
@@ -97,7 +99,15 @@ def test_failed_rebuild_keeps_the_previous_active_dataset(cash_web_runtime):
     service = _service(cash_web_runtime)
     first = service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="", primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash", secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003, anchor_fact_id=1001, status="accepted"))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
     with pytest.raises(CashProjectionError):
         service.rebuild()
     with cash_web_runtime.sessions() as session:
@@ -106,7 +116,7 @@ def test_failed_rebuild_keeps_the_previous_active_dataset(cash_web_runtime):
         assert state.projection_version == first["projection_version"]
 
 
-def test_rebuild_retains_at_most_one_retired_dataset(cash_web_runtime):
+def test_rebuild_removes_all_retired_datasets(cash_web_runtime):
     from sqlalchemy import select
     from ft.adapters.relational.models import CashProjectionDatasetModel
 
@@ -122,7 +132,7 @@ def test_rebuild_retains_at_most_one_retired_dataset(cash_web_runtime):
                 CashProjectionDatasetModel.state == "retired",
             )
         ).all()
-    assert len(retired) == 1
+    assert retired == []
 
 
 def test_rebuild_rejects_changed_source_digest_without_publishing(cash_web_runtime, monkeypatch):
@@ -147,12 +157,15 @@ def test_failed_rebuild_persists_redacted_diagnostic_in_independent_transaction(
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003,
-            anchor_fact_id=1001, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
 
     with pytest.raises(CashProjectionError):
         service.rebuild()
@@ -193,12 +206,15 @@ def test_diagnostic_write_failure_does_not_replace_build_error(cash_web_runtime,
     service = _service(cash_web_runtime)
     service.rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        session.add(TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="refund_offset", subtype="",
-            primary_fact_id=1003, secondary_fact_id=1001, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1001, ordered_fact_b=1003,
-            anchor_fact_id=1001, status="accepted",
-        ))
+        session.add(cash_relation_fixture(session, complete_legacy_types=True,
+                        workspace_id=cash_web_runtime.workspace_id,
+                        kind="refund_offset",
+                        subtype="",
+                        primary_component_id=1003,
+                        secondary_component_id=1001,
+                        anchor_component_id=1001,
+                        state='confirmed'
+                    ))
     monkeypatch.setattr(
         RelationalCashProjectionRepository,
         "record_failed_build",
@@ -300,6 +316,7 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
     from ft.adapters.relational.models import (
         CashProjectionMemberModel,
         CashProjectionStateModel,
+        CashTransactionComponentModel,
         CashTransactionModel,
         TransactionRelationModel,
     )
@@ -308,14 +325,18 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
 
     with cash_web_runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1002).amount = Decimal("-12.50")
+        session.get(CashTransactionComponentModel, 1002).amount = Decimal("-12.50")
     _service(cash_web_runtime).rebuild()
     with cash_web_runtime.sessions.begin() as session:
-        relation = TransactionRelationModel(
-            workspace_id=cash_web_runtime.workspace_id, kind="payment_mirror", subtype="",
-            primary_fact_id=1002, secondary_fact_id=1003, primary_fact_type="cash",
-            secondary_fact_type="cash", ordered_fact_a=1002, ordered_fact_b=1003,
-            anchor_fact_id=1002, status="pending_review",
-        )
+        relation = cash_relation_fixture(session, complete_legacy_types=True,
+                       workspace_id=cash_web_runtime.workspace_id,
+                       kind="payment_mirror",
+                       subtype="",
+                       primary_component_id=1002,
+                       secondary_component_id=1003,
+                       anchor_component_id=1002,
+                       state='draft'
+                   )
         session.add(relation)
         session.flush()
         relation_id = str(relation.id)
@@ -349,3 +370,33 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
         )
     assert state.projection_count == 2
     assert members == 2
+
+
+@pytest.mark.parametrize("runtime_fixture", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_rebuild_validates_sources_once_and_fences_publication(request, runtime_fixture, monkeypatch):
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = request.getfixturevalue(runtime_fixture)
+    reads = []
+    original = RelationalCashProjectionRepository.read_sources
+    def read(repository):
+        reads.append(True)
+        return original(repository)
+    monkeypatch.setattr(RelationalCashProjectionRepository, "read_sources", read)
+    status = _service(runtime).rebuild()
+    assert status["member_count"] == 3
+    assert len(reads) == 1
+
+
+@pytest.mark.parametrize("runtime_fixture", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_rebuild_rejects_source_change_after_complete_validation(request, runtime_fixture, monkeypatch):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = request.getfixturevalue(runtime_fixture)
+    original = RelationalCashProjectionRepository.replace_dataset
+    def replace(repository, *args, **kwargs):
+        original(repository, *args, **kwargs)
+        repository._session.get(CashTransactionModel, 1003).note = "synthetic changed source"
+    monkeypatch.setattr(RelationalCashProjectionRepository, "replace_dataset", replace)
+    with pytest.raises(RuntimeError, match="projection.concurrent_update"):
+        _service(runtime).rebuild()
+    assert _service(runtime).status()["availability"] != "ready"

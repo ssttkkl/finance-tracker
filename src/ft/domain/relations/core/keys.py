@@ -4,6 +4,13 @@ from typing import Any, Callable, Mapping, Sequence
 from ft.domain.relations.core.types import OPEN_LEG_CANDIDATE_TOP_K, OPEN_LEG_ORDERED_B_SENTINEL, RelationKind, SUBTYPE_NONE
 
 
+def compatible_platform_scope(left, right) -> bool:
+    source = str(left.bill_source or left.source or "").strip().lower()
+    other = str(right.bill_source or right.source or "").strip().lower()
+    return not (source == other and source in {"wechat", "alipay"} and left.source_identity
+        and right.source_identity and left.source_identity != right.source_identity)
+
+
 def _stable_timestamp(value) -> str:
     if isinstance(value, datetime):
         parsed = value

@@ -21,29 +21,10 @@ class _Accounts:
     def __init__(self, calls):
         self.calls = calls
 
-    def create_account(self, name, type_, currency=None):
-        from ft.domain.accounts import AccountDTO, AccountResult
-
-        self.calls.append(("account.create", name, type_, currency))
-        return AccountResult.success(AccountDTO(name, type_, True, (currency,) if currency else ()))
-
-    def rename_account(self, old_name, new_name):
-        from ft.domain.accounts import AccountDTO, AccountResult
-
-        self.calls.append(("account.rename", old_name, new_name))
-        return AccountResult.success(AccountDTO(new_name, "cash"))
-
-    def set_active(self, name, active):
-        from ft.domain.accounts import AccountDTO, AccountResult
-
-        self.calls.append(("account.active", name, active))
-        return AccountResult.success(AccountDTO(name, "cash", active))
-
-    def delete_account(self, name):
-        from ft.domain.accounts import AccountDTO, AccountResult
-
-        self.calls.append(("account.delete", name))
-        return AccountResult.success(AccountDTO(name, "cash", False))
+    def create(self, payload, *, idempotency_key):
+        self.calls.append(("account.create", payload, idempotency_key))
+        return {"account": {"account_id": "1", "account_revision": 1, "name": payload["name"], "type": payload["type"],
+            "active": True, "currencies": payload["currencies"], "deleted": False}, "receipt_id": "receipt-1"}
 
 
 class _Cashflow:
@@ -87,7 +68,7 @@ class _Operations:
         self.sync_service = _Sync(self.calls)
         self.projection = _Projection(self.calls)
 
-    def legacy_accounts(self):
+    def account_commands(self):
         return self.accounts
 
     def legacy_cashflow(self):
@@ -236,9 +217,9 @@ def test_account_and_cashflow_commands_have_http_replacements(monkeypatch):
     operations = _Operations()
     client = _client(operations)
 
-    created = client.post("/api/v1/accounts", json={"name": "现金", "type": "cash", "currency": "CNY"})
+    created = client.post("/api/v1/accounts", json={"name": "现金", "type": "cash", "currencies": ["CNY"]}, headers={"Idempotency-Key": "create-cash"})
     assert created.status_code == 201
-    assert created.json()["account"]["name"] == "现金"
+    assert created.json()["name"] == "现金" and created.json()["account_revision"] == 1
 
     added = client.post("/api/v1/cashflow/add", json={
         "amount": "00032.50",
@@ -287,18 +268,18 @@ def test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contra
     assert response.json()["error"]["code"] == "amount_must_be_decimal_string"
 
 
-def test_http_replacement_matrix_covers_queries_relations_investments_and_fact_delete():
+def test_http_replacement_matrix_preserves_queries_investments_and_funding_after_cash_cutover():
     operations = _Operations()
     client = _client(operations)
 
     assert client.get("/api/v1/queries/accounts").status_code == 200
     assert client.get("/api/v1/queries/transactions?limit=10").status_code == 200
     assert client.get("/api/v1/reports/finance?month=2026-08").status_code == 200
-    assert client.get("/api/v1/relations/pending").status_code == 200
-    assert client.post("/api/v1/relations/check", json={"fact_ids": ["cash-1"]}).status_code == 200
-    assert client.post("/api/v1/relations/relation-1/accept", json={"reason": "receipt"}).status_code == 200
-    assert client.post("/api/v1/relations/relation-1/reject", json={"reason": "not-a-match"}).status_code == 200
-    assert client.request("DELETE", "/api/v1/cash-facts/cash-1", json={"reason": "duplicate"}).status_code == 200
+    assert client.get("/api/v1/relations/pending").status_code == 404
+    assert client.post("/api/v1/relations/check", json={"fact_ids": ["cash-1"]}).status_code == 404
+    assert client.post("/api/v1/relations/relation-1/accept", json={"reason": "receipt"}).status_code == 404
+    assert client.post("/api/v1/relations/relation-1/reject", json={"reason": "not-a-match"}).status_code == 404
+    assert client.request("DELETE", "/api/v1/cash-facts/cash-1", json={"reason": "duplicate"}).status_code == 404
     assert client.get("/api/v1/funding-relations/pending").status_code == 200
     assert client.post("/api/v1/funding-relations/scan").status_code == 200
     assert client.post("/api/v1/funding-relations/8/confirm", json={"reason": "receipt"}).status_code == 200
@@ -309,7 +290,7 @@ def test_http_replacement_matrix_covers_queries_relations_investments_and_fact_d
     }).status_code == 201
 
     assert ("query.accounts",) in operations.calls
-    assert ("relations.check", {"seed_fact_ids": ["cash-1"], "seed_batch_id": None, "trigger": "manual_range"}) in operations.calls
+    assert not any(call[0].startswith("relations.") for call in operations.calls)
     assert any(call[0] == "investment.buy" for call in operations.calls)
 
 
@@ -338,6 +319,10 @@ def test_api_mutations_preserve_decimal_and_transaction_boundary(request, runtim
     workspace_id = cash_web_runtime.workspace_id
     workspace_context = ContextVar("api_workspace", default=None)
     user_context = ContextVar("api_user", default=None)
+    from ft.adapters.relational.models import UserModel, WorkspaceMembershipModel
+    with sessions.begin() as session:
+        session.add(UserModel(id="api-user", email="api-user@example.test", password_hash="synthetic")); session.flush()
+        session.add(WorkspaceMembershipModel(workspace_id=workspace_id, user_id="api-user", role="admin"))
 
     class Access:
         def require_context(self, _token, _roles):
@@ -359,8 +344,8 @@ def test_api_mutations_preserve_decimal_and_transaction_boundary(request, runtim
 
     client = TestClient(app)
     created = client.post("/api/v1/accounts", json={
-        "name": "API现金", "type": "cash", "currency": "CNY",
-    })
+        "name": "API现金", "type": "cash", "currencies": ["CNY"],
+    }, headers={"Idempotency-Key": "create-api-cash"})
     assert created.status_code == 201
 
     invalid = client.post("/api/v1/cashflow/add", json={

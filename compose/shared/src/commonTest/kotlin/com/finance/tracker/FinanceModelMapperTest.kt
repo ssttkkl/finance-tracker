@@ -17,44 +17,18 @@ class FinanceModelMapperTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun decodesSharedCashRecordResponsesWithNumericIdsAndExactRelationAmounts() {
-        val payload = """
-            {
-              "record": {
-                "id": 123,
-                "component_id": "456",
-                "occurred_at": "2026-10-19T10:30:00Z",
-                "amount": "-12.345678",
-                "currency": "CNY",
-                "category_id": "leaf",
-                "category": {"id":"leaf","name":"早餐","path":[{"id":"food","name":"餐饮"},{"id":"leaf","name":"早餐"}]},
-                "record_type": "expense",
-                "components": [{"id":456,"cash_transaction_id":123,"amount":"-12.345678","currency":"CNY","ordinal":0}]
-              },
-              "relations": [{
-                "id":"relation-1","kind":"refund_offset","label":"退款冲销","status":"accepted",
-                "primary_record":{"id":124,"component_id":"457","occurred_at":"2026-10-19T10:31:00Z","amount":"12.345678","currency":"CNY","record_type":"income"},
-                "secondary_record":null,
-                "primary_component_id":456,"secondary_component_id":457,"applied_amount":"12.345678"
-              }]
-            }
-        """.trimIndent()
-
-        val dto = json.decodeFromString<CashRecordDetailDto>(payload)
-        val detail = dto.toDomain()
-
-        assertEquals("123", detail.record.id)
-        assertEquals("456", detail.record.components?.single()?.id)
-        assertEquals("123", detail.record.components?.single()?.cashTransactionId)
-        assertEquals(listOf("餐饮", "早餐"), detail.record.category?.path?.map { it.name })
-        assertEquals("456", detail.relations.single().primaryComponentId)
-        assertEquals("457", detail.relations.single().secondaryComponentId)
-        assertEquals("12.345678", detail.relations.single().appliedAmount)
-        assertEquals("457", detail.relations.single().primaryRecord?.componentId)
+    fun preservesOpaqueSourceComponentIdentifiersThroughMapping() {
+        val component = json.decodeFromString<CashComponentDetailDto>(
+            """{"id":"component:opaque","cash_transaction_id":"transaction:opaque","amount":"-1.20","currency":"CNY","ordinal":0}"""
+        ).toDomain()
+        assertEquals("component:opaque", component.id)
+        assertEquals("transaction:opaque", component.cashTransactionId)
+        assertEquals("component:opaque", component.toDto().id.toString())
+        assertEquals("transaction:opaque", component.toDto().cashTransactionId?.toString())
     }
 
     @Test
-    fun decodesEvidenceStringRecordIdsAndNumericComponentIds() {
+    fun decodesEvidenceStringTransactionAndComponentIds() {
         val payload = """
             {
               "projection_version": 7,
@@ -64,7 +38,8 @@ class FinanceModelMapperTest {
                 "amount": "-12.345678",
                 "currency": "CNY",
                 "economic_type": "expense",
-                "record_id": "1001"
+                "record_id": "source-1001",
+                "transaction_id": "1001"
               },
               "root_record": {
                 "id": "1001",
@@ -72,9 +47,9 @@ class FinanceModelMapperTest {
                 "amount": "-12.345678",
                 "currency": "CNY",
                 "record_type": "expense",
-                "components": [{"id":456,"cash_transaction_id":123,"amount":"-12.345678","currency":"CNY","ordinal":0}]
+                "components": [{"id":"456","cash_transaction_id":"123","amount":"-12.345678","currency":"CNY","ordinal":0}]
               },
-              "members": [{"id":"1001","occurred_at":"2026-10-19T10:30:00Z","amount":"-12.345678","currency":"CNY","record_type":"expense","components":[{"id":456,"cash_transaction_id":123,"amount":"-12.345678","currency":"CNY","ordinal":0}],"roles":["root"]}],
+              "members": [{"id":"1001","occurred_at":"2026-10-19T10:30:00Z","amount":"-12.345678","currency":"CNY","record_type":"expense","components":[{"id":"456","cash_transaction_id":"123","amount":"-12.345678","currency":"CNY","ordinal":0}],"roles":["root"]}],
               "accepted_relations": [],
               "inactive_relation_hints": [],
               "refund_timeline": []
@@ -135,6 +110,7 @@ class FinanceModelMapperTest {
             currency = "USD",
             economicType = "expense",
             recordId = "record-1",
+            transactionId = "11",
         )
 
         val domain = dto.toDomain()

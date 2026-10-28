@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cash_entry_fixtures import create_import_record
+
 from decimal import Decimal
 
 import pytest
@@ -51,14 +53,14 @@ def test_aggregate_component_can_mirror_one_bank_component_without_parent_double
     _enable_cny(cash_web_runtime, "日常账户", "工商银行储蓄卡")
     service = _service(cash_web_runtime)
 
-    aggregate = service.create_record(_payload(
+    aggregate = create_import_record(service, _payload(
         account_name="日常账户",
         components=[
             {"account_name": "日常账户", "amount": "-60.00", "label": "余额"},
             {"account_name": "工商银行储蓄卡", "amount": "-40.00", "label": "银行卡"},
         ],
     ))["record"]
-    bank = service.create_record(_payload(
+    bank = create_import_record(service, _payload(
         account_name="工商银行储蓄卡", amount="-40.00", counterparty="银行扣款",
     ))["record"]
 
@@ -102,7 +104,7 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
     _enable_cny(cash_web_runtime, "日常账户", "工商银行储蓄卡")
     service = _service(cash_web_runtime)
 
-    expense = service.create_record(_payload(
+    expense = create_import_record(service, _payload(
         account_name="日常账户",
         amount="-100.00",
         components=[
@@ -110,10 +112,10 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
             {"account_name": "工商银行储蓄卡", "amount": "-40.00", "label": "银行卡"},
         ],
     ))["record"]
-    bank_expense = service.create_record(_payload(
+    bank_expense = create_import_record(service, _payload(
         account_name="工商银行储蓄卡", amount="-40.00", counterparty="银行扣款",
     ))["record"]
-    refund = service.create_record(_payload(
+    refund = create_import_record(service, _payload(
         account_name="日常账户",
         amount="50.00", record_type="refund", counterparty="商户退款",
         components=[
@@ -121,7 +123,7 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
             {"account_name": "工商银行储蓄卡", "amount": "20.00", "label": "银行卡"},
         ],
     ))["record"]
-    bank_refund = service.create_record(_payload(
+    bank_refund = create_import_record(service, _payload(
         account_name="工商银行储蓄卡", amount="20.00", record_type="refund",
         counterparty="银行退款",
     ))["record"]
@@ -158,7 +160,7 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
     assert first_refund["applied_amount"] == Decimal("30.00")
     assert second_refund["applied_amount"] == Decimal("20.00")
     assert bank_refund_mirror["applied_amount"] == Decimal("20.00")
-    extra_refund = service.create_record(_payload(
+    extra_refund = create_import_record(service, _payload(
         account_name="日常账户", amount="31.00", record_type="refund",
         counterparty="超额退款",
     ))["record"]
@@ -203,18 +205,21 @@ def test_aggregate_parent_can_be_deleted_without_a_single_account(cash_web_runti
     deleted = service.delete_record(str(record["id"]))
     assert deleted["deleted"] is True
     with cash_web_runtime.sessions() as session:
-        assert session.get(CashTransactionModel, record["id"]) is None
+        parent = session.get(CashTransactionModel, record["id"])
+        assert parent is not None and parent.deleted_at is not None and parent.account_id is None
+        assert parent.amount == Decimal("-100.00")
 
 
-def test_component_count_derives_cash_granularity_and_ignores_client_value(cash_web_runtime):
+def test_component_count_derives_cash_granularity_and_rejects_client_value(cash_web_runtime):
     from ft.adapters.relational.models import CashTransactionModel
 
     _enable_cny(cash_web_runtime, "日常账户")
     service = _service(cash_web_runtime)
 
+    with pytest.raises(ValueError):
+        service.create_record(_payload(account_name="日常账户", cash_granularity="aggregate"))
     atomic = service.create_record(_payload(
         account_name="日常账户",
-        cash_granularity="aggregate",
         components=[{"account_name": "日常账户", "amount": "-100.00"}],
     ))["record"]
     assert atomic["cash_granularity"] == "atomic"

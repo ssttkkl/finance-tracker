@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 
 from ft.domain.queries import (
     AccountBalanceDTO,
@@ -30,14 +30,14 @@ class FinanceQueryService:
         snapshots,
         market_data=None,
         valuation=None,
-        relation_projector=None,
+        cash_reporter=None,
     ):
         self._accounts = accounts
         self._transactions = transactions
         self._snapshots = snapshots
         self._market_data = market_data
         self._valuation = valuation
-        self._relation_projector = relation_projector
+        self._cash_reporter = cash_reporter
 
     def list_accounts(self) -> AccountListDTO:
         snapshot = self._snapshots.load_snapshot()
@@ -49,26 +49,18 @@ class FinanceQueryService:
         return AccountListDTO(items)
 
     def report(self, *, month: str | None = None) -> FinanceReportDTO:
-        month_rows = self._transactions.list_transactions(month=month)
-        all_rows = self._transactions.list_transactions()
-        active_accounts = {
-            account.name
-            for account in self._accounts.list_accounts()
-            if account.active
-        }
+        with localcontext() as arithmetic:
+            arithmetic.prec = 80
+            if self._cash_reporter is not None:
+                return FinanceReportDTO(accounts=self.list_accounts(), **self._cash_reporter(month=month))
+            month_rows = [row for row in self._transactions.list_transactions(month=month) if row.get("state", "posted") == "posted" and not row.get("deleted_at") and not row.get("deleted")]
+            all_rows = [row for row in self._transactions.list_transactions() if row.get("state", "posted") == "posted" and not row.get("deleted_at") and not row.get("deleted")]
+            active_accounts = {
+                account.name
+                for account in self._accounts.list_accounts()
+                if account.active
+            }
 
-        # Relation-aware P&L when projector available (ignores legacy offset_* fields).
-        if self._relation_projector is not None and month is None:
-            projected = self._relation_projector()
-            expenses = {
-                currency: _decimal(amount)
-                for currency, amount in (projected.get("expenses") or {}).items()
-            }
-            income = {
-                currency: _decimal(amount)
-                for currency, amount in (projected.get("income") or {}).items()
-            }
-        else:
             by_account: dict[tuple[str, str], list[dict]] = defaultdict(list)
             for row in month_rows:
                 key = (
@@ -99,27 +91,27 @@ class FinanceQueryService:
                 if self._is_external_income(row):
                     income[row.get("currency", "CNY") or "CNY"] += _decimal(row.get("amount"))
 
-        grouped_flows: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
-        for row in all_rows:
-            if row.get("record_type") not in {"transfer_in", "transfer_out"}:
-                continue
-            if row.get("record_type") == "transfer_in":
-                continue
-            note = row.get("note", "")
-            currency = row.get("currency", "CNY") or "CNY"
-            grouped_flows[(note, currency)] += abs(_decimal(row.get("amount")))
-        flows = tuple(
-            FlowDTO(note, currency, amount)
-            for (note, currency), amount in sorted(
-                grouped_flows.items(), key=lambda item: item[1], reverse=True
-            )[:10]
-        )
-        return FinanceReportDTO(
-            accounts=self.list_accounts(),
-            expenses=dict(expenses),
-            income=dict(income),
-            flows=flows,
-        )
+            grouped_flows: dict[tuple[str, str], Decimal] = defaultdict(lambda: Decimal("0"))
+            for row in all_rows:
+                if row.get("record_type") not in {"transfer_in", "transfer_out"}:
+                    continue
+                if row.get("record_type") == "transfer_in":
+                    continue
+                note = row.get("note", "")
+                currency = row.get("currency", "CNY") or "CNY"
+                grouped_flows[(note, currency)] += abs(_decimal(row.get("amount")))
+            flows = tuple(
+                FlowDTO(note, currency, amount)
+                for (note, currency), amount in sorted(
+                    grouped_flows.items(), key=lambda item: item[1], reverse=True
+                )[:10]
+            )
+            return FinanceReportDTO(
+                accounts=self.list_accounts(),
+                expenses=dict(expenses),
+                income=dict(income),
+                flows=flows,
+            )
 
     def list_transactions(
         self,

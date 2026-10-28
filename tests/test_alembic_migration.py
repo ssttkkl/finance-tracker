@@ -48,6 +48,20 @@ def test_repository_has_clean_linear_revisions():
                 "20260917_35_wealth_source_revision.py",
                 "20260920_36_cash_transaction_components.py",
                 "20261018_37_remove_wealth_attribution.py",
+                "20261021_38_cash_record_drafts.py",
+                "20261021_39_cash_source_bindings.py",
+                "20261021_40_cash_mutation_receipts.py",
+                "20261021_41_account_revisions.py",
+                "20261021_42_current_cash_relations.py",
+                "20261021_43_cash_draft_projections.py",
+                "20261021_44_cash_issue_identity.py",
+                "20261021_45_cash_projection_ownership.py",
+                "20261021_46_cash_instance_identity.py",
+                "20261021_47_cash_source_empty_pages.py",
+                "20261021_48_cash_full_refund_visibility.py",
+                "20261023_49_unify_cash_import_receipts.py",
+                "20261023_50_cash_entries.py",
+                "20261028_51_cash_entry_category_index.py",
             ]
 
 
@@ -92,7 +106,8 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
         for column in inspect(engine).get_columns("transaction_relations")
     }
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(relation_columns)
-    assert "candidate_fact_ids" in relation_columns
+    assert {"state", "primary_transaction_id", "anchor_transaction_id", "row_revision"} <= relation_columns
+    assert "candidate_fact_ids" not in relation_columns
 
     # Revision 37 deletes wealth-source snapshots and is intentionally irreversible.
     with pytest.raises(NotImplementedError, match="restore from backup"):
@@ -163,7 +178,8 @@ def test_metadata_uses_enforceable_fact_relationships_post_015():
     assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(
         TransactionRelationModel.__table__.c.keys()
     )
-    assert "candidate_fact_ids" in TransactionRelationModel.__table__.c
+    assert "candidate_fact_ids" not in TransactionRelationModel.__table__.c
+    assert "cash_relation_candidates" in TransactionRelationModel.metadata.tables
     assert "price" not in InvestmentEventModel.__table__.c
     for dead in (
         "source", "bill_source", "transfer_account", "locked",
@@ -344,7 +360,7 @@ def test_counterparty_account_attrs_migration_round_trips_dedicated_postgresql()
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect, text
-    import conftest as test_conftest
+    from tests import conftest as test_conftest
 
     test_conftest._validate_test_postgres_url(url)
     root = Path(__file__).parents[1]
@@ -710,7 +726,7 @@ def test_initial_revision_upgrades_dedicated_postgresql():
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, inspect
-    import conftest as test_conftest
+    from tests import conftest as test_conftest
 
     root = Path(__file__).parents[1]
     config = Config(str(root / "alembic.ini"))
@@ -753,13 +769,15 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             rel_cols = {c["name"] for c in inspect(engine).get_columns("transaction_relations")}
             assert {
                 "primary_component_id", "secondary_component_id",
-                "ordered_component_a", "ordered_component_b", "anchor_component_id",
+                "primary_transaction_id", "secondary_transaction_id", "anchor_component_id",
+                "anchor_transaction_id", "state", "active", "row_revision",
             } <= rel_cols
             assert {
                 "primary_fact_id", "secondary_fact_id",
                 "ordered_fact_a", "ordered_fact_b", "anchor_fact_id",
             }.isdisjoint(rel_cols)
-            assert "candidate_fact_ids" in rel_cols
+            assert "candidate_fact_ids" not in rel_cols
+            assert "cash_relation_candidates" in tables
             assert {"evidence_json", "confidence", "later_marker"}.isdisjoint(rel_cols)
             # The current head removes wealth-attribution source snapshots and results.
             # Downgrading across it must require a backup restore.
