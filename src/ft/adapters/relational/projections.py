@@ -512,14 +512,21 @@ class RelationalCashProjectionRepository:
             return {}
         result = {}
         for batch in _batches(sorted({int(value) for value in transaction_ids})):
-            rows = self._session.execute(select(CashProjectionMemberModel.cash_transaction_id,
-                CashProjectionModel.projection_id, CashProjectionModel.attention_count).join(CashProjectionModel, and_(
-                    CashProjectionModel.workspace_id == CashProjectionMemberModel.workspace_id,
-                    CashProjectionModel.dataset_id == CashProjectionMemberModel.dataset_id,
-                    CashProjectionModel.id == CashProjectionMemberModel.projection_row_id)).where(
-                        CashProjectionMemberModel.workspace_id == self._workspace_id,
-                        CashProjectionMemberModel.dataset_id == state.active_dataset_id,
-                        CashProjectionMemberModel.cash_transaction_id.in_(batch)))
+            members = select(CashProjectionMemberModel.cash_transaction_id,
+                CashProjectionMemberModel.projection_row_id).where(
+                    CashProjectionMemberModel.workspace_id == self._workspace_id,
+                    CashProjectionMemberModel.dataset_id == state.active_dataset_id,
+                    CashProjectionMemberModel.cash_transaction_id.in_(batch)).cte("reference_members").prefix_with(
+                        "MATERIALIZED", dialect="postgresql")
+            projections = select(CashProjectionModel.id, CashProjectionModel.workspace_id, CashProjectionModel.dataset_id,
+                CashProjectionModel.projection_id, CashProjectionModel.attention_count).where(
+                    CashProjectionModel.id.in_(select(members.c.projection_row_id))).cte("reference_projections").prefix_with(
+                        "MATERIALIZED", dialect="postgresql")
+            rows = self._session.execute(select(members.c.cash_transaction_id,
+                projections.c.projection_id, projections.c.attention_count).join(projections,
+                    projections.c.id == members.c.projection_row_id).where(
+                        projections.c.workspace_id == self._workspace_id,
+                        projections.c.dataset_id == state.active_dataset_id))
             result.update((str(row.cash_transaction_id), {"transaction_id": str(row.cash_transaction_id),
                 "projection_id": row.projection_id, "attention_count": row.attention_count}) for row in rows)
         return result

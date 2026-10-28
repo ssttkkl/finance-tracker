@@ -313,3 +313,98 @@ def test_cleanup_exception_never_authorizes_partial_groups_or_confirmation(relat
             updates = [replace(edge, state="confirmed") if edge.active else edge for edge in updates]
         with pytest.raises(CashRelationError):
             service.validate(context, updates=updates, cleanup_group_ids={"joint"})
+
+
+def test_context_reads_components_and_funding_in_one_query(relation_context_runtime):
+    runtime = relation_context_runtime
+    engine = runtime.sessions.kw['bind']
+    queries = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if 'FROM cash_transaction_components' in statement or 'FROM cash_investment_funding_relations' in statement:
+            queries.append(statement)
+    event.listen(engine, 'before_cursor_execute', capture)
+    try:
+        with runtime.sessions() as session:
+            context = CashRelationGraphService(session, runtime.workspace_id).load({1101, 1102})
+            assert {part.component_id for part in context.components} == {'6101', '6102'}
+    finally:
+        event.remove(engine, 'before_cursor_execute', capture)
+    assert len(queries) == 1
+    assert 'LEFT OUTER JOIN cash_investment_funding_relations' in queries[0]
+
+
+def test_relation_origin_uses_complete_parents_already_read_in_same_call(relation_context_runtime):
+    runtime = relation_context_runtime
+    engine = runtime.sessions.kw['bind']
+    queries = []
+    def capture(conn, cursor, statement, parameters, context, executemany):
+        if 'FROM cash_transactions ' in statement:
+            queries.append(statement)
+    with runtime.sessions.begin() as session:
+        event.listen(engine, 'before_cursor_execute', capture)
+        try:
+            _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1102)
+        finally:
+            event.remove(engine, 'before_cursor_execute', capture)
+    assert len(queries) == 1
+
+
+def test_context_preserves_unfunded_components_and_all_active_funding(relation_context_runtime):
+    from ft.adapters.relational.cash_relation_context import RelationalCashRelationContextRepository
+    from ft.adapters.relational.models import CashInvestmentFundingRelationModel, InvestmentEventModel
+
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        parent = session.get(CashTransactionModel, 1101)
+        parent.account_id, parent.cash_granularity = None, "aggregate"
+        session.get(CashTransactionComponentModel, 6101).amount = Decimal("-20")
+        session.add_all([
+            CashTransactionComponentModel(id=7101, workspace_id=runtime.workspace_id,
+                cash_transaction_id=1101, account_id=102, amount=Decimal("-30"), currency="CNY", ordinal=1),
+            CashTransactionComponentModel(id=7102, workspace_id=runtime.workspace_id,
+                cash_transaction_id=1101, account_id=102, amount=Decimal("-50"), currency="CNY", ordinal=2),
+        ])
+        session.flush()
+        funding = []
+        for component, status, slot in ((7101, "accepted", "active"), (6101, "accepted", "active"),
+                (7102, "rejected", "old")):
+            investment = InvestmentEventModel(workspace_id=runtime.workspace_id, account_id=103,
+                record_type="funding", record_subtype="external", currency="CNY",
+                occurred_at=datetime(2026, 1, 1, tzinfo=timezone.utc), payload={}, to_amount=Decimal("100"))
+            session.add(investment)
+            session.flush()
+            row = CashInvestmentFundingRelationModel(workspace_id=runtime.workspace_id,
+                cash_transaction_component_id=component, investment_event_id=investment.id,
+                direction="cash_to_investment", status=status, active_slot=slot, rule_id="fixture")
+            session.add(row)
+            session.flush()
+            funding.append(row)
+        context = RelationalCashRelationContextRepository(session, runtime.workspace_id).read({1101})
+        assert [part.component_id for part in context["components"]] == ["6101", "7101", "7102"]
+        assert context["funding_component_ids"] == {"6101", "7101"}
+        assert [row[0] for row in context["funding_versions"]] == [row.id for row in funding[:2]]
+        assert context["facts"][0].funding_relation_id == funding[0].id
+        assert len(context["component_versions"]) == 3
+
+
+def test_context_component_query_keeps_every_parent_across_batch_boundary(relation_context_runtime):
+    from ft.adapters.relational.cash_relation_context import RelationalCashRelationContextRepository
+
+    runtime = relation_context_runtime
+    identifiers = set(range(10000, 10501))
+    with runtime.sessions.begin() as session:
+        session.add_all(CashTransactionModel(id=identifier, workspace_id=runtime.workspace_id,
+            account_id=101, amount=Decimal("-1"), currency="CNY",
+            occurred_at=datetime(2026, 1, 1, tzinfo=timezone.utc), record_type="consumption",
+            record_subtype="not_applicable", source_type="context-fixture", record_id=str(identifier))
+            for identifier in identifiers)
+        session.flush()
+        session.add_all(CashTransactionComponentModel(id=identifier + 10000,
+            workspace_id=runtime.workspace_id, cash_transaction_id=identifier, account_id=101,
+            amount=Decimal("-1"), currency="CNY", ordinal=0) for identifier in identifiers)
+        session.flush()
+        context = RelationalCashRelationContextRepository(session, runtime.workspace_id).read(identifiers)
+        assert context["transaction_ids"] == identifiers
+        assert {part.component_id for part in context["components"]} == {str(key + 10000) for key in identifiers}
+        assert len(context["component_versions"]) == 501
+        assert context["funding_versions"] == ()

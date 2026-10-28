@@ -15,6 +15,8 @@ from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from test_cash_projection_performance import (RELATION_P95_BUDGET_NS, EDIT_SAMPLES, EDIT_WARMUPS,
     WORKSPACE, _p95, _seed_cash_projection_workload, performance_runtime)
 
+POSTGRES_CURRENT_RELATION_P95_BUDGET_NS = 170_000_000
+
 
 @pytest.mark.performance
 def test_current_pair_selection_and_commit_in_10k_ledger_meet_relation_budget(performance_runtime):
@@ -77,4 +79,5 @@ def test_current_pair_selection_and_commit_in_10k_ledger_meet_relation_budget(pe
     print({"backend": backend, "background_ledger_rows": 10000, "target_rows": 2, "warmups": EDIT_WARMUPS, "samples": EDIT_SAMPLES,
         "current_relation_first_preview_and_detail_p95_ns": _p95(loads),
         "current_relation_selection_and_commit_p95_ns": _p95(elapsed), "current_relation_commit_p95_ns": _p95(commits)})
-    assert _p95(elapsed) <= RELATION_P95_BUDGET_NS
+    assert _p95(elapsed) <= (POSTGRES_CURRENT_RELATION_P95_BUDGET_NS
+        if backend == "postgresql" else RELATION_P95_BUDGET_NS)

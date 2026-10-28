@@ -1,7 +1,7 @@
 """按父流水及明确决定组读取最终图输入，不加载来源正文。"""
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import and_, bindparam, select
 
 from ft.domain.cash_projection import CashProjectionError, CashProjectionFact
 from ft.domain.cash_relation_graph import CashRelationGraphEdge, JointRelationMember
@@ -14,6 +14,18 @@ from .models import CashInvestmentFundingRelationModel, CashTransactionComponent
 
 _PARENT_FIELDS = ("id", "row_revision", "state", "deleted_at", "account_id", "cash_granularity", "amount", "currency",
     "occurred_at", "record_type", "record_subtype", "counterparty", "category_id", "note", "source_type", "record_id")
+
+_COMPONENT_FIELDS = ('id', 'cash_transaction_id', 'account_id', 'amount', 'currency', 'ordinal')
+_FUNDING_FIELDS = ('id', 'cash_transaction_component_id', 'investment_event_id', 'direction')
+_COMPONENT_FUNDING_QUERY = select(
+    *(getattr(CashTransactionComponentModel, key) for key in _COMPONENT_FIELDS),
+    *(getattr(CashInvestmentFundingRelationModel, key).label('funding_' + key) for key in _FUNDING_FIELDS),
+).outerjoin(CashInvestmentFundingRelationModel, and_(
+    CashInvestmentFundingRelationModel.workspace_id == bindparam('context_workspace'),
+    CashInvestmentFundingRelationModel.cash_transaction_component_id == CashTransactionComponentModel.id,
+    CashInvestmentFundingRelationModel.status == 'accepted', CashInvestmentFundingRelationModel.active_slot == 'active',
+)).where(CashTransactionComponentModel.workspace_id == bindparam('context_workspace'),
+    CashTransactionComponentModel.cash_transaction_id.in_(bindparam('context_parents', expanding=True)))
 
 
 class RelationalCashRelationContextRepository:
@@ -54,22 +66,13 @@ class RelationalCashRelationContextRepository:
         ordered = tuple(rows[key] for key in sorted(rows))
         attention = read_cash_attention(self._session, self._workspace_id, parents, relation_rows=ordered)
         formal = {identifier: parent for identifier, parent in parents.items() if parent["state"] == "posted" and parent["deleted_at"] is None}
-        component_rows = {}
+        component_rows, funding = {}, {}
         for batch in _batches(sorted(parents)):
-            for row in self._session.execute(select(CashTransactionComponentModel.id, CashTransactionComponentModel.cash_transaction_id,
-                CashTransactionComponentModel.account_id, CashTransactionComponentModel.amount, CashTransactionComponentModel.currency,
-                CashTransactionComponentModel.ordinal).where(
-                    CashTransactionComponentModel.workspace_id == self._workspace_id,
-                    CashTransactionComponentModel.cash_transaction_id.in_(batch))).mappings():
-                component_rows[row["id"]] = dict(row)
-        funding = {}
-        for batch in _batches(sorted(component_rows)):
-            for row in self._session.execute(select(CashInvestmentFundingRelationModel.id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id, CashInvestmentFundingRelationModel.investment_event_id,
-                CashInvestmentFundingRelationModel.direction).where(CashInvestmentFundingRelationModel.workspace_id == self._workspace_id,
-                    CashInvestmentFundingRelationModel.cash_transaction_component_id.in_(batch), CashInvestmentFundingRelationModel.status == "accepted",
-                    CashInvestmentFundingRelationModel.active_slot == "active")).mappings():
-                funding[row["id"]] = dict(row)
+            for row in self._session.execute(_COMPONENT_FUNDING_QUERY,
+                {'context_workspace': self._workspace_id, 'context_parents': batch}).mappings():
+                component_rows[row['id']] = {key: row[key] for key in _COMPONENT_FIELDS}
+                if row['funding_id'] is not None:
+                    funding[row['funding_id']] = {key: row['funding_' + key] for key in _FUNDING_FIELDS}
         funding_by_parent = {}
         for row in sorted(funding.values(), key=lambda value: value["id"]):
             funding_by_parent.setdefault(component_rows[row["cash_transaction_component_id"]]["cash_transaction_id"], row["id"])

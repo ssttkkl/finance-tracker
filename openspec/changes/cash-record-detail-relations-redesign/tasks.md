@@ -31,7 +31,7 @@
 ## 7. 发布与文档收尾
 
 - [x] 7.1 同步功能地图、现金流水和设计交接；核对主规格／词表／README／技能。
-- [x] 7.2 最新演示和截图已更新；用户授权本地提交到 average-snail，不推送、不部署。本次为已验证的前端小步交付，不归档整个 A 类变更。
+- [x] 7.2 最新演示和截图已更新；用户授权提交并推送到 origin/average-snail，不部署。本次为已验证的前端小步交付，不归档整个 A 类变更。
 
 ## 8. 反思
 
@@ -39,7 +39,7 @@
 
 ## 当前范围与验证证据
 
-2026-10-28 17:22 CST，分支 average-snail；提交前 HEAD／比较基线 c8032531124024108b7687179aaa5c5c5b904b98，本节对应本次前端提交的工作树。Node v26.8.1，OpenSpec 1.7.0。文件名修复的 Python／测试和旧 web/package-lock.json 属于其他工作，未纳入提交；原型及截图不提交。
+2026-10-28 17:31 CST，分支 average-snail。前端提交 bf578be 的比较基线为 c8032531124024108b7687179aaa5c5c5b904b98；推送前合并远端 5558766，运行时预检 HEAD 为 8b19c250725149d0fcaf2b2670cbaba1e30fe52a，之后仅更新本节交付记录。Node v26.8.1，OpenSpec 1.7.0。文件名修复的 Python／测试和旧 web/package-lock.json 属于其他工作，未纳入提交；原型及截图不提交。
 
 Cross-platform Impact Check：共享展示、状态、资源和语义同时影响 Web、Android、iOS，无平台分叉。账本行仅增加弹窗复用所需的选择／只读参数，默认入口不变；顶部摘要、编辑、模态外框及手势不变。后端、domain/data、持久化、财务规则及依赖不变。Web 使用 Chromium，代表视口 1440 × 900／1000、390 × 1000；Native 仅编译及 host 单测，未执行设备 QA。真实数据库不迁移、不写入，现有 API 沿用已运行实例；浏览器测试拦截全部财务写入并使用合成响应。
 
@@ -51,6 +51,7 @@ Cross-platform Impact Check：共享展示、状态、资源和语义同时影�
 | node --test compose/tools/compose-resources.node-test.mjs | 既有中文源码扫描失败；提取 HEAD 的基线同样失败，涉及注释、演示 fixture 及原有原文字段名判断。本轮无新增硬编码用户文案；四种资源键、格式参数及中文副本一致性另验通过。/tmp/cash-fix-resources.log、/tmp/cash-suggestion-resource-baseline.log。清理扫描基线或修改规则后须补跑完整命令，不宣称此命令通过。 |
 | openspec validate cash-record-detail-relations-redesign --strict | 通过 |
 | git diff --check、文档链接及范围复核 | 通过；提交前复核暂存范围，排除其他功能 |
+| 推送前合并验证 | git merge --no-edit origin/average-snail 无冲突，前端 compose/ 与 bf578be 逐字节相同；重跑上述共享 Gradle 命令成功（缓存有效）。PYTHONPATH=tests:.:src uv run pytest -q tests/contract/test_cash_current_relation_plan.py tests/contract/test_cash_relation_context.py tests/contract/test_cash_projection_graph_reads.py tests/contract/test_cash_import_plan_lifetime.py tests/test_cash_hotpath_equivalence.py tests/test_cash_import_posting_validation.py tests/test_cash_import_readable_equivalence.py tests/test_json_budget_equivalence.py -k 'not postgres'：852 passed、75 deselected，未运行 PostgreSQL，不将 deselected 计通过；/tmp/cash-push-merge-backend.log、/tmp/cash-push-merge-compose.log。合并前后未提交的五个无关文件保持原样。 |
 | 最新演示 | FT_COMPOSE_PREVIEW_PORT=5188 FT_API_PROXY_ORIGIN=http://127.0.0.1:8002 node compose/qa/web/scripts/start-compose-demo.mjs；freshness 核验、构建及重启通过，http://127.0.0.1:5188/；/tmp/cash-fix-final-demo.log |
 
 Web 覆盖 0／1／多备选、只读方案、保留选择返回、冲突清空后再次返回、主动添加、退款退回类型锁定、转账细分选择、联合方案禁止替换、拒绝取消与一次确认、移除有／无差异及切换继承、明细缺失、修订失效、结果未知及原键核实、多现金部分和无关组冲突隔离。正常路径断言无控制台／静态资源／意外请求错误；结果未知分支刻意中断 commit 请求，不把预期失败冒充正常网络。
@@ -78,4 +79,4 @@ Web 覆盖 0／1／多备选、只读方案、保留选择返回、冲突清空�
 
 文档收尾：现金流水、设计交接及 F-04 功能地图同步当前状态，页面数不变、Native 共享覆盖及设备未验证范围保留；当前合同写入 change delta，主规格在归档前同步。不新增领域概念，DOMAIN_GLOSSARY 不改；README 无新入口、配置或命令变化。openspec-apply-change 技能补充完整方案、返回目标、保存后结果及单次最终确认检查。
 
-回滚：恢复本次共享展示／状态及资源，不撤销已保存关系、不改原文、不迁移数据库。提交不代表推送、部署或归档；联合方案替换规则及整个 A 类后端最终验收保持明确边界。
+回滚：恢复本次共享展示／状态及资源，不撤销已保存关系、不改原文、不迁移数据库。推送不代表部署或归档；联合方案替换规则及整个 A 类后端最终验收保持明确边界。

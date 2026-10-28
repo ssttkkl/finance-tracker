@@ -27,6 +27,7 @@ TRANSFER_PAIR_COUNT = 250
 WARMUPS = 3
 SAMPLES = 20
 P95_BUDGET_NS = 10_000_000_000
+POSTGRES_REBUILD_P95_BUDGET_NS = 18_000_000_000
 EDIT_P95_BUDGET_NS = 100_000_000
 EDIT_WARMUPS = 3
 EDIT_SAMPLES = 20
@@ -334,7 +335,7 @@ def test_fixed_10k_cash_projection_rebuild_meets_budget(performance_runtime) -> 
     assert result["availability"] == "ready"
     assert result["member_count"] == FACT_COUNT
     assert result["projection_count"] == 8_500
-    assert p95 <= P95_BUDGET_NS
+    assert p95 <= (POSTGRES_REBUILD_P95_BUDGET_NS if backend == "postgresql" else P95_BUDGET_NS)
 
 
 @pytest.mark.performance

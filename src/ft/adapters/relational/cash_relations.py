@@ -5,7 +5,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import json
 
-from sqlalchemy import and_, bindparam, case, delete, literal, select, union, update
+from sqlalchemy import and_, bindparam, case, delete, literal, select, union, union_all, update
 
 from ft.domain.cash_relation_policy import CashRelationError, RelationEndpoint, validate_relation_roles
 from ft.domain.decimal import exact_decimal
@@ -59,6 +59,35 @@ def _graph_rows_query():
 
 
 _GRAPH_ROWS_QUERY = _graph_rows_query()
+
+
+def _postgres_closure_query():
+    workspace = bindparam("closure_workspace")
+    reachable = select(CashTransactionModel.id.label("node")).where(
+        CashTransactionModel.workspace_id == workspace,
+        CashTransactionModel.id.in_(bindparam("closure_seeds", expanding=True))).cte("current_relation_closure", recursive=True)
+    relations = TransactionRelationModel.__table__
+    directions = [select(neighbour.label("node")).where(
+        relations.c.workspace_id == workspace, relations.c.active.is_(True),
+        relations.c.state == "confirmed", endpoint == reachable.c.node,
+        neighbour.is_not(None)).correlate(reachable) for endpoint, neighbour in (
+            (relations.c.primary_transaction_id, relations.c.secondary_transaction_id),
+            (relations.c.secondary_transaction_id, relations.c.primary_transaction_id))]
+    neighbours = union_all(*directions).offset(0).lateral("neighbours")
+    reachable = reachable.union(select(neighbours.c.node).select_from(reachable.join(neighbours, literal(True))))
+    return select(reachable.c.node)
+
+
+def _direct_graph_rows_query():
+    workspace, ids = bindparam("graph_workspace"), bindparam("graph_parent_ids", expanding=True)
+    return union_all(*(select(*(getattr(TransactionRelationModel, key) for key in _GRAPH_FIELDS)).where(
+        TransactionRelationModel.workspace_id == workspace, TransactionRelationModel.active.is_(True),
+        endpoint.in_(ids)) for endpoint in (TransactionRelationModel.primary_transaction_id,
+            TransactionRelationModel.secondary_transaction_id, TransactionRelationModel.anchor_transaction_id)))
+
+
+_POSTGRES_CLOSURE_QUERY = _postgres_closure_query()
+_POSTGRES_GRAPH_ROWS_QUERY = _direct_graph_rows_query()
 
 
 def _batches(values):
@@ -156,7 +185,8 @@ class CurrentCashRelationRepository:
     def graph_rows_for_transactions(self, transaction_ids):
         rows = {}
         for batch in _batches(sorted({_id(value) for value in transaction_ids})):
-            current = self._session.execute(_GRAPH_ROWS_QUERY,
+            query = _POSTGRES_GRAPH_ROWS_QUERY if self._session.bind.dialect.name == "postgresql" else _GRAPH_ROWS_QUERY
+            current = self._session.execute(query,
                 {"graph_workspace": self._workspace_id, "graph_parent_ids": batch}).mappings()
             rows.update((row["id"], dict(row)) for row in current if row["active"])
         return tuple(rows[key] for key in sorted(rows))
@@ -211,7 +241,8 @@ class CurrentCashRelationRepository:
             seeds = set(batch) - result
             if not seeds:
                 continue
-            result.update(self._session.scalars(_CONFIRMED_CLOSURE_QUERY,
+            query = _POSTGRES_CLOSURE_QUERY if self._session.bind.dialect.name == "postgresql" else _CONFIRMED_CLOSURE_QUERY
+            result.update(self._session.scalars(query,
                 {"closure_workspace": self._workspace_id, "closure_seeds": sorted(seeds)}))
         return result
 
@@ -265,8 +296,8 @@ class CurrentCashRelationRepository:
             or result["anchor_component_id"] is not None and result["anchor_component_id"] not in {result["primary_component_id"], result["secondary_component_id"]}):
             raise CashRelationError("relation_endpoint_incompatible")
         if result["active"] and result["state"] != "ignored":
-            from ft.adapters.relational.cash_relation_origin import assert_relation_origin
-            assert_relation_origin(self._session, self._workspace_id, parents, kind=result["kind"])
+            from ft.adapters.relational.cash_relation_origin import _assert_loaded_relation_origin
+            _assert_loaded_relation_origin(parents.values(), kind=result["kind"])
         if result["state"] == "confirmed" and result["active"]:
             endpoints = []
             for role in ("primary", "secondary"):

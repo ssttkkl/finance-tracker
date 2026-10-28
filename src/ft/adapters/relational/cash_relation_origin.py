@@ -10,6 +10,11 @@ def assert_relation_origin(session, workspace_id, identifiers, *, kind=None):
         CashTransactionModel.workspace_id == workspace_id, CashTransactionModel.id.in_(ids))))
     if len(rows) != len(ids):
         raise CashRelationError('relation_endpoint_incomplete')
+    _assert_loaded_relation_origin(rows, kind=kind)
+
+
+def _assert_loaded_relation_origin(rows, *, kind=None):
+    rows = tuple(rows)
     if any(row.record_origin == 'manual' for row in rows):
         raise CashRelationError('manual_relation_forbidden')
     transfers = [row for row in rows if row.record_origin == 'manual_transfer']

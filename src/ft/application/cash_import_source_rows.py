@@ -53,6 +53,7 @@ def source_rows(file, *, resolved_fields=None):
     if file.is_subset:
         document = replace(document, coverage=replace(document.coverage, complete=False, evidence=""))
     result = {}
+    file_scopes = {}
     for row in document.rows:
         if row.disposition == "skipped" or row.fields is None:
             continue
@@ -60,10 +61,21 @@ def source_rows(file, *, resolved_fields=None):
             values = copy_value(row.fields)
             values.update(copy_value((resolved_fields or {}).get(row.position, {})))
             scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier, scope_label=file.source_scope_label)
-            result[f"{file.file_ref}:r{row.position}"] = SourceOccurrence(
+            occurrence = SourceOccurrence(
                 source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
                 parser_version=document.parser_version, table_key=document.table_key, position=row.position,
                 fields=values, coverage=document.coverage, provider_id=row.provider_id,
                 document_position=row.document_position,
             )
+            identity = (occurrence.source_type, occurrence.source_account_key,
+                occurrence.file_digest, occurrence.parser_version)
+            if all(value is None or type(value) is str for value in identity):
+                cached = file_scopes.get(identity)
+                if cached is None:
+                    cached = occurrence.file_scope_key
+                    if len(file_scopes) < 128:
+                        file_scopes[identity] = cached
+                else:
+                    occurrence.__dict__["file_scope_key"] = cached
+            result[f"{file.file_ref}:r{row.position}"] = occurrence
     return result

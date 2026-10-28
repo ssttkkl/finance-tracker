@@ -214,3 +214,38 @@ def test_reader_rejects_incompatible_persisted_type_without_reclassifying_it(dra
         with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
             RelationalCashProjectionRepository(session, runtime.workspace_id).read_sources()
         assert parent.record_type == "other"
+
+
+def test_directional_relation_reads_keep_cycles_drafts_and_inactive_boundaries(draft_runtime):
+    runtime = draft_runtime
+    facts = tuple(replace(_fact(1, '-100'), id=identifier) for identifier in range(1, 5))
+    parts = tuple(_component(identifier, identifier, '-100', 'consumption') for identifier in range(1, 5))
+    edges = tuple(_edge(index, 'payment_mirror', first, second, amount='100')
+        for index, (first, second) in enumerate(((1, 2), (2, 3), (3, 1), (3, 4), (4, 1)), 1))
+    saved = _persist(runtime, facts, parts, edges)
+    with runtime.sessions.begin() as session:
+        repo = CurrentCashRelationRepository(session, runtime.workspace_id)
+        repo.replace(saved[3]['id'], {'state': 'draft'}, expected_revision=1)
+        repo.replace(saved[4]['id'], {'active': False}, expected_revision=1)
+        assert repo.confirmed_closure({2, 4}) == {1, 2, 3, 4}
+        assert repo.confirmed_closure({4}) == {4}
+        assert {row['id'] for row in repo.graph_rows_for_transactions({4})} == {saved[3]['id']}
+        assert len(repo.graph_rows_for_transactions({1, 2, 3, 4})) == 4
+        foreign = CurrentCashRelationRepository(session, 'unrelated-workspace')
+        assert foreign.confirmed_closure({1, 2, 3}) == set()
+        assert foreign.graph_rows_for_transactions({1, 2, 3}) == ()
+
+
+def test_current_references_keep_workspace_dataset_and_batch_boundaries(draft_runtime):
+    from types import SimpleNamespace
+    runtime = draft_runtime
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions.begin() as session:
+        repo = RelationalCashProjectionRepository(session, runtime.workspace_id)
+        state = repo.require_ready_state_lock()
+        identifiers = set(range(90000, 90501)) | {1001, 1002, 1003}
+        references = repo.current_references(identifiers, state=state)
+        assert set(references) == {'1001', '1002', '1003'}
+        assert references == repo.current_references({1001, 1002, 1003}, state=state)
+        assert repo.current_references(identifiers, state=SimpleNamespace(active_dataset_id='unrelated-dataset')) == {}
+        assert RelationalCashProjectionRepository(session, 'unrelated-workspace').current_references(identifiers, state=state) == {}

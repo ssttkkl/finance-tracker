@@ -25,6 +25,8 @@ CASH_SOURCE_IDENTITY_FIELDS = frozenset({
     "record_id", "source_type", "source_scope_key", "source_account_key", "record_origin", "manual_transfer_id",
 })
 COMMON_CASH_FIELDS = frozenset({"category_id", "note", "counterparty", "counterparty_account", "counterparty_account_attrs"})
+_RECOGNIZED_FIELDS = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS
+_NONE_INVALID_FIELDS = frozenset({"counterparty", "counterparty_account", "note", "cash_granularity", "components", "counterparty_account_attrs"})
 _TEXT_FIELDS = frozenset({"counterparty", "counterparty_account", "note"})
 _COMPONENT_SCALARS = frozenset({str, int, bool, float, Decimal, type(None)})
 
@@ -170,7 +172,7 @@ def prepare_cash_record_update(
     state = current.get("state", "posted")
     if state not in {"draft", "posted"}:
         raise CashRecordPolicyError("invalid_state", ("state",))
-    recognized = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS
+    recognized = _RECOGNIZED_FIELDS
     unknown = tuple(sorted(set(patch) - recognized))
     if unknown:
         raise CashRecordPolicyError("field_not_editable", unknown)
@@ -215,7 +217,9 @@ def prepare_cash_record_update(
     changed = {}
     for field, value in effective.items():
         try:
-            unchanged = _normalize(field, current.get(field)) == value
+            previous = current.get(field)
+            unchanged = (False if previous is None and type(current) is dict and type(field) is str
+                and field in _NONE_INVALID_FIELDS else _normalize(field, previous) == value)
         except (ValueError, TypeError, ArithmeticError):
             unchanged = False
         if not unchanged:

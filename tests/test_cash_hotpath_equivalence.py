@@ -174,3 +174,73 @@ def test_non_document_known_evidence_uses_provider_path(monkeypatch):
     result = module.resolve_source_batch({'a:r1': row}, (),
         known_document_coverages=(SourceDocumentEvidence(row.source_type, row.parser_version, row.coverage),))
     assert result.rows[0].action == 'new'
+
+
+def test_wire_does_not_reenter_exact_empty_containers(monkeypatch):
+    import ft.application.cash_import_operations as module
+    original, calls = module._wire_in_place, []
+    def counted(value):
+        calls.append(value)
+        return original(value)
+    monkeypatch.setattr(module, '_wire_in_place', counted)
+    empty_tuple = ()
+    value = [{'dict': {}, 'list': [], 'tuple': empty_tuple} for _ in range(100)]
+    result = counted(value)
+    assert result is value and all(row == {'dict': {}, 'list': [], 'tuple': []} for row in result)
+    assert len({id(row['tuple']) for row in result}) == 100
+    assert len(calls) == 101
+
+
+def test_source_rows_reuses_only_file_scope_digest_within_file(monkeypatch):
+    import ft.application.cash_import_source_rows as module
+    import ft.domain.cash_source_matching as matching
+    original, calls = matching._digest, []
+    def counted(*values):
+        calls.append(values)
+        return original(*values)
+    monkeypatch.setattr(matching, '_digest', counted)
+    file = _file(methods=('余额',) * 20)
+    rows = module.source_rows(file)
+    keys = [row.file_scope_key for row in rows.values()]
+    assert len(set(keys)) == 1 and len(calls) == 1
+    module.source_rows(file)
+    assert len(calls) == 2
+
+
+def test_wire_empty_container_retains_custom_key_assignment_protocol():
+    from ft.application.cash_import_operations import _wire_in_place
+    calls = []
+    class Key:
+        def __hash__(self):
+            calls.append('hash')
+            return 1
+    key = Key()
+    value = {key: {}}
+    calls.clear()
+    assert _wire_in_place(value) is value
+    assert calls == ['hash']
+
+
+@pytest.mark.parametrize('error', [ValueError, TypeError, ArithmeticError])
+def test_current_mapping_get_error_keeps_original_change_semantics(error):
+    from collections import UserDict
+    from ft.domain.cash_record_policy import prepare_cash_record_update
+    class Current(UserDict):
+        def get(self, key, default=None):
+            if key == 'note':
+                raise error('internal')
+            return super().get(key, default)
+    assert prepare_cash_record_update(Current(state='draft'), {'note': 'value'}).values == {'note': 'value'}
+
+
+@pytest.mark.parametrize('source', ['wechat', 'alipay'])
+def test_file_scope_reuse_preserves_digest_for_row_specific_accounts(source):
+    from ft.application.cash_import_source_rows import source_rows
+    from ft.domain.cash_source_matching import _digest
+    file = _file(source=source, methods=('余额',) * 3)
+    file = replace(file, document=replace(file.document, rows=tuple(replace(row,
+        source_account_identifier=str(index)) for index, row in enumerate(file.document.rows))))
+    for occurrence in source_rows(file).values():
+        identity = (occurrence.source_type, occurrence.source_account_key, occurrence.file_digest, occurrence.parser_version) if source == 'wechat' else (
+            occurrence.source_type, occurrence.file_digest, occurrence.parser_version)
+        assert occurrence.file_scope_key == _digest(*identity)

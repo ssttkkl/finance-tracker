@@ -22,7 +22,8 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
         current_records = {str(row.id): row}
         patch = preview_input["patch"]
         from ft.adapters.relational.cash_entries import CashEntryRepository
-        entry = CashEntryRepository(session, self.workspace_id).current(row.id)
+        entry = (CashEntryRepository(session, self.workspace_id).current(row.id)
+            if intent == "edit_entry" or preview_input.get("member_patches") else None)
         if intent == "edit_entry" and (entry is None or entry.id != preview_input["entry_id"]
             or entry.revision != preview_input["expected_entry_revision"]):
             raise CashRecordPolicyError("entry_changed", ())

@@ -29,7 +29,7 @@ def entry_target(snapshot, parents, index):
     old_edges = {key for parent in parents for key in index["old_edges"][parent]}
     dependencies = {key: value for parent in parents for key, value in index["dependencies"][parent].items()}
     def selected(kind, keys):
-        return [value for _order, value in sorted(index[kind][key] for key in keys if key in index[kind])]
+        return [value for _order, value in sorted(index[kind][key] for key in keys if key in index[kind])] or ()
     target = {
         "parent_ids": parents,
         "members": [{"row_refs": list(snapshot.parent_ops[parent]["row_refs"])}
@@ -37,9 +37,9 @@ def entry_target(snapshot, parents, index):
         "rows": selected("rows", parents),
         "entries": selected("entries", parents),
         "relations": selected("relations", old_edges),
-        "relation_dependencies": [value for _order, value in sorted(dependencies.values())],
+        "relation_dependencies": [value for _order, value in sorted(dependencies.values())] or (),
         "final_edges": [asdict(snapshot.edges[key]) for key in sorted(
-            {key for parent in parents for key in snapshot.incident[parent]})],
+            {key for parent in parents for key in snapshot.incident[parent]})] or (),
     }
     return "ie_" + _digest("cash-import-entry-v1", target), target
 
