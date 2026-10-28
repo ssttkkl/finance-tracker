@@ -11,7 +11,7 @@
 | 用户流程 | 保留统一核对、默认决定、后续补充及退出恢复合同 | 第 2 节；客户端完成状态见功能地图 |
 | HTTP | 解释请求、修订、分页、结果及安全恢复语义 | 第 3 节；精确结构以运行服务 `/openapi.json` 及路由协议模型为准 |
 | 数据 | 说明持久化对象、空值、引用及唯一性约束 | 第 4 节；物理结构以 ORM 和 Alembic 为准 |
-| 验证 | 示例与后续 UI 验收范围 | 第 5–6 节；实际证据见 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) |
+| 验证 | 示例与后续 UI 验收范围 | 第 5–6 节；实际证据见 [实施变更](../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |
 
 本文不重复实施顺序、审查日志或迁移操作手册。纯文档整理不改变业务规则、接口、数据或主规格。
 
@@ -853,7 +853,7 @@ erDiagram
 
 ## 6. 验证与后续 UI 范围
 
-第 5 节是说明合同的示例，不能直接当作完整请求或已通过测试的证明。真实响应以运行服务 OpenAPI 为准，后端双数据库、迁移、性能、私有账单及故障恢复证据统一保留在 [实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。
+第 5 节是说明合同的示例，不能直接当作完整请求或已通过测试的证明。真实响应以运行服务 OpenAPI 为准，后端双数据库、迁移、性能、私有账单及故障恢复证据统一保留在 [实施变更](../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md)。
 
 后续独立 UI 任务仍须验证：
 

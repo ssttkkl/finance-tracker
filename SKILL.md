@@ -7,7 +7,7 @@ documentation: README.md, docs/README.md, references/README.md
 
 # Finance Tracker
 
-Finance Tracker 通过 FastAPI、React/Vite Web 和 Expo Android/iOS 客户端提供财务能力。后端是唯一事实源；客户端不复制余额、投影、估值、关系配对或导入解析规则。
+Finance Tracker 通过 FastAPI 和 Compose Multiplatform Web、Android、iOS 客户端提供财务能力。后端是唯一事实源；客户端不复制余额、投影、估值、关系配对或导入解析规则。
 
 执行任何运行期操作前，必须显式配置数据库并确认 schema：
 
@@ -32,7 +32,7 @@ uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8
 - `/api/v1/relations/*`、`/api/v1/cash-facts/*`：关系操作和可审计事实删除；
 - `/api/v1/operations/*`：仅管理员可执行的同步和投影运维。
 
-默认工作流使用 Compose Multiplatform。旧 Web 与 Expo 客户端只作为迁移参考；仓库不提供根级 npm workspace 命令。需要处理旧客户端时，先检查对应目录中的清单和依赖，再按专项变更记录执行，不要使用 `npm run dev:web`、`npm run start:mobile` 等根级命令。共享 API 契约、错误模型、精确十进制字符串和导入会话状态位于 `packages/`；DOM、Native 文件 URI、导航和平台存储留在各自客户端。
+当前客户端使用 Compose Multiplatform：Web 工程位于 `compose/webApp/`，浏览器预览和 QA 工具位于 `compose/qa/web/`，Android 与 iOS 工程位于 `compose/`。仓库没有根级 npm workspace；Compose Web QA 的 Node 命令在 `compose/qa/web/` 运行。共享 API、错误、金额文本和导入会话状态由 `compose/shared/` 实现。
 
 ## 账单与财务规则
 
@@ -46,10 +46,10 @@ uv run uvicorn ft.web.app:create_runtime_app --factory --host 127.0.0.1 --port 8
 
 ## 凭据和敏感信息
 
-连接器凭据只在后端受控位置加载，客户端和请求体不携带密钥。账单密码只存在当前导入请求，不进入日志、TokenStore、缓存或数据库。Native 短会话 Token 使用 `expo-secure-store`，Web Token 使用浏览器本地存储。
+连接器凭据只在后端受控位置加载，客户端和请求体不携带密钥。账单密码只存在当前导入请求，不进入日志、TokenStore、缓存或数据库。Compose Android 使用 Android Keystore 保存会话 Token，iOS 使用 Keychain，Compose Web 使用浏览器本地存储。
 
 ## 开发工作流
 
-行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 OpenSpec 主流程（`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`）。默认 Compose 与后端工作流见根目录 `README.md`。旧 Web、Expo 与 TypeScript shared packages 不属于默认 CI；恢复或验证这些客户端时，先确认其当前依赖和构建入口，并在对应 OpenSpec 变更中记录。
+行为、模型、持久化或财务规则变更必须按仓库 `AGENTS.md` 走 OpenSpec 主流程（`$openspec-propose` → `$openspec-apply-change` → `$openspec-archive-change`）。默认 Compose 与后端工作流见根目录 `README.md`；CI 使用 Compose 工程和后端测试，不构建已退役的 React Web、Expo 客户端或 TypeScript shared packages。
 
 双后端测试必须使用专用 `_test` PostgreSQL 数据库；测试脚本会拒绝业务库或其他数据库名。不要自行提交、推送、建 PR 或部署，除非用户明确授权。

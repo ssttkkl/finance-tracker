@@ -125,7 +125,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 添加关联先选择同笔支付、退款冲销或个人转账，再搜索同一工作区内已保存的导入流水，不受自动匹配时间窗口限制。双方资格、真实修订、金额、币种、方向、关系占用及退款额度仍由服务端校验；普通手工记录、手工转账和银证转账不参与本次外部现金关联。自由搜索不等于任意构造关系边，确认仍需通过维护计划。
 
-公共分类、备注等人工值实际冲突时，在当前弹窗选择保留值或清空，再重新预览。移除关联保留原始流水及账单原文；只有人工公共值与拆开后的原有值实际不同时，才列出修改字段和值，并询问是否保留。联合方案显示各关系类型及端点，不能只确认非法子集；成员读取失败或选择失效时要求刷新，不自动替换对象。开发及验收范围见 [详情关联实施记录](../openspec/changes/cash-record-detail-relations-redesign/tasks.md)。
+公共分类、备注等人工值实际冲突时，在当前弹窗选择保留值或清空，再重新预览。移除关联保留原始流水及账单原文；只有人工公共值与拆开后的原有值实际不同时，才列出修改字段和值，并询问是否保留。联合方案显示各关系类型及端点，不能只确认非法子集；成员读取失败或选择失效时要求刷新，不自动替换对象。开发及验收范围见 [详情关联实施记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。
 
 ### 删除
 
@@ -219,4 +219,4 @@ Compose 已接入当前正式／草稿列表、维护详情、草稿保存／转
 | 字段、状态、来源对应和维护的详细规则 | [现金流水与导入业务规则](cash-import-redesign.md) |
 | 请求、响应、逻辑字段、后续 UI 合同与场景 | [接口、数据与客户端交互参考](cash-import-redesign-contracts.md) |
 | 当前客户端证据和待接入范围 | [功能地图](feature-map.md) |
-| 行为规格与未完成变更 | [现金账本规格导航](../openspec/specs/cash-ledger/README.md)、[实施变更](../openspec/changes/cash-import-lifecycle-redesign/tasks.md) |
+| 行为规格与未完成变更 | [现金账本规格导航](../openspec/specs/cash-ledger/README.md)、[实施变更](../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |

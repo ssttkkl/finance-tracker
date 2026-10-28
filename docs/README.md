@@ -1,6 +1,6 @@
 # 文档索引
 
-当前行为以 [`openspec/project-context.md`](../openspec/project-context.md)、`openspec/specs/` 和实现为准；尚未同步的变更另查 active change。本目录保留流程概览、业务规则说明、接口与数据参考、运行配置及 UI 约束，不再维护已退役实现的架构分析或逐步开发日志。现金导入后端已完成，UI 留后续独立任务；后端接口可用不代表现有客户端已接通。
+当前行为以 [`openspec/project-context.md`](../openspec/project-context.md)、`openspec/specs/` 和实现为准；尚未同步的变更另查 active change。本目录保留流程概览、业务规则说明、接口与数据参考、运行配置及 UI 约束，不再维护已退役实现的架构分析或逐步开发日志。现金导入后端与 Compose 共享导入入口已接通；页面覆盖、已执行验证和未覆盖 QA 见[功能地图](feature-map.md)及对应归档任务记录，代码接通不代表已部署。
 
 运行时通过 `FT_DATABASE_URL` 显式选择 PostgreSQL 或文件型 SQLite。两者共享应用服务和数据合同；不得回退、不双写、不隐式迁移。迁移版本以 Alembic 当前 head 和 [`SCHEMA_REVISION`](../src/ft/adapters/relational/runtime.py) 为准，不在文档中另存版本副本。SQLite 写入繁忙时应重试，目录或文件权限错误须先修正，不能改用另一数据库掩盖失败。
 
@@ -35,7 +35,7 @@
 | [现金流水与导入契约参考](cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
 | [临时存储运行配置](cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
 
-详细参考不另写一套完整流程；实施计划、审查和测试日志仍保留在对应 OpenSpec 变更中。后续 UI 合同不是当前客户端完成状态，入口覆盖以 [功能地图](feature-map.md) 为准。
+详细参考不另写一套完整流程；实施范围、审查和验证证据保留在对应 OpenSpec 归档记录中。当前客户端入口覆盖以[功能地图](feature-map.md)为准。
 
 ## OpenSpec
 

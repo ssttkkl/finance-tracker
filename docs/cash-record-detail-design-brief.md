@@ -1,6 +1,6 @@
 # 流水详情重新设计：需求与约束交接
 
-本文汇总本次对话最终确定的设计范围、业务含义和交互约束，作为实施验收依据。共享实现及本轮走查修复已完成受影响验证，验收范围及保留限制见 [实施记录](../openspec/changes/cash-record-detail-relations-redesign/tasks.md)。用户已确认最新 `compose/qa/local-evidence/prototypes/cash-record-detail.html` 作为开发原型；实现保留其流程、结构与样式的业务含义，并遵守本文最新约束。
+本文汇总本次对话确定的设计范围、业务含义和交互约束，作为实现验收依据。共享实现及走查证据见[归档任务记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)，其中保留了未完成的最终验收边界。用户已确认最新 `compose/qa/local-evidence/prototypes/cash-record-detail.html` 作为开发原型；实现保留其流程、结构与样式的业务含义，并遵守本文约束。
 
 ## 1. 目标与范围
 
@@ -10,7 +10,7 @@
 
 顶部保留区域以当前共享 Compose 的详情摘要为实现依据。当前交接上下文没有用户此前所指截图的图片附件，不要凭原型里的简化摘要改造原有摘要。
 
-当前前端是 **Compose Web**，并与 Android、iOS 共享产品合同。`web/src` 是旧 React 迁移参考，不是本次实现目标。
+当前前端是 **Compose Web**，并与 Android、iOS 共享产品合同；页面结构和行为以共享 Compose 实现为准。
 
 ## 2. 详情的信息结构
 
@@ -200,10 +200,10 @@
 | [cash_relation_graph.py](../src/ft/domain/cash_relation_graph.py) | 金额、占用、额度及完整关系图校验 |
 | [关系证据查询](../src/ft/adapters/relational/web_queries.py) | 成员角色与已确认关系端点 |
 | [完整关系方案测试](../tests/contract/test_cash_current_relation_plan.py) | 联合建议、拒绝及失效场景 |
-| [新变更记录](../openspec/changes/cash-record-detail-relations-redesign/proposal.md) | 本轮 A 类需求、实施及验收记录 |
-| [既有维护变更](../openspec/changes/compose-cash-ledger-maintenance/proposal.md) | 共享维护基础；其中排除任意搜索的旧范围不代表本轮新需求被取消 |
+| [变更记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/proposal.md) | 本轮 A 类需求、实施及验收记录 |
+| [既有维护变更](../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/proposal.md) | 共享维护基础；其中排除任意搜索的旧范围不代表本轮新需求被取消 |
 
-当前 HEAD 为 `4ad7223fdc8a5e93b65217a2c6c91cb876053fec`，分支为 `average-snail`。流水详情共享 Compose 和后端关联搜索、预览、提交处于未提交开发状态；首次演示、最终验证与审查的当前证据集中维护于 [tasks](../openspec/changes/cash-record-detail-relations-redesign/tasks.md)。新变更仍未完成，不应归档为已交付。
+流水详情共享 Compose 实现及后端关联搜索、预览和提交的验收证据集中维护于 [归档任务记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。该 change 已于 2026-10-28 归档；其中的验证状态和未完成边界仍按原记录保留，不据此宣称整个功能已完成最终验收。
 
 本机确认原型为 `compose/qa/local-evidence/prototypes/cash-record-detail.html`；同目录其他文件不作为实施依据。用户后续明确的正文无折叠和弹窗复用流水表格约束优先于原型残留旧标记。原型浏览器操作和静态语法检查不能替代正式产品验证。
 
@@ -211,6 +211,4 @@
 
 用户要求上传导入文件显示真实文件名，不做密码字样剔除、长数字替换为尾号、扩展名清理等额外展示脱敏。当前未提交实现保留 basename 及 255 字符上限；文件内容解析不应因此改变。不要在本次 UI 重设计中重新引入这些删改文件名的逻辑。
 
-此前启动环境目标是 Compose Web 加 FastAPI，数据库为 `~/.ft/finance-tracker.sqlite3`；不是启动旧 React。此前使用后端 `127.0.0.1:8000`、Compose Web `127.0.0.1:5186`、HTML 原型 `127.0.0.1:5197`，接手时须核实进程实际状态。用户曾要求重启时清理对应旧进程，不要误杀其他服务。内存导入暂存配置只属于本地开发运行条件，不代表生产部署策略。
-
-工作树还存在此前文件名调整相关的 Python／测试修改以及旧 `web/package-lock.json` 修改。它们不属于本次详情重设计，未经明确指示不要覆盖、还原或顺带提交。
+本机开发和 QA 使用 Compose Web、FastAPI 与测试数据库。启动服务或原型前须核实进程实际状态；重启时只清理对应进程，不要误杀其他服务。内存导入暂存配置只属于本地开发运行条件，不代表生产部署策略。

@@ -21,7 +21,7 @@
 
 Compose Web 与 Native 使用共享的 [InvestmentApi.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/InvestmentApi.kt)、[FinanceRepositoryImpl.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceRepositoryImpl.kt) 和 [InvestmentScreens.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)，提供持仓、事件、筛选、详情和估值刷新。当前投资 API 包装层没有手工投资写入、证券账单导入、连接器同步或资金关系审核的对应方法；不能从后端已有接口推断这些产品入口已经存在。
 
-页面覆盖与跨端验证仍以 [功能地图](feature-map.md) 为盘点入口。`web/src`、`mobile/src` 的旧页面仅作为迁移参考。本文只更新架构记录和文档索引，不改变页面覆盖状态。
+页面覆盖与跨端验证仍以 [功能地图](feature-map.md) 为盘点入口。Compose Web、Android 和 iOS 是当前客户端；已退役客户端的页面不作为迁移参考。本文只更新架构记录和文档索引，不改变页面覆盖状态。
 
 ## 2. 模块全景
 
@@ -577,7 +577,7 @@ data: {"version":13}
 | 中 | 同步凭据异常的错误代码不统一；文件导入/同步可能把存储故障转换为 `400 operation_failed` | 客户端无法只按 `503 storage.*` 判断可重试存储故障，也不能假设所有凭据错误都返回稳定代码 |
 | 中 | 薄应用服务把手工事务放在 adapter，资金关系服务直接访问 ORM；HTTP 与独立 runtime 各有装配入口，DFZQ 又有通用路径 | 调整边界时容易漏掉调用链或误判事务所有者 |
 
-active change [remove-wealth-attribution-backend](../openspec/changes/remove-wealth-attribution-backend/proposal.md) 已在当前运行时代码移除财富归因专属服务和表，包括旧 `valuation_observations`；投资组合估值、周期盈亏与资金关系仍保留。该 change 尚未归档，`tasks.md` 的迁移/回归与 PostgreSQL 验证仍有未完成项。本文不将财富归因历史架构混入当前投资模块，也不据此声明删除迁移已全部验证。
+[财富归因后端退役记录](../openspec/changes/archive/2026-10-28-remove-wealth-attribution-backend/proposal.md)说明当前运行时代码已移除财富归因专属服务和表，包括旧 `valuation_observations`；投资组合估值、周期盈亏与资金关系仍保留。归档任务中的 SQLite 迁移回归和 PostgreSQL 验证仍未完成，不据此声明删除迁移已全部验证。本文不将财富归因历史架构混入当前投资模块。
 
 ## 14. 测试定位与本次文档验证
 
