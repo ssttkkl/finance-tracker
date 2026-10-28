@@ -76,8 +76,10 @@ def test_review_accept_and_reject(relation_runtime):
     with services.uow as uow:
         active = uow.relations.find_by_business_key(
             kind=pending2[0]["kind"],
-            fact_a=pending2[0]["primary_fact_id"],
-            fact_b=pending2[0]["secondary_fact_id"],
+            fact_a=pending2[0]["primary_record_id"],
+            fact_b=pending2[0]["secondary_record_id"],
+            component_a=pending2[0]["primary_component_id"],
+            component_b=pending2[0]["secondary_component_id"],
             subtype=pending2[0].get("subtype") or "",
         )
     assert active is not None

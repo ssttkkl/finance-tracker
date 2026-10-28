@@ -91,6 +91,22 @@ class CashRecordTaskViewModel(
         if (record.recordOrigin in setOf("manual", "manual_transfer")) return
         prepare(CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision, patch), forSelection = true)
     }
+    suspend fun associationTargets(search: CashAssociationSearch): CashAssociationPage {
+        val record = state.value.record ?: invalid("record_changed")
+        if (record.recordOrigin !in setOf("import", "legacy")) invalid("choice_invalid")
+        return repository.associationTargets(record.transactionId, search)
+    }
+    fun addRelation(addition: CashRelationAddition, replacingSuggestionId: String? = null) {
+        val record = state.value.record ?: return
+        if (state.value.busy || state.value.unresolved || record.recordOrigin !in setOf("import", "legacy")) return
+        val choices = replacingSuggestionId?.let { id ->
+            val option = state.value.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId }.singleOrNull { it.suggestionId == id }
+            if (option == null || "ignore" !in option.allowedActions) return
+            listOf(CashRelationDecision(id, "ignore"))
+        }.orEmpty()
+        prepare(CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision,
+            relationChoices = choices, relationAdditions = listOf(addition)))
+    }
     fun saveRelationChoices(choices: List<CashRelationDecision>) {
         val record = state.value.record ?: return
         if (!state.value.selectionPlan || state.value.busy || state.value.unresolved) return
@@ -101,6 +117,20 @@ class CashRecordTaskViewModel(
         val input = try { cashRelationRequest(record, choices, options, state.value.input?.patch ?: StructuredObject(emptyMap())) }
         catch (failure: DomainFailure) { mutableState.value = state.value.copy(errorCode = failure.code); return }
         prepare(input)
+    }
+    fun resolveRelationCommonFields(fields: StructuredObject) {
+        val input = state.value.input ?: return
+        if (state.value.busy || state.value.unresolved) return
+        if (input.relationAdditions.isNotEmpty()) {
+            prepare(input.copy(relationAdditions = input.relationAdditions.map { it.copy(commonFields = fields) },
+                editContextId = null, previousPlanId = null, expectedPlanRevision = null))
+        } else {
+            val record = state.value.record ?: return
+            val choices = input.relationChoices.map { if (it.action == "accept") it.copy(commonFields = fields) else it }
+            val request = try { cashRelationRequest(record, choices, state.value.details.flatMap { it.relationChoices }, input.patch) }
+                catch (failure: DomainFailure) { mutableState.value = state.value.copy(errorCode = failure.code); return }
+            prepare(request)
+        }
     }
 
     fun resolveIssue(issueId: String, resolution: String, targetId: String? = null, patch: StructuredObject = StructuredObject(emptyMap())) {
@@ -167,7 +197,7 @@ class CashRecordTaskViewModel(
                     details.flatMap { it.relationChoices }.any { option ->
                         val requested = request.relationChoices.firstOrNull { it.suggestionId == option.suggestionId }
                         requested?.action == "accept" && (option.action in setOf("defer", "skip") ||
-                            option.commonFieldConflicts.any { (field, values) -> requested.commonFields?.fields?.get(field) !in values })
+                            option.commonFieldConflicts.any { (field, values) -> requested.commonFields?.fields?.get(field) !in cashRelationCommonValues(field, values) })
                     })
                 val selection = forSelection || needsRelationChoices
                 mutableState.value = state.value.copy(input = request, plan = plan.copy(items = items, nextCursor = null), details = details, affectedRecords = affected, previewDirty = false, selectionPlan = selection)

@@ -68,6 +68,50 @@ def _choose(service, runtime, view, choice, *, identifier="1101", patch=None):
         expected_plan_revision=view["plan_revision"], relation_choices=[choice])
 
 
+def test_mixed_complete_group_and_candidates_keep_each_relation_summary(context_runtime):
+    from ft.web.cash_plan_protocol import RelationChoiceView
+    runtime = context_runtime
+    service, _ = _start(runtime, joint=True)
+    with runtime.sessions.begin() as session:
+        for relation in session.scalars(select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == runtime.workspace_id)):
+            relation.decision_group_id = "joint"
+            relation.state = "draft"
+    view = _preview(service, runtime, "1101", intent="maintain_relations")
+    group, = _groups(service, view)
+    expected = {
+        ("refund_offset", "", ("1101", "1103")),
+        ("refund_offset", "", ("1102", "1104")),
+        ("payment_mirror", "", ("1101", "1102")),
+        ("payment_mirror", "", ("1103", "1104")),
+    }
+    def summaries(value):
+        return {(relation["kind"], relation["subtype"], tuple(
+            member["transaction_id"] for member in relation["member_refs"]))
+            for relation in value["relations"]}
+    assert summaries(group) == expected
+    assert group["candidates"]
+    assert all(summaries(candidate) == expected for candidate in group["candidates"])
+    wire = RelationChoiceView.model_validate(group).model_dump()
+    assert summaries(wire) == expected
+    assert all(summaries(candidate) == expected for candidate in wire["candidates"])
+
+
+def test_relation_summary_public_boundary_only_keeps_declared_fields():
+    from ft.application.cash_import_plans import _public_detail
+    relation = {"kind": "refund_offset", "subtype": "p2p_return", "evidence": {"private": True},
+        "member_refs": [{"transaction_id": "11", "row_revision": 99}, {"row_ref": "source-row", "internal": True}]}
+    source = {"relation_choices": [{"suggestion_id": "group", "relations": [deepcopy(relation)],
+        "candidates": [{"candidate_id": "candidate", "relations": [deepcopy(relation)]}]}]}
+    result = _public_detail(source)
+    group, = result["relation_choices"]
+    expected = {"kind": "refund_offset", "subtype": "p2p_return",
+        "member_refs": [{"transaction_id": "11"}, {"row_ref": "source-row"}]}
+    assert group["relations"] == [expected]
+    assert group["candidates"][0]["relations"] == [expected]
+    assert "evidence" in source["relation_choices"][0]["relations"][0]
+
+
 @pytest.mark.parametrize("state", ["confirmed", "draft", "ignored"])
 def test_default_preview_preserves_decisions_and_hides_ignored_candidate_groups(context_runtime, monkeypatch, state):
     from ft.application.cash_import_business_plan import CashImportBusinessPlanBuilder

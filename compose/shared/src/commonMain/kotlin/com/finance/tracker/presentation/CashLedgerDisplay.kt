@@ -191,7 +191,7 @@ internal fun cashEvidenceSourceLabel(evidence: Evidence): String {
 }
 
 @Composable
-private fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lowercase()) {
+internal fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lowercase()) {
     "manual" -> localizedText("cash_source_manual")
     "alipay" -> localizedText("cash_source_alipay")
     "wechat", "wechatpay", "wechat_pay" -> localizedText("cash_source_wechat")

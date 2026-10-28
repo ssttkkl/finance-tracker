@@ -16,13 +16,14 @@ class CanonicalSerializationError(ValueError):
 
 def _canonical_decimal(value: Decimal) -> str:
     try:
-        decimal = Decimal(str(value))
+        decimal = value if type(value) is Decimal else Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise CanonicalSerializationError("canonical.invalid_decimal") from exc
     if not decimal.is_finite():
         raise CanonicalSerializationError("canonical.invalid_decimal")
-    digits = decimal.as_tuple().digits
-    exponent = decimal.as_tuple().exponent
+    parts = decimal.as_tuple()
+    digits = parts.digits
+    exponent = parts.exponent
     scale = max(0, -exponent)
     integer_digits = max(0, len(digits) + exponent)
     if scale > 18 or integer_digits > 20 or integer_digits + scale > 38:
@@ -31,6 +32,8 @@ def _canonical_decimal(value: Decimal) -> str:
 
 
 def _canonical_value(value: Any) -> Any:
+    if value is None or type(value) in (str, int, bool):
+        return value
     if isinstance(value, Decimal):
         return _canonical_decimal(value)
     if isinstance(value, datetime):

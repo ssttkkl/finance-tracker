@@ -127,8 +127,9 @@ def test_postgres_mapping_multi_account_and_jpy(tmp_path, monkeypatch):
     from ft.adapters.relational.dialect import create_relational_engine
     from ft.adapters.relational.uow import RelationalUnitOfWork
 
+    from conftest import migrate_test_postgres_schema
+    migrate_test_postgres_schema(url)
     engine = create_relational_engine(url)
-    _alembic_upgrade(engine)
     sessions = create_session_factory(engine)
     # Isolate with unique workspace id
     workspace = f"ws-pg-{os.getpid()}-{tmp_path.name}"

@@ -20,6 +20,15 @@ class CashRelationInputTest {
         val choice = CashRelationDecision("group", "accept", "candidate", StructuredObject(mapOf("note" to StructuredText(""))))
         assertEquals(choice, cashRelationRequest(record(), listOf(choice), listOf(option())).relationChoices.single())
     }
+    @Test fun conflictingValuesAllowTypedExplicitClearsEvenWhenNoMemberIsEmpty() {
+        val conflicts = mapOf("note" to listOf(StructuredText("甲"), StructuredText("乙")),
+            "category_id" to listOf(StructuredText("food"), StructuredText("other")),
+            "counterparty_account_attrs" to listOf(StructuredArray(listOf(StructuredText("full"))), StructuredArray(listOf(StructuredText("partial")))))
+        val clear = StructuredObject(mapOf("note" to StructuredText(""), "category_id" to StructuredNull,
+            "counterparty_account_attrs" to StructuredArray(emptyList())))
+        val choice = CashRelationDecision("group", "accept", "candidate", clear)
+        assertEquals(clear, cashRelationRequest(record(), listOf(choice), listOf(option().copy(commonFieldConflicts = conflicts))).relationChoices.single().commonFields)
+    }
     @Test fun manualEntriesCannotOpenExternalRelationMaintenance() {
         assertFailsWith<DomainFailure> { cashRelationRequest(record().copy(recordOrigin="manual"), listOf(CashRelationDecision("group", "defer")), listOf(option())) }
     }

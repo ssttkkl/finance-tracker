@@ -179,3 +179,34 @@ def test_duplicate_operations_do_not_get_silently_lost():
     from ft.domain.cash_relation_policy import CashRelationError, relation_commit_groups
     with pytest.raises(CashRelationError, match="relation_change_duplicate"):
         relation_commit_groups((), (_link("same", "a", "b"), _link("same", "c", "d")))
+
+
+def test_candidate_type_prefilter_contains_every_valid_role_pair():
+    from itertools import product
+    from ft.domain.cash_relation_policy import cash_relation_candidate_types, RelationEndpoint, CashRelationError, validate_relation_roles
+    from ft.domain.record_type import VALID_CASH_RECORD_TYPES, default_cash_record_subtype
+    cases = [
+        ('payment_mirror', '', 'expense', 'expense', '-1', '-1', 'CNY', '1', False),
+        ('payment_mirror', '', 'refund', 'refund', '1', '1', 'CNY', '1', False),
+        ('refund_offset', '', 'expense', 'refund', '-1', '1', 'CNY', '1', False),
+        ('refund_offset', '', 'expense', 'refund', '0', '0', 'CNY', '1', False),
+        ('refund_offset', 'p2p_return', 'p2p_out', 'p2p_in', '-1', '1', 'CNY', '1', False),
+        ('transfer_pair', 'ordinary_transfer', 'outgoing', 'incoming', '-1', '1', 'CNY', '2', False),
+        ('transfer_pair', 'credit_repayment', 'outgoing', 'incoming', '-1', '1', 'CNY', '2', False),
+        ('transfer_pair', 'currency_exchange', 'outgoing', 'incoming', '-1', '1', 'USD', '1', False),
+        ('transfer_pair', 'cross_currency_remittance', 'outgoing', 'incoming', '-1', '1', 'USD', '2', True),
+    ]
+    accepted = 0
+    for kind, subtype, role_a, role_b, amount_a, amount_b, currency_b, account_b, cross_border in cases:
+        for first, second in product(VALID_CASH_RECORD_TYPES, repeat=2):
+            a = RelationEndpoint('1', '1', Decimal(amount_a), 'CNY', '1', first,
+                'cross_border_remittance' if cross_border and first == 'transfer_out' else default_cash_record_subtype(first))
+            b = RelationEndpoint('2', '2', Decimal(amount_b), currency_b, account_b, second, default_cash_record_subtype(second))
+            try:
+                validate_relation_roles(kind, subtype, a, b, role_a, role_b)
+            except CashRelationError:
+                continue
+            accepted += 1
+            assert second in cash_relation_candidate_types({first})
+            assert first in cash_relation_candidate_types({second})
+    assert accepted > 0

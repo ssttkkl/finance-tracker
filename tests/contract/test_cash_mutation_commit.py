@@ -17,7 +17,7 @@ from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from tests.contract.test_cash_import_business_plan import _existing_mirror
 from tests.contract.test_cash_import_commit import configured, _plan, _commit as _import_commit, _results
 from tests.contract.test_cash_import_operations import _as_source, _file
-from tests.contract.test_cash_mutation_business_plan import _posted, _preview
+from tests.contract.test_cash_mutation_business_plan import _posted, _preview, _require_pairing_candidate
 from tests.contract.test_cash_record_maintenance import _draft, _complete, _service as _records
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
 
@@ -238,6 +238,7 @@ def test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previou
 def test_discovery_exception_stops_finalization_without_publishing_a_problem(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
+    _require_pairing_candidate(runtime)
     service = _service(runtime)
     def fail(*args, **kwargs):
         raise RuntimeError("synthetic private native pairing failure")
@@ -248,6 +249,7 @@ def test_discovery_exception_stops_finalization_without_publishing_a_problem(con
 
 def test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
+    _require_pairing_candidate(context_runtime)
     def fail(*args, **kwargs):
         raise RuntimeError("synthetic private native pairing failure")
     monkeypatch.setattr(business, "plan_relation_proposals", fail)
@@ -258,6 +260,7 @@ def test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result(
 def test_component_discovery_exception_stops_preview_without_creating_problems(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
+    _require_pairing_candidate(runtime)
     detail = _records(runtime).read(identifier)
     part = detail["fields"]["components"][0]
     def fail(*args, **kwargs):

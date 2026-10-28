@@ -165,17 +165,22 @@ def _public_detail(value, *, copy_values=True):
         {"field", "current", "incoming", "effective", "resolution", "row_ref", "transaction_id"}, copy_values=copy_values)
     result["issues"] = _issues(result.get("issues", []))
     result["relation_choices"] = _objects(result.get("relation_choices", []),
-        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields"}, copy_values=copy_values)
+        {"suggestion_id", "kind", "subtype", "action", "candidate_id", "candidates", "member_refs", "allowed_actions", "code", "common_fields", "common_field_conflicts", "inherit_common_fields", "relation_ids", "split_field_diffs", "relations"}, copy_values=copy_values)
     for choice in result["relation_choices"]:
         if "member_refs" in choice:
             choice["member_refs"] = _objects(choice["member_refs"], _REF_FIELDS, copy_values=copy_values)
         if "candidates" in choice:
-            choice["candidates"] = _objects(choice["candidates"], {"candidate_id", "display", "member_refs", "code"}, copy_values=copy_values)
+            choice["candidates"] = _objects(choice["candidates"], {"candidate_id", "display", "member_refs", "code", "relations"}, copy_values=copy_values)
             for candidate in choice["candidates"]:
                 if "display" in candidate:
                     candidate["display"] = _display(candidate["display"])
                 if "member_refs" in candidate:
                     candidate["member_refs"] = _objects(candidate["member_refs"], _REF_FIELDS, copy_values=copy_values)
+        for option in (choice, *choice.get("candidates", [])):
+            if "relations" in option:
+                option["relations"] = _objects(option["relations"], {"kind", "subtype", "member_refs"}, copy_values=copy_values)
+                for relation in option["relations"]:
+                    relation["member_refs"] = _objects(relation.get("member_refs", []), _REF_FIELDS, copy_values=copy_values)
     result["relation_effects"] = _objects(result.get("relation_effects", []), {"relation_id", "kind", "subtype", "effect", "member_refs", "code"},
         copy_values=copy_values)
     for effect in result["relation_effects"]:
@@ -329,13 +334,21 @@ class CashImportPlanService(CashImportContextService):
             row_choices if row_choices is not None else [], relation_choices if relation_choices is not None else [], entry_choices)
         try:
             with self._uow as uow:
-                current = self._current(uow, session_id, expected_session_revision)
+                snapshots = []
+                def load(identifier):
+                    snapshot = self._staging._read_for_plan_update(identifier,
+                        workspace_id=self._workspace_id, user_id=self._user_id)
+                    if snapshot.session.workflow_kind != "import":
+                        raise ImportSessionNotFound
+                    snapshots.append(snapshot)
+                    return snapshot.session
+                current = self._current(uow, session_id, expected_session_revision, _load=load)
                 previous = current.plan
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
                 with cash_diagnostic_scope(files=current.files):
-                    result = self._builder(session=uow._state().session, files=deepcopy(current.files),
+                    result = self._builder(session=uow._state().session, files=current.files,
                         preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id)
                 if (not isinstance(result, dict) or not isinstance(result.get("items"), list)
                     or not isinstance(result.get("summary"), dict) or type(result.get("can_commit")) is not bool):
@@ -352,9 +365,9 @@ class CashImportPlanService(CashImportContextService):
                         for state in ("confirmed", "pending")})
                 _validate_readable(plan)
                 view = self._view(plan)
-                self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                    expected_revision=current.revision, files=current.files, preview_input=preview_input, plan=plan,
-                    context_data=without_choice_context(current), return_session=False)
+                self._staging._replace_plan(snapshots[0], workspace_id=self._workspace_id, user_id=self._user_id,
+                    expected_revision=current.revision, preview_input=preview_input, plan=plan,
+                    context_data=without_choice_context(current))
                 uow.commit()
                 return view
         except CashImportChoiceContextError:

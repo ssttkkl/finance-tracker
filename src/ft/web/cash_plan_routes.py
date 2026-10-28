@@ -15,7 +15,7 @@ from ft.domain.cash_record_policy import (CASH_FINANCIAL_FIELDS, CASH_SOURCE_IDE
     MUTABLE_CASH_FIELDS, CashRecordPolicyError)
 from ft.application.cash_import_issues import cash_import_issue
 from ft.web.cash_maintenance_protocol import (CashRecordView, DraftSaveInput, DraftSaveView,
-    MutationCommitInput, MutationPlanView, MutationPreviewInput)
+    MutationCommitInput, MutationPlanView, MutationPreviewInput, AssociationTargetPage)
 from ft.web.cash_import_protocol import CashImportProtocolError, CashImportSessionView, json_input
 from ft.web.cash_import_routes import _CLIENT_ERRORS, _STORAGE_ERRORS, _failure
 from ft.web.cash_plan_protocol import (
@@ -159,6 +159,14 @@ def cash_plan_router(services):
     @router.get("/cash-records/{transaction_id}", response_model=CashRecordView, response_model_exclude_unset=True)
     async def record(transaction_id: str):
         return await invoke(lambda: services.cash_record_maintenance().read(transaction_id))
+
+    @router.get("/cash-records/{transaction_id}/association-targets", response_model=AssociationTargetPage)
+    async def association_targets(transaction_id: str, query: str = "", account_id: str | None = None,
+            amount: str | None = None, date_from: str | None = None, date_to: str | None = None,
+            timezone_name: str = "UTC", cursor: str | None = None, limit: int = 20):
+        return await invoke(lambda: services.cash_record_maintenance().association_targets(transaction_id,
+            query=query, account_id=account_id, amount=amount, date_from=date_from, date_to=date_to,
+            timezone_name=timezone_name, cursor=cursor, limit=limit))
 
     @router.patch("/cash-records/{transaction_id}/draft", response_model=DraftSaveView,
         response_model_exclude_unset=True, openapi_extra=json_contract(DraftSaveInput, keyed=True))

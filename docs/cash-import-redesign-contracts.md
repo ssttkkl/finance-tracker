@@ -450,7 +450,11 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护计划的 `summary` 仅含非负、非布尔整数计数：`update_posted`、`finalize_draft`、`update_draft`、`resolve_issue`、`merge_draft`、`create_independent`、`duplicate`、`skip`、`relations_accepted`、`relations_deferred`、`relations_ignored`、`relations_removed`、`relations_failed`；不含错误文本或流水正文。未知键或错误类型在发布前拒绝，不能替换原计划。
 
-`maintain_relations` 从相关 `transaction_id` 出发，仅根据已保存关系及候选生成当前组，提交 `accept/defer/ignore/remove` 等服务端允许动作；不重新发现新候选，也不接收任意搜索两条流水后构造的新关系。导入正式类型不可由用户修改，公共编辑不自动拆组。实际公共人工值冲突以 `common_field_conflicts` 返回，明确选择放入 `common_fields`；存在人工公共值的解除必须携带布尔 `inherit_common_fields`。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回用户未见的差异，先展示确认，不增加正常编辑的空确认弹窗。
+`maintain_relations` 从相关 `transaction_id` 出发，保留服务端提供的完整建议与组决定。`accept/defer/ignore/remove` 是协议动作；界面不提供无实际影响的 `defer` 按钮，关闭弹窗不提交决定。主动新增使用 `relation_additions`，每次最多一项，显式提供 `target_transaction_id`、`expected_target_revision`、双方 `anchor_component_id/target_component_id`、`kind/subtype`；服务端读取真实导入流水、生成来源证明并校验最终关系图，不接受客户端直接构造关系边。现有建议的公共人工值冲突以 `common_field_conflicts` 返回，选择放入 `common_fields`；新增关系的选择放在对应 `relation_additions[].common_fields`。客户端提供端点已有值及明确清空选项；主动新增的服务端输入限制为端点现值或字段对应的清空值：文本为空字符串、分类为 `null`、账号属性为空数组。解除只有 `split_field_diffs` 非空时才要求布尔 `inherit_common_fields`，差异列出字段、当前值和成员原值；同值人工标记不额外询问。
+
+`GET /api/v1/cash-records/{transaction_id}/association-targets` 只读搜索同一工作区的导入流水，排除当前已确认关系连通组和手工记录。查询支持 `query`、`account_id`、精确绝对金额 `amount`、`date_from/date_to`、`timezone_name`、`cursor` 和 `limit`（默认 20、上限 100）；客户端显式发送本地时区，日期边界按该时区解释。响应为当前流水详情列表 `items` 和可空 `next_cursor`，不以自动匹配候选窗口限制搜索。只有合法正式端点才能进入新增确认，所有财务规则及当前修订在预览和提交时继续校验。
+
+关系建议及每套 `candidates` 各自返回 `relations` 摘要，包含 `kind`、`subtype` 和 `member_refs`；端点保留明确 `row_ref/transaction_id`，不公开内部证明。客户端按完整摘要显示混合方案，不能用首条关系的 `kind/subtype` 代替全部关系。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回实际额外影响，先展示确认。
 
 当前关联同样先从计划取得完整 `suggestion_id` 和候选，再用完整输入重预览；不接受客户端构造的边或残缺成员集合。初次预览及未选择组保持各成员原状态，不算新确认或新延后，不刷新候选证明。当前组包含以前停用的成员供并发核对，维护不能自动复活它们；解除只停用仍活动的成员。已有候选按原证明修订、证据、端点当前状态及完整最终图校验，失效选择要求刷新，不改选其他对侧；多个关系必须共同生效时，每个 `candidate_id` 表示完整合法组合。没有组成项的草稿可继续延后、忽略或解除，仍不能确认合并。保存继续保留原关系 ID、锚点及决定组，成功后读取双方最新展示。
 

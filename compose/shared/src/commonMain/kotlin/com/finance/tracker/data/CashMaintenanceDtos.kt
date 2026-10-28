@@ -87,6 +87,17 @@ data class CashMaintenanceRelationInput(
     @SerialName("inherit_common_fields") val inheritCommonFields: Boolean? = null,
 )
 @Serializable
+data class CashRelationAdditionInput(
+    @SerialName("target_transaction_id") val targetTransactionId: String,
+    @SerialName("expected_target_revision") val expectedTargetRevision: Long,
+    @SerialName("anchor_component_id") val anchorComponentId: String,
+    @SerialName("target_component_id") val targetComponentId: String,
+    val kind: String, val subtype: String,
+    @SerialName("common_fields") val commonFields: JsonObject? = null,
+)
+@Serializable
+data class CashAssociationPageDto(val items: List<CashCurrentRecordDto>, @SerialName("next_cursor") val nextCursor: String?)
+@Serializable
 data class CashMaintenanceInput(
     val intent: String,
     @SerialName("transaction_id") val transactionId: String,
@@ -100,6 +111,7 @@ data class CashMaintenanceInput(
     @SerialName("edit_context_id") val editContextId: String? = null,
     @SerialName("previous_plan_id") val previousPlanId: String? = null,
     @SerialName("expected_plan_revision") val expectedPlanRevision: Long? = null,
+    @SerialName("relation_additions") val relationAdditions: List<CashRelationAdditionInput> = emptyList(),
 )
 @Serializable
 data class CashMaintenancePagesDto(val items: String?)

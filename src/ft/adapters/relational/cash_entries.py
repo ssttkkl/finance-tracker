@@ -33,6 +33,10 @@ class CashEntryRepository:
 
     def snapshot(self, identifiers):
         members, entries = self.for_transactions(identifiers)
+        return self.snapshot_values(members, entries)
+
+    @staticmethod
+    def snapshot_values(members, entries):
         return tuple(sorted((member.transaction_id, member.entry_id, entries[member.entry_id].revision,
             _digest(public_values(entries[member.entry_id]), entries[member.entry_id].manual_fields,
                 member.standalone_values, member.standalone_manual_fields)) for member in members.values()))
@@ -41,6 +45,33 @@ class CashEntryRepository:
         members, entries = self.for_transactions({identifier})
         member = members.get(int(identifier))
         return entries.get(member.entry_id) if member else None
+
+    def split_field_diffs(self, projections):
+        projections = tuple(projections)
+        ids = {int(value) for projection in projections for value in projection.member_ids}
+        members, entries = self.for_transactions(ids)
+        old_groups = {}
+        for member in members.values():
+            old_groups.setdefault(member.entry_id, set()).add(member.transaction_id)
+        diffs = []
+        for projection in projections:
+            group = {int(value) for value in projection.member_ids}
+            root = int(projection.primary_record.id)
+            source = self.session.get(CashTransactionModel, root)
+            restored = public_values(source)
+            member = members.get(root)
+            if member:
+                restored.update({field: deepcopy(member.standalone_values[field]) for field in member.standalone_manual_fields})
+            for entry_id in {members[value].entry_id for value in group if value in members}:
+                if not old_groups[entry_id] - group:
+                    continue
+                entry = entries[entry_id]
+                for field in sorted(entry.manual_fields):
+                    current = getattr(entry, field)
+                    if current != restored[field]:
+                        diffs.append({"field": field, "current": deepcopy(current), "restored": deepcopy(restored[field]),
+                            "member_refs": [{"transaction_id": str(value)} for value in sorted(group)]})
+        return diffs
 
     def patch(self, identifier, patch, *, expected_revision):
         entry = self.current(identifier)
@@ -131,7 +162,8 @@ class CashEntryRepository:
             else:
                 if candidate.root_transaction_id != root or old_members.get(candidate.id) != group:
                     candidate.revision += 1
-                candidate.root_transaction_id = root
+                if candidate.root_transaction_id != root:
+                    candidate.root_transaction_id = root
             for member_id in group:
                 source = sources[member_id]
                 member = members.get(member_id)
@@ -148,8 +180,10 @@ class CashEntryRepository:
                     standalone = deepcopy(member.standalone_values)
                     for field in COMMON_CASH_FIELDS - set(member.standalone_manual_fields):
                         standalone[field] = deepcopy(getattr(source, field))
-                    member.standalone_values = standalone
-                    member.entry_id = candidate.id
+                    if member.standalone_values != standalone:
+                        member.standalone_values = standalone
+                    if member.entry_id != candidate.id:
+                        member.entry_id = candidate.id
                 if old_ids and any(entries[item].split_inherit is True and old_members[item] - group for item in old_ids):
                     member.standalone_values = {**member.standalone_values, **deepcopy(human)}
                     member.standalone_manual_fields = sorted(set(member.standalone_manual_fields) | human.keys())
@@ -157,8 +191,10 @@ class CashEntryRepository:
             if any(getattr(candidate, field) != value for field, value in values.items()) and candidate.id in entries:
                 candidate.revision += 1
             for field, value in values.items():
-                setattr(candidate, field, deepcopy(value))
-            candidate.manual_fields = sorted(human)
+                if getattr(candidate, field) != value:
+                    setattr(candidate, field, deepcopy(value))
+            if candidate.manual_fields != sorted(human):
+                candidate.manual_fields = sorted(human)
             used.add(candidate.id)
             result[projection.projection_id] = candidate
         # 两阶段：先落对象，再调整成员，最后删除无当前成员的对象。
@@ -168,7 +204,8 @@ class CashEntryRepository:
             self.session.flush(fresh)
         self.session.flush()
         for entry in entries.values():
-            entry.split_inherit = None
+            if entry.split_inherit is not None:
+                entry.split_inherit = None
         self.session.flush()
         obsolete = set(entries) - used
         if obsolete:

@@ -134,3 +134,24 @@ def test_category_rebuild_upgrades_when_existing_rows_reference_cash_transaction
     with engine.connect() as connection:
         assert connection.execute(text("PRAGMA foreign_key_check")).all() == []
         assert connection.scalar(text("SELECT cash_transaction_id FROM cash_transaction_reference")) == 702
+
+
+def test_current_entry_category_index_upgrade_and_downgrade_preserves_values(tmp_path):
+    from ft.adapters.relational.models import CashEntryModel
+    from sqlalchemy.orm import Session
+    config = _config(tmp_path / 'entry-index.db')
+    command.upgrade(config, '20261023_50')
+    engine = create_engine(config.get_main_option('sqlalchemy.url'))
+    with engine.begin() as connection:
+        connection.execute(text("INSERT INTO workspaces (id,name,created_at) VALUES ('index-test','index-test',:now)"), {'now': datetime.now(timezone.utc)})
+    with Session(engine) as session:
+        session.add(CashEntryModel(id='index-entry', workspace_id='index-test', root_transaction_id=1, note='保留公共值'))
+        session.commit()
+    command.upgrade(config, 'head')
+    assert 'ix_cash_entries_workspace_category' in {item['name'] for item in inspect(engine).get_indexes('cash_entries')}
+    command.downgrade(config, '20261023_50')
+    assert 'ix_cash_entries_workspace_category' not in {item['name'] for item in inspect(engine).get_indexes('cash_entries')}
+    with Session(engine) as session:
+        assert session.get(CashEntryModel, 'index-entry').note == '保留公共值'
+    command.upgrade(config, 'head')
+    engine.dispose()

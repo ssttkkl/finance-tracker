@@ -117,6 +117,10 @@ class CashRecordMaintenanceService:
     def _prepare_draft(self, session, row, patch):
         return CashRecordOperationPlanner(session, self._workspace_id).prepare_draft(row, patch)
 
+    def association_targets(self, transaction_id, **filters):
+        from ft.application.cash_manual_associations import association_targets
+        return association_targets(self, transaction_id, **filters)
+
     def _outcome(self, receipt, identifier):
         try:
             detail = self.read(str(identifier))

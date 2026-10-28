@@ -80,8 +80,24 @@ class ResolveIssueInput(IssueMaintenanceInput):
     issue_resolutions: list[IssueResolutionInput] = Field(min_length=1, max_length=100)
 
 
+class RelationAdditionInput(StrictInput):
+    target_transaction_id: Identifier
+    expected_target_revision: Revision
+    anchor_component_id: Identifier
+    target_component_id: Identifier
+    kind: Literal["payment_mirror", "refund_offset", "transfer_pair"]
+    subtype: str = Field(max_length=64)
+    common_fields: dict[str, Any] | None = None
+
+
 class MaintainRelationsInput(MaintenanceInput):
     intent: Literal["maintain_relations"]
+    relation_additions: list[RelationAdditionInput] = Field(default_factory=list, max_length=1)
+
+
+class AssociationTargetPage(Output):
+    items: list["CashRecordView"]
+    next_cursor: str | None
 
 
 class MutationPreviewInput(RootModel[Annotated[

@@ -136,10 +136,15 @@ class CashMutationCommandService(CashPlanWriteOperations, CashMutationPlanServic
             return _receipt_view(receipt)
 
     def _save_groups(self, session, plan, fresh, identity, components, affected, *, manual, excluded=()):
-        if any(group.get("origin") == "current" for group in plan["relation_groups"]):
-            return CashCurrentRelationWriter(session, self._workspace_id, self._user_id).save_groups(
-                plan, fresh, affected, excluded=excluded)
-        return super()._save_groups(session, plan, fresh, identity, components, affected, manual=manual)
+        current = [group for group in plan["relation_groups"] if group.get("origin") == "current"]
+        additions = [group for group in plan["relation_groups"] if group.get("origin") != "current"]
+        results = CashCurrentRelationWriter(session, self._workspace_id, self._user_id).save_groups(
+            dict(plan, relation_groups=current), fresh, affected, excluded=excluded) if current else []
+        if additions:
+            manual = manual | {group["suggestion_id"] for group in additions if group.get("origin") == "manual"}
+            results.extend(super()._save_groups(session, dict(plan, relation_groups=additions), fresh,
+                identity, components, affected, manual=manual))
+        return results
 
     @staticmethod
     def _validate_current(plan, fresh):

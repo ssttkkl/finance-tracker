@@ -59,7 +59,7 @@ def test_entry_migration_downgrade_refuses_new_human_public_value(context_runtim
         with pytest.raises(ValueError, match='cash_entries_downgrade_requires_backup'):
             command.downgrade(_migration_config(connection), '20261023_49')
         connection.rollback()
-        assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261023_50'
+        assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261028_51'
     with runtime.sessions() as session:
         assert CashEntryRepository(session, runtime.workspace_id).current(1001).note == '仅存公共对象的人工值'
 

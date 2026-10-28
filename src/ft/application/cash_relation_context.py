@@ -58,6 +58,14 @@ class CashRelationGraphService:
         current = self.load(expected.seed_ids, decision_group_ids=expected.decision_group_ids)
         if current.token != expected.token:
             raise CashRelationError("relation_context_changed")
+        return self._validate_current(current, updates=updates, additions=additions,
+            evidence_by_relation=evidence_by_relation, cleanup_group_ids=cleanup_group_ids,
+            expected_members=expected.joint_members)
+
+    def _validate_current(self, current, *, updates=(), additions=(), evidence_by_relation=None,
+                          cleanup_group_ids=(), expected_members=None):
+        if not isinstance(current, CurrentCashRelationContext):
+            raise CashRelationError("relation_context_changed")
         previous = {edge.id: edge for edge in current.relations}
         try:
             updates, additions = tuple(updates), tuple(additions)
@@ -97,7 +105,7 @@ class CashRelationGraphService:
             and grouped[edge.id] not in cleanup}
         if any(grouped[int(identifier)] not in current.decision_group_ids for identifier in decided):
             raise CashRelationError("relation_group_incomplete")
-        validate_joint_relation_context(expected.joint_members, current.joint_members, decided)
+        validate_joint_relation_context(current.joint_members if expected_members is None else expected_members, current.joint_members, decided)
         for group in {grouped[int(identifier)] for identifier in decided}:
             members = [targets[int(member.id)] for member in current.joint_members if member.decision_group_id == group]
             if len({(edge.state, edge.active) for edge in members}) != 1:
@@ -137,7 +145,8 @@ class CashRelationGraphService:
         pending = {str(parent_id) for _identifier, parent_id, _revision in current.issue_versions}
         pending.update(identifier for edge in edges if edge.active and edge.state == "draft"
             for identifier in (edge.primary_transaction_id, edge.secondary_transaction_id) if identifier is not None)
-        facts = tuple(replace(fact, needs_attention=str(fact.id) in pending) for fact in current.facts)
+        facts = tuple(replace(fact, needs_attention=str(fact.id) in pending)
+            if fact.needs_attention != (str(fact.id) in pending) else fact for fact in current.facts)
         build = build_cash_relation_graph(facts, current.components, edges, funding_component_ids=current.funding_component_ids)
         resolved = {relation.id: relation.applied_amount for projection in build.projections for relation in projection.relations}
         edges = tuple(replace(edge, applied_amount=resolved[edge.id]) if edge.id in resolved else edge for edge in edges)

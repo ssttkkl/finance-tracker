@@ -172,14 +172,24 @@ class FieldDiffView(MemberRef):
     resolution: str
 
 
+class RelationSummaryView(Output):
+    kind: str
+    subtype: str | None = None
+    member_refs: list[MemberRef]
+
+
 class RelationCandidateView(Output):
     candidate_id: str
     display: DisplayView | None = None
     member_refs: list[MemberRef] = Field(default_factory=list)
     code: str | None = None
+    relations: list[RelationSummaryView] = Field(default_factory=list)
 
 
 class RelationChoiceView(Output):
+    relations: list[RelationSummaryView] = Field(default_factory=list)
+    relation_ids: list[str] = Field(default_factory=list)
+    split_field_diffs: list[dict[str, Any]] = Field(default_factory=list)
     common_fields: dict[str, Any] = Field(default_factory=dict)
     common_field_conflicts: dict[str, list[Any]] = Field(default_factory=dict)
     inherit_common_fields: bool | None = None

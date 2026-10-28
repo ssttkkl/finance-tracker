@@ -570,9 +570,10 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
     _seed_cash_projection_workload(sessions)
     CashProjectionService(sessions, WORKSPACE).rebuild()
     service = _cash_command_service(sessions)
+    from cash_entry_fixtures import create_import_record
 
     def pair(index: int) -> tuple[str, str]:
-        outgoing = service.create_record({
+        outgoing = create_import_record(service, {
             "account_name": "性能现金账户 A",
             "amount": f"-{100 + index}.00",
             "currency": "CNY",
@@ -583,7 +584,7 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
             "record_subtype": "ordinary_transfer",
             "note": "性能关联",
         })
-        incoming = service.create_record({
+        incoming = create_import_record(service, {
             "account_name": "性能现金账户 B",
             "amount": f"{100 + index}.00",
             "currency": "CNY",
@@ -611,30 +612,10 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
         service.delete_record(outgoing, mode="delete_all")
 
     samples: dict[str, list[int]] = {
-        "related_key_edit": [],
         "delete_current_dissolve": [],
         "delete_all": [],
     }
     for sample in range(WRITE_SAMPLES):
-        outgoing, incoming = pair(200 + sample)
-        started = time.perf_counter_ns()
-        edited = service.update_record(outgoing, {
-            "account_name": "性能现金账户 A",
-            "amount": f"-{150 + sample}.00",
-            "currency": "CNY",
-            "occurred_at": "2026-04-01T09:00:00+00:00",
-            "counterparty": "性能关联对侧",
-            "category": "转账",
-            "record_type": "transfer_out",
-            "record_subtype": "ordinary_transfer",
-            "note": "性能关联",
-            "confirm_relation_impact": True,
-        })
-        samples["related_key_edit"].append(time.perf_counter_ns() - started)
-        assert edited["relations"] == []
-        service.delete_record(outgoing)
-        service.delete_record(incoming)
-
         outgoing, incoming = pair(300 + sample)
         started = time.perf_counter_ns()
         result = service.delete_record(outgoing, mode="delete_current_dissolve")

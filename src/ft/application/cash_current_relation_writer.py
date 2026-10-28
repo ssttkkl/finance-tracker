@@ -161,7 +161,7 @@ class CashCurrentRelationWriter:
                 changes.append(edge)
                 if group["action"] == "accept":
                     evidence[edge.id] = RelationRoleEvidence(**group["evidence"][str(edge.id)])
-        prepared = service.validate(context, updates=changes, evidence_by_relation=evidence, cleanup_group_ids=cleanup)
+        prepared = service._validate_current(context, updates=changes, evidence_by_relation=evidence, cleanup_group_ids=cleanup)
         from ft.adapters.relational.cash_entries import CashEntryRepository
         entries = CashEntryRepository(self.session, self.workspace_id)
         for group in groups:
@@ -185,7 +185,7 @@ class CashCurrentRelationWriter:
                     "evidence": group["evidence"][str(edge.id)] if group["action"] == "accept" else row["evidence"],
                     "decision_source": "manual", "decided_by": self.user_id, "decided_at": datetime.now(timezone.utc),
                     "decision_reason": {"accept": "user_confirmed", "defer": "user_deferred", "ignore": "user_ignored", "remove": "user_removed"}[group["action"]]},
-                    expected_revision=row["row_revision"])
+                    expected_revision=row["row_revision"], _return_current=False)
                 changed = True
             written[group["suggestion_id"]] = changed
         return written

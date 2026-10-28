@@ -329,3 +329,24 @@ def test_parent_only_draft_current_relation_can_be_saved_without_components(cont
     assert row["active"] is (action != "remove")
     assert row["state"] == ("ignored" if action == "ignore" else "draft")
     assert _records(runtime).read("1101")["fields"] == before
+
+
+def test_relation_writer_reads_one_fresh_context_and_keeps_full_validation(context_runtime, monkeypatch):
+    from ft.application.cash_current_relation_writer import CashCurrentRelationWriter
+    from ft.application.cash_relation_context import CashRelationGraphService
+    runtime = context_runtime
+    service, _ = _open(runtime)
+    plan = _selection(service, runtime, candidate=True)
+    loads = []
+    original_write, original_load = CashCurrentRelationWriter._write, CashRelationGraphService.load
+    def write(writer, *args, **kwargs):
+        def load(graph, *args, **kwargs):
+            loads.append(True)
+            return original_load(graph, *args, **kwargs)
+        with monkeypatch.context() as patch:
+            patch.setattr(CashRelationGraphService, "load", load)
+            return original_write(writer, *args, **kwargs)
+    monkeypatch.setattr(CashCurrentRelationWriter, "_write", write)
+    result = _commit(service, plan)
+    assert result["summary"]["relations_confirmed"] == 1
+    assert len(loads) == 1

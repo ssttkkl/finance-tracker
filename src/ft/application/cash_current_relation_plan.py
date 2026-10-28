@@ -17,6 +17,8 @@ from ft.domain.relations.refund.hard_key import match_phase_a_platform_refunds
 class CashCurrentRelationPlanner:
     def __init__(self, session, workspace_id, transaction_id, *, business_builder):
         self.business_builder = business_builder
+        from ft.adapters.relational.cash_entries import CashEntryRepository
+        self.entries = CashEntryRepository(session, workspace_id)
         repository = CurrentCashRelationRepository(session, workspace_id)
         roots = repository.confirmed_closure({transaction_id})
         direct = repository.list_for_transactions(roots, include_candidates=True, include_candidate_ids=True)
@@ -50,8 +52,9 @@ class CashCurrentRelationPlanner:
         pending = {str(parent) for _identifier, parent, _revision in snapshot.context.issue_versions}
         for identifier, fact in tuple(snapshot.facts.items()):
             operation = snapshot.parent_ops.get(identifier, {})
-            snapshot.facts[identifier] = replace(fact, needs_attention=identifier in pending or
-                bool(operation.get("issues") or operation.get("retained_issue_ids")))
+            attention = identifier in pending or bool(operation.get("issues") or operation.get("retained_issue_ids"))
+            if fact.needs_attention != attention:
+                snapshot.facts[identifier] = replace(fact, needs_attention=attention)
         grouped = {}
         for row in self.rows:
             grouped.setdefault(("group", row["decision_group_id"]) if row["decision_group_id"] is not None
@@ -91,6 +94,9 @@ class CashCurrentRelationPlanner:
                     group["direct_confirmation"] = direct
                 if group["candidates"] or direct is not None:
                     group["allowed_actions"].insert(0, "accept")
+            group["relation_ids"] = [str(edge.id) for edge in edges]
+            group["split_field_diffs"] = self.entries.split_field_diffs(
+                snapshot.build(additions=tuple(replace(edge, active=False) for edge in edges)).projections)
             result.append(group)
         return result
 

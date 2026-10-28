@@ -32,6 +32,12 @@ data class CashRelationDecision(
     val suggestionId: String, val action: String, val candidateId: String? = null,
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
 )
+data class CashRelationAddition(val targetTransactionId: String, val expectedTargetRevision: Long,
+    val anchorComponentId: String, val targetComponentId: String, val kind: String, val subtype: String,
+    val commonFields: StructuredObject? = null)
+data class CashAssociationSearch(val query: String = "", val accountId: String? = null, val amount: String? = null,
+    val dateFrom: String? = null, val dateTo: String? = null, val cursor: String? = null)
+data class CashAssociationPage(val items: List<CashCurrentRecord>, val nextCursor: String?)
 data class CashMaintenanceRequest(
     val intent: String, val transactionId: String, val expectedRevision: Long,
     val patch: StructuredObject = StructuredObject(emptyMap()),
@@ -39,6 +45,7 @@ data class CashMaintenanceRequest(
     val memberPatches: List<CashMemberPatch> = emptyList(), val relationChoices: List<CashRelationDecision> = emptyList(),
     val issueResolutions: List<CashIssueResolution>? = null,
     val editContextId: String? = null, val previousPlanId: String? = null, val expectedPlanRevision: Long? = null,
+    val relationAdditions: List<CashRelationAddition> = emptyList(),
 )
 data class CashAdditionalEffect(val kind: String, val reference: String, val field: String? = null)
 data class CashMaintenancePlan(
@@ -52,12 +59,15 @@ data class CashDraftSaveResult(val receipt: ImportReceipt, val currentRecordStat
 data class CashSourceComponent(val componentId: String, val amount: String?, val currency: String?, val accountName: String?, val label: String)
 data class CashSourceMember(val transactionId: String, val occurredAt: String?, val amount: String?, val currency: String?,
     val counterparty: String, val note: String, val counterpartyAccount: String?, val accountName: String?, val components: List<CashSourceComponent>,
-    val sourcePayload: StructuredObject? = null)
+    val sourcePayload: StructuredObject? = null, val fields: StructuredObject = StructuredObject(emptyMap()),
+    val relations: List<CashSavedRelation> = emptyList())
 data class CashSourceEvidence(val projectionVersion: Long, val projection: CashProjection, val members: List<CashSourceMember>)
 data class CashCurrentMember(val transactionId: String, val rowRevision: Long, val confirmationStatus: String)
 data class CashCurrentGroup(val projectionVersion: Long, val members: List<CashCurrentMember>)
 
 interface CashMaintenanceRepository {
+    suspend fun associationTargets(transactionId: String, search: CashAssociationSearch): CashAssociationPage =
+        throw DomainFailure("operation_not_supported", 0, FailureCategory.RECOVERABLE)
     suspend fun currentGroup(projectionId: String): CashCurrentGroup
     suspend fun sources(projectionId: String): CashSourceEvidence
     suspend fun record(transactionId: String): CashCurrentRecord

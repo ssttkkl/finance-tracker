@@ -15,15 +15,12 @@ from ft.domain.accounts import AccountDTO
 def _get_account_id(uow, name):
     from sqlalchemy import select
     from ft.adapters.relational.models import AccountModel
-    with uow as u:
-        aid = u._state().session.scalar(
-            select(AccountModel.id).where(
-                AccountModel.workspace_id == uow.workspace_id,
-                AccountModel.name == name,
-            )
+    return uow._state().session.scalar(
+        select(AccountModel.id).where(
+            AccountModel.workspace_id == uow.workspace_id,
+            AccountModel.name == name,
         )
-        u.rollback()
-    return aid
+    )
 
 
 

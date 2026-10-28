@@ -50,6 +50,8 @@ def _wire(value):
 
 def _wire_in_place(value):
     """转换调用内独占的计划；输入和公开返回的复制边界仍由调用方保留。"""
+    if value is None or type(value) in (str, int, bool, float):
+        return value
     if isinstance(value, dict):
         for key, item in value.items():
             value[key] = _wire_in_place(item)
@@ -60,8 +62,6 @@ def _wire_in_place(value):
         return value
     if isinstance(value, tuple):
         return [_wire_in_place(item) for item in value]
-    if value is None or type(value) in (str, int, bool, float):
-        return value
     return _wire(value)
 
 
@@ -78,7 +78,7 @@ class CashImportOperationPlanner:
     def __init__(self, session, workspace_id):
         self.session, self.workspace_id = session, workspace_id
 
-    def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None, source_plan=None):
+    def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None, source_plan=None, wire_values=True):
         files = tuple(files)
         inputs = _preview_input([] if account_selections is None else account_selections,
             [] if row_choices is None else row_choices, [])
@@ -99,7 +99,7 @@ class CashImportOperationPlanner:
         entries = CashEntryRepository(self.session, self.workspace_id)
         entry_members, entry_rows = entries.for_transactions(records)
         self._entries = {str(identifier): entry_rows[member.entry_id] for identifier, member in entry_members.items()}
-        self._entry_snapshots = {str(item[0]): (item,) for item in entries.snapshot(records)}
+        self._entry_snapshots = {str(item[0]): (item,) for item in entries.snapshot_values(entry_members, entry_rows)}
         targets, saved_issues = self._current_targets(records)
         source_results = {row.row_ref: row for row in source.plan.rows}
         groups = {group.group_ref: group for group in source.plan.groups}
@@ -186,7 +186,7 @@ class CashImportOperationPlanner:
                     operation["source_updates"] = [{"row_ref": item, "bind": source_results[item].bind or resolution.action == "pending",
                         "uncertain": any(issue["code"] == "source_identity_ambiguous" for issue in operation["issues"])} for item in related]
                     operation["row_refs"] = list(related)
-                    operations.append(_wire(operation))
+                    operations.append(_wire(operation) if wire_values else operation)
                     decisions[ref] = {"row_ref": ref, "operation_ref": operation["operation_ref"],
                         "planned_action": operation["planned_action"], "transaction_id": operation["transaction_id"]}
             except CashImportPlanError:

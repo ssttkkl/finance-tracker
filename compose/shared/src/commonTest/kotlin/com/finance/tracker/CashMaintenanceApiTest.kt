@@ -10,6 +10,14 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class CashMaintenanceApiTest {
+    @Test fun associationDatesSendLocalTimeZone() = runTest {
+        var call: HttpRequestData? = null
+        val api = client("""{"items":[],"next_cursor":null}""") { call = it }
+        api.readCashAssociationTargets("11", com.finance.tracker.domain.CashAssociationSearch(dateFrom = "2025-01-01", dateTo = "2025-01-01"))
+        assertEquals(com.finance.tracker.core.getLocalTimeZoneId(), call!!.url.parameters["timezone_name"])
+        api.close()
+    }
+
     @Test fun sourceBodyUsesExplicitMemberReferenceAndKeepsOriginalStatementFields() = runTest {
         val calls = mutableListOf<String>()
         val api = FinanceApiClient({ "https://api.example.test" }, MaintenanceTokenStore(), MockEngine {

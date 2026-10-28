@@ -66,7 +66,7 @@ def test_upgrade_converts_active_and_staging_refunds_without_rebuilding_sources(
         connection.commit()
         command.upgrade(_migration_config(connection), "head")
         connection.commit()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261023_50"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261028_51"
         assert "cash-projection-v2" in next(column["default"] for column in inspect(connection).get_columns("cash_projection_states")
             if column["name"] == "rules_version")
         assert _snapshot(connection) == before and _projection_values(connection) == values

@@ -136,12 +136,20 @@ data class CashPlanFieldDiffDto(
     val field: String, val current: JsonElement, val incoming: JsonElement, val effective: JsonElement, val resolution: String,
 )
 @Serializable
+data class CashPlanRelationSummaryDto(
+    val kind: String, val subtype: String? = null,
+    @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
+)
+@Serializable
 data class CashPlanRelationCandidateDto(
     @SerialName("candidate_id") val candidateId: String,
     val display: CashPlanDisplayDto? = null,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto> = emptyList(),
     val code: String? = null,
+    val relations: List<CashPlanRelationSummaryDto> = emptyList(),
 )
+@Serializable
+data class CashSplitFieldDiffDto(val field: String, val current: JsonElement, val restored: JsonElement)
 @Serializable
 data class CashPlanRelationChoiceDto(
     @SerialName("suggestion_id") val suggestionId: String,
@@ -153,6 +161,9 @@ data class CashPlanRelationChoiceDto(
     @SerialName("common_field_conflicts") val commonFieldConflicts: Map<String, List<JsonElement>> = emptyMap(),
     @SerialName("common_fields") val commonFields: JsonObject? = null,
     @SerialName("inherit_common_fields") val inheritCommonFields: Boolean? = null,
+    @SerialName("relation_ids") val relationIds: List<String> = emptyList(),
+    @SerialName("split_field_diffs") val splitFieldDiffs: List<CashSplitFieldDiffDto> = emptyList(),
+    val relations: List<CashPlanRelationSummaryDto> = emptyList(),
 )
 @Serializable
 data class CashPlanRelationEffectDto(

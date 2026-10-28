@@ -5,7 +5,7 @@ from ft.cash_diagnostics import cash_diagnostic_scope, row_locations
 
 from collections import OrderedDict
 from collections.abc import Mapping
-from copy import deepcopy
+from ft.copying import copy_value
 from dataclasses import dataclass, field
 from decimal import Decimal, localcontext
 import re
@@ -167,7 +167,7 @@ def scan_cash_funding(files) -> CashFundingScan:
         for row in file.document.rows:
             if row.disposition == "skipped" or row.fields is None:
                 continue
-            ref, fields = f"{file.file_ref}:r{row.position}", deepcopy(row.fields)
+            ref, fields = f"{file.file_ref}:r{row.position}", copy_value(row.fields)
             try:
                 with cash_diagnostic_scope("row_planning", row_locations((ref,)), scope="row", files=(file,)):
                     if fields.get("currency") is not None and (not isinstance(fields["currency"], str) or not re.fullmatch(r"[A-Z]{3}", fields["currency"])):
@@ -224,7 +224,7 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
     selected = _selection_accounts(scan, selections, accounts)
     result = []
     for row in scan.rows:
-        fields = deepcopy(row.fields)
+        fields = copy_value(row.fields)
         has_unresolved_part = any(part.group_ref is None for part in row.parts)
         issues = [code for code in row.issue_codes if code != "funding_unrecognized"
             or has_unresolved_part or any(selected[ref][0] is None for ref in row.group_refs)]

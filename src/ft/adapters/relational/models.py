@@ -629,6 +629,7 @@ class CashEntryModel(Base):
     __tablename__ = "cash_entries"
     __table_args__ = (
         UniqueConstraint("workspace_id", "id", name="uq_cash_entries_workspace_id"),
+        Index("ix_cash_entries_workspace_category", "workspace_id", "category_id"),
         CheckConstraint("revision >= 1", name="ck_cash_entries_revision"),
         ForeignKeyConstraint(["workspace_id", "category_id"], ["cash_categories.workspace_id", "cash_categories.id"], ondelete="RESTRICT"),
     )

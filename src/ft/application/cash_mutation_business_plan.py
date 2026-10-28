@@ -36,6 +36,15 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             current_relations = CashCurrentRelationPlanner(session, self.workspace_id, row.id, business_builder=self)
             additional_seeds.update(current_relations.seed_ids)
             decision_groups.update(current_relations.decision_group_ids)
+            for addition in preview_input.get("relation_additions", []):
+                target = planner.record(_identifier(addition["target_transaction_id"]))
+                if target.record_origin not in {"import", "legacy"} or row.record_origin not in {"import", "legacy"}:
+                    raise CashRecordPolicyError("relation_endpoint_incompatible", ())
+                additional_seeds.add(target.id)
+        def relation_groups(snapshot, accounts):
+            groups = current_relations(snapshot, accounts)
+            from ft.application.cash_manual_associations import manual_groups
+            return groups + manual_groups(snapshot, current_relations, row.id, preview_input.get("relation_additions", []))
         if merging:
             source = row
             row, operation = CashDraftMergePlanner(planner).prepare(source, resolutions, patch)
@@ -91,14 +100,12 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             relation_choices=preview_input["relation_choices"], previous_plan=previous_plan, include_unchanged=True,
             current_records=current_records, source_scope_snapshot=(frozenset(int(key) for key in current_records), scopes),
             additional_seed_ids=additional_seeds, decision_group_ids=decision_groups,
-            snapshot_transform=transform if merging or transfer_relations else None, current_relation_builder=current_relations)
+            snapshot_transform=transform if merging or transfer_relations else None,
+            current_relation_builder=relation_groups if current_relations is not None else None)
         from ft.domain.cash_record_policy import COMMON_CASH_FIELDS
         for group in result["relation_groups"]:
-            if group["action"] == "remove" and "inherit_common_fields" not in group:
-                for identifier in group.get("old_parent_ids", group["parent_ids"]):
-                    original_entry = CashEntryRepository(session, self.workspace_id).current(int(identifier))
-                    if original_entry and original_entry.manual_fields:
-                        raise CashRecordPolicyError("inheritance_required", ())
+            if group["action"] == "remove" and group.get("split_field_diffs") and "inherit_common_fields" not in group:
+                raise CashRecordPolicyError("inheritance_required", ())
         if len(operations) != expected_count:
             # 一次维护意图不能只保存整笔分类的一部分。
             raise CashRecordPolicyError("relation_endpoint_incompatible", ("record_type", "record_subtype"))

@@ -253,3 +253,56 @@ def test_posting_aggregate_requires_empty_parent_account(account_id):
             {"account_id": "41", "amount": "-10", "currency": "CNY", "ordinal": 0},
             {"account_id": "42", "amount": "-10", "currency": "CNY", "ordinal": 1},
         ]))
+
+
+def test_normalized_update_retains_explicit_nulls_for_source_content_identity():
+    from ft.domain.cash_record_policy import prepare_cash_record_update
+    patch = {'category_id': None, 'note': '', 'amount': '-1.00'}
+    update = prepare_cash_record_update({'state': 'draft'}, patch)
+    assert update.normalized_values == {**patch, 'amount': Decimal('-1.00')}
+    assert 'category_id' not in update.values
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_component_normalization_preserves_values_and_input_isolation(nested):
+    from ft.domain.cash_record_policy import _component_values
+    source = {"component_id": "11", "account_id": 41, "amount": Decimal("-1.2300"),
+        "currency": "CNY", "ordinal": 0, "optional": None, "flag": True}
+    shared = {"labels": ["original"]}
+    if nested:
+        source.update(first=shared, second=shared)
+    result = _component_values([source])[0]
+    assert result is not source
+    assert result["account_id"] == "41" and source["account_id"] == 41
+    assert result["amount"].as_tuple() == source["amount"].as_tuple()
+    result["ordinal"] = 2
+    assert source["ordinal"] == 0
+    if nested:
+        assert result["first"] is result["second"]
+        result["first"]["labels"].append("changed")
+        assert shared == {"labels": ["original"]}
+
+
+def test_component_normalization_deep_copies_scalar_subclass_attributes():
+    from ft.domain.cash_record_policy import _component_values
+    class Tagged(str):
+        pass
+    tag = Tagged("original")
+    tag.labels = []
+    result = _component_values([{"tag": tag}])[0]
+    assert type(result["tag"]) is Tagged
+    result["tag"].labels.append("changed")
+    assert tag.labels == []
+
+
+
+def test_component_normalization_deep_copies_string_subclass_keys():
+    from ft.domain.cash_record_policy import _component_values
+    class TaggedKey(str):
+        pass
+    key = TaggedKey("tag")
+    key.labels = []
+    result = _component_values([{key: "value"}])[0]
+    copied_key = next(iter(result))
+    copied_key.labels.append("changed")
+    assert key.labels == []

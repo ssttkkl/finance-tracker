@@ -6,6 +6,15 @@ import kotlinx.serialization.json.*
 private const val MAINTENANCE = "/api/v1/cash-mutations"
 private val maintenanceJson = Json(apiJson) { encodeDefaults = true; explicitNulls = false }
 
+suspend fun FinanceApiClient.readCashAssociationTargets(transactionId: String, search: com.finance.tracker.domain.CashAssociationSearch): CashAssociationPageDto =
+    request(HttpMethod.Get, appendQuery("/api/v1/cash-records/${encodePathSegment(transactionId)}/association-targets", buildList {
+        add("query" to search.query)
+        add("timezone_name" to com.finance.tracker.core.getLocalTimeZoneId())
+        search.accountId?.let { add("account_id" to it) }; search.amount?.let { add("amount" to it) }
+        search.dateFrom?.let { add("date_from" to it) }; search.dateTo?.let { add("date_to" to it) }
+        search.cursor?.let { add("cursor" to it) }
+    }))
+
 suspend fun FinanceApiClient.readCurrentCashRecord(transactionId: String): CashCurrentRecordDto =
     request(HttpMethod.Get, "/api/v1/cash-records/${encodePathSegment(transactionId)}")
 
@@ -39,7 +48,8 @@ suspend fun FinanceApiClient.previewCashMaintenance(input: CashMaintenanceInput)
         } else if (it.targetTransactionId != null || it.expectedTargetRevision != null) invalidCashInput()
     }
     if (input.relationChoices.any { it.action !in setOf("accept", "defer", "ignore", "remove") }) invalidCashInput()
-    return request(HttpMethod.Post, "$MAINTENANCE/plans", maintenanceJson.encodeToJsonElement(input))
+    val encoded = maintenanceJson.encodeToJsonElement(input).jsonObject
+    return request(HttpMethod.Post, "$MAINTENANCE/plans", JsonObject(encoded.filterKeys { it != "relation_additions" || input.relationAdditions.isNotEmpty() }))
 }
 
 suspend fun FinanceApiClient.readCashMaintenancePlan(planId: String): CashMaintenancePlanDto =

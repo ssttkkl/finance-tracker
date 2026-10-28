@@ -14,7 +14,7 @@ internal fun cashRelationRequest(record: CashCurrentRecord, choices: List<CashRe
         if (choice.action == "accept") {
             if (option.candidates.isNotEmpty() && option.candidates.none { it.candidateId == choice.candidateId }) invalid()
             if (option.candidates.isEmpty() && choice.candidateId != null && choice.candidateId != option.candidateId) invalid()
-            if (option.commonFieldConflicts.any { (field, values) -> choice.commonFields?.fields?.get(field) !in values }) invalid()
+            if (option.commonFieldConflicts.any { (field, values) -> choice.commonFields?.fields?.get(field) !in cashRelationCommonValues(field, values) }) invalid()
             if (choice.commonFields?.fields.orEmpty().any { (field, value) ->
                 field !in option.commonFieldConflicts && (field !in option.commonFields?.fields.orEmpty() || option.commonFields?.fields?.get(field) != value)
             }) invalid()
@@ -37,3 +37,11 @@ internal fun cashRelationChoicesLoaded(choices: List<CashRelationDecision>, opti
         cashRelationMemberRecords(group.members, records) != null &&
             (if (group.candidates.isEmpty()) true else candidate?.let { cashRelationMemberRecords(it.members, records) != null } == true)
     }
+
+internal fun cashRelationCommonValues(field: String, values: List<StructuredValue>): List<StructuredValue> =
+    (values + when (field) {
+        "note", "counterparty", "counterparty_account" -> listOf(StructuredText(""))
+        "category_id" -> listOf(StructuredNull)
+        "counterparty_account_attrs" -> listOf(StructuredArray(emptyList()))
+        else -> emptyList()
+    }).distinct()

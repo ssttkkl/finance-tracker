@@ -527,3 +527,19 @@ def test_explicit_draft_component_ids_must_be_owned_and_unique(draft_runtime, co
         with pytest.raises(CashImportPlanError, match="plan_input_invalid"):
             _prepare(session, draft_runtime, (file,), choices=[{"row_ref": "file_a:r1", "action": "apply",
                 "patch": {"components": components}}])
+
+
+def test_typed_preparation_keeps_default_wire_result_and_input_unchanged(draft_runtime):
+    from copy import deepcopy
+    from ft.application.cash_import_operations import CashImportOperationPlanner, _wire
+    file = _file()
+    before = deepcopy(file)
+    identity = {row.occurrence_key: 'synthetic-record' for row in source_batch_rows((file,)).values()}
+    arguments = {'account_selections': _selections((file,)), 'record_ids': identity}
+    with draft_runtime.sessions() as session:
+        planner = CashImportOperationPlanner(session, draft_runtime.workspace_id)
+        wire = planner.prepare((file,), **arguments)
+        typed = planner.prepare((file,), **arguments, wire_values=False)
+    assert _wire(typed.operations) == list(wire.operations)
+    assert typed.operations[0]['values']['amount'] == Decimal('-12.5')
+    assert file == before

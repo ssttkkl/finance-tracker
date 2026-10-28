@@ -77,6 +77,12 @@ Implement tasks from an OpenSpec change.
    [AGENTS.md](../../../AGENTS.md#个人记账的冲突与输入边界) before adding conflict,
    validation, compatibility, or recovery branches. If implementation requires a
    different boundary, update the controlling change artifacts before coding.
+   For an approved UI prototype, retain its information hierarchy and workflow
+   alongside later user constraints. Browser checks must compare the rendered
+   layout as well as interaction: presence of a component does not establish
+   prototype parity. When reusing a ledger table in a selection dialog, verify
+   readable amounts and shared header/row geometry at the actual container width;
+   compact card reuse must keep the full-screen dialog contract.
    The files depend on the schema being used:
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output
@@ -238,3 +244,10 @@ This skill supports the "actions on a change" model:
 
 导入错误定位使用 `ft.cash_diagnostics` 的局部 scope，转换／规划只附上下文，最终 HTTP、文件隔离或提交包装才产生编号和脱敏调用帧日志；不输出异常正文或 SQL 参数。`row` 与 `related` 精度不可混淆，持久端点不能猜测本次文件，批量不拆分重跑；最终提交只给 request 范围。Compose 只消费 `error.diagnostic`／文件 `diagnostic` 白名单并只读显示，不写恢复存储或增加逐项补救。协议见 `docs/cash-import-redesign-contracts.md` 的错误定位章节。
 现金导入的呈现合同以 active change 为准：从账本打开全屏模态任务，保留兼容地址、恢复与退出保护。按 `AGENTS.md` 的 UI 演示确认循环交付第一版及每轮反馈。
+
+
+## 后端性能与 PR 分片验证
+
+后端常规检查通过 `scripts/run_backend_tests.py` 按文件确定分片，同一片内顺序运行；汇总检查只接受所有分片成功。真实 PostgreSQL 分片必须使用各自独立的专用 `_test` 数据库，不得并发重置同一库。分类性能夹具包含稳定收支对象及完整成员；公共备注校验 `entry.fields` 和对象修订，同时保护来源原文与来源修订。导入性能继续计时完整预览与提交，不以内部规划耗时替代，不改变既有预算。
+
+同次导入预览可从完整校验的私有暂存快照更新计划，原解析文件以不可变 JSON 字节保留；不得把可变 DTO 的对象身份当作文件未变化证明。完整重建可复用同事务已验证来源快照的数量，但发布前仍重算来源摘要并核对真实数量，普通仓库发布入口继续完整校验。

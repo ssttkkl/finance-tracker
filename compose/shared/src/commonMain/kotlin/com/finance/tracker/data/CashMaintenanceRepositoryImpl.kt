@@ -4,6 +4,10 @@ import com.finance.tracker.domain.*
 import kotlinx.coroutines.CancellationException
 
 class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMaintenanceRepository {
+    override suspend fun associationTargets(transactionId: String, search: CashAssociationSearch) = guarded {
+        val value = api.readCashAssociationTargets(transactionId, search)
+        CashAssociationPage(value.items.map { it.toDomain() }, value.nextCursor)
+    }
     override suspend fun currentGroup(projectionId: String) = guarded {
         val group = api.readCurrentCashMembers(projectionId)
         CashCurrentGroup(group.projectionVersion, group.members.map { CashCurrentMember(it.transactionId, it.rowRevision, it.confirmationStatus) })
@@ -18,7 +22,8 @@ class KtorCashMaintenanceRepository(private val api: FinanceApiClient) : CashMai
             }
             CashSourceMember(member.id, member.occurredAt, member.amount, member.currency, member.counterparty, member.note, member.counterpartyAccount,
                 member.account?.name ?: member.accountName, member.components.map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, part.label) },
-                source.fields["source_payload"]?.toStructuredValue() as? StructuredObject)
+                source.fields["source_payload"]?.toStructuredValue() as? StructuredObject,
+                source.fields.toStructuredObject(), source.toDomain().relations)
         })
     }
     override suspend fun record(transactionId: String) = guarded { api.readCurrentCashRecord(transactionId).toDomain() }
@@ -55,4 +60,6 @@ internal fun CashMaintenanceRequest.toDto() = CashMaintenanceInput(intent, trans
     memberPatches.map { CashMemberPatchInput(it.transactionId, it.patch.toJsonObject()) },
     relationChoices.map { CashMaintenanceRelationInput(it.suggestionId, it.action, it.candidateId, it.commonFields?.toJsonObject(), it.inheritCommonFields) },
     issueResolutions?.map { CashIssueResolutionInput(it.issueId, it.revision, it.resolution, it.targetTransactionId, it.targetRevision) },
-    editContextId, previousPlanId, expectedPlanRevision)
+    editContextId, previousPlanId, expectedPlanRevision,
+    relationAdditions.map { CashRelationAdditionInput(it.targetTransactionId, it.expectedTargetRevision, it.anchorComponentId,
+        it.targetComponentId, it.kind, it.subtype, it.commonFields?.toJsonObject()) })
