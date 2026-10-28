@@ -266,8 +266,11 @@ class CashCategoryService:
             if usage_count and not confirmed:
                 raise ValueError("category.delete_confirmation_required")
             clear_entry_category(session, self._workspace_id, category.id)
-            changed = clear_manual_category(session, self._workspace_id, category.id)
-            CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
+            relations = CurrentCashRelationRepository(session, self._workspace_id)
+            candidates = relations.has_live_candidates()
+            changed = clear_manual_category(session, self._workspace_id, category.id, return_rows=candidates)
+            if candidates:
+                relations.mark_candidates_stale(changed)
             projection_state = session.scalar(select(CashProjectionStateModel).where(
                 CashProjectionStateModel.workspace_id == self._workspace_id).with_for_update())
             ready = (projection_state is not None and projection_state.availability == "ready"

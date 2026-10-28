@@ -8,7 +8,7 @@ from .cash_relations import _batches
 from .models import CashTransactionModel, CashEntryModel, CashEntryMemberModel
 
 
-def _set_category(session, workspace_id, conditions, category_id):
+def _set_category(session, workspace_id, conditions, category_id, *, return_rows=True):
     overrides = CashTransactionModel.manual_overrides
     if session.bind.dialect.name == "postgresql":
         document = cast(overrides, JSONB)
@@ -29,8 +29,10 @@ def _set_category(session, workspace_id, conditions, category_id):
     query = update(CashTransactionModel).where(
         CashTransactionModel.workspace_id == workspace_id, *conditions,
         or_(CashTransactionModel.category_id.is_distinct_from(category_id), protection_changed),
-    ).values(category_id=category_id, manual_overrides=protected).returning(
-        CashTransactionModel.id, CashTransactionModel.deleted_at)
+    ).values(category_id=category_id, manual_overrides=protected)
+    if not return_rows:
+        return session.execute(query.execution_options(synchronize_session=False)).rowcount
+    query = query.returning(CashTransactionModel.id, CashTransactionModel.deleted_at)
     return {row.id: row.deleted_at is None for row in session.execute(
         query.execution_options(synchronize_session="fetch"))}
 
@@ -44,9 +46,9 @@ def set_manual_category(session, workspace_id, transaction_ids, category_id):
     return changed
 
 
-def clear_manual_category(session, workspace_id, category_id):
-    """一次清空全部引用并返回各父流水是否存活，保护空值及其他人工决定。"""
-    return _set_category(session, workspace_id, (CashTransactionModel.category_id == category_id,), None)
+def clear_manual_category(session, workspace_id, category_id, *, return_rows=True):
+    """一次清空全部引用并保护人工决定；可仅返回数量。"""
+    return _set_category(session, workspace_id, (CashTransactionModel.category_id == category_id,), None, return_rows=return_rows)
 
 
 def _category_protection(session, column):

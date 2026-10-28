@@ -370,3 +370,33 @@ def test_relation_merge_split_and_logical_delete_replace_complete_components(cas
         )
     assert state.projection_count == 2
     assert members == 2
+
+
+@pytest.mark.parametrize("runtime_fixture", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_rebuild_validates_sources_once_and_fences_publication(request, runtime_fixture, monkeypatch):
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = request.getfixturevalue(runtime_fixture)
+    reads = []
+    original = RelationalCashProjectionRepository.read_sources
+    def read(repository):
+        reads.append(True)
+        return original(repository)
+    monkeypatch.setattr(RelationalCashProjectionRepository, "read_sources", read)
+    status = _service(runtime).rebuild()
+    assert status["member_count"] == 3
+    assert len(reads) == 1
+
+
+@pytest.mark.parametrize("runtime_fixture", ["cash_web_runtime", "postgres_cash_web_runtime"])
+def test_rebuild_rejects_source_change_after_complete_validation(request, runtime_fixture, monkeypatch):
+    from ft.adapters.relational.models import CashTransactionModel
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = request.getfixturevalue(runtime_fixture)
+    original = RelationalCashProjectionRepository.replace_dataset
+    def replace(repository, *args, **kwargs):
+        original(repository, *args, **kwargs)
+        repository._session.get(CashTransactionModel, 1003).note = "synthetic changed source"
+    monkeypatch.setattr(RelationalCashProjectionRepository, "replace_dataset", replace)
+    with pytest.raises(RuntimeError, match="projection.concurrent_update"):
+        _service(runtime).rebuild()
+    assert _service(runtime).status()["availability"] != "ready"

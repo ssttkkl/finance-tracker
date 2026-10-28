@@ -169,12 +169,15 @@ class CurrentCashRelationRepository:
             rows.update((row["id"], dict(row)) for row in self._session.execute(query).mappings())
         return tuple(rows[key] for key in sorted(rows))
 
+    def has_live_candidates(self):
+        return self._session.scalar(select(CashRelationCandidateModel.id).where(
+            CashRelationCandidateModel.workspace_id == self._workspace_id,
+            CashRelationCandidateModel.validity != "stale").limit(1)) is not None
+
     def mark_candidates_stale(self, transaction_ids):
         """调用方传入实际更新的流水；使其端点及对侧候选依赖失效。"""
         transaction_ids = tuple(sorted({_id(value) for value in transaction_ids}))
-        if len(transaction_ids) > 500 and self._session.scalar(select(CashRelationCandidateModel.id).where(
-            CashRelationCandidateModel.workspace_id == self._workspace_id,
-            CashRelationCandidateModel.validity != "stale").limit(1)) is None:
+        if len(transaction_ids) > 500 and not self.has_live_candidates():
             return frozenset()
         changed = set()
         for batch in _batches(transaction_ids):
@@ -283,7 +286,7 @@ class CurrentCashRelationRepository:
         self._session.flush()
         return self.get(row.id)
 
-    def replace(self, relation_id, changes, *, expected_revision):
+    def replace(self, relation_id, changes, *, expected_revision, _return_current=True):
         row = self._model(relation_id)
         if type(expected_revision) is not int or row.row_revision != expected_revision:
             raise CashRelationError("relation_revision_changed")
@@ -299,8 +302,9 @@ class CurrentCashRelationRepository:
         if values["state"] != "draft" or not values["active"]:
             self._session.execute(delete(CashRelationCandidateModel).where(
                 CashRelationCandidateModel.workspace_id == self._workspace_id, CashRelationCandidateModel.relation_id == row.id))
+        identifier = row.id
         self._session.expire(row)
-        return self.get(row.id)
+        return self.get(identifier) if _return_current else None
 
     def set_candidates(self, relation_id, candidates, *, expected_revision):
         row = self._model(relation_id)
@@ -354,5 +358,6 @@ class CurrentCashRelationRepository:
             CashRelationCandidateModel.relation_id == row.id))
         self._session.add_all(prepared)
         self._session.flush()
+        identifier = row.id
         self._session.expire(row)
-        return self.get(row.id)
+        return self.get(identifier)

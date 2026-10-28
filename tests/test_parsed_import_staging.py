@@ -862,3 +862,45 @@ def test_json_budget_still_visits_empty_looking_container_subclass():
     budget = [100]
     _json_budget([value], budget)
     assert budget == [100 - 3 - 2 - len("not empty")]
+
+
+def test_plan_snapshot_publication_reuses_original_files_and_cas(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, _, _ = staging
+    original = _create(store)
+    snapshot = store._read_for_plan_update(original.session_id, workspace_id="workspace-a", user_id="user-a")
+    current = snapshot.session
+    # Snapshot publication updates only the plan, even if its detached DTO is mutated.
+    current.files[0].document.rows[0].fields["amount"] = "not a financial value"
+    args = dict(workspace_id="workspace-a", user_id="user-a", expected_revision=1, preview_input={})
+    store._replace_plan(snapshot, **args, plan={"plan_id": "first"})
+    assert _get(store, current).plan == {"plan_id": "first"}
+    with pytest.raises(ImportSessionRevisionConflict):
+        store._replace_plan(snapshot, **args, plan={"plan_id": "stale"})
+    assert _get(store, current).plan == {"plan_id": "first"}
+    assert _get(store, current).files == original.files
+
+
+def test_plan_snapshot_checks_owner_and_expiry(staging):
+    from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionForbidden
+    store, now, _ = staging
+    original = _create(store)
+    snapshot = store._read_for_plan_update(original.session_id, workspace_id="workspace-a", user_id="user-a")
+    args = dict(workspace_id="workspace-a", user_id="user-a", expected_revision=1, preview_input={}, plan={})
+    with pytest.raises(ImportSessionForbidden):
+        store._replace_plan(snapshot, **(args | {"user_id": "user-b"}))
+    now[0] = original.expires_at
+    with pytest.raises(ImportSessionExpired):
+        store._replace_plan(snapshot, **args)
+
+
+def test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot(staging):
+    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
+    store, _, _ = staging
+    original = _create(store)
+    snapshot = store._read_for_plan_update(original.session_id, workspace_id="workspace-a", user_id="user-a")
+    store.cancel(original.session_id, workspace_id="workspace-a", user_id="user-a", expected_revision=1)
+    with pytest.raises(ImportSessionRevisionConflict):
+        store._replace_plan(snapshot, workspace_id="workspace-a", user_id="user-a", expected_revision=1,
+            preview_input={}, plan={"plan_id": "stale"})
+    assert _get(store, original).cancelled and _get(store, original).files == ()

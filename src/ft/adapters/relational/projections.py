@@ -1,12 +1,13 @@
 """收支投影的关系型派生读模型适配器。"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
 from uuid import uuid4
 
-from sqlalchemy import and_, delete, insert, select
+from sqlalchemy import and_, delete, func, insert, select
 from sqlalchemy.orm import aliased
 
 from ft.domain.cash_projection import (
@@ -42,6 +43,15 @@ PROJECTION_WRITE_BATCH_SIZE = 900
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+@dataclass(frozen=True)
+class _ValidatedProjectionSources:
+    repository: object
+    transaction: object
+    digest: str
+    facts: tuple
+    relations: tuple
 
 
 class RelationalCashProjectionRepository:
@@ -90,6 +100,11 @@ class RelationalCashProjectionRepository:
 
     def read_sources(self) -> tuple[tuple[CashProjectionFact, ...], tuple[ProjectionRelation, ...]]:
         return self.read_sources_for_facts(None)
+
+    def read_validated_sources(self):
+        digest = self.source_digest()
+        facts, relations = self.read_sources()
+        return _ValidatedProjectionSources(self, self._session.get_transaction(), digest, facts, relations)
 
     def _parent_ids_for_components(self, component_ids):
         result = set()
@@ -779,7 +794,7 @@ class RelationalCashProjectionRepository:
         state.last_error_summary = None
         return self._status_for_state(state)
 
-    def publish_dataset(self, dataset_id: str, *, source_digest: str, rules_version: str) -> dict:
+    def publish_dataset(self, dataset_id: str, *, source_digest: str, rules_version: str, _validated_sources=None) -> dict:
         state = self._state(create=True, lock=True)
         assert state is not None
         dataset = self._staging_dataset(dataset_id)
@@ -795,9 +810,21 @@ class RelationalCashProjectionRepository:
             ).values(state="staging")
         )
         # Keep counts portable across PostgreSQL and SQLite without dialect SQL.
-        projection_count = len(self._session.scalars(select(CashProjectionModel).where(CashProjectionModel.dataset_id == dataset_id)).all())
-        member_count = len(self._session.scalars(select(CashProjectionMemberModel).where(CashProjectionMemberModel.dataset_id == dataset_id)).all())
-        source_count = len(self.read_sources()[0])
+        projection_count = self._session.scalar(select(func.count()).select_from(CashProjectionModel).where(
+            CashProjectionModel.dataset_id == dataset_id))
+        member_count = self._session.scalar(select(func.count()).select_from(CashProjectionMemberModel).where(
+            CashProjectionMemberModel.dataset_id == dataset_id))
+        if _validated_sources is None:
+            source_count = len(self.read_sources()[0])
+        else:
+            if (type(_validated_sources) is not _ValidatedProjectionSources or _validated_sources.repository is not self
+                or _validated_sources.transaction is not self._session.get_transaction()
+                or _validated_sources.digest != source_digest):
+                raise RuntimeError("projection.incomplete")
+            source_count = self._session.scalar(select(func.count()).select_from(CashTransactionModel).where(
+                CashTransactionModel.workspace_id == self._workspace_id, CashTransactionModel.deleted_at.is_(None)))
+            if source_count != len(_validated_sources.facts):
+                raise RuntimeError("projection.incomplete")
         if member_count != source_count:
             raise RuntimeError("projection.incomplete")
         dataset.state, dataset.published_at = "active", _now()

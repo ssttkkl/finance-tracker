@@ -135,7 +135,8 @@ class CashEntryRepository:
             else:
                 if candidate.root_transaction_id != root or old_members.get(candidate.id) != group:
                     candidate.revision += 1
-                candidate.root_transaction_id = root
+                if candidate.root_transaction_id != root:
+                    candidate.root_transaction_id = root
             for member_id in group:
                 source = sources[member_id]
                 member = members.get(member_id)
@@ -152,8 +153,10 @@ class CashEntryRepository:
                     standalone = deepcopy(member.standalone_values)
                     for field in COMMON_CASH_FIELDS - set(member.standalone_manual_fields):
                         standalone[field] = deepcopy(getattr(source, field))
-                    member.standalone_values = standalone
-                    member.entry_id = candidate.id
+                    if member.standalone_values != standalone:
+                        member.standalone_values = standalone
+                    if member.entry_id != candidate.id:
+                        member.entry_id = candidate.id
                 if old_ids and any(entries[item].split_inherit is True and old_members[item] - group for item in old_ids):
                     member.standalone_values = {**member.standalone_values, **deepcopy(human)}
                     member.standalone_manual_fields = sorted(set(member.standalone_manual_fields) | human.keys())
@@ -161,8 +164,10 @@ class CashEntryRepository:
             if any(getattr(candidate, field) != value for field, value in values.items()) and candidate.id in entries:
                 candidate.revision += 1
             for field, value in values.items():
-                setattr(candidate, field, deepcopy(value))
-            candidate.manual_fields = sorted(human)
+                if getattr(candidate, field) != value:
+                    setattr(candidate, field, deepcopy(value))
+            if candidate.manual_fields != sorted(human):
+                candidate.manual_fields = sorted(human)
             used.add(candidate.id)
             result[projection.projection_id] = candidate
         # 两阶段：先落对象，再调整成员，最后删除无当前成员的对象。
@@ -172,7 +177,8 @@ class CashEntryRepository:
             self.session.flush(fresh)
         self.session.flush()
         for entry in entries.values():
-            entry.split_inherit = None
+            if entry.split_inherit is not None:
+                entry.split_inherit = None
         self.session.flush()
         obsolete = set(entries) - used
         if obsolete:

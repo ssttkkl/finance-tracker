@@ -39,13 +39,14 @@ class CashProjectionService:
                     session.connection().exec_driver_sql("BEGIN IMMEDIATE")
                 repository = RelationalCashProjectionRepository(session, self._workspace_id)
                 failure_context = repository.rebuild_failure_context()
-                digest = repository.source_digest()
-                facts, relations = repository.read_sources()
+                sources = repository.read_validated_sources()
+                digest, facts, relations = sources.digest, sources.facts, sources.relations
                 build = build_cash_projections(facts, relations)
                 dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
                 next_version = repository.status()["projection_version"] + 1
                 repository.replace_dataset(dataset_id, build, projection_version=next_version)
-                result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+                result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION,
+                    _validated_sources=sources)
                 self._synchronize_component_categories(session, self._workspace_id, build)
                 return result
         except Exception as exc:
@@ -77,12 +78,13 @@ class CashProjectionService:
         assert state is not None
         if state.availability == "ready" and state.active_dataset_id:
             return repository.status()
-        digest = repository.source_digest()
-        facts, relations = repository.read_sources()
+        sources = repository.read_validated_sources()
+        digest, facts, relations = sources.digest, sources.facts, sources.relations
         build = build_cash_projections(facts, relations)
         dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
         repository.replace_dataset(dataset_id, build, projection_version=state.projection_version + 1)
-        result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION)
+        result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION,
+            _validated_sources=sources)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return result
 

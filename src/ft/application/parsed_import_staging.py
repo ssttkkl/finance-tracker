@@ -73,6 +73,14 @@ class ParsedImportSession:
 
 
 @dataclass(frozen=True)
+class _ParsedImportSnapshot:
+    store: object
+    session: ParsedImportSession
+    etag: str
+    parsed: bytes
+
+
+@dataclass(frozen=True)
 class ParsedImportSweep:
     scanned: int
     deleted: int
@@ -299,16 +307,20 @@ class _ParsedImportStore:
         except (TypeError, KeyError, AttributeError, RecursionError):
             raise ParsedImportDataError("import_session_document_invalid") from None
 
-    def _encode(self, session):
-        _valid_files(session.files)
+    def _encode(self, session, *, _parsed=None):
+        if _parsed is None:
+            _valid_files(session.files)
         _valid_session_metadata(session)
         parsed_maximum = min(self._max_bytes, self._max_parsed_bytes)
-        # 文件在持久 JSON 根对象下占一层，须与解码侧使用相同深度。
-        _json_budget(session.files, [parsed_maximum], depth=1)
-        try:
-            parsed = _json_bytes(session.files)
-        except (TypeError, ValueError, RecursionError):
-            raise ParsedImportDataError("import_session_json_invalid") from None
+        if _parsed is None:
+            # 文件在持久 JSON 根对象下占一层，须与解码侧使用相同深度。
+            _json_budget(session.files, [parsed_maximum], depth=1)
+            try:
+                parsed = _json_bytes(session.files)
+            except (TypeError, ValueError, RecursionError):
+                raise ParsedImportDataError("import_session_json_invalid") from None
+        else:
+            parsed = _parsed
         parsed_size = len(parsed)
         if parsed_size > parsed_maximum:
             raise ParsedImportDataError("import_session_draft_too_large")
@@ -327,11 +339,12 @@ class _ParsedImportStore:
             raise ParsedImportDataError("import_session_draft_too_large")
         return content
 
-    def _decode(self, session_id, content):
+    def _decode(self, session_id, content, *, _parsed=None):
         try:
             value = json.loads(content)
             _json_budget(value, [self._max_bytes])
-            if len(_json_bytes(value["files"])) > min(self._max_bytes, self._max_parsed_bytes):
+            parsed = _json_bytes(value["files"])
+            if len(parsed) > min(self._max_bytes, self._max_parsed_bytes):
                 raise ValueError
             if value.pop("session_digest") != _hash(session_id):
                 raise ValueError
@@ -341,6 +354,8 @@ class _ParsedImportStore:
             result = ParsedImportSession(session_id=session_id, files=files, **value)
             _valid_session_metadata(result)
             _valid_files(result.files)
+            if _parsed is not None:
+                _parsed.append(parsed)
             return result
         except (TypeError, ValueError, KeyError, AttributeError, RecursionError):
             raise ImportSessionStorageUnavailable from None
@@ -375,19 +390,24 @@ class _ParsedImportStore:
                 continue
         raise ImportSessionStorageUnavailable
 
-    def _read(self, session_id, *, workspace_id, user_id):
+    def _read(self, session_id, *, workspace_id, user_id, _parsed=None):
         if not isinstance(session_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", session_id):
             raise ImportSessionNotFound
         content, etag = self._read_raw(session_id)
         if len(content) > self._max_bytes:
             raise ImportSessionStorageUnavailable
-        session = self._decode(session_id, content)
+        session = self._decode(session_id, content, _parsed=_parsed)
         if session.workspace_id != workspace_id or session.user_id != user_id:
             raise ImportSessionForbidden
         if self._clock() >= session.expires_at:
             self._delete_raw(session_id)
             raise ImportSessionExpired
         return session, etag
+
+    def _read_for_plan_update(self, session_id, *, workspace_id, user_id):
+        parsed = []
+        current, etag = self._read(session_id, workspace_id=workspace_id, user_id=user_id, _parsed=parsed)
+        return _ParsedImportSnapshot(self, current, etag, parsed[0])
 
     def get(self, session_id, *, workspace_id, user_id):
         return self._read(session_id, workspace_id=workspace_id, user_id=user_id)[0]
@@ -480,6 +500,26 @@ class _ParsedImportStore:
             self._delete_raw(session.session_id)
             raise ImportSessionExpired
 
+    def _replace_plan(self, snapshot, *, workspace_id, user_id, expected_revision, preview_input, plan, context_data=None):
+        if type(snapshot) is not _ParsedImportSnapshot or snapshot.store is not self:
+            raise ParsedImportDataError("import_session_json_invalid")
+        current = snapshot.session
+        if current.workspace_id != workspace_id or current.user_id != user_id:
+            raise ImportSessionForbidden
+        if current.workflow_kind != "import":
+            raise ParsedImportDataError("import_session_json_invalid")
+        if self._clock() >= current.expires_at:
+            self._delete_raw(current.session_id)
+            raise ImportSessionExpired
+        if type(expected_revision) is not int or expected_revision != current.revision:
+            raise ImportSessionRevisionConflict
+        if current.cancelled:
+            raise ImportSessionClosed
+        updated = replace(current, revision=current.revision + 1, files=(), preview_input=preview_input, plan=plan,
+            context_data=current.context_data if context_data is None else context_data)
+        content = self._encode(updated, _parsed=snapshot.parsed)
+        self._publish(updated, content, expected=snapshot.etag)
+
     def replace(self, session_id, *, workspace_id, user_id, expected_revision, files, preview_input, plan, context_data=None,
                 return_session=True):
         if type(return_session) is not bool:
@@ -492,7 +532,6 @@ class _ParsedImportStore:
         updated = replace(current, revision=current.revision + 1, files=files, preview_input=preview_input, plan=plan,
             context_data=current.context_data if context_data is None else context_data)
         content = self._encode(updated)
-        # 编码前已通过同一元数据、文件及 JSON 校验；不回传时无需物化完整副本。
         decoded = self._validate_roundtrip(session_id, content) if return_session else None
         self._publish(updated, content, expected=etag)
         return decoded

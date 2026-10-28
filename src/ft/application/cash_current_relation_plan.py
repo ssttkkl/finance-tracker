@@ -50,8 +50,9 @@ class CashCurrentRelationPlanner:
         pending = {str(parent) for _identifier, parent, _revision in snapshot.context.issue_versions}
         for identifier, fact in tuple(snapshot.facts.items()):
             operation = snapshot.parent_ops.get(identifier, {})
-            snapshot.facts[identifier] = replace(fact, needs_attention=identifier in pending or
-                bool(operation.get("issues") or operation.get("retained_issue_ids")))
+            attention = identifier in pending or bool(operation.get("issues") or operation.get("retained_issue_ids"))
+            if fact.needs_attention != attention:
+                snapshot.facts[identifier] = replace(fact, needs_attention=attention)
         grouped = {}
         for row in self.rows:
             grouped.setdefault(("group", row["decision_group_id"]) if row["decision_group_id"] is not None

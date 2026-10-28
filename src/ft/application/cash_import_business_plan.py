@@ -107,7 +107,7 @@ class _Snapshot:
             for identifier in (edge.primary_transaction_id, edge.secondary_transaction_id) if identifier is not None}
         funding_rows = [self.funding[identifier] for parent in parents for identifier in self.funding_by_parent[parent] if identifier in self.funding]
         funding_by_parent = {self.components[str(row[1])].transaction_id: row[0] for row in funding_rows if str(row[1]) in self.components}
-        formal = [replace(fact, needs_attention=fact.needs_attention or str(fact.id) in pending,
+        formal = [_updated_fact(fact, needs_attention=fact.needs_attention or str(fact.id) in pending,
             funding_relation_id=funding_by_parent.get(str(fact.id)))
             for identifier in parents if (fact := self.facts.get(identifier)) is not None and fact.state == "posted"]
         components = [self.components[part["component_id"]] for parent in parents for part in self.values[parent]["components"]
@@ -117,6 +117,10 @@ class _Snapshot:
             funding_component_ids={str(value[1]) for value in funding_rows if str(value[1]) in component_ids})
         drafts = build_cash_projections([fact for identifier in parents if (fact := self.facts.get(identifier)) is not None and fact.state == "draft"], ())
         return CashProjectionBuild((*complete.projections, *drafts.projections))
+
+
+def _updated_fact(fact, **changes):
+    return replace(fact, **changes) if any(getattr(fact, key) != value for key, value in changes.items()) else fact
 
 
 class CashImportBusinessPlanBuilder:
@@ -137,14 +141,18 @@ class CashImportBusinessPlanBuilder:
             operation["source_scope_key"] = source.account_scope_key or "file:" + source.file_scope_key
             operation["matching_record_id"] = operation["values"]["record_id"] if source.provider_id else "occurrence:" + source.occurrence_key
         rows = list(prepared.rows)
-        return self.build_operations(session=session, files=files, operations=operations, rows=rows,
+        return self._build_operations(session=session, files=files, operations=operations, rows=rows,
+            normalized_operations=True,
             source_rows=prepared.source_plan.rows, relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
             source_candidate_sets=prepared.candidate_sets, entry_choices=preview_input.get("entry_choices", []))
 
-    def build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
+    def build_operations(self, **kwargs):
+        return self._build_operations(normalized_operations=False, **kwargs)
+
+    def _build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
         files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
         current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None,
-        current_relation_builder=None, entry_choices=()):
+        current_relation_builder=None, entry_choices=(), normalized_operations=False):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
         retained_entry_parents = set()
         for choice in entry_choices:
@@ -159,7 +167,7 @@ class CashImportBusinessPlanBuilder:
         context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates | set(additional_seed_ids),
             decision_group_ids=decision_group_ids)
         snapshot = self._snapshot(session, context, operations, accounts, rows,
-            current_records=current_records, source_scope_snapshot=source_scope_snapshot)
+            current_records=current_records, source_scope_snapshot=source_scope_snapshot, normalized_operations=normalized_operations)
         if snapshot_transform is not None:
             snapshot_transform(snapshot, operations)
         seeds = {part.component_id for part in snapshot.components.values()
@@ -330,7 +338,7 @@ class CashImportBusinessPlanBuilder:
                 "file:" + next(iter(local)) if len(local) == 1 else "ambiguous:" + key[0])
         return result
 
-    def _snapshot(self, session, context, operations, accounts, rows, *, current_records=None, source_scope_snapshot=None):
+    def _snapshot(self, session, context, operations, accounts, rows, *, current_records=None, source_scope_snapshot=None, normalized_operations=False):
         # 已查询 ID 单独保存，空结果也属于本次已读事实；其余闭包成员仍实际查询。
         covered, known_scopes = source_scope_snapshot if source_scope_snapshot is not None else (frozenset(), {})
         scopes = {**known_scopes, **self._source_scopes(session, context.transaction_ids - covered)}
@@ -367,7 +375,10 @@ class CashImportBusinessPlanBuilder:
             op["preview_transaction_id"] = identifier
             # 操作已按共同规则验证；只恢复计算所需的财务类型，来源原文只读复用。
             value = dict(op["values"])
-            value.update({field: _normalize(field, value[field]) for field in CASH_FINANCIAL_FIELDS & value.keys()})
+            if normalized_operations:
+                value["components"] = [copy_value(part) for part in value["components"]]
+            else:
+                value.update({field: _normalize(field, value[field]) for field in CASH_FINANCIAL_FIELDS & value.keys()})
             value.setdefault("record_origin", values.get(identifier, {}).get("record_origin", "import"))
             value["created_at"] = values.get(identifier, {}).get("created_at", self._clock())
             value["source_explanation"] = op.get("source_explanation", values.get(identifier, {}).get("source_explanation", {}))
@@ -420,7 +431,7 @@ class CashImportBusinessPlanBuilder:
                 public.update(public_patches.get(entry.id, {}))
                 snapshot.entry_public[identifier] = {"entry_id": entry.id, "values": public,
                     "manual_fields": sorted(set(entry.manual_fields) | set(public_patches.get(entry.id, {})))}
-                snapshot.facts[identifier] = replace(fact, **{field: public[field] for field in ("counterparty", "note", "category_id")})
+                snapshot.facts[identifier] = _updated_fact(fact, **{field: public[field] for field in ("counterparty", "note", "category_id")})
         for identifier, operation in snapshot.parent_ops.items():
             if identifier not in snapshot.entry_public:
                 public = {field: snapshot.values[identifier].get(field) for field in COMMON_CASH_FIELDS}
@@ -428,7 +439,7 @@ class CashImportBusinessPlanBuilder:
                 snapshot.entry_public[identifier] = {"entry_id": "new:" + identifier,
                     "values": public,
                     "manual_fields": sorted(set(operation.get("manual_fields", [])) | set(operation.get("entry_edit", {}).get("patch", {})))}
-                snapshot.facts[identifier] = replace(snapshot.facts[identifier], **{field: public[field]
+                snapshot.facts[identifier] = _updated_fact(snapshot.facts[identifier], **{field: public[field]
                     for field in ("counterparty", "note", "category_id")})
         return snapshot
 
@@ -509,7 +520,8 @@ class CashImportBusinessPlanBuilder:
             if snapshot.values[fact.parent_id].get('record_origin', 'legacy') in {'import', 'legacy'}]
         eligible = {fact.id for fact in facts}
         seeds = set(seeds) & eligible
-        if not seeds:
+        from ft.domain.relations.pipeline import needs_relation_discovery
+        if not seeds or not needs_relation_discovery(facts, seed_ids=seeds):
             return [], []
         accepted = [{"id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
             "primary_fact_id": edge.primary_component_id, "secondary_fact_id": edge.secondary_component_id,

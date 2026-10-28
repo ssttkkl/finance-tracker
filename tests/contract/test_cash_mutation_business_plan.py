@@ -1,5 +1,6 @@
 """维护从当前流水建立实际预计列表，不伪造导入文件。"""
 from dataclasses import replace
+from datetime import datetime
 from decimal import Decimal
 import json
 
@@ -17,6 +18,13 @@ from tests.contract.test_cash_import_commit import configured, _plan, _commit, _
 from tests.contract.test_cash_import_operations import _file, _bind_existing
 from tests.contract.test_cash_record_maintenance import _draft, _complete, _service as _records
 from tests.contract.test_parsed_cash_import_context import USER, context_runtime
+
+
+def _require_pairing_candidate(runtime):
+    with runtime.sessions.begin() as session:
+        candidate = session.get(CashTransactionModel, 1001)
+        candidate.source_type, candidate.record_type = "icbc_debit", "refund"
+        candidate.occurred_at = datetime.fromisoformat(_file().document.rows[0].fields["occurred_at"].replace("Z", "+00:00"))
 
 
 def _service(runtime):
@@ -215,6 +223,7 @@ def test_incomplete_draft_does_not_publish_a_posting_plan(context_runtime):
 def test_pairing_programming_failure_stops_finalization_preview(context_runtime, monkeypatch):
     import ft.application.cash_import_business_plan as business
     runtime, identifier = context_runtime, _draft(context_runtime)
+    _require_pairing_candidate(runtime)
     def unavailable(*args, **kwargs):
         raise RuntimeError("sensitive-native-error-must-not-escape")
     monkeypatch.setattr(business, "plan_relation_proposals", unavailable)

@@ -329,13 +329,21 @@ class CashImportPlanService(CashImportContextService):
             row_choices if row_choices is not None else [], relation_choices if relation_choices is not None else [], entry_choices)
         try:
             with self._uow as uow:
-                current = self._current(uow, session_id, expected_session_revision)
+                snapshots = []
+                def load(identifier):
+                    snapshot = self._staging._read_for_plan_update(identifier,
+                        workspace_id=self._workspace_id, user_id=self._user_id)
+                    if snapshot.session.workflow_kind != "import":
+                        raise ImportSessionNotFound
+                    snapshots.append(snapshot)
+                    return snapshot.session
+                current = self._current(uow, session_id, expected_session_revision, _load=load)
                 previous = current.plan
                 if (previous.get("plan_id") if previous else None) != previous_plan_id:
                     raise CashImportPlanError("plan_changed")
                 plan_id = f"ip_{session_id}.{token_urlsafe(12)}"
                 with cash_diagnostic_scope(files=current.files):
-                    result = self._builder(session=uow._state().session, files=deepcopy(current.files),
+                    result = self._builder(session=uow._state().session, files=current.files,
                         preview_input=deepcopy(preview_input), previous_plan=deepcopy(previous if previous is not None else previous_choice_context(current)), plan_id=plan_id)
                 if (not isinstance(result, dict) or not isinstance(result.get("items"), list)
                     or not isinstance(result.get("summary"), dict) or type(result.get("can_commit")) is not bool):
@@ -352,9 +360,9 @@ class CashImportPlanService(CashImportContextService):
                         for state in ("confirmed", "pending")})
                 _validate_readable(plan)
                 view = self._view(plan)
-                self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                    expected_revision=current.revision, files=current.files, preview_input=preview_input, plan=plan,
-                    context_data=without_choice_context(current), return_session=False)
+                self._staging._replace_plan(snapshots[0], workspace_id=self._workspace_id, user_id=self._user_id,
+                    expected_revision=current.revision, preview_input=preview_input, plan=plan,
+                    context_data=without_choice_context(current))
                 uow.commit()
                 return view
         except CashImportChoiceContextError:

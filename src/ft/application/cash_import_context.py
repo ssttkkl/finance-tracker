@@ -106,12 +106,12 @@ class CashImportContextService:
         return CashMutationRepository(uow._state().session, self._workspace_id).for_context(self._user_id,
             session_digest=sha256(session_id.encode()).hexdigest())
 
-    def _current(self, uow, session_id, expected_revision):
+    def _current(self, uow, session_id, expected_revision, *, _load=None):
         self._authorize(uow)
         receipt = self._receipt(uow, session_id)
         if receipt:
             raise CashMutationConflict("session_committed", receipt["receipt_id"])
-        current = self._read_context(uow, session_id)
+        current = self._read_context(uow, session_id) if _load is None else _load(session_id)
         if type(expected_revision) is not int or expected_revision != current.revision:
             raise ImportSessionRevisionConflict
         if current.cancelled:
