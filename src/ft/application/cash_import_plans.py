@@ -6,6 +6,7 @@ from ft.cash_diagnostics import cash_diagnostic_scope, valid_cash_diagnostic
 import base64
 import binascii
 from copy import deepcopy
+from ft.copying import copy_value
 import json
 import re
 from secrets import token_urlsafe
@@ -86,7 +87,7 @@ def _session_id(plan_id):
 def _only(value, fields, *, copy_values=True):
     if not isinstance(value, dict):
         raise CashImportPlanError("plan_build_failed")
-    return {key: deepcopy(item) if copy_values else item for key, item in value.items() if key in fields}
+    return {key: copy_value(item) if copy_values else item for key, item in value.items() if key in fields}
 
 
 def _objects(value, fields, *, copy_values=True):
@@ -262,6 +263,50 @@ def _file_results(value):
     return files
 
 
+def _validate_independent_detail(value, operations):
+    if (type(value) is not dict or any(type(key) is not str for key in value)
+        or any(type(value.get(key)) is not list or value[key] for key in (
+            'relation_members', 'field_diffs', 'issues', 'relation_choices', 'relation_effects'))
+        or type(value.get('members')) is not list or len(value['members']) != 1
+        or type(value.get('entry')) is not dict or any(type(key) is not str for key in value['entry'])
+        or type(value['entry'].get('fields')) is not dict
+        or any(type(key) is not str for key in value['entry']['fields'])):
+        return False
+    member = value['members'][0]
+    if type(member) is not dict or any(type(key) is not str for key in member) or 'fields' in member:
+        return False
+    reference = member.get('fields_ref')
+    if type(reference) is not dict or any(type(key) is not str for key in reference) or tuple(reference) != ('operation_ref',) or type(reference['operation_ref']) is not str:
+        return False
+    operation = operations.get(reference['operation_ref'])
+    if type(operation) is not dict or any(type(key) is not str for key in operation):
+        return False
+    row_ref, transaction_id = member.get('row_ref'), member.get('transaction_id')
+    saved_id, rows = operation.get('transaction_id'), operation.get('row_refs', [])
+    if (any(item is not None and type(item) is not str for item in (row_ref, transaction_id, saved_id))
+        or type(rows) is not list or any(type(item) is not str for item in rows)):
+        return False
+    if not (row_ref is not None and row_ref in rows or transaction_id is not None and transaction_id == saved_id):
+        return False
+    fields = operation.get('values')
+    if type(fields) is not dict or any(type(key) is not str for key in fields):
+        return False
+    components = fields.get('components', [])
+    if type(components) is not list:
+        return False
+    for part in components:
+        if type(part) is not dict or any(type(key) is not str for key in part):
+            return False
+        identifier = part.get('component_id')
+        if identifier is not None and type(identifier) not in (str, int, bool, float):
+            return False
+    for part in components:
+        identifier = part.get('component_id')
+        if identifier is not None and str(identifier).isdigit():
+            int(identifier)
+    return True
+
+
 def _validate_readable(plan):
     for item in plan["items"]:
         _public_item(item)
@@ -272,7 +317,10 @@ def _validate_readable(plan):
         if item.get("detail_available") and item["preview_item_id"] not in details:
             raise CashImportPlanError("plan_build_failed")
     operations = _operation_index(plan)
+    ordinary_operations = all(type(key) is str for key in operations)
     for detail in details.values():
+        if ordinary_operations and _validate_independent_detail(detail, operations):
+            continue
         # 校验只读取叶子值；会被修改的成员／组成项容器仍单独复制。
         _public_detail(_resolve_detail(plan, detail, operations=operations, copy_values=False), copy_values=False)
     _processing(plan.get("processing_details", []))

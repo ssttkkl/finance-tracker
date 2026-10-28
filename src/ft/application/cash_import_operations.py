@@ -25,6 +25,10 @@ from ft.domain.cash_record_policy import (
 from ft.domain.cash_source_matching import allocate_source_record_id
 
 
+_IMPORT_FIELDS = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
+_IMPORT_AND_IDENTITY_FIELDS = _IMPORT_FIELDS | CASH_SOURCE_IDENTITY_FIELDS
+
+
 @dataclass(frozen=True)
 class PreparedCashImportOperations:
     rows: tuple[dict, ...]
@@ -48,19 +52,41 @@ def _wire(value):
     return deepcopy(value)
 
 
+_WIRE_SCALARS = (str, int, bool, float)
+
+
 def _wire_in_place(value):
     """转换调用内独占的计划；输入和公开返回的复制边界仍由调用方保留。"""
-    if value is None or type(value) in (str, int, bool, float):
+    kind = type(value)
+    if value is None or kind in _WIRE_SCALARS:
         return value
     if isinstance(value, dict):
+        ordinary = kind is dict
         for key, item in value.items():
-            if type(value) is not dict or item is not None and type(item) not in (str, int, bool, float):
-                value[key] = _wire_in_place(item)
+            item_kind = type(item)
+            if ordinary:
+                if item is None or item_kind in _WIRE_SCALARS:
+                    continue
+                if type(key) is str and (item_kind is dict or item_kind is list) and not item:
+                    continue
+                if item_kind is tuple and not item:
+                    value[key] = []
+                    continue
+            value[key] = _wire_in_place(item)
         return value
     if isinstance(value, list):
+        ordinary = kind is list
         for index, item in enumerate(value):
-            if type(value) is not list or item is not None and type(item) not in (str, int, bool, float):
-                value[index] = _wire_in_place(item)
+            item_kind = type(item)
+            if ordinary:
+                if item is None or item_kind in _WIRE_SCALARS:
+                    continue
+                if (item_kind is dict or item_kind is list) and not item:
+                    continue
+                if item_kind is tuple and not item:
+                    value[index] = []
+                    continue
+            value[index] = _wire_in_place(item)
         return value
     if isinstance(value, tuple):
         return [_wire_in_place(item) for item in value]
@@ -81,6 +107,8 @@ class CashImportOperationPlanner:
         self.session, self.workspace_id = session, workspace_id
 
     def prepare(self, files, *, account_selections=None, row_choices=None, record_ids=None, source_plan=None, wire_values=True):
+        from ft.application.cash_import_posting_validation import PostingValidationCache
+        validate_posting = PostingValidationCache(validate_cash_record_for_posting)
         files = tuple(files)
         inputs = _preview_input([] if account_selections is None else account_selections,
             [] if row_choices is None else row_choices, [])
@@ -126,7 +154,7 @@ class CashImportOperationPlanner:
                 raise CashImportPlanError("plan_input_invalid")
             if resolution.action in {"batch_duplicate", "duplicate"} and record is None and (manual or choice["action"] != "apply"):
                 raise CashImportPlanError("plan_input_invalid")
-            allowed = COMMON_CASH_FIELDS if record is not None and record.fields["state"] == "posted" else MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
+            allowed = COMMON_CASH_FIELDS if record is not None and record.fields["state"] == "posted" else _IMPORT_FIELDS
             if manual.keys() - allowed:
                 raise CashImportPlanError("plan_input_invalid")
             try:
@@ -158,7 +186,7 @@ class CashImportOperationPlanner:
                         # 固定冲突没有可保存的更新草稿。
                         if record and resolution.reason == "fixed_field_conflict":
                             prepare_cash_record_update(_current_values(record), {key: value for key, value
-                                in source.rows[ref].fields.items() if key in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS})
+                                in source.rows[ref].fields.items() if key in _IMPORT_FIELDS})
                         raise CashRecordPolicyError(resolution.reason, ())
                     if resolution.action == "batch_duplicate":
                         decisions[ref] = {"row_ref": ref, "operation_ref": None,
@@ -178,7 +206,7 @@ class CashImportOperationPlanner:
                             candidate_group = resolution.group_ref
                         operation = self._operation(ref, record, targets.get(resolution.transaction_id),
                             saved_issues.get(resolution.transaction_id, ()), source.rows[ref], resolution,
-                            funding[ref], selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts)
+                            funding.pop(ref), selections, choice, candidates, categories, all_rows[ref].source_explanation, accounts, validate_posting)
                     candidate_sets.bind(operation, candidates, candidate_group)
                     occurrence_key = source.rows[ref].occurrence_key
                     operation["occurrence_key"] = occurrence_key
@@ -271,7 +299,7 @@ class CashImportOperationPlanner:
 
     @staticmethod
     def _skip(ref, code, fields=()):
-        field = next((field for field in fields if field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | CASH_SOURCE_IDENTITY_FIELDS), None)
+        field = next((field for field in fields if field in _IMPORT_AND_IDENTITY_FIELDS), None)
         try:
             issue = cash_import_issue(code, field_path=field)
         except ValueError:
@@ -292,7 +320,7 @@ class CashImportOperationPlanner:
             "retained_issue_ids": [issue["issue_id"] for issue in saved_issues], "expected_accounts": []}
 
     def _operation(self, ref, record, target, saved_issues, occurrence, resolution, funding,
-        selections, choice, candidates, categories, explanation, accounts):
+        selections, choice, candidates, categories, explanation, accounts, validate_posting):
         is_posted = record is not None and record.fields["state"] == "posted"
         current = _current_values(record) if record else {"state": "draft", "amount": None, "currency": None,
             "occurred_at": None, "account_id": None, "cash_granularity": "atomic", "components": [],
@@ -300,7 +328,7 @@ class CashImportOperationPlanner:
             "counterparty_account_attrs": [], "note": "", "category_id": None, "source_payload": None}
         if target:
             current.update(record_id=target.record_id, source_type=target.source_type)
-        patch = {key: value for key, value in occurrence.fields.items() if key in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS}
+        patch = {key: value for key, value in occurrence.fields.items() if key in _IMPORT_FIELDS}
         if not is_posted:
             if funding.error_code:
                 raise CashRecordPolicyError(funding.error_code, ())
@@ -377,7 +405,7 @@ class CashImportOperationPlanner:
                 raise CashImportPlanError("plan_input_invalid")
             issues.extend(account_issues)
             try:
-                validate_cash_record_for_posting(values)
+                validate_posting(values)
             except CashRecordPolicyError as error:
                 issues.append(_issue(error.code, error.fields[0] if error.fields else None))
             for code in _remaining_funding_issues(funding.issue_codes, values, manual):
@@ -424,14 +452,14 @@ class CashImportOperationPlanner:
             "entry_snapshot": self._entry_snapshots.get(record.transaction_id, ()) if record else (),
             "transaction_id": record.transaction_id if record else None,
             "expected_revision": record.row_revision if record else None, "planned_action": action,
-            "current": current if record else None, "values": values, "manual_fields": protected,
-            "field_diffs": diffs, "issues": list({(item["code"], item["field_path"]): item for item in issues}.values()),
+            "current": current if record else None, "values": values, "manual_fields": protected or (),
+            "field_diffs": diffs or (), "issues": list({(item["code"], item["field_path"]): item for item in issues}.values()) or (),
             "pending_fields": pending, "type_changed": any(values.get(key) != current.get(key)
                 for key in ("record_type", "record_subtype")), "candidate_ids": candidates,
             "source_group_ref": resolution.group_ref, "source_explanation": deepcopy(explanation),
-            "expected_issues": saved_issues, "expected_accounts": expected_accounts, "used_account_selections": used,
+            "expected_issues": saved_issues, "expected_accounts": expected_accounts or (), "used_account_selections": used or (),
             "retained_issue_ids": [issue["issue_id"] for issue in saved_issues if issue["code"] == "source_identity_ambiguous"
-                or issue.get("issue_key", "").startswith("relation:")]}
+                or issue.get("issue_key", "").startswith("relation:")] or ()}
 
 
 def _batches(values, size=400):

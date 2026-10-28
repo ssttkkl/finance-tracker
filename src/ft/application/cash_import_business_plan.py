@@ -123,12 +123,26 @@ def _updated_fact(fact, **changes):
     return replace(fact, **changes) if any(getattr(fact, key) != value for key, value in changes.items()) else fact
 
 
+_IMPORT_FIELDS = MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
+_DRAFT_EDITABLE_FIELDS = tuple(sorted(_IMPORT_FIELDS))
+_POSTED_EDITABLE_FIELDS = tuple(sorted(_IMPORT_FIELDS - {"source_payload", "account_name"}))
+_MEMBER_FIELDS = _IMPORT_FIELDS | {"state", "record_id", "source_type"}
+
+
 class CashImportBusinessPlanBuilder:
     def __init__(self, workspace_id, *, clock=None):
         self.workspace_id = workspace_id
         self._clock = clock or (lambda: datetime.now(timezone.utc))
 
     def __call__(self, *, session, files, preview_input, previous_plan, plan_id, source_plan=None):
+        operations, rows, candidate_sets, prepared_state = self._prepare_operations(
+            session, files, preview_input, previous_plan, source_plan)
+        return self._build_operations(session=session, files=files, operations=operations, rows=rows,
+            normalized_operations=True, _prepared_state=prepared_state,
+            relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
+            source_candidate_sets=candidate_sets, entry_choices=preview_input.get("entry_choices", []))
+
+    def _prepare_operations(self, session, files, preview_input, previous_plan, source_plan):
         record_ids = {op["occurrence_key"]: op["values"]["record_id"] for op in (previous_plan or {}).get("operations", [])
             if op.get("occurrence_key") and not op.get("transaction_id")}
         prepared = CashImportOperationPlanner(session, self.workspace_id).prepare(files,
@@ -141,10 +155,21 @@ class CashImportBusinessPlanBuilder:
             operation["source_scope_key"] = source.account_scope_key or "file:" + source.file_scope_key
             operation["matching_record_id"] = operation["values"]["record_id"] if source.provider_id else "occurrence:" + source.occurrence_key
         rows = list(prepared.rows)
-        return self._build_operations(session=session, files=files, operations=operations, rows=rows,
-            normalized_operations=True,
-            source_rows=prepared.source_plan.rows, relation_choices=preview_input["relation_choices"], previous_plan=previous_plan,
-            source_candidate_sets=prepared.candidate_sets, entry_choices=preview_input.get("entry_choices", []))
+        retained = self._entry_parents(preview_input.get("entry_choices", []), previous_plan)
+        accounts = self._accounts(session)
+        new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
+        candidates = self._candidate_ids(session, new, prepared.source_plan.rows)
+        return operations, rows, prepared.candidate_sets, (accounts, candidates, retained)
+
+    @staticmethod
+    def _entry_parents(entry_choices, previous_plan):
+        result = set()
+        for choice in entry_choices:
+            target = (previous_plan or {}).get("entry_targets", {}).get(choice["edit_ref"])
+            if target is None:
+                raise CashImportPlanError("plan_changed")
+            result.update(target["parent_ids"])
+        return result
 
     def build_operations(self, **kwargs):
         return self._build_operations(normalized_operations=False, **kwargs)
@@ -152,17 +177,15 @@ class CashImportBusinessPlanBuilder:
     def _build_operations(self, *, session, operations, rows, relation_choices, previous_plan,
         files=(), source_rows=None, source_candidate_sets=None, include_unchanged=False,
         current_records=None, source_scope_snapshot=None, additional_seed_ids=(), decision_group_ids=(), snapshot_transform=None,
-        current_relation_builder=None, entry_choices=(), normalized_operations=False):
+        current_relation_builder=None, entry_choices=(), normalized_operations=False, _prepared_state=None):
         """共享已准备操作之后的只读关系、最终图与预计列表计算。"""
-        retained_entry_parents = set()
-        for choice in entry_choices:
-            target = (previous_plan or {}).get("entry_targets", {}).get(choice["edit_ref"])
-            if target is None:
-                raise CashImportPlanError("plan_changed")
-            retained_entry_parents.update(target["parent_ids"])
-        accounts = self._accounts(session)
-        new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
-        candidates = self._candidate_ids(session, new, source_rows or {})
+        if normalized_operations and _prepared_state is not None:
+            accounts, candidates, retained_entry_parents = _prepared_state
+        else:
+            retained_entry_parents = self._entry_parents(entry_choices, previous_plan)
+            accounts = self._accounts(session)
+            new = [op for op in operations if op["planned_action"] in {"create_posted", "finalize_draft"}]
+            candidates = self._candidate_ids(session, new, source_rows or {})
         existing = {int(op["transaction_id"]) for op in operations if op.get("transaction_id")}
         context = CashRelationGraphService(session, self.workspace_id).load(existing | candidates | set(additional_seed_ids),
             decision_group_ids=decision_group_ids)
@@ -218,6 +241,7 @@ class CashImportBusinessPlanBuilder:
                 "candidate_ids": sorted(candidates), "discovery_seeds": sorted(seeds)},
             type_effects={"removed_relation_ids": sorted(snapshot.removed_relations),
                 "removed_funding_ids": sorted(snapshot.removed_funding)})
+        del snapshot, build, context
         from ft.application.cash_import_entry_choices import apply_entry_choices
         apply_entry_choices(result, entry_choices, previous_plan, session, self.workspace_id)
         _wire_in_place(result)
@@ -928,10 +952,9 @@ class CashImportBusinessPlanBuilder:
                 value = snapshot.values[parent]
                 members.append({**self._ref(snapshot, parent), "planned_action": operation["planned_action"] if operation else "duplicate",
                     "fields_ref": {"operation_ref": operation["operation_ref"]} if operation else {"transaction_id": parent},
-                    "editable_fields": sorted(((MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS) -
-                        ({'source_payload', 'account_name'} if value['state'] == 'posted' else set()))
+                    "editable_fields": list((_POSTED_EDITABLE_FIELDS if value['state'] == 'posted' else _DRAFT_EDITABLE_FIELDS)
                         if value['state'] == 'draft' or operation and operation.get('transaction_id') is None
-                        or value.get('record_origin') == 'manual' and len(parents) == 1 else set()),
+                        or value.get('record_origin') == 'manual' and len(parents) == 1 else ()) ,
                     "allowed_actions": (["apply", "keep_existing", "defer"] if operation.get("transaction_id") is not None
                         else ["apply", "defer"]) if operation else [],
                     "row_revision": operation.get("expected_revision") if operation else current_revisions.get(int(parent))})
@@ -999,7 +1022,7 @@ class CashImportBusinessPlanBuilder:
     @staticmethod
     def _member_fields(value):
         result = {field: copy_value(item) for field, item in value.items()
-            if field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS | {"state", "record_id", "source_type"}}
+            if field in _MEMBER_FIELDS}
         for part in result["components"]:
             if part.get("component_id") and int(part["component_id"]) >= 2 ** 63:
                 part.pop("component_id")

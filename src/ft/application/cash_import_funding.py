@@ -245,6 +245,8 @@ def _selection_accounts(scan, selections, accounts):
 
 
 def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tuple[CashFundingResolution, ...]:
+    from ft.application.cash_import_posting_validation import PostingValidationCache
+    validate_posting = PostingValidationCache(validate_cash_record_for_posting)
     selected = _selection_accounts(scan, selections, accounts)
     result = []
     for row in scan.rows:
@@ -289,7 +291,7 @@ def resolve_cash_funding(scan: CashFundingScan, *, selections, accounts) -> tupl
                 fields.update(cash_granularity="aggregate" if len(components) > 1 else "atomic", components=components,
                     account_id=components[0]["account_id"] if len(components) == 1 else None)
                 try:
-                    validate_cash_record_for_posting(fields)
+                    validate_posting(fields)
                 except CashRecordPolicyError as error:
                     issues.append(error.code)
                 result.append(CashFundingResolution(row.row_ref, fields, row.group_refs, tuple(dict.fromkeys(issues)),
