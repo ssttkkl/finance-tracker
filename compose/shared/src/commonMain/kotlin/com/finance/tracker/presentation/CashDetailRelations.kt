@@ -1,6 +1,8 @@
 package com.finance.tracker.presentation
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -12,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -33,6 +36,7 @@ internal fun cashDetailRelationKinds(member: CashSourceMember): List<Pair<String
 
 @Composable
 private fun relationLabel(kind: String, subtype: String?, options: LedgerOptions): String = when (subtype) {
+    "p2p_return" -> localizedText("cash_detail_p2p_return")
     "credit_repayment" -> localizedText("cash_detail_repayment")
     "currency_exchange" -> localizedText("cash_detail_exchange")
     "cross_currency_remittance" -> localizedText("cash_detail_remittance")
@@ -52,7 +56,7 @@ private fun suggestionRelationLabel(group: ImportPairOption, options: LedgerOpti
 
 @Composable
 private fun AssociationRelationSummary(relations: List<ImportPairRelation>, records: Map<String, CashCurrentRecord>, options: LedgerOptions) {
-    if (relations.map { it.kind to it.subtype }.distinct().size > 1) {
+    if (relations.isNotEmpty()) {
         relations.forEach { relation ->
             val names = relation.members.mapNotNull { ref -> records[ref.transactionId]?.fields?.fields?.get("counterparty").cashText() }
             Text(relationLabel(relation.kind, relation.subtype, options) + " · " + names.joinToString(" ↔ "),
@@ -147,19 +151,16 @@ internal fun CashDetailRelations(
     onLoadSources: () -> Unit, onBegin: (() -> Unit)?, onSave: (List<CashRelationDecision>) -> Unit,
     onAdd: (CashRelationAddition, String?) -> Unit, onSearch: suspend (CashAssociationSearch) -> CashAssociationPage,
     onConfirm: () -> Unit, onCancel: () -> Unit,
-    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit,
+    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit, onRefresh: () -> Unit,
 ) {
     val record = state.record ?: return
     var dialog by remember(record.transactionId, state.savedRevision) { mutableStateOf<String?>(null) }
     var targetRelationIds by remember(record.transactionId) { mutableStateOf<List<String>>(emptyList()) }
     var suggestionId by remember(record.transactionId) { mutableStateOf<String?>(null) }
-    var cachedGroups by remember(record.transactionId, state.savedRevision) { mutableStateOf<List<ImportPairOption>>(emptyList()) }
-    val actualGroups = state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId }
-    LaunchedEffect(actualGroups, state.selectionPlan) { if (state.selectionPlan) cachedGroups = actualGroups }
+    val groups = state.relationGroups.ifEmpty { state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId } }
     LaunchedEffect(record.transactionId, record.rowRevision, state.savedRevision) {
         if (record.projectionRef != null && evidence == null && sourceError == null) onLoadSources()
     }
-    val groups = if (state.selectionPlan) actualGroups else cachedGroups
     val suggestions = groups.filter { "ignore" in it.allowedActions }
     val members = evidence?.members.orEmpty()
     val canAssociate = onBegin != null && record.recordOrigin in setOf("import", "legacy") && record.state == "posted"
@@ -201,18 +202,19 @@ internal fun CashDetailRelations(
                 .testTag("cash.current.suggestion-${group.suggestionId}"), shape = MaterialTheme.shapes.medium) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(localizedText("cash_detail_suggestion") + " · " + suggestionRelationLabel(group, options), style = MaterialTheme.typography.titleSmall)
-                    SuggestionSummary(group, record, state.affectedRecords, accounts, categories, options)
-                    Row(Modifier.align(Alignment.End), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SuggestionSummary(group, record, state.relationRecords + state.affectedRecords, accounts, categories, options)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (canAssociate) TextButton(onClick = { open("reject", group.suggestionId) }, enabled = !busy,
                             colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
                             Icon(painterResource(Res.drawable.ic_close), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                             Text(localizedText("cash_detail_reject"))
                         }
+                        Spacer(Modifier.weight(1f))
                         if (canAssociate) OutlinedButton(onClick = { open("suggestion", group.suggestionId) }, enabled = !busy) {
                             Icon(painterResource(Res.drawable.ic_check), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-                            Text(localizedText(if (group.candidates.size <= 1 && "accept" in group.allowedActions) "cash_detail_accept" else "cash_detail_check"))
+                            Text(localizedText(if (cashDetailAlternativeCount(group) == 1 && !cashRelationIsJoint(group) && "accept" in group.allowedActions) "cash_detail_accept" else "cash_detail_check"))
                         }
                     }
                 }
@@ -221,7 +223,7 @@ internal fun CashDetailRelations(
         if (canAssociate) OutlinedButton(onClick = { open("add") }, enabled = !busy, modifier = Modifier.testTag("cash.current.add-association")) {
             Icon(painterResource(Res.drawable.ic_add), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
             Spacer(Modifier.width(ButtonDefaults.IconSpacing))
-            Text(localizedText("cash_detail_add"))
+            Text(localizedText("copy_f46e36d281"))
         }
     }
     HorizontalDivider()
@@ -249,7 +251,8 @@ internal fun CashDetailRelations(
     dialog?.let { mode ->
         CashAssociationDialog(state, mode, suggestionId, targetRelationIds, sizeClass, accounts, categories, options,
             onSearch, onSave, onAdd, onConfirm, onCommonFields, onResolve, onRetryOriginal,
-            onDismiss = { if (!busy) { dialog = null; onCancel() } })
+            onRestart = { onBegin?.invoke() }, onRefresh = { dialog = null; onCancel(); onRefresh() },
+            onDismiss = { if (!state.busy) { dialog = null; if (!state.unresolved) onCancel() } })
     }
 }
 
@@ -278,13 +281,7 @@ private fun SuggestionSummary(group: ImportPairOption, record: CashCurrentRecord
             if (index > 0) HorizontalDivider()
             RelatedRecordInformation(other.fields, accounts, categories, options)
         }
-    } else Text(localizedText(when (group.kind) {
-        "refund_offset" -> if (record.fields.fields["record_type"].cashText() == "refund") "cash_detail_find_purchase" else "cash_detail_find_refund"
-        "transfer_pair" -> "cash_detail_find_transfer"
-        "payment_mirror" -> "cash_detail_find_payment"
-        else -> "cash_detail_no_target"
-    }), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    group.code?.let { Text(ledgerErrorText(it), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+    } else Text(localizedText("cash_detail_search_missing"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -294,64 +291,101 @@ private fun CashAssociationDialog(
     accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
     onSearch: suspend (CashAssociationSearch) -> CashAssociationPage, onSave: (List<CashRelationDecision>) -> Unit,
     onAdd: (CashRelationAddition, String?) -> Unit, onConfirm: () -> Unit,
-    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit, onDismiss: () -> Unit,
+    onCommonFields: (StructuredObject) -> Unit, onResolve: () -> Unit, onRetryOriginal: () -> Unit,
+    onRestart: () -> Unit, onRefresh: () -> Unit, onDismiss: () -> Unit,
 ) {
     val record = state.record ?: return
-    val groups = state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId }
-    val matchingGroups = groups.filter { if (mode == "remove") it.relationIds.any { id -> id in relationIds } else it.suggestionId == suggestionId }
+    val initialGroups = state.relationGroups.ifEmpty { state.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId } }
+    val matches = initialGroups.filter { if (mode == "remove") it.relationIds.any(relationIds::contains) else it.suggestionId == suggestionId }
     var chosenGroup by remember { mutableStateOf<String?>(null) }
-    val group = matchingGroups.singleOrNull() ?: matchingGroups.firstOrNull { it.suggestionId == chosenGroup }
-    val busy = state.busy || state.unresolved
-    var query by remember { mutableStateOf("") }; var account by remember { mutableStateOf("") }; var amount by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    var searchItems by remember { mutableStateOf<List<CashCurrentRecord>>(emptyList()) }; var cursor by remember { mutableStateOf<String?>(null) }
-    var searching by remember { mutableStateOf(false) }; var error by remember { mutableStateOf<String?>(null) }
+    val group = matches.singleOrNull() ?: matches.firstOrNull { it.suggestionId == chosenGroup }
+    val records = state.relationRecords + state.affectedRecords + (record.transactionId to record)
+    var step by remember { mutableStateOf(if (mode == "add") "search" else if (mode == "suggestion") "plans" else mode) }
+    var candidate by remember { mutableStateOf<String?>(null) }
+    var initialized by remember { mutableStateOf(false) }
+    var submitted by remember { mutableStateOf(false) }
+    var deferredDecision by remember { mutableStateOf<CashRelationDecision?>(null) }
+    var returnStep by remember { mutableStateOf(step) }
+    var query by remember { mutableStateOf("") }; var account by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }; var date by remember { mutableStateOf("") }
+    var searchItems by remember { mutableStateOf<List<CashCurrentRecord>>(emptyList()) }
+    var cursor by remember { mutableStateOf<String?>(null) }; var searching by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }; var generation by remember { mutableStateOf(0) }
     var appliedSearch by remember { mutableStateOf(CashAssociationSearch()) }
-    var searchGeneration by remember { mutableStateOf(0) }
-    var selected by remember { mutableStateOf<CashCurrentRecord?>(null) }; var candidate by remember { mutableStateOf<String?>(null) }
-    var kind by remember { mutableStateOf("payment_mirror") }; var subtype by remember { mutableStateOf("ordinary_transfer") }
+    var selected by remember { mutableStateOf<CashCurrentRecord?>(null) }
+    var kind by remember { mutableStateOf("payment_mirror") }; var subtype by remember { mutableStateOf("") }
     var anchorPart by remember { mutableStateOf<String?>(null) }; var targetPart by remember { mutableStateOf<String?>(null) }
-    var inherit by remember { mutableStateOf<Boolean?>(null) }; var common by remember { mutableStateOf<Map<String, StructuredValue>>(emptyMap()) }
+    var inherit by remember { mutableStateOf<Boolean?>(null) }
+    var common by remember { mutableStateOf<Map<String, StructuredValue>>(emptyMap()) }
+    val compact = sizeClass == WindowSizeClass.COMPACT
+    val busy = state.busy || state.unresolved
     val scope = rememberCoroutineScope()
-    suspend fun search(more: Boolean = false) {
-        val generation = searchGeneration
-        searching = true; error = null
-        try {
-            val input = if (more) appliedSearch.copy(cursor = cursor) else CashAssociationSearch(query, account.takeIf { it.isNotBlank() }, amount.takeIf { it.isNotBlank() }, date.takeIf { it.isNotBlank() }, date.takeIf { it.isNotBlank() })
-            val page = onSearch(input)
-            if (generation != searchGeneration) return
-            if (!more) appliedSearch = input
-            searchItems = if (more) (searchItems + page.items).distinctBy { it.transactionId } else page.items
-            cursor = page.nextCursor; selected = null
-        } catch (cancelled: CancellationException) { throw cancelled }
-        catch (failure: DomainFailure) { if (generation == searchGeneration) error = failure.code }
-        finally { if (generation == searchGeneration) searching = false }
-    }
-    LaunchedEffect(query, account, amount, date) {
-        if (mode == "add" || mode == "suggestion") {
-            searchGeneration++; selected = null; searchItems = emptyList(); cursor = null; searching = true
-            delay(300)
-            search()
+    LaunchedEffect(group?.suggestionId) {
+        if (!initialized && group != null) {
+            initialized = true; candidate = cashRelationInitialCandidate(group)
+            kind = group.kind.orEmpty(); subtype = group.subtype.orEmpty()
+            if (mode == "suggestion" && cashDetailAlternativeCount(group) == 0) step = "search"
         }
     }
-    LaunchedEffect(group?.suggestionId) {
-        candidate = group?.candidateId ?: group?.candidates?.singleOrNull()?.candidateId
-        kind = group?.kind ?: "payment_mirror"
-        if (group?.subtype?.isNotBlank() == true) subtype = group.subtype
+    val changes = group?.splitFieldDiffs.orEmpty().filter { it.current != it.restored }.distinct()
+    val activeConflicts = if (submitted) cashRelationConflictGroups(state.input, state.details.flatMap { it.relationChoices }).flatMap { it.commonFieldConflicts.entries }.associate { it.key to it.value }
+        else group?.commonFieldConflicts.orEmpty()
+    val preparedCommon = state.input?.relationAdditions?.singleOrNull()?.commonFields?.fields
+        ?: state.input?.relationChoices?.singleOrNull { it.action == "accept" }?.commonFields?.fields.orEmpty()
+    val needsConflict = submitted && !state.busy && activeConflicts.any { (field, values) -> preparedCommon[field] !in cashRelationCommonValues(field, values) } &&
+        state.input?.let { it.relationAdditions.isNotEmpty() || it.relationChoices.any { choice -> choice.action == "accept" } } == true
+    val stale = state.errorCode in setOf("record_changed", "plan_changed", "plan_expired", "relation_context_changed", "issue_changed")
+    val view = when { state.unresolved -> "unknown"; stale -> "stale"; needsConflict -> "conflict"; else -> step }
+    val choosing = view in setOf("plans", "search")
+    val joint = group?.let(::cashRelationIsJoint) == true
+    val ready = submitted && state.plan != null && !state.selectionPlan && !state.previewDirty
+    suspend fun search(more: Boolean = false) {
+        val requestGeneration = generation
+        searching = true; error = null
+        try {
+            val input = if (more) appliedSearch.copy(cursor = cursor) else CashAssociationSearch(query, account.takeIf(String::isNotBlank), amount.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank), date.takeIf(String::isNotBlank))
+            val page = onSearch(input)
+            if (requestGeneration != generation) return
+            if (!more) appliedSearch = input
+            searchItems = if (more) (searchItems + page.items).distinctBy { it.transactionId } else page.items
+            cursor = page.nextCursor
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (failure: DomainFailure) { if (requestGeneration == generation) error = failure.code }
+        finally { if (requestGeneration == generation) searching = false }
     }
-    val changes = group?.splitFieldDiffs.orEmpty().distinctBy { it.field to it.current }
-    val conflicts = groups.flatMap { it.commonFieldConflicts.entries }.associate { it.key to it.value }
-    val resolvingConflicts = conflicts.isNotEmpty() && state.input?.let { input ->
-        input.relationAdditions.isNotEmpty() || input.relationChoices.any { it.action == "accept" }
-    } == true
-    LaunchedEffect(conflicts) {
-        common = common.filter { (field, value) -> field in conflicts && value in cashRelationCommonValues(field, conflicts.getValue(field)) }
+    LaunchedEffect(query, account, amount, date, view) {
+        generation++; searching = false
+        if (view == "search") {
+            selected = null; targetPart = null; searchItems = emptyList(); cursor = null; searching = true
+            delay(300); search()
+        }
     }
-    val readyToConfirm = state.plan != null && !state.selectionPlan
-    val compact = sizeClass == WindowSizeClass.COMPACT
-    val choosing = mode in setOf("add", "suggestion") && !readyToConfirm && !resolvingConflicts
-    val showSuggestions = choosing && query.isBlank() && account.isBlank() && amount.isBlank() && date.isBlank()
-    Dialog(onDismissRequest = { if (!busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = !compact)) {
+    fun requestPreview() {
+        if (step != "review" && step != "conflict") returnStep = step
+        submitted = true; step = "review"
+    }
+    val confirmationDecision = when {
+        mode == "reject" && group != null && "ignore" in group.allowedActions -> CashRelationDecision(group.suggestionId, "ignore")
+        mode == "remove" && group != null && "remove" in group.allowedActions && (changes.isEmpty() || inherit != null) ->
+            CashRelationDecision(group.suggestionId, "remove", inheritCommonFields = inherit.takeIf { changes.isNotEmpty() })
+        else -> null
+    }
+    LaunchedEffect(confirmationDecision, state.busy, state.plan?.planId) {
+        if (confirmationDecision != null && !busy && state.errorCode == null && state.plan != null &&
+            state.input?.relationChoices != listOf(confirmationDecision)) {
+            submitted = true
+            onSave(listOf(confirmationDecision))
+        }
+    }
+    val confirmationReady = confirmationDecision != null && ready && state.input?.relationChoices == listOf(confirmationDecision) &&
+        !cashHasUnresolvedEffects(state) && state.plan?.canCommit == true && state.plan.invalidatedChoices.isEmpty()
+    val title = when (view) {
+        "review" -> "cash_detail_preview"; "conflict" -> "cash_detail_common_values"
+        "remove" -> "cash_detail_remove"; "reject" -> "cash_detail_reject"
+        "unknown" -> "cash_save_unknown"; "stale" -> "cash_detail_stale_title"
+        else -> if (mode == "add") "copy_f46e36d281" else if (group != null && cashDetailAlternativeCount(group) == 1 && !joint) "cash_detail_accept" else "cash_detail_check"
+    }
+    Dialog(onDismissRequest = { if (!state.busy) onDismiss() }, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = !compact)) {
         BoxWithConstraints(Modifier.fillMaxSize().padding(if (compact) 0.dp else 24.dp), contentAlignment = Alignment.Center) {
             Surface(Modifier.widthIn(max = if (choosing && !compact) 1120.dp else 560.dp).fillMaxWidth()
                 .then(if (compact) Modifier.fillMaxHeight() else Modifier.heightIn(max = maxHeight))
@@ -359,144 +393,203 @@ private fun CashAssociationDialog(
                 color = MaterialTheme.colorScheme.surfaceContainerHigh) {
                 Column {
                     Row(Modifier.fillMaxWidth().then(if (compact) Modifier.height(56.dp).padding(horizontal = 16.dp) else Modifier.padding(24.dp)), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        IconButton(onClick = onDismiss, enabled = !busy) { Icon(painterResource(Res.drawable.ic_close), contentDescription = localizedText("copy_4d0b4688c7")) }
-                        Text(localizedText(when (mode) {
-                            "remove" -> "cash_detail_remove"; "reject" -> "cash_detail_reject"; "add" -> "copy_f46e36d281"
-                            else -> if (group?.let(::cashDetailAlternativeCount) == 1) "cash_detail_accept" else "cash_detail_check"
-                        }), style = MaterialTheme.typography.titleLarge)
+                        IconButton(onClick = onDismiss, enabled = !state.busy) { Icon(painterResource(Res.drawable.ic_close), contentDescription = localizedText("copy_4d0b4688c7")) }
+                        Text(localizedText(title), style = MaterialTheme.typography.titleLarge)
                     }
-                    Column(Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState())
-                        .padding(horizontal = 24.dp).padding(top = if (compact) 24.dp else 0.dp, bottom = if (compact) 24.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        state.errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
-                        if (state.unresolved) {
-                            Text(localizedText("cash_save_unknown"), color = MaterialTheme.colorScheme.error)
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Button(onClick = onResolve, enabled = !state.busy) { Text(localizedText("cash_check_result")) }
+                    Column(Modifier.weight(1f, fill = compact).verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)
+                        .padding(top = if (compact) 24.dp else 0.dp, bottom = if (compact) 24.dp else 0.dp)
+                        .testTag("cash.association.view-$view"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        if (state.busy) CircularProgressIndicator()
+                        if (!stale && !state.unresolved) state.errorCode?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
+                        when (view) {
+                            "unknown" -> {
+                                Text(localizedText("cash_detail_unknown_hint"))
                                 if (state.retryOriginalAllowed) TextButton(onClick = onRetryOriginal, enabled = !state.busy) { Text(localizedText("cash_continue_save")) }
                             }
-                        }
-                        error?.let { Text(ledgerErrorText(it), color = MaterialTheme.colorScheme.error) }
-                        if (busy) CircularProgressIndicator()
-                        if (readyToConfirm && !resolvingConflicts) CashMaintenanceConfirmation(state, accounts, categories, options, onConfirm, onDismiss, showActions = false)
-                        else if (resolvingConflicts) {
-                            Text(localizedText("cash_detail_common_values"), style = MaterialTheme.typography.titleMedium)
-                            conflicts.forEach { (field, values) ->
-                                Text(cashFieldLabel(field)?.let { localizedText(it) }.orEmpty())
-                                cashRelationCommonValues(field, values).forEachIndexed { index, value ->
-                                    val clear = value == StructuredNull || value == StructuredText("") || value == StructuredArray(emptyList())
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(common[field] == value, onClick = { common = common + (field to value) }, enabled = !busy,
-                                        modifier = Modifier.testTag("cash.association.common-$field-${if (clear) "clear" else index}"))
-                                    Text(if (clear) localizedText("cash_clear_value") else cashBusinessFieldValue(field, value, accounts, categories, options))
-                                } }
+                            "stale" -> Text(localizedText("cash_detail_stale_hint"), color = MaterialTheme.colorScheme.error)
+                            "review" -> {
+                                Text(localizedText("cash_detail_preview_hint"), style = MaterialTheme.typography.bodySmall)
+                                if (ready) {
+                                    Surface(shape = MaterialTheme.shapes.small, color = MaterialTheme.colorScheme.surfaceContainer) {
+                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            val choices = state.input?.relationChoices.orEmpty()
+                                            choices.forEach { choice ->
+                                                Text(localizedText(when (choice.action) { "ignore" -> "cash_detail_reject"; "remove" -> "cash_detail_remove"; else -> "cash_detail_accept" }), style = MaterialTheme.typography.titleSmall)
+                                                val original = initialGroups.firstOrNull { it.suggestionId == choice.suggestionId }
+                                                val option = original?.candidates?.firstOrNull { it.candidateId == choice.candidateId }
+                                                AssociationRelationSummary(option?.relations?.ifEmpty { original.relations } ?: original?.relations.orEmpty(), records, options)
+                                                val refs = option?.members ?: original?.members.orEmpty()
+                                                refs.mapNotNull { records[it.transactionId] }.distinctBy { it.transactionId }.forEach { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                            }
+                                            state.input?.relationAdditions.orEmpty().forEach { addition ->
+                                                Text(relationLabel(addition.kind, addition.subtype, options), style = MaterialTheme.typography.titleSmall)
+                                                records[addition.targetTransactionId]?.let { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                                    ?: selected?.let { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                            }
+                                        }
+                                    }
+                                    CashMaintenanceConfirmation(state, accounts, categories, options, onConfirm, onDismiss, showActions = false)
+                                }
                             }
-                        } else if (mode == "remove" || mode == "reject") {
-                            if (mode == "remove" && matchingGroups.size > 1) matchingGroups.forEach { choice -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                RadioButton(chosenGroup == choice.suggestionId, onClick = { chosenGroup = choice.suggestionId; inherit = null }, enabled = !busy)
-                                Text(relationLabel(choice.kind.orEmpty(), choice.subtype, options))
-                            } }
-                            Text(localizedText(if (mode == "remove") "cash_detail_remove_effect" else "cash_detail_reject_effect"))
-                            group?.members?.mapNotNull { state.affectedRecords[it.transactionId] }?.forEach { CashAffectedRecordSummary(it.fields) }
-                            if (changes.isNotEmpty() && mode == "remove") {
-                                Text(localizedText("cash_detail_modified"), style = MaterialTheme.typography.titleSmall)
-                                changes.forEach { diff -> DetailValue(cashFieldLabel(diff.field)?.let { localizedText(it) }.orEmpty(), cashBusinessFieldValue(diff.field, diff.current, accounts, categories, options)) }
-                                Text(localizedText("cash_inherit_question"))
-                                listOf(true to "cash_inherit_changes", false to "cash_keep_individual").forEach { (value, label) -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(inherit == value, onClick = { inherit = value }, enabled = !busy); Text(localizedText(label))
-                                } }
-                            }
-                        } else {
-                            if (mode == "add") {
-                                val relationTypes = listOf("payment_mirror", "refund_offset", "transfer_pair")
-                                SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("cash.association.relation-types")) {
-                                    relationTypes.forEachIndexed { index, value ->
-                                        SegmentedButton(selected = kind == value, onClick = { kind = value }, enabled = !busy,
-                                            shape = SegmentedButtonDefaults.itemShape(index, relationTypes.size),
-                                            modifier = Modifier.testTag("cash.association.kind-$value")) { Text(cashRelationTypeLabel(value, options)) }
+                            "conflict" -> {
+                                Text(localizedText("cash_detail_conflict_hint"))
+                                activeConflicts.forEach { (field, values) ->
+                                    OutlinedCard(Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp).selectableGroup()) {
+                                            Text(cashFieldLabel(field)?.let { localizedText(it) }.orEmpty(), style = MaterialTheme.typography.labelMedium)
+                                            cashRelationCommonValues(field, values).forEachIndexed { index, value ->
+                                                val clear = value == StructuredNull || value == StructuredText("") || value == StructuredArray(emptyList())
+                                                val label = if (clear) localizedText("cash_clear_value") else cashBusinessFieldValue(field, value, accounts, categories, options)
+                                                AssociationRadio(label, common[field] == value, !busy, "cash.association.common-$field-${if (clear) "clear" else index}") { common = common + (field to value) }
+                                            }
+                                        }
                                     }
                                 }
                             }
-                            OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                ChoicePicker(localizedText("cash_detail_account_id"), account,
-                                    listOf("" to localizedText("copy_778fc8f994")) + accounts.map { it.id.toString() to it.name }, { account = it },
-                                    modifier = Modifier.weight(1f).testTag("cash.association.filter-account"))
-                                OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, singleLine = true,
-                                    modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
-                                if (!compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
-                                    modifier = Modifier.weight(1f).testTag("cash.association.filter-date"))
+                            "reject", "remove" -> {
+                                Text(localizedText(if (view == "remove") "cash_detail_remove_effect" else "cash_detail_reject_effect"))
+                                if (view == "remove" && matches.size > 1) Column(Modifier.selectableGroup()) {
+                                    matches.forEach { choice -> AssociationRadio(suggestionRelationLabel(choice, options), chosenGroup == choice.suggestionId, !busy,
+                                        "cash.association.remove-group-${choice.suggestionId}") { chosenGroup = choice.suggestionId; inherit = null } }
+                                }
+                                group?.let { choice ->
+                                    AssociationRelationSummary(choice.relations, records, options)
+                                    cashRelationMemberRecords(choice.members, records)?.forEach { RelatedRecordInformation(it.fields, accounts, categories, options) }
+                                }
+                                if (view == "remove" && changes.isNotEmpty()) {
+                                    Text(localizedText("cash_detail_modified"), style = MaterialTheme.typography.titleSmall)
+                                    changes.forEach { diff -> OutlinedCard(Modifier.fillMaxWidth()) {
+                                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text(cashFieldLabel(diff.field)?.let { localizedText(it) }.orEmpty(), style = MaterialTheme.typography.labelMedium)
+                                            DetailValue(localizedText("cash_current_value"), cashBusinessFieldValue(diff.field, diff.current, accounts, categories, options))
+                                            DetailValue(localizedText("cash_detail_restored_value"), cashBusinessFieldValue(diff.field, diff.restored, accounts, categories, options))
+                                        }
+                                    } }
+                                    Column(Modifier.selectableGroup()) {
+                                        AssociationRadio(localizedText("cash_detail_keep_split"), inherit == true, !busy, "cash.association.inherit-keep") { inherit = true }
+                                        AssociationRadio(localizedText("cash_detail_restore_split"), inherit == false, !busy, "cash.association.inherit-restore") { inherit = false }
+                                    }
+                                }
+                                if (ready && state.input?.relationChoices == listOf(confirmationDecision)) {
+                                    CashMaintenanceConfirmation(state, accounts, categories, options, onConfirm, onDismiss, showActions = false)
+                                }
+                                if (state.errorCode != null && !busy) TextButton(onClick = onRestart) { Text(localizedText("copy_e2d53a6d3a")) }
                             }
-                            if (compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, placeholder = { Text("YYYY-MM-DD") }, singleLine = true,
-                                modifier = Modifier.fillMaxWidth().testTag("cash.association.filter-date"))
-                            if (showSuggestions && group != null) {
-                                val candidates = group?.candidates.orEmpty()
-                                if (cashDetailAlternativeCount(group) > 0) Text(localizedText("cash_detail_suggested_options"), style = MaterialTheme.typography.titleSmall)
-                                if (candidates.isEmpty()) {
-                                    if ("accept" in group.allowedActions) {
-                                        AssociationRelationSummary(group.relations, state.affectedRecords, options)
-                                        AssociationTable(group.members.mapNotNull { state.affectedRecords[it.transactionId] }, sizeClass, accounts, categories, options, selected == null, { selected = null })
+                            "plans" -> {
+                                if (group != null) {
+                                    Text(localizedText("cash_detail_suggested_options"), style = MaterialTheme.typography.titleSmall)
+                                    val candidates = group.candidates.ifEmpty { if ("accept" in group.allowedActions) listOf(ImportPairCandidate("direct", null, group.members, null, group.relations)) else emptyList() }
+                                    Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        candidates.forEachIndexed { index, option ->
+                                            val memberRecords = cashRelationMemberRecords(option.members, records)
+                                            OutlinedCard(Modifier.fillMaxWidth().testTag("cash.association.plan-${option.candidateId}"),
+                                                border = BorderStroke(1.dp, if (candidates.size == 1 || candidate == option.candidateId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)) {
+                                                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    if (candidates.size == 1) Text(localizedText("cash_detail_selected_plan"), style = MaterialTheme.typography.labelMedium,
+                                                        color = MaterialTheme.colorScheme.primary, modifier = Modifier.testTag("cash.association.single-selected"))
+                                                    else AssociationOptionHeader(localizedText("cash_detail_option", index + 1), candidate == option.candidateId, !busy && memberRecords != null, option.candidateId) { candidate = option.candidateId }
+                                                    if (joint) Text(localizedText("cash_detail_joint_whole"), style = MaterialTheme.typography.labelMedium)
+                                                    if (memberRecords == null) Text(ledgerErrorText("record_changed"), color = MaterialTheme.colorScheme.error)
+                                                    else AssociationTable(memberRecords.filterNot { it.transactionId == record.transactionId }, sizeClass, accounts, categories, options)
+                                                    AssociationRelationSummary(option.relations.ifEmpty { group.relations }, records, options)
+                                                }
+                                            }
+                                        }
                                     }
-                                    else SuggestionSummary(group, record, state.affectedRecords, accounts, categories, options)
-                                } else candidates.forEach { option ->
-                                    val records = cashRelationMemberRecords(option.members, state.affectedRecords)
-                                    if (records == null) Text(ledgerErrorText("record_changed"), color = MaterialTheme.colorScheme.error)
-                                    else {
-                                        AssociationRelationSummary(option.relations, state.affectedRecords, options)
-                                        AssociationTable(records, sizeClass, accounts, categories, options, selected == null && candidate == option.candidateId, { candidate = option.candidateId; selected = null })
-                                    }
-                                    HorizontalDivider()
+                                    TextButton(onClick = { selected = null; step = "search" }, enabled = !busy, modifier = Modifier.testTag("cash.association.choose-other")) { Text(localizedText("cash_detail_choose_other")) }
                                 }
                             }
-                            run {
-                                if (showSuggestions && group != null && cashDetailAlternativeCount(group) > 0) Text(localizedText("cash_detail_other_records"), style = MaterialTheme.typography.titleSmall)
+                            "search" -> {
+                                if (mode == "add") {
+                                    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().testTag("cash.association.relation-types")) {
+                                        listOf("payment_mirror", "refund_offset", "transfer_pair").forEachIndexed { index, value ->
+                                            SegmentedButton(kind == value, { kind = value; subtype = if (value == "transfer_pair") "ordinary_transfer" else "" },
+                                                SegmentedButtonDefaults.itemShape(index, 3), enabled = !busy, modifier = Modifier.testTag("cash.association.kind-$value")) { Text(cashRelationTypeLabel(value, options)) }
+                                        }
+                                    }
+                                    if (kind != "payment_mirror") ChoicePicker(localizedText("cash_detail_subtype"), subtype,
+                                        if (kind == "refund_offset") listOf("" to localizedText("cash_detail_regular_refund"), "p2p_return" to localizedText("cash_detail_p2p_return"))
+                                        else listOf("ordinary_transfer", "credit_repayment", "currency_exchange", "cross_currency_remittance").map { it to relationLabel(kind, it, options) },
+                                        { subtype = it }, modifier = Modifier.fillMaxWidth().testTag("cash.association.subtype"))
+                                } else {
+                                    if (group != null && cashDetailAlternativeCount(group) == 0) Text(localizedText("cash_detail_search_missing"))
+                                    Text(localizedText("cash_detail_locked_type") + suggestionRelationLabel(group ?: return@Column, options), modifier = Modifier.testTag("cash.association.locked-type"), style = MaterialTheme.typography.bodySmall)
+                                    if (joint) Surface(color = LocalFinanceColorRoles.current.warningSurface, contentColor = LocalFinanceColorRoles.current.warning, shape = MaterialTheme.shapes.small) {
+                                        Text(localizedText("cash_detail_joint_search_blocked"), Modifier.padding(12.dp).testTag("cash.association.joint-search-blocked"))
+                                    }
+                                }
+                                OutlinedTextField(query, { query = it }, label = { Text(localizedText("cash_detail_search")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.search"))
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    ChoicePicker(localizedText("cash_detail_account_id"), account, listOf("" to localizedText("copy_778fc8f994")) + accounts.map { it.id.toString() to it.name }, { account = it }, modifier = Modifier.weight(1f).testTag("cash.association.filter-account"))
+                                    OutlinedTextField(amount, { amount = it }, label = { Text(localizedText("copy_34943c40c9")) }, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-amount"))
+                                    if (!compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, singleLine = true, modifier = Modifier.weight(1f).testTag("cash.association.filter-date"))
+                                }
+                                if (compact) OutlinedTextField(date, { date = it }, label = { Text(localizedText("cash_detail_date")) }, singleLine = true, modifier = Modifier.fillMaxWidth().testTag("cash.association.filter-date"))
                                 if (searching) CircularProgressIndicator()
-                                val suggestedIds = if (showSuggestions) group?.let { (it.members + it.candidates.flatMap { option -> option.members }).mapNotNull { ref -> ref.transactionId }.toSet() }.orEmpty() else emptySet()
-                                AssociationTable(searchItems.filterNot { it.transactionId in suggestedIds }, sizeClass, accounts, categories, options, false, {}, selected?.transactionId,
-                                    { item -> selected = item; targetPart = null })
-                                if (searchItems.isEmpty() && !searching) Text(localizedText("copy_8eb3d2788b"))
+                                error?.let { code -> Text(ledgerErrorText(code), color = MaterialTheme.colorScheme.error); TextButton(onClick = { scope.launch { search() } }, enabled = !searching) { Text(localizedText("copy_e2d53a6d3a")) } }
+                                AssociationTable(searchItems, sizeClass, accounts, categories, options, selected?.transactionId, { selected = it; targetPart = null })
+                                if (!searching && error == null && searchItems.isEmpty()) Text(localizedText("copy_8eb3d2788b"))
                                 if (cursor != null) TextButton(onClick = { scope.launch { search(true) } }, enabled = !searching) { Text(localizedText("cash_detail_more")) }
-                                selected?.let { target ->
-                                    if (mode != "add") FlowRow { listOf("payment_mirror", "refund_offset", "transfer_pair").forEach { value -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(kind == value, onClick = { kind = value }); Text(cashRelationTypeLabel(value, options))
-                                    } } }
-                                    if (kind == "transfer_pair") FlowRow { listOf("ordinary_transfer", "credit_repayment", "currency_exchange", "cross_currency_remittance").forEach { value -> Row(verticalAlignment = Alignment.CenterVertically) {
-                                        RadioButton(subtype == value, onClick = { subtype = value }); Text(relationLabel("transfer_pair", value, options))
-                                    } } }
-                                    ComponentChoices(record, anchorPart, { anchorPart = it })
-                                    ComponentChoices(target, targetPart, { targetPart = it })
-                                }
+                                selected?.let { target -> ComponentChoices(record, true, accounts, anchorPart, { anchorPart = it }); ComponentChoices(target, false, accounts, targetPart, { targetPart = it }) }
                             }
                         }
                     }
-                    Row(Modifier.fillMaxWidth().then(if (compact) Modifier.height(56.dp).padding(horizontal = 24.dp) else Modifier.padding(24.dp)), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = onDismiss, enabled = !busy) { Text(localizedText("copy_4d0b4688c7")) }
-                        Spacer(Modifier.width(8.dp))
-                        val parts = cashAssociationParts(record); val targetParts = selected?.let(::cashAssociationParts).orEmpty()
-                        val sourcePart = anchorPart ?: parts.singleOrNull()?.first
-                        val chosenPart = targetPart ?: targetParts.singleOrNull()?.first
-                        val canAct = !busy && when {
-                            resolvingConflicts -> conflicts.keys.all { field -> common[field] in cashRelationCommonValues(field, conflicts.getValue(field)) }
-                            readyToConfirm -> state.plan?.canCommit == true && !state.previewDirty
-                            mode == "remove" -> group != null && "remove" in group.allowedActions && (changes.isEmpty() || inherit != null)
-                            mode == "reject" -> group != null && "ignore" in group.allowedActions
-                            selected != null -> selected?.state == "posted" && !searching && sourcePart != null && chosenPart != null
-                            else -> showSuggestions && group != null && "accept" in group.allowedActions && (group.candidates.isEmpty() || candidate != null)
+                    Row(Modifier.fillMaxWidth().then(if (compact) Modifier.height(56.dp).padding(horizontal = 24.dp) else Modifier.padding(24.dp)), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                        if (view == "search" && mode == "suggestion" && group != null && cashDetailAlternativeCount(group) > 0) TextButton(onClick = { selected = null; step = "plans" }, enabled = !busy,
+                            modifier = Modifier.testTag("cash.association.back-suggestions")) { Text(localizedText("cash_detail_back_suggestions")) }
+                        if (view == "review") TextButton(onClick = { submitted = false; step = returnStep; onRestart() }, enabled = !busy,
+                            modifier = Modifier.testTag("cash.association.back-preview")) { Text(localizedText("cash_detail_back")) }
+                        if (view != "stale") TextButton(onClick = onDismiss, enabled = !state.busy) { Text(localizedText(if (view == "unknown") "cash_detail_close" else "copy_4d0b4688c7")) }
+                        val sourcePart = anchorPart ?: cashAssociationParts(record).singleOrNull()?.first
+                        val chosenPart = targetPart ?: selected?.let(::cashAssociationParts)?.singleOrNull()?.first
+                        val choiceLoaded = group?.let { g -> cashRelationChoicesLoaded(listOf(CashRelationDecision(g.suggestionId, "accept", candidateId = candidate)), listOf(g), records) } == true
+                        val canAct = !state.busy && when (view) {
+                            "unknown", "stale" -> true
+                            "review" -> ready && !cashHasUnresolvedEffects(state) && state.plan?.canCommit == true && state.plan.invalidatedChoices.isEmpty()
+                            "conflict" -> activeConflicts.isNotEmpty() && activeConflicts.all { (field, values) -> common[field] in cashRelationCommonValues(field, values) }
+                            "remove", "reject" -> confirmationReady
+                            "search" -> !joint && selected?.state == "posted" && !searching && sourcePart != null && chosenPart != null
+                            "plans" -> group != null && "accept" in group.allowedActions && choiceLoaded
+                            else -> false
                         }
                         Button(enabled = canAct, modifier = Modifier.testTag("cash.association.continue"), onClick = {
-                            when {
-                                resolvingConflicts -> onCommonFields(StructuredObject(common))
-                                readyToConfirm -> onConfirm()
-                                mode == "remove" -> group?.let { onSave(listOf(CashRelationDecision(it.suggestionId, "remove", inheritCommonFields = inherit))) }
-                                mode == "reject" -> group?.let { onSave(listOf(CashRelationDecision(it.suggestionId, "ignore"))) }
-                                selected != null -> selected?.let { onAdd(CashRelationAddition(it.transactionId, it.rowRevision, sourcePart!!, chosenPart!!, kind, if (kind == "transfer_pair") subtype else ""), suggestionId) }
-                                else -> group?.let { onSave(listOf(CashRelationDecision(it.suggestionId, "accept", candidateId = candidate))) }
+                            when (view) {
+                                "unknown" -> onResolve()
+                                "stale" -> onRefresh()
+                                "review" -> onConfirm()
+                                "conflict" -> {
+                                    val pending = deferredDecision
+                                    requestPreview()
+                                    if (pending != null) { deferredDecision = null; onSave(listOf(pending.copy(commonFields = StructuredObject(common)))) }
+                                    else onCommonFields(StructuredObject(common))
+                                }
+                                "remove", "reject" -> onConfirm()
+                                "search" -> selected?.let { requestPreview(); onAdd(CashRelationAddition(it.transactionId, it.rowRevision, sourcePart!!, chosenPart!!, kind, subtype), suggestionId) }
+                                "plans" -> group?.let {
+                                    val decision = CashRelationDecision(it.suggestionId, "accept", candidateId = candidate)
+                                    if (it.commonFieldConflicts.isNotEmpty()) { deferredDecision = decision; step = "conflict" }
+                                    else { requestPreview(); onSave(listOf(decision)) }
+                                }
                             }
-                        }) { Text(localizedText(if (readyToConfirm && !resolvingConflicts) "cash_confirm_save" else "cash_detail_preview")) }
+                        }) { Text(localizedText(when (view) {
+                            "unknown" -> "cash_check_result"; "stale" -> "cash_detail_close_refresh"
+                            "review" -> "cash_confirm_save"; "conflict" -> "cash_detail_continue_review"
+                            "remove" -> "cash_detail_confirm_remove"; "reject" -> "cash_detail_confirm_reject"; else -> "cash_detail_preview"
+                        })) }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun AssociationRadio(label: String, selected: Boolean, enabled: Boolean, tag: String, onSelect: () -> Unit) {
+    Row(Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect).testTag(tag),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        RadioButton(selected, onClick = null, enabled = enabled)
+        Spacer(Modifier.width(8.dp))
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -506,27 +599,45 @@ internal fun cashAssociationParts(record: CashCurrentRecord): List<Pair<String, 
     }
 
 @Composable
-private fun ComponentChoices(record: CashCurrentRecord, selected: String?, onSelect: (String) -> Unit) {
+private fun ComponentChoices(record: CashCurrentRecord, current: Boolean, accounts: List<Account>, selected: String?, onSelect: (String) -> Unit) {
     val parts = cashAssociationParts(record)
     if (parts.size > 1) {
-        Text(localizedText("cash_detail_choose_part"), style = MaterialTheme.typography.titleSmall)
-        parts.forEach { (id, part) -> Row(verticalAlignment = Alignment.CenterVertically) {
-            RadioButton(selected == id, onClick = { onSelect(id) })
-            Text(cashAmountWithCurrencyLabel(part.fields["amount"].cashText(), part.fields["currency"].cashText()))
-        } }
+        Text(localizedText(if (current) "ledger_detail_current_record" else "cash_detail_counterpart") + " · " +
+            record.fields.fields["counterparty"].cashText().orEmpty(), style = MaterialTheme.typography.titleSmall)
+        Column(Modifier.fillMaxWidth().selectableGroup()) {
+            parts.forEach { (id, part) ->
+                val account = part.fields["account_name"].cashText()?.takeIf { it.isNotBlank() }
+                    ?: accounts.firstOrNull { it.id.toString() == part.fields["account_id"].cashText() }?.name
+                    ?: localizedText("display_not_provided")
+                val label = listOfNotNull(account, part.fields["label"].cashText()?.takeIf { it.isNotBlank() },
+                    cashAmountWithCurrencyLabel(part.fields["amount"].cashText(), part.fields["currency"].cashText())).distinct().joinToString(" · ")
+                AssociationRadio(label, selected == id, true, "cash.association.part-${record.transactionId}-$id") { onSelect(id) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssociationOptionHeader(label: String, selected: Boolean, enabled: Boolean, id: String, onSelect: () -> Unit) {
+    Row(Modifier.fillMaxWidth().selectable(selected, enabled = enabled, role = Role.RadioButton, onClick = onSelect)
+        .testTag("cash.association.option-$id"), verticalAlignment = Alignment.CenterVertically) {
+        RadioButton(selected, onClick = null, enabled = enabled)
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.titleSmall)
     }
 }
 
 @Composable
 private fun AssociationTable(records: List<CashCurrentRecord>, sizeClass: WindowSizeClass, accounts: List<Account>, categories: List<CashCategory>, options: LedgerOptions,
-    selected: Boolean, onSelect: () -> Unit, selectedId: String? = null, onSelectRecord: ((CashCurrentRecord) -> Unit)? = null) {
+    selectedId: String? = null, onSelectRecord: ((CashCurrentRecord) -> Unit)? = null) {
+    val selectable = onSelectRecord != null
     BoxWithConstraints(Modifier.fillMaxWidth()) {
       val tableWidth = maxOf(1000.dp, maxWidth)
       val tableModifier = if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth()
         else Modifier.horizontalScroll(rememberScrollState())
-      Column(tableModifier) {
+      Column(tableModifier.then(if (selectable) Modifier.selectableGroup() else Modifier)) {
        Column(if (sizeClass == WindowSizeClass.COMPACT) Modifier.fillMaxWidth() else Modifier.width(tableWidth)) {
-        if (records.isNotEmpty() && sizeClass != WindowSizeClass.COMPACT) CashLedgerTableHeader(Modifier.padding(horizontal = 16.dp))
+        if (records.isNotEmpty() && sizeClass != WindowSizeClass.COMPACT) CashLedgerTableHeader(Modifier.padding(horizontal = 16.dp), showSelection = selectable)
         records.forEachIndexed { index, record ->
         val f = record.fields.fields
         val item = CashLedgerRowContent(record.transactionId, f["occurred_at"].cashText(), f["counterparty"].cashText().orEmpty(), f["note"].cashText().orEmpty(),
@@ -534,9 +645,9 @@ private fun AssociationTable(records: List<CashCurrentRecord>, sizeClass: Window
             cashCategoryDisplayPath(categories.firstOrNull { it.id == f["category_id"].cashText() }),
             cashRecordTypeLabel(f["record_type"].cashText().orEmpty(), options), f["source_type"].cashText(), record.confirmationStatus,
             cashAmountWithCurrencyLabel(f["amount"].cashText(), f["currency"].cashText()), f["amount"].cashText()?.startsWith("-") == true)
-        val choose = { if (record.state == "posted") { if (onSelectRecord != null) onSelectRecord(record) else onSelect() } }
-        CashLedgerRow(item, if (onSelectRecord != null) selectedId == record.transactionId else selected, record.state == "posted", sizeClass, true, index == records.lastIndex,
-            { choose() }, choose)
+        val choose = { if (record.state == "posted") onSelectRecord?.invoke(record); Unit }
+        CashLedgerRow(item, selectable && selectedId == record.transactionId, record.state == "posted", sizeClass, selectable, index == records.lastIndex,
+            { choose() }, choose, showSelection = selectable, singleSelection = selectable, showOpenAction = false)
         }
        }
       }

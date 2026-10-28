@@ -18,6 +18,8 @@ data class CashRecordTaskState(
     val savedRevision: Int = 0,
     val affectedRecords: Map<String, CashCurrentRecord> = emptyMap(),
     val selectionPlan: Boolean = false,
+    val relationGroups: List<ImportPairOption> = emptyList(),
+    val relationRecords: Map<String, CashCurrentRecord> = emptyMap(),
     val pendingMembers: List<CashCurrentRecord> = emptyList(),
     val transferMembers: List<CashCurrentRecord> = emptyList(),
 ) {
@@ -33,6 +35,7 @@ class CashRecordTaskViewModel(
     val state = mutableState.asStateFlow()
     private var sequence = 0L
     private var job: Job? = null
+    private var inspectedRelation: Pair<String, Long>? = null
 
     fun restore() {
         if (state.value.busy || state.value.recoveryReady) return
@@ -51,6 +54,7 @@ class CashRecordTaskViewModel(
     fun open(transactionId: String) {
         if (state.value.unresolved || state.value.busy) return
         job?.cancel(); sequence++
+        inspectedRelation = null
         execute {
             if (!state.value.recoveryReady && restorePointer()) return@execute
             val savedReceipt = state.value.receipt.takeIf { state.value.transactionId == transactionId }
@@ -86,7 +90,16 @@ class CashRecordTaskViewModel(
             previewDirty = false, selectionPlan = false, affectedRecords = emptyMap())
     }
 
-    fun beginRelations(patch: StructuredObject = StructuredObject(emptyMap())) {
+    // The ledger's automatic discovery is read-only and attempts once per revision.
+    fun beginRelations() {
+        val record = state.value.record ?: return
+        val key = record.transactionId to record.rowRevision
+        if (state.value.busy || state.value.unresolved || state.value.plan != null || inspectedRelation == key ||
+            record.recordOrigin in setOf("manual", "manual_transfer")) return
+        inspectedRelation = key
+        prepare(CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision), forSelection = true, inspection = true)
+    }
+    fun beginRelations(patch: StructuredObject) {
         val record = state.value.record ?: return
         if (record.recordOrigin in setOf("manual", "manual_transfer")) return
         prepare(CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision, patch), forSelection = true)
@@ -101,7 +114,12 @@ class CashRecordTaskViewModel(
         if (state.value.busy || state.value.unresolved || record.recordOrigin !in setOf("import", "legacy")) return
         val choices = replacingSuggestionId?.let { id ->
             val option = state.value.details.flatMap { it.relationChoices }.distinctBy { it.suggestionId }.singleOrNull { it.suggestionId == id }
-            if (option == null || "ignore" !in option.allowedActions) return
+            if (option == null || "ignore" !in option.allowedActions || cashRelationIsJoint(option)) {
+                mutableState.value = state.value.copy(errorCode = "choice_invalid"); return
+            }
+            if (addition.kind != option.kind.orEmpty() || addition.subtype != option.subtype.orEmpty()) {
+                mutableState.value = state.value.copy(errorCode = "choice_invalid"); return
+            }
             listOf(CashRelationDecision(id, "ignore"))
         }.orEmpty()
         prepare(CashMaintenanceRequest("maintain_relations", record.transactionId, record.rowRevision,
@@ -109,9 +127,9 @@ class CashRecordTaskViewModel(
     }
     fun saveRelationChoices(choices: List<CashRelationDecision>) {
         val record = state.value.record ?: return
-        if (!state.value.selectionPlan || state.value.busy || state.value.unresolved) return
-        val options = state.value.details.flatMap { it.relationChoices }
-        if (!cashRelationChoicesLoaded(choices, options, state.value.affectedRecords)) {
+        if (state.value.busy || state.value.unresolved || (!state.value.selectionPlan && state.value.input?.intent != "maintain_relations")) return
+        val options = (state.value.details.flatMap { it.relationChoices } + state.value.relationGroups).distinctBy { it.suggestionId }
+        if (!cashRelationChoicesLoaded(choices, options, state.value.relationRecords + state.value.affectedRecords)) {
             mutableState.value = state.value.copy(errorCode = "record_changed"); return
         }
         val input = try { cashRelationRequest(record, choices, options, state.value.input?.patch ?: StructuredObject(emptyMap())) }
@@ -157,7 +175,7 @@ class CashRecordTaskViewModel(
         prepare(CashMaintenanceRequest("save_draft", record.transactionId, record.rowRevision, patch))
     }
 
-    fun prepare(input: CashMaintenanceRequest, forSelection: Boolean = false) {
+    fun prepare(input: CashMaintenanceRequest, forSelection: Boolean = false, inspection: Boolean = false) {
         val record = (listOfNotNull(state.value.record) + state.value.pendingMembers).firstOrNull { it.transactionId == input.transactionId } ?: return
         if (state.value.busy || state.value.unresolved) return
         if (input.transactionId != record.transactionId || input.expectedRevision != record.rowRevision) {
@@ -201,7 +219,13 @@ class CashRecordTaskViewModel(
                     })
                 val selection = forSelection || needsRelationChoices
                 mutableState.value = state.value.copy(input = request, plan = plan.copy(items = items, nextCursor = null), details = details, affectedRecords = affected, previewDirty = false, selectionPlan = selection)
-                if (!selection && plan.additionalEffects.isEmpty() && plan.canCommit && plan.invalidatedChoices.isEmpty()) sendPlan(plan, record.transactionId)
+                if (inspection) {
+                    mutableState.value = state.value.copy(relationGroups = details.flatMap { it.relationChoices }.distinctBy { it.suggestionId },
+                        relationRecords = affected, plan = null, details = emptyList(), input = null, selectionPlan = false)
+                } else if (forSelection) {
+                    mutableState.value = state.value.copy(relationGroups = details.flatMap { it.relationChoices }.distinctBy { it.suggestionId }, relationRecords = affected)
+                }
+                if (!selection && input.intent != "maintain_relations" && plan.additionalEffects.isEmpty() && plan.canCommit && plan.invalidatedChoices.isEmpty()) sendPlan(plan, record.transactionId)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (error: Exception) {
                 if (input.intent == "maintain_relations" && !state.value.unresolved) cancelUnsentPlan()
@@ -213,7 +237,7 @@ class CashRecordTaskViewModel(
     fun confirmPlan() {
         val plan = state.value.plan ?: return
         val record = state.value.record ?: return
-        if (state.value.busy || state.value.unresolved || state.value.previewDirty || state.value.selectionPlan || !plan.canCommit || plan.invalidatedChoices.isNotEmpty()) return
+        if (state.value.busy || state.value.unresolved || state.value.previewDirty || state.value.selectionPlan || cashHasUnresolvedEffects(state.value) || !plan.canCommit || plan.invalidatedChoices.isNotEmpty()) return
         execute { sendPlan(plan, state.value.input?.transactionId ?: record.transactionId) }
     }
     private suspend fun sendPlan(plan: CashMaintenancePlan, transactionId: String) {
@@ -302,8 +326,9 @@ class CashRecordTaskViewModel(
             transferMembers = if (record?.recordOrigin == "manual_transfer" && record.entry?.supportsTransferEdit == true) listOf(record) + members else emptyList(),
             transactionId = receipt.retainedTransactionId ?: record?.transactionId ?: state.value.input?.transactionId ?: state.value.transactionId,
             frozenCommand = null, retryOriginalAllowed = false, plan = null, details = emptyList(), input = null,
-            savedRevision = state.value.savedRevision + 1,
+            savedRevision = state.value.savedRevision + 1, relationGroups = emptyList(), relationRecords = emptyMap(), selectionPlan = false, previewDirty = false,
             errorCode = "request_failed".takeIf { receipt.status in setOf("partial", "failed") })
+        inspectedRelation = null
         recovery.clear()
     }
     private fun execute(action: suspend () -> Unit) {

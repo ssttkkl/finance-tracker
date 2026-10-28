@@ -53,6 +53,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -1279,6 +1280,8 @@ internal fun CashLedgerRow(
     item: CashLedgerRowContent, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
     selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
     showSelection: Boolean = true,
+    singleSelection: Boolean = false,
+    showOpenAction: Boolean = true,
 ) {
     val recordBackground = when {
         CashLedgerRowStatusTag.DRAFT in item.statusTags -> LocalFinanceColorRoles.current.warningSurface
@@ -1290,6 +1293,7 @@ internal fun CashLedgerRow(
     if (sizeClass == WindowSizeClass.COMPACT) {
         Column(
             modifier = recordModifier.fillMaxWidth().combinedClickable(
+                enabled = selectionMode || showOpenAction,
                 onClick = { if (selectionMode) onChecked(!checked) else onOpen() },
                 onLongClick = { if (canWrite && !selectionMode) onChecked(true) },
             ),
@@ -1299,8 +1303,13 @@ internal fun CashLedgerRow(
                 verticalAlignment = Alignment.Top,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (selectionMode) {
-                    Checkbox(
+                if (selectionMode && showSelection) {
+                    if (singleSelection) RadioButton(
+                        selected = checked,
+                        onClick = { onChecked(true) },
+                        enabled = canWrite,
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                    ) else Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
@@ -1346,7 +1355,12 @@ internal fun CashLedgerRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (showSelection) Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
-                    Checkbox(
+                    if (singleSelection) RadioButton(
+                        selected = checked,
+                        onClick = { onChecked(true) },
+                        enabled = canWrite,
+                        modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
+                    ) else Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
@@ -1401,7 +1415,7 @@ internal fun CashLedgerRow(
                     textAlign = TextAlign.End,
                 )
                 Box(Modifier.weight(0.08f).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                    IconButton(
+                    if (showOpenAction) IconButton(
                         onClick = onOpen,
                         modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord),
                     ) {

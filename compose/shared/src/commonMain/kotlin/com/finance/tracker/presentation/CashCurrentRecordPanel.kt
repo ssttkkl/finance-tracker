@@ -160,7 +160,7 @@ internal fun CashCurrentRecordPanel(
                     CashDetailRelations(state, evidence, sourceError, sizeClass, accounts, categories, options,
                         onLoadSources, onBeginRelations?.let { begin -> { draftPatch?.let(begin) } },
                         onSaveRelationChoices, onAddAssociation, onSearchAssociations, onConfirmPlan, onCancelPlan,
-                        onRelationCommonFields, onResolve, onRetryOriginal)
+                        onRelationCommonFields, onResolve, onRetryOriginal, onRetry)
 
                 }
             }

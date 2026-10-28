@@ -8,7 +8,10 @@ async function press(page: Page, locator: Locator) {
     const box = await locator.boundingBox();
     if (box && box.y >= 0 && box.y + box.height < (page.viewportSize()?.height ?? 1000) - 1) {
       await page.waitForTimeout(150);
-      await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+      const settled = await locator.boundingBox();
+      if (!settled || Math.abs(settled.y - box.y) > 1 || Math.abs(settled.x - box.x) > 1) continue;
+      await page.mouse.click(settled.x + settled.width / 2, settled.y + settled.height / 2);
+      await page.waitForTimeout(350);
       return;
     }
     await page.mouse.move(Math.min(1100, (page.viewportSize()?.width ?? 1440) - 30), 720); await page.mouse.wheel(0, 280); await page.waitForTimeout(100);
@@ -16,19 +19,25 @@ async function press(page: Page, locator: Locator) {
   throw new Error("Control is outside the scrollable viewport");
 }
 
-for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 1440 }, { count: 2, width: 1440 }, { count: 1, width: 390 }]) {
-  test(`F-04 关联建议 ${count} 个备选 ${width}：完整信息、统一搜索和正确标题`, async ({ page }, info) => {
+for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 390 }, { count: 1, width: 1440 }, { count: 2, width: 1440 }, { count: 1, width: 390 }]) {
+  test(`F-04 关联建议 ${count} 个备选 ${width}：方案单选、按需搜索和返回`, async ({ page }, info) => {
     await page.setViewportSize({ width, height: 1000 });
     await installComposeApiFixtures(page);
     const current = record("record-1", "1001", "当前商户");
-    current.fields.record_type = "refund";
-    current.relations = [{ relation_id: "draft", kind: "refund_offset", subtype: "", state: "draft", active: true, row_revision: 1 }];
+    const relationKind = count === 0 && width === 390 ? "transfer_pair" : "refund_offset";
+    const relationSubtype = relationKind === "transfer_pair" ? "credit_repayment" : "";
+    current.fields.record_type = relationKind === "transfer_pair" ? "transfer_out" : "refund";
+    current.relations = [{ relation_id: "draft", kind: relationKind, subtype: relationSubtype, state: "draft", active: true, row_revision: 1 }];
     const targets = [record("record-2", "1002", "建议商户一"), record("record-3", "1003", "建议商户二")];
     Object.assign(targets[0].fields, { source_type: "alipay", counterparty_account: "merchant@example.test", counterparty_account_attrs: ["full"] });
     const other = record("record-4", "1004", "备选外商户");
     const records = [current, ...targets, other];
     await page.route(/\/api\/v1\/cash-records\/record-[1-4]$/, route => route.fulfill({ json: records.find(item => route.request().url().endsWith(item.transaction_id)) }));
-    await page.route(/\/api\/v1\/cash-records\/record-1\/association-targets(?:\?.*)?$/, route => route.fulfill({ json: { items: [other], next_cursor: null } }));
+    let searches = 0;
+    await page.route(/\/api\/v1\/cash-records\/record-1\/association-targets(?:\?.*)?$/, route => {
+      searches++;
+      return route.fulfill({ json: { items: [other], next_cursor: null } });
+    });
     let conflict = false;
     let resolved = false;
     const planId = `mp_${"a".repeat(43)}.${"b".repeat(16)}`;
@@ -44,7 +53,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 14
     } }); });
     await page.route(/\/api\/v1\/cash-mutations\/plans\/[^/]+\/items\/one$/, route => route.fulfill({ json: {
       preview_item_id: "one", members: [{ transaction_id: "record-1", planned_action: "unchanged", fields: current.fields, editable_fields: [], allowed_actions: [], row_revision: 1 }],
-      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "suggestion", kind: "refund_offset", subtype: "", action: resolved ? "accept" : "defer",
+      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "suggestion", kind: relationKind, subtype: relationSubtype, action: resolved ? "accept" : "defer",
         member_refs: [{ transaction_id: "record-1" }], allowed_actions: count > 0 ? ["accept", "ignore", "defer"] : ["ignore", "defer"],
         candidates: targets.slice(0, count).map(target => ({ candidate_id: target.transaction_id, member_refs: [{ transaction_id: "record-1" }, { transaction_id: target.transaction_id }] })),
         relations: count === 2 ? [{ kind: "refund_offset", subtype: "", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-2" }] }, { kind: "payment_mirror", subtype: "", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-3" }] }] : [],
@@ -62,7 +71,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 14
     await expect(banner).not.toContainText("查看关系");
     await page.screenshot({ path: info.outputPath("pending-relations.png") });
 
-    if (count === 0) await expect(suggestion).toContainText("这笔退款可能对应一笔消费");
+    if (count === 0) await expect(suggestion).toContainText("这笔流水可能有关联流水，请搜索并选择对应流水");
     if (count === 1) {
       await expect(suggestion).toContainText("建议商户一");
       await expect(suggestion).toContainText("28.50 CNY");
@@ -76,7 +85,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 14
       await expect(suggestion).toContainText("合成账单");
     }
     if (count === 2) {
-      await expect(suggestion).toContainText("有 2 个备选方案");
+      await expect(suggestion).toContainText("有 2 套备选方案");
       await expect(suggestion).toContainText("同笔支付");
     }
     await page.screenshot({ path: info.outputPath(`suggestions-${count}-actions.png`) });
@@ -89,10 +98,51 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 14
     await press(page, suggestion.getByText(title, { exact: true }));
     const dialog = byId(page, "cash.association.dialog");
     await expect(dialog.getByText(title, { exact: true })).toBeVisible();
+    if (count > 0) {
+      await expect(byId(page, "cash.association.search")).toHaveCount(0);
+      await expect(dialog).not.toContainText("备选外商户");
+      await expect(dialog.locator('[id^="ledger.record-checkbox-"]')).toHaveCount(0);
+      if (count === 1) { await expect(byId(page, "cash.association.single-selected")).toBeVisible(); await expect(dialog.locator('[id^="cash.association.option-"]')).toHaveCount(0); }
+      for (const target of targets.slice(0, count)) await expect(dialog).toContainText(target.fields.counterparty);
+      await page.waitForTimeout(400);
+      expect(searches).toBe(0);
+      await page.screenshot({ path: info.outputPath("suggestions-only.png") });
+      if (count === 2) await press(page, byId(page, "cash.association.option-record-3"));
+      await press(page, byId(page, "cash.association.choose-other"));
+    } else {
+      await expect(dialog).toContainText("这笔流水可能有关联流水，请搜索并选择对应流水");
+      await expect(byId(page, "cash.association.back-suggestions")).toHaveCount(0);
+    }
     await expect(byId(page, "cash.association.search")).toBeVisible();
     await expect(dialog).toContainText("备选外商户");
-    for (const target of targets.slice(0, count)) await expect(dialog).toContainText(target.fields.counterparty);
+    await expect.poll(() => searches).toBeGreaterThan(0);
+    for (const target of targets.slice(0, count)) await expect(dialog).not.toContainText(target.fields.counterparty);
+    await press(page, byId(page, "ledger.record-radio-record-4"));
+    // Compose's selected state is painted asynchronously and is not exported
+    // as aria-checked; let the selection frame render before absence checks.
+    await page.waitForTimeout(350);
+    for (const label of ["同笔支付", "退款冲销", "个人转账", "普通转账", "信用账户还款", "换汇", "跨币种汇款"]) await expect(dialog.getByText(label, { exact: true })).toHaveCount(0);
+    if (count === 0) {
+      const added = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/cash-mutations/plans") && request.postDataJSON()?.relation_additions?.length > 0);
+      await press(page, byId(page, "cash.association.continue"));
+      expect((await added).postDataJSON().relation_additions[0]).toMatchObject({ target_transaction_id: "record-4", kind: relationKind, ...(relationSubtype ? { subtype: relationSubtype } : {}) });
+      return;
+    }
+    if (count > 0) {
+      await page.screenshot({ path: info.outputPath("manual-search.png") });
+      await press(page, byId(page, "cash.association.back-suggestions"));
+      await expect(byId(page, "cash.association.search")).toHaveCount(0);
+      await expect(dialog).not.toContainText("备选外商户");
+    }
     await page.screenshot({ path: info.outputPath(`suggestions-${count}.png`) });
+    if (count === 2) {
+      const accepted = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/cash-mutations/plans") && request.postDataJSON()?.relation_choices?.some((item: { action: string }) => item.action === "accept"));
+      await press(page, byId(page, "cash.association.continue"));
+      const body = (await accepted).postDataJSON();
+      expect(body.relation_choices[0].candidate_id).toBe("record-3");
+      expect(body.relation_additions ?? []).toEqual([]);
+      return;
+    }
     if (count === 1 && width === 1440) {
       await expect(byId(page, "cash.association.continue")).toBeEnabled();
       const acceptedRequest = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/cash-mutations/plans") && request.postDataJSON()?.relation_choices?.some((item: { action: string }) => item.action === "accept"));
@@ -115,6 +165,11 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 1, width: 14
       expect(body.relation_choices[0]).toMatchObject({ action: "accept", candidate_id: "record-2", common_fields: { note: "" } });
       await expect(byId(page, "cash.association.continue")).toContainText("确认保存");
       await expect(byId(page, "cash.association.continue")).toBeEnabled();
+      await expect(byId(page, "cash.association.dialog")).toContainText("保存后");
+      await press(page, byId(page, "cash.association.back-preview"));
+      await expect(byId(page, "cash.association.choose-other")).toBeVisible();
+      await expect(byId(page, "cash.association.single-selected")).toBeVisible();
+      await page.screenshot({ path: info.outputPath("conflict-return-restored.png") });
       return;
     }
     await press(page, dialog.getByText("取消", { exact: true }));
@@ -189,7 +244,7 @@ for (const width of [1440, 390]) {
     await expect(detail).toContainText("fixture-order");
     await expect(page.locator('[id="cash.current.sources-toggle"]')).toHaveCount(0);
     await expect(page.locator('[id="cash.current.associations-toggle"]')).toHaveCount(0);
-    await expect(byId(page, "cash.current.add-association")).toContainText("添加关联");
+    await expect(byId(page, "cash.current.add-association")).toContainText("关联流水");
     const reopen = await byId(page, "cash.current.add-association").boundingBox();
     await press(page, byId(page, "cash.current.add-association"));
     const dialog = byId(page, "cash.association.dialog");
@@ -220,7 +275,7 @@ for (const width of [1440, 390]) {
       expect(bounds!.height).toBeGreaterThanOrEqual(999);
     }
     await page.screenshot({ path: info.outputPath(`association-picker-${width}.png`) });
-    await press(page, byId(page, "ledger.record-checkbox-record-2"));
+    await press(page, byId(page, "ledger.record-radio-record-2"));
     await expect(byId(page, "cash.association.continue")).toBeEnabled();
     // Compose Web does not expose SegmentedButton's selected property in its
     // DOM accessibility tree. Verify the real selection in the preview input.

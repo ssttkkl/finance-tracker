@@ -141,7 +141,10 @@ internal fun CashMaintenanceConfirmation(state: CashRecordTaskState, accounts: L
     onConfirm: () -> Unit, onCancel: () -> Unit, showActions: Boolean = true) {
     val plan = state.plan ?: return
     Column(Modifier.fillMaxWidth().testTag("cash.maintenance.confirmation"), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(localizedText("cash_confirm_changes"), style = MaterialTheme.typography.titleMedium)
+        val relationReview = state.input?.let { it.intent == "maintain_relations" && (it.relationChoices.isNotEmpty() || it.relationAdditions.isNotEmpty()) } == true
+        if (!relationReview || plan.additionalEffects.orEmpty().isNotEmpty() || state.details.any { it.fieldDiffs.isNotEmpty() }) {
+            Text(localizedText("cash_confirm_changes"), style = MaterialTheme.typography.titleMedium)
+        }
         val unresolvedEffect = cashHasUnresolvedEffects(state)
         val differences = state.details.flatMap { it.fieldDiffs }.filter { it.current != it.effective }.distinct()
         val effects = plan.additionalEffects.orEmpty().map { it to cashEffectTargets(it, state.details, state.input) }
@@ -168,7 +171,7 @@ internal fun CashMaintenanceConfirmation(state: CashRecordTaskState, accounts: L
                 !cashEffectHasVisibleDiff(effect, differences.filter { it.transactionId == id })
             }
         }.flatMap { it.second }.toSet()
-        plan.items.filter { item -> item.members.any { it.transactionId in previewTargets } }.forEach { item ->
+        plan.items.filter { item -> relationReview || item.members.any { it.transactionId in previewTargets } }.forEach { item ->
             Text(localizedText("cash_after_save"), style = MaterialTheme.typography.labelSmall)
             Text(listOfNotNull(item.display.amount ?: "—", item.display.currency).joinToString(" "), style = MaterialTheme.typography.titleMedium)
             item.display.counterparty?.takeIf { it.isNotBlank() }?.let { Text(it) }
@@ -210,7 +213,7 @@ private fun CashMaintenanceFieldDifference(diff: ImportFieldDiff, accounts: List
     }
 }
 
-private fun cashHasUnresolvedEffects(state: CashRecordTaskState): Boolean =
+internal fun cashHasUnresolvedEffects(state: CashRecordTaskState): Boolean =
     state.plan?.additionalEffects.orEmpty().any { cashEffectTargets(it, state.details, state.input).isEmpty() }
 
 @Composable

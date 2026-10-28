@@ -10,7 +10,7 @@ internal fun cashRelationRequest(record: CashCurrentRecord, choices: List<CashRe
     val groups = options.groupBy { it.suggestionId }.mapValues { (_, values) -> values.distinct().singleOrNull() ?: invalid() }
     for (choice in choices) {
         val option = groups[choice.suggestionId] ?: invalid()
-        if (choice.action !in option.allowedActions) invalid()
+        if (choice.action !in setOf("accept", "ignore", "remove") || choice.action !in option.allowedActions) invalid()
         if (choice.action == "accept") {
             if (option.candidates.isNotEmpty() && option.candidates.none { it.candidateId == choice.candidateId }) invalid()
             if (option.candidates.isEmpty() && choice.candidateId != null && choice.candidateId != option.candidateId) invalid()
@@ -45,3 +45,22 @@ internal fun cashRelationCommonValues(field: String, values: List<StructuredValu
         "counterparty_account_attrs" -> listOf(StructuredArray(emptyList()))
         else -> emptyList()
     }).distinct()
+
+
+internal fun cashRelationIsJoint(group: ImportPairOption): Boolean =
+    group.relations.size > 1 || group.candidates.any { it.relations.size > 1 }
+
+internal fun cashRelationInitialCandidate(group: ImportPairOption): String? =
+    group.candidates.singleOrNull()?.candidateId ?: group.candidateId.takeIf { group.candidates.isEmpty() }
+
+
+internal fun cashRelationConflictGroups(input: CashMaintenanceRequest?, groups: List<ImportPairOption>): List<ImportPairOption> {
+    if (input == null) return emptyList()
+    val accepted = input.relationChoices.filter { it.action == "accept" }.map { it.suggestionId }.toSet()
+    return groups.filter { group ->
+        group.suggestionId in accepted || input.relationAdditions.any { addition ->
+            group.kind == addition.kind && group.subtype.orEmpty() == addition.subtype &&
+                group.members.mapNotNull { it.transactionId }.toSet() == setOf(input.transactionId, addition.targetTransactionId)
+        }
+    }
+}

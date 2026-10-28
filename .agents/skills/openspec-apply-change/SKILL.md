@@ -83,6 +83,12 @@ Implement tasks from an OpenSpec change.
    prototype parity. When reusing a ledger table in a selection dialog, verify
    readable amounts and shared header/row geometry at the actual container width;
    compact card reuse must keep the full-screen dialog contract.
+   Keep complete suggestion choices at the plan level: member rows are read-only,
+   while manual search selects a single counterpart. Follow the active change's
+   explicit suggestion/search navigation instead of showing both steps at once.
+   Preserve the selection return target across conflict resolution. Relation reviews
+   show resulting records even without additional effects; rejection and removal
+   prepare read-only previews inside their confirmation view before one final save.
    The files depend on the schema being used:
    - **spec-driven**: proposal, specs, design, tasks
    - Other schemas: follow the contextFiles from CLI output

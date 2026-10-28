@@ -26,8 +26,8 @@ internal fun CashRelationTreatment(state: CashRecordTaskState, accounts: List<Ac
             Text(group.kind?.let { cashRelationTypeLabel(it, options) } ?: localizedText("cash_relation_other"), style = MaterialTheme.typography.titleMedium)
             if (group.candidates.isEmpty()) cashRelationMemberRecords(group.members, state.affectedRecords)?.forEach { CashRelationMemberSummary(it, accounts) }
             val selected = choices[group.suggestionId]
-            group.allowedActions.forEach { action ->
-                val key = when (action) { "accept" -> "cash_relation_accept"; "defer" -> "cash_relation_defer"; "ignore" -> "cash_relation_ignore"; "remove" -> "cash_relation_remove"; else -> null }
+            group.allowedActions.filter { it != "defer" }.forEach { action ->
+                val key = when (action) { "accept" -> "cash_relation_accept"; "ignore" -> "cash_relation_ignore"; "remove" -> "cash_relation_remove"; else -> null }
                 if (key != null) Row(verticalAlignment = Alignment.CenterVertically) {
                     RadioButton(selected?.action == action, onClick = {
                         choices = choices + (group.suggestionId to CashRelationDecision(group.suggestionId, action,
