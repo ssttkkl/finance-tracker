@@ -135,6 +135,14 @@ export FT_TEST_POSTGRES_URL='postgresql+psycopg:///finance_tracker_test'
 PYTHONPATH=tests:.:src uv run pytest
 ```
 
+PR 的 SQLite 和 PostgreSQL 常规回归各按测试文件分为 8 片，保留完整收集和测试范围。每片在独立 runner 内顺序执行，PostgreSQL 使用显式配置的专用 `_test` 库；`Backend (SQLite)` 和 `Backend (PostgreSQL)` 只有全部分片成功才通过。性能用例仍由独立任务按原预算执行。
+
+本地复现某片：
+
+```bash
+PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index 0 --shard-count 8
+```
+
 不要把测试指向业务库或非 `_test` 库名。项目规则、变更记录和当前行为事实源见 [`AGENTS.md`](AGENTS.md)、[`openspec/project-context.md`](openspec/project-context.md) 和 [业务能力规格导航](openspec/specs/README.md)。
 
 ## 文档

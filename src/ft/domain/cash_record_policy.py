@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from copy import deepcopy
-from dataclasses import dataclass
+from ft.copying import copy_value
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import localcontext
+from decimal import Decimal, localcontext
 import math
 from typing import Any
 
@@ -26,6 +26,7 @@ CASH_SOURCE_IDENTITY_FIELDS = frozenset({
 })
 COMMON_CASH_FIELDS = frozenset({"category_id", "note", "counterparty", "counterparty_account", "counterparty_account_attrs"})
 _TEXT_FIELDS = frozenset({"counterparty", "counterparty_account", "note"})
+_COMPONENT_SCALARS = frozenset({str, int, bool, float, Decimal, type(None)})
 
 
 class CashRecordPolicyError(ValueError):
@@ -42,6 +43,7 @@ class CashRecordUpdate:
     values: dict[str, Any]
     type_changed: bool
     protected_fields: tuple[str, ...] = ()
+    normalized_values: dict[str, Any] = field(default_factory=dict, compare=False, repr=False)
 
 
 def _timestamp(value: Any) -> datetime:
@@ -58,7 +60,9 @@ def _component_values(value: Any) -> list[dict]:
     for component in value:
         if not isinstance(component, Mapping):
             raise ValueError("component must be an object")
-        item = deepcopy(dict(component))
+        item = dict(component)
+        if any(type(key) is not str for key in item) or any(type(value) not in _COMPONENT_SCALARS for value in item.values()):
+            item = copy_value(item)
         if any(not isinstance(key, str) for key in item):
             raise ValueError("component field names must be strings")
         for field in ("component_id", "account_id"):
@@ -138,14 +142,14 @@ def _normalize(field: str, value: Any) -> Any:
         if value is not None and not isinstance(value, dict):
             raise ValueError("source payload must be an object")
         _json_value(value)
-        return deepcopy(value)
+        return copy_value(value)
     if field in {"record_type", "record_subtype", "category_id"}:
         if value is None:
             return None
         if not isinstance(value, str):
             raise ValueError("string required")
         return value
-    return deepcopy(value)
+    return copy_value(value)
 
 
 def prepare_cash_record_update(
@@ -218,6 +222,7 @@ def prepare_cash_record_update(
             changed[field] = value
     return CashRecordUpdate(
         values=changed,
+        normalized_values=normalized,
         type_changed=any(field in changed for field in ("record_type", "record_subtype")),
         protected_fields=protected,
     )

@@ -7,7 +7,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Mapping, Sequence
 
-from ft.domain.cash_record_policy import CashRecordPolicyError, _normalize, prepare_cash_record_update
+from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
 from ft.domain.cash_source_matching import (
     SourceOccurrence, SourceRecord, SourceResolution, _compatible, _digest, _index, _patch,
     _record_binding_keys, _resolve_source_rows, conflicting_source_document_pages,
@@ -147,8 +147,7 @@ def resolve_source_batch(
     for ref, row in rows.items():
         try:
             patch = _patch(row)
-            prepare_cash_record_update({"state": "draft"}, patch)
-            normalized = {field: _normalize(field, value) for field, value in patch.items()}
+            normalized = prepare_cash_record_update({"state": "draft"}, patch).normalized_values
         except CashRecordPolicyError as error:
             output[ref] = SourceBatchResolution(ref, "conflict", reason=error.code)
             continue

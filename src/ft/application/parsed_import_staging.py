@@ -165,6 +165,8 @@ def _json_budget(value, budget, *, depth=0):
                     raise ParsedImportDataError("import_session_json_invalid") from None
             elif item is None or type(item) in (bool, int):
                 budget[0] -= len(str(item))
+            elif type(item) in (dict, list, tuple) and not item:
+                budget[0] -= 2
             else:
                 _json_budget(item, budget, depth=depth + 1)
             if budget[0] < 0:
@@ -181,6 +183,8 @@ def _json_budget(value, budget, *, depth=0):
                     raise ParsedImportDataError("import_session_json_invalid") from None
             elif item is None or type(item) in (bool, int):
                 budget[0] -= len(str(item))
+            elif type(item) in (dict, list, tuple) and not item:
+                budget[0] -= 2
             else:
                 _json_budget(item, budget, depth=depth + 1)
             if budget[0] < 0:
@@ -308,15 +312,15 @@ class _ParsedImportStore:
         parsed_size = len(parsed)
         if parsed_size > parsed_maximum:
             raise ParsedImportDataError("import_session_draft_too_large")
-        del parsed
         value = {field.name: getattr(session, field.name) for field in fields(session) if field.name != "files"}
         value["session_digest"] = _hash(value.pop("session_id"))
         value["created_at"] = session.created_at.isoformat()
         value["expires_at"] = session.expires_at.isoformat()
         _json_budget(value, [self._max_bytes - parsed_size - 9])
-        value["files"] = session.files
         try:
-            content = b''.join(_json_chunks(value))
+            chunks = list(_json_chunks(value))
+            chunks[-1:] = [b',"files":', parsed, b'}']
+            content = b''.join(chunks)
         except (TypeError, ValueError, RecursionError):
             raise ParsedImportDataError("import_session_json_invalid") from None
         if len(content) > self._max_bytes:

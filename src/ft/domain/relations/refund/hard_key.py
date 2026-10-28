@@ -154,8 +154,15 @@ def match_phase_a_platform_refunds(
         fact = facts_by_id.get(str(row.get("id") or ""))
         if fact is not None:
             grouped[fact.source_identity].append(row)
-    return [proposal for scope in sorted(grouped) for proposal in _match_phase_a_in_scope(grouped[scope],
-        facts_by_id=facts_by_id, linked_pairs=linked_pairs, remaining_by_expense=remaining_by_expense)]
+    proposals = []
+    for scope in sorted(grouped):
+        rows = grouped[scope]
+        local_facts = {str(row.get("id")): facts_by_id[str(row.get("id"))] for row in rows}
+        remaining = ({identifier: remaining_by_expense[identifier] for identifier in local_facts
+            if identifier in remaining_by_expense} if remaining_by_expense is not None else None)
+        proposals.extend(_match_phase_a_in_scope(rows, facts_by_id=local_facts,
+            linked_pairs=linked_pairs, remaining_by_expense=remaining))
+    return proposals
 
 
 def _match_phase_a_in_scope(

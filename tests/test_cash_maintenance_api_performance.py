@@ -40,7 +40,8 @@ def test_fixed_10k_http_maintenance_uses_current_revisions_and_bounded_local_wri
         assert response.json()["current_record"]["state"] == "draft"
         assert response.json()["current_record"]["row_revision"] > current["row_revision"]
         started = time.perf_counter_ns()
-        response = client.post("/api/v1/cash-mutations/plans", json={"intent": "edit_record", "transaction_id": "3",
+        response = client.post("/api/v1/cash-mutations/plans", json={"intent": "edit_entry", "transaction_id": "3",
+            "entry_id": posted["entry"]["entry_id"], "expected_entry_revision": posted["entry"]["revision"],
             "expected_revision": posted["row_revision"], "patch": {"note": f"正式-{index}"}})
         assert response.status_code == 200, response.text
         plan = response.json()
@@ -49,7 +50,10 @@ def test_fixed_10k_http_maintenance_uses_current_revisions_and_bounded_local_wri
         mutation_ns = time.perf_counter_ns() - started
         assert response.status_code == 200 and response.json()["summary"]["updated_posted"] == 1, response.text
         after = client.get("/api/v1/cash-records/3").json()
-        assert after["fields"]["note"] == f"正式-{index}" and after["row_revision"] > posted["row_revision"]
+        assert after["entry"]["fields"]["note"] == f"正式-{index}"
+        assert after["entry"]["revision"] > posted["entry"]["revision"]
+        assert after["fields"]["note"] == posted["fields"]["note"]
+        assert after["row_revision"] == posted["row_revision"]
         posted = after
         if index >= READ_WARMUPS:
             read_samples.append(read_ns)

@@ -173,9 +173,13 @@ class SourceOccurrence:
         return SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key).key
 
     @cached_property
+    def provider_identity(self):
+        return provider_identity_key(self.provider_id) if self.provider_id else None
+
+    @cached_property
     def provider_binding_key(self) -> str | None:
         if self.provider_id and self.account_scope_key:
-            return _digest(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id))
+            return next(spec.key for spec in self._identity_binding_specs if spec.identity_kind == "provider_id")
         return None
 
     @cached_property
@@ -193,7 +197,7 @@ class SourceOccurrence:
         specs = []
         if self.account_scope_key:
             if self.provider_id:
-                specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", provider_identity_key(self.provider_id)))
+                specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "provider_id", self.provider_identity))
             specs.append(SourceBindingKey(self.source_type, "account", self.account_scope_key, "file_occurrence", self.occurrence_key))
         specs.append(SourceBindingKey(self.source_type, "file_local", self.file_scope_key, "file_occurrence", self.occurrence_key))
         return tuple(specs)

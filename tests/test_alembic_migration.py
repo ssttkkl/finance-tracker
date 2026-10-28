@@ -61,6 +61,7 @@ def test_repository_has_clean_linear_revisions():
                 "20261021_48_cash_full_refund_visibility.py",
                 "20261023_49_unify_cash_import_receipts.py",
                 "20261023_50_cash_entries.py",
+                "20261028_51_cash_entry_category_index.py",
             ]
 
 

@@ -238,3 +238,8 @@ This skill supports the "actions on a change" model:
 
 导入错误定位使用 `ft.cash_diagnostics` 的局部 scope，转换／规划只附上下文，最终 HTTP、文件隔离或提交包装才产生编号和脱敏调用帧日志；不输出异常正文或 SQL 参数。`row` 与 `related` 精度不可混淆，持久端点不能猜测本次文件，批量不拆分重跑；最终提交只给 request 范围。Compose 只消费 `error.diagnostic`／文件 `diagnostic` 白名单并只读显示，不写恢复存储或增加逐项补救。协议见 `docs/cash-import-redesign-contracts.md` 的错误定位章节。
 现金导入的呈现合同以 active change 为准：从账本打开全屏模态任务，保留兼容地址、恢复与退出保护。按 `AGENTS.md` 的 UI 演示确认循环交付第一版及每轮反馈。
+
+
+## 后端性能与 PR 分片验证
+
+后端常规检查通过 `scripts/run_backend_tests.py` 按文件确定分片，同一片内顺序运行；汇总检查只接受所有分片成功。真实 PostgreSQL 分片必须使用各自独立的专用 `_test` 数据库，不得并发重置同一库。分类性能夹具包含稳定收支对象及完整成员；公共备注校验 `entry.fields` 和对象修订，同时保护来源原文与来源修订。导入性能继续计时完整预览与提交，不以内部规划耗时替代，不改变既有预算。

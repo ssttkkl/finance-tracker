@@ -1,11 +1,11 @@
 """整笔分类写入的人工决定保护。"""
 import json
 
-from sqlalchemy import JSON, String, Text, case, cast, func, literal, or_, update
+from sqlalchemy import JSON, String, Text, case, cast, func, literal, or_, select, update
 from sqlalchemy.dialects.postgresql import JSONB, array
 
 from .cash_relations import _batches
-from .models import CashTransactionModel
+from .models import CashTransactionModel, CashEntryModel, CashEntryMemberModel
 
 
 def _set_category(session, workspace_id, conditions, category_id):
@@ -47,3 +47,28 @@ def set_manual_category(session, workspace_id, transaction_ids, category_id):
 def clear_manual_category(session, workspace_id, category_id):
     """一次清空全部引用并返回各父流水是否存活，保护空值及其他人工决定。"""
     return _set_category(session, workspace_id, (CashTransactionModel.category_id == category_id,), None)
+
+
+def _category_protection(session, column):
+    if session.bind.dialect.name == "postgresql":
+        document = cast(column, JSONB)
+        return cast(case((document.contains(["category_id"]), document),
+            else_=document.op("||")(cast(literal('["category_id"]'), JSONB))), JSON)
+    items = func.json_each(column).table_valued("value")
+    present = select(items.c.value).where(items.c.value == "category_id").exists()
+    return case((present, column), else_=func.json_insert(column, "$[#]", "category_id"))
+
+
+def clear_entry_category(session, workspace_id, category_id):
+    """集合清空当前公共值与独立恢复值，保留其他字段和人工决定。"""
+    session.execute(update(CashEntryModel).where(CashEntryModel.workspace_id == workspace_id,
+        CashEntryModel.category_id == category_id).values(category_id=None, revision=CashEntryModel.revision + 1,
+            manual_fields=_category_protection(session, CashEntryModel.manual_fields)).execution_options(synchronize_session=False))
+    values = CashEntryMemberModel.standalone_values
+    cleared = (cast(func.jsonb_set(cast(values, JSONB), array(["category_id"], type_=Text),
+        cast(literal("null"), JSONB)), JSON) if session.bind.dialect.name == "postgresql"
+        else func.json_set(values, "$.category_id", None))
+    session.execute(update(CashEntryMemberModel).where(CashEntryMemberModel.workspace_id == workspace_id,
+        values["category_id"].as_string() == category_id).values(standalone_values=cleared,
+            standalone_manual_fields=_category_protection(session, CashEntryMemberModel.standalone_manual_fields)
+        ).execution_options(synchronize_session=False))

@@ -836,3 +836,29 @@ def test_retired_failed_subset_kinds_cannot_be_created(staging, kind):
     from ft.application.parsed_import_staging import ParsedImportDataError
     with pytest.raises(ParsedImportDataError):
         store.create(workspace_id="w", user_id="u", files=(_file(),), workflow_kind=kind)
+
+
+@pytest.mark.parametrize("empty", [{}, [], ()])
+def test_empty_json_containers_preserve_budget_and_depth_boundary(empty):
+    from ft.application.parsed_import_staging import ParsedImportDataError, _json_budget
+    budget = [2]
+    _json_budget(empty, budget, depth=64)
+    assert budget == [0]
+    with pytest.raises(ParsedImportDataError, match="import_session_draft_too_large"):
+        _json_budget(empty, [1])
+    with pytest.raises(ParsedImportDataError, match="import_session_json_invalid"):
+        _json_budget([empty], [100], depth=64)
+    budget = [5]
+    _json_budget([empty], budget, depth=63)
+    assert budget == [0]
+
+
+def test_json_budget_still_visits_empty_looking_container_subclass():
+    from ft.application.parsed_import_staging import _json_budget
+    class EmptyLooking(list):
+        def __len__(self):
+            return 0
+    value = EmptyLooking(["not empty"])
+    budget = [100]
+    _json_budget([value], budget)
+    assert budget == [100 - 3 - 2 - len("not empty")]

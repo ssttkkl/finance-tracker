@@ -4,11 +4,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import case, select, update
 from sqlalchemy.exc import IntegrityError
 
-from ft.adapters.relational.models import CashCategoryModel, CashCategoryStateModel, CashTransactionModel, CashEntryModel, CashEntryMemberModel, WorkspaceModel
-from ft.adapters.relational.cash_categories import clear_manual_category
+from ft.adapters.relational.models import CashCategoryModel, CashCategoryStateModel, CashTransactionModel, CashEntryModel, CashEntryMemberModel, CashProjectionModel, CashProjectionStateModel, WorkspaceModel
+from ft.adapters.relational.cash_categories import clear_manual_category, clear_entry_category
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.workspace_lock import lock_workspace
 
@@ -242,40 +242,50 @@ class CashCategoryService:
         with self._sessions.begin() as session:
             state = self._state(session, lock=True)
             self._check_revision(state, expected_revision)
-            category = self._category(session, category_id, lock=True)
-            child_count = session.scalar(select(func.count()).select_from(CashCategoryModel).where(
-                CashCategoryModel.workspace_id == self._workspace_id,
-                CashCategoryModel.parent_id == category.id,
-            ))
+            children = CashCategoryModel.__table__.alias("children")
+            category_query = select(CashCategoryModel,
+                select(func.count()).select_from(children).where(
+                    children.c.workspace_id == self._workspace_id,
+                    children.c.parent_id == category_id).scalar_subquery(),
+                select(func.count()).select_from(CashEntryModel).where(
+                    CashEntryModel.workspace_id == self._workspace_id,
+                    CashEntryModel.category_id == category_id).scalar_subquery(),
+            ).where(CashCategoryModel.workspace_id == self._workspace_id, CashCategoryModel.id == category_id)
+            if session.bind.dialect.name == "postgresql":
+                category_query = category_query.with_for_update(of=CashCategoryModel)
+            snapshot = session.execute(category_query).first()
+            if snapshot is None:
+                raise ValueError("category.not_found")
+            category, child_count, usage_count = snapshot
             if child_count:
                 raise ValueError("category.has_children")
             if int(category.revision) != int(expected_category_revision):
                 raise ValueError("category.impact_changed")
-            usage_count = session.scalar(select(func.count()).select_from(CashEntryModel).where(
-                CashEntryModel.workspace_id == self._workspace_id, CashEntryModel.category_id == category.id)) or 0
             if int(usage_count) != int(expected_usage_count):
                 raise ValueError("category.impact_changed")
             if usage_count and not confirmed:
                 raise ValueError("category.delete_confirmation_required")
-            entry_roots = set()
-            for entry in session.scalars(select(CashEntryModel).where(CashEntryModel.workspace_id == self._workspace_id,
-                CashEntryModel.category_id == category.id)):
-                entry.category_id = None
-                entry.manual_fields = sorted(set(entry.manual_fields) | {"category_id"})
-                entry.revision += 1
-                entry_roots.add(entry.root_transaction_id)
-            for member in session.scalars(select(CashEntryMemberModel).where(CashEntryMemberModel.workspace_id == self._workspace_id)):
-                if member.standalone_values.get("category_id") == category.id:
-                    member.standalone_values = {**member.standalone_values, "category_id": None}
-                    member.standalone_manual_fields = sorted(set(member.standalone_manual_fields) | {"category_id"})
+            clear_entry_category(session, self._workspace_id, category.id)
             changed = clear_manual_category(session, self._workspace_id, category.id)
             CurrentCashRelationRepository(session, self._workspace_id).mark_candidates_stale(changed)
-            affected_ids = {identifier for identifier, live in changed.items() if live} | entry_roots
-            if affected_ids:
-                from ft.application.cash_projections import CashProjectionService
-                CashProjectionService.maintain_if_ready_in_session(
-                    session, self._workspace_id, set(affected_ids),
-                )
+            projection_state = session.scalar(select(CashProjectionStateModel).where(
+                CashProjectionStateModel.workspace_id == self._workspace_id).with_for_update())
+            ready = (projection_state is not None and projection_state.availability == "ready"
+                and projection_state.active_dataset_id is not None)
+            values = {"category_id": None, "category_path": None, "updated_at": _now()}
+            if ready:
+                values["built_projection_version"] = case(
+                    (CashProjectionModel.dataset_id == projection_state.active_dataset_id,
+                        projection_state.projection_version + 1), else_=CashProjectionModel.built_projection_version)
+            session.execute(update(CashProjectionModel).where(
+                CashProjectionModel.workspace_id == self._workspace_id,
+                CashProjectionModel.category_id == category.id).values(**values).execution_options(synchronize_session=False))
+            if ready and (usage_count or changed):
+                projection_state.projection_version += 1
+                projection_state.source_revision += 1
+                projection_state.updated_at = _now()
+                projection_state.last_build_status = "succeeded"
+                projection_state.last_error_code = projection_state.last_error_summary = None
             session.delete(category)
             state.revision += 1
             state.updated_at = _now()

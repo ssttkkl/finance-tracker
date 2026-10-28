@@ -224,3 +224,17 @@ def relation_commit_groups(old_links: Iterable[RelationLink], changes: Iterable[
     for link in changes:
         grouped.setdefault(groups.root(link.primary_transaction_id), []).append(link.id)
     return tuple(sorted(tuple(sorted(refs)) for refs in grouped.values()))
+
+
+def cash_relation_candidate_types(record_types):
+    """合法角色的保守类型超集；只用于读取预筛选，仍须完整关系校验。"""
+    groups = (
+        frozenset({"consumption", "refund", "investment_out"}),
+        frozenset({"transfer_out", "transfer_in"}),
+        frozenset({"withdrawal_out", "withdrawal_in"}),
+        frozenset({"fx_out", "fx_in"}),
+        frozenset({"repayment"}),
+        frozenset({"transfer_reversal"}),
+    )
+    types = set(record_types)
+    return frozenset(kind for group in groups if group & types for kind in group)

@@ -33,6 +33,10 @@ class CashEntryRepository:
 
     def snapshot(self, identifiers):
         members, entries = self.for_transactions(identifiers)
+        return self.snapshot_values(members, entries)
+
+    @staticmethod
+    def snapshot_values(members, entries):
         return tuple(sorted((member.transaction_id, member.entry_id, entries[member.entry_id].revision,
             _digest(public_values(entries[member.entry_id]), entries[member.entry_id].manual_fields,
                 member.standalone_values, member.standalone_manual_fields)) for member in members.values()))

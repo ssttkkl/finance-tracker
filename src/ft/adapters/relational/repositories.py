@@ -1676,8 +1676,6 @@ class RelationalRelationRepository:
 
     def add(self, relation: dict):
         from ft.adapters.relational.cash_relation_origin import assert_relation_origin
-        assert_relation_origin(self._session, self._workspace_id,
-            [relation.get("primary_fact_id"), relation.get("secondary_fact_id"), relation.get("anchor_fact_id")], kind=relation.get("kind"))
         secondary = relation.get("secondary_fact_id")
         if secondary == "":
             secondary = None
@@ -1743,10 +1741,14 @@ class RelationalRelationRepository:
             if secondary is None and status == RelationStatus.PENDING_REVIEW.value
             else []
         )
+        endpoints = self._endpoint_values(relation["kind"], subtype, primary_component, secondary_component,
+            self._resolve_component_endpoint(anchor, relation.get("anchor_component_id")))
+        assert_relation_origin(self._session, self._workspace_id,
+            [endpoints[key] for key in ("primary_transaction_id", "secondary_transaction_id", "anchor_transaction_id")],
+            kind=relation.get("kind"))
         model = TransactionRelationModel(
             workspace_id=self._workspace_id,
-            **self._endpoint_values(relation["kind"], subtype, primary_component, secondary_component,
-                self._resolve_component_endpoint(anchor, relation.get("anchor_component_id"))),
+            **endpoints,
             **self._state_values(status),
             applied_amount=applied_amount,
             rule_id=str(relation.get("rule_id") or ""),

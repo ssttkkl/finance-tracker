@@ -376,3 +376,48 @@ def test_category_commands_lock_workspace_before_other_state(draft_runtime, oper
         assert locks and "workspaces" in locks[0]
     else:
         assert statements[0] == "begin immediate"
+
+
+def test_classification_rejects_entry_members_outside_selected_projection(draft_runtime):
+    from ft.adapters.relational.models import CashEntryMemberModel
+    runtime = draft_runtime
+    _mirror(runtime)
+    status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions.begin() as session:
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        session.get(CashEntryMemberModel, (runtime.workspace_id, 1001)).entry_id = entry.id
+        old = (entry.category_id, entry.revision)
+    with pytest.raises(ValueError, match='projection.version_conflict'):
+        CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
+            projection_ids=['cash:1003'], projection_version=status['projection_version'], category_id='category-daily')
+    with runtime.sessions() as session:
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
+        assert (entry.category_id, entry.revision) == old
+
+
+@pytest.mark.parametrize('origin', ['import', 'manual'])
+def test_legacy_relation_origin_uses_resolved_parent_not_component_id(draft_runtime, origin):
+    from ft.adapters.relational.repositories import RelationalRelationRepository
+    from ft.domain.cash_relation_policy import CashRelationError
+    runtime = draft_runtime
+    with runtime.sessions.begin() as session:
+        source = session.get(CashTransactionModel, 1003)
+        for identifier, creation in [(9001, origin), (9002, 'import'), (9101, 'manual' if origin == 'import' else 'import'), (9102, 'import')]:
+            session.add(CashTransactionModel(id=identifier, workspace_id=runtime.workspace_id, account_id=101,
+                amount=Decimal('-10'), currency='CNY', occurred_at=source.occurred_at,
+                record_type='consumption', record_subtype='not_applicable', record_origin=creation))
+        session.flush()
+        for identifier, parent in [(9101, 9001), (9102, 9002)]:
+            session.add(CashTransactionComponentModel(id=identifier, workspace_id=runtime.workspace_id,
+                cash_transaction_id=parent, account_id=101, amount=Decimal('-10'), currency='CNY', ordinal=0))
+        session.flush()
+        repository = RelationalRelationRepository(session, runtime.workspace_id)
+        relation = dict(kind='payment_mirror', status='accepted', primary_fact_id='9101', secondary_fact_id='9102',
+            primary_component_id='9101', secondary_component_id='9102', anchor_fact_id='9101', anchor_component_id='9101')
+        if origin == 'manual':
+            with pytest.raises(CashRelationError, match='manual_relation_forbidden'):
+                repository.add(relation)
+        else:
+            identifier = repository.add(relation)
+            from ft.adapters.relational.models import TransactionRelationModel
+            assert session.get(TransactionRelationModel, identifier).primary_transaction_id == 9001

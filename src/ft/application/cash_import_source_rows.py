@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ft.cash_diagnostics import cash_diagnostic_scope, row_locations
 
-from copy import deepcopy
+from ft.copying import copy_value
 from dataclasses import replace
 
 from ft.domain.cash_source_matching import SourceDocumentEvidence, SourceOccurrence
@@ -57,8 +57,8 @@ def source_rows(file, *, resolved_fields=None):
         if row.disposition == "skipped" or row.fields is None:
             continue
         with cash_diagnostic_scope("row_planning", row_locations((f"{file.file_ref}:r{row.position}",)), scope="row", files=(file,)):
-            values = deepcopy(row.fields)
-            values.update(deepcopy((resolved_fields or {}).get(row.position, {})))
+            values = copy_value(row.fields)
+            values.update(copy_value((resolved_fields or {}).get(row.position, {})))
             scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier, scope_label=file.source_scope_label)
             result[f"{file.file_ref}:r{row.position}"] = SourceOccurrence(
                 source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
