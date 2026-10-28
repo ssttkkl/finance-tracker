@@ -35,7 +35,7 @@
 
 ## 7. 发布
 
-- [x] 7.1 交付证据及验证基线见下文。未提交、推送、建 PR、部署或下线远端 Render 服务；这些外部操作尚未授权。残余风险：旧 Expo 测试签名文件仍可从 Git 历史恢复；远端 Render 服务状态未经检查或更改。
+- [x] 7.1 交付证据及验证基线见下文。本地提交 `f0f4d169` 已推送到 `codex/remove-legacy-clients-and-archive`，并创建指向 `main` 的 [PR #102](https://github.com/ssttkkl/finance-tracker/pull/102)。PR 尚未合并；未部署或操作远端 Render 服务。残余风险：旧 Expo 测试签名文件仍可从 Git 历史恢复；远端 Render 服务状态未经检查或更改。
 
 ## 8. 反思
 
