@@ -29,16 +29,16 @@ class KtorFinanceRepository(private val apiClient: FinanceApiClient) : FinanceRe
 
     override suspend fun fetchCashCategories(): CashCategoryDirectory = guarded { apiClient.fetchCashCategories().toDomain() }
 
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory = guarded {
-        apiClient.createCashCategory(name, parentId, description, expectedRevision).toDomain()
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult = guarded {
+        apiClient.createCashCategory(name, parentId, description, expectedRevision).toWriteResult()
     }
 
-    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory = guarded {
-        apiClient.updateCashCategory(id, name, parentId, description, expectedRevision).toDomain()
+    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult = guarded {
+        apiClient.updateCashCategory(id, name, parentId, description, expectedRevision).toWriteResult()
     }
 
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategory = guarded {
-        apiClient.reorderCashCategory(id, direction, expectedRevision).toDomain()
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult = guarded {
+        apiClient.reorderCashCategory(id, direction, expectedRevision).toWriteResult()
     }
 
     override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact = guarded {

@@ -4,15 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
-@Serializable
-data class CashImportIssueDto(
-    val code: String,
-    val message: String,
-    @SerialName("field_path") val fieldPath: String? = null,
-    @SerialName("blocking_scope") val blockingScope: String,
-    @SerialName("next_action") val nextAction: String,
-    @SerialName("after_import_action") val afterImportAction: String? = null,
-)
+typealias CashImportIssueDto = com.finance.tracker.business.contracts.CashImportIssueDto
 
 @Serializable
 data class CashImportContextFileDto(

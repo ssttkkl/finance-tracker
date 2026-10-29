@@ -6,22 +6,9 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 
-@Serializable
-data class CashDiagnosticLocationDto(
-    @SerialName("file_ref") val fileRef: String? = null,
-    @SerialName("display_name") val displayName: String? = null,
-    @SerialName("row_ref") val rowRef: String? = null,
-    @SerialName("row_number") val rowNumber: Int? = null,
-    @SerialName("position_kind") val positionKind: String? = null,
-    @SerialName("document_position") val documentPosition: String? = null,
-    @SerialName("transaction_id") val transactionId: String? = null,
-)
-@Serializable
-data class CashDiagnosticDto(
-    @SerialName("error_id") val errorId: String,
-    val stage: String, val scope: String, val locations: List<CashDiagnosticLocationDto>,
-    @SerialName("total_locations") val totalLocations: Int,
-)
+typealias CashDiagnosticLocationDto = com.finance.tracker.business.contracts.CashDiagnosticLocationDto
+typealias CashDiagnosticDto = com.finance.tracker.business.contracts.CashDiagnosticDto
+
 private val diagnosticStages = setOf("request", "file_read", "row_conversion", "row_planning", "relation_discovery",
     "submit_revalidation", "source_evidence", "row_write", "batch_write", "account_mapping", "relation_save",
     "balances", "projection", "entry_edit", "database_commit")

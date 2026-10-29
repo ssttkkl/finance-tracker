@@ -33,13 +33,4 @@ internal object ImportAccountIdSerializer : KSerializer<String> {
     override fun serialize(encoder: Encoder, value: String) = encoder.encodeString(value)
 }
 
-@Serializable
-data class ImportAccountDto(
-    @SerialName("account_id") val accountId: String,
-    val name: String, val type: String, val active: Boolean, val currencies: List<String>,
-    @SerialName("account_revision") val accountRevision: Long,
-    val deleted: Boolean,
-    val capabilities: Map<String, Boolean> = emptyMap(),
-    @SerialName("receipt_id") val receiptId: String? = null,
-    val committed: Boolean? = null,
-)
+typealias ImportAccountDto = com.finance.tracker.business.contracts.AccountCommandViewDto

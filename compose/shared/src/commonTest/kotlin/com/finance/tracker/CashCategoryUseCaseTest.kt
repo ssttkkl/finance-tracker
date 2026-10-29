@@ -71,15 +71,15 @@ private class RecordingCashCategoryRepository : CashCategoryRepository {
     var deletedId: String? = null
 
     override suspend fun fetchCashCategories() = CashCategoryDirectory(1, emptyList())
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory {
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult {
         savedName = name
         savedDescription = description
         this.expectedRevision = expectedRevision
-        return CashCategory("new", parentId, name, description)
+        return CashCategoryWriteResult("new", expectedRevision + 1)
     }
     override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long) =
         createCashCategory(name, parentId, description, expectedRevision).copy(id = id)
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategory(id, name = "Category")
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String) = CashCategoryDeleteImpact(id, 1, 1, 0, 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact): CashCategoryDeleteResult {
         deletedId = id

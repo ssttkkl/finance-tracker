@@ -1,6 +1,8 @@
 """Application services for manual cashflow writes."""
 from __future__ import annotations
 
+import json
+
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
 
@@ -10,6 +12,7 @@ from ft.domain.decimal import exact_decimal
 from ft.domain.record_type import default_cash_record_subtype
 from ft.repositories import UnitOfWork
 from ft.schema import CURRENCY_SYMBOLS
+from ft.serialization import json_value
 
 def _exact_decimal(value, field: str) -> Decimal:
     return exact_decimal(value, field)
@@ -70,8 +73,11 @@ class CashflowService:
             CashProjectionService.maintain_if_ready_in_session(
                 uow._state().session, uow.workspace_id, {int(fact_id)},
             )
+            result = CashflowResult.success(row={**row, "amount": format(amount, "f")}, account=account)
+            json.dumps(json_value(result), ensure_ascii=False, allow_nan=False,
+                       separators=(",", ":")).encode("utf-8")
             uow.commit()
-            return CashflowResult.success(row={**row, "amount": format(amount, "f")}, account=account)
+            return result
 
     def checkin_balance(self, *, account_name: str, balance: Decimal, date: str | None = None,
                         currency: str | None = None) -> CashflowResult:

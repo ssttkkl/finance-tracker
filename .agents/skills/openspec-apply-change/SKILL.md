@@ -252,6 +252,34 @@ This skill supports the "actions on a change" model:
 现金导入的呈现合同以 active change 为准：从账本打开全屏模态任务，保留兼容地址、恢复与退出保护。按 `AGENTS.md` 的 UI 演示确认循环交付第一版及每轮反馈。
 
 
+## Kotlin 迁移验证
+
+Kotlin 后端迁移由 `kotlin-backend-shared-core` 变更承载。按该变更的完整接口矩阵逐项验证，局部 GET 切片不代表完整认证、分类或后端迁移完成。公共模块不得依赖 Compose UI、SQL、凭据或服务器网络适配；只读会话恢复与业务工作区授权分别验证。Python 匿名黄金生成器仅用于测试 oracle 和隔离数据库准备，不能进入 Kotlin 生产业务路径。数据库合同测试必须绑定显式任务专库，不能复用另一数据库的 Gradle up-to-date 测试结果。
+
+金额 JSON 入口保留数值与字符串、缺省与显式空的区别，并校验组成项引用和 ordinal；不能先统一转字符串。注册/登录的类型限制不得扩大到其他字段。旧字段文本转换须固定 Unicode oracle，并覆盖二进制幂及相邻值；仅随机浮点样本不足以证明最短文本等价。密码使用严格 UTF-8，不替换孤立代理字符；昂贵校验放在 SQLite 写锁外，短写事务再核对当前摘要。工作区写入按目标、会话、邀请顺序重读；删除后的备选也须确认仍存在，忙时整次回滚，不发布悬空指针。
+
+Python 单测随实现迁为 Kotlin 原生测试，按源定义、展开参数和全部断言追踪；黄金差分与跑旧 pytest 均不能代替。漏项检查同时核对模块级参数、conftest/fixture、样本文件和配置，不能只指纹化测试函数。源用例变化要绑定准确的基线/当前指纹和已确认原因，完整门禁有 pending 必须失败。
+
+分类目录及写回包使用含自身的名称数组，客户端领域路径仅含真实祖先对象；按同一目录的 id/parent_id 链重建，不能按名称猜 ID。写入先解码独立回包为命令确认，再沿用既有目录刷新，不能写库后因套用详情 DTO 而报解码失败。移动先固定原根深度，不依赖节点遍历顺序。整数修订文本的空白集合与 Python split/strip 不同，不能把 U+001C–001F 当 int 可接受的空白；拒绝路径须验证无目录初始化或其他写入。
+
+分类批量写入的性能需在完整双库回归数据和新工作区统计下验证；不能以手动 ANALYZE 后的单条计划替代 API 门槛。PostgreSQL 的选中范围 CTE 之外还要核对后续连接是否沿唯一键有界读取。故障注入测试须证明到达指定晚期语句，只有通用存储异常和回滚快照可能掩盖更早的无关失败。
+
+从 ORM 迁到 JDBC 时，身份、未保存属性、自动 flush 和 expire 都是可观察合同。expire 必须丢弃脏值，不能先 flush 再重载；JOIN 快路径须逐行核对缓存归属，仅检查返回集合包含可能漏掉过期关联。投影、关系和来源维护需共用事务级稳定收支仓库上下文，不能机械逐调用新建缓存。
+
+Python datetime 只有微秒；JVM 时间绑定 SQL 前先截断微秒，不能让 PG 对纳秒尾数再次四舍五入。源摘要须复用原 canonical 表示和拒绝规则，不能散列 JDBC 默认文本；SQL 源值子集验证不代表通用序列化模块的任意类型都已迁移。
+
+关系上下文的版本围栏保留草稿和已删除父流水，但图输入及资金占用只含正式、未删除父流水的部分；不可直接复用围栏中的全部资金 ID。上下文父读取按原 500 批边界验证 SQL 参数数，SQLite 整数列读取不能静默截断。动态证据字典先按 Python 数值等价归一键，并按遍历后值覆盖；edge ID 仍严格为整数。先收集两个变更序列，再校验边，以保留原错误次序。
+
+来源证明必须绑定仓库与真实事务，不能只看连接是否打开。JDBC 提交/回滚、显式 SQL 结束和 savepoint 语义不同；SQLite 在 SQL 结束后不会因 JDBC autoCommit=false 自动续开，约束及触发器也可能主动回滚。SQL 异常后使证明失效，保留内部错误停止整操作的规则。归属链和 unwrap 不能绕回原生连接；元数据代理按声明接口封装，不按底层对象兼有的其他 JDBC 接口猜测类型。事务控制不进 batch，普通 DML 批量合同单独验证。
+
+账户迁移按实际 editor 前置迁原生用例；管理员成功不能代替可编辑成员。余额快照的名称视图只按原数字 ID 规则解析，`+1` 等合法名称不能被数值转换误归属。坏快照必须停止整次写入，明确的旧数字键转换失败沿账户输入错误返回。账户服务重放先核对原键、规范化摘要及真实计划/上下文元数据，永久收据不引用已删除账户的外键；提交后丢结果也用原键核实。JSON parser 的通用库接受范围不能代替 Python strict JSON：原始字符串控制字符、重复键、正文预算与严格修订均验证，已转义控制字符按既有字段规则处理。
+
+现金规则的嵌套对象键及集合比较须保留 Python 数值等价和 NaN 引用语义，不能交给 JVM 默认 equals。时间解析沿用原全局 `Z` 替换与 ISO 周日期分隔符消歧；同时核对接受/拒绝与 UTC 值。纯规则原生用例和差分只证明规则切片，未接事务的财务写入保持未完成。
+
+投影退款算术还需核对十进制符号/系数/指数，不能只比数值；保留原尾零与精度 80 的局部舍入。资金角色兼容函数与 Decimal-only 关系端点使用不同输入合同；完整图核对隐式非根资金占用，关系 ID 不提前收窄，联合组必须核对全部当前成员和原修订。
+
+永久收据的读取也遵守工作区锁、锁后与返回前授权复核。旧键查询在路由通用解码前验证原始百分号、UTF-8、重复字段和预算；真实 HTTP 验证不能用测试客户端自身拒绝输入代替。公开计数按原整数精度输出，核对通用 JSON 编码器是否会转浮点；共享 DTO 的范围限制与服务端完整范围分开验收。永久收据摘要按原 ASCII JSON 的转义后字节计算预算，DEL 也须转义；仓库创建不代替提交前原键核实，不能用写后重放掩盖重复业务写入。投影状态缺行的只读默认不得触发初始化或重建；管理员状态与普通收据读取分别核对权限，ready 数据集和版本在已有工作区锁内锁定状态后判断。选项协议复用保留原空标签和枚举顺序，并以正式客户端和领域映射消费实际回包；静态目录也不跨请求暴露可变列表，不因目录为空而初始化业务数据集。
+
 ## 后端性能与 PR 分片验证
 
 后端常规检查通过 `scripts/run_backend_tests.py` 按文件确定分片，同一片内顺序运行；汇总检查只接受所有分片成功。真实 PostgreSQL 分片必须使用各自独立的专用 `_test` 数据库，不得并发重置同一库。分类性能夹具包含稳定收支对象及完整成员；公共备注校验 `entry.fields` 和对象修订，同时保护来源原文与来源修订。导入性能继续计时完整预览与提交，不以内部规划耗时替代；预算调整须有明确授权，并按剩余失败场景单独定义，不连带放宽通过项。
@@ -263,3 +291,33 @@ This skill supports the "actions on a change" model:
 JSON 预算的普通容器快路径必须与原算法差分核对异常、剩余预算、深度和自定义协议；未知类型及预算自身引用完整回退。组成项与资金外连接保留无资金组成项、全部当前资金行和跨批次覆盖。投影写后仍读取完整上下文及对象版本，不能因性能省略损坏成员的错误检查。
 
 性能优化优先缩短私有准备图与最终图的生命周期，不暂停全局 GC 或修改阈值。只读详情快路径保留操作引用、成员归属、组成项和错误次序，索引键或未知协议回原算法。调用内成功财务校验缓存必须覆盖精确输入类型、字段存在性、全部组成项及 Decimal context，仅缓存完整校验成功，限制大小并在调用结束释放。
+
+For the active Kotlin backend migration, category-delete acceptance uses the
+explicit `FT_KOTLIN_CATEGORY_DELETION_CONTRACT_DIR` fixture directory in addition
+to the existing fixture variables. Prepare target and oracle databases with
+`scripts/export_category_deletion_contracts.py`; both must be new isolated test
+databases. Compare all financial columns after failed and successful commands,
+then consume captured bytes through the existing Compose confirmation APIs.
+Category usage is counted from current entries; deleting a category also clears
+standalone restore values and protects an empty manual category on live and
+deleted facts. JSON syntax and byte-encoding checks must precede any command.
+Supplemental JSON goldens and sampled RSS evidence do not substitute for ported
+Python assertions or the original peak-RSS performance tests.
+
+投影全量重建先锁工作区/状态，再读取同仓库同事务来源证明；发布消费证明仍重算摘要和事实/成员数量。数据集替换保留 900 写入/回查批次，晚期活动指针及旧集删除故障须有真实 JDBC 到达标志与全部财务列回滚。原生服务测试要观测完整源读取恰一次，并让真实非法关系与诊断失败组合保留原错误。全列 oracle 应推进时间；SQLAlchemy 编译缓存可能保留默认 callable，测试时钟需读取当前值。PG NUMERIC 的 JDBC 文本/二进制传输可能把零显示为不同文本，快照按数值类型保留精确值与 scale，不能把显示变化误认业务写入。
+
+迁移薄 HTTP 层时保留异常来源，不能只按 code 推断状态；projection.incomplete 可对应领域 ValueError 的 409 或仓库 RuntimeError 的 503。原 StorageError 在重建路由中作为完整固定字符串进入 code，按原标签与非识别数据库类型摘要验证，不加入 URL。生成 HTTP 黄金先确认目标 router 已挂载并逐例断言预期状态，不能把 404 录成有效合同。鉴权失败需跳过构建失败诊断；锁后和返回前拒绝均验证业务全回滚。组合原测试仍有其他操作断言时保持 pending。
+
+保存点创建前须 flush 既有脏值，回滚后恢复收支、成员及状态缓存的对象身份，不能仅依赖数据库回滚。监听只属于注册时事务，提交/回滚/关闭后清除；同连接的新事务不得调用旧上下文。SQL 与 JDBC 保存点都以真实双库反例验证，保留外层证明身份不代表可继续使用旧缓存。SQLite JSON 声明可能被 JDBC affinity 报为 NUMERIC；全列测试快照按声明列类型判定精确小数，避免把账单原文送入 getBigDecimal。
+
+迁移既有分类服务时分别追踪 move 与 update 的调用链；helper 相同不代表两个公开方法都会维护投影。只修复已批准的旧缺陷，其他行为按原边界验收；独立移动收集未删除来源和人工分类 entry 根后在同一事务维护完整组，无使用不推进投影版本。
+
+SQL 查询预算按实际执行记录绑定参数，不能只统计 prepareStatement；复用同一语句多次执行也须累计。迁移原性能断言时补重复执行反例和非零观测，保留原预算，不用准备次数替代执行次数。
+
+余额快照固定格式输出须覆盖超过 JVM Int 指数的正负零，原符号不能丢失或退回科学文本。名称还原先精确匹配模型 id.toString，再做 Unicode 数字回退；schema 未禁止负 ID。内部账户类型按真实模型的 String 校验，再处理缺省，不将集合或 Bool/数值转成新余额桶；公共请求不得伪造内部类型。直接 import alias 的源测试可以对照真正共享函数迁移，不据此关闭其上层导入流程。
+
+应用边界的白名单验证须在隔离调用方可变容器后返回；JsonObject/JsonArray 的只读接口不保证 backing Map/List 不变。递归复制保留共享引用，并保留不可变 primitive 身份供原始 Unicode 表示查询；回归应在验证后修改顶层、组件和嵌套数组，确认已接受输入不变。
+
+转账迁移分别保留现金与投资事件、现金关系及余额口径；旧转账允许空币种配置，不能套用普通新建的更严格资格。Unicode 小写存在上下文规则，Locale.ROOT 不能替代 Python lower：以合法币种 `ΟΣʰ` 与已有 `οςʰ` 投资头寸回归 final-sigma 和 case-ignorable 字符。纯 helper 的负数、负零和科学表示与公开服务的正数前置分别验收。投资金额量化、日期解析、文本绑定和错误回包的先后须用组合非法输入确认；date/time 拼接继续携带原始代理边界。源成功结果断言不能因验证了持久化结果而省略，源测试 setup 与实际业务断言分别核对。
+
+手工创建须同时对照 HTTP、完整财务行与失败后的序列：ORM flush 的账户/聚合更新及人工保护会推进新行修订，不能只用最终一次 INSERT 冒充等价。PG 组件批绑定失败可能不消费子序列，所有 label 编码须先验证再写组件；以坏第二组件后继续合法创建的真实 ID 验证。 逐源核对先明确 fixture 的角色、实际数据及调用入口，不能用 admin 成功代替原 editor 前置；PostgreSQL 权限等待须观测 pg_blocking_pids/Lock，再改变权限，latch 或 Future 超时不算数据库等待证明。字符错误先实测来源：持久化 UnicodeEncodeError 可为 400，错误回包无法编码才 500；保留原始代理边界、码点位置及多字段绑定顺序，不能由 JVM UTF-8 替换后提交。巨指数零的 fixed 输出须覆盖所有保存/回包入口；PG 原 NUMERIC 拒绝与 SQLite 成功要分别保留。

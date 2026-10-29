@@ -8,30 +8,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 
-@Serializable
-data class AccountDto(
-    val id: Long,
-    val name: String,
-    val type: String,
-    val active: Boolean = true,
-    val currencies: List<String>? = null,
-)
+typealias AccountDto = com.finance.tracker.business.contracts.AccountReferenceDto
 
-@Serializable
-data class SimpleOptionDto(val value: String, val label: String)
-
-@Serializable
-data class RecordTypeOptionDto(
-    val value: String,
-    val label: String,
-    val subtypes: List<SimpleOptionDto> = emptyList(),
-)
-
-@Serializable
-data class LedgerOptionsDto(
-    @SerialName("record_types") val recordTypes: List<RecordTypeOptionDto> = emptyList(),
-    @SerialName("relation_types") val relationTypes: List<SimpleOptionDto> = emptyList(),
-)
+typealias SimpleOptionDto = com.finance.tracker.business.contracts.SimpleOptionDto
+typealias RecordTypeOptionDto = com.finance.tracker.business.contracts.RecordTypeOptionDto
+typealias LedgerOptionsDto = com.finance.tracker.business.contracts.LedgerOptionsDto
 
 @Serializable
 data class CashCategoryPathItemDto(val id: String, val name: String)
@@ -45,11 +26,11 @@ data class CashCategoryDto(
     val path: List<CashCategoryPathItemDto> = emptyList(),
     val depth: Int = 1,
     @SerialName("sort_order") val sortOrder: Int = 0,
-    val revision: Int = 0,
+    val revision: Long = 0,
 )
 
-@Serializable
-data class CashCategoryDirectoryDto(val revision: Int, val items: List<CashCategoryDto>)
+typealias CashCategoryDirectoryDto = com.finance.tracker.business.contracts.CategoryDirectoryDto
+typealias CashCategoryDirectoryItemDto = com.finance.tracker.business.contracts.CategoryDirectoryItemDto
 
 @Serializable
 data class AcceptedRelationSummaryDto(val kind: String, val subtype: String = "", val count: Int = 0)

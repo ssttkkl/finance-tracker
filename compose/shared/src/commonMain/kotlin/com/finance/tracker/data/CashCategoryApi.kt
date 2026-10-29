@@ -10,13 +10,13 @@ suspend fun FinanceApiClient.fetchLedgerOptions(): LedgerOptionsDto = request(Ht
 
 suspend fun FinanceApiClient.fetchCashCategories(): CashCategoryDirectoryDto = request(HttpMethod.Get, "/api/v1/cash-categories")
 
-suspend fun FinanceApiClient.createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryDto =
+suspend fun FinanceApiClient.createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryDirectoryItemDto =
     request(HttpMethod.Post, "/api/v1/cash-categories", body = categoryWriteBody(name, parentId, description, expectedRevision))
 
-suspend fun FinanceApiClient.updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryDto =
+suspend fun FinanceApiClient.updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryDirectoryItemDto =
     request(HttpMethod.Patch, "/api/v1/cash-categories/${encodePathSegment(id)}", body = categoryWriteBody(name, parentId, description, expectedRevision))
 
-suspend fun FinanceApiClient.reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryDto = request(
+suspend fun FinanceApiClient.reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryDirectoryItemDto = request(
     HttpMethod.Post,
     "/api/v1/cash-categories/${encodePathSegment(id)}/reorder",
     body = buildJsonObject {

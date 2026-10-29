@@ -1,0 +1,204 @@
+{
+  "record_types": [
+    {
+      "value": "consumption",
+      "label": "消费",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "refund",
+      "label": "退款",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "reversal",
+      "label": "冲正",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "transfer_reversal",
+      "label": "转账退回",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "withdrawal_in",
+      "label": "提现入账",
+      "subtypes": [
+        {
+          "value": "withdraw_to_bank",
+          "label": "提现到银行"
+        }
+      ]
+    },
+    {
+      "value": "withdrawal_out",
+      "label": "提现",
+      "subtypes": [
+        {
+          "value": "withdraw_to_bank",
+          "label": "提现到银行"
+        }
+      ]
+    },
+    {
+      "value": "transfer_in",
+      "label": "转账入账",
+      "subtypes": [
+        {
+          "value": "ordinary_transfer",
+          "label": "普通转账"
+        },
+        {
+          "value": "cross_border_remittance",
+          "label": "跨境汇款"
+        },
+        {
+          "value": "internal_account_transfer",
+          "label": "账户间转账"
+        }
+      ]
+    },
+    {
+      "value": "transfer_out",
+      "label": "转账转出",
+      "subtypes": [
+        {
+          "value": "ordinary_transfer",
+          "label": "普通转账"
+        },
+        {
+          "value": "cross_border_remittance",
+          "label": "跨境汇款"
+        },
+        {
+          "value": "internal_account_transfer",
+          "label": "账户间转账"
+        }
+      ]
+    },
+    {
+      "value": "repayment",
+      "label": "还款",
+      "subtypes": [
+        {
+          "value": "credit_repayment",
+          "label": "信用卡还款"
+        }
+      ]
+    },
+    {
+      "value": "income",
+      "label": "收入",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "investment_in",
+      "label": "投资转入",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "investment_out",
+      "label": "投资转出",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "interest",
+      "label": "利息",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "fee",
+      "label": "费用",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "value": "fx_in",
+      "label": "换汇转入",
+      "subtypes": [
+        {
+          "value": "currency_exchange",
+          "label": "币种兑换"
+        }
+      ]
+    },
+    {
+      "value": "fx_out",
+      "label": "换汇转出",
+      "subtypes": [
+        {
+          "value": "currency_exchange",
+          "label": "币种兑换"
+        }
+      ]
+    },
+    {
+      "value": "other",
+      "label": "其他",
+      "subtypes": [
+        {
+          "value": "not_applicable",
+          "label": ""
+        }
+      ]
+    }
+  ],
+  "relation_types": [
+    {
+      "value": "payment_mirror",
+      "label": "同笔支付"
+    },
+    {
+      "value": "transfer_pair",
+      "label": "个人转账"
+    },
+    {
+      "value": "refund_offset",
+      "label": "退款冲销"
+    }
+  ]
+}

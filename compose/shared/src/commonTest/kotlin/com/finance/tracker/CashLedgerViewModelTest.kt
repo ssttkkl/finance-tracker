@@ -166,9 +166,9 @@ private class FakeCashLedgerRepository(
 
     override suspend fun fetchCashAccounts() = delayedAccounts?.await() ?: listOf(Account(1, "Cash", "cash"))
     override suspend fun fetchCashCategories() = CashCategoryDirectory(1, listOf(CashCategory("food", name = "Food")))
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long) = CashCategory("new", parentId, name, description)
-    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long) = CashCategory(id, parentId, name, description)
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategory(id, name = "Food")
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long) = CashCategoryWriteResult("new", expectedRevision + 1)
+    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long) = CashCategoryWriteResult(id, expectedRevision + 1)
     override suspend fun fetchCashCategoryDeletionImpact(id: String) = CashCategoryDeleteImpact(id, 1, 1, 0, 0)
     override suspend fun deleteCashCategory(id: String, impact: CashCategoryDeleteImpact) = CashCategoryDeleteResult(id, 0, impact.revision)
     override suspend fun fetchEvidence(id: String): Evidence = Evidence(

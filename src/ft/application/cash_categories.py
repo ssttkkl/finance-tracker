@@ -351,6 +351,7 @@ class CashCategoryService:
             raise ValueError("category.depth_limit")
         new_parent_path = parent.category_path if parent else ""
         old_path = category.category_path
+        old_depth = category.depth
         new_root_path = f"{new_parent_path}/{category.id}/"
         category.parent_id = parent.id if parent else None
         category.parent_scope_key = new_parent_scope
@@ -358,7 +359,7 @@ class CashCategoryService:
         for row in subtree:
             suffix = row.category_path[len(old_path):]
             row.category_path = new_root_path + suffix
-            row.depth = new_depth + (row.depth - category.depth)
+            row.depth = new_depth + (row.depth - old_depth)
             row.updated_at = _now()
         state.revision += 1
         state.updated_at = _now()

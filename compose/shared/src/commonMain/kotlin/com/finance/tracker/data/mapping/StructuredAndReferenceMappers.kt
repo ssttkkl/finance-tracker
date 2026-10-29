@@ -116,14 +116,24 @@ fun CashCategory.toDto(): CashCategoryDto = CashCategoryDto(
     revision = revision,
 )
 
-fun CashCategoryDirectoryDto.toDomain(): CashCategoryDirectory = CashCategoryDirectory(
-    revision = revision,
-    items = items.map { it.toDomain() },
-)
+fun CashCategoryDirectoryItemDto.toWriteResult(): CashCategoryWriteResult = CashCategoryWriteResult(id, revision)
+
+fun CashCategoryDirectoryDto.toDomain(): CashCategoryDirectory {
+    val nodes = items.map { com.finance.tracker.business.domain.CategoryNode(it.id, it.parentId, it.name, it.sortOrder) }
+    val byId = nodes.associateBy { it.id }
+    require(byId.size == nodes.size) { "category.duplicate_id" }
+    return CashCategoryDirectory(revision, items.map { item ->
+        val ancestors = com.finance.tracker.business.domain.categoryAncestors(byId.getValue(item.id), byId)
+        require(item.path == ancestors.map { it.name } + item.name) { "category.invalid_path" }
+        CashCategory(item.id, item.parentId, item.name, item.description,
+            ancestors.map { CashCategoryPathItem(it.id, it.name) }, item.depth, item.sortOrder, item.revision)
+    })
+}
 
 fun CashCategoryDirectory.toDto(): CashCategoryDirectoryDto = CashCategoryDirectoryDto(
     revision = revision,
-    items = items.map { it.toDto() },
+    items = items.map { item -> CashCategoryDirectoryItemDto(item.id, item.parentId, item.name,
+        item.description, item.path.map { it.name } + item.name, item.depth, item.sortOrder, item.revision) },
 )
 
 fun AcceptedRelationSummaryDto.toDomain(): AcceptedRelationSummary = AcceptedRelationSummary(

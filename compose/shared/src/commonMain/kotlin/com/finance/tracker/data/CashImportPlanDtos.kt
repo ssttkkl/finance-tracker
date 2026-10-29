@@ -186,55 +186,11 @@ data class CashPlanItemDetailDto(
     @SerialName("relation_members") val relationMembers: List<CashPlanMemberDto> = emptyList(),
 )
 
-@Serializable
-data class CashImportCommitOutcomeDto(
-    @SerialName("has_new_failures") val hasNewFailures: Boolean,
-    @SerialName("has_business_writes") val hasBusinessWrites: Boolean,
-    @SerialName("reason_codes") val reasonCodes: List<String>,
-)
-@Serializable
-data class CashMutationReceiptDto(
-    @SerialName("receipt_id") val receiptId: String,
-    @SerialName("plan_id") val planId: String? = null,
-    @SerialName("operation_kind") val operationKind: String,
-    val committed: Boolean,
-    @SerialName("created_at") val createdAt: String,
-    val status: String? = null,
-    val summary: Map<String, Long> = emptyMap(),
-    @SerialName("legacy_by_account") val legacyByAccount: Map<String, Long> = emptyMap(),
-    @SerialName("needs_attention_count") val needsAttentionCount: Long? = null,
-    @SerialName("pending_item_count") val pendingItemCount: Long? = null,
-    @SerialName("projection_version") val projectionVersion: Long? = null,
-    @SerialName("retained_transaction_id") val retainedTransactionId: String? = null,
-    @SerialName("account_id") val accountId: String? = null,
-    @SerialName("account_revision") val accountRevision: Long? = null,
-    val account: ImportAccountDto? = null,
-    @SerialName("commit_outcome") val commitOutcome: CashImportCommitOutcomeDto? = null,
-)
-@Serializable
-data class CashMutationResultDto(
-    @SerialName("result_id") val resultId: String,
-    @SerialName("result_kind") val resultKind: String,
-    @SerialName("item_ref") val itemRef: String, val outcome: String,
-    val code: String? = null, val message: String? = null,
-    @SerialName("operation_ref") val operationRef: String? = null,
-    @SerialName("transaction_id") val transactionId: String? = null,
-    @SerialName("relation_id") val relationId: String? = null,
-    @SerialName("account_id") val accountId: String? = null,
-)
-@Serializable
-data class CashMutationProjectionRefDto(
-    @SerialName("transaction_id") val transactionId: String,
-    @SerialName("projection_id") val projectionId: String,
-)
-@Serializable
-data class CashMutationResultPageDto(
-    val items: List<CashMutationResultDto>,
-    @SerialName("next_after") val nextAfter: String?,
-    @SerialName("projection_refs") val projectionRefs: List<CashMutationProjectionRefDto>,
-    @SerialName("projection_version") val projectionVersion: Long,
-)
-@Serializable
-data class CashMutationResolveDto(val status: String, val receipt: CashMutationReceiptDto? = null)
+typealias CashImportCommitOutcomeDto = com.finance.tracker.business.contracts.CashImportCommitOutcomeDto
+typealias CashMutationReceiptDto = com.finance.tracker.business.contracts.CashMutationReceiptDto
+typealias CashMutationResultDto = com.finance.tracker.business.contracts.CashMutationResultDto
+typealias CashMutationProjectionRefDto = com.finance.tracker.business.contracts.CashMutationProjectionRefDto
+typealias CashMutationResultPageDto = com.finance.tracker.business.contracts.CashMutationResultPageDto
+typealias CashMutationResolveDto = com.finance.tracker.business.contracts.CashMutationResolveDto
 
 enum class CashMutationResultKind(internal val path: String) { ROW("rows"), RELATION("relations") }

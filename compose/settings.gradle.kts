@@ -30,3 +30,6 @@ dependencyResolutionManagement {
 include(":androidApp")
 include(":shared")
 include(":webApp")
+include(":business-contracts")
+include(":business-domain")
+include(":backend")

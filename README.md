@@ -4,6 +4,8 @@
 
 项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。`web/`、`mobile/` 和 TypeScript shared packages 暂时保留为迁移参考，不属于默认开发、构建、测试或发布工作流。
 
+Kotlin 后端与公共业务层正在迁移，尚不替代上述运行入口。当前可验证的本机预览、匿名数据库准备和未完成能力见 [Kotlin 后端预览](compose/backend/README.md)。
+
 ## 运行边界
 
 运行时通过 `FT_DATABASE_URL` 显式选择一个事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与 Alembic schema；不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。CSV、XLS、PDF 只作导入输入或预览，不是账本。

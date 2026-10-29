@@ -71,9 +71,22 @@ def test_category_move_keeps_stable_id_and_rewrites_descendant_paths(tmp_path):
         moved = service.move(food["id"], parent_id=work["id"], expected_revision=lunch["revision"])
         assert moved["id"] == food["id"]
         assert moved["path"] == ["工作", "餐饮"]
+        assert moved["depth"] == 2
         listed = service.list()
         descendant = next(item for item in listed["items"] if item["id"] == lunch["id"])
         assert descendant["path"] == ["工作", "餐饮", "午餐"]
+        assert descendant["depth"] == 3
+
+        fourth = service.create(name="四级", parent_id=lunch["id"], expected_revision=listed["revision"])
+        fifth = service.create(name="五级", parent_id=fourth["id"], expected_revision=fourth["revision"])
+        with pytest.raises(ValueError, match="category.depth_limit"):
+            service.create(name="六级", parent_id=fifth["id"], expected_revision=fifth["revision"])
+        promoted = service.move(food["id"], parent_id=None, expected_revision=fifth["revision"])
+        assert promoted["depth"] == 1
+        depths = {item["id"]: item["depth"] for item in service.list()["items"]}
+        assert [depths[item["id"]] for item in (food, lunch, fourth, fifth)] == [1, 2, 3, 4]
+        allowed = service.create(name="新的五级", parent_id=fifth["id"], expected_revision=promoted["revision"])
+        assert allowed["depth"] == 5
     finally:
         engine.dispose()
 

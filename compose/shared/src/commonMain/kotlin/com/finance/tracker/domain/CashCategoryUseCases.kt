@@ -7,7 +7,7 @@ class SaveCashCategoryUseCase(private val repository: CashCategoryRepository) {
         parentId: String?,
         description: String,
         expectedRevision: Long,
-    ): CashCategory {
+    ): CashCategoryWriteResult {
         val normalizedName = name.trim()
         val normalizedDescription = description.trim()
         if (normalizedName.isEmpty()) {

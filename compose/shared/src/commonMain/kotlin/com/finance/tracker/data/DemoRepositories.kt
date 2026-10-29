@@ -439,9 +439,9 @@ class DemoFinanceRepository : FinanceRepository {
         return recordDetail(record)
     }
 
-    override suspend fun fetchCashCategories(): CashCategoryDirectory = CashCategoryDirectory(categoryRevision.toInt(), categories.sortedBy(CashCategory::sortOrder))
+    override suspend fun fetchCashCategories(): CashCategoryDirectory = CashCategoryDirectory(categoryRevision, categories.sortedBy(CashCategory::sortOrder))
 
-    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory {
+    override suspend fun createCashCategory(name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult {
         if (categories.any { it.parentId == parentId && it.name.equals(name, true) }) throw demoFailure("cash_category_duplicate", 409)
         val parent = categoryById(parentId)
         val category = CashCategory(
@@ -456,10 +456,10 @@ class DemoFinanceRepository : FinanceRepository {
         )
         categories += category
         categoryRevision++
-        return category
+        return CashCategoryWriteResult(category.id, categoryRevision)
     }
 
-    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategory {
+    override suspend fun updateCashCategory(id: String, name: String, parentId: String?, description: String, expectedRevision: Long): CashCategoryWriteResult {
         val index = categories.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_category_not_found", 404)
         val old = categories[index]
@@ -469,10 +469,10 @@ class DemoFinanceRepository : FinanceRepository {
             if (records[recordIndex].categoryId == id) records[recordIndex] = records[recordIndex].copy(category = updated)
         }
         categoryRevision++
-        return updated
+        return CashCategoryWriteResult(updated.id, categoryRevision)
     }
 
-    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategory {
+    override suspend fun reorderCashCategory(id: String, direction: String, expectedRevision: Long): CashCategoryWriteResult {
         val index = categories.indexOfFirst { it.id == id }
         if (index < 0) throw demoFailure("cash_category_not_found", 404)
         val targetIndex = when (direction.lowercase()) { "up", "before", "previous" -> index - 1; else -> index + 1 }
@@ -483,7 +483,7 @@ class DemoFinanceRepository : FinanceRepository {
             categories[targetIndex] = current.copy(sortOrder = target.sortOrder)
         }
         categoryRevision++
-        return categories.first { it.id == id }
+        return CashCategoryWriteResult(id, categoryRevision)
     }
 
     override suspend fun fetchCashCategoryDeletionImpact(id: String): CashCategoryDeleteImpact {

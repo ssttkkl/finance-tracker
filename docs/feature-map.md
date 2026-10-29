@@ -1,8 +1,18 @@
 # Compose 功能地图
 
-> 盘点日期：2026-10-25。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
+> 盘点日期：2026-10-29。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
 
 Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `compose/webApp`、`compose/androidApp`、`compose/iosApp`。旧 React `web/src` 和 Expo `mobile/src` 只作历史迁移参考。
+
+## Kotlin 后端迁移与公共业务层
+
+当前生产后端仍为 Python，Kotlin 全量迁移进行中；完整范围与未完成项见 [迁移盘点](../openspec/changes/kotlin-backend-shared-core/inventory.md) 和 [实施证据](../openspec/changes/kotlin-backend-shared-core/tasks.md)。Kotlin 本机预览已实现认证、工作区、邀请、成员接口、分类目录读取/创建/编辑/排序/删除检查/删除、收支单项/批量分类及账户按 ID 的读写、现金/投资列表、永久收据五个 GET 、管理员投影状态查询/重建、账本类型选项、手工收支新建及完整转账创建；工作区删除仍缺完整财务数据专项，不替代生产入口。Compose 当前没有管理员投影状态入口。公共认证、账户、分类目录、收据、结果分页、诊断及选项 DTO 和角色由 Compose 与后端共同消费；分类祖先、循环及深度规则进入双方正式调用，精确分摊目前由 Compose Web、Android、iOS 使用；对应实现位于 `compose/business-contracts`、`compose/business-domain`，后端 JVM 消费这些独立模块，不依赖 Compose UI。账本类型选项通过[共用选项协议](../compose/business-contracts/src/commonMain/kotlin/com/finance/tracker/business/contracts/LedgerOptions.kt) 和现有客户端实际接通，保留原标签/顺序，未改变页面。共享金额合法范围、已知现金部分一致性另有 Python 黄金；永久收据按操作者和工作区读取、旧键查询及结果分页已接入预览，账户命令实际复用收据写入前校验与原键重放；Compose 的超 Long 计数解码缺口仍待处理。后端字段/转正式、投影及完整关系图纯规则已有原生迁移测试和差分，内部增量维护已通过双库，手工收支新建已接入同事务写入，保留明确清空的人工保护；[后端实现](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ManualCashService.kt) 与[既有 Compose 创建消费者的实际回包验证](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinManualCashResponseIntegrationTest.kt) 已覆盖，F-03/F-04 的普通创建 API 可用于本机预览；转账编辑、旧现金新增/余额校准、维护、导入和 OpenAPI schema 的迁移 TODO 保留。没有新增页面或 Native 入口，不能据此宣称其他财务写入或客户端全部金额规则已迁移。
+
+分类删除已通过当前使用量/修订检查、含已删除流水的空分类保护、拆分恢复值与全部投影清理，并由[现有 Compose 确认 API 的实际回包测试](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinCategoryDeletionResponseIntegrationTest.kt) 验证；收支单项/批量分类已验证完整成员、同值人工保护和原子回滚，并由[现有 Compose 分类 API 的实际回包测试](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinClassificationResponseIntegrationTest.kt) 验证。分类独立 move 服务已接入同事务增量维护；现有 update 保持 Python 的调用边界。
+
+本轮页面数仍为 10，F-01 认证、F-04 编辑分摊与 F-07 分类任务的入口、跨端覆盖和既有验收 TODO 不变。共享模块与新运行时的验证状态以本轮实施证据为准，不能把模块存在写成全部后端或所有平台已验收。其余 Kotlin HTTP、格式适配、完整导入/维护/投影/关系/投资和后台任务均未完成；原 Python 功能保留。
+
+稳定收支对象仓库的公共人工值、拆分恢复和事务缓存，以及投影源读取、局部关系上下文、完整组校验和摘要已有双库内部验证，已接入全量重建/原子发布与新工作区初始化，管理员重建 HTTP 已通过真实双库对照，内部增量维护已通过双库；手工收支新建与转账创建已接入，转账编辑、维护和导入写入仍待迁移；没有新增 Web 或 Native 入口，F-03/F-04 的迁移 TODO 保留。 转账创建迁移证据为 [`CashTransferService.kt`](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashTransferService.kt) 与 [`Compose 实际回包消费`](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinTransferResponseIntegrationTest.kt)；Web/Native 共用现有创建消费者，不增加页面。
 
 ## 现金导入后端与客户端边界
 
