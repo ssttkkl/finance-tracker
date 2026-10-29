@@ -24,6 +24,7 @@ fun CashFiltersDto.toDomain(): CashFilters = CashFilters(
     transferSubtype = transferSubtype,
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
+    hideZeroAmount = hideZeroAmount?.toBooleanStrictOrNull() ?: true,
 )
 
 fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
@@ -40,6 +41,7 @@ fun CashFilters.toDto(): CashFiltersDto = CashFiltersDto(
     transferSubtype = transferSubtype,
     composition = composition,
     state = state, confirmationStatus = confirmationStatus,
+    hideZeroAmount = hideZeroAmount.toString(),
 )
 
 fun AccountListDto.toDomain(): AccountList = AccountList(

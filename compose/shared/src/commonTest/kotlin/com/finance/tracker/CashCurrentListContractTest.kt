@@ -64,6 +64,18 @@ class CashCurrentListContractTest {
         assertEquals("next/+&", query["cursor"])
         api.close()
     }
+    @Test fun zeroAmountVisibilityFilterDefaultsOnAndIsSentExplicitly() = runTest {
+        assertTrue(CashFilters().hideZeroAmount)
+        var call: HttpRequestData? = null
+        val api = FinanceApiClient({ "https://api.example.test" }, ListTokenStore(), MockEngine {
+            call = it; respond(PAGE, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+        })
+        api.fetchCashPage(CashFilters().toDto())
+        assertEquals("true", assertNotNull(call).url.parameters["hide_zero_amount"])
+        api.fetchCashPage(CashFilters(hideZeroAmount = false).toDto())
+        assertEquals("false", assertNotNull(call).url.parameters["hide_zero_amount"])
+        api.close()
+    }
 }
 private class ListTokenStore : TokenStore {
     override suspend fun get() = "synthetic-token"

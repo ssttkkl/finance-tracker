@@ -383,7 +383,7 @@ def test_projection_filter_options_and_subtype_filter_follow_active_visible_data
         ))
 
     page = service.list_cash_projections(limit=1)
-    selected = service.list_cash_projections(transfer_subtype="bank_security_transfer", limit=1)
+    selected = service.list_cash_projections(transfer_subtype="bank_security_transfer", limit=1, hide_zero_amount=False)
 
     assert [(item.economic_type, item.transfer_subtypes) for item in page.filter_options.economic_types] == [
         ("expense", ()), ("income", ()), ("internal_transfer", ("bank_security_transfer", "ordinary_transfer")),
@@ -414,14 +414,17 @@ def test_projection_page_includes_visible_internal_transfer_and_filter_option(ca
             member_count=2, accepted_relation_count=1, built_projection_version=1,
         ))
 
-    page = service.list_cash_projections()
+    assert "cash:visible-transfer" not in {item.projection_id for item in service.list_cash_projections().items}
+    page = service.list_cash_projections(hide_zero_amount=False)
     transfer = next(item for item in page.items if item.projection_id == "cash:visible-transfer")
 
     assert transfer.economic_type == "internal_transfer"
     assert transfer.amount == "0"
     assert tuple(item.name for item in page.filter_options.categories) == ("日用", "餐饮", "收入", "转账")
     assert page.filter_options.currencies == ("CNY", "HKD")
-    assert [item.projection_id for item in service.list_cash_projections(economic_type="internal_transfer").items] == ["cash:visible-transfer"]
+    assert [item.projection_id for item in service.list_cash_projections(
+        economic_type="internal_transfer", hide_zero_amount=False,
+    ).items] == ["cash:visible-transfer"]
 
 def test_projection_filter_options_are_empty_when_no_visible_projection(cash_web_runtime):
     from ft.adapters.relational.models import CashProjectionModel
