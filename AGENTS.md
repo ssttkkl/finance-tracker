@@ -1,8 +1,8 @@
 # Finance Tracker Agent 工作流
 
-本仓库采用 **OpenSpec + 仓库自有工作流**。本文件是变更流程、审查、验证及外部写授权的唯一规则；[`openspec/project-context.md`](openspec/project-context.md) 定义财务、持久化与安全工程原则；[`openspec/specs/`](openspec/specs/README.md) 定义当前行为；[`docs/shared/ui-design-rules.md`](docs/shared/ui-design-rules.md) 定义具体 UI 规范；[`docs/design-review/contract/rules.md`](docs/design-review/contract/rules.md) 定义契约设计评审检查项。`CLAUDE.md` 是本文件的符号链接，只编辑本文件。
+本仓库采用 **OpenSpec + 仓库自有工作流**。本文件是变更流程、审查、验证及外部写授权的唯一规则；[`openspec/project-context.md`](openspec/project-context.md) 定义财务、持久化与安全工程原则；[`openspec/specs/`](openspec/specs/README.md) 定义当前行为；[`docs/shared/ui-design-rules.md`](docs/shared/ui-design-rules.md) 定义具体 UI 规范；[`docs/design-review/contract/rules.md`](docs/design-review/contract/rules.md) 定义契约设计评审检查项；[`docs/design-review/frontend/rules.md`](docs/design-review/frontend/rules.md) 定义前端 UI 复用评审检查项。`CLAUDE.md` 是本文件的符号链接，只编辑本文件。
 
-所有门禁均为强约束。任务持续推进至完成，或缺少关键决策、外部授权、必需环境条件。项目 Skill 仅承载领域知识、CLI 或工具操作，不取代本文件的 artifact、审查、QA、验证与授权。契约设计评审由 `$contract-design-review` 执行，规则见 `docs/design-review/contract/rules.md`；前端 UI 复用审查另立。纯工具、文档、术语、功能地图和 Agent 约定改动不创建 OpenSpec、空 scaffolding（含 `skip_specs: true`）或空 `tasks.md`，按目标范围审查验证；其余含代码改动的变更执行下述 A/B/C 流程。
+所有门禁均为强约束。任务持续推进至完成，或缺少关键决策、外部授权、必需环境条件。项目 Skill 仅承载领域知识、CLI 或工具操作，不取代本文件的 artifact、审查、QA、验证与授权。契约设计评审由 `$contract-design-review` 执行，规则见 `docs/design-review/contract/rules.md`；前端 UI 复用审查由 `$ui-reuse-review` 执行，规则见 `docs/design-review/frontend/rules.md`。纯工具、文档、术语、功能地图和 Agent 约定改动不创建 OpenSpec、空 scaffolding（含 `skip_specs: true`）或空 `tasks.md`，按目标范围审查验证；其余含代码改动的变更执行下述 A/B/C 流程。
 
 ## 实施前澄清与工具边界
 
@@ -45,17 +45,18 @@
 | 2. 计划 | 按分级形成 artifact。A 覆盖场景、失败模式、兼容、回滚及适用专项策略；UI 另执行下述设计门禁。B/C 出现新决策或取舍先回写，符合升级条件则升级。 |
 | 3. 任务拆分 | 对齐 requirement、场景、失败测试、实施、审查、验证与文档收尾，检查 artifacts 一致性；C 先安排失败回归。 |
 | 4. 构建 | A 在独立 feature 分支或 worktree，B 在隔离 worktree，按 tasks 小步实施且测试先失败再转绿；C 以失败回归驱动最小修复，只恢复既定行为。 |
-| 5. 审查 | 5a 代码与范围审查：A 必做产品／范围、工程及最终 diff，DX／设计／安全按风险触发；B 做范围 diff 及适用视角；C 复核根因、边界与回归风险。5b 契约设计评审：涉及数据库、后端接口、数据模型、DTO 或请求／响应的代码 change 在实现完成后、第 6 阶段前执行 `$contract-design-review`，按 `docs/design-review/contract/rules.md` 检查同一业务概念从存储到接口是否表达一致；由独立上下文执行，结论和发现记录在第 5 阶段。 |
+| 5. 审查 | 5a 代码与范围审查：A 必做产品／范围、工程及最终 diff，DX／设计／安全按风险触发；B 做范围 diff 及适用视角；C 复核根因、边界与回归风险。5b 契约设计评审：涉及数据库、后端接口、数据模型、DTO 或请求／响应的代码 change 在实现完成后、第 6 阶段前执行 `$contract-design-review`，按 `docs/design-review/contract/rules.md` 检查同一业务概念从存储到接口是否表达一致；由独立上下文执行，结论和发现记录在第 5 阶段。5c UI 复用度审查：UI 变更在实现完成后、第 6 阶段前执行 `$ui-reuse-review`，按 `docs/design-review/frontend/rules.md` 检查组件/token 复用、重复业务 UI、公共/局部归属和万能组件；结论和发现记录在第 5 阶段。 |
 | 6. 测试与 QA | 执行本级最小验证及全部适用专项门禁；A 包含 OpenSpec 校验、完整回归和相称构建。前端默认范围按下文执行。 |
 | 7. 发布 | 文档收尾完成后记录交付证据、发布准备及相称回滚信息；A 另记观察项。外部动作按授权执行。 |
 
-第 5b 阶段的契约设计评审与 5a 一样由独立上下文执行：评审者不得修改实现，结论和建议由实现流程处理。评审范围、发现、建议改法和未覆盖项记录在 `tasks.md` 第 5 阶段；不要求固定报告文件、等级或状态机。规则的新增、删除或调整只能由用户批准。
+第 5b 阶段的契约设计评审与 5a 一样由独立上下文执行：评审者不得修改实现，结论和建议由实现流程处理。评审范围、发现、建议改法和未覆盖项记录在 `tasks.md` 第 5 阶段；不要求固定报告文件、等级或状态机。第 5c 阶段的 UI 复用度审查同样由独立上下文执行，只查已有组件/token 复用、重复业务 UI、公共/局部归属和万能组件，不重复 Hallmark 的视觉、对比度、间距、动效和响应式检查；结论和发现记录在 `tasks.md` 第 5 阶段。规则的新增、删除或调整只能由用户批准。
 
 ## 审查、验证与证据
 
 - 由独立复核上下文、人工或可用辅助工具审查：产品看用户、优先级、范围与成功标准；工程看边界、数据流、失败、兼容、回滚、测试与复杂度；设计看任务、层级、状态、无障碍与响应式；DX 看 API/CLI/SDK 可发现性、一致性、错误、示例与迁移成本；安全看资产、信任边界、权限、输入、日志、依赖及外部回调；最终 diff 查 artifact 偏离、遗漏测试与回归。
 - 在正式 artifact 原位维护审查范围、风险、按严重级别排序的 finding、处置理由和回写位置；阻断项修复后重审，无 finding 也记录结论。`tasks.md` 集中记录当前实际命令、结果、`HEAD`、比较基线、执行时间和遗留风险；不追加逐轮日志。未运行项写明不适用理由、残余风险和准确补跑条件；HEAD、目标分支或依赖变化后重跑受影响验证，不能用旧结果冒充当前通过。
 - **契约设计评审：**数据库、后端接口和数据模型的增量评审按 `docs/design-review/contract/rules.md` 执行，结论和发现记录在 `tasks.md` 第 5 阶段；全量评审按需输出到 `docs/design-review/contract/reports/YYYY-MM-DD-<scope>.md`。每条发现必须带建议改法和证据，不能只盯 PR diff；范围控制和检查项见规则文件。
+- **UI 复用度审查：**UI 变更按 `docs/design-review/frontend/rules.md` 执行 `$ui-reuse-review`，结论和发现记录在 `tasks.md` 第 5 阶段；不重复 Hallmark 的视觉、对比度、间距、动效和响应式检查。
 - **存储与双后端：**存储行为变更以同一 Application Service 和用户合同在 SQLite、真实 PostgreSQL 运行契约矩阵。开发及 SQLite 回归后，人工准备专用 PostgreSQL 库，优先本地 Docker 或本机 psql；库名必须以 `_test` 结尾，显式设置 `FT_TEST_POSTGRES_URL`。测试不得自动探测／启动数据库；未配置只能记未完成，skip 不算通过。性能与安全风险必须运行专项检查。
 - **默认前端验证范围：**Web 执行受影响流程的真实浏览器冒烟；Android、iOS 仅执行相称的编译和单元测试，不默认执行设备／模拟器交互、截图或端到端 QA。用户明确要求时才追加这些原生端验证；未运行的设备 QA 不宣称通过，也不因默认未执行而阻断交付。跨端影响分析和实现合同仍须保持一致。
 - **Web 冒烟：**UI、交互、路由、响应式或用户可见文案修改，在仓库现有开发／QA 构建或适用的生产预览中，选择代表视口走通受影响主流程、关键交互及直接相关的复现分支；涉及登录、权限、滚动或跨页时实际执行。单测、类型检查、构建和静态截图不能替代真实浏览器操作；不默认穷举全部状态、主题、视口或运行完整 Web 端到端回归，额外范围由用户明确指定。缺浏览器 Skill 换等效工具；浏览器不可用记未完成／阻断，不得宣称通过。证据记录浏览器、URL、视口、步骤、必要截图及控制台／网络错误；代码或依赖变化后只重跑受影响冒烟。
@@ -63,6 +64,7 @@
 ## UI 与跨平台门禁
 
 - 任何 UI 设计、原型、实现或审查前，必须读取并遵守 [UI 设计规范](docs/shared/ui-design-rules.md) 与现有 token；视觉、组件、文案、尺寸及响应式细则只在该文件维护，违反硬约束不得进入实现或 PR。按钮／输入直接用 Material 3，禁止 Finance 或 Compose Unstyled 重复包装。
+- UI 变更在最终设计复核前执行 `$ui-reuse-review`，检查已有组件/token 是否被正确使用、重复业务 UI、公共/局部归属和万能组件；它不替代 `$hallmark audit` 和独立设计复核。
 - A 类 UI 或重大 UI 变更实施前，按用户任务明确并提交信息架构、验收和将删除的冗余信息；显式调用仓库 Hallmark 做预检、设计方向及自查，写入 design。**重大 UI 重构变更必须先产出 HTML 原型**：原型须完整展现相关业务流程（主线、分支与关键状态），视觉风格贴近 Material 3（不要求样式 token 精准一致，风格相近即可）；原型交由用户确认后才可移植到 Compose。移植时保留原型中的业务流程、UI 结构和 UI 样式的业务含义，使用 Compose Material 组件实现相近样式，不要求精准复刻 HTML 原型；确认后的 HTML 原型仅作本机设计证据，保存在 Git 忽略目录或仓库外，不提交、不维护为实现产物。其余场景不另造视觉系统，写入 design 后直接实现 Compose。Compose 是结构／样式事实源，OpenSpec 保存行为与验收，Git token JSON 是唯一 token 输入，`GeneratedTokens.kt` 是消费副本；截图仅作本机 QA 证据，保存在 Git 忽略目录或仓库外，不提交截图文件；不维护 Pen 变量、节点映射、重复页面 YAML。代码生成必须有已验证生成器，不能虚称自动生成。
 - 所有最终 UI 必须做可见文字必要性自检、范围化术语搜索、`$hallmark audit` 及独立设计复核，对照 OpenSpec、实际页面和截图，检查层级、几何／间距、排版、颜色、组件、状态、无障碍和响应式。响应式实现遵守 COMPACT／REGULAR／WIDE 合同；默认复核 Web 冒烟选定的代表视口，不强制追加三类窗口或原生端截图。用户要求扩展时记录相应目标、状态／视口、发现和处置。critical、major 或阻断项修复后重审，未清零不得通过设计 QA、提交或发布。Hallmark 不可用须记录并按技能 audit 参考完成人工替代，不得声称已执行。
 - **UI 演示确认循环：**所有 UI 修改完成第一版后，先完成受影响目标的相称编译验证，启动 Web 并在真实浏览器中做代表视口的视觉校验，确认页面可打开、主要布局可查看、核心操作可演示；随后立即启动或重启开发／QA Compose 演示模式，提供可访问的入口，交给用户确认并等待反馈。不得为了自行打磨细节、穷举状态或跑完最终 QA 而推迟首次演示。
