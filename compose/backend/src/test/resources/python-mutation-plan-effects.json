@@ -1,0 +1,229 @@
+[
+  {
+    "baseline": [],
+    "expected": [],
+    "request": {
+      "relation_choices": []
+    },
+    "result": {
+      "invalidated_choices": [],
+      "operation s": [],
+      "operations": [],
+      "relation_failures": [],
+      "relation_groups": [],
+      "type_effects": {
+        "removed_funding_ids": [],
+        "removed_relation_ids": []
+      }
+    }
+  },
+  {
+    "baseline": [],
+    "expected": [
+      {
+        "kind": "choice_changed",
+        "reference": "7"
+      },
+      {
+        "field": "category_id",
+        "kind": "field_value_changed",
+        "reference": "42"
+      },
+      {
+        "kind": "funding_relation_removed",
+        "reference": "5"
+      },
+      {
+        "kind": "new_attention",
+        "reference": "42"
+      },
+      {
+        "kind": "relation_changed",
+        "reference": "9"
+      }
+    ],
+    "request": {
+      "relation_choices": []
+    },
+    "result": {
+      "invalidated_choices": [
+        {
+          "code": "x",
+          "kind": "issue",
+          "reference": "7"
+        }
+      ],
+      "operations": [
+        {
+          "expected_issues": [
+            {
+              "code": "source_update_pending",
+              "field_path": null
+            }
+          ],
+          "field_diffs": [
+            {
+              "effective": "新",
+              "field": "note",
+              "incoming": "新"
+            },
+            {
+              "effective": null,
+              "field": "category_id",
+              "incoming": "food"
+            }
+          ],
+          "issues": [
+            {
+              "code": "source_update_pending",
+              "field_path": null
+            },
+            {
+              "code": "account_missing",
+              "field_path": null
+            }
+          ],
+          "transaction_id": "42"
+        }
+      ],
+      "relation_groups": [],
+      "type_effects": {
+        "removed_funding_ids": [
+          "5"
+        ],
+        "removed_relation_ids": [
+          "9"
+        ]
+      }
+    }
+  },
+  {
+    "baseline": [],
+    "expected": [
+      {
+        "kind": "choice_changed",
+        "reference": "s3"
+      },
+      {
+        "kind": "relation_changed",
+        "reference": "s4"
+      }
+    ],
+    "request": {
+      "relation_choices": [
+        {
+          "action": "accept",
+          "suggestion_id": "s1"
+        },
+        {
+          "action": "remove",
+          "suggestion_id": "s2"
+        },
+        {
+          "action": "defer",
+          "suggestion_id": "s3"
+        }
+      ]
+    },
+    "result": {
+      "invalidated_choices": [],
+      "operations": [],
+      "relation_failures": [],
+      "relation_groups": [
+        {
+          "action": "accept",
+          "changed": false,
+          "origin": "current",
+          "parent_ids": [
+            "42"
+          ],
+          "suggestion_id": "s1"
+        },
+        {
+          "action": "remove",
+          "changed": true,
+          "expected_record_edges": [
+            {
+              "id": 9
+            }
+          ],
+          "parent_ids": [
+            "42",
+            "43"
+          ],
+          "suggestion_id": "s2"
+        },
+        {
+          "action": "skip",
+          "changed": true,
+          "parent_ids": [
+            "44"
+          ],
+          "suggestion_id": "s3"
+        },
+        {
+          "action": "accept",
+          "changed": true,
+          "origin": "discovery",
+          "parent_ids": [
+            "45"
+          ],
+          "suggestion_id": "s4"
+        }
+      ],
+      "type_effects": {
+        "removed_funding_ids": [],
+        "removed_relation_ids": [
+          "9"
+        ]
+      }
+    }
+  },
+  {
+    "baseline": [
+      {
+        "code": "relation_context_changed",
+        "issue_key": "relation:old",
+        "transaction_id": "46"
+      }
+    ],
+    "expected": [
+      {
+        "kind": "new_attention",
+        "reference": "42"
+      },
+      {
+        "kind": "new_attention",
+        "reference": "43"
+      }
+    ],
+    "request": {
+      "relation_choices": []
+    },
+    "result": {
+      "invalidated_choices": [],
+      "operations": [],
+      "relation_failures": [
+        {
+          "code": "relation_context_changed",
+          "parent_ids": [
+            "42",
+            "43"
+          ]
+        },
+        {
+          "code": "relation_endpoint_incompatible",
+          "parent_ids": [
+            "44"
+          ],
+          "suggestion_id": "s5"
+        }
+      ],
+      "relation_groups": [],
+      "type_effects": {
+        "removed_funding_ids": [],
+        "removed_relation_ids": []
+      }
+    }
+  }
+]
