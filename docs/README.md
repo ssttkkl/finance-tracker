@@ -17,23 +17,35 @@
 | 文档 | 说明 |
 |---|---|
 | [项目说明](../README.md) | 环境准备、后端、Compose 客户端、API 与开发验证 |
-| [Compose 功能地图](feature-map.md) | Compose 页面、实现证据与当前 QA 覆盖 |
-| [现金流水：存储、展示与操作](cash-ledger.md) | 从业务对象、展示与操作顺序到存储职责、API 和一致性边界 |
-| [导入、关系与同步流程](import-flow.md) | 当前主要导入和数据提交流程 |
-| [现金账单导入流程](cash-import-flow.md) | 现金导入主阅读入口：业务、后端执行、接口与数据衔接、局部重建及失败恢复 |
-| [投资管理架构](investment-management-architecture.md) | 手工写入、账单导入、连接器同步、事件查询、组合估值和现金—投资资金关系的当前模型与 API 契约 |
-| [UI 设计约束](ui-design-rules.md) | Compose UI 实现与审查规则 |
-| [设计系统组件登记](design-system/registry.yaml) | 当前共享展示辅助项 |
+| [Compose 功能地图](feature-map.md) | 产品总览、各模块页面与业务路径、实现证据和跨端待办 |
+| [现金流水：存储、展示与操作](cash-ledger/cash-ledger.md) | 从业务对象、展示与操作顺序到存储职责、API 和一致性边界 |
+| [导入、关系与同步流程](import/import-flow.md) | 当前主要导入和数据提交流程 |
+| [现金账单导入流程](import/cash-import-flow.md) | 现金导入主阅读入口：业务、后端执行、接口与数据衔接、局部重建及失败恢复 |
+| [投资管理架构](investment/investment-management-architecture.md) | 手工写入、账单导入、连接器同步、事件查询、组合估值和现金—投资资金关系的当前模型与 API 契约 |
+| [UI 设计约束](shared/ui-design-rules.md) | Compose UI 实现与审查规则 |
+| [设计系统组件登记](shared/design-system/registry.yaml) | 当前共享展示辅助项 |
+
+专题文档按业务模块归档，页面路径与覆盖状态仍以根目录功能地图为索引。
+
+| 模块目录 | 收录内容 |
+|---|---|
+| [认证](authentication/feature-map.md) | 登录、注册与会话恢复页面 |
+| [工作区](workspace/feature-map.md) | 工作区选择、邀请与管理页面 |
+| [现金账本](cash-ledger/feature-map.md) | 收支列表、详情记账、分类管理及账本操作参考 |
+| [导入](import/feature-map.md) | 现金账单导入、业务规则、接口契约与临时存储配置 |
+| [投资](investment/feature-map.md) | 持仓、投资流水与投资管理架构 |
+| [账户](accounts/feature-map.md) | 账户能力与现有页面入口 |
+| [共享规则](shared/feature-map.md) | 跨端合同、UI 规范与设计系统 |
 
 ## 现金流水与账单导入阅读顺序
 
-了解入库后的流水，先读 [现金流水：存储、展示与操作](cash-ledger.md)；了解外部账单怎样入库，读 [现金账单导入流程](cash-import-flow.md)。两份主文档都从业务讲到技术，分别负责账本维护和导入链路；它们共用以下详细参考。
+了解入库后的流水，先读 [现金流水：存储、展示与操作](cash-ledger/cash-ledger.md)；了解外部账单怎样入库，读 [现金账单导入流程](import/cash-import-flow.md)。两份主文档都从业务讲到技术，分别负责账本维护和导入链路；它们共用以下详细参考。
 
 | 参考文档 | 只在这里维护的细节 |
 |---|---|
-| [现金流水与导入业务规则](cash-import-redesign.md) | 共同字段白名单、流水与关系状态、来源身份和无编号匹配、维护规则、账单样本依据 |
-| [现金流水与导入契约参考](cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
-| [临时存储运行配置](cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
+| [现金流水与导入业务规则](import/cash-import-redesign.md) | 共同字段白名单、流水与关系状态、来源身份和无编号匹配、维护规则、账单样本依据 |
+| [现金流水与导入契约参考](import/cash-import-redesign-contracts.md) | HTTP 请求／响应、逻辑表结构、详细 UI 合同、合成场景及协议示例 |
+| [临时存储运行配置](import/cash-import-r2-staging.md) | R2／内存后端、TTL、清扫、权限与发布限制 |
 
 详细参考不另写一套完整流程；实施范围、审查和验证证据保留在对应 OpenSpec 归档记录中。当前客户端入口覆盖以[功能地图](feature-map.md)为准。
 

@@ -2,7 +2,7 @@
 
 入口 `App.kt`／`AppShell.kt` 保留账本主体，并在导入任务打开时挂载全屏模态 `CashImportTaskScreen`。生命周期客户端、任务与账户 ViewModel、最小恢复存储和实际收据已接通；本轮重写展示层，并扩展导入计划只读分页接口以支持主页同款序号定位。现有核对列表已经复用 `CashLedgerTableHeader`／`CashLedgerRow`，真正可复用的详情宿主是 `CashLedgerDetails.kt` 的 `CashRecordModalPanel`：Regular/Wide 为右侧模态面板，Compact 为全屏页面。
 
-行为输入为 [导入流程](../../../../docs/cash-import-flow.md) 与 [客户端合同](../../../../docs/cash-import-redesign-contracts.md#2-用户业务流程)。公共账本组件和侧板由维护变更所有，本轮不修改账本主页或导入后的维护能力。导入计划增加只读 `start_index` 页读取及筛选结果 `total_count`，继续支持原 `cursor` 客户端；页面用现有 Paging3 与 `CashLedgerScrollbar` 实现绝对序号跳转。
+行为输入为 [导入流程](../../../../docs/import/cash-import-flow.md) 与 [客户端合同](../../../../docs/import/cash-import-redesign-contracts.md#2-用户业务流程)。公共账本组件和侧板由维护变更所有，本轮不修改账本主页或导入后的维护能力。导入计划增加只读 `start_index` 页读取及筛选结果 `total_count`，继续支持原 `cursor` 客户端；页面用现有 Paging3 与 `CashLedgerScrollbar` 实现绝对序号跳转。
 
 ## Goals / Non-Goals
 

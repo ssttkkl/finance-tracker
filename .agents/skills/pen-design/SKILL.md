@@ -5,7 +5,7 @@ description: Create and update Finance Tracker UI designs in pen.dev. Use when p
 
 # Finance Tracker Pen Design
 
-Use pen.dev to create the project's authoritative visual design. Follow [`docs/ui-design-rules.md`](../../../docs/ui-design-rules.md) and the repository's `AGENTS.md`; those project rules take precedence over generic design defaults.
+Use pen.dev to create the project's authoritative visual design. Follow [`docs/shared/ui-design-rules.md`](../../../docs/shared/ui-design-rules.md) and the repository's `AGENTS.md`; those project rules take precedence over generic design defaults.
 
 ## Workflow
 

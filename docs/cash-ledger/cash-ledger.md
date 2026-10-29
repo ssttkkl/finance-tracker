@@ -1,8 +1,8 @@
 # 现金流水：存储、展示与操作流程
 
-本文从业务概念讲到当前后端实现，说明一笔现金流水怎样保存、怎样成为列表中的一笔收支，以及查看、编辑、分类、关联和删除分别修改什么。用户界面用语统一见[领域词表](../DOMAIN_GLOSSARY.md#用户界面用语)；本文中的内部模型名用于说明实现。账单进入系统的过程另见 [现金账单导入流程](cash-import-flow.md)。
+本文从业务概念讲到当前后端实现，说明一笔现金流水怎样保存、怎样成为列表中的一笔收支，以及查看、编辑、分类、关联和删除分别修改什么。用户界面用语统一见[领域词表](../../DOMAIN_GLOSSARY.md#用户界面用语)；本文中的内部模型名用于说明实现。账单进入系统的过程另见 [现金账单导入流程](../import/cash-import-flow.md)。
 
-当前后端已支持正式／草稿流水、当前投影及无文件维护；Compose 已接入当前详情、草稿及分摊保存、明确转正式、公共整笔编辑，以及普通记账／转账创建和完整转账编辑。统一导入已接主内容区任务；来源／身份维护及消费／退款导入、重复账单原文差异已通过代表流程 Web 冒烟；演示确认仍待完成。下文区分后端能力与客户端合同，实际页面覆盖统一见 [功能地图](feature-map.md)。字段及接口的详细参考集中在 [规则](cash-import-redesign.md) 和 [契约](cash-import-redesign-contracts.md)，不再另存完整字段表。
+当前后端已支持正式／草稿流水、当前投影及无文件维护；Compose 已接入当前详情、草稿及分摊保存、明确转正式、公共整笔编辑，以及普通记账／转账创建和完整转账编辑。统一导入已接主内容区任务；来源／身份维护及消费／退款导入、重复账单原文差异已通过代表流程 Web 冒烟；演示确认仍待完成。下文区分后端能力与客户端合同，实际页面覆盖统一见 [功能地图](../feature-map.md)。字段及接口的详细参考集中在 [规则](../import/cash-import-redesign.md) 和 [契约](../import/cash-import-redesign-contracts.md)，不再另存完整字段表。
 
 | 阅读目标 | 入口 |
 |---|---|
@@ -99,7 +99,7 @@ Compose 详情按“摘要 → 待处理提示 → 关联流水 → 账单原文
 
 Compose 的“记一笔”提供普通记账／转账两个模式，切换保留各自尚未保存的输入，只保存当前模式。普通记账内选择收入或支出，金额输入非负数；转账选择转出／转入账户，同币种只输入一个金额，换汇分别填写两端金额。确定成功后刷新账本；结果未知时保留输入并停止重复提交，返回账本核对后再操作。
 
-明确填写的备注和分类，包括清空，由服务端记录人工保护。普通手工新建不会自动发现并确认任意配对；需要从账单生成来源身份、处理重叠文件或自动配对时，使用 [导入流程](cash-import-flow.md)。
+明确填写的备注和分类，包括清空，由服务端记录人工保护。普通手工新建不会自动发现并确认任意配对；需要从账单生成来源身份、处理重叠文件或自动配对时，使用 [导入流程](../import/cash-import-flow.md)。
 
 ### 保存草稿与转正式
 
@@ -109,7 +109,7 @@ Compose 的“记一笔”提供普通记账／转账两个模式，切换保留
 
 ### 编辑正式收支与分类
 
-读取创建方式、可编辑字段及 `entry_id/revision`，以 `edit_entry` 提交公共补丁并确认维护计划。导入正式收支只允许分类、备注、对方名称及对方账户信息；单条与合并采用相同白名单，组内来源成员只读。金额、币种、账户、时间、类型和来源身份固定。普通手工流水可以修改全部合法业务字段；手工转账通过完整内部双端操作原子修改。详细边界见 [字段更新规则](cash-import-redesign.md#2-字段更新边界)。
+读取创建方式、可编辑字段及 `entry_id/revision`，以 `edit_entry` 提交公共补丁并确认维护计划。导入正式收支只允许分类、备注、对方名称及对方账户信息；单条与合并采用相同白名单，组内来源成员只读。金额、币种、账户、时间、类型和来源身份固定。普通手工流水可以修改全部合法业务字段；手工转账通过完整内部双端操作原子修改。详细边界见 [字段更新规则](../import/cash-import-redesign.md#2-字段更新边界)。
 
 公共属性保存在稳定收支对象，不批量回写来源成员。没有人工值时使用展示基准来源值；人工修改和清空在再次导入、局部维护及全量重建后保留。来源备注取原始描述，原始来源行仅由来源更新刷新。
 
@@ -125,7 +125,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 添加关联先选择同笔支付、退款冲销或个人转账，再搜索同一工作区内已保存的导入流水，不受自动匹配时间窗口限制。双方资格、真实修订、金额、币种、方向、关系占用及退款额度仍由服务端校验；普通手工记录、手工转账和银证转账不参与本次外部现金关联。自由搜索不等于任意构造关系边，确认仍需通过维护计划。
 
-公共分类、备注等人工值实际冲突时，在当前弹窗选择保留值或清空，再重新预览。移除关联保留原始流水及账单原文；只有人工公共值与拆开后的原有值实际不同时，才列出修改字段和值，并询问是否保留。联合方案显示各关系类型及端点，不能只确认非法子集；成员读取失败或选择失效时要求刷新，不自动替换对象。开发及验收范围见 [详情关联实施记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。
+公共分类、备注等人工值实际冲突时，在当前弹窗选择保留值或清空，再重新预览。移除关联保留原始流水及账单原文；只有人工公共值与拆开后的原有值实际不同时，才列出修改字段和值，并询问是否保留。联合方案显示各关系类型及端点，不能只确认非法子集；成员读取失败或选择失效时要求刷新，不自动替换对象。开发及验收范围见 [详情关联实施记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。
 
 ### 删除
 
@@ -160,7 +160,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 | `cash_projection_states/cash_projection_datasets` | 当前发布位置及版本 | 当前一致性边界，不是历史账本版本库 |
 | `cash_mutation_receipts/cash_mutation_results` | 受支持命令的实际结果和幂等事实 | 提交核实，不承诺所有旧命令都有收据 |
 
-完整物理字段及条件约束以 [ORM](../src/ft/adapters/relational/models.py) 和 [数据契约](cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
+完整物理字段及条件约束以 [ORM](../../src/ft/adapters/relational/models.py) 和 [数据契约](../import/cash-import-redesign-contracts.md#4-后端逻辑表结构契约) 为准。草稿允许的空值不免除工作区外键、已填写值合法性和正式条件校验；精确金额跨 SQLite／PostgreSQL 保持一致。
 
 流水实例 ID 用于本库关联和维护定位，来源身份用于跨账单核对，投影 ID 用于当前展示，三者不能互换。`entry_id/expected_entry_revision` 校验公共收支对象，`row_revision` 校验目标来源流水，`plan_revision` 校验维护计划，`projection_version` 校验当前列表、分类和删除选择；这些都是并发令牌，不是历史版本。
 
@@ -188,14 +188,14 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 | 职责 | 当前代码 |
 |---|---|
-| 模型、来源与关系约束 | [关系模型](../src/ft/adapters/relational/models.py)、[统一字段策略](../src/ft/domain/cash_record_policy.py)、[关系图规则](../src/ft/domain/cash_relation_graph.py) |
-| 列表、汇总、收支详情和定位 | [应用查询](../src/ft/application/queries.py)、[数据库读取](../src/ft/adapters/relational/web_queries.py) |
-| 维护详情与草稿保存 | [维护服务](../src/ft/application/cash_record_maintenance.py) |
-| 维护计划及确认 | [业务规划](../src/ft/application/cash_mutation_business_plan.py)、[计划服务](../src/ft/application/cash_mutation_plans.py)、[提交执行](../src/ft/application/cash_mutation_commit.py) |
-| 分类 | [分类目录](../src/ft/application/cash_categories.py)、[投影分类](../src/ft/application/cash_classification.py) |
-| 新建与删除 | [现金命令](../src/ft/application/cash_ledger.py)、[删除引用清理](../src/ft/application/cash_record_deletion.py) |
-| 余额与局部投影 | [余额规则](../src/ft/application/cash_balances.py)、[投影服务](../src/ft/application/cash_projections.py) |
-| HTTP 与命令开放范围 | [查询及直接命令路由](../src/ft/web/routes.py)、[维护路由](../src/ft/web/cash_plan_routes.py)、[专用操作](../src/ft/web/operation_routes.py)、[运行时分发](../src/ft/web/app.py) |
+| 模型、来源与关系约束 | [关系模型](../../src/ft/adapters/relational/models.py)、[统一字段策略](../../src/ft/domain/cash_record_policy.py)、[关系图规则](../../src/ft/domain/cash_relation_graph.py) |
+| 列表、汇总、收支详情和定位 | [应用查询](../../src/ft/application/queries.py)、[数据库读取](../../src/ft/adapters/relational/web_queries.py) |
+| 维护详情与草稿保存 | [维护服务](../../src/ft/application/cash_record_maintenance.py) |
+| 维护计划及确认 | [业务规划](../../src/ft/application/cash_mutation_business_plan.py)、[计划服务](../../src/ft/application/cash_mutation_plans.py)、[提交执行](../../src/ft/application/cash_mutation_commit.py) |
+| 分类 | [分类目录](../../src/ft/application/cash_categories.py)、[投影分类](../../src/ft/application/cash_classification.py) |
+| 新建与删除 | [现金命令](../../src/ft/application/cash_ledger.py)、[删除引用清理](../../src/ft/application/cash_record_deletion.py) |
+| 余额与局部投影 | [余额规则](../../src/ft/application/cash_balances.py)、[投影服务](../../src/ft/application/cash_projections.py) |
+| HTTP 与命令开放范围 | [查询及直接命令路由](../../src/ft/web/routes.py)、[维护路由](../../src/ft/web/cash_plan_routes.py)、[专用操作](../../src/ft/web/operation_routes.py)、[运行时分发](../../src/ft/web/app.py) |
 
 ## 7. 一致性及当前实现边界
 
@@ -203,7 +203,7 @@ Compose 在当前详情内切换编辑，只列允许修改的字段，其余信
 
 导入可隔离不同流水的失败，不能据此推断所有命令都“部分成功”。整笔分类的共同维护单位、版本化批量分类和批量删除各有完整性边界；范围内操作须按各自合同一起成功或回滚。维护计划与草稿保存的收据、当前状态和投影共同提交，结果未知先核实原请求，不换键重复写入。
 
-投影维护只影响相关旧、新组，并在旧投影成员与新确认关系之间迭代到闭包稳定。闭包外不重建，未确认候选不引发全库重配。算法、配对提交组、最终统一发布失败的回滚边界及收据恢复见 [导入流程的一致性机制](cash-import-flow.md#8-一致性机制只更新必要范围结果可以核实)，同一机制也支撑维护写入。
+投影维护只影响相关旧、新组，并在旧投影成员与新确认关系之间迭代到闭包稳定。闭包外不重建，未确认候选不引发全库重配。算法、配对提交组、最终统一发布失败的回滚边界及收据恢复见 [导入流程的一致性机制](../import/cash-import-flow.md#8-一致性机制只更新必要范围结果可以核实)，同一机制也支撑维护写入。
 
 旧类中仍存在的 `update_record/add_relation/cancel_relation/dissolve_relations` 等方法，不因代码存在而成为当前公共入口；运行时已限制可分发命令。旧 `/cash-facts/*` 及直接现金关系写入口不再作为当前操作合同。保留的专用现金、分类、删除及投资能力，不能随旧入口一起误删。
 
@@ -215,8 +215,8 @@ Compose 已接入当前正式／草稿列表、维护详情、草稿保存／转
 
 | 内容 | 入口 |
 |---|---|
-| 外部账单如何成为上述流水 | [现金账单导入流程](cash-import-flow.md) |
-| 字段、状态、来源对应和维护的详细规则 | [现金流水与导入业务规则](cash-import-redesign.md) |
-| 请求、响应、逻辑字段、后续 UI 合同与场景 | [接口、数据与客户端交互参考](cash-import-redesign-contracts.md) |
-| 当前客户端证据和待接入范围 | [功能地图](feature-map.md) |
-| 行为规格与未完成变更 | [现金账本规格导航](../openspec/specs/cash-ledger/README.md)、[实施变更](../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |
+| 外部账单如何成为上述流水 | [现金账单导入流程](../import/cash-import-flow.md) |
+| 字段、状态、来源对应和维护的详细规则 | [现金流水与导入业务规则](../import/cash-import-redesign.md) |
+| 请求、响应、逻辑字段、后续 UI 合同与场景 | [接口、数据与客户端交互参考](../import/cash-import-redesign-contracts.md) |
+| 当前客户端证据和待接入范围 | [功能地图](../feature-map.md) |
+| 行为规格与未完成变更 | [现金账本规格导航](../../openspec/specs/cash-ledger/README.md)、[实施变更](../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |

@@ -1,7 +1,7 @@
 ## 1. 思考与范围
 
 - [x] 1.1 显式完成 `grill-me` → `grilling` 澄清；确认 Web 与 Native 同步、总共 3 次恢复请求、无令牌直接登录、无效令牌立即登录、暂时性失败自动重试。
-- [x] 1.2 阅读 `openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、`docs/ui-design-rules.md`、认证入口代码、测试和现有 `workspace-entry` / `cross-platform-presentation` 主规格。
+- [x] 1.2 阅读 `openspec/project-context.md`、`DOMAIN_GLOSSARY.md`、`docs/shared/ui-design-rules.md`、认证入口代码、测试和现有 `workspace-entry` / `cross-platform-presentation` 主规格。
 - [x] 1.3 完成 Cross-platform Impact Check：Web 启动路由和加载态受影响；Native 启动恢复和加载态受影响；共享层的恢复重试语义与认证文案受影响；API、数据库、财务计算、令牌格式和持久化格式不受影响。
 
 ## 2. 计划与一致性

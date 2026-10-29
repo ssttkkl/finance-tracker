@@ -49,7 +49,7 @@
 
 ## 后续设计规则调整（2026-10-09）
 - [x] 按用户要求，将 Pen 登录/注册画板精简为 Compose `WindowSizeClass` 三类：`COMPACT` 390 px、`REGULAR` 768 px、`WIDE` 1440 px；保留既有状态画板、布局和触控目标。
-- [x] 更新 `AGENTS.md` 与 `docs/ui-design-rules.md`：三类各一张设计代表画板及对应浏览器代表视口；断点边界、最小支持宽度和缺陷宽度仅作补充 QA，不要求新增设计稿。
+- [x] 更新 `AGENTS.md` 与 `docs/shared/ui-design-rules.md`：三类各一张设计代表画板及对应浏览器代表视口；断点边界、最小支持宽度和缺陷宽度仅作补充 QA，不要求新增设计稿。
 - [x] Pen CLI 导出预览 `/tmp/login-window-classes.png` 已目视确认包含六张登录/注册类别画板及既有状态画板，布局和视觉未重新设计；Pen 节点 ID 与类别映射已同步至 `design.md`。
 - [x] 将认证 E2E 的登录及注册对照截图视口同步为三类代表值（390/768/1440 px）；注册溢出与卡片宽度仍保留额外窄屏/边界宽度回归检查。
 - [x] 本次未更改 Compose 运行时代码；三类视口浏览器 QA 覆盖交互、横向溢出、卡片几何与 Pen 同视口截图。`npm run test:e2e:compose -- tests/compose-access.e2e.ts` 从 `web/` 执行，9/9 通过；`openspec validate login-page-branding --type change --strict` 与 `git diff --check` 通过。

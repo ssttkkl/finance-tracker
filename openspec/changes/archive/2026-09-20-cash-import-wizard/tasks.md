@@ -73,7 +73,7 @@
 
 ## 10. 账户映射 UI 原型
 
-- [x] 10.1 按 Hallmark `Workbench / Account Mapping Grid` 和 `docs/ui-design-rules.md` 重做 `prototype/index.html`，创建项目级原型 token 与 Hallmark 预检记录
+- [x] 10.1 按 Hallmark `Workbench / Account Mapping Grid` 和 `docs/shared/ui-design-rules.md` 重做 `prototype/index.html`，创建项目级原型 token 与 Hallmark 预检记录
 - [x] 10.2 覆盖选择文件、正常映射、扫描中、空结果、账号冲突、币种待扩充、创建新账户草稿、流水预览、关系配对和成功状态；“确认映射”在不完整时禁用且所有预选仍需人工确认
 - [x] 10.3 使用真实浏览器检查 320 / 375 / 414 / 768 / 1440 / 390 px、键盘焦点、关键点击、页面级横向溢出和按钮文字换行，并保存 1440 / 390 px 截图
 - [x] 10.4 运行 Hallmark slop test、合同检查、中文文案检查和范围化术语搜索，将 finding、修复和证据回写本文件；等待用户确认原型后再实施生产 UI

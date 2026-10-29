@@ -2,9 +2,9 @@
 
 记录日期：2026-10-22。代码基线：`bc8a6aa4ea417595d321148650b6065ac3ebe113`。
 
-本文为重构前的现状记录，覆盖手工写入、账单导入、连接器同步、投资事件查询、组合估值和现金—投资资金调拨关系。组织方式参照 [现金账单导入后端架构](cash-import-flow.md)，但本次不设计重构方案，不修改业务代码、公共契约、数据库或产品功能。
+本文为重构前的现状记录，覆盖手工写入、账单导入、连接器同步、投资事件查询、组合估值和现金—投资资金调拨关系。组织方式参照 [现金账单导入后端架构](../import/cash-import-flow.md)，但本次不设计重构方案，不修改业务代码、公共契约、数据库或产品功能。
 
-范围已通过项目 `$grill-me` / `$grilling` 澄清并由用户确认：六条链路均记录入口、模块职责、数据结构、处理步骤、事务与幂等边界、API 和测试定位；另列规格与实现差异、耦合点和重构风险。验收以读者能从客户端或 HTTP 入口追踪到应用服务、领域计算、持久化及验证证据为准。术语沿用 [DOMAIN_GLOSSARY.md](../DOMAIN_GLOSSARY.md)，没有引入新的领域概念。
+范围已通过项目 `$grill-me` / `$grilling` 澄清并由用户确认：六条链路均记录入口、模块职责、数据结构、处理步骤、事务与幂等边界、API 和测试定位；另列规格与实现差异、耦合点和重构风险。验收以读者能从客户端或 HTTP 入口追踪到应用服务、领域计算、持久化及验证证据为准。术语沿用 [DOMAIN_GLOSSARY.md](../../DOMAIN_GLOSSARY.md)，没有引入新的领域概念。
 
 行为要求以当前主规格为准；下文的实现描述来自当前代码。两者不一致时明确并列，不把代码偏差升级为新合同，也不把归档设计、注释中的历史术语或 active change 的计划当成已实现行为。本文不包含真实账单、账户资料或凭据。
 
@@ -12,16 +12,16 @@
 
 | 能力 ID | 当前主规格 | 本文关注点 |
 |---|---|---|
-| `investment/investment-event-model` | [投资事件模型](../openspec/specs/investment/investment-event-model/spec.md) | 规范事件、资产方向、费用、本位资产、成本与确定性重放 |
-| `import/investment-statement-import` | [投资账单导入](../openspec/specs/import/investment-statement-import/spec.md) | 券商格式、来源证据、核对、行级幂等 |
-| `import/investment-connector-sync` | [投资连接器同步](../openspec/specs/import/investment-connector-sync/spec.md) | 连接器端口、增量游标、凭据、事件提交 |
-| `investment/portfolio-valuation` | [投资组合估值](../openspec/specs/investment/portfolio-valuation/spec.md) | 行情、汇率、状态、批量预算、局部失败 |
-| `investment/cash-investment-funding-relations` | [现金—投资资金调拨关系](../openspec/specs/investment/cash-investment-funding-relations/spec.md) | 跨表资金移动、候选、人工决定与收支投影 |
-| `shared/time-semantics`、`shared/runtime-database` | [时间语义](../openspec/specs/shared/time-semantics/spec.md)、[运行时数据库](../openspec/specs/shared/runtime-database/spec.md) | UTC、日期筛选、SQLite / PostgreSQL、迁移与故障边界 |
+| `investment/investment-event-model` | [投资事件模型](../../openspec/specs/investment/investment-event-model/spec.md) | 规范事件、资产方向、费用、本位资产、成本与确定性重放 |
+| `import/investment-statement-import` | [投资账单导入](../../openspec/specs/import/investment-statement-import/spec.md) | 券商格式、来源证据、核对、行级幂等 |
+| `import/investment-connector-sync` | [投资连接器同步](../../openspec/specs/import/investment-connector-sync/spec.md) | 连接器端口、增量游标、凭据、事件提交 |
+| `investment/portfolio-valuation` | [投资组合估值](../../openspec/specs/investment/portfolio-valuation/spec.md) | 行情、汇率、状态、批量预算、局部失败 |
+| `investment/cash-investment-funding-relations` | [现金—投资资金调拨关系](../../openspec/specs/investment/cash-investment-funding-relations/spec.md) | 跨表资金移动、候选、人工决定与收支投影 |
+| `shared/time-semantics`、`shared/runtime-database` | [时间语义](../../openspec/specs/shared/time-semantics/spec.md)、[运行时数据库](../../openspec/specs/shared/runtime-database/spec.md) | UTC、日期筛选、SQLite / PostgreSQL、迁移与故障边界 |
 
-Compose Web 与 Native 使用共享的 [InvestmentApi.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/InvestmentApi.kt)、[FinanceRepositoryImpl.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceRepositoryImpl.kt) 和 [InvestmentScreens.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)，提供持仓、事件、筛选、详情和估值刷新。当前投资 API 包装层没有手工投资写入、证券账单导入、连接器同步或资金关系审核的对应方法；不能从后端已有接口推断这些产品入口已经存在。
+Compose Web 与 Native 使用共享的 [InvestmentApi.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/InvestmentApi.kt)、[FinanceRepositoryImpl.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceRepositoryImpl.kt) 和 [InvestmentScreens.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)，提供持仓、事件、筛选、详情和估值刷新。当前投资 API 包装层没有手工投资写入、证券账单导入、连接器同步或资金关系审核的对应方法；不能从后端已有接口推断这些产品入口已经存在。
 
-页面覆盖与跨端验证仍以 [功能地图](feature-map.md) 为盘点入口。Compose Web、Android 和 iOS 是当前客户端；已退役客户端的页面不作为迁移参考。本文只更新架构记录和文档索引，不改变页面覆盖状态。
+页面覆盖与跨端验证仍以 [功能地图](../feature-map.md) 为盘点入口。Compose Web、Android 和 iOS 是当前客户端；已退役客户端的页面不作为迁移参考。本文只更新架构记录和文档索引，不改变页面覆盖状态。
 
 ## 2. 模块全景
 
@@ -62,21 +62,21 @@ flowchart TD
 
 | 层与文件 | 核心符号 | 当前职责与依赖 |
 |---|---|---|
-| [web/app.py](../src/ft/web/app.py) | `WorkspaceServices`、`WorkspaceInvestmentServices`、`WorkspacePortfolioServices`、`WorkspacePortfolioRefresh` | 从认证上下文绑定工作区，构造写入、查询和刷新服务；HTTP 装配与 `runtime.build_services` 是两套组合入口 |
-| [web/operation_routes.py](../src/ft/web/operation_routes.py) | `operation_router` | 手工写入、文件直传导入、管理员同步、资金关系命令；读取服务端凭据、管理临时文件 |
-| [web/routes.py](../src/ft/web/routes.py) | `cash_router`、`portfolio_sse_frame` | 名称虽为 cash，实际也承载投资账户、事件、证据、持仓及 SSE |
-| [application/investment.py](../src/ft/application/investment.py) | `InvestmentService`、`PortfolioQueryService` | 前者将操作参数转换为命令 DTO；后者同时编排当前估值、汇率、历史行情和周期表现 |
-| [application/investment_import.py](../src/ft/application/investment_import.py)、[application/sync_service.py](../src/ft/application/sync_service.py) | `InvestmentImportService`、`SyncService` | 分别编排文件输入和连接器输入；各自执行去重、事件应用、事件写入和快照维护 |
-| [domain/investment_projection.py](../src/ft/domain/investment_projection.py) | `apply_investment_command`、`apply_investment_event` | 不访问数据库，按精确数量、资产方向和成本语义修改内存快照 |
-| [domain/investment_record_type.py](../src/ft/domain/investment_record_type.py)、[domain/investment_validation.py](../src/ft/domain/investment_validation.py) | 类型/子类型校验、`validate_investment_snapshot` | 经济事实枚举与快照数值校验；后者允许有限负值，不等同于完整的逐事件语义校验 |
-| [adapters/relational/investments.py](../src/ft/adapters/relational/investments.py) | `RelationalInvestmentCommandRepository` | 手工写入的事务用例：查账户、锁快照、应用命令、保存事件与快照 |
-| [adapters/relational/repositories.py](../src/ft/adapters/relational/repositories.py)、[imports.py](../src/ft/adapters/relational/imports.py) | `RelationalInvestmentRepository`、`RelationalSnapshotRepository`、`RelationalImportRepository` | ORM 字段转换、正式事件读取与新增、工作区快照和来源身份/游标访问 |
-| [application/investment_web_queries.py](../src/ft/application/investment_web_queries.py)、[adapters/relational/investment_web_queries.py](../src/ft/adapters/relational/investment_web_queries.py) | `InvestmentLedgerQueryService`、`RelationalInvestmentLedgerQueryRepository` | 事件筛选、稳定分页、证据白名单、资金关系摘要 |
-| [adapters/relational/queries.py](../src/ft/adapters/relational/queries.py) | `RelationalPortfolioRepository` | 组合查询输入：账户币种、快照、事件历史及标的展示名称 |
-| [application/queries.py](../src/ft/application/queries.py) | `FinanceQueryService` | 通用账户余额与财务报表的兼容查询；投资账户余额另有行情失败回退成本的口径，不等同于组合 DTO |
-| [application/valuation.py](../src/ft/application/valuation.py)、[adapters/market_data.py](../src/ft/adapters/market_data.py)、[adapters/fx_rates.py](../src/ft/adapters/fx_rates.py) | `ValuationService`、`CompositeQuoteProvider`、`FxRateProvider` | 标的识别、当前/历史行情、估值状态和汇率 |
-| [application/portfolio_refresh.py](../src/ft/application/portfolio_refresh.py) | `PortfolioRefreshCoordinator` | 进程内后台刷新、展示口径缓存和 SSE，不拥有财务事实 |
-| [application/cash_investment_funding_relations.py](../src/ft/application/cash_investment_funding_relations.py) | `CashInvestmentFundingRelationService` | 直接使用关系型 Session 扫描和决定关系，同事务维护现金投影 |
+| [web/app.py](../../src/ft/web/app.py) | `WorkspaceServices`、`WorkspaceInvestmentServices`、`WorkspacePortfolioServices`、`WorkspacePortfolioRefresh` | 从认证上下文绑定工作区，构造写入、查询和刷新服务；HTTP 装配与 `runtime.build_services` 是两套组合入口 |
+| [web/operation_routes.py](../../src/ft/web/operation_routes.py) | `operation_router` | 手工写入、文件直传导入、管理员同步、资金关系命令；读取服务端凭据、管理临时文件 |
+| [web/routes.py](../../src/ft/web/routes.py) | `cash_router`、`portfolio_sse_frame` | 名称虽为 cash，实际也承载投资账户、事件、证据、持仓及 SSE |
+| [application/investment.py](../../src/ft/application/investment.py) | `InvestmentService`、`PortfolioQueryService` | 前者将操作参数转换为命令 DTO；后者同时编排当前估值、汇率、历史行情和周期表现 |
+| [application/investment_import.py](../../src/ft/application/investment_import.py)、[application/sync_service.py](../../src/ft/application/sync_service.py) | `InvestmentImportService`、`SyncService` | 分别编排文件输入和连接器输入；各自执行去重、事件应用、事件写入和快照维护 |
+| [domain/investment_projection.py](../../src/ft/domain/investment_projection.py) | `apply_investment_command`、`apply_investment_event` | 不访问数据库，按精确数量、资产方向和成本语义修改内存快照 |
+| [domain/investment_record_type.py](../../src/ft/domain/investment_record_type.py)、[domain/investment_validation.py](../../src/ft/domain/investment_validation.py) | 类型/子类型校验、`validate_investment_snapshot` | 经济事实枚举与快照数值校验；后者允许有限负值，不等同于完整的逐事件语义校验 |
+| [adapters/relational/investments.py](../../src/ft/adapters/relational/investments.py) | `RelationalInvestmentCommandRepository` | 手工写入的事务用例：查账户、锁快照、应用命令、保存事件与快照 |
+| [adapters/relational/repositories.py](../../src/ft/adapters/relational/repositories.py)、[imports.py](../../src/ft/adapters/relational/imports.py) | `RelationalInvestmentRepository`、`RelationalSnapshotRepository`、`RelationalImportRepository` | ORM 字段转换、正式事件读取与新增、工作区快照和来源身份/游标访问 |
+| [application/investment_web_queries.py](../../src/ft/application/investment_web_queries.py)、[adapters/relational/investment_web_queries.py](../../src/ft/adapters/relational/investment_web_queries.py) | `InvestmentLedgerQueryService`、`RelationalInvestmentLedgerQueryRepository` | 事件筛选、稳定分页、证据白名单、资金关系摘要 |
+| [adapters/relational/queries.py](../../src/ft/adapters/relational/queries.py) | `RelationalPortfolioRepository` | 组合查询输入：账户币种、快照、事件历史及标的展示名称 |
+| [application/queries.py](../../src/ft/application/queries.py) | `FinanceQueryService` | 通用账户余额与财务报表的兼容查询；投资账户余额另有行情失败回退成本的口径，不等同于组合 DTO |
+| [application/valuation.py](../../src/ft/application/valuation.py)、[adapters/market_data.py](../../src/ft/adapters/market_data.py)、[adapters/fx_rates.py](../../src/ft/adapters/fx_rates.py) | `ValuationService`、`CompositeQuoteProvider`、`FxRateProvider` | 标的识别、当前/历史行情、估值状态和汇率 |
+| [application/portfolio_refresh.py](../../src/ft/application/portfolio_refresh.py) | `PortfolioRefreshCoordinator` | 进程内后台刷新、展示口径缓存和 SSE，不拥有财务事实 |
+| [application/cash_investment_funding_relations.py](../../src/ft/application/cash_investment_funding_relations.py) | `CashInvestmentFundingRelationService` | 直接使用关系型 Session 扫描和决定关系，同事务维护现金投影 |
 
 投资侧尚没有一个贯穿手工、文件、连接器和查询的统一事件实体类型。命令是 dataclass，导入和同步主要传递 `dict`，持久化是 ORM，事件列表和组合输出又各有 DTO。
 
@@ -96,7 +96,7 @@ erDiagram
     investment_events ||--o{ cash_investment_funding_relations : investment_endpoint
 ```
 
-模型定义见 [models.py](../src/ft/adapters/relational/models.py)。工作区参与事件、账户和关系端点的复合外键，不能仅凭全局自增 ID 跨工作区建立引用。
+模型定义见 [models.py](../../src/ft/adapters/relational/models.py)。工作区参与事件、账户和关系端点的复合外键，不能仅凭全局自增 ID 跨工作区建立引用。
 
 | 表 / 模型 | 数据与约束 |
 |---|---|
@@ -107,9 +107,9 @@ erDiagram
 | `cash_investment_funding_relations` / `CashInvestmentFundingRelationModel` | 两端分别引用现金账户组成项、投资事件；保存方向、状态、规则、受限证据和决定信息；活动关系对唯一，已确认活动关系的两类端点各有唯一索引 |
 | `cash_transactions`、`cash_transaction_components` | 资金关系读取父流水的时间/类型/对手方，使用组成项的账户、金额、币种和 ID；父流水 ID 与组成项 ID 不可互换 |
 
-`investment_events` 的来源唯一约束不能只看 ORM：正式 Alembic 迁移创建了条件唯一索引 `uq_investment_events_source_record`，对非空 `source_type`、非空 `record_id` 约束 `workspace_id + source_type + record_id`。见 [来源清理迁移](../migrations/versions/20260724_08_inline_provenance_cleanup.py) 和 [整数主键迁移](../migrations/versions/20260724_09_bigint_surrogate_ids.py)。当前 ORM `__table_args__` 只声明对应普通索引；仅用 `Base.metadata.create_all` 创建的测试库与正式迁移库在这一点上不同。
+`investment_events` 的来源唯一约束不能只看 ORM：正式 Alembic 迁移创建了条件唯一索引 `uq_investment_events_source_record`，对非空 `source_type`、非空 `record_id` 约束 `workspace_id + source_type + record_id`。见 [来源清理迁移](../../migrations/versions/20260724_08_inline_provenance_cleanup.py) 和 [整数主键迁移](../../migrations/versions/20260724_09_bigint_surrogate_ids.py)。当前 ORM `__table_args__` 只声明对应普通索引；仅用 `Base.metadata.create_all` 创建的测试库与正式迁移库在这一点上不同。
 
-当前 schema head 为 `20261018_37`。运行时通过 `FT_DATABASE_URL` 明确选择 SQLite 或 PostgreSQL，不自动回退、不双写、不隐式迁移；参见 [relational/runtime.py](../src/ft/adapters/relational/runtime.py)。
+当前 schema head 为 `20261018_37`。运行时通过 `FT_DATABASE_URL` 明确选择 SQLite 或 PostgreSQL，不自动回退、不双写、不隐式迁移；参见 [relational/runtime.py](../../src/ft/adapters/relational/runtime.py)。
 
 ### 3.2 `investment_events` 字段合同
 
@@ -250,10 +250,10 @@ Repository 在一个 `RelationalUnitOfWork` 内查找工作区账户，要求类
 
 | 请求 `source` | 持久化 `source_type` | 解析、币种与特殊语义 | 实现 |
 |---|---|---|---|
-| `dfzq` | `dfzq_pdf` | 东方证券 PDF/文本结构；默认 CNY；交易与非交易行、可安全拆分费用、期末现金等 | [dfzq.py](../src/ft/importers/dfzq.py) |
-| `ibkr` | `ibkr_csv` | 已声明的 Activity CSV；调用者币种优先，否则读取 `总结.基础货币`，缺失则失败；不能静默默认 USD/CNY | [ibkr.py](../src/ft/importers/ibkr.py) |
-| `schwab` | `schwab_csv` | 已声明的中文表头 Transaction History CSV；默认 USD；处理 `TRD`、`DOI`、`JRN`、`WIN`，不能泛化为所有 Schwab CSV | [schwab.py](../src/ft/importers/schwab.py) |
-| `usmart-hk` / `usmart_hk` | `usmart_hk_pdf` | uSmart HK 受支持的保证金 / 日内融结单 PDF 或提取文本，含多市场、多币种业务；行自身币种优先，USD 为后备；核对现金、持仓，跳过已识别交易镜像 | [usmart_hk.py](../src/ft/importers/usmart_hk.py) |
+| `dfzq` | `dfzq_pdf` | 东方证券 PDF/文本结构；默认 CNY；交易与非交易行、可安全拆分费用、期末现金等 | [dfzq.py](../../src/ft/importers/dfzq.py) |
+| `ibkr` | `ibkr_csv` | 已声明的 Activity CSV；调用者币种优先，否则读取 `总结.基础货币`，缺失则失败；不能静默默认 USD/CNY | [ibkr.py](../../src/ft/importers/ibkr.py) |
+| `schwab` | `schwab_csv` | 已声明的中文表头 Transaction History CSV；默认 USD；处理 `TRD`、`DOI`、`JRN`、`WIN`，不能泛化为所有 Schwab CSV | [schwab.py](../../src/ft/importers/schwab.py) |
+| `usmart-hk` / `usmart_hk` | `usmart_hk_pdf` | uSmart HK 受支持的保证金 / 日内融结单 PDF 或提取文本，含多市场、多币种业务；行自身币种优先，USD 为后备；核对现金、持仓，跳过已识别交易镜像 | [usmart_hk.py](../../src/ft/importers/usmart_hk.py) |
 
 每个来源分别提供解析、`construct_source_identity` 和 `map_*_to_investment_event`。来源动作保留在来源证据中，不能直接当成正式 `record_type`。来源说明与业务 ID 分开，未知格式或无法映射的业务应整批失败。
 
@@ -281,7 +281,7 @@ Repository 在一个 `RelationalUnitOfWork` 内查找工作区账户，要求类
 
 ### 6.4 仍存在的 DFZQ 通用导入路径
 
-[adapters/statement_import.py](../src/ft/adapters/statement_import.py) 的 `StatementParser` 仍接受 DFZQ，经 `_route_dfzq_account` 从仓库外 `~/.ft/mapping.yaml` 的 `source=dfzq, match=*` 规则取得账户，再交给 [StatementImportService](../src/ft/application/statement_import.py)。它与上述显式 `account` 的投资导入路径不同，来源身份生成和 `source_payload` 形状也不同；通用路径不能视为四家券商统一入口，更不能将它等同于 Compose 现金导入会话。
+[adapters/statement_import.py](../../src/ft/adapters/statement_import.py) 的 `StatementParser` 仍接受 DFZQ，经 `_route_dfzq_account` 从仓库外 `~/.ft/mapping.yaml` 的 `source=dfzq, match=*` 规则取得账户，再交给 [StatementImportService](../../src/ft/application/statement_import.py)。它与上述显式 `account` 的投资导入路径不同，来源身份生成和 `source_payload` 形状也不同；通用路径不能视为四家券商统一入口，更不能将它等同于 Compose 现金导入会话。
 
 后续调整解析器或幂等规则时，两条 DFZQ 调用链都需要核对。本文记录其代码存在，不据此声明当前 Compose 有可用的 DFZQ 会话产品流程。
 
@@ -289,14 +289,14 @@ Repository 在一个 `RelationalUnitOfWork` 内查找工作区账户，要求类
 
 ### 7.1 端口、来源与配置
 
-[ConnectorPort](../src/ft/domain/connector_port.py) 定义 `source_type` 属性和 `fetch_trades(*, since: str | None) -> ConnectorResult`。`ConnectorResult` 是冻结 dataclass，但 `events` 为事件字典列表，另含 `next_cursor` 和 `raw_count`。`ConnectorAuthError`、`ConnectorDataError` 均继承 `ConnectorError`。端口名称为 `fetch_trades`，实际包含交易、资金、收入、费用和快照。
+[ConnectorPort](../../src/ft/domain/connector_port.py) 定义 `source_type` 属性和 `fetch_trades(*, since: str | None) -> ConnectorResult`。`ConnectorResult` 是冻结 dataclass，但 `events` 为事件字典列表，另含 `next_cursor` 和 `raw_count`。`ConnectorAuthError`、`ConnectorDataError` 均继承 `ConnectorError`。端口名称为 `fetch_trades`，实际包含交易、资金、收入、费用和快照。
 
 | HTTP `source` / `provider` | 实现 | 允许目标账户 | 正式渠道 |
 |---|---|---|---|
-| `binance`、`kraken`、`okx` | [CcxtExchangeConnector](../src/ft/adapters/connectors/ccxt_exchange.py) | 仅 `crypto` | `binance_api`、`kraken_api`、`okx_api` |
-| `polymarket` | [PolymarketConnector](../src/ft/adapters/connectors/polymarket.py) | `security` 或 `crypto` | `polymarket_api` |
+| `binance`、`kraken`、`okx` | [CcxtExchangeConnector](../../src/ft/adapters/connectors/ccxt_exchange.py) | 仅 `crypto` | `binance_api`、`kraken_api`、`okx_api` |
+| `polymarket` | [PolymarketConnector](../../src/ft/adapters/connectors/polymarket.py) | `security` 或 `crypto` | `polymarket_api` |
 
-凭据由 HTTP 边界 `_connector()` 经 [credentials.py](../src/ft/credentials.py) 读取，再把连接器注入 `SyncService`。应用服务不自行读凭据；未注入连接器会失败。配置位于仓库外 `~/.ft/credentials.yaml`，可用 `FT_CREDENTIALS_DIR` 指定目录：交易所要求 `api_key`、`api_secret`，可选 `password`；Polymarket 至少提供合法 `wallet` 或 `proxy_wallet`。读取器使用安全 YAML 解析，尝试设置 `0600` 和目录忽略规则。配置按数据源读取，没有工作区/账户专属凭据绑定。
+凭据由 HTTP 边界 `_connector()` 经 [credentials.py](../../src/ft/credentials.py) 读取，再把连接器注入 `SyncService`。应用服务不自行读凭据；未注入连接器会失败。配置位于仓库外 `~/.ft/credentials.yaml`，可用 `FT_CREDENTIALS_DIR` 指定目录：交易所要求 `api_key`、`api_secret`，可选 `password`；Polymarket 至少提供合法 `wallet` 或 `proxy_wallet`。读取器使用安全 YAML 解析，尝试设置 `0600` 和目录忽略规则。配置按数据源读取，没有工作区/账户专属凭据绑定。
 
 客户端请求不提交密钥。连接器的来源快照仍主要保存远端行字典，写入层没有覆盖所有来源的通用 secret 清洗器；查询侧白名单脱敏不能替代来源写入安全约束。
 
@@ -362,7 +362,7 @@ sequenceDiagram
 
 `GET /api/v1/accounts?view=investment` 返回 `{items:[{id,name,type,active}]}`，限定当前工作区 `security/crypto` 账户，包含停用账户。
 
-`GET /api/v1/investment-events` 的合同由 [investment_web_queries.py](../src/ft/application/investment_web_queries.py) 定义：
+`GET /api/v1/investment-events` 的合同由 [investment_web_queries.py](../../src/ft/application/investment_web_queries.py) 定义：
 
 | 参数 | 实际规则 |
 |---|---|
@@ -419,7 +419,7 @@ sequenceDiagram
 | 币种折算 | `display_currency`、`display_market_value`、`usd_market_value`、`fx_rate`、`fx_status`、`fx_reason` |
 | 周期表现 | `period_profit`、`period_profit_rate`、`period_baselines`；基线元素含 `account`、`ticker`、`occurred_at` |
 
-数值使用十进制字符串，时间使用 ISO 字符串；不可用金额为 `null`，不能用假 `0` 表示。上述 DTO 位于 [domain/investment.py](../src/ft/domain/investment.py)，Compose 解码见 [FinanceDtos.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceDtos.kt)。
+数值使用十进制字符串，时间使用 ISO 字符串；不可用金额为 `null`，不能用假 `0` 表示。上述 DTO 位于 [domain/investment.py](../../src/ft/domain/investment.py)，Compose 解码见 [FinanceDtos.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/FinanceDtos.kt)。
 
 ### 9.3 估值、汇率和总计
 
@@ -456,7 +456,7 @@ sequenceDiagram
 
 无期间快照时，以当前数量减期间净变动反推期初数量。有期间快照时，以最后快照数量和时间作为对应资产的不可逆基线；同时间事件使用原有顺序区分，只算基线之后的标的资金流，并通过 `period_baselines` 返回。存在期间快照时组合周期收益率为空。
 
-[investment_performance.py](../src/ft/domain/investment_performance.py) 提供纯计算：
+[investment_performance.py](../../src/ft/domain/investment_performance.py) 提供纯计算：
 
 ```text
 组合周期盈亏 = 期末资产 - 期初资产 - 有符号外部资金流之和
@@ -577,7 +577,7 @@ data: {"version":13}
 | 中 | 同步凭据异常的错误代码不统一；文件导入/同步可能把存储故障转换为 `400 operation_failed` | 客户端无法只按 `503 storage.*` 判断可重试存储故障，也不能假设所有凭据错误都返回稳定代码 |
 | 中 | 薄应用服务把手工事务放在 adapter，资金关系服务直接访问 ORM；HTTP 与独立 runtime 各有装配入口，DFZQ 又有通用路径 | 调整边界时容易漏掉调用链或误判事务所有者 |
 
-[财富归因后端退役记录](../openspec/changes/archive/2026-10-28-remove-wealth-attribution-backend/proposal.md)说明当前运行时代码已移除财富归因专属服务和表，包括旧 `valuation_observations`；投资组合估值、周期盈亏与资金关系仍保留。归档任务中的 SQLite 迁移回归和 PostgreSQL 验证仍未完成，不据此声明删除迁移已全部验证。本文不将财富归因历史架构混入当前投资模块。
+[财富归因后端退役记录](../../openspec/changes/archive/2026-10-28-remove-wealth-attribution-backend/proposal.md)说明当前运行时代码已移除财富归因专属服务和表，包括旧 `valuation_observations`；投资组合估值、周期盈亏与资金关系仍保留。归档任务中的 SQLite 迁移回归和 PostgreSQL 验证仍未完成，不据此声明删除迁移已全部验证。本文不将财富归因历史架构混入当前投资模块。
 
 ## 14. 测试定位与本次文档验证
 
@@ -587,22 +587,22 @@ data: {"version":13}
 
 | 范围 | 现有证据 |
 |---|---|
-| 手工命令、费用、成本、软启动负余额与事务 | [test_application_investment.py](../tests/test_application_investment.py)、[test_investment_service_us2.py](../tests/unit/application/test_investment_service_us2.py) |
-| 规范事件应用、本位资产与快照 | [test_investment_event_replay.py](../tests/unit/domain/test_investment_event_replay.py)、[test_investment_base_currency_cost.py](../tests/unit/domain/test_investment_base_currency_cost.py)、[test_investment_snapshot_validation.py](../tests/unit/domain/test_investment_snapshot_validation.py) |
-| 券商解析、映射、核对和重复导入 | [unit/importers](../tests/unit/importers/)、[integration](../tests/integration/) 中 DFZQ、IBKR、Schwab、uSmart 的对应测试 |
-| 四类券商双后端合同 | [DFZQ](../tests/contract/test_dual_backend_dfzq.py)、[IBKR](../tests/contract/test_dual_backend_ibkr.py)、[Schwab](../tests/contract/test_dual_backend_schwab.py)、[uSmart HK](../tests/contract/test_dual_backend_usmart_hk.py) |
-| 连接器、游标回退、后续块失败全量回滚与凭据 | [test_sync_service.py](../tests/unit/test_sync_service.py)、[test_ccxt_connector.py](../tests/unit/test_ccxt_connector.py)、[test_polymarket_connector.py](../tests/unit/test_polymarket_connector.py)、[test_credentials.py](../tests/unit/test_credentials.py)；integration 中相应 SQLite / PostgreSQL 同步测试 |
-| 事件筛选、分页、脱敏、跨工作区与 HTTP | [test_application_investment_web_queries.py](../tests/test_application_investment_web_queries.py)、[test_investment_web_api.py](../tests/contract/test_investment_web_api.py)、[test_cli_replacement_api.py](../tests/contract/test_cli_replacement_api.py)（文件名中的 CLI 是历史入口替代测试，不代表当前仍有该 CLI） |
-| 估值、历史行情、汇率、预算、数据源隔离 | [test_portfolio_valuation.py](../tests/unit/application/test_portfolio_valuation.py)、[test_valuation_service.py](../tests/unit/application/test_valuation_service.py)、[test_historical_valuation.py](../tests/test_historical_valuation.py)、[test_market_data.py](../tests/test_market_data.py)、[test_fx_rates.py](../tests/test_fx_rates.py) |
-| 周期盈亏与刷新流 | [test_investment_performance.py](../tests/test_investment_performance.py)、[test_portfolio_refresh.py](../tests/test_portfolio_refresh.py) |
-| 资金关系和投影 | [test_cash_investment_funding_relations.py](../tests/test_cash_investment_funding_relations.py) |
-| 投资查询性能 | [test_investment_web_performance.py](../tests/test_investment_web_performance.py) |
+| 手工命令、费用、成本、软启动负余额与事务 | [test_application_investment.py](../../tests/test_application_investment.py)、[test_investment_service_us2.py](../../tests/unit/application/test_investment_service_us2.py) |
+| 规范事件应用、本位资产与快照 | [test_investment_event_replay.py](../../tests/unit/domain/test_investment_event_replay.py)、[test_investment_base_currency_cost.py](../../tests/unit/domain/test_investment_base_currency_cost.py)、[test_investment_snapshot_validation.py](../../tests/unit/domain/test_investment_snapshot_validation.py) |
+| 券商解析、映射、核对和重复导入 | [unit/importers](../../tests/unit/importers)、[integration](../../tests/integration) 中 DFZQ、IBKR、Schwab、uSmart 的对应测试 |
+| 四类券商双后端合同 | [DFZQ](../../tests/contract/test_dual_backend_dfzq.py)、[IBKR](../../tests/contract/test_dual_backend_ibkr.py)、[Schwab](../../tests/contract/test_dual_backend_schwab.py)、[uSmart HK](../../tests/contract/test_dual_backend_usmart_hk.py) |
+| 连接器、游标回退、后续块失败全量回滚与凭据 | [test_sync_service.py](../../tests/unit/test_sync_service.py)、[test_ccxt_connector.py](../../tests/unit/test_ccxt_connector.py)、[test_polymarket_connector.py](../../tests/unit/test_polymarket_connector.py)、[test_credentials.py](../../tests/unit/test_credentials.py)；integration 中相应 SQLite / PostgreSQL 同步测试 |
+| 事件筛选、分页、脱敏、跨工作区与 HTTP | [test_application_investment_web_queries.py](../../tests/test_application_investment_web_queries.py)、[test_investment_web_api.py](../../tests/contract/test_investment_web_api.py)、[test_cli_replacement_api.py](../../tests/contract/test_cli_replacement_api.py)（文件名中的 CLI 是历史入口替代测试，不代表当前仍有该 CLI） |
+| 估值、历史行情、汇率、预算、数据源隔离 | [test_portfolio_valuation.py](../../tests/unit/application/test_portfolio_valuation.py)、[test_valuation_service.py](../../tests/unit/application/test_valuation_service.py)、[test_historical_valuation.py](../../tests/test_historical_valuation.py)、[test_market_data.py](../../tests/test_market_data.py)、[test_fx_rates.py](../../tests/test_fx_rates.py) |
+| 周期盈亏与刷新流 | [test_investment_performance.py](../../tests/test_investment_performance.py)、[test_portfolio_refresh.py](../../tests/test_portfolio_refresh.py) |
+| 资金关系和投影 | [test_cash_investment_funding_relations.py](../../tests/test_cash_investment_funding_relations.py) |
+| 投资查询性能 | [test_investment_web_performance.py](../../tests/test_investment_web_performance.py) |
 
 正式双后端补跑需要专用、名称以 `_test` 结尾的 PostgreSQL 库并设置 `FT_TEST_POSTGRES_URL`；测试跳过不能算验证通过。本文没有创建测试数据库、连接真实数据源或运行投资写入。
 
 ### 14.2 本次文档交付边界
 
-本次仅新增本文件并更新 [文档索引](README.md)，不创建 OpenSpec scaffolding，不修改功能地图中的实现状态。后端回归、构建、双后端矩阵、Web/Native 浏览器或设备 QA 对这次纯文档变更不适用；以上代码风险保留待后续有授权范围的变更复现与处理。
+本次仅新增本文件并更新 [文档索引](../README.md)，不创建 OpenSpec scaffolding，不修改功能地图中的实现状态。后端回归、构建、双后端矩阵、Web/Native 浏览器或设备 QA 对这次纯文档变更不适用；以上代码风险保留待后续有授权范围的变更复现与处理。
 
 审查与验证时间：2026-10-22 14:02，Asia/Shanghai。`HEAD` 与比较基线均为 `bc8a6aa4ea417595d321148650b6065ac3ebe113`，审查对象为该基线之上的本文件和索引改动。
 

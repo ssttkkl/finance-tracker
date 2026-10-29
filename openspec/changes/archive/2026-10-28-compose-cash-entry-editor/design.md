@@ -2,7 +2,7 @@
 
 旧编辑状态按单条流水构造全部字段并调用已关闭的 PUT；当前后端允许范围按创建方式和当前权限返回。公共属性保存在稳定收支对象，普通手动和双端转账通过当前维护计划保存，新建仍使用各自直接命令。
 
-合同输入为 [现金流水](../../../../docs/cash-ledger.md#5-操作流程及作用范围) 和 [维护接口](../../../../docs/cash-import-redesign-contracts.md#35-后续维护与读取)。共享模型、宿主与集中声明所有权见 [维护变更](../2026-10-28-compose-cash-ledger-maintenance/design.md#共享基础与并行归属)。
+合同输入为 [现金流水](../../../../docs/cash-ledger/cash-ledger.md#5-操作流程及作用范围) 和 [维护接口](../../../../docs/import/cash-import-redesign-contracts.md#35-后续维护与读取)。共享模型、宿主与集中声明所有权见 [维护变更](../2026-10-28-compose-cash-ledger-maintenance/design.md#共享基础与并行归属)。
 
 ## Goals / Non-Goals
 
