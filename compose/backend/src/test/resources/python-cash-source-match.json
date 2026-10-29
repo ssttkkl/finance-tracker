@@ -1,0 +1,1413 @@
+{
+  "allocated_ids": {
+    "no_provider_prefix": "import-v1:",
+    "provider": "provider-v1:66f05ccedce987d00066c9c3a844210ba162d6c6f5c478b1be5e2e2a3e0f760b"
+  },
+  "cases": [
+    {
+      "name": "new",
+      "ok": true,
+      "records": [],
+      "resolutions": [
+        {
+          "action": "new",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "duplicate",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "duplicate",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": "t1"
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "match",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "other",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "match",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": "t1"
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "account-conflict",
+      "ok": true,
+      "records": [
+        {
+          "account": "9999",
+          "binding_keys": [
+            "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+          ],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "conflict",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "source_identity_conflict",
+          "transaction_id": "t1"
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "pending",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        },
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {
+                "x": "y"
+              },
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t2"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "pending",
+          "bind": false,
+          "candidate_ids": [
+            "t1",
+            "t2"
+          ],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "source_identity_ambiguous",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "deleted",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": true,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "new",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "targets",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "duplicate",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": "t1"
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {
+        "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4": [
+          "t1"
+        ]
+      }
+    },
+    {
+      "name": "batch-duplicate",
+      "ok": true,
+      "records": [],
+      "resolutions": [
+        {
+          "action": "new",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": null
+        },
+        {
+          "action": "batch_duplicate",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "occurrence_key": "f5c6caac81bf215c66e607ec7b710f3e197e160382479600a416f01d1f09e965",
+          "reason": "",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": "p1",
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        },
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 2,
+          "provider_id": "p1",
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "distinct-position",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [
+            "e28742b95da1fe24c309b5aafb1d3050e472ea85c31816bbed96104551a1f67d"
+          ],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {
+            "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e": []
+          },
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "conflict",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "f5c6caac81bf215c66e607ec7b710f3e197e160382479600a416f01d1f09e965",
+          "reason": "source_identity_conflict",
+          "transaction_id": "t1"
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 2,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "doc-conflict",
+      "ok": true,
+      "records": [],
+      "resolutions": [
+        {
+          "action": "conflict",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "batch_identity_conflict",
+          "transaction_id": null
+        },
+        {
+          "action": "conflict",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "batch_identity_conflict",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "pages": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": 1
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": "p1:t0:r1",
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        },
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "pages": {
+              "1": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": 1
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": "p1:t0:r1",
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "unchanged-multi",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        },
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t2"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "duplicate",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": null
+        },
+        {
+          "action": "duplicate",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "f5c6caac81bf215c66e607ec7b710f3e197e160382479600a416f01d1f09e965",
+          "reason": "",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        },
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 2,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    },
+    {
+      "name": "uniform-extra",
+      "ok": true,
+      "records": [
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t1"
+        },
+        {
+          "account": "6222",
+          "binding_keys": [],
+          "coverages": [
+            {
+              "complete": true,
+              "end": "2026-08-31T16:00:00+00:00",
+              "end_inclusive": false,
+              "evidence": "e",
+              "filters": {},
+              "key": null,
+              "pages": {},
+              "start": "2026-07-31T16:00:00+00:00",
+              "start_inclusive": true,
+              "strategy_version": "v",
+              "time_precision": "second",
+              "total": null
+            }
+          ],
+          "deleted": false,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "file_occurrences": {},
+          "protected_fields": [],
+          "provider_binding_key": null,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "stable_evidence": null,
+          "stable_evidence_binding_key": null,
+          "transaction_id": "t2"
+        }
+      ],
+      "resolutions": [
+        {
+          "action": "duplicate",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "reason": "",
+          "transaction_id": null
+        },
+        {
+          "action": "duplicate",
+          "bind": false,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "f5c6caac81bf215c66e607ec7b710f3e197e160382479600a416f01d1f09e965",
+          "reason": "",
+          "transaction_id": null
+        },
+        {
+          "action": "new",
+          "bind": true,
+          "candidate_ids": [],
+          "duplicate_of": null,
+          "occurrence_key": "a450c5aa0ccbec72e7086fbdc9fd739aa4f04ea91da8c12784311f0548d6bc46",
+          "reason": "",
+          "transaction_id": null
+        }
+      ],
+      "rows": [
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 1,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        },
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 2,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        },
+        {
+          "account": "6222",
+          "coverage": {
+            "complete": true,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {},
+            "key": null,
+            "pages": {},
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "v",
+            "time_precision": "second",
+            "total": null
+          },
+          "digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "document_position": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "merchant",
+            "currency": "CNY",
+            "note": "n",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "a": "b"
+            }
+          },
+          "parser_version": "bank-table-rows-v1",
+          "position": 3,
+          "provider_id": null,
+          "source_type": "ccb_debit",
+          "table_key": "sheet:0"
+        }
+      ],
+      "targets": {}
+    }
+  ]
+}

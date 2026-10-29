@@ -7,9 +7,11 @@ import javax.xml.stream.XMLInputFactory
 import javax.xml.stream.XMLStreamConstants
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.time.ZoneOffset
 import kotlinx.serialization.json.*
 
@@ -29,7 +31,7 @@ internal data class CashSourceCoverage(
     val pageFingerprints: Map<String, String> = emptyMap(),
 ) {
     init {
-        val hasEvidence = !documentKey.isNullOrEmpty() || pageTotal != null || pageFingerprints.isNotEmpty()
+        val hasEvidence = documentKey != null || pageTotal != null || pageFingerprints.isNotEmpty()
         if (hasEvidence) {
             val key = documentKey
             val total = pageTotal
@@ -44,14 +46,13 @@ internal data class CashSourceCoverage(
         }
     }
 
-    fun comparable(other: CashSourceCoverage, value: String?): Boolean =
+    fun comparable(other: CashSourceCoverage, value: Any?): Boolean =
         contains(value) && other.contains(value) && filters == other.filters &&
             timePrecision == other.timePrecision && strategyVersion == other.strategyVersion
 
-    fun contains(value: String?): Boolean {
+    fun contains(value: Any?): Boolean {
         if (!complete || evidence.isEmpty() || start == null || end == null || value == null) return false
-        val offset = Regex("[T ].*?(?:Z|[+-]\\d{2}(?::?\\d{2})?(?::?\\d{2})?)$")
-        if (!offset.containsMatchIn(start) || !offset.containsMatchIn(end) || !offset.containsMatchIn(value)) return false
+        if (!hasExplicitOffset(start) || !hasExplicitOffset(end) || !hasExplicitOffset(value)) return false
         return try {
             val startTime = pythonCashTimestamp(start)
             val endTime = pythonCashTimestamp(end)
@@ -62,6 +63,12 @@ internal data class CashSourceCoverage(
         } catch (_: Exception) {
             false
         }
+    }
+
+    private fun hasExplicitOffset(value: Any?): Boolean = when (value) {
+        is Instant, is OffsetDateTime, is ZonedDateTime -> true
+        is String -> Regex("[T ].*?(?:Z|[+-]\\d{2}(?::?\\d{2})?(?::?\\d{2})?)$").containsMatchIn(value)
+        else -> false
     }
 }
 
