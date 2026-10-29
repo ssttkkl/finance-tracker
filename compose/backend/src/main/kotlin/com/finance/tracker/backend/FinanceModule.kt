@@ -360,6 +360,20 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
+        post("/api/v1/cash-mutations/resolve") {
+            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
+                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
+            val input = body.value as? JsonObject ?: throw MutationPlanFailure("plan_input_invalid")
+            val planId = (input["plan_id"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?: throw MutationPlanFailure("plan_input_invalid")
+            val key = (input["idempotency_key"] as? JsonPrimitive)?.takeIf { it.isString }?.content
+                ?: throw MutationPlanFailure("plan_input_invalid")
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
+                    call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
         post("/api/v1/cash-mutations/plans/{plan_id}/commit") {
             val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
                 catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }

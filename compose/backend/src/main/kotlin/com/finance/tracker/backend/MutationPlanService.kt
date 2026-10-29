@@ -173,6 +173,40 @@ class MutationPlanService(
         return ReceiptRepositoryView.strip(receipt)
     }
 
+    fun resolve(token: String?, planId: String?, idempotencyKey: String?, requestPrincipal: Principal? = null): JsonObject {
+        val key = idempotencyKey?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,255}")) }
+            ?: throw MutationPlanFailure("idempotency_key_required")
+        val contextId = MutationPlanStore.contextId(planId)
+        val principal = reads.currentContext(token)
+        if (requestPrincipal != null) sameContext(requestPrincipal, principal)
+        return try {
+            database.write { connection ->
+                val current = planContext(connection, token, write = true)
+                if (requestPrincipal != null) sameContext(requestPrincipal, current)
+                val workspace = current.workspaceId ?: throw AccessFailure(true)
+                val repository = ReceiptRepository(connection, workspace, database.sqlite, now)
+                val byKey = repository.byKey(current.userId, key)
+                if (byKey != null && (byKey["operation_kind"]?.jsonPrimitive?.contentOrNull != "mutation" ||
+                        byKey["plan_id"]?.jsonPrimitive?.contentOrNull != planId)) {
+                    throw ReceiptConflict("idempotency_conflict", byKey.getValue("receipt_id").jsonPrimitive.content)
+                }
+                val receipt = byKey ?: repository.forContext(current.userId, editContextDigest = tokenDigest(contextId))
+                if (receipt != null) return@write buildJsonObject {
+                    put("status", "committed"); put("receipt", ReceiptRepositoryView.strip(receipt))
+                }
+                val stored = try { store.get(contextId, workspace, current.userId) }
+                    catch (_: MutationPlanStore.Expired) { return@write buildJsonObject { put("status", "not_committed") } }
+                    catch (_: MutationPlanStore.NotFound) { return@write buildJsonObject { put("status", "not_committed") } }
+                if (stored.cancelled || stored.plan == null ||
+                    stored.plan["plan_id"]?.jsonPrimitive?.contentOrNull != planId)
+                    buildJsonObject { put("status", "not_committed") }
+                else buildJsonObject { put("status", "retry_original") }
+            }
+        } catch (failure: StorageFailure) {
+            if (failure.code == "storage.busy") buildJsonObject { put("status", "pending") } else throw failure
+        }
+    }
+
     private fun <T> read(token: String?, requestPrincipal: Principal?, block: (Principal) -> T): T {
         val principal = reads.currentContext(token)
         if (requestPrincipal != null) sameContext(requestPrincipal, principal)

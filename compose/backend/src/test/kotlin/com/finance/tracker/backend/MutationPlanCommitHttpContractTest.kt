@@ -32,6 +32,13 @@ class MutationPlanCommitHttpContractTest {
         assertEquals(200, created.status.value, created.bodyAsText())
         val plan = Json.parseToJsonElement(created.bodyAsText()).jsonObject
         val planId = plan.getValue("plan_id").jsonPrimitive.content
+        val early = client.post("/api/v1/cash-mutations/resolve") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("plan_id", planId); put("idempotency_key", "resolve-early") }.toString())
+        }
+        assertEquals(200, early.status.value)
+        assertEquals("retry_original", Json.parseToJsonElement(early.bodyAsText()).jsonObject.getValue("status").jsonPrimitive.content)
         val committed = client.post("/api/v1/cash-mutations/plans/$planId/commit") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             header("Idempotency-Key", "commit-edit-record")
@@ -71,6 +78,21 @@ class MutationPlanCommitHttpContractTest {
         assertEquals(expected.getValue("projection").jsonObject.getValue("availability").jsonPrimitive.content, state.third.second)
         assertEquals(expected.getValue("projection").jsonObject.getValue("member_count").jsonPrimitive.long, state.third.third)
 
+        val resolved = client.post("/api/v1/cash-mutations/resolve") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("plan_id", planId); put("idempotency_key", "commit-edit-record") }.toString())
+        }
+        assertEquals(200, resolved.status.value)
+        val resolvedBody = Json.parseToJsonElement(resolved.bodyAsText()).jsonObject
+        assertEquals("committed", resolvedBody.getValue("status").jsonPrimitive.content)
+        assertEquals(receipt.getValue("receipt_id"), resolvedBody.getValue("receipt").jsonObject.getValue("receipt_id"))
+        val byContext = client.post("/api/v1/cash-mutations/resolve") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("plan_id", planId); put("idempotency_key", "resolve-new") }.toString())
+        }
+        assertEquals("committed", Json.parseToJsonElement(byContext.bodyAsText()).jsonObject.getValue("status").jsonPrimitive.content)
         val replay = client.post("/api/v1/cash-mutations/plans/$planId/commit") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             header("Idempotency-Key", "commit-edit-record")
@@ -88,6 +110,20 @@ class MutationPlanCommitHttpContractTest {
         }
         assertEquals(409, consumed.status.value)
         assertEquals("edit_context_committed", errorCode(consumed.bodyAsText()))
+        val malformed = client.post("/api/v1/cash-mutations/resolve") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("plan_id", "bad"); put("idempotency_key", "resolve-bad") }.toString())
+        }
+        assertEquals(404, malformed.status.value)
+        assertEquals("plan_not_found", errorCode(malformed.bodyAsText()))
+        val missingResolveKey = client.post("/api/v1/cash-mutations/resolve") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("plan_id", planId) }.toString())
+        }
+        assertEquals(422, missingResolveKey.status.value)
+        assertEquals("plan_input_invalid", errorCode(missingResolveKey.bodyAsText()))
         val missing = client.post("/api/v1/cash-mutations/plans/$planId/commit") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             contentType(ContentType.Application.Json)

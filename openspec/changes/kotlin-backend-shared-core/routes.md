@@ -49,7 +49,7 @@
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}` | `src/ft/web/cash_plan_routes.py:263` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}/rows` | `src/ft/web/cash_plan_routes.py:279` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}/relations` | `src/ft/web/cash_plan_routes.py:284` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
-| POST | `/api/v1/cash-mutations/resolve` | `src/ft/web/cash_plan_routes.py:289` | 未迁移 |
+| POST | `/api/v1/cash-mutations/resolve` | `src/ft/web/cash_plan_routes.py:289` | 已实现；双库 retry_original/已提交收据/非法 plan/缺键通过；pending 锁冲突未专项验证 |
 | POST | `/api/v1/cashflow/add` | `src/ft/web/operation_routes.py:113` | 已实现；旧来源/日期/精确金额、editor、响应编码失败全回滚；双库 HTTP/13 表全列、原断言及真实 Netty 通过 |
 | POST | `/api/v1/cashflow/checkin` | `src/ft/web/operation_routes.py:134` | 已实现；零金额事实、指定币种余额及快照错误顺序；双库 HTTP/13 表全列、原断言及真实 Netty 通过；Compose 无现有消费者 |
 | POST | `/api/v1/cashflow/transfer` | `src/ft/web/operation_routes.py:150` | 已实现；现金/贷款/借款/证券/加密双侧事件、现金关系、余额和投影同事务；双库 92 组 HTTP/全部财务列、editor 原断言及现有 Compose 消费通过 |
