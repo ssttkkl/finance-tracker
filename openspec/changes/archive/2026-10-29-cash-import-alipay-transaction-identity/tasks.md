@@ -47,10 +47,10 @@
 
 ## 验证证据
 
-- 分支：`feat/alipay-transaction-identity`；测试时 `HEAD=849c2a69c59509e27e5a789574646a83b92a0022`，比较基线 `origin/main=849c2a69c59509e27e5a789574646a83b92a0022`。验证时间：2026-10-29 CST。
-- 双后端目标回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_cash_source_scope.py tests/test_cash_source_batch.py tests/test_cash_source_matching.py tests/test_parsed_import_staging.py tests/contract/test_cash_source_storage.py tests/contract/test_cash_import_plan_api.py tests/test_cash_import_funding.py`，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_test@127.0.0.1:15439/cash_import_alipay_test`、`FT_REQUIRE_TEST_POSTGRES=1` 和测试容器提供的 `PGPASSWORD` 后，`576 passed, 0 skipped, 121 warnings`，135.92 秒。
+- 分支：`feat/alipay-transaction-identity`；测试时 `HEAD=577898a60e1677bbbe08505590c761b97a05bfa9`，比较基线 `origin/main=849c2a69c59509e27e5a789574646a83b92a0022`。验证时间：2026-10-29 12:07 CST。
+- 双后端目标回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_cash_source_scope.py tests/test_cash_source_batch.py tests/test_cash_source_matching.py tests/test_parsed_import_staging.py tests/contract/test_cash_source_storage.py tests/contract/test_cash_import_plan_api.py tests/test_cash_import_funding.py`，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_test@127.0.0.1:15439/cash_import_alipay_test`、`FT_REQUIRE_TEST_POSTGRES=1` 和测试容器提供的 `PGPASSWORD` 后，`583 passed, 0 skipped, 121 warnings`，136.47 秒。
 - 范围／来源实体补充回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_cash_source_scope.py tests/test_cash_source_matching.py -q` → `64 passed`。
 - 文档合同回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_runtime_docs.py tests/test_cash_document_fragments.py -q` → `33 passed`。
-- `uv run --offline python -m compileall -q src` 通过；归档前 `openspec validate --all --strict` 为 `25 passed, 0 failed`，归档后为 `24 passed, 0 failed`；两个完整需求与主规格逐块比较一致；`git diff --check` 通过。
+- `uv run --offline python -m compileall -q src` 通过；归档前 `openspec validate --all --strict` 为 `25 passed, 0 failed`，提交后归档状态为 `24 passed, 0 failed`；两个完整需求与主规格逐块比较一致；提交后 `git diff --check` 通过。
 - 对 `docs/cash-import-flow.md`、`docs/cash-import-redesign.md`、`docs/cash-import-redesign-contracts.md`、`docs/feature-map.md`、`DOMAIN_GLOSSARY.md` 和两份现金导入技能文档执行本地链接／锚点检查，230 个链接全部有效。
 - 剩余风险：未运行全仓库测试；本次改动涉及的 SQLite／真实 PostgreSQL 导入、来源绑定、资金组和 API 合同均已执行。测试输出中的 121 项为既有 Starlette／SQLAlchemy deprecation warnings。
