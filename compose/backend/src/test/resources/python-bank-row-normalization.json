@@ -14,9 +14,9 @@
         "start_inclusive": true,
         "strategy_version": "bank-table-coverage-v1"
       },
-      "declared": 21,
+      "declared": 22,
       "label": "6222000011112222",
-      "observed": 21,
+      "observed": 22,
       "parser_version": "bank-table-rows-v1+native-v1",
       "rows": [
         {
@@ -994,6 +994,52 @@
             "source_display_name": "建设银行(2222)",
             "summary": "消费"
           }
+        },
+        {
+          "disposition": "candidate",
+          "error_code": null,
+          "fields": {
+            "amount": "-0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222000011111234",
+            "counterparty_account_attrs": [
+              "full"
+            ],
+            "currency": "CNY",
+            "note": "支付宝-淘宝-测试商户",
+            "occurred_at": "2026-08-14T16:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易地点/附言": "支付宝-淘宝-测试商户",
+              "交易日期": "20260815",
+              "交易时间": "10:00:00",
+              "交易金额": "-0.00",
+              "对方户名": "对方",
+              "对方账号": "6222",
+              "对方账号与户名": "6222000011111234/测试商户",
+              "币别": "人民币",
+              "序号": "1",
+              "摘要": "消费",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "支付宝",
+          "position": 22,
+          "provider_id": null,
+          "source_explanation": {
+            "_ccb_acct_cp": "测试商户",
+            "_ccb_location_cp": "测试商户",
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6222000011112222",
+            "acct_name_raw": "6222000011111234/测试商户",
+            "card_number": "2222",
+            "location": "支付宝-淘宝-测试商户",
+            "payment_method": "支付宝",
+            "source_display_name": "建设银行(2222)",
+            "summary": "消费"
+          }
         }
       ],
       "source_type": "ccb_debit",
@@ -1013,9 +1059,9 @@
         "strategy_version": "bank-table-coverage-v1"
       },
       "currency": null,
-      "declared": 21,
+      "declared": 22,
       "label": "6222000011112222",
-      "observed": 21,
+      "observed": 22,
       "owner": "6222000011112222",
       "parser_version": "bank-table-rows-v1",
       "rows": [
@@ -1375,6 +1421,23 @@
             "账户余额": "1000.00"
           },
           "position": 21
+        },
+        {
+          "error_code": null,
+          "payload": {
+            "交易地点/附言": "支付宝-淘宝-测试商户",
+            "交易日期": "20260815",
+            "交易时间": "10:00:00",
+            "交易金额": "-0.00",
+            "对方户名": "对方",
+            "对方账号": "6222",
+            "对方账号与户名": "6222000011111234/测试商户",
+            "币别": "人民币",
+            "序号": "1",
+            "摘要": "消费",
+            "账户余额": "1000.00"
+          },
+          "position": 22
         }
       ],
       "source_type": "ccb_debit",
@@ -1398,9 +1461,9 @@
         "start_inclusive": true,
         "strategy_version": "bank-table-coverage-v1"
       },
-      "declared": 11,
+      "declared": 12,
       "label": "1234567890",
-      "observed": 11,
+      "observed": 12,
       "parser_version": "bank-table-rows-v1+native-v1",
       "rows": [
         {
@@ -1902,6 +1965,54 @@
             "summary": "消费",
             "txn_type": "提现"
           }
+        },
+        {
+          "disposition": "candidate",
+          "error_code": null,
+          "fields": {
+            "amount": "-0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "HKD",
+            "note": "备注",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "": "10:00:00",
+              "交易場所": "门店",
+              "交易時間": "2026-08-15",
+              "備註": "备注",
+              "匯率": "",
+              "對方戶名": "测试商户",
+              "對方賬號": "6222****1234",
+              "序號": "1",
+              "憑證號": "v1",
+              "摘要": "消费",
+              "支出金額": "0.00",
+              "收入金額": "",
+              "業務類型": "消费",
+              "起息日期": "2026-08-15",
+              "餘額": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "工银亚洲活期账户(7890)",
+          "position": 12,
+          "provider_id": null,
+          "source_explanation": {
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "1234567890",
+            "card_number": "7890",
+            "location": "门店",
+            "payment_method": "工银亚洲活期账户(7890)",
+            "source_display_name": "工银亚洲（尾号 7890）",
+            "summary": "消费",
+            "txn_type": "消费"
+          }
         }
       ],
       "source_type": "icbc_asia",
@@ -1921,9 +2032,9 @@
         "strategy_version": "bank-table-coverage-v1"
       },
       "currency": "HKD",
-      "declared": 11,
+      "declared": 12,
       "label": "1234567890",
-      "observed": 11,
+      "observed": 12,
       "owner": "1234567890",
       "parser_version": "bank-table-rows-v1",
       "rows": [
@@ -2157,6 +2268,27 @@
             "餘額": "1000.00"
           },
           "position": 11
+        },
+        {
+          "error_code": null,
+          "payload": {
+            "": "10:00:00",
+            "交易場所": "门店",
+            "交易時間": "2026-08-15",
+            "備註": "备注",
+            "匯率": "",
+            "對方戶名": "测试商户",
+            "對方賬號": "6222****1234",
+            "序號": "1",
+            "憑證號": "v1",
+            "摘要": "消费",
+            "支出金額": "0.00",
+            "收入金額": "",
+            "業務類型": "消费",
+            "起息日期": "2026-08-15",
+            "餘額": "1000.00"
+          },
+          "position": 12
         }
       ],
       "source_type": "icbc_asia",

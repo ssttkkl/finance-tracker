@@ -1831,9 +1831,9 @@
         "start_inclusive": true,
         "strategy_version": "platform-coverage-v1"
       },
-      "declared": 19,
+      "declared": 20,
       "label": null,
-      "observed": 19,
+      "observed": 20,
       "parser_version": "platform-document-v1+native-v1",
       "rows": [
         {
@@ -2666,6 +2666,49 @@
             "txn_id": "wx-1",
             "txn_type": "商户消费"
           }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": null,
+          "error_code": null,
+          "fields": {
+            "amount": "-0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "商品",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易单号": "wx-1",
+              "交易对方": "测试商户",
+              "交易时间": "2026-08-15 10:00:00",
+              "交易类型": "商户消费",
+              "商品": "商品",
+              "商户单号": "m-1",
+              "备注": "",
+              "当前状态": "支付成功",
+              "支付方式": "零钱",
+              "收/支": "支出",
+              "金额(元)": "0.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "零钱",
+          "position": 20,
+          "provider_id": "wx-1",
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_wechat_direction": "支出",
+            "merchant_order_id": "m-1",
+            "payment_method": "零钱",
+            "platform_status": "支付成功",
+            "status": "支付成功",
+            "txn_id": "wx-1",
+            "txn_type": "商户消费"
+          }
         }
       ],
       "source_type": "wechat",
@@ -2685,8 +2728,8 @@
         "strategy_version": "platform-coverage-v1",
         "time_precision": "second"
       },
-      "declared": 19,
-      "observed": 19,
+      "declared": 20,
+      "observed": 20,
       "rows": [
         {
           "error_code": null,
@@ -3010,6 +3053,23 @@
             "金额(元)": "1e-19"
           },
           "position": 19
+        },
+        {
+          "error_code": null,
+          "payload": {
+            "交易单号": "wx-1",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易类型": "商户消费",
+            "商品": "商品",
+            "商户单号": "m-1",
+            "备注": "",
+            "当前状态": "支付成功",
+            "支付方式": "零钱",
+            "收/支": "支出",
+            "金额(元)": "0.00"
+          },
+          "position": 20
         }
       ],
       "source_type": "wechat"

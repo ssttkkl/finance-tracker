@@ -1,0 +1,2431 @@
+[
+  {
+    "document": {
+      "account": null,
+      "coverage": {
+        "complete": false,
+        "document_key": null,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {},
+        "page_total": null,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 17,
+      "label": null,
+      "observed": 17,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 1,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r2",
+          "error_code": null,
+          "fields": {
+            "amount": "20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "贷",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 2,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r3",
+          "error_code": null,
+          "fields": {
+            "amount": null,
+            "counterparty": "美团支付-测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": null,
+            "record_type": null,
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "unknown",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [
+            "direction_unrecognized"
+          ],
+          "payment_method": "工商银行信用卡",
+          "position": 3,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r4",
+          "error_code": null,
+          "fields": {
+            "amount": null,
+            "counterparty": "美团支付-测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": null,
+            "record_type": null,
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "bad",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [
+            "amount_unreadable"
+          ],
+          "payment_method": "工商银行信用卡",
+          "position": 4,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r5",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": null,
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "bad",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [
+            "time_unreadable"
+          ],
+          "payment_method": "银行卡",
+          "position": 5,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r6",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": null,
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "unknown",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [
+            "currency_unrecognized"
+          ],
+          "payment_method": "银行卡",
+          "position": 6,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r7",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "退货",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "refund",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "退货",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 7,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_icbc_refund_merchant_trusted": true,
+            "_is_refund": true,
+            "_raw_cp": "美团支付-测试商户",
+            "_refund_signal": "icbc_credit_return",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "merchant_refund",
+            "payment_method": "银行卡",
+            "refund_signal": "icbc_credit_return",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "退货"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r8",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "退货",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "退货",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "refund",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "原商户",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "退货",
+              "对方账号": "",
+              "摘要": "退货",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 8,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_icbc_refund_merchant_trusted": true,
+            "_is_refund": true,
+            "_raw_cp": "退货",
+            "_refund_signal": "icbc_credit_return",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "merchant_refund",
+            "payment_method": "银行卡",
+            "refund_signal": "icbc_credit_return",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "退货"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r9",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "退款",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "退款",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "refund",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "退款",
+              "对方账号": "",
+              "摘要": "退款",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 9,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_icbc_refund_merchant_trusted": true,
+            "_is_refund": true,
+            "_raw_cp": "退款",
+            "_refund_signal": "icbc_credit_return",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "merchant_refund",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "退款"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r10",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "减免年费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "fee",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "减免年费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 10,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "fee_reversal",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "减免年费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r11",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "刷卡金入账",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "income",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "刷卡金入账",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 11,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "benefit_rebate",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "刷卡金入账"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r12",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "返现",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "income",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "返现",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 12,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "offset_type": "campaign_cashback",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "返现"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r13",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "转账",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "ordinary_transfer",
+            "record_type": "transfer_out",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "6222****1234",
+              "摘要": "转账",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 13,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "转账"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r14",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222******1234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 14,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r15",
+          "error_code": null,
+          "fields": {
+            "amount": "-12345678901234567890.123456789012345678",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "12345678901234567890.123456789012345678",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 15,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r16",
+          "error_code": null,
+          "fields": {
+            "amount": "20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "+20.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 16,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r17",
+          "error_code": null,
+          "fields": {
+            "amount": "-0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "",
+            "counterparty_account_attrs": [],
+            "currency": "CNY",
+            "note": "消费",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易卡号": "6222000000001234",
+              "交易场所": "门店",
+              "交易币种": "人民币",
+              "交易金额": "0.00",
+              "入账币种": "人民币",
+              "入账日期": "2026-08-15\n10:00:00",
+              "入账金额": "20.00",
+              "对方户名": "美团支付-测试商户",
+              "对方账号": "",
+              "摘要": "消费",
+              "收支": "借",
+              "账户余额": "1000.00"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "银行卡",
+          "position": 17,
+          "source_account_identifier": "6222000000001234",
+          "source_explanation": {
+            "_raw_cp": "美团支付-测试商户",
+            "_source_account_identifier": "6222000000001234",
+            "card_number": "1234",
+            "file_account_key": "6222000000001234",
+            "payment_method": "银行卡",
+            "source_display_name": "工商银行信用卡(1234)",
+            "summary": "消费"
+          }
+        }
+      ],
+      "source_type": "icbc_credit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 17,
+      "label": null,
+      "observed": 17,
+      "owner": null,
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [
+        {
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 1
+        },
+        {
+          "document_position": "p1:t0:r2",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "贷",
+            "账户余额": "1000.00"
+          },
+          "position": 2
+        },
+        {
+          "document_position": "p1:t0:r3",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "unknown",
+            "账户余额": "1000.00"
+          },
+          "position": 3
+        },
+        {
+          "document_position": "p1:t0:r4",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "bad",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 4
+        },
+        {
+          "document_position": "p1:t0:r5",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "bad",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 5
+        },
+        {
+          "document_position": "p1:t0:r6",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "unknown",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 6
+        },
+        {
+          "document_position": "p1:t0:r7",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "退货",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 7
+        },
+        {
+          "document_position": "p1:t0:r8",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "原商户",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "退货",
+            "对方账号": "",
+            "摘要": "退货",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 8
+        },
+        {
+          "document_position": "p1:t0:r9",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "退款",
+            "对方账号": "",
+            "摘要": "退款",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 9
+        },
+        {
+          "document_position": "p1:t0:r10",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "减免年费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 10
+        },
+        {
+          "document_position": "p1:t0:r11",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "刷卡金入账",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 11
+        },
+        {
+          "document_position": "p1:t0:r12",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "返现",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 12
+        },
+        {
+          "document_position": "p1:t0:r13",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "6222****1234",
+            "摘要": "转账",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 13
+        },
+        {
+          "document_position": "p1:t0:r14",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222******1234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 14
+        },
+        {
+          "document_position": "p1:t0:r15",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "12345678901234567890.123456789012345678",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 15
+        },
+        {
+          "document_position": "p1:t0:r16",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "+20.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "",
+            "账户余额": "1000.00"
+          },
+          "position": 16
+        },
+        {
+          "document_position": "p1:t0:r17",
+          "error_code": null,
+          "payload": {
+            "交易卡号": "6222000000001234",
+            "交易场所": "门店",
+            "交易币种": "人民币",
+            "交易金额": "0.00",
+            "入账币种": "人民币",
+            "入账日期": "2026-08-15\n10:00:00",
+            "入账金额": "20.00",
+            "对方户名": "美团支付-测试商户",
+            "对方账号": "",
+            "摘要": "消费",
+            "收支": "借",
+            "账户余额": "1000.00"
+          },
+          "position": 17
+        }
+      ],
+      "source_type": "icbc_credit",
+      "table_key": "pdf:0"
+    },
+    "name": "credit",
+    "ok": true
+  },
+  {
+    "document": {
+      "account": "6212000000000001234",
+      "coverage": {
+        "complete": false,
+        "document_key": null,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {},
+        "page_total": null,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 11,
+      "label": "6212000000000001234",
+      "observed": 11,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 1,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r2",
+          "error_code": null,
+          "fields": {
+            "amount": "20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "退款",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "refund",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "退款",
+              "收入/支出金额": "20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 2,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_debit_offset_type": "refund",
+            "_is_refund": true,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_refund_signal": "icbc_debit_refund",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "退款"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r3",
+          "error_code": null,
+          "fields": {
+            "amount": "20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "退货",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "refund",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "退货",
+              "收入/支出金额": "20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 3,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_debit_offset_type": "refund",
+            "_is_refund": true,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_refund_signal": "icbc_debit_refund",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "refund_signal": "icbc_debit_return",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "退货"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r4",
+          "error_code": null,
+          "fields": {
+            "amount": "20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "撤销交易",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "reversal",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "撤销交易",
+              "收入/支出金额": "20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 4,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_debit_offset_type": "reversal",
+            "_is_refund": false,
+            "_is_reversal": true,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "撤销交易"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r5",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "基金公司",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "基金赎回",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "investment_in",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "基金公司",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "基金赎回",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 5,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "基金公司",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "基金赎回"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r6",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": null,
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "bad",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [
+            "time_unreadable"
+          ],
+          "payment_method": "快捷支付",
+          "position": 6,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r7",
+          "error_code": null,
+          "fields": {
+            "amount": null,
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": null,
+            "record_type": null,
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "bad",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [
+            "amount_unreadable"
+          ],
+          "payment_method": "快捷支付",
+          "position": 7,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r8",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": null,
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "unknown",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [
+            "currency_unrecognized"
+          ],
+          "payment_method": "快捷支付",
+          "position": 8,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r9",
+          "error_code": null,
+          "fields": {
+            "amount": "0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "0.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 9,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r10",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "手机银行",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "手机银行",
+          "position": 10,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "手机银行",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r11",
+          "error_code": null,
+          "fields": {
+            "amount": "-0.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-0.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 11,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 11,
+      "label": "6212000000000001234",
+      "observed": 11,
+      "owner": "6212000000000001234",
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [
+        {
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 1
+        },
+        {
+          "document_position": "p1:t0:r2",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "退款",
+            "收入/支出金额": "20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 2
+        },
+        {
+          "document_position": "p1:t0:r3",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "退货",
+            "收入/支出金额": "20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 3
+        },
+        {
+          "document_position": "p1:t0:r4",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "撤销交易",
+            "收入/支出金额": "20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 4
+        },
+        {
+          "document_position": "p1:t0:r5",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "基金公司",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "基金赎回",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 5
+        },
+        {
+          "document_position": "p1:t0:r6",
+          "error_code": null,
+          "payload": {
+            "交易日期": "bad",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 6
+        },
+        {
+          "document_position": "p1:t0:r7",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "bad",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 7
+        },
+        {
+          "document_position": "p1:t0:r8",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "unknown",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 8
+        },
+        {
+          "document_position": "p1:t0:r9",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "0.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 9
+        },
+        {
+          "document_position": "p1:t0:r10",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "手机银行",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 10
+        },
+        {
+          "document_position": "p1:t0:r11",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-0.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 11
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "name": "debit",
+    "ok": true
+  },
+  {
+    "document": {
+      "account": null,
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 1,
+      "label": null,
+      "observed": 1,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 1,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡",
+            "summary": "无卡支付"
+          }
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "label": null,
+      "observed": 1,
+      "owner": null,
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [
+        {
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "name": "debit-no-owner",
+    "ok": true
+  },
+  {
+    "document": {
+      "account": "6212000000000001234",
+      "coverage": {
+        "complete": false,
+        "document_key": null,
+        "end": "2026-09-30T00:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {},
+        "page_total": null,
+        "start": "2026-09-01T00:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 1,
+      "label": "6212000000000001234",
+      "observed": 1,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 1,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-09-30T00:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-09-01T00:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "label": "6212000000000001234",
+      "observed": 1,
+      "owner": "6212000000000001234",
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [
+        {
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 1
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "name": "outside-coverage",
+    "ok": true
+  },
+  {
+    "document": {
+      "account": "6212000000000001234",
+      "coverage": {
+        "complete": false,
+        "document_key": null,
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {},
+        "page_total": null,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 1,
+      "label": "6212000000000001234",
+      "observed": 3,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [
+        {
+          "disposition": "candidate",
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "fields": {
+            "amount": "-20.00",
+            "counterparty": "测试商户",
+            "counterparty_account": "6222****1234",
+            "counterparty_account_attrs": [
+              "masked"
+            ],
+            "currency": "CNY",
+            "note": "无卡支付",
+            "occurred_at": "2026-08-15T02:00:00+00:00",
+            "record_subtype": "not_applicable",
+            "record_type": "consumption",
+            "source_payload": {
+              "交易日期": "2026-08-15\n10:00:00",
+              "余额": "1000.00",
+              "储种": "活期",
+              "地区": "0200",
+              "对方户名": "测试商户",
+              "对方账号": "6222****1234",
+              "币种": "人民币",
+              "序号": "00000",
+              "摘要": "无卡支付",
+              "收入/支出金额": "-20.00",
+              "渠道": "快捷支付",
+              "账号": "1614000000001234",
+              "钞汇": "钞"
+            }
+          },
+          "issue_codes": [],
+          "payment_method": "快捷支付",
+          "position": 1,
+          "source_account_identifier": null,
+          "source_explanation": {
+            "_is_refund": false,
+            "_is_reversal": false,
+            "_raw_cp": "测试商户",
+            "_source_account_identifier": "6212000000000001234",
+            "card_number": "1234",
+            "file_account_key": "6212000000000001234",
+            "payment_method": "快捷支付",
+            "source_display_name": "工商银行借记卡(1234)",
+            "summary": "无卡支付"
+          }
+        },
+        {
+          "disposition": "skipped",
+          "document_position": null,
+          "error_code": "row_shape_invalid",
+          "fields": null,
+          "issue_codes": [],
+          "payment_method": "",
+          "position": 2,
+          "source_account_identifier": null,
+          "source_explanation": {}
+        },
+        {
+          "disposition": "skipped",
+          "document_position": null,
+          "error_code": "row_unreadable",
+          "fields": null,
+          "issue_codes": [],
+          "payment_method": "",
+          "position": 3,
+          "source_account_identifier": null,
+          "source_explanation": {}
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 1,
+      "label": "6212000000000001234",
+      "observed": 3,
+      "owner": "6212000000000001234",
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [
+        {
+          "document_position": "p1:t0:r1",
+          "error_code": null,
+          "payload": {
+            "交易日期": "2026-08-15\n10:00:00",
+            "余额": "1000.00",
+            "储种": "活期",
+            "地区": "0200",
+            "对方户名": "测试商户",
+            "对方账号": "6222****1234",
+            "币种": "人民币",
+            "序号": "00000",
+            "摘要": "无卡支付",
+            "收入/支出金额": "-20.00",
+            "渠道": "快捷支付",
+            "账号": "1614000000001234",
+            "钞汇": "钞"
+          },
+          "position": 1
+        },
+        {
+          "document_position": "p1:t0:r2",
+          "error_code": "row_shape_invalid",
+          "payload": null,
+          "position": 2
+        },
+        {
+          "document_position": "p1:t0:r3",
+          "error_code": "",
+          "payload": null,
+          "position": 3
+        }
+      ],
+      "source_type": "icbc_debit",
+      "table_key": "pdf:0"
+    },
+    "name": "error-rows",
+    "ok": true
+  },
+  {
+    "document": {
+      "account": null,
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1"
+      },
+      "declared": 0,
+      "label": null,
+      "observed": 0,
+      "parser_version": "icbc-pdf-tables-v1+native-v1",
+      "rows": [],
+      "source_type": "ccb_debit",
+      "table_key": "pdf:0"
+    },
+    "input": {
+      "coverage": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "icbc-pdf-range-pages-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "icbc-pdf-coverage-v1",
+        "time_precision": "second"
+      },
+      "declared": 0,
+      "label": null,
+      "observed": 0,
+      "owner": null,
+      "parser_version": "icbc-pdf-tables-v1",
+      "rows": [],
+      "source_type": "ccb_debit",
+      "table_key": "pdf:0"
+    },
+    "name": "unsupported",
+    "ok": true
+  }
+]

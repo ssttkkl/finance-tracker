@@ -86,7 +86,7 @@ private val intermediaryDescription = sourceRegex("^(.+?)(?:外卖订单|订单|
 private val merchantAddress = sourceRegex("[（(][^)）]*[)）]")
 private val gaodeMerchant = sourceRegex("^(.+?)\\s*-\\s*高德地图")
 
-private fun inferIcbcPayment(counterparty: String, description: String): String {
+internal fun inferIcbcPayment(counterparty: String, description: String): String {
     val text = pythonCashLower("$counterparty $description")
     return paymentSourceRules.firstOrNull { (keyword, _) -> pythonCashLower(keyword) in text }?.second ?: "银行卡"
 }

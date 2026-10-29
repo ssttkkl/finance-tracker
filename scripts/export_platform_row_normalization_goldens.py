@@ -85,6 +85,7 @@ def cases():
         {**WECHAT, "交易单号": "-"},
         {**WECHAT, "交易单号": "x" * 512},
         {**WECHAT, "金额(元)": "1e-19"},
+        {**WECHAT, "金额(元)": "0.00", "收/支": "支出"},
     ]
     return [
         ("alipay", document("alipay", alipay)),
