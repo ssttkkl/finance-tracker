@@ -1,6 +1,6 @@
 # Compose 功能地图
 
-> 盘点日期：2026-10-29。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
+> 盘点日期：2026-10-29。页面与路径按远端 `main` 的 `849c2a69c59509e27e5a789574646a83b92a0022` 核对。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
 
 Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `compose/webApp`、`compose/androidApp`、`compose/iosApp`。
 
@@ -15,7 +15,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 | 统一预览与一次确认 | [业务计划](../src/ft/application/cash_import_business_plan.py)、[联合提交](../src/ft/application/cash_import_commit.py)、[计划 HTTP](../src/ft/web/cash_plan_routes.py)；不可变计划提供按筛选的准确总数及序号分页 | 已接待确认优先、零待确认时默认全部的只读列表；复用主页流水行、Paging3 连续加载与右侧序号滚动条，详情在宽屏侧滑、小屏切入并在返回时保留列表位置和筛选；整份确认和实际收据摘要可演示。 |
 | 结果及失败恢复 | [失败项原因](../src/ft/application/cash_import_issues.py)、[命令收据](../src/ft/adapters/relational/cash_mutations.py)、[旧收据迁移](../migrations/versions/20261023_49_unify_cash_import_receipts.py)；实际结果分页、未知核实、限时失败补处理 | 已接结果摘要与统一错误；实际草稿摘要及原命令未知核实均有 Web 证据，不提供逐项失败处理入口 |
 | 草稿及正式流水维护 | [当前详情／草稿保存](../src/ft/application/cash_record_maintenance.py)、[维护规划](../src/ft/application/cash_mutation_business_plan.py)、[维护提交](../src/ft/application/cash_mutation_commit.py)；创建方式权限、稳定公共属性整笔编辑、来源问题及身份合并；原子草稿仅联动实际财务修改，保留来源明确组成项 | F-04 已接当前详情、普通草稿保存、分摊编辑、明确转正式和只读账单原文；公共属性整笔编辑已接入并通过真实 API 冒烟；来源采用和明确身份合并已通过真实 API 冒烟，演示验收待完成 |
-| 关系及当前展示 | [最终图校验](../src/ft/domain/cash_relation_graph.py)、[稳定对象](../src/ft/adapters/relational/cash_entries.py)、[当前查询](../src/ft/adapters/relational/web_queries.py)；待确认不合并，人工冲突延后、解除明确继承，只差量更新受影响闭包，全额退款净额 `0` 可见；列表直接返回根流水 `transaction_id`，来源编号保持独立 | 正式／草稿列表、未知值和待确认筛选已接共享入口；关系维护已展示完整候选成员，选择失效须重新核对；完整组、公共冲突及解除继承已通过真实 API 冒烟；旧任意关联写入已移除，不新增关系一级入口 |
+| 关系及当前展示 | [最终图校验](../src/ft/domain/cash_relation_graph.py)、[稳定对象](../src/ft/adapters/relational/cash_entries.py)、[当前查询](../src/ft/adapters/relational/web_queries.py)；待确认不合并，人工冲突延后、解除明确继承，只差量更新受影响闭包，全额退款净额 `0` 可见；列表直接返回根流水 `transaction_id`，来源编号保持独立 | 正式／草稿状态列表、未知值展示和待确认筛选已接共享入口；关系维护已展示完整候选成员，选择失效须重新核对；完整组、公共冲突及解除继承已通过真实 API 冒烟；旧任意关联写入已移除，不新增关系一级入口 |
 | 统计与删除 | [余额](../src/ft/application/cash_balances.py)、[投影](../src/ft/application/cash_projections.py)、[身份迁移](../migrations/versions/20261021_46_cash_instance_identity.py)；草稿不入金额统计，删除清理当前引用并释放来源绑定 | 现有删除入口及新草稿操作须随当前合同统一验收 |
 | 独立账户 | [账户命令](../src/ft/application/account_commands.py)、[账户 HTTP](../src/ft/web/account_routes.py)；按 ID、修订及幂等键立即保存，账户类型创建后固定 | 已接独立账户表单与即时保存；实际新建后取消导入再撤销账户已通过 Web 实测，未知账户及编辑分支仍待最终验收 |
 | 客户端基础 | [当前领域合同](../compose/shared/src/commonMain/kotlin/com/finance/tracker/domain/CashImportLifecycle.kt)、[任务编排](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskViewModel.kt)、[账户编排](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/ImportAccountViewModel.kt)、[最小恢复存储](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/ImportRecoveryStore.kt) | 任务与账户 VM、恢复存储已接真实 App／Graph 入口；Web 已有主流程证据，Android／iOS 共用入口，按默认编译／单测验证；不据共享代码宣称设备 QA 通过 |
@@ -34,6 +34,60 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 | [记账与编辑](../openspec/changes/archive/2026-10-28-compose-cash-entry-editor/proposal.md) | 公共属性整笔编辑、普通手动记账、同入口转账及双端编辑 | 公共整笔编辑及创建方式权限已接入；普通记账、转账创建及模式输入保留已接入；完整转账在同表单编辑双端，缺少完整组能力时只改公共字段 |
 
 三个归档变更分别记录账本维护、记账编辑和账单导入的 Compose 实现范围。当前行为以主规格和共享 Compose 页面为准；上表给出入口证据，归档任务文件保留实际验证命令、未覆盖项和风险。
+
+## 模块、页面与业务路径
+
+模块按 [OpenSpec 业务模块导航](../openspec/specs/README.md)归组。页面范围以当前 Compose 客户端能到达的页面或独立任务入口为准；弹窗、表单模式和多步操作列为页面内路径，不另计页面。账户、共享规则等没有独立页面的模块也列出，避免把后端能力误记为现有页面。
+
+### 认证
+
+**F-01 登录与注册**（未登录时从应用入口打开）：启动或刷新后恢复有效会话，进入当前工作区；没有有效会话时进入登录，可切换注册。提交后，认证失败保留表单并允许修改或重试；成功后进入已有工作区，或转到工作区入口完成选择／创建。登录和注册共用同一页面。
+
+相关入口与合同： [认证页面](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[认证与工作区访问规格](../openspec/specs/authentication/user-workspace-access/spec.md)。
+
+### 工作区
+
+**F-02 工作区选择与创建**（认证后的工作区入口，不是独立路由）：有可访问工作区时，浏览列表并选择一个工作区进入账本；也可创建另一个工作区。没有工作区时直接显示首次创建表单。名称无效时在表单内修正；读取、切换或创建失败时保留可用内容并提供重试；创建成功后进入新工作区账本。切换工作区时保留当前子页面路径。
+
+**F-06 邀请预览与接受**（邀请链接 `?invite=<token>`，Native 也可从 `finance-tracker://invite/<token>` 进入）：打开链接后读取工作区和角色预览；未登录时先登录或注册，再返回邀请；接受后加入并进入该工作区，取消则返回原页面或默认账本。预览请求可重试；无效、过期或已不能接受的邀请显示结果，不进入工作区。
+
+**F-10 管理**（`/w/<workspaceId>/workspace-management`）：在同一页面内按工作区资料、访问权限和收支账本浏览管理分组。管理员可改工作区名称、复制固定 ID、调整或移除成员、选择角色并创建／复制邀请链接，或输入工作区名称确认删除；删除成功后进入另一个可访问工作区，若没有则进入工作区创建。`editor` 和 `viewer` 不能改工作区资料、成员或邀请，也不能删除工作区；`editor` 可维护分类，`viewer` 只读。管理详情加载失败时可在页面重试。收支分类位于本页的收支账本分组，详见 F-07。
+
+相关入口与合同： [工作区入口](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[管理页面](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt)、[工作区路由](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt)、[工作区入口规格](../openspec/specs/workspace/workspace-entry/spec.md)、[工作区路由规格](../openspec/specs/workspace/workspace-context-routing/spec.md)、[工作区管理规格](../openspec/specs/workspace/workspace-management/spec.md)。
+
+### 现金账本
+
+**F-03 收支账本**（`/w/<workspaceId>/`）：打开当前工作区的收支列表，按交易对方搜索，用“全部／支出／收入／转账”快捷项筛选，或按时间、币种和金额、分类、账户、转账细分、确认状态（全部／待确认／已确认）、收支状态（全部／草稿／正式）及流水组成（单笔、支付镜像、退款抵扣、合并）详细筛选；无法识别的字段以未知值显示，不作为筛选项。翻页或按序号定位后打开一笔收支进入 F-04。可选择多笔收支批量分类或删除，也可从新增菜单进入普通记账／转账（F-04）或账单导入（F-05）。筛选变化后从新结果重新浏览；整页读取失败可重新加载，追加分页失败保留已加载内容并可重试。
+
+**F-04 收支详情与记账**（从 F-03 打开详情面板或新增表单，不是独立路由）：打开一笔收支后查看摘要、关联流水、账单原文和待处理事项。只读角色只能查看，其他写操作仍按工作区角色和流水来源资格开放；导入收支只改允许共用的字段，普通手工收支可编辑完整业务字段，完整转账在一个任务中保存双端。普通记账或转账创建须先通过必填校验；只有已有的导入草稿可继续保存为草稿，信息补齐后再明确转为正式收支。对允许处理关系的导入或历史正式收支，可接受已选完整建议方案或拒绝整组；也可按关系类型搜索并添加一笔可用的对侧流水，或移除／解除已保存关系，影响范围需要确认。联合方案改选目前只支持搜索候选，不可提交。来源差异可选择采用来源或保留当前值，身份问题可在核对候选后明确合并；删除时确认删除范围。关闭未保存内容可取消关闭并继续编辑，保存失败时留在当前任务重试；结果未知时先核实原提交，事实已变化则刷新并重新选择。
+
+**F-07 收支分类管理**（`/w/<workspaceId>/cash-categories` 深链接定位到 F-10 的分类分组，不在独立主导航中）：浏览、搜索和排序分类；创建一级或子分类，编辑名称、说明和父级，调整同级顺序。删除前查看影响；仍有子分类时先处理子分类，已有收支使用时确认清除引用后删除，也可取消。分类目录读取失败可重试；保存、排序或删除失败时显示错误并保留当前上下文。
+
+相关入口与合同： [收支账本](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[收支详情与编辑](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt)、[分类管理](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCategoryScreen.kt)、[账本浏览规格](../openspec/specs/cash-ledger/cash-ledger-browser/spec.md)、[流水分类规格](../openspec/specs/cash-ledger/cash-record-classification/spec.md)、[分类管理规格](../openspec/specs/cash-ledger/cash-category-management/spec.md)、[对方账户转账匹配规格](../openspec/specs/cash-ledger/counterparty-account-transfer-matching/spec.md)、[交易关系规格](../openspec/specs/cash-ledger/transaction-relations/spec.md)。这些分类和匹配行为由账本、详情或导入流程承载，没有独立页面。
+
+### 导入
+
+**F-05 现金账单导入**（`/w/<workspaceId>/cash-import`，从收支账本进入的全屏任务）：选择一个或多个账单并逐份解析；可追加、移除或替换单份文件，需要密码时重新选择该文件并提交密码，单份文件失败可重试且其他已解析文件仍可继续。按来源渠道和账号（如微信昵称、支付宝脱敏账号）归组后为来源账户选择对应账户；跨渠道同名组默认共用目标选择，也可关闭合并，合并选择发生冲突时清空并要求重新选择；必要时新建账户或补齐币种。进入统一核对后，默认优先查看待确认内容，可筛选、分页并打开只读详情。返回文件或账户步骤修改后重新生成核对结果；确认前可退出，按提示保留或撤销本次账户变更（包括新建账户和补齐币种）。确认时一次提交整份计划，完成后查看实际导入结果并返回账本；重复项和未导入项显示在结果中。若提交结果暂时未知，先用原提交核实；计划过期或内容失效时重新准备并核对。
+
+工银亚洲账单解析由 F-05 的现金导入流程承载，不另设客户端页面。投资账单导入和投资连接器同步目前有 OpenSpec 能力规格，但没有独立 Compose 页面或路由；不计为现有页面。相关入口与合同： [现金导入任务](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskScreen.kt)、[现金导入会话规格](../openspec/specs/import/cash-import-session/spec.md)、[账单导入规格](../openspec/specs/import/statement-import/spec.md)、[工银亚洲导入规格](../openspec/specs/import/icbc-asia-current-account-import/spec.md)、[投资账单导入规格](../openspec/specs/import/investment-statement-import/spec.md)、[连接器同步规格](../openspec/specs/import/investment-connector-sync/spec.md)。
+
+### 投资
+
+**F-08 投资持仓**（`/w/<workspaceId>/investment-holdings`）：查看持仓和组合估值，可按投资账户、标的、表现周期及显示币种筛选或调整展示，也可合并／拆分同一标的的持仓行，并刷新估值／行情。选择持仓打开详情，再关闭返回列表。无匹配持仓显示空结果；账户或组合读取失败可重新加载。报价、汇率或估值不完整时显示对应状态和原因，不将缺失值当作完整估值；刷新不可用或失败时保留当前内容并反馈结果。
+
+**F-09 投资流水**（`/w/<workspaceId>/investment-events`）：按日期、投资账户、记录类型（资金供给、交易、收入、支出、冲回、认购、调整或快照）和标的筛选事件，浏览分页结果并打开事件详情查看来源证据和关系，再返回列表。银证转账关系在详情中只读展示，不提供候选确认或拒绝操作。筛选变化后重新加载第一页；无匹配结果显示空状态。首屏、账户或后续分页读取失败可重试；详情证据读取失败可在详情内重试。
+
+相关入口与合同： [持仓页面](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)、[投资流水页面](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentEventScreen.kt)、[持仓估值规格](../openspec/specs/investment/portfolio-valuation/spec.md)、[投资事件规格](../openspec/specs/investment/investment-event-model/spec.md)、[银证转账关系规格](../openspec/specs/investment/cash-investment-funding-relations/spec.md)。
+
+### 账户
+
+当前没有独立账户管理页面。收支账户在记账与导入中选择；现金导入准备步骤可以新建账户并补齐币种。投资账户在持仓和投资流水页内筛选。账户生命周期及多币种规则见 [账户规格](../openspec/specs/accounts/multi-currency-accounts/spec.md)。
+
+### 共享规则
+
+当前没有独立共享规则页面。账本记录、时间、跨端展示、设计系统和演示模式等规则由已有页面共同使用，见 [共享规则规格](../openspec/specs/shared/README.md)。
+
+页面路由和主要导航由 [路由解析](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt)、[主导航](../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/AppNavigation.kt)与 [页面分派](../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/AppShell.kt)共同决定。F-04、F-07 是可独立完成任务的页面级功能，但分别由收支详情面板和管理页分类分组承载；筛选、确认弹窗和多步状态仍属于各自页面路径。
 
 ## 页面级功能
 
@@ -76,7 +130,7 @@ F-01 至 F-10 的共享页面及既有调用代码位于 `compose/shared/src/com
 |----|------------------|------------------------------|----------|
 | F-01 | [`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt)、[`AuthResponsiveShell.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AuthResponsiveShell.kt) | [`webApp`](../compose/webApp/build.gradle.kts)、[`androidApp`](../compose/androidApp/src/main/kotlin/com/finance/tracker/MainActivity.kt)、[`iosApp`](../compose/iosApp/iosApp/ContentView.swift) | 登录 / 注册使用 FinanceTheme 下的标准 Material 3 浮动标签、辅助文本和控件形状，并与工作区/未登录邀请共用响应式外壳和居中卡片；间距与控件迁移见 [`auth-page-spacing-shell`](../openspec/changes/archive/2026-10-12-auth-page-spacing-shell/)；本轮 Compose Web Chrome、Android device QA 记录见 `app-shell-entry-presentation/tasks.md` |
 | F-02 | [`App.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/App.kt)、[`AccessScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/AccessScreens.kt) | 同上 | 工作区选择、创建和恢复已实现；首次创建与已有工作区选择共用登录式容器、账户头部和居中卡片，保留列表选择、名称校验、请求错误、重试和创建成功导航；布局与 QA 证据见 [`app-shell-entry-presentation`](../openspec/changes/archive/2026-10-12-app-shell-entry-presentation/) |
-| F-03 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[`CashLedgerScrollbar.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)、[`CashProjectionPagingSource.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashProjectionPagingSource.kt)、[`CashProjectionApi.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashProjectionApi.kt)、[`FinanceComponents.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt) | 同上 | 顶部搜索复用交易对方筛选，类型快捷项固定为全部、支出、收入和转账；详细筛选分为时间、金额、分类、账户、其他条件五组，金额组包含币种和金额范围，其他条件包含资金转移类型和合并状态；`COMPACT` 按组纵向排列，`REGULAR` / `WIDE` 在组内并排显示可配对字段。详细筛选在 `COMPACT` 使用 Bottom Sheet，`REGULAR` / `WIDE` 使用非全屏 Dialog；Basic Dialog 宽 280–560 dp、28 dp 圆角、动态高度；标题/正文间距 16 dp、正文/操作间距 24 dp，操作组靠右且关闭入口在左；Compact Bottom Sheet 外框与行为保持不变；筛选区以独立 Material 3 前景卡固定在页面顶部，只有其下方的流水列表滚动；所有尺寸的 FAB 叠加在列表视口上，末条保留滚动空间以完整显示在按钮上方；每个月份形成独立前景容器，月份汇总在筛选卡下方的列表视口顶部固定并由下月替换，`REGULAR` / `WIDE` 的表头同步固定，`COMPACT` 只固定汇总；`REGULAR` / `WIDE` 月份容器及吸顶栏右边缘与筛选卡对齐，每行内容向内缩 16 dp 且分隔线保持全宽。跨页记录仍逐笔懒加载，按相邻月份边界连续绘制。页面底色作为下层背景，筛选卡与月份容器之间留有间隔。Compact 默认隐藏复选框并以长按进入选择模式，Regular/Wide 保留行复选框，所有窗口移除全选入口。选中后 FAB 菜单自动展开并切换多选图标，已选数量以提示胶囊显示在 FAB 左侧。新增、导入及批量动作统一收进 Material 3 FAB 菜单；批量分类通过模态对话框应用，删除沿用现有确认；批量删除入口与确认使用危险色。主要操作保留文字并配有动作图标。接近已加载列表末尾时自动追加索引页；追加失败保留已有流水并提供重试。Regular/Wide 表格按选择、日期、账户、交易信息、分类、流水类型、金额、操作顺序排列，列宽依次为 5%、12%、15%、24%、12%、11%、13% 和 8%；交易信息单元格先显示交易对方、再显示备注，Compact 行也让备注紧接交易对方。正式／草稿、未知值与待确认筛选沿用当前合同，读取版本变化清理旧选择；全局 FinanceTheme 将现有 token 映射到 `surfaceContainer*`，影响所有 Compose 平台使用 Material 3 默认容器色的组件；Web、Android、iOS 共用 Compose 实现。按钮与文本输入直接使用 Material 3，FinanceDataTable/Amount 等展示辅助函数保留，Registry 见 [`docs/design-system/registry.yaml`](design-system/registry.yaml)；详情卡片与关联流水折叠设计见 [`compose-cash-ledger-redesign/tasks.md`](../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)，ChoicePicker、自动分页、表格列和 Web QA 见 [`compose-cash-import-account-mapping-redesign/tasks.md`](../openspec/changes/archive/2026-10-17-compose-cash-import-account-mapping-redesign/tasks.md) |
+| F-03 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[`CashLedgerScrollbar.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScrollbar.kt)、[`CashProjectionPagingSource.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashProjectionPagingSource.kt)、[`CashProjectionApi.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashProjectionApi.kt)、[`FinanceComponents.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt) | 同上 | 顶部搜索复用交易对方筛选，类型快捷项固定为全部、支出、收入和转账；详细筛选分为时间、金额、分类、账户、其他条件五组，金额组包含币种和金额范围，其他条件包含资金转移类型和合并状态；`COMPACT` 按组纵向排列，`REGULAR` / `WIDE` 在组内并排显示可配对字段。详细筛选在 `COMPACT` 使用 Bottom Sheet，`REGULAR` / `WIDE` 使用非全屏 Dialog；Basic Dialog 宽 280–560 dp、28 dp 圆角、动态高度；标题/正文间距 16 dp、正文/操作间距 24 dp，操作组靠右且关闭入口在左；Compact Bottom Sheet 外框与行为保持不变；筛选区以独立 Material 3 前景卡固定在页面顶部，只有其下方的流水列表滚动；所有尺寸的 FAB 叠加在列表视口上，末条保留滚动空间以完整显示在按钮上方；每个月份形成独立前景容器，月份汇总在筛选卡下方的列表视口顶部固定并由下月替换，`REGULAR` / `WIDE` 的表头同步固定，`COMPACT` 只固定汇总；`REGULAR` / `WIDE` 月份容器及吸顶栏右边缘与筛选卡对齐，每行内容向内缩 16 dp 且分隔线保持全宽。跨页记录仍逐笔懒加载，按相邻月份边界连续绘制。页面底色作为下层背景，筛选卡与月份容器之间留有间隔。Compact 默认隐藏复选框并以长按进入选择模式，Regular/Wide 保留行复选框，所有窗口移除全选入口。选中后 FAB 菜单自动展开并切换多选图标，已选数量以提示胶囊显示在 FAB 左侧。新增、导入及批量动作统一收进 Material 3 FAB 菜单；批量分类通过模态对话框应用，删除沿用现有确认；批量删除入口与确认使用危险色。主要操作保留文字并配有动作图标。接近已加载列表末尾时自动追加索引页；追加失败保留已有流水并提供重试。Regular/Wide 表格按选择、日期、账户、交易信息、分类、流水类型、金额、操作顺序排列，列宽依次为 5%、12%、15%、24%、12%、11%、13% 和 8%；交易信息单元格先显示交易对方、再显示备注，Compact 行也让备注紧接交易对方。正式／草稿状态、未知值展示与待确认筛选沿用当前合同，读取版本变化清理旧选择；全局 FinanceTheme 将现有 token 映射到 `surfaceContainer*`，影响所有 Compose 平台使用 Material 3 默认容器色的组件；Web、Android、iOS 共用 Compose 实现。按钮与文本输入直接使用 Material 3，FinanceDataTable/Amount 等展示辅助函数保留，Registry 见 [`docs/design-system/registry.yaml`](design-system/registry.yaml)；详情卡片与关联流水折叠设计见 [`compose-cash-ledger-redesign/tasks.md`](../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)，ChoicePicker、自动分页、表格列和 Web QA 见 [`compose-cash-import-account-mapping-redesign/tasks.md`](../openspec/changes/archive/2026-10-17-compose-cash-import-account-mapping-redesign/tasks.md) |
 | F-04 | [`CashLedgerScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)、[`CashCurrentRecordPanel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt)、[`CashLedgerViewModel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerViewModel.kt) | 同上 | 迁移中：[`当前详情`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt) 与 [`维护任务`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt) 已接入共享真实入口；来源原文、草稿标量／分摊保存和明确转正式完成 Web 1440 px 合成账本真实 API 冒烟，普通保存保持草稿并保护成员身份与金额精度。来源采用、明确身份合并及关系维护保留既有真实 API 冒烟证据；关联 v6 走查修复另通过 22 项 Chromium 合成 API 流程和 421 项共享单测，验证范围见 [关联实施记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。旧编辑及任意关联路径已删除；普通记账／转账创建、普通金额编辑及完整双端编辑已通过真实 API Web 冒烟；公共整笔编辑使用真实修订并通过 Web 1440 px 真实 API 保存冒烟，来源字段及原文保持不变；构建、单测、独立审查及准确设备覆盖见 [`维护实施记录`](../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/tasks.md#当前审查与验证)。新建、公共属性整笔编辑、只读来源成员与删除的作用范围见 [操作流程](cash-ledger.md#5-操作流程及作用范围)；保留现有页面和历史截图不计新合同完成。 |
 | F-05 | [`App.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/app/App.kt)、[`CashImportTaskScreen.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportTaskScreen.kt)、[`CashImportPreparation.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportPreparation.kt)、[`CashImportItemsPagingSource.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportItemsPagingSource.kt)、[`CashImportReviewList.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportReviewList.kt)、[`CashImportPreviewPanel.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashImportPreviewPanel.kt)、[`FinanceTheme.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/FinanceTheme.kt) | 同上 | 同一共享流程覆盖按渠道和账号分组的账户选择、默认开启的跨渠道同名合并、密码提交、币种补齐、只读流水核对和确认结果；Material 3 排版、验证范围和未完成项见[变更任务](../openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/tasks.md)。未执行原生设备 QA。|
 | F-06 | [`WorkspaceScreens.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/WorkspaceScreens.kt)、[`AppRouting.kt`](../compose/shared/src/commonMain/kotlin/com/finance/tracker/core/AppRouting.kt) | 同上 | 邀请预览、接受、取消及内部 URI 路由已实现；未登录邀请沿用认证入口卡片，已登录邀请保留 Scaffold 标题与接受流程；本轮 Web/Native QA 见 `app-shell-entry-presentation/tasks.md`；HTTPS Universal Links 仍需域名和签名配置 |
@@ -108,7 +162,7 @@ Compose Web、Android 和 iOS 共用页面行为、文案、状态、语义与�
 ## 维护规则
 
 1. 所有功能改动（包括后端能力新增客户端入口，以及 Web、Native 或共享 presentation 层改动），必须在同一组改动中更新本功能地图。
-2. 更新时至少检查页面总数、Web/Android/iOS 覆盖状态、实现证据链接和对应的验收缺口。
+2. 更新时至少检查模块归属、各页面入口及主要业务路径（含关键分支和失败／取消／恢复出口）、页面总数、Web/Android/iOS 覆盖状态、实现证据链接和对应的验收缺口。
 3. 新增页面级功能时，先加入清单并明确两端状态；只实现一端时必须同时新增对齐 TODO。
 4. 补齐某个 target 后，只有在真实页面入口、API 流程和相称验证完成后，才可将对应缺口标为完成或移除。
 5. 纯文档、词表、功能地图、`AGENTS.md` 或 `README.md` 的修改不需要创建 OpenSpec 变更；涉及代码改动时仍遵守仓库的 OpenSpec 门禁。
