@@ -24,7 +24,7 @@
 
 - [x] 5.1 产品与工程复核账号可变性、幂等、绑定边界、跨渠道选择扇出及冲突恢复；无未关闭 P1/P2 finding。发现未绑定微信旧记录仍会由旧 `record_id` 或时间进入候选后，先加失败回归，再删除该兼容读取。
 - [x] 5.2 按 `docs/ui-design-rules.md`、Compose Material 3 组件与 Typography 规范检查账户分组、状态、命中区、间距、文字层级和密码按钮；Hallmark runtime 不可用，按其 audit 指引完成人工替代复核，未发现 critical/major finding。
-- [x] 5.3 以最新 `origin/main` 为基线复核最终差异、功能地图、链接、术语和无冲突 OpenSpec 文件；没有 archive 目录或冲突标记进入本 change。
+- [x] 5.3 以最新 `origin/main` 为基线复核最终差异、功能地图、链接、术语和无冲突 OpenSpec 文件；delta 与主规格一致，归档前后相关文档链接均指向有效路径。
 
 ## 6. 测试与 QA
 
@@ -36,7 +36,7 @@
 ## 7. 发布
 
 - [x] 7.1 核对 README、现金导入流程与契约、功能地图、词表、API 参考、导入技能及 OpenSpec；未改变 README。增量文档与规格已同步至最终代码合同。
-- [ ] 7.2 用户已明确授权本仓库向 `main` 提交、推送并创建 PR；待验证完成后记录提交、远端分支和 PR 链接。不合并、不部署、不写真实账本。
+- [x] 7.2 按用户授权提交代码、推送分支并创建 PR：代码提交 `0ae724fbdd4cb44baba3f89f88a7b4c9b6e2e806`，分支 `feat/cash-import-account-grouping` 已推送至 `origin`，PR [#103](https://github.com/ssttkkl/finance-tracker/pull/103) 目标为 `main`。未合并、未部署、未写真实账本；创建 PR 时远端 CI 正在运行。
 
 ## 8. 反思
 
@@ -44,6 +44,6 @@
 
 ## 当前审查与验证
 
-验证基线：`origin/main=19d0b8862b04ca010b9c4cca82db326f3d9cdc7c`，工作树 `HEAD` 仍为该提交，改动已移植到最新远端主线。早先实现树以 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7` 为基线；远端新增的 `#102` 只清理旧客户端并归档既有 change。本轮不把早先基线上的检查结果宣称为当前树新验证。
+验证基线：`origin/main=19d0b8862b04ca010b9c4cca82db326f3d9cdc7c`，代码提交前执行命令时的 `HEAD` 为该基线，工作树内容随后原样提交为 `0ae724fbdd4cb44baba3f89f88a7b4c9b6e2e806`。早先实现树以 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7` 为基线；远端新增的 `#102` 只清理旧客户端并归档既有 change。本轮不把早先基线上的检查结果宣称为当前树新验证。
 
-当前树已执行：`uv run python -m compileall -q src/ft`（10:10，通过）、`openspec validate --all --strict`（归档后 24 项通过，0 失败）、`openspec doctor`（根目录检查通过）、`git diff --check`（通过）、归档任务链接检查（通过）；最终一轮于 2026-10-29 10:09–10:10 Asia/Shanghai 完成。归档前曾有 25 项通过，其中包含本 change。delta 已合并到对应四项主规格，逐项比对需求后完全一致。change 按用户要求归档至 `openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/`，保留 6.1–6.3 的未完成状态。当前 SQLite／PostgreSQL 单测矩阵、Compose 测试／编译及更新父基线后的浏览器 QA 未完成；本轮按用户指示中断单测并直接交付，不以此前测试代替当前 HEAD 结果。确切补跑条件：用户要求补验，或 PR CI 失败后需要本地复现。未执行原生设备 QA。微信身份相关检查仅使用合成去标识化数据；未访问或修改真实账本。
+当前树已执行：`uv run python -m compileall -q src/ft`（10:10，通过）、`openspec validate --all --strict`（归档后 24 项通过，0 失败）、`openspec doctor`（根目录检查通过）、`git diff --check`（通过）、归档任务链接检查（通过）；最终一轮于 2026-10-29 10:09–10:10 Asia/Shanghai 完成。归档前曾有 25 项通过，其中包含本 change。delta 已合并到对应四项主规格，逐项比对需求后完全一致。change 按用户要求归档至 `openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/`，保留 6.1–6.3 的未完成状态。PR #103 创建时 GitHub 后端与 Compose CI 均处于运行中，尚无结果。当前 SQLite／PostgreSQL 单测矩阵、Compose 测试／编译及更新父基线后的浏览器 QA 未完成；本轮按用户指示中断单测并直接交付，不以此前基线上的结果代替当前 HEAD 结果。确切补跑条件：用户要求补验，或 PR CI 失败后需要本地复现。未执行原生设备 QA。微信身份相关检查仅使用合成去标识化数据；未访问或修改真实账本。
