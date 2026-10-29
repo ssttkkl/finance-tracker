@@ -1,0 +1,1733 @@
+{
+  "allocations": [
+    {
+      "allocations": null,
+      "draft": {
+        "cash_granularity": "atomic",
+        "components": [
+          {
+            "account_key": "支付宝余额",
+            "amount": "-20.00",
+            "amount_required": false,
+            "kind": "atomic",
+            "ordinal": 0,
+            "source_label": "账户余额"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "single",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "账户余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "20.00"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "atomic",
+        "components": [
+          {
+            "account_key": "支付宝余额",
+            "amount": "-20.00",
+            "amount_required": false,
+            "kind": "atomic",
+            "ordinal": 0,
+            "source_label": "账户余额"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "single-supply",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "账户余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "5.00"
+        },
+        {
+          "account_id": 7,
+          "amount": "15.00"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_key": "余额宝",
+            "amount": "-5.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_id": 7,
+            "account_key": "银行卡(1200)",
+            "amount": "-15.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "composite-supply",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": null,
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_key": "余额宝",
+            "amount": null,
+            "amount_required": true,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": null,
+            "amount_required": true,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": false,
+        "record_id": "r1",
+        "status": "requires_allocation",
+        "total_amount": "-20.00"
+      },
+      "name": "composite-negative",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "20.00"
+        }
+      ],
+      "error": "import_component_allocation_incomplete",
+      "name": "incomplete",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "-5.00"
+        },
+        {
+          "amount": "15.00"
+        }
+      ],
+      "error": "import_component_amount_invalid",
+      "name": "negative-amount",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "1.00"
+        },
+        {
+          "amount": "2.00"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_key": "余额宝",
+            "amount": "-1.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": "-2.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": false,
+        "record_id": "r1",
+        "status": "requires_allocation",
+        "total_amount": "-20.00"
+      },
+      "name": "conservation",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "bad"
+        },
+        {
+          "amount": "15.00"
+        }
+      ],
+      "error": "import_component_amount_invalid",
+      "name": "invalid",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": {
+        "allocations": [
+          {
+            "amount": "5.00"
+          },
+          {
+            "amount": "15.00"
+          }
+        ],
+        "components": []
+      },
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_key": "余额宝",
+            "amount": "-5.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": "-15.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "map-empty-components",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": null,
+      "draft": {
+        "cash_granularity": "atomic",
+        "components": [
+          {
+            "account_key": "支付宝余额",
+            "amount": "-20.00",
+            "amount_required": false,
+            "kind": "atomic",
+            "ordinal": 0,
+            "source_label": "账户余额"
+          }
+        ],
+        "conserved": true,
+        "record_id": "fact-1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "fact-id",
+      "row": {
+        "_fact_id": "fact-1",
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "账户余额",
+        "record_id": 0,
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "account_id": false,
+          "amount": "5.00"
+        },
+        {
+          "amount": "15.00"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_id": 0,
+            "account_key": "余额宝",
+            "amount": "-5.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": "-15.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "account-bool",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "account_id": 7.9,
+          "amount": "5.00"
+        },
+        {
+          "amount": "15.00"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_id": 7,
+            "account_key": "余额宝",
+            "amount": "-5.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": "-15.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "account-float",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "allocations": [
+        {
+          "amount": "５.００"
+        },
+        {
+          "amount": "１５.００"
+        }
+      ],
+      "draft": {
+        "cash_granularity": "aggregate",
+        "components": [
+          {
+            "account_key": "余额宝",
+            "amount": "-5.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 0,
+            "source_label": "余额宝"
+          },
+          {
+            "account_key": "银行卡(1200)",
+            "amount": "-15.00",
+            "amount_required": false,
+            "kind": "aggregate",
+            "ordinal": 1,
+            "source_label": "银行卡(1200)"
+          }
+        ],
+        "conserved": true,
+        "record_id": "r1",
+        "status": "ready",
+        "total_amount": "-20.00"
+      },
+      "name": "fullwidth-amount",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    }
+  ],
+  "components": [
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "账户余额"
+        }
+      ],
+      "index": 0,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "账户余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "工商银行信用卡(1200)",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "工商银行信用卡(1200)"
+        }
+      ],
+      "index": 1,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "工商银行信用卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "余额宝",
+          "amount": null,
+          "amount_required": true,
+          "kind": "aggregate",
+          "ordinal": 0,
+          "source_label": "余额宝"
+        },
+        {
+          "account_key": "银行卡(1200)",
+          "amount": null,
+          "amount_required": true,
+          "kind": "aggregate",
+          "ordinal": 1,
+          "source_label": "银行卡(1200)"
+        }
+      ],
+      "index": 2,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "requires_allocation"
+    },
+    {
+      "components": [
+        {
+          "account_key": "余额宝 ¥5.00",
+          "amount": "5.00",
+          "amount_required": false,
+          "kind": "aggregate",
+          "ordinal": 0,
+          "source_label": "余额宝 ¥5.00"
+        },
+        {
+          "account_key": "银行卡 15.00元",
+          "amount": "15.00",
+          "amount_required": false,
+          "kind": "aggregate",
+          "ordinal": 1,
+          "source_label": "银行卡 15.00元"
+        }
+      ],
+      "index": 3,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝 ¥5.00&银行卡 15.00元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "红包&优惠券"
+        }
+      ],
+      "index": 4,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "红包&优惠券",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "支付宝余额"
+        }
+      ],
+      "index": 5,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "支付宝余额"
+        }
+      ],
+      "index": 6,
+      "row": {
+        "amount": "0.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "aggregate",
+          "ordinal": 0,
+          "source_label": "支付宝余额"
+        },
+        {
+          "account_key": "余额宝",
+          "amount": null,
+          "amount_required": true,
+          "kind": "aggregate",
+          "ordinal": 1,
+          "source_label": "余额宝"
+        }
+      ],
+      "index": 7,
+      "row": {
+        "amount": "20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "支付宝余额&余额宝",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "requires_allocation"
+    },
+    {
+      "components": [
+        {
+          "account_key": "花呗",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "花呗分期(3期)"
+        }
+      ],
+      "index": 8,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "花呗分期(3期)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "支付宝余额",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "支付宝余额"
+        }
+      ],
+      "index": 9,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "支付宝余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [],
+      "index": 10,
+      "row": {
+        "_source_account_identifier": "6222000000001234",
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": 0,
+        "file_account_key": "6222000000009999",
+        "record_id": "x3"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [],
+      "index": 11,
+      "row": {
+        "_source_account_identifier": "   ",
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": "CNY",
+        "file_account_key": "6222000000009999",
+        "record_id": "x4"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [],
+      "index": 12,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "ccb_debit",
+        "card_number": "12",
+        "currency": "CNY",
+        "record_id": "x5"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [],
+      "index": 13,
+      "row": {
+        "_source_account_identifier": "1234567890",
+        "amount": "-20.00",
+        "bill_source": "icbc_asia",
+        "currency": "HKD",
+        "record_id": "x6"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [],
+      "index": 14,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "currency": "USD",
+        "payment_method": "工商银行",
+        "record_id": "x7"
+      },
+      "status": "ready"
+    },
+    {
+      "components": [
+        {
+          "account_key": "余额宝 15.00　元",
+          "amount": "15.00",
+          "amount_required": false,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "余额宝 15.00　元"
+        }
+      ],
+      "index": 15,
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝 15.00　元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "宝¥　5.00",
+          "amount": "5.00",
+          "amount_required": false,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "宝¥　5.00"
+        }
+      ],
+      "index": 16,
+      "row": {
+        "amount": "-5.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "宝¥　5.00",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "花呗",
+          "amount": null,
+          "amount_required": true,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "花呗分期(３期)"
+        }
+      ],
+      "index": 17,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "花呗分期(３期)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "１５元",
+          "amount": "15",
+          "amount_required": false,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "１５元"
+        }
+      ],
+      "index": 18,
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": " １５元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    },
+    {
+      "components": [
+        {
+          "account_key": "银行卡15.00元",
+          "amount": "0",
+          "amount_required": false,
+          "kind": "atomic",
+          "ordinal": 0,
+          "source_label": "银行卡15.00元"
+        }
+      ],
+      "index": 19,
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "银行卡15.00元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      },
+      "status": "atomic"
+    }
+  ],
+  "groups": [
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "支付宝余额",
+      "group_id": "group_2fcfb158ab79e6dea867aa1c",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "支付宝余额&余额宝",
+        "账户余额"
+      ],
+      "masked_evidence": "支付宝余额",
+      "row_count": 5,
+      "source_account_key": "支付宝余额",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "工商银行信用卡(1200)",
+      "group_id": "group_f578219c3d2a3b08070af906",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "工商银行信用卡(1200)",
+      "row_count": 1,
+      "source_account_key": "工商银行信用卡(1200)",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "余额宝",
+      "group_id": "group_38af1ad37d734d588426ae21",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "余额宝&银行卡(1200)",
+        "支付宝余额&余额宝"
+      ],
+      "masked_evidence": "余额宝",
+      "row_count": 2,
+      "source_account_key": "余额宝",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "银行卡(1200)",
+      "group_id": "group_3a1f7cc86e15c33b5f2e8460",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "余额宝&银行卡(1200)"
+      ],
+      "masked_evidence": "银行卡(1200)",
+      "row_count": 1,
+      "source_account_key": "银行卡(1200)",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "余额宝 ¥5.00",
+      "group_id": "group_b484c0cb81def9cf5c9005c7",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "余额宝 ¥5.00&银行卡 15.00元"
+      ],
+      "masked_evidence": "余额宝 ¥5.00",
+      "row_count": 1,
+      "source_account_key": "余额宝 ¥5.00",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "银行卡 15.00元",
+      "group_id": "group_263e32f62c622d85c3fc4f58",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "余额宝 ¥5.00&银行卡 15.00元"
+      ],
+      "masked_evidence": "银行卡 15.00元",
+      "row_count": 1,
+      "source_account_key": "银行卡 15.00元",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "花呗",
+      "group_id": "group_9bf7e040a265c388f82dd6b2",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "花呗分期(3期)",
+        "花呗分期(３期)"
+      ],
+      "masked_evidence": "花呗",
+      "row_count": 2,
+      "source_account_key": "花呗",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "微信零钱",
+      "group_id": "group_9914fb611099c54ab93b44d5",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [
+        "/",
+        "零钱"
+      ],
+      "masked_evidence": "微信零钱",
+      "row_count": 2,
+      "source_account_key": "微信零钱",
+      "source_type": "wechat"
+    },
+    {
+      "currencies": [
+        "USD"
+      ],
+      "display_name": "工商银行",
+      "group_id": "group_c771fade14dcdedfa989c31e",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "工商银行",
+      "row_count": 2,
+      "source_account_key": "工商银行",
+      "source_type": "wechat"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "信用卡",
+      "group_id": "group_a1aa7223e3578b757c44912e",
+      "identity_kind": "file_account",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "信用卡（尾号 1234）",
+      "row_count": 2,
+      "source_account_key": "6222000000001234",
+      "source_type": "icbc_credit"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "信用卡A",
+      "group_id": "group_bd6389dd9bcb80178ba061c6",
+      "identity_kind": "file_account",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "信用卡A（尾号 1234）",
+      "row_count": 1,
+      "source_account_key": "6222******1234",
+      "source_type": "icbc_credit"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "建设银行",
+      "group_id": "group_fedd2f45524b107959445c68",
+      "identity_kind": "card_tail",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "建设银行（尾号 2222）",
+      "row_count": 1,
+      "source_account_key": "2222",
+      "source_type": "ccb_debit"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "工商银行借记卡",
+      "group_id": "group_7e723ab52bd58ae514a32b59",
+      "identity_kind": "file_account",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "工商银行借记卡（尾号 1234）",
+      "row_count": 1,
+      "source_account_key": "6212000000000001234",
+      "source_type": "icbc_debit"
+    },
+    {
+      "currencies": [
+        "HKD"
+      ],
+      "display_name": "工银亚洲活期账户",
+      "group_id": "group_d1fc70835d31cf8d6ea76643",
+      "identity_kind": "account_identifier",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "工银亚洲活期账户（尾号 7890）",
+      "row_count": 2,
+      "source_account_key": "1234567890",
+      "source_type": "icbc_asia"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "余额宝 15.00　元",
+      "group_id": "group_e1f688e400e415811679bd8a",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "余额宝 15.00　元",
+      "row_count": 1,
+      "source_account_key": "余额宝 15.00　元",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "宝¥　5.00",
+      "group_id": "group_cff1d8926b6f1862089658a1",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "宝¥　5.00",
+      "row_count": 1,
+      "source_account_key": "宝¥　5.00",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "１５元",
+      "group_id": "group_6ea6c68e6b72e948b4a63fed",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "１５元",
+      "row_count": 1,
+      "source_account_key": "１５元",
+      "source_type": "alipay"
+    },
+    {
+      "currencies": [
+        "CNY"
+      ],
+      "display_name": "银行卡15.00元",
+      "group_id": "group_130731d542608b60c221a8a7",
+      "identity_kind": "payment_method",
+      "legacy_source_account_keys": [],
+      "masked_evidence": "银行卡15.00元",
+      "row_count": 1,
+      "source_account_key": "银行卡15.00元",
+      "source_type": "alipay"
+    }
+  ],
+  "identities": [
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "支付宝余额"
+      ],
+      "index": 0,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "支付宝余额"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "账户余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "工商银行信用卡(1200)"
+      ],
+      "index": 1,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "工商银行信用卡(1200)"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "工商银行信用卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "error": "import_composite_payment_unresolved",
+      "index": 2,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝&银行卡(1200)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "error": "import_composite_payment_unresolved",
+      "index": 3,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝 ¥5.00&银行卡 15.00元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "支付宝余额"
+      ],
+      "index": 4,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "支付宝余额"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "红包&优惠券",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "error": "import_composite_payment_unresolved",
+      "index": 5,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "支付宝余额"
+      ],
+      "index": 6,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "支付宝余额"
+        ]
+      ],
+      "row": {
+        "amount": "0.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "error": "import_composite_payment_unresolved",
+      "index": 7,
+      "row": {
+        "amount": "20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "支付宝余额&余额宝",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "花呗"
+      ],
+      "index": 8,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "花呗"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "花呗分期(3期)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "支付宝余额"
+      ],
+      "index": 9,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "支付宝余额"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "支付宝余额",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "wechat",
+        "payment_method",
+        "微信零钱"
+      ],
+      "index": 10,
+      "keys": [
+        [
+          "wechat",
+          "payment_method",
+          "微信零钱"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "currency": "CNY",
+        "payment_method": "零钱",
+        "record_id": "w1",
+        "source_type": "wechat"
+      }
+    },
+    {
+      "identity": [
+        "wechat",
+        "payment_method",
+        "微信零钱"
+      ],
+      "index": 11,
+      "keys": [
+        [
+          "wechat",
+          "payment_method",
+          "微信零钱"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "currency": "CNY",
+        "payment_method": "/",
+        "record_id": "w2",
+        "source_type": "wechat"
+      }
+    },
+    {
+      "identity": [
+        "wechat",
+        "payment_method",
+        "工商银行"
+      ],
+      "index": 12,
+      "keys": [
+        [
+          "wechat",
+          "payment_method",
+          "工商银行"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "currency": "USD",
+        "payment_method": "工商银行",
+        "record_id": "w3",
+        "source_type": "wechat"
+      }
+    },
+    {
+      "identity": [
+        "icbc_credit",
+        "file_account",
+        "6222000000001234"
+      ],
+      "index": 13,
+      "keys": [
+        [
+          "icbc_credit",
+          "file_account",
+          "6222000000001234"
+        ]
+      ],
+      "row": {
+        "_source_account_identifier": "6222000000001234",
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": "CNY",
+        "record_id": "c1",
+        "source_type": "icbc_credit"
+      }
+    },
+    {
+      "identity": [
+        "icbc_credit",
+        "file_account",
+        "6222******1234"
+      ],
+      "index": 14,
+      "keys": [
+        [
+          "icbc_credit",
+          "file_account",
+          "6222******1234"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": "CNY",
+        "file_account_key": "6222******1234",
+        "record_id": "c2",
+        "source_display_name": "信用卡A",
+        "source_type": "icbc_credit"
+      }
+    },
+    {
+      "identity": [
+        "ccb_debit",
+        "card_tail",
+        "2222"
+      ],
+      "index": 15,
+      "keys": [
+        [
+          "ccb_debit",
+          "card_tail",
+          "2222"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "ccb_debit",
+        "card_number": "6222000011112222",
+        "currency": "CNY",
+        "record_id": "b1",
+        "source_type": "ccb_debit"
+      }
+    },
+    {
+      "identity": [
+        "icbc_debit",
+        "file_account",
+        "6212000000000001234"
+      ],
+      "index": 16,
+      "keys": [
+        [
+          "icbc_debit",
+          "file_account",
+          "6212000000000001234"
+        ]
+      ],
+      "row": {
+        "_source_account_identifier": "6212000000000001234",
+        "amount": "-20.00",
+        "bill_source": "icbc_debit",
+        "currency": "CNY",
+        "record_id": "d1",
+        "source_type": "icbc_debit"
+      }
+    },
+    {
+      "identity": [
+        "icbc_asia",
+        "account_identifier",
+        "1234567890"
+      ],
+      "index": 17,
+      "keys": [
+        [
+          "icbc_asia",
+          "account_identifier",
+          "1234567890"
+        ]
+      ],
+      "row": {
+        "_source_account_identifier": "1234567890",
+        "amount": "-20.00",
+        "bill_source": "icbc_asia",
+        "card_number": "7890",
+        "currency": "HKD",
+        "record_id": "a1",
+        "source_type": "icbc_asia"
+      }
+    },
+    {
+      "error": "账单记录缺少受支持的来源账户身份",
+      "index": 18,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "other",
+        "record_id": "x1"
+      }
+    },
+    {
+      "error": "业务行无法识别来源账户",
+      "index": 19,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "record_id": "x2"
+      }
+    },
+    {
+      "identity": [
+        "icbc_credit",
+        "file_account",
+        "6222000000001234"
+      ],
+      "index": 20,
+      "keys": [
+        [
+          "icbc_credit",
+          "file_account",
+          "6222000000001234"
+        ]
+      ],
+      "row": {
+        "_source_account_identifier": "6222000000001234",
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": 0,
+        "file_account_key": "6222000000009999",
+        "record_id": "x3"
+      }
+    },
+    {
+      "error": "业务行无法识别来源账户",
+      "index": 21,
+      "row": {
+        "_source_account_identifier": "   ",
+        "amount": "-20.00",
+        "bill_source": "icbc_credit",
+        "currency": "CNY",
+        "file_account_key": "6222000000009999",
+        "record_id": "x4"
+      }
+    },
+    {
+      "error": "业务行无法识别来源账户",
+      "index": 22,
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "ccb_debit",
+        "card_number": "12",
+        "currency": "CNY",
+        "record_id": "x5"
+      }
+    },
+    {
+      "identity": [
+        "icbc_asia",
+        "account_identifier",
+        "1234567890"
+      ],
+      "index": 23,
+      "keys": [
+        [
+          "icbc_asia",
+          "account_identifier",
+          "1234567890"
+        ]
+      ],
+      "row": {
+        "_source_account_identifier": "1234567890",
+        "amount": "-20.00",
+        "bill_source": "icbc_asia",
+        "currency": "HKD",
+        "record_id": "x6"
+      }
+    },
+    {
+      "identity": [
+        "wechat",
+        "payment_method",
+        "工商银行"
+      ],
+      "index": 24,
+      "keys": [
+        [
+          "wechat",
+          "payment_method",
+          "工商银行"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "currency": "USD",
+        "payment_method": "工商银行",
+        "record_id": "x7"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "余额宝 15.00　元"
+      ],
+      "index": 25,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "余额宝 15.00　元"
+        ]
+      ],
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "余额宝 15.00　元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "宝¥　5.00"
+      ],
+      "index": 26,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "宝¥　5.00"
+        ]
+      ],
+      "row": {
+        "amount": "-5.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "宝¥　5.00",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "花呗"
+      ],
+      "index": 27,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "花呗"
+        ]
+      ],
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "花呗分期(３期)",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "１５元"
+      ],
+      "index": 28,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "１５元"
+        ]
+      ],
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": " １５元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    },
+    {
+      "identity": [
+        "alipay",
+        "payment_method",
+        "银行卡15.00元"
+      ],
+      "index": 29,
+      "keys": [
+        [
+          "alipay",
+          "payment_method",
+          "银行卡15.00元"
+        ]
+      ],
+      "row": {
+        "amount": "-15.00",
+        "bill_source": "alipay",
+        "currency": "CNY",
+        "payment_method": "银行卡15.00元",
+        "record_id": "r1",
+        "source_type": "alipay"
+      }
+    }
+  ],
+  "issues": []
+}
