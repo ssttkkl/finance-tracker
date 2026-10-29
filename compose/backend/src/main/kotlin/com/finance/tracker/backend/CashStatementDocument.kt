@@ -27,7 +27,23 @@ internal data class CashSourceCoverage(
     val startInclusive: Boolean = true, val endInclusive: Boolean = true,
     val timePrecision: String = "second", val documentKey: String? = null, val pageTotal: Int? = null,
     val pageFingerprints: Map<String, String> = emptyMap(),
-)
+) {
+    fun contains(value: String?): Boolean {
+        if (!complete || evidence.isEmpty() || start == null || end == null || value == null) return false
+        val offset = Regex("(?:Z|[+-]\\d{2}:?\\d{2})$")
+        if (!offset.containsMatchIn(start) || !offset.containsMatchIn(end) || !offset.containsMatchIn(value)) return false
+        return try {
+            val startTime = pythonCashTimestamp(start)
+            val endTime = pythonCashTimestamp(end)
+            val whenTime = pythonCashTimestamp(value)
+            startTime < endTime &&
+                (if (startInclusive) startTime <= whenTime else startTime < whenTime) &&
+                (if (endInclusive) whenTime <= endTime else whenTime < endTime)
+        } catch (_: Exception) {
+            false
+        }
+    }
+}
 
 private val statementSourceTimezones = mapOf("alipay" to "Asia/Shanghai", "wechat" to "Asia/Shanghai",
     "icbc_credit" to "Asia/Shanghai", "icbc_debit" to "Asia/Shanghai", "ccb_debit" to "Asia/Shanghai",

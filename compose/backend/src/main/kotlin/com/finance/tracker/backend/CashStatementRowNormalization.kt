@@ -35,7 +35,7 @@ internal object CashStatementRowNormalization {
             throw StatementDocumentFailure("statement_source_unsupported")
         val rows = document.rows.map { row ->
             if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
-                ParsedCashRow(row.position, null, errorCode = row.errorCode ?: "row_unreadable", disposition = "skipped")
+                ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
             } else {
                 try {
                     normalizePlatformRow(document.sourceType, row.payload, row.position)
@@ -271,6 +271,214 @@ internal object CashStatementRowNormalization {
         val value = BigDecimal(representation.coefficient.ifEmpty { "0" }).scaleByPowerOfTen(representation.exponent.toInt())
         return if (representation.negative) value.negate() else value
     }
+
+
+    fun normalizeBankDocument(document: CashStatementDocument): ParsedCashDocument {
+        if (document.sourceType !in setOf("ccb_debit", "icbc_asia"))
+            throw StatementDocumentFailure("statement_source_unsupported")
+        val rows = document.rows.map { row ->
+            if (row.errorCode?.isNotEmpty() == true || row.payload == null) {
+                ParsedCashRow(row.position, null, errorCode = row.errorCode?.takeIf { it.isNotEmpty() } ?: "row_unreadable", disposition = "skipped")
+            } else {
+                try {
+                    normalizeBankRow(document, row.payload, row.position)
+                } catch (_: CashRecordRuleFailure) {
+                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                } catch (_: IllegalArgumentException) {
+                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                } catch (_: ArithmeticException) {
+                    ParsedCashRow(row.position, null, errorCode = "row_unreadable", disposition = "skipped")
+                }
+            }
+        }
+        val usable = rows.all { row ->
+            row.issueCodes.isEmpty() && row.errorCode in setOf(null, "account_opening") &&
+                (row.fields == null || document.coverage.contains(row.fields["occurred_at"] as? String))
+        }
+        val coverage = if (usable) document.coverage else document.coverage.copy(complete = false, evidence = "")
+        return ParsedCashDocument(document.sourceType, document.tableKey, document.parserVersion + "+native-v1",
+            rows, document.sourceAccountIdentifier, document.sourceAccountLabel, coverage,
+            document.declaredCount, document.observedCount)
+    }
+
+    private fun normalizeBankRow(document: CashStatementDocument, payload: Map<String, String>, position: Int): ParsedCashRow {
+        val source = document.sourceType
+        val isCcb = source == "ccb_debit"
+        val owner = document.sourceAccountIdentifier.orEmpty()
+        val card = if (owner.isNotEmpty() && owner.all { it in '0'..'9' }) {
+            if (isCcb) owner.takeLast(4) else (owner.dropLast(1) + "0").takeLast(4)
+        } else ""
+        val issues = mutableListOf<String>()
+        val acctRaw = text(payload[if (isCcb) "对方账号与户名" else "對方賬號"])
+        var counterparty = if (isCcb) ccbAcctCounterparty(text(payload["对方账号与户名"]))
+        else text(payload["對方戶名"]).trimPython()
+        var counterpartyAccount = if (isCcb) ccbCounterpartyAccount(text(payload["对方账号与户名"])) else acctRaw
+        var method = if (isCcb) inferCcbPayment(text(payload["交易地点/附言"]).trimPython(), card)
+        else if (card.isNotEmpty()) "工银亚洲活期账户($card)" else "工银亚洲活期账户"
+        var amount: BigDecimal? = null
+        var date = ""
+        var nativeExplanation: Map<String, Any?> = emptyMap()
+        var native: Map<String, Any?>? = null
+        val value = if (isCcb) text(payload["交易金额"]) else {
+            val income = text(payload["收入金額"]).trimPython()
+            val expense = text(payload["支出金額"]).trimPython()
+            if (income.isNotEmpty() == expense.isNotEmpty()) issues += "direction_unrecognized"
+            income.ifEmpty { expense }
+        }
+        if ("direction_unrecognized" !in issues) {
+            val parsed = CashAmount.parseOrNull(value.replace(",", "").trimPython())
+            if (parsed == null) issues += "amount_unreadable"
+            else {
+                var parsedAmount = amountValue(parsed)
+                if (!isCcb) parsedAmount = if (value == text(payload["支出金額"]).trimPython())
+                    parsedAmount.abs().negate() else parsedAmount.abs()
+                amount = parsedAmount
+            }
+        }
+        try {
+            date = if (isCcb) {
+                val raw = text(payload["交易日期"]).trimPython()
+                if (!Regex("[0-9]{8}").matches(raw)) throw IllegalArgumentException("bad date")
+                java.time.LocalDate.parse(raw, java.time.format.DateTimeFormatter.BASIC_ISO_DATE).toString()
+            } else {
+                val raw = "${text(payload["交易時間"]).trimPython()} ${text(payload[""]).trimPython()}"
+                if (!Regex("[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}").matches(raw))
+                    throw IllegalArgumentException("bad date")
+                raw
+            }
+        } catch (_: IllegalArgumentException) {
+            issues += "time_unreadable"
+        } catch (_: java.time.DateTimeException) {
+            issues += "time_unreadable"
+        }
+        val occurredAt = if ("time_unreadable" in issues) null else try {
+            normalizeStatementTimestamp(date, source)
+        } catch (_: IllegalArgumentException) {
+            issues += "time_unreadable"; null
+        } catch (_: ArithmeticException) {
+            issues += "time_unreadable"; null
+        }
+        val currency = if (isCcb) mapOf("人民币元" to "CNY", "人民币" to "CNY", "美元" to "USD",
+            "港币" to "HKD", "日元" to "JPY")[text(payload["币别"]).trimPython()] else document.sourceCurrency
+        if (currency == null) issues += "currency_unrecognized"
+        if (amount != null) {
+            native = if (isCcb) parseCcbNative(payload, amount, date, currency.orEmpty(), card)
+            else parseAsiaNative(payload, amount, date, currency.orEmpty(), owner, card)
+            native?.let {
+                counterparty = text(it["counterparty"])
+                counterpartyAccount = text(it["counterparty_account"])
+                method = text(it["payment_method"])
+                nativeExplanation = extractCashSourceExplanation(it)
+            }
+            if (!isCcb && amount.signum() == 0 && text(payload["業務類型"]).trimPython() in setOf("新開戶", "新开户") && issues.isEmpty())
+                return ParsedCashRow(position, null, errorCode = "account_opening", disposition = "skipped")
+        }
+        val displayTail = if (owner.isNotEmpty() && owner.all { it in '0'..'9' }) owner.takeLast(4) else ""
+        val displayName = if (isCcb) "建设银行" + if (displayTail.length == 4) "($displayTail)" else ""
+        else "工银亚洲" + if (displayTail.isEmpty()) "" else "（尾号 $displayTail）"
+        val identity = mapOf("_source_account_identifier" to owner, "card_number" to card,
+            "source_display_name" to displayName)
+        val cashAmount = amount?.let { CashAmount.parseOrNull(it.toPlainString()) }
+        val explanation = prepareCashSourceEffects(
+            values = mapOf("source_payload" to payload, "amount" to cashAmount),
+            patch = mapOf("source_payload" to payload, "amount" to cashAmount),
+            sourceType = source,
+            sourceExplanation = nativeExplanation + identity,
+        ).explanation ?: emptyMap()
+        val account = CashRecordClassification.normalizeAccount(counterpartyAccount, source = source,
+            sourceAccountIdentifier = owner, sourcePayload = payload)
+        val record = native?.let { CashRecordClassification.classify(source, it) }
+        val fields = linkedMapOf<String, Any?>(
+            "amount" to amount?.toPlainString(),
+            "currency" to currency,
+            "occurred_at" to occurredAt,
+            "record_type" to record?.first,
+            "record_subtype" to record?.second,
+            "counterparty" to counterparty,
+            "counterparty_account" to account.value,
+            "counterparty_account_attrs" to account.attrs,
+            "note" to CashRecordPolicy.sourceNote(payload),
+            "source_payload" to LinkedHashMap(payload),
+        )
+        return ParsedCashRow(position, fields, method, issueCodes = issues, sourceExplanation = explanation)
+    }
+
+    private fun parseCcbNative(payload: Map<String, String>, amount: BigDecimal, date: String, currency: String,
+        card: String): Map<String, Any?> {
+        val summary = text(payload["摘要"]).trimPython()
+        val location = text(payload["交易地点/附言"]).trimPython()
+        val acctRaw = text(payload["对方账号与户名"]).trimPython()
+        val balance = text(payload["账户余额"]).replace(",", "").trimPython()
+        val locationCp = ccbCounterparty(location)
+        val acctCp = ccbAcctCounterparty(acctRaw)
+        val counterparty = locationCp ?: acctCp
+        val refund = if (amount.signum() > 0 && listOf("退货", "退款", "冲正", "撤销").any { it in summary })
+            "ccb_debit_refund" else ""
+        val (normalized, enriched) = normalizeSourceCounterparty(counterparty, summary)
+        return linkedMapOf(
+            "date" to date, "amount" to amount, "currency" to currency, "card_number" to card,
+            "counterparty" to normalized, "counterparty_account" to ccbCounterpartyAccount(acctRaw),
+            "note" to enriched, "category" to if (amount.signum() < 0) "expense" else "income",
+            "payment_method" to inferCcbPayment(location, card), "summary" to summary, "location" to location,
+            "acct_name_raw" to acctRaw, "_raw_cp" to acctCp.ifEmpty { counterparty },
+            "_ccb_location_cp" to (locationCp ?: ""), "_ccb_acct_cp" to acctCp,
+            "_ccb_refund_signal" to refund, "_source_payload" to payload,
+        ).apply { if (refund.isNotEmpty()) put("_refund_signal", refund) }
+    }
+
+    private fun parseAsiaNative(payload: Map<String, String>, amount: BigDecimal, date: String, currency: String,
+        owner: String, card: String): Map<String, Any?> {
+        val summary = text(payload.getValue("摘要")).trimPython()
+        val note = listOf(summary, text(payload.getValue("備註")).trimPython(), text(payload.getValue("交易場所")).trimPython())
+            .filter { it.isNotEmpty() }.distinct().joinToString(" ")
+        return linkedMapOf(
+            "date" to date, "amount" to amount, "currency" to currency, "card_number" to card,
+            "counterparty" to text(payload.getValue("對方戶名")).trimPython(),
+            "counterparty_account" to text(payload.getValue("對方賬號")),
+            "note" to note, "category" to if (amount.signum() >= 0) "income" else "expense",
+            "payment_method" to if (card.isNotEmpty()) "工银亚洲活期账户($card)" else "工银亚洲活期账户",
+            "summary" to summary, "txn_type" to text(payload.getValue("業務類型")).trimPython(),
+            "_source_account_identifier" to owner, "location" to text(payload.getValue("交易場所")).trimPython(),
+            "_raw_cp" to text(payload.getValue("對方戶名")).trimPython(), "_source_payload" to payload,
+        )
+    }
+
+    private fun ccbCounterparty(location: String): String? {
+        if (location.isEmpty() || location == "***") return null
+        var stripped = location.removePrefix("消费-")
+        for ((prefix, suffixes) in ccbPrefixes) if (stripped.startsWith(prefix)) {
+            var rest = stripped.substring(prefix.length)
+            while (true) {
+                val suffix = suffixes.firstOrNull(rest::startsWith) ?: return rest
+                rest = rest.substring(suffix.length)
+            }
+        }
+        return securitiesTransfer.find(stripped)?.groupValues?.get(1) ?: stripped
+    }
+
+    private fun ccbAcctCounterparty(raw: String): String =
+        if ("/" in raw) raw.substringAfter("/").trimPython() else raw.trimPython()
+
+    private fun ccbCounterpartyAccount(raw: String): String =
+        if ("/" in raw) raw.substringBefore("/").trimPython() else ""
+
+    private fun inferCcbPayment(location: String, card: String): String = when {
+        location.startsWith("财付通-") -> "微信支付"
+        location.startsWith("支付宝-") -> "支付宝"
+        location.startsWith("美团支付-") -> "美团支付"
+        "PAYPAL" in location.uppercase() -> "PayPal"
+        card.isNotEmpty() -> "建行储蓄卡($card)"
+        else -> "建行储蓄卡"
+    }
+
+    private val pythonDigitClass = pythonIntegerDigitStarts.joinToString("", "[", "]") {
+        "\\x{${it.toString(16)}}-\\x{${(it + 9).toString(16)}}"
+    }
+    private val pythonWhitespaceClass = pythonWhitespace.joinToString("", "[^", "]") { "\\x{${it.toString(16)}}" }
+    private val securitiesTransfer = Regex("^(银行转证券|证券转银行|银转证|证转银)$pythonDigitClass+$pythonWhitespaceClass*$")
+    private val ccbPrefixes = listOf("财付通-" to listOf("微信支付-", "微信转账", "消费-"),
+        "支付宝-" to listOf("淘宝-", "支付宝外部商户-", "支付宝-转账-", "支付宝-", "消费-"),
+        "美团支付-" to listOf("消费-"))
 
     private fun alipayUnpaidClosed(status: String, direction: String, paymentMethod: String): Boolean =
         status.trimPython() in setOf("交易关闭", "已关闭") && direction.trimPython() != "支出" &&
