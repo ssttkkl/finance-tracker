@@ -37,7 +37,7 @@ class MutationPlanService(
                 MutationPlanBuilder(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now))
                     .build(transaction, request)
             } catch (failure: CashPolicyError) {
-                throw MutationPlanFieldFailure(failure.code, failure.fields)
+                throw MutationPlanFieldFailure(failure.code, failure.fields).also { it.addSuppressed(failure) }
             }
             MutationPlanView.validateBuild(built)
             Triple(principal, context, built)
@@ -48,8 +48,9 @@ class MutationPlanService(
             for (status in listOf("confirmed", "pending"))
                 put(status, items.count { it.jsonObject.getValue("confirmation_status").jsonPrimitive.content == status })
         }
-        val contextId = context?.id ?: store.create(principal.workspaceId!!, principal.userId, request.transactionId).id
-        val current = store.get(contextId, principal.workspaceId!!, principal.userId)
+        val workspace = principal.workspaceId ?: throw AccessFailure(true)
+        val contextId = context?.id ?: store.create(workspace, principal.userId, request.transactionId).id
+        val current = store.get(contextId, workspace, principal.userId)
         val previous = current.plan
         val planRevision = previous?.get("plan_revision")?.jsonPrimitive?.longOrNull?.plus(1) ?: 1
         val plan = JsonObject(built + mapOf(
@@ -62,8 +63,7 @@ class MutationPlanService(
             "item_counts" to itemCounts,
         ))
         try {
-            store.replace(contextId, principal.workspaceId!!, principal.userId, current.revision, plan,
-                requestJson(request))
+            store.replace(contextId, workspace, principal.userId, current.revision, plan, requestJson(request))
         } catch (_: MutationPlanStore.RevisionConflict) {
             throw MutationPlanFailure("plan_changed")
         }

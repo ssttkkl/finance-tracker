@@ -58,6 +58,15 @@ Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
   - JS target: `./gradlew :shared:jsTest`
 - iOS tests: `./gradlew :shared:iosSimulatorArm64Test`
 
+### Static analysis
+
+The Kotlin backend and the pure business modules (`business-contracts`, `business-domain`) run ktlint and detekt. Backend and JVM/Android targets use detekt with type resolution; common and platform source sets are checked per configured target.
+
+- ktlint: `./gradlew :backend:ktlintCheck :business-contracts:ktlintCheck :business-domain:ktlintCheck`
+- detekt: `./gradlew :backend:detektMain :backend:detektTest`; business targets such as `:business-domain:detektMetadataCommonMain`, `:business-domain:detektJvmMain`, `:business-domain:detektAndroidHostTest`, `:business-domain:detektJsMain`.
+
+`shared` is intentionally outside this gate because it contains Compose UI; Compose rules and Android Lint are not enabled. ktlint formatting rules are limited to unused imports, trailing spaces and final newline until the migrated code is reformatted.
+
 ---
 
 Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),

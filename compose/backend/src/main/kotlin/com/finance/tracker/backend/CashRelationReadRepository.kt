@@ -2,9 +2,6 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import org.jooq.Record
-import org.jooq.Field
-import org.jooq.Select
-import org.jooq.Record1
 import org.jooq.impl.DSL
 
 internal data class CashRelationSqlRow(val id:Long,val kind:String,val subtype:String,val primary:Long,val secondary:Long?,

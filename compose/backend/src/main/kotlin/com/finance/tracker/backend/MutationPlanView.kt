@@ -42,14 +42,14 @@ internal object MutationPlanView {
         var offset = 0
         if (cursor != null) {
             try {
-                if (cursor.length !in 1..4096) throw IllegalArgumentException()
+                if (cursor.length !in 1..4096) throw IllegalArgumentException("invalid plan cursor")
                 val decoded = String(Base64.getUrlDecoder().decode(pad(cursor)), Charsets.UTF_8)
-                val data = Json.parseToJsonElement(decoded) as? JsonArray ?: throw IllegalArgumentException()
+                val data = Json.parseToJsonElement(decoded) as? JsonArray ?: throw IllegalArgumentException("invalid plan cursor")
                 if (data.size != 4 || data[0].jsonPrimitive.contentOrNull != plan.getValue("plan_id").jsonPrimitive.content ||
                     data[1].jsonPrimitive.contentOrNull != kind || data[2].jsonPrimitive.contentOrNull != selected)
-                    throw IllegalArgumentException()
-                offset = data[3].jsonPrimitive.intOrNull ?: throw IllegalArgumentException()
-                if (offset !in 0..values.size) throw IllegalArgumentException()
+                    throw IllegalArgumentException("invalid plan cursor")
+                offset = data[3].jsonPrimitive.intOrNull ?: throw IllegalArgumentException("invalid plan cursor")
+                if (offset !in 0..values.size) throw IllegalArgumentException("invalid plan cursor")
             } catch (_: Exception) { fail("plan_cursor_invalid") }
         }
         if (offset > values.size) fail("plan_page_invalid")

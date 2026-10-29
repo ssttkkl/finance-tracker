@@ -56,3 +56,17 @@ internal object MutationPlanEntryTarget {
         fixedCashDecimal(row.applied), row.state, row.active,
     )
 }
+
+internal fun MutationPlanEntryTarget.edge(edge: CashRelationGraphEdge): PlanRelationEdge = PlanRelationEdge(
+    strictCashInteger(edge.id)?.toLong() ?: throw CashPolicyError("relation_data_invalid", emptyList()),
+    edge.kind?.toString() ?: throw CashPolicyError("relation_data_invalid", emptyList()),
+    edge.primaryTransactionId?.toString() ?: throw CashPolicyError("relation_data_invalid", emptyList()),
+    edge.secondaryTransactionId?.toString(), edge.primaryComponentId?.toString(), edge.secondaryComponentId?.toString(),
+    edge.primaryRole?.toString(), edge.secondaryRole?.toString(), edge.subtype?.toString() ?: "",
+    edge.appliedAmount?.let { value ->
+        if (value is CashAmount) {
+            val decimal = java.math.BigDecimal(value.numericText())
+            (if (value.toString().startsWith('-') && decimal.signum() == 0) "-" else "") + decimal.toPlainString()
+        } else value.toString()
+    }, edge.state?.toString() ?: "", edge.active as? Boolean ?: false,
+)

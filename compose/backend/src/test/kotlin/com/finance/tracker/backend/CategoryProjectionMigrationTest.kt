@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import java.nio.file.Path
-import java.sql.Connection
 import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*

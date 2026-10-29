@@ -2,7 +2,6 @@ package com.finance.tracker.backend
 
 import java.time.Instant
 import kotlin.test.*
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 

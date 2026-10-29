@@ -463,7 +463,7 @@ internal class CashRecordDetailRepository(
         var base = LinkedHashMap<String, Any?>(fields.values).apply { putAll(update.values) }
         base = LinkedHashMap(prepareCashSourceEffects(base, sourcePatch, record.sourceType ?: "",
             record.relationMetadata, protected).values)
-        var values: MutableMap<String, Any?> = base
+        var values: Map<String, Any?> = base
         var policyPatch = emptyMap<String, Any?>()
         if (record.state == "draft") {
             val linked = sourcePatch.keys intersect financialCashFields

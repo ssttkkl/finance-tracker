@@ -4,6 +4,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
     alias(libs.plugins.androidMultiplatformLibrary)
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
 }
 
 kotlin {
@@ -27,4 +29,21 @@ kotlin {
             implementation(libs.kotlinx.serialization.json)
         }
     }
+}
+
+// Shared business modules: every common/platform source set and test is linted without Compose rules.
+ktlint {}
+
+detekt {
+    buildUponDefaultConfig = true
+    parallel = true
+    config.setFrom(rootProject.files("config/detekt.yml"))
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "11"
+}
+
+tasks.named("check") {
+    dependsOn("ktlintCheck", "detektMetadataCommonMain", "detektJvmMain", "detektJvmTest", "detektAndroidHostTest")
 }

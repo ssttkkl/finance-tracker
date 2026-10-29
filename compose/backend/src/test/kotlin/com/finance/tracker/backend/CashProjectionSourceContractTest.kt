@@ -2,7 +2,6 @@ package com.finance.tracker.backend
 
 import java.nio.file.Path
 import java.time.Instant
-import java.math.BigInteger
 import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*

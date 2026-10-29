@@ -2,10 +2,6 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.backend.persistence.generated.tables.records.*
-import org.jooq.Query
-import org.jooq.Record
-import org.jooq.Table
-import org.jooq.Field
 import org.jooq.impl.DSL
 import java.time.Instant
 import java.util.UUID

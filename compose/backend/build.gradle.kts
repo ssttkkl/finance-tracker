@@ -1,6 +1,8 @@
 plugins {
     kotlin("jvm")
     alias(libs.plugins.kotlinSerialization)
+    alias(libs.plugins.ktlint)
+    alias(libs.plugins.detekt)
     application
 }
 
@@ -62,3 +64,20 @@ tasks.test {
     outputs.upToDateWhen { false }
     outputs.cacheIf { false }
 }
+
+// Static analysis: ktlint covers every source set; detektMain/detektTest use JVM type resolution.
+ktlint {
+    filter { exclude { it.file.path.contains("/src/generated/") } }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    parallel = true
+    config.setFrom(rootProject.files("config/detekt.yml"))
+}
+
+tasks.withType<io.gitlab.arturbosch.detekt.Detekt>().configureEach {
+    jvmTarget = "21"
+}
+
+tasks.named("check") { dependsOn("ktlintCheck", "detektMain", "detektTest") }

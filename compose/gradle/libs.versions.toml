@@ -22,6 +22,8 @@ kotlinxCoroutines = "1.10.2"
 kotlinxIo = "0.9.1"
 filekit = "0.16.0"
 buildKonfig = "0.23.0"
+detekt = "1.23.8"
+ktlint = "14.2.0"
 sqliteJdbc = "3.53.4.0"
 postgresJdbc = "42.7.14"
 
@@ -65,3 +67,5 @@ composeCompiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "k
 kotlinMultiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 kotlinSerialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 buildKonfig = { id = "com.codingfeline.buildkonfig", version.ref = "buildKonfig" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
