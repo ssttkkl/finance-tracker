@@ -16,27 +16,40 @@ class LegacyCashflowResponseEncodingTest {
     @Test fun legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable()=testApplication {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
         val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
-        val workspaces=WorkspaceService(db);val name="响应编码事务回归";val workspace=workspaces.create("synthetic-admin",name).activeWorkspaceId!!;deletionAccount(db,workspace)
+        val workspaces=WorkspaceService(db)
         application {financeModule(db)}
-        try {
-            val before=state(db,workspace)
-            for(separator in listOf("\\ud800","\\udfff")) {
-                val body="""{"account":"账户","amount":"-1.2500","currency":"CNY","counterparty":"response-test","date":"2026-08-04${separator}12:00"}"""
-                val response=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json);setBody(body)}
-                assertEquals(400,response.status.value,response.bodyAsText())
-                val error=Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("error").jsonObject
-                assertTrue(error.getValue("code").jsonPrimitive.content.contains("surrogates not allowed"))
-                assertEquals(JsonPrimitive("请求参数无效。"),error["message"])
-                assertEquals(before,state(db,workspace))
-            }
-            val success=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json)
-                setBody("""{"account":"账户","amount":"-1.2500","currency":"CNY","counterparty":"response-test","date":"2026-08-04😀12:00"}""")}
-            assertEquals(201,success.status.value,success.bodyAsText())
-            val row=Json.parseToJsonElement(success.bodyAsText()).jsonObject.getValue("row").jsonObject
-            assertEquals(JsonPrimitive("2026-08-04😀12:00"),row["occurred_at"]);assertEquals(JsonPrimitive("-1.2500"),row["amount"])
-            val after=state(db,workspace)
-            for(table in listOf("cash_transactions","cash_transaction_components")) assertEquals(before.getValue(table).size+1,after.getValue(table).size,table)
-        } finally {workspaces.delete("synthetic-admin",name);workspaces.select("synthetic-admin","fixture-a")}
+        for(ready in listOf(false,true)) {
+            val name="响应编码事务回归$ready";val workspace=workspaces.create("synthetic-admin",name).activeWorkspaceId!!;deletionAccount(db,workspace)
+            try {
+                if(!ready) db.write {c ->
+                    for(table in listOf("cash_projection_states","cash_projection_datasets")) c.prepareStatement("DELETE FROM $table WHERE workspace_id=?").use {it.setString(1,workspace);it.executeUpdate()}
+                }
+                setAccountTestRole(db,workspace,"editor")
+                val seed=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json)
+                    setBody("""{"account":"账户","amount":"20.00","currency":"CNY","counterparty":"existing-row","date":"2026-08-03 12:00:00"}""")}
+                assertEquals(201,seed.status.value,seed.bodyAsText())
+                for(separator in listOf("\\ud800","\\udfff")) {
+                    val before=state(db,workspace)
+                    assertTrue(before.getValue("cash_transactions").isNotEmpty())
+                    assertTrue(before.getValue("ledger_snapshots").isNotEmpty())
+                    assertEquals(ready,before.getValue("cash_projection_states").isNotEmpty())
+                    val body="""{"account":"账户","amount":"-1.2500","currency":"CNY","counterparty":"response-test","date":"2026-08-04${separator}12:00"}"""
+                    val response=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json);setBody(body)}
+                    assertEquals(400,response.status.value,response.bodyAsText())
+                    val error=Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("error").jsonObject
+                    assertTrue(error.getValue("code").jsonPrimitive.content.contains("surrogates not allowed"))
+                    assertEquals(JsonPrimitive("请求参数无效。"),error["message"])
+                    assertEquals(before,state(db,workspace))
+                    val success=client.post("/api/v1/cashflow/add") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json)
+                        setBody("""{"account":"账户","amount":"-1.2500","currency":"CNY","counterparty":"response-test","date":"2026-08-04😀12:00"}""")}
+                    assertEquals(201,success.status.value,success.bodyAsText())
+                    val row=Json.parseToJsonElement(success.bodyAsText()).jsonObject.getValue("row").jsonObject
+                    assertEquals(JsonPrimitive("2026-08-04😀12:00"),row["occurred_at"]);assertEquals(JsonPrimitive("-1.2500"),row["amount"])
+                    val after=state(db,workspace)
+                    for(table in listOf("cash_transactions","cash_transaction_components")) assertEquals(before.getValue(table).size+1,after.getValue(table).size,table)
+                }
+            } finally {setAccountTestRole(db,workspace,"admin");workspaces.delete("synthetic-admin",name);workspaces.select("synthetic-admin","fixture-a")}
+        }
     }
     @Test fun defaultOperationTimeTruncatesSubMicrosecondsBeforeFormatting() {
         for(nano in listOf(0L,1L,999L)) assertEquals("2026-08-04T12:00:00+00:00",manualInstantText(Instant.parse("2026-08-04T12:00:00Z").plusNanos(nano)))

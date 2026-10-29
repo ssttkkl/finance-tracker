@@ -38,10 +38,28 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
     classification: CashClassificationService = CashClassificationService(database, now = clock),
     manualCash: ManualCashService = ManualCashService(database,now = clock),
     transfers: CashTransferService = CashTransferService(database,now = clock),
-    legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock)) {
+    legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
+    currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock)) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CurrentProjectionNotFound> { call, failure ->
+            call.respond(HttpStatusCode.NotFound, kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive(if (failure.record) "record_not_found" else "projection_not_found"))
+                    put("message", JsonPrimitive(if (failure.record) "未找到这条流水。" else "这笔记录已变化，请刷新列表。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                })
+            })
+        }
+        exception<CurrentProjectionUnavailable> { call, _ ->
+            call.respond(HttpStatusCode.ServiceUnavailable, kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive("projection.unavailable")); put("message", JsonPrimitive("流水暂不可用，请稍后重试。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
+                })
+            })
+        }
         exception<CashflowOperationFailure> {call,failure ->
             call.respond(HttpStatusCode.BadRequest,kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
@@ -141,7 +159,7 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
             val code = if (failure.forbidden) "workspace_forbidden" else "authentication_required"
             val message = if (auth) "请求未获授权或无效。" else if (failure.forbidden) "当前用户无权访问该工作区。" else "请先登录。"
             val status=if(failure.forbidden) HttpStatusCode.Forbidden else HttpStatusCode.Unauthorized
-            if(call.request.path().startsWith("/api/v1/cash-mutations") || call.request.path().startsWith("/api/v1/cash-projections/")) call.respond(status,kotlinx.serialization.json.buildJsonObject {
+            if(call.request.path().startsWith("/api/v1/cash-mutations") || call.request.path().startsWith("/api/v1/cash-projections/") || call.request.path().startsWith("/api/v1/cash-records/")) call.respond(status,kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
                     put("code",JsonPrimitive(code));put("message",JsonPrimitive(message));put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(false))
                 })
@@ -206,6 +224,18 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         }
     }
     routing {
+        get("/api/v1/cash-records/{transaction_id}/projection") {
+            val result = withContext(Dispatchers.IO) {
+                currentProjections.location(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"]!!, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-projections/{projection_id}") {
+            val result = withContext(Dispatchers.IO) {
+                currentProjections.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
         for((path,checkin) in listOf("/api/v1/cashflow/add" to false,"/api/v1/cashflow/checkin" to true)) post(path) {
             val result=try {
                 val input=categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))

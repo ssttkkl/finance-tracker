@@ -38,7 +38,7 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
     }
     private fun toNames(value:JsonObject):JsonObject {
         val models=accountModels().associateBy {it.id};val exactNames=models.values.associate {it.id.toString() to it.name};val buckets=value["accounts"] ?: return value
-        require(buckets is JsonObject) {"snapshot accounts must be a mapping"}
+        check(buckets is JsonObject) {"snapshot accounts must be a mapping"}
         return JsonObject(value+("accounts" to JsonObject(buckets.mapValues {(_,bucket) ->
             if(bucket !is JsonObject) bucket else {
                 val named=linkedMapOf<String,JsonElement>()
@@ -49,7 +49,7 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
         })))
     }
     private fun toIds(value:JsonObject):JsonObject {
-        val models=accountModels();val buckets=value["accounts"] ?: return value;require(buckets is JsonObject) {"snapshot accounts must be a mapping"}
+        val models=accountModels();val buckets=value["accounts"] ?: return value;check(buckets is JsonObject) {"snapshot accounts must be a mapping"}
         return JsonObject(value+("accounts" to JsonObject(buckets.mapValues {(type,bucket) ->
             if(bucket !is JsonObject) bucket else JsonObject(bucket.entries.associate {(name,pocket) ->
                 val model=models.firstOrNull {it.name==name && it.type==type} ?: if(type=="security") models.firstOrNull {it.name==name && it.type in setOf("security","crypto")} else null
@@ -61,7 +61,9 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
         context.requireActive()
         val sql=if(lockRow && !context.sqlite) "SELECT s.payload FROM ledger_snapshots s JOIN workspaces w ON w.id=s.workspace_id WHERE s.workspace_id=? FOR UPDATE OF s,w"
             else "SELECT payload FROM ledger_snapshots WHERE workspace_id=?"+if(lockRow) lock else ""
-        val stored=c.prepareStatement(sql).use {it.setString(1,workspace);it.executeQuery().use {r ->if(r.next()) Json.parseToJsonElement(r.getString(1)).jsonObject else null}}
+        val stored=c.prepareStatement(sql).use {it.setString(1,workspace);it.executeQuery().use {r ->if(r.next()) Json.parseToJsonElement(r.getString(1)).let {value ->
+            check(value is JsonObject) {"snapshot must be a mapping"};value
+        } else null}}
         if(lockRow && (context.sqlite || stored==null)) c.prepareStatement("SELECT id FROM workspaces WHERE id=?$lock").use {it.setString(1,workspace);it.executeQuery().use {r ->check(r.next()) {"snapshot workspace missing"}}}
         return toNames(stored ?: Json.parseToJsonElement("""{"updated_at":"","accounts":{"cash":{},"loan":{},"lend":{},"security":{}}}""").jsonObject)
     }
@@ -76,8 +78,8 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
         loaded=CashSnapshotDocument(copyCashJsonContainers(document.value).jsonObject)
     }
     private fun pocket(document:CashSnapshotDocument,name:String,type:String):JsonObject {
-        val buckets=document.value["accounts"] ?: JsonObject(emptyMap());require(buckets is JsonObject) {"snapshot accounts must be a mapping"}
-        val accounts=buckets[type] ?: JsonObject(emptyMap());require(accounts is JsonObject) {"snapshot account type must be a mapping"}
+        val buckets=document.value["accounts"] ?: JsonObject(emptyMap());check(buckets is JsonObject) {"snapshot accounts must be a mapping"}
+        val accounts=buckets[type] ?: JsonObject(emptyMap());check(accounts is JsonObject) {"snapshot account type must be a mapping"}
         val pocket=accounts[name] ?: JsonObject(emptyMap());require(pocket is JsonObject) {"snapshot account balance must be a currency mapping"};return pocket
     }
     private fun put(document:CashSnapshotDocument,name:String,type:String,currency:String,value:String) {
@@ -86,7 +88,10 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
         val changedAccounts=JsonObject(accounts+(name to changedPocket))
         document.value=JsonObject(document.value+("accounts" to JsonObject(buckets+(type to changedAccounts))))
     }
-    fun setBalance(document:CashSnapshotDocument,name:String,type:String,currency:String,value:String) {context.requireActive();put(document,name,type,currency,snapshotFixed(snapshotMoney(JsonPrimitive(value))))}
+    fun setBalance(document:CashSnapshotDocument,name:String,type:String,currency:String,value:String) {
+        context.requireActive();pocket(document,name,type)
+        put(document,name,type,currency,snapshotFixed(snapshotMoney(JsonPrimitive(value))))
+    }
     fun updateBalance(document:CashSnapshotDocument,name:String,type:String,currency:String,delta:String) {
         context.requireActive();val old=snapshotMoney(pocket(document,name,type)[currency] ?: JsonPrimitive(0));val change=snapshotMoney(JsonPrimitive(delta))
         val result=old.arithmeticValue().add(change.arithmeticValue(),snapshotArithmetic)

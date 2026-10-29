@@ -29,6 +29,34 @@ class MigrationGateChecks(unittest.TestCase):
         changed = source.replace("[1, 2]", "[1]")
         self.assertNotEqual(checker.definitions(source, "test_a.py"), checker.definitions(changed, "test_a.py"))
 
+    def test_reviewed_addition_is_bound_to_its_current_body_and_remains_pending(self):
+        additions = {"added": {"source_sha256": "approved", "reason": "Authorized encoding rollback regression"}}
+        errors, states = checker.check({}, {"added": "approved"}, [], Path("/unused"), source_additions=additions)
+        self.assertEqual([], errors)
+        self.assertEqual({"added": "pending"}, states)
+        for current, original in (({"added": "changed"}, {}), ({}, {}), ({"added": "approved"}, {"added": "approved"})):
+            self.assertTrue(checker.check(original, current, [], Path("/unused"), source_additions=additions)[0])
+        self.assertTrue(checker.check({}, {"added": "approved"}, [], Path("/unused"),
+            source_additions={"added": {"source_sha256": "approved"}})[0])
+
+    def test_reviewed_addition_requires_the_same_assertion_parameter_and_kotlin_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "Example.kt").write_text('class Example { @Test fun rollback() {} }')
+            additions = {"added": {"source_sha256": "approved", "reason": "Authorized regression"}}
+            entry = {"source": "added", "source_sha256": "approved", "status": "migrated",
+                "assertions": ["All financial writes roll back"], "parameters": ["added[one]", "added[two]"],
+                "targets": [{"path": "Example.kt", "test": "rollback"}]}
+            errors, states = checker.check({}, {"added": "approved"}, [entry], root, source_additions=additions)
+            self.assertEqual([], errors)
+            self.assertEqual({"added": "migrated"}, states)
+            self.assertTrue(checker.check_parameters([entry], ["added[one]"]))
+            for field, value in (("source_sha256", "stale"), ("assertions", []), ("parameters", []), ("targets", [])):
+                self.assertTrue(checker.check({}, {"added": "approved"}, [{**entry, field: value}], root,
+                    source_additions=additions)[0], field)
+            entry["targets"][0]["test"] = "absent"
+            self.assertTrue(checker.check({}, {"added": "approved"}, [entry], root, source_additions=additions)[0])
+
     def test_global_parameters_and_fixture_helpers_cannot_weaken_silently(self):
         source = 'CASES = [1, 2]\n@pytest.mark.parametrize("value", CASES)\ndef test_a(value):\n    assert value > 0\n'
         changed = source.replace("[1, 2]", "[1]")

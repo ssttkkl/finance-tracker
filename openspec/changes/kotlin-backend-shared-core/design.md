@@ -1,6 +1,6 @@
 ## Context
 
-起点为远端 `main` 的 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`，2026-10-28 通过 `git ls-remote origin refs/heads/main` 与 fetch 双重核实。工作区为 `/Users/huangwenlong/Documents/Codex/2026-10-28/task/finance-kotlin-backend`，分支 `codex/kotlin-backend-shared-core`。原工作区保持原状。
+起点为远端 `main` 的 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。当前工作区为 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`，从保存进度的 `b5dbef2716c11b367432c01048d6c2c2f1977d2e` 继续本地实施。历史 macOS 验证仅说明当时的代码快照；当前容器须重新准备仓库外匿名夹具并执行受影响验证。
 
 已读根 `AGENTS.md`、项目技能、项目上下文、主规格导航、active changes、词表、Python 与 Compose 相关实现和 CI。`grill-me → grilling` 及 `openspec-explore` 已显式执行，用户确认完整迁移、保留全部合同、本地不提交／推送／部署；用户明确确认旧实验停止后才允许构建测试。旧实验 REPORT/README 仅作受限背景，不复用规划器、IPC 或 Gson 实现。未找到本机 `memory_summary.md`；本机 Codex memories 目录为空，memory 数据库只读查询未找到相关项目条目，不能假称读取了不存在的记录。
 
@@ -8,7 +8,7 @@
 
 ## Goals / Non-Goals
 
-完成全量运行时迁移和实际前端共用，范围与验收见 proposal。公共层只接受显式输入，服务端负责事实和副作用；不做产品重设计，不修改已通过性能门槛，不引入自动冲突合并，不碰真实账本和用户服务。
+完成全量运行时迁移和实际前端共用，范围与验收见 proposal。公共层只接受显式输入，服务端负责事实和副作用；不做产品重设计，不修改已通过性能门槛，不引入自动冲突合并，不碰真实账本和用户服务。用户明确要求本轮完成标准为功能迁移及功能测试：本轮执行双库功能、安全与事务合同，明确排除性能用例，保留原性能预算及未通过证据，性能验证不阻断本轮功能交付。
 
 ## Decisions
 
@@ -28,7 +28,7 @@ flowchart LR
   UI --> D[business-domain]
   BE[Ktor backend / JVM] --> C
   BE --> D
-  BE --> SQL[JDBC / SQLite 与 PostgreSQL]
+  BE --> SQL[jOOQ DSL / SQLite 与 PostgreSQL]
   BE --> AD[服务器字节解码 / 行情 / R2 adapter]
   AD --> N[后端格式解码与逐行归一]
   N --> D
@@ -51,7 +51,17 @@ flowchart LR
 
 测试对应表以基线 Python 测试定义及参数化场景为盘点来源，逐项记录规则/断言、Kotlin 目标和结果。检查器从基线和当前源码重新枚举，新增、删除、源变化、目标不存在及未处理项必须可见；不能靠手工选择几个文件形成虚假的全量分母。静态函数计数与 pytest 展开后的用例计数分别报告，不以测试数量相等证明断言等价。
 
+已授权修复带来的新增 Python 回归通过对应表的 `source_additions` 登记准确源码指纹和复核理由；原基线保持固定。未登记、指纹变化、无理由、已删除或与基线重名的新增项均使检查失败。新增项默认 pending，只有完整断言、参数和实际 Kotlin 测试均登记后才允许标迁移；新增文件的 fixture／输入指纹仍独立检查。
+
 共享规则的测试迁入公共 `commonTest`，服务端 Application Service/HTTP/存储测试迁入 backend；正常、边界、错误顺序、缺省/null、失败无写入、并发和回滚断言一起迁。原 Python 回归与黄金仅作为对照补充；Kotlin 测试不能运行 Python 业务实现才能通过。仍保留的历史 schema 或基础设施用例逐项登记理由和执行路径，由独立审查确认，不静默删项。每片先出现目标行为缺失导致的失败，再实现转绿；未对应参数或断言的片段不标完成。
+
+### 当前收支详情与稳定流水定位
+
+`GET /cash-records/{transaction_id}/projection` 先检查原 ASCII 正整数标识，再在当前活动数据集中定位；不按业务可见性过滤，隐藏的零金额结果仍可定位。`GET /cash-projections/{projection_id}` 保留 1–128 码点标识与可维护条件（可见或存在待处理事项），并核实实际成员数及展示基准流水。不存在、已删除、跨工作区、状态未就绪和成员缺失分别保持原 404/503 错误及 `field_errors/retryable` 字段，不用空结果掩盖内部不完整。
+
+财务读取使用 SQLite 的同一读事务和 PostgreSQL 的 `REPEATABLE READ`，从活动状态到成员、关联摘要、分类、转账双端及待处理事项均在同一快照完成。权限不沿用该历史快照：读取前和返回前使用独立当前连接重验令牌、当前工作区及成员资格，并对照请求已授权工作区。读服务不抢占整个工作区写锁，不触发重建、余额更新或状态初始化。以真实交错重建和撤权/换区/登出测试区分财务快照一致性与当前授权。
+
+详情仅返回原公开问题原因，不加载待采用字段、账单原文或候选正文；待确认关联只影响相关成员的确认状态。现金转账优先采用首条完整已发布关联，银证转账保留接受状态、资金方向与原币种金额。现有 Compose 只消费详情中的版本与成员，抽取这一既有 DTO 到公共协议并由后端实际使用；完整投影展示与按流水定位没有新增客户端入口，不能把读取迁移计为整页可用。列表、证据及维护命令分别继续迁移。
 
 ### 首个垂直切片
 
@@ -125,6 +135,8 @@ SQL UTC 时间按 Python datetime 的微秒精度绑定，两库都先截断微�
 
 用户已确认修复旧现金新增的响应编码事务缺陷。Python 和 Kotlin 均在事务内构建成功结果，并按实际 JSON 响应规则完成 UTF-8 预检后才提交。日期原文中的孤立代理字符即使可作 ISO 时间分隔符，也必须在预检失败时回滚事实、现金部分、快照、收支及投影。保留可编码的 Unicode 时间分隔符和原响应字段，不自动清理历史库；源 Python 与 Kotlin 的双库回归同时断言错误响应及全部财务行未改变。
 
+读取余额快照时，损坏的顶层、账户类型桶和投资头寸结构属于内部错误，保持原 500 及整事务回滚。现金新增／校准的账户余额不是币种字典，以及原金额解析拒绝，仍按原 ValueError 返回 400；不按同一 Kotlin JSON 转换异常统一分类。校准先检查账户余额是币种字典，再解析目标金额；坏余额结构与范围外金额同时存在时仍优先返回结构错误。投资头寸先计算 shares，再读取 total_cost，保留金额错误与缺字段错误的原次序。组成项币种校验同时核对原始 JSON 的代理字符来源与规范化值，不能把原始 CESU 字节拼成合法 Unicode 币种；合法转义代理对继续按原规则处理。响应编码回归以实际 editor 和已有财务记录保留原测试前置，每个代理字符参数分别核对失败全回滚及后续正常写入。
+
 旧 HTTP 的 decimal-string 语法与财务范围分两步核对：将已有共享十进制解析过程提取出有限值表示入口，继续由原 LedgerDecimal 校验 NUMERIC 范围，客户端原入口不变。该提取用于保留 HTTP 字段校验与应用范围校验的先后，不复制一套语法解析器。校准的范围外数值仍在写入零事实和现金部分后由快照金额校验拒绝，整事务回滚并保留原 PG 序列行为；拒绝分支不展开无用途的巨大指数备注，避免在必然回滚的准备步骤分配巨型文本。有效金额的备注和最终响应保持原格式。
 
 ### 数值、时间与解码
@@ -137,7 +149,15 @@ SQL UTC 时间按 Python datetime 的微秒精度绑定，两库都先截断微�
 
 ### 持久化和安全
 
-JDBC adapter 适配当前 Alembic schema，不自动建表或迁移。首次装配只接受显式连接且检查 schema revision；SQLite 文件须已存在，外键、有界锁等待、私有权限及辅助文件保护保持原合同。SQLite 精确数值文本，PG `NUMERIC(38,18)`，禁止 `Double`/REAL。
+jOOQ adapter 适配当前 Alembic schema，不自动建表或迁移。首次装配只接受显式连接且检查 schema revision；SQLite 文件须已存在，外键、有界锁等待、私有权限及辅助文件保护保持原合同。SQLite 精确数值文本，PG `NUMERIC(38,18)`，禁止 `Double`/REAL。
+
+用户确认采用 jOOQ OSS 3.21.9、JDK 21、PostgreSQL 18 与当前 SQLite JDBC。PostgreSQL 18 先作为本机独立端口的匿名测试实例，保留原实例与夹具，不执行真实数据升级。官方代码生成器从显式指定、已运行现有 Alembic 迁移的匿名 PostgreSQL schema 生成后端表、字段及记录类型；生成结果可重现并校验，不手写伪生成类型，也不引入第二套迁移事实源。普通编译消费已校验的生成类型，不探测或启动数据库；重新生成要求明确的 `_test` 数据库。生成类型不进入共享协议或规则。
+
+业务查询和写入使用生成字段与 jOOQ DSL，包括关联、子查询、批次、RETURNING 和行锁；不以将 SQL 字符串传给 jOOQ 代替迁移。事务控制、驱动配置和 schema 校验保留 JDBC 边界。jOOQ 使用现有受管 Connection，不再拥有提交、回滚、重试或连接关闭权；原 SQLite `BEGIN IMMEDIATE`、PG 锁顺序、savepoint 缓存恢复和来源证明寿命均保留。
+
+金额使用后端专用绑定，SQLite 按精确文本读写，PostgreSQL 按 NUMERIC 读写，不经浮点，也不丢失 SQLite 有效尾零或负零；原 PostgreSQL 数值表示归一保留。UTC 时间截断到微秒，JSON 使用 `kotlinx.serialization`，空值保留原语义。jOOQ 执行日志关闭，SQL、绑定值和连接串不进入响应或日志；只将包含真实 SQL 异常的 DataAccessException 转为现有安全 StorageFailure，程序错误继续中止操作。
+
+先以失败测试验证生成类型、极值金额、UTC/JSON、回滚、savepoint 和异常边界，再迁移当前收支详情/定位及完整转账调用链，最后替换其余现有手写业务 SQL。每步运行同一服务在 SQLite 和 PostgreSQL 18 的功能合同及原完整回归；性能用例按本轮明确要求排除，已有预算和失败证据保留。框架接入不增加已完成接口数，剩余后端迁移继续按全量盘点验收。
 
 写命令在同一事务内重验认证/成员/账户/修订/来源和完整组，再调用共享规则。SQLite `BEGIN IMMEDIATE`，PG workspace `FOR UPDATE`，只在适配层区分方言。收据与业务结果同事务；永久 `(workspace,user,key)` 唯一，不随暂存 TTL 删除。计划保留 CAS、owner、TTL、输入/当前事实证明，未知结果按原键核实。SQL、连接串、凭据和原始文件不进入公共层，不写日志正文。
 

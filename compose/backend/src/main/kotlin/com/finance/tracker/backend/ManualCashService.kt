@@ -131,7 +131,9 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
                 (rawParts?.size ?: 1)==1 ->parent
                 else ->null
             }?.takeIf {it.type in setOf("cash","loan","lend")} ?: manualBusiness("组成项账户不存在或不是现金账户")
-            if(item["currency"]!=null && item["currency"]!=JsonNull && item["currency"]!=JsonPrimitive("") && manualUpper(pythonString(item.getValue("currency")))!=storedCurrency) manualBusiness("组成项币种必须与父流水一致")
+            val partCurrency=item["currency"]
+            if(partCurrency!=null && partCurrency!=JsonNull && partCurrency!=JsonPrimitive("") &&
+                (original?.stringRawSurrogates(partCurrency).orEmpty().isNotEmpty() || manualUpper(pythonString(partCurrency))!=storedCurrency)) manualBusiness("组成项币种必须与父流水一致")
             val partAmount=try {manualAmount(item["amount"],original=original)} catch(_:ManualCashBusinessFailure) {manualBusiness("import_component_amount_invalid")}
             Part(selected,partAmount,ordinal,manualText(item["label"]),item["label"])
         }

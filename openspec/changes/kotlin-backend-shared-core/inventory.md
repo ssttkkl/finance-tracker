@@ -1,6 +1,6 @@
 # 全量迁移盘点
 
-基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。所有 86 项初始均未迁移，每个切片验证后原位更新。
+基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已验收 40/86 个 HTTP 操作，其余 46 项继续迁移。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
 
 ## 模块与合同
 
@@ -9,13 +9,13 @@
 | 登录、注册、会话、工作区、邀请、成员 | `application/access.py`、`web/access_routes.py` | 共用 Role/DTO；Argon2、SHA256、会话 30 天、邀请 7 天一次性、最后管理员及删除留服务端 | 已实现全部 15 个 HTTP 接口并通过匿名双库对照；完整财务数据删除与锁等待期间撤权专项待验证，4.3 未完成 |
 | 账户生命周期、币种、余额 | `account_commands.py`、`accounts.py`、`cash_balances.py` | 共用账户列表和命令 DTO；权限、账户修订、引用/余额检查、snapshot、收据原子写入留服务端 | 稳定 ID 读写及现金/投资列表已通过匿名双库、原生规则和实际 Compose 回包验证；余额/估值、旧写入适配、底层 CAS 和历史迁移等仍待迁，4.4 未完成 |
 | 分类树、批量/单项分类 | `cash_categories.py`、`cash_classification.py` | 共用目录 DTO、真实祖先解析、五层/循环/子树约束；同级名称 casefold、目录锁/修订、entry/投影同步留服务端 | 已实现目录读取、创建、编辑、排序、删除检查及原子删除；删除同步 entry/恢复值/事实/候选/全部投影。单项/批量分类已完成当前数据集、完整成员、人工保护及原子写入；独立 move 服务已接增量维护，update 保持 Python 调用边界，完整目录性能仍待迁，4.5 保持未完成 |
-| 现金事实、草稿、手工记录、转账、删除 | `cash_record_policy.py`、`cash_ledger.py`、`cash_record_maintenance.py`、`cash_record_writer.py`、`cash_record_deletion.py`、`cash_manual_*`、`cash_draft_merge*` | 共用精确金额/类型/分摊/完整性；当前账户资格、完整组、来源固定字段、修订、事务留服务端 | 字段/转正式纯规则 26 个原定义已迁并复核，动态子类 2 项 pending；账本类型选项 GET 已双端消费，余额快照/组成项增量通过双库原生测试，手工新建已完成严格公开输入、完整现金部分/余额/稳定收支/投影同事务写入及现有 Compose 消费；完整转账创建已通过双库同事务事件/关系/余额/投影与既有 Compose 消费；转账编辑/维护/导入和 OpenAPI schema 仍待迁移 |
+| 现金事实、草稿、手工记录、转账、删除 | `cash_record_policy.py`、`cash_ledger.py`、`cash_record_maintenance.py`、`cash_record_writer.py`、`cash_record_deletion.py`、`cash_manual_*`、`cash_draft_merge*` | 共用精确金额/类型/分摊/完整性；当前账户资格、完整组、来源固定字段、修订、事务留服务端 | 字段/转正式纯规则 26 个原定义已迁并复核，动态子类 2 项 pending；账本类型选项 GET 已双端消费，余额快照/组成项增量通过双库原生测试，手工新建已完成严格公开输入、完整现金部分/余额/稳定收支/投影同事务写入及现有 Compose 消费；完整转账创建已通过双库同事务事件/关系/余额/投影与既有 Compose 消费；旧现金新增/余额校准已通过双库 96 组 HTTP/13 表全列、原生断言、锁等待权限及真实 Netty；转账编辑/维护/导入和 OpenAPI schema 仍待迁移 |
 | 现金维护计划、确认、结果未知核实 | `cash_mutation_*`、`cash_plan_execution.py`、`cash_commit_outcome.py` | 先共用值合同与客户端请求校验；纯效果计算按真实双端需求接入；CAS/TTL/owner、当前事实证明、永久幂等收据和回滚留服务端 | 永久收据五个 GET 已通过双库和实际 Compose 解码；超 Long 客户端计数限制保留。仓库原键重放/上下文唯一和写前校验已迁并由账户命令复用；维护计划/resolve/现金确认和历史迁移仍未迁移 |
 | 文件准备与来源账户选择 | `cash_import_context.py`、`statement_account_mapping.py`、`cash_import_account_mappings.py`、`cash_import_funding.py` | 共用已解码行和来源账户规则；来源完整性和实际映射写入留服务端 | 未迁移 |
 | 导入来源计划、业务计划、整笔选择、提交 | `cash_import_source_plan.py`、`cash_import_business_plan.py`、`cash_import_entry_choices.py`、`cash_import_commit.py` | 先共用账单行、预览/选择/提交协议；规划留服务端，按真实双端需求再提取纯规则；提交重读来源/账户/当前事实/关系并比较操作指纹，原子保存余额/entry/投影/收据 | 未迁移 |
 | 来源文件与行证据 | `adapters/cash_statement_*`、`bank_statement_document.py`、`icbc_pdf_*`、`domain/cash_source_*` | 保持上传/服务端解析流程，先共用行模型和协议；解码、逐行归一、字节预算/物理位置/声明真实性留服务端，不新增客户端解析入口 | 未迁移 |
 | 支付镜像、退款抵扣、转账配对 | `domain/relations/`、`cash_relation_policy.py`、`cash_relation_graph.py`、`application/cash_current_relation_*`、`cash_relation_context.py`、`relations.py` | 先共用选择/命令协议与客户端组合校验；完整图和候选纯计算按双端需求接入；查询当前超集、授权、决定及落账由服务器负责 | 角色/闭包/分组/完整图纯规则 43 原定义已迁并复核；当前候选、决定、SQL 更新及资金生命周期仍未迁移 |
-| 当前收支、证据、分页、投影发布 | `cash_projections.py`、`web_queries.py`、`adapters/relational/cash_*` | 共用 DTO/版本及纯展示结果；当前成员/entry 完整性、staging/active dataset、快照游标由服务器负责 | 投影纯构建 26 原定义及管理员状态 GET 已迁并复核；暂存发布、全量重建应用服务及工作区初始化已通过双库；管理员重建 HTTP 已通过真实双库及锁等待权限验证；内部增量维护、保存点缓存及 7 定义/14 参数的持久化图集成通过双库；公开现金写入、当前查询/证据、分页及性能仍未迁移 |
+| 当前收支、证据、分页、投影发布 | `cash_projections.py`、`web_queries.py`、`adapters/relational/cash_*` | 共用 DTO/版本及纯展示结果；当前成员/entry 完整性、staging/active dataset、快照游标由服务器负责 | 投影纯构建 26 原定义及管理员状态 GET 已迁并复核；暂存发布、全量重建应用服务及工作区初始化已通过双库；管理员重建 HTTP 已通过真实双库及锁等待权限验证；内部增量维护、保存点缓存及 7 定义/14 参数的持久化图集成通过双库；手工新建、转账和旧现金新增/余额校准已接线，其余公开写入、当前查询/证据、分页及性能仍未迁移 |
 | 投资事件、重放、持仓/成本、表现 | `investment.py`、`investment_import.py`、`investment_web_queries.py`、`domain/investment_*` | 共用协议与实际客户端需要的精确计算；完整重放/成本/PnL/回报按双端需求提取，来源/持久化由服务器负责 | 未迁移 |
 | 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 未迁移 |
 | 连接器同步、增量游标 | `sync_service.py`、`adapters/connectors/ccxt_exchange.py`、`polymarket.py` | 共用事件归一；服务端凭据、网络分页、cursor 与财务写入不下沉 | 未迁移 |
@@ -47,7 +47,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 ## 测试与黄金合同
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，当前完整 pytest 收集 5,840 个参数化用例；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线/当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 232 个定义/577 个展开参数，其余 2,381 个定义保持 pending。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线/当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - Python oracle：`test_exact_decimal.py`、`test_cash_record_policy.py`、`test_cash_category_management.py`、`test_cash_statement_rows.py`、`test_bank_statement_rows.py`、`test_cash_statement_document.py`、`test_icbc_pdf_statement.py`、`test_cash_source_matching.py`、`test_cash_import_readable_equivalence.py`。
 - 完整 `tests/contract` 与 `tests/integration`：HTTP/错误、来源/关系/投影、暂存生命周期、收据/未知结果、修订/权限/回滚、同步/券商及双库矩阵。

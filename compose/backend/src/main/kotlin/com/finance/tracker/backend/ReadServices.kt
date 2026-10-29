@@ -83,6 +83,24 @@ class ReadServices(private val database: Database, private val now: () -> Instan
         return database.read { connection -> context(connection, token, write) }
     }
 
+    internal fun currentContext(token: String?): Principal {
+        if (token == null) throw AccessFailure()
+        return database.read { connection ->
+            connection.prepareStatement("""SELECT s.user_id,s.active_workspace_id,s.expires_at,u.email,m.role FROM user_sessions s
+                JOIN users u ON u.id=s.user_id LEFT JOIN workspace_memberships m ON m.workspace_id=s.active_workspace_id AND m.user_id=s.user_id
+                WHERE s.token_digest=?""").use {
+                it.setString(1, tokenDigest(token))
+                it.executeQuery().use { row ->
+                    if (!row.next()) throw AccessFailure()
+                    requireActiveExpiry(row.getString("expires_at"))
+                    val workspace = row.getString("active_workspace_id") ?: throw AccessFailure(true)
+                    val currentRole = row.getString("role")?.let(::role) ?: throw AccessFailure(true)
+                    Principal(row.getString("user_id"), row.getString("email"), workspace, currentRole)
+                }
+            }
+        }
+    }
+
     internal fun context(connection: Connection, token: String?, write: Boolean): Principal {
         val principal = session(connection, token)
         if (principal.workspaceId == null) throw AccessFailure(true)

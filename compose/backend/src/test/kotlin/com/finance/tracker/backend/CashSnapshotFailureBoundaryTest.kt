@@ -16,13 +16,16 @@ class CashSnapshotFailureBoundaryTest {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
         val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"));val workspaces=WorkspaceService(db)
         application {financeModule(db)}
-        data class Case(val payload:String,val operation:String,val status:Int,val code:String?=null)
+        data class Case(val payload:String,val operation:String,val status:Int,val code:String?=null,val balance:String="10")
         val cases=buildList {
-            for(payload in listOf("null","[]","7","\"bad\"","""{"accounts":null}""","""{"accounts":[]}""","""{"accounts":{"cash":null}}""","""{"accounts":{"cash":[]}}"""))
+            for(payload in listOf("null","[]","7","\"bad\"","\"\"","""{"accounts":null}""","""{"accounts":[]}""","""{"accounts":{"cash":null}}""","""{"accounts":{"cash":[]}}""")) {
                 for(operation in listOf("add","checkin","transfer")) add(Case(payload,operation,500))
+                add(Case(payload,"checkin",500,balance="1e21"))
+            }
             for(pocket in listOf("null","[]")) {
                 val payload="""{"accounts":{"cash":{"账户":$pocket}}}"""
                 for(operation in listOf("add","checkin")) add(Case(payload,operation,400,"snapshot account balance must be a currency mapping"))
+                add(Case(payload,"checkin",400,"snapshot account balance must be a currency mapping",balance="1e21"))
                 add(Case(payload,"transfer",500))
             }
             for(operation in listOf("add","checkin")) add(Case("""{"accounts":{"cash":{},"security":null}}""",operation,201))
@@ -43,7 +46,7 @@ class CashSnapshotFailureBoundaryTest {
                 val before=state(db,workspace)
                 val (path,body)=when(case.operation) {
                     "add" ->"add" to """{"account":"账户","amount":"-1","currency":"CNY","counterparty":"test","date":"2026-08-04"}"""
-                    "checkin" ->"checkin" to """{"account":"账户","balance":"10","currency":"CNY","date":"2026-08-04"}"""
+                    "checkin" ->"checkin" to """{"account":"账户","balance":"${case.balance}","currency":"CNY","date":"2026-08-04"}"""
                     else ->"transfer" to """{"from_account":"账户","to_account":"${if(case.operation=="investment") "Sec" else "账户"}","amount":"1","from_currency":"CNY","to_currency":"USD","to_amount":"1","date":"2026-08-04"}"""
                 }
                 val response=client.post("/api/v1/cashflow/$path") {bearerAuth("synthetic-admin");contentType(ContentType.Application.Json);setBody(body)}

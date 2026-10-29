@@ -836,16 +836,16 @@
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-key=a&private=secret]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-key=%FF]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-key=%]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
+        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-query6]",
+        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[cash_web_runtime-query7]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=a&key=b]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=a&private=secret]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=%FF]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=%]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-key=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa]"
+        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-query6]",
+        "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key[postgres_cash_web_runtime-query7]"
       ],
       "assertions": [
         "assert response.status_code == 422, response.text",
@@ -859,7 +859,7 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现"
+      "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现 Pytest 9.2 defaults to argname+index for auto-generated string IDs longer than 100 characters; the complete current collection uses query6/query7/key1 with the original parameter values and source fingerprints unchanged."
     },
     {
       "source": "tests/contract/test_cash_legacy_receipt_api.py::test_legacy_account_names_must_be_valid_utf8_before_persisting",
@@ -906,10 +906,10 @@
       "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[cash_web_runtime-\\u65e7\\u7ed3\\u679c/\\u952e ?&+=#%]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[cash_web_runtime-\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc]",
+        "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[cash_web_runtime-key1]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[cash_web_runtime- key with internal spaces ]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[postgres_cash_web_runtime-\\u65e7\\u7ed3\\u679c/\\u952e ?&+=#%]",
-        "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[postgres_cash_web_runtime-\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc\\u5bfc]",
+        "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[postgres_cash_web_runtime-key1]",
         "tests/contract/test_cash_legacy_receipt_api.py::test_read_query_preserves_original_legacy_key_and_whitelisted_result[postgres_cash_web_runtime- key with internal spaces ]"
       ],
       "assertions": [
@@ -928,7 +928,7 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现"
+      "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现 Pytest 9.2 defaults to argname+index for auto-generated string IDs longer than 100 characters; the complete current collection uses query6/query7/key1 with the original parameter values and source fingerprints unchanged."
     },
     {
       "source": "tests/contract/test_cash_manual_classification.py::test_category_deletion_protects_empty_value_for_live_and_deleted_records",
@@ -5088,6 +5088,124 @@
         "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
         "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
       ]
+    },
+    {
+      "source": "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write",
+      "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\ud800]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\udfff]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\ud800]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\udfff]"
+      ],
+      "assertions": [
+        "assert response.status_code == 400, response.text",
+        "assert 'surrogates not allowed' in response.json()['error']['code']",
+        "assert response.json()['error']['message'] == '请求参数无效。'",
+        "assert _financial_state(runtime) == before",
+        "assert success.status_code == 201, success.text",
+        "assert success.json()['row']['occurred_at'] == payload['date']",
+        "assert success.json()['row']['amount'] == '-1.2500'",
+        "assert len(after['cash_transactions']) == len(before['cash_transactions']) + 1",
+        "assert len(after['cash_transaction_components']) == len(before['cash_transaction_components']) + 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowResponseEncodingTest.kt",
+          "test": "legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Actual editor membership and existing financial rows are exercised with both missing and ready projection state. Each separator independently asserts the original error, all 13 financial tables unchanged, then a valid emoji response and exactly one new transaction/component."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary",
+      "source_sha256": "50ab55653987e3686a2a74b64bef9347f3fd7244eabf47f47535121dbe70b514",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[cash_web_runtime]",
+        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert created.status_code == 201",
+        "assert invalid.status_code == 400",
+        "assert written.status_code == 201",
+        "assert written.json()['row']['amount'] == '-12.340000000000000001'",
+        "assert len(rows) == 1",
+        "assert str(rows[0].amount) == '-12.340000000000000001'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "httpAccountCreationAndCashWritePreserveAllEighteenFractionalDigits"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Uses real HTTP account creation and the legacy add endpoint on SQLite and PostgreSQL. Numeric JSON amount is rejected; response and the sole matching stored row preserve all 18 fractional digits."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract",
+      "source_sha256": "a08a00ea4a0c6ff555554ded5488842e280a8614f7185347cec22efb0d07ad40",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract"
+      ],
+      "assertions": [
+        "assert response.status_code == 400",
+        "assert response.json()['error']['code'] == 'amount_must_be_decimal_string'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "The real Ktor endpoint preserves the 400 amount_must_be_decimal_string response and does not call the application writer."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run",
+      "source_sha256": "32cc436335c036c14e47f8b79091aabccf6ce020afff58da09f19acbfb9424fc",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run"
+      ],
+      "assertions": [
+        "assert response.status_code == 403",
+        "assert response.json()['error']['code'] == 'workspace_forbidden'",
+        "assert operations.calls == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "A real viewer token is rejected with the original 403 workspace_forbidden; a beforeWrite observer proves the application writer was not called."
+    },
+    {
+      "source": "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection",
+      "source_sha256": "fc69ffb3728236225a08bc123332aae18f3bf6478f68f9176da66d0fbacb454f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection"
+      ],
+      "assertions": [
+        "assert cashflow.add_manual_transaction(amount=Decimal('-20'), counterparty='午餐', account_name='日常账户', currency='CNY').ok",
+        "assert cashflow.checkin_balance(account_name='日常账户', balance=Decimal('200'), currency='CNY', date='2026-07-04').ok",
+        "assert state.projection_version == 3",
+        "assert members == 5"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "manualWriteAndBalanceCalibrationMaintainTheCompleteExistingProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Seeds the original three cash facts/components and rebuilds version 1, then invokes both real services and retains the two ok assertions, projection version 3 and five published members. Executed on both backends."
     }
   ],
   "source_changes": {
@@ -5095,6 +5213,19 @@
       "baseline_sha256": "8e5889a98e7f808c5072196bbd0d96c69f514dc33628c9dc6d60fefd54896308",
       "current_sha256": "6e6e0e75003fa5b00eaeefe96013996693e0245e1d7e7494d1df6a2309d5118e",
       "reason": "用户明确授权同步修复 Python/Kotlin 后代深度缺陷；保留原断言并增加下移、上移、五层拒绝和重新允许合法层级的断言，不修复真实数据库。"
+    }
+  },
+  "source_additions": {
+    "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write": {
+      "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
+      "reason": "用户已授权修复旧现金新增响应编码失败仍提交的问题；新增源回归保留 editor、两种孤立代理字符、完整回滚与后续成功。"
+    }
+  },
+  "input_changes": {
+    "tests/contract/test_cashflow_response_encoding.py": {
+      "baseline_sha256": null,
+      "current_sha256": "b664fd07ca9f37c234b231cfecb64c34ba4cd648baa20e61c916fbb1a6202ccf",
+      "reason": "新增授权回归使用现有双库 context_runtime 和 editor helper，完整财务表读取用于无写入断言。"
     }
   }
 }

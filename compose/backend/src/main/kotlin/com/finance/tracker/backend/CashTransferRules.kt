@@ -60,7 +60,7 @@ internal fun cashTransferEvent(date:String,amount:CashAmount,account:CashTransfe
 }
 
 internal fun applyCashTransferSnapshot(value:JsonObject,account:CashTransferAccount,currency:String,amount:CashAmount):JsonObject {
-    fun mapping(element:JsonElement?,message:String):JsonObject=element?.let {require(it is JsonObject) {message};it} ?: JsonObject(emptyMap())
+    fun mapping(element:JsonElement?,message:String):JsonObject=element?.let {check(it is JsonObject) {message};it} ?: JsonObject(emptyMap())
     fun plus(raw:JsonElement?,current:String,projected:String):String {
         val old=exactCashAmount(raw?.let {if(it is JsonPrimitive && it.isString) it.content else pythonString(it)} ?: "0",current)
         val result=old.arithmeticValue().add(amount.arithmeticValue(),MathContext(80,RoundingMode.HALF_EVEN))
@@ -79,8 +79,9 @@ internal fun applyCashTransferSnapshot(value:JsonObject,account:CashTransferAcco
         val ticker=pythonCashLower(currency)
         val position=if(ticker !in positions) buildJsonObject {put("shares","0");put("total_cost","0");put("cost_currency",currency)}
             else mapping(positions[ticker],"snapshot position must be a mapping")
-        require("shares" in position && "total_cost" in position) {"snapshot position requires shares and total_cost"}
+        check("shares" in position) {"snapshot position requires shares"}
         val shares=plus(position.getValue("shares"),"current shares","projected shares")
+        check("total_cost" in position) {"snapshot position requires total_cost"}
         val cost=plus(position.getValue("total_cost"),"current cost","projected cost")
         JsonObject(defaults+("positions" to JsonObject(positions+(ticker to JsonObject(position+mapOf("shares" to JsonPrimitive(shares),"total_cost" to JsonPrimitive(cost)))))))
     }

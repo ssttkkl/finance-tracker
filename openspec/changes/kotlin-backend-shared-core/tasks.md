@@ -16,6 +16,9 @@
 
 ## 4. 构建
 
+- [ ] 4.0.1 jOOQ 基础：可重现的官方 schema 代码生成、仅后端依赖、SQLite 文本/PG NUMERIC 金额、UTC/JSON 绑定及安全异常映射；失败先行并通过双库事务/保存点合同。
+- [ ] 4.0.2 jOOQ 垂直验证：迁移当前收支详情/定位与完整转账的查询写入调用链，保留当前权限、财务快照、金额表示和原子回滚；SQLite/PG18 功能及实际客户端回包验证。
+- [ ] 4.0.3 jOOQ 全量替换：迁移其余已实现仓库的业务 SQL，复核生成类型边界，运行全部已实现功能回归、安全检查、相称构建和独立审查；性能按用户要求排除。
 - [x] 4.1 首片失败先行：匿名 Python 黄金、公共规则/DTO 差分、Ktor 旧会话/分类读取的双库 HTTP 与权限/过期/跨工作区/错误测试。
 - [x] 4.2 新增无 UI 的 KMP contracts/domain，实际接入 Compose 的认证 DTO、分类上级规则和精确分摊，移除对应双实现；实现首片 Ktor/JDBC。
 - [ ] 4.3 完整认证：注册/登录/登出、工作区创建/选择/重命名/删除、邀请预览/接受、成员/最后管理员，保持旧 Argon2/会话及全部错误合同；注册/登录按用户明确授权仅接受字符串凭据，补非字符串 400 与无写入反例。
@@ -44,7 +47,7 @@
 - [x] 4.7.2.4 接入 POST cash-records 及现有 Compose 创建消费者，完成角色/锁后权限、真实 HTTP/数据库与实际客户端解码；OpenAPI 原组合断言未覆盖仍 pending。验收后再增接口数。
 - [x] 4.7.2.5 迁移转账双侧事件和余额纯规则：现金/贷款/借款、证券/加密头寸、同币种警告、跨币种到账金额及精度；先失败测试，不计 HTTP 完成。
 - [x] 4.7.2.6 接入完整转账事务，保存双侧现金/投资事件及现金已确认关系；双库 92 组全列对照、3 原定义/9 参数、当前权限、晚期全回滚及现有 Compose 消费通过。
-- [ ] 4.7.2.7 接入旧现金新增和余额校准，保留旧入口账户/来源/金额/快照与响应语义；同步修复已授权的响应编码失败后仍提交缺陷，Python/Kotlin 先失败回归，再验证双库整笔回滚；双库原断言和事务验证后逐接口验收。
+- [x] 4.7.2.7 接入旧现金新增和余额校准；保留账户/来源/精确金额/快照/响应及错误顺序，响应编码失败整笔回滚。双库各 96 组 HTTP/13 表全列、5 原定义/9 参数、实际锁等待授权、完整 Kotlin 功能回归及真实 Netty 通过。
 - [ ] 4.7.3 迁移写入依赖的完整投影纯构建：事实/关系类型、镜像归并、退款分摊、转账、草稿、关注状态与确定顺序，先迁原单测；26 原定义已通过并复核，动态子类/性能仍待验；SQL 发布和当前事实完整性另验。
 - [x] 4.7.4 迁移完整关系角色/闭包/原子分组与最终图纯规则及原单测；当前角色证据、完整成员、额度和端点占用必须先验证，不靠投影输出推断输入有效。
 - [x] 4.7.5 迁移投影状态仓库和管理员状态 GET；保留无状态缺省、完整字段、当前工作区/管理员权限与失败合同，并将现有收据的 ready 状态读取接入同仓库。只读状态不代表重建或数据集发布完成。
@@ -62,6 +65,7 @@
 - [x] 4.7.8.5 增量仓库和应用服务维护受影响确认/旧成员完整闭包；保留独立/同组投影及成员身份，差量新增/移除、原计数/版本、草稿关注、人工值和 caller-owned 原子回滚；状态引用绑定同上下文/事务。先失败回归，再接现金写入，不能以全量重建替代增量或放宽性能门槛。
 - [x] 4.7.8.6 分类独立移动命令在同事务收集子树下未删除来源与稳定收支根，接入增量维护；原 update 的名称/父级编辑保持既有 Python 调用边界，不额外扩展旧缺陷修复。验证人工分类、来源分类、无使用/未 ready 分支和晚期失败整事务回滚。
 - [x] 4.7.8.7 逐断言迁移持久化图读取及增量集成：真实组成项等额退款分配、部分菱形、单种子拆旧组、新邻居旧组闭包、组成项预算拒绝、80 节点交替闭包参数预算和原类型不被重分类；双库与独立复核后再计源定义。
+- [ ] 4.7.9 迁移当前收支详情及按流水定位的两个 GET：同一数据库快照中的活动数据集、版本、成员、金额及安全待处理事项；保留隐藏/可维护、已删除/跨工作区/缺失成员错误。真实双库 HTTP、重建交错、当前权限重验及现有 Compose 成员消费验证，原组合测试未覆盖部分保持 pending。
 - [ ] 4.8 维护计划/上下文/效果/确认/收据、CAS/TTL、当前事实证明、冲突及未知结果原键核实。
 - [x] 4.8.1 先迁永久收据按当前操作者/工作区读取、原键查询和行/关系结果分页的 5 个 GET；共享现有 Compose 收据协议，验证历史键严格解码、分页、脱敏、权限、当前投影引用及真实客户端解码。resolve/提交/暂存写入随后验收。
 - [x] 4.8.2 迁移永久收据仓库 create/replay/for_context 及写入前摘要/结果白名单，保留原键/单上下文永久唯一、冲突携原收据、业务写入同事务回滚；原生迁移原参数/断言并接入现有账户命令，完整双库回归后验收。历史 Alembic 升降级和 retry/resolve 不因仓库完成而关闭。
@@ -83,7 +87,7 @@
 
 - [ ] 6.1 每片执行受影响 Python oracle、JVM 公共与 Ktor HTTP、真实隔离 SQLite/PostgreSQL 同服务合同；记录失败先行与转绿。
 - [ ] 6.2 公共模块 JVM、JS/Wasm 可运行测试及 Android/iOS 相称编译/单测；Compose 受影响共享/协议测试及 Web 构建。
-- [ ] 6.3 完整双库 Python 回归与 Kotlin 迁移合同；完整原性能、内存/资源/安全预算、连接器错误/重试/回滚、worker 生命周期/SSE，门槛不放宽。
+- [ ] 6.3 完整双库 Python 功能回归与 Kotlin 迁移合同，安全、连接器错误/重试/回滚及 worker 生命周期/SSE；按用户明确要求，本轮不运行性能测试，功能迁移与功能验证通过即可完成本轮。原性能/资源预算和未通过证据保留，不宣称已验证。
 - [ ] 6.4 OpenSpec all strict/doctor、构建/类型/依赖与 Gson 禁用检查、文档链接/锚点和 git diff --check。
 - [ ] 6.5 全量 Python 测试对应表无未处理规则、参数和断言；目标测试独立运行通过，存储双库与共享跨平台证据完整；保留项理由与 Kotlin 兼容验证经独立复核。接口迁移和实际双端复用另行计数，不混为测试完成率。
 
@@ -92,7 +96,7 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 ## 7. 发布准备
 
 - [ ] 7.1 核对 README/docs/references/接口/配置/schema/运行入口、功能地图和词表；说明当前可用/未迁移能力及格式过渡边界，记录回滚/观察项。
-- [ ] 7.2 同步 delta 后验证并归档（仅真正完成时）；用户已授权暂停迁移并将未完成进度提交、推送至 `origin/codex/kotlin-backend-shared-core`，本次不运行单测；未授权 PR、合并、部署、切流、真实数据迁移或旧后端删除。
+- [ ] 7.2 同步 delta 后验证并归档（仅真正完成时）；当前按用户要求继续本地迁移，未完成验收不归档。暂停时的进度已保存至 `origin/codex/kotlin-backend-shared-core`；未授权 PR、合并、部署、切流、真实数据迁移或旧后端删除。
 
 ## 8. 反思
 
@@ -100,119 +104,52 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-迁移已按用户要求暂停；当前提交用于保存未完成进度，本次不运行单测，不代表开发完成或最终验收通过。旧现金新增与余额校准正在实施，包含未验收的该切片及原子写入复用改动。下列 219 文件快照界定已验收的转账范围；其完整回归不代表当前新增实现已通过。新切片按 4.7.2.7 继续失败先行、双库验证、原测试迁移和独立复核，验收前不增加接口或原测试完成数。
+2026-10-29 UTC；HEAD 与本轮比较基线均为 `b5dbef2716c11b367432c01048d6c2c2f1977d2e`，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。当前工作区 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`。本片完成 4.7.2.7，任务为 42/77，HTTP 为 40/86（46.5%），还有 46 个 HTTP 操作待迁移。现有 `.devcontainer/devcontainer-lock.json` 修改不属于本片，保留用户状态。没有提交、推送、PR、部署、切流或真实数据操作。
 
-暂停时待办：`CashSnapshotFailureBoundaryTest` 已先运行失败，存储快照形状的内部错误/输入错误分类尚未修复；新响应编码源回归已先红后绿（Python 两库共 4 参数），Kotlin 响应编码、金额/整数/币种及相关写入已做范围化双库验证，见 `legacy-cashflow-inputs-<sqlite/postgres>-green-results.json/log`，不能代替当前完整回归。独立复核仍要求补齐响应编码回归的 editor 前置，以及组件币种原始代理字符校验；原测试对应表也须纳入新增源定义和参数。以上问题未关闭，4.7.2.7 仍未完成，接口与原测试完成数不增加。
+已显式执行 grill-me → grilling、explore 和 apply，复用用户确认的完整迁移范围、无 UI 重设计及本地授权。用户后续明确要求本轮不运行性能测试，以功能迁移和功能测试通过为完成标准；通过 openspec-update-change 同步 proposal/design/tasks。性能阈值不变，此前已运行的分类删除性能检查未通过，原日志 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留；本轮后续功能回归明确排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`，不以忽略失败宣称性能通过。
 
-当前分类、账户、永久收据、稳定收支、投影源/关系上下文、全量与增量发布、手工收支新建及完整转账创建已完成相应切片验收。新建在同一事务写入流水、现金部分、余额、稳定收支和投影，继续使用现有 Compose 创建消费者。
+当前旧现金新增/余额校准保持原账户、来源、日期、零金额事实、分币种余额与投影事务。快照结构错误保持原内部 500，现金余额非字典及金额拒绝保持 400；校准先检查余额结构，再解析目标金额。投资头寸先计算 shares，再读取 total_cost。组成项币种保留原始代理字符来源，不能把 CESU 字节拼成合法币种。响应编码回归覆盖 editor、已有财务记录、无投影状态及 ready 状态，并逐参数验证失败回滚和后续成功。
 
-完整后端仍未完成；OpenAPI schema、旧现金新增/余额校准、转账编辑、草稿/维护/导入、关系/投资、其余查询与后台任务及原完整性能/历史迁移矩阵继续 pending。
+本机工具、匿名夹具及证据根为 `/home/vscode/.cache/finance-kotlin-backend-20261029`（下文文件名均相对于其中 `evidence/`）。OpenSpec `1.15.0`、Node `v24.22.2`、Python `3.11.18`、pytest `9.2.0`、Gradle `9.5.1`、JDK `21`；Android SDK 位于同根 `tooling/android-sdk`，保留工程 `compileSdk=37`。原 macOS 证据未复制到本机，当前通过结论以此处实际执行结果为准；历史失败先行与审查处置继续由 Git 及后文原审查结论追溯。
 
-2026-10-29 10:10 CST；HEAD 与比较基线均为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。已验收的代码、原生测试、工具、构建和文档共 219 文件快照见证据目录 `cash-transfer-write-validated-source.json`，SHA-256 为 `6c59996e304f7f63d1ef90380a3a39805a5caea77c69a12ffc2b95372cb09b68`；证据对应工作树 `/Users/huangwenlong/Documents/Codex/2026-10-28/task/finance-kotlin-backend`，分支 `codex/kotlin-backend-shared-core`。Node `v26.8.1`、OpenSpec `1.7.0`。既有验证执行时 HEAD 仍为上述比较基线，验收范围由文件快照界定；当前进度提交仅保存后续未验收改动，没有部署、生产入口变更或真实数据操作。
+SQLite 使用同根 `oracle-sqlite`、`legacy-sqlite-v2` 和 `matrix-sqlite/<能力>`。PostgreSQL `16.15` 由执行者显式准备于 `127.0.0.1:5432`，用户 `postgres`，库名全部以 `_test` 结尾：基础库 `ft_kotlin_resume_base_test`、旧现金目标/参考库 `ft_kotlin_resume_legacy_v2_test` / `ft_kotlin_resume_legacy_oracle_v2_test`，其余 `ft_kr_<能力>_test` / `ft_kr_<能力>_oracle_test`。完整显式变量分别保存在同根 `matrix-sqlite-env.json`、`matrix-postgres-env.json`；各运行结果 JSON 同时保存实际变量、命令、HEAD、开始时间和耗时。测试不探测或启动数据库，生成器拒绝覆盖已有 schema；所有夹具为任务匿名数据。
 
-证据根目录为 `/Users/huangwenlong/Library/Caches/finance-kotlin-backend/evidence`（下表简称「证据目录」），任务缓存根为其父目录。PostgreSQL 16 由执行者人工准备于 `127.0.0.1:55487`，用户 `ft_kotlin_test`，所有库名以 `_test` 结尾；测试不探测或启动数据库。读取、认证、工作区及 live 验证分别使用隔离匿名库。Python 解释器为 `/Users/huangwenlong/.paseo/worktrees/1zalea72/average-snail/.venv/bin/python`，Python 命令设置 `PYTHONDONTWRITEBYTECODE=1`、`PYTHONPATH=tests:.:src`。
+Gradle 从 `compose/` 运行，公共参数为 `--daemon --no-configuration-cache --project-cache-dir /home/vscode/.cache/finance-kotlin-backend-20261029/gradle-project -Dorg.gradle.jvmargs=-Xmx2048m -Pkotlin.compiler.execution.strategy=in-process`；后端完整功能回归使用 `--max-workers=2`，恢复后的客户端构建使用 `--max-workers=1`。完整功能回归另带 `--init-script /home/vscode/.cache/finance-kotlin-backend-20261029/functional-tests.gradle`，其中仅排除用户明确暂缓的两个性能类。`JAVA_HOME`、`GRADLE_USER_HOME` 和 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 都指向同根任务目录。不同数据库的后端与实际客户端测试均实际执行，不复用另一数据库的缓存结果。
 
-Gradle 命令在 `compose/` 运行，公共选项为 `--no-daemon --no-configuration-cache --max-workers=1 --project-cache-dir /Users/huangwenlong/Library/Caches/finance-kotlin-backend/gradle-project -Dorg.gradle.jvmargs=-Xmx2048m -Pkotlin.compiler.execution.strategy=in-process`。SQLite 分别显式设置 `FT_KOTLIN_CONTRACT_DIR=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/oracle-sqlite-v2`、`FT_KOTLIN_AUTH_CONTRACT_DIR=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/oracle-auth-sqlite`、`FT_KOTLIN_WORKSPACE_CONTRACT_DIR=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/oracle-workspaces-sqlite`；分类另设置 `FT_KOTLIN_CATEGORY_CONTRACT_DIR` 为同根 `oracle-categories-sqlite-v1`，账户设置 `FT_KOTLIN_ACCOUNT_CONTRACT_DIR` 为 `oracle-accounts-sqlite-v3`，收据设置 `FT_KOTLIN_RECEIPT_CONTRACT_DIR` 为 `oracle-receipts-sqlite-v1`；PG 使用同根的 `oracle-postgres-v4`、`oracle-auth-postgres`、`oracle-workspaces-postgres`、`oracle-categories-postgres`、`oracle-accounts-postgres-v3`、`oracle-receipts-postgres-v1`，另设置 `FT_KOTLIN_TEST_DB_USER=ft_kotlin_test`。分类删除另设置 `FT_KOTLIN_CATEGORY_DELETION_CONTRACT_DIR` 为同根 `oracle-category-deletion-sqlite-v4` / `oracle-category-deletion-postgres-v4`。单项/批量分类设置 `FT_KOTLIN_CLASSIFICATION_CONTRACT_DIR` 为同根 `oracle-classification-sqlite-v1` / `oracle-classification-postgres-v1`；本片完整 PG 基础读取库改用 `oracle-postgres-v4`，失败测试的旧专库不再用于验收。源读取对照另设置 `FT_KOTLIN_PROJECTION_SOURCE_CONTRACT_DIR` 为同根 `oracle-projection-sources-sqlite-v2` / `oracle-projection-sources-postgres`，对应新专库 `finance_kotlin_projection_source_test` / `finance_kotlin_projection_source_oracle_test`。发布全列对照另设置 `FT_KOTLIN_PROJECTION_DATASET_CONTRACT_DIR` 为同根 `oracle-projection-datasets-sqlite-v3` / `oracle-projection-datasets-postgres-v3`，真实 PG 库为 `finance_kotlin_projection_dataset_v3_test` / `finance_kotlin_projection_dataset_oracle_v3_test`。管理员 HTTP 对照设置 `FT_KOTLIN_PROJECTION_REBUILD_CONTRACT_DIR` 为同根 `oracle-projection-rebuild-sqlite-v2` / `oracle-projection-rebuild-postgres-v2`；增量对照设置 `FT_KOTLIN_PROJECTION_INCREMENTAL_CONTRACT_DIR` 为 `oracle-projection-incremental-sqlite` / `oracle-projection-incremental-postgres`，PG 专库为 `finance_kotlin_projection_incremental_test` / `finance_kotlin_projection_incremental_oracle_test`。转账另显式设置 `FT_KOTLIN_TRANSFER_CONTRACT_DIR` 为同根 `oracle-transfer-sqlite-v3` / `oracle-transfer-postgres-v2`，PG 专库为 `finance_kotlin_transfer_v2_test` / `finance_kotlin_transfer_oracle_v2_test`。手工新建另显式设置 `FT_KOTLIN_MANUAL_CASH_CONTRACT_DIR` 为同根 oracle-manual-cash-sqlite-v4 / oracle-manual-cash-postgres-v3，PG 专库为 finance_kotlin_manual_cash_v3_test / finance_kotlin_manual_cash_oracle_v3_test。原始日志保留完整输出；不同后端的测试 task 均实际执行。
-
-| 范围 | 命令、结果与证据 |
+| 验证范围 | 当前命令、结果与证据 |
 |---|---|
-| 接口盘点 | 真实 `create_app(...).openapi()` 导出 86 个唯一方法/路径，与 routes 一致；已实现 15 个认证相关接口、分类读取/创建/编辑/排序/删除检查/删除、单项/批量分类、账户按 ID 读写及现金/投资列表、永久收据五个 GET、管理员投影状态/重建及账本选项。当前 38/86（44.2%），未迁移操作 48 个，不把接口存在当作完整领域验收 |
-| Python 参考回归 | 显式 `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_kotlin_test@127.0.0.1:55487/finance_kotlin_reference_test`，上述解释器 `-m pytest -q -p no:cacheprovider tests/test_exact_decimal.py tests/test_cash_record_policy.py tests/test_cash_category_management.py tests/test_cash_category_api.py tests/test_user_workspace_access.py --basetemp=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/pytest-category-reference`：109 passed、无 skip、6 项既有 SQLAlchemy 警告，17.11 秒；`migration-category-python-reference.log`。不代替 Kotlin 测试迁移或完整财务删除验收 |
-| 失败先行 | `auth-red.log` 缺少 Passwords/AuthenticationService/write API；`workspaces-red.log` 缺少 WorkspaceService；`shared-rules-review-red.log` 两项失败；`auth-boundaries-red.log` 严格 UTF-8、锁外校验两项失败；`python-text-red.log`、`python-power-text-red.log` 字符串差分失败；`workspaces-delete-race-red.log` 实际复现 PG 悬空替代工作区。随后最小修复并重跑 |
-| 金额公共规则 | `:business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest`；JVM/JS/Wasm 各 9 项、0 skip；`migration-category-client-platforms.log`，包含原 Decimal 表示/拒绝向量与分类移动顺序回归。47 个金额接受边界与 338 个现金部分结果，覆盖金额范围、Unicode 十进制、零/指数/Long 极值、JSON 类型、缺省/显式空、组成项 ID、ordinal、方向/币种/精确合计及精确错误 |
-| 认证 HTTP 与状态 | `:backend:test`，含原读取黄金 26 请求、认证 26 请求和工作区 53 请求；每次对照完整响应及选定用户、会话摘要、成员、邀请与投影状态。非字符串凭据另有 20 请求无写入；双向 Argon2 校验、注册竞争与事务回滚另验。上述 HTTP/存储片含 54 项；当前连同现金纯规则各后端 374 项 JUnit、0 failure/error/skip，见 `cash-transfer-write-all-sqlite.log`、`cash-transfer-write-all-postgres.log`，包括分类 44 组响应/全行快照、账户 56 组响应/规范化命令摘要/全部持久状态，控制字符拒绝无写入、移动深度和兄弟时间戳回归 |
-| 并发/失败边界 | PG 屏障固定并发删除交错；SQLite 按写锁串行执行同合同。两后端覆盖并发管理员自降/邀请消费、到期、已有角色保留、坏密码不抢写锁、初始化失败、删除最后一步失败整体回滚；对应 WorkspaceWriteBoundaryTest 与 AuthenticationWriteBoundaryTest |
-| 旧字段文本 | `PythonStringGoldenTest`，14,619 个对照样本通过；包含固定/随机数、全部有限二进制幂及两侧相邻值/负值、Unicode 14 可打印边界。仅用于非凭据字段，不用于金额。生成器 `scripts/export_python_string_goldens.py --check` 核对实际内容 |
-| 构建与客户端 | `cash-transfer-write-all-sqlite.log` 包含当前完整后端 374、Host 25、business-domain JVM/JS/Wasm 各 9 项、发行包及受影响 iOS/JS/Wasm/Web 编译，156 tasks 通过。PG 同前缀日志再次实际执行后端 374、Host 25 及 installDist；无 failure/error/skip。实际命令/环境/耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。contracts 三目标原各 3 项的输入未变，`ledger-options-<sqlite/postgres>-results.json` 保留原命令；当前实际消费和平台编译由上述新证据覆盖 |
-| 真实 Netty | 任务 loopback 上以 `-Xmx512m` 运行发行包，证据目录 `verify_live_access.py` 执行动态令牌、创建/邀请/接受/权限拒绝/极小浮点与 Unicode 旧字段转换/改名/删除/登出的 30 请求流程；SQLite 与 PG 各 30 passed，`live-access-sqlite.log`、`live-access-postgres.log`。入口分别为 `127.0.0.1:18340/18341`；本任务两个服务均已正常退出，不打开浏览器 |
+| 失败先行 | `resume-boundaries-sqlite-red.log` 实际复现快照根形状错误返回 400 和组成项 raw CESU 币种绕过；`legacy-snapshot-order-red.log` 复现坏 cash 桶与 `1e21` 同时出现时先返回金额错误。对应最小修复后 `resume-boundaries-sqlite-green.log` 30 项、`legacy-review-functional-green.json` 3 项通过，并纳入最终双库完整回归。新增源登记门禁由 `source-additions-red.log` 先复现后转绿；响应编码 Python/Kotlin 原失败回归已保存在进度提交，本轮加强 editor/已有数据/无状态前置 |
+| 匿名 HTTP 与持久状态 | `export_legacy_cashflow_contracts.py --database-url <新目标测试库> --oracle-database-url <新参考测试库> --output <仓库外目录>`：每库 96 个旧现金 HTTP 场景，完整响应及 13 张财务表全部列一致，失败无业务写入；`legacy-<sqlite/postgres>-v2-prepare.log`。其他 13 类生成器的双库准备共 26 次均成功，精确参数见 `prepare-matrix.json` |
+| 完整 Kotlin 后端功能 | SQLite：`:backend:test :backend:installDist :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest`；PG：`:backend:test :backend:installDist`。两库各 395 项，均 0 failure/error/skip；包括已迁移全部服务、96 组旧现金对照、晚期回滚和真实 PG 锁队列中的撤权/换区/登出。精确命令及 XML 为 `legacy-functional-all-<sqlite/postgres>.json` 和同名目录/log；分别 325.16 / 251.02 秒 |
+| 公共跨平台规则 | 上述 SQLite 命令中，business-domain JVM/JS/Wasm 各 10 项，business-contracts 各 3 项，共 39 项，0 failure/error/skip；覆盖有限十进制表示提取及原消费入口，见 `legacy-functional-all-sqlite.json` |
+| Compose 实际响应与编译 | `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest' :shared:compileAndroidMain :androidApp:compileDebugKotlin :shared:compileKotlinJs :shared:compileKotlinWasmJs :webApp:compileKotlinJs :webApp:compileKotlinWasmJs`，SQLite 实际回包 10 项通过，76 个构建 task 成功，274.79 秒；`legacy-client-platforms-resumed.json/log`。PG 同消费者使用其实际回包执行 `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest'`，10 项、0 failure/error/skip、19.87 秒，见 `legacy-client-postgres-final.json/log` |
+| Python 本片完整功能参考 | 显式 `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:5432/ft_kotlin_resume_reference_test`，清除继承的 `FT_DATABASE_URL`。Python `-m pytest -q -p no:cacheprovider -m 'not performance'` 执行响应编码、CLI 替代 API、多币种账户、应用投影、精确小数、手工创建边界、转账 HTTP 及 PostgreSQL adapter 八个完整文件：97 passed、0 skip、57 项既有弃用警告，pytest 277.39 秒；完整参数/环境/起止与 XML 为 `legacy-python-functional.json/xml/log` |
+| 错误顺序 Python 对照 | 新匿名 SQLite/PG 上分别实际执行 11 组坏快照与范围外金额组合，原状态/错误与 13 表无变化均通过；`legacy-snapshot-order-python-<sqlite/postgres>.log`，脚本为缓存根 `verify_python_snapshot_order.py`，PG 专库 `ft_kr_snapshot_order_test` |
+| 真实 Netty | 当前 installDist 在 `127.0.0.1:18350/18351` 各完成 11 个 HTTP 操作，真实注册/建区/账户、18 位精确新增、另币种新增、数值输入及坏响应回滚、校准保留其他币种、金额拒绝和无令牌拒绝，最后删除本测试工作区。每库 13 表快照及 SQL 金额断言通过；`legacy-live-<sqlite/postgres>.json`，脚本为缓存根 `verify_live_legacy.py`，SQLite 匿名文件与 `ft_kr_live_legacy_test` 专库。服务器均已退出，没有打开浏览器 |
+| 黄金内容 | 14 个生成器 `--check` 全部通过，包含共享金额、Unicode/Python 文本、时间、投影、关系、收据、选项、JSON 字节、SQL 摘要及手工/转账规则；命令和结果为 `legacy-generator-checks.json/log` |
+| 迁移清单门禁 | `check_kotlin_test_migration.py --collection <完整 collection.txt> --report <legacy-migration-inventory.json>` 无错误；门禁自身 `python -m unittest scripts/kotlin_migration_checks.py` 11 项通过，见 `migration-gate-functional.log`。完整 `--require-complete` 实际返回 1，映射错误为空、2,381 个定义 pending，见 `legacy-migration-complete.log`；不能作为全量迁移通过结论 |
+| OpenSpec | `openspec validate kotlin-backend-shared-core --strict --json` 通过；`openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed，52 项缺失原场景错误及 25 项长正文警告分布于其他 6 个 change 与 6 个主规格。将 HEAD 的 `openspec/` 只读导出至仓库外，使用同一 CLI 重跑后逐条错误、路径和级别完全一致；没有本片新增问题。完整结果/基线对照见 `legacy-openspec-verification.json` 和 `legacy-openspec-{all,baseline,scoped,doctor}.json`；全量 6.4 仍未完成，须由相关规格收尾后原命令通过 |
+| 静态与依赖 | 8 个已改 Markdown 文件的 173 个本地链接/锚点、3 个 Python 文件语法、73 项任务及 86 条接口计数、公共模块/后端 Gson 搜索和 `git diff --check` 通过，见 `legacy-static-checks.json`。`:backend:dependencyInsight --dependency gson --configuration runtimeClasspath` 未发现 Gson 依赖，见 `legacy-dependency-check.json/log` |
 
-原测试清单以固定基线重新枚举 tests 和 compose/tests，2,612 个源定义、完整 pytest collection 5,840 个用例；对应表审查 250 个定义，其中 227 migrated、23 pending，其余默认 pending，全量共 2,385 pending。已迁移定义对应 568 个源展开参数，不等同于 JUnit 方法数或完整迁移完成率。`cash-transfer-migration-check.log` 与 `test-migration-inventory.json` 记录当前状态；完整 `--require-complete` 有待迁项必须失败。门禁自身 9 项回归、根配置/模块参数/fixture/样本及完整节点核对证据仍为 `migration-config-green.log`、`migration-config-red.log` 和 `migration-parameter-red.log`。Decimal 私有不可变类型适配已复核，自定义 `__str__`、账户旧写入/底层 CAS/历史迁移及 OpenAPI 等未覆盖项保持 pending。
+迁移测试固定基线包含 2,612 个原定义；授权新增响应编码回归后，当前共 2,613 个定义、5,844 个完整 pytest 用例。对应表登记 255 个定义，其中 232 migrated、23 pending；未登记的定义仍默认 pending，总计 2,381 pending。232 个定义对应 577 个源展开参数，不能与 JUnit 方法数或黄金样本数混用。本片新增 5 个定义/9 个参数的 24 条原 assert，经独立逐条复核后计迁移。pytest 9.2 对超过 100 字符的自动参数 ID 使用 `query6/query7/key1`，两个原收据映射按当前完整 collection 同步；原值、源/fixture 指纹和固定基线不变。新增源必须通过 `source_additions` 的当前指纹和理由检查，仍遵循全部参数/断言/目标门禁。
 
-分类深度旧缺陷按用户确认同步修复 Python 与 Kotlin，失败先行见 `category-depth-python-red.log`，转绿及原断言保留；不自动修复真实数据库。目录名称数组与领域祖先对象的解码先失败见 `category-write-decoder-red.log`，当前实际读写回包已通过。分类删除的使用量、引用清除与投影同步已完成本片验证；独立 move 已接入当前投影维护，update 保持原 Python 调用边界。
+Cross-platform Impact Check：本片没有 UI、导航、文案或用户交互变化；旧现金两个接口无现有 Web/Native 消费者，不制造共享 DTO 或入口。已有手工创建、转账的共享余额/编码代码受影响，其 Ktor 实际回包由正式 Compose 消费者验证；有限小数表示提取由公共三平台测试及受影响 Android/Web 编译覆盖。Linux 无法执行 iOS 编译/测试，未宣称通过；在 macOS/JDK 21/Xcode 上执行 `:business-domain:iosSimulatorArm64Test :business-contracts:iosSimulatorArm64Test :shared:compileKotlinIosSimulatorArm64` 后才可关闭整体跨平台任务。本片后端功能验收不代表整体 6.2 已完成。按用户限制不打开浏览器，不执行或声称完成原生设备 QA。
 
-账户原 Python 参考命令为 `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_kotlin_test@127.0.0.1:55487/finance_kotlin_reference_test <上述解释器> -m pytest -q -p no:cacheprovider tests/contract/test_account_commands.py tests/contract/test_account_command_api.py --basetemp=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/pytest-accounts-reference`：94 passed、无 skip、1 项既有 Starlette 弃用警告，49.21 秒；`accounts-python-reference.log`。原生账户专项覆盖 editor 成功/真实注册与工作区、当前成员与跨区、三类原引用向量、坏快照、余额更名不误归属、空补丁/旧修订、并发原键、晚期回滚及提交后丢失结果。SQLite 验证鉴权后撤权，PG 真实持锁/屏障验证等待后重读；均无账户/快照/收据写入。重复 `view` 按末值解析，先失败回归见 `accounts-view-query-red.log`。
+运行环境重启打断过一轮客户端构建和全仓 Python 功能回归：`legacy-client-platforms.log` 的 Gradle daemon 消失，后续恢复命令已完成；`python-functional.log` 仅收集 5,775 个非性能用例并执行部分，没有结束报告，不计通过。当前本片验收使用完整 Kotlin 双库功能回归及上表八文件 Python 参考；全仓 Python、其余未迁移功能和历史迁移矩阵仍由总任务 6.3/6.5 跟踪。原性能专项本轮按用户明确要求排除。
 
-真实 Netty 账户验证由证据目录 `verify_live_accounts.py --origin http://127.0.0.1:18342/18343` 执行（每次一个明确 origin），SQLite 与 PG 各 19 请求通过，见 `accounts-live-sqlite.log`、`accounts-live-postgres.log`；覆盖创建/读取/修改/旧修订拒绝/列表/停用/删除/删除后重放/ID 不复用/坏 JSON 和原键冲突。SQLite 使用匿名 `account-target-v3_test.db`，PG 使用独立 `finance_kotlin_accounts_test`，不与当前 v3 合同测试库并发修改。两个任务服务均已退出，没有打开浏览器。
-
-当前 14 个生成器 `--check`（共享规则、Python 文本、casefold/uppercase/数字表、现金时间、投影、完整关系图、安全问题原因表、收据写入校验、账本选项、分类 JSON bytes、SQL 源摘要、手工请求/仓库时间、转账事件/余额）、33 个受影响 Python 文件编译、OpenSpec strict 38/38 与 doctor、189 个范围内相对链接/锚点、tracked diff 及 228 个范围文件 whitespace 检查通过；证据为 `receipt-store-generator-checks.log`（除 Python 文本表外的输入未变；文本表已按新 Unicode 字母表重验）、`ledger-options-golden-check.log`（选项输入未变）、`category-deletion-json-golden-check.log`、`cash-canonical-golden-check.log`、`cash-transfer-write-openspec.log`、`cash-transfer-write-doctor.log`、`cash-transfer-write-static-check.json` 和 `cash-transfer-write-links.json`。原工作树 `old-racoon` 保持干净；当前全部改动仍未提交。公共模块未新增运行时依赖；现金纯规则仍在 backend，不依赖 Compose UI、SQL 或外部业务调用。
-
-尚未运行：完整 Python/Kotlin 双库回归、原完整性能/资源矩阵、全部金额运算/币种/时间/类型、完整工作区财务数据删除、其余写操作的锁等待撤权/换区/登出以及其余迁移模块。补跑条件为对应切片实现、生成相应匿名场景并绑定独立专库；skip 不计通过。公共模块消费和 Native 编译不代表完整前端功能或设备 QA。UI 没有产品行为变化，按用户限制不打开浏览器，不宣称浏览器或设备验证通过。
-
-现金纯规则当前检查点：`:backend:test` 在上述显式 SQLite/PG 环境各 374 项、0 failure/error/skip，`cash-transfer-write-all-sqlite.log`、`cash-transfer-write-all-postgres.log`；PG 同命令执行 `:backend:installDist`。原 Python `tests/test_cash_record_policy.py` 在上述解释器/环境 61 passed、0 skip，0.04 秒，见 `cash-policy-python-reference.log`。时间生成器 `scripts/export_cash_time_goldens.py --check` 验证 10,020 个匿名样本。当前源码快照覆盖本次现金规则文件；投影和关系纯构建已通过本切片原生测试与复核，其余现金写入仍待实施，不宣称完整后端迁移已完成。
-
-收据读取当前证据：`ReceiptHttpContractTest` 在两个新匿名专库各走真实 Netty 的 60 个请求，完整比对 Python 响应并核对 11 张表读取前后无写入；包括旧键、所有者/工作区、当前投影引用、分页、坏存储结果、损坏转义、5000 字符查询和超 Long 计数。当前 backend 每库 374 项通过，结果与精确命令/环境见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。`receipt-review-red.log` 先复现返回前撤权与现金鉴权字段遗漏，`receipt-raw-query-red.log` 复现原始 HTTP 边界；修复后上述 final 命令通过。PG 专用屏障测试验证 id/key/rows/relations 等待工作区锁后撤权；SQLite 不运行该 PG 分支，其成功不能当作 PG 并发证据。两条 API 原生迁移显式使用 editor，分页保留 `mutation_page_invalid` 消息断言，已删除目标的永久引用同时核对真实 SQL 值和仓库返回值。
-
-原 Python 收据两文件在同一显式 PostgreSQL 环境运行 `-m pytest -q -p no:cacheprovider tests/contract/test_cash_legacy_receipt_api.py tests/contract/test_cash_mutation_receipts.py --basetemp=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/pytest-receipt-reference`：113 passed、无 skip、1 项既有 Starlette 警告，50.99 秒，见 `receipt-python-reference.log`。原生迁移只计其中 4 个已复核定义和 27 个展开用例；原文 owner/retry、通用 UoW、历史迁移和日志等仍 pending；仓库上下文及写入校验由下述独立原生证据验收，Python 回归不能代替这些迁移。
-
-永久收据写入当前证据：`receipt-store-red.log` 先确认 create/replay/for_context 缺实现；原生 store 16 个方法（含复制、预算、原始 SQL 和 SQLite 索引）加 1 个差分方法，通过 1,052 个 `_summary/_results` 接受/拒绝、类型、完整结果及 ASCII 字节数向量。账户实际改为使用同一仓库后，两库当前 `:backend:test :backend:installDist` 各 374 项、0 failure/error/skip，完整日志与精确命令/环境见 `cash-transfer-write-all-<sqlite/postgres>.log`、`cash-transfer-write-all-<sqlite/postgres>-results.json`。最新实际账户/收据回包再由 Compose 正式消费者各 3 项验证，`receipt-store-client-<sqlite/postgres>-final.log`；原共享 DTO/平台代码无后续变化，前述 76 项 Host 和平台编译仍适用。
-
-本切片新增 16 原定义、64 个展开用例经独立只读复核并完成最新双库回归。直接 JDBC 绕过仓库验证会话永久唯一（PG 23505）和工作区复合外键（PG 23503），SQLite 对应约束码 19；通过外层回滚标记核对没有部分保存。SQLite 原未筛种类分页的 EXPLAIN 没有 TEMP B-TREE，仅作为 SQLite 索引证据，不把 PG 空分支计该性能证明。原通用 UoW、历史 DDL 与 retry 继续 pending。此轮仅 backend 实现改变，共享/Native/UI 产品合同未变；实际回包解码已补验，不追加浏览器或设备操作。
-
-投影状态当前证据：`projection-state-red.log` 先确认缺少状态服务；4 个原生方法覆盖缺省无写入、11 个存储字段、失败构建保留活动集、Long.MAX_VALUE 精度、当前工作区/管理员权限、middleware 后降权和固定存储失败合同。`cash-transfer-write-all-<sqlite/postgres>.log` 的当前完整后端回归及 installDist 各 374 项、0 failure/error/skip；最新收据实际回包 Host 各 1 项通过，`projection-state-client-<sqlite/postgres>.log`，精确命令/环境见对应 results JSON。共享/平台代码无变化，不重跑无受影响的编译。原 Python `tests/test_application_cash_projections.py` 19 passed、无 skip、23 项既有 SQLAlchemy 警告，10.34 秒，`projection-state-python-reference.log`；命令沿用上述显式参考环境，basetemp 为 `pytest-projection-state-reference`。缺省状态与全量重建的 11 个源定义/13 个参数已独立复核并计迁移；现金写入及包含 sync 的 admin-only 组合定义保持 pending。
-
-账本选项当前证据：`ledger-options-red.log` 先复现缺路由，`ledger-options-copy-red.log` 复现跨调用列表共享。当前完整双库各 374 后端/25 Host，实际 fetchLedgerOptions 与领域映射由 KotlinLedgerOptionsResponseIntegrationTest 核对全部 17 类型/3 关系、合法子类型、标签和枚举顺序。共享 DTO 输入未变；当前命令、环境、构建及结果见 `cash-transfer-write-all-<sqlite/postgres>-results.json/log`。admin/editor/viewer 和空工作区可读且不初始化状态/数据集；不以完整目录黄金计其他原流程完成。
-
-分类删除当前证据：`category-deletion-red.log` 先确认删除检查缺路由。`cash-transfer-write-all-<sqlite/postgres>.log` 完整 backend 各 374 项、installDist 通过；Compose 实际回包 Host 同次执行 `cash-transfer-write-all-<sqlite/postgres>.log` 各 13 项通过，均无 failure/error/skip，精确命令/环境、时间及结果见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。新匿名双库各 25 个 HTTP/11 表全列状态对照；原生覆盖目录/分类修订、使用量及确认、live/deleted 人工空值保护、独立恢复值、跨 500 批候选去重、active/staging 投影、未就绪状态和三个 Long.MAX 整事务回滚。PG 用 `pg_blocking_pids` 观察真实工作区锁等待，再撤权并验证拒绝、无写入；SQLite 另验 middleware 后降权，不冒充 PG 证据。实际回包由现有 fetchCashCategoryDeletionImpact/deleteCashCategory 和目录 API 消费，未修改产品界面。
-
-DELETE 使用原始字节的 Python 编码/语法/整数错误兼容；9,361 个 JSON bytes 黄金、34 个坏 JSON/非法字节 HTTP 无写入、9 种有效编码及 9 个混合代理整数错误向量通过，包含精确位置、4,300 位与 repr 200 字符上限。独立复核关闭候选 OR 扫描、SQLite 修订溢出、坏 JSON/字节、代理来源及长 repr finding；原输入错误继续拒绝，内部错误停止并回滚。
-
-分类删除性能使用 1,000 分类/10,000 事实、当前收支和成员。当前 SQLite/PG 检查 p95、删除耗时及进程 RSS 采样增长见各 `client-<sqlite/postgres>/category-deletion-performance.json`；保留 250/500 毫秒和 96 MiB 门槛，集合仓库 7 条 SQL（含 impact），加工作区/state/delete/bump 共 11 条，未超过原 12 条财务 SQL 门槛。SQLite 实际 JDBC EXPLAIN 验证当前使用量索引与候选两个依赖索引，见 `client-sqlite/category-candidate-plans.json`。RSS 是并发 ps 采样，不能冒充原 getrusage 高水位；两个原性能定义仍 pending，不计入 227/568。原 Python 参考包括分类 management/API、manual classification 和这两个性能定义，81 passed、无 skip、48 项既有警告，44.31 秒，`category-deletion-python-reference.log`；精确参数为上述参考环境与 `tests/test_cash_category_management.py tests/test_cash_category_api.py tests/contract/test_cash_manual_classification.py tests/test_cash_category_performance.py::test_large_category_deletion_impact_uses_indexed_count tests/test_cash_category_performance.py::test_large_category_delete_clears_usage_in_one_write`，basetemp 为缓存根 `pytest-category-deletion-reference`。
-
-Cross-platform Impact Check：Web 与 Native 沿用现有分类检查/确认流程、字段和错误语义；公共 UI/渲染与共享生产源码未改变。Host 实际消费本轮 Kotlin 响应并核对请求字段，两库均运行既有分类 ViewModel/用例和实际客户端，共各 13 项。新增后端代码仅 JVM，沿用前述未变化的 iOS/JS/Wasm 编译证据，不把未运行的浏览器或设备 QA 写成通过。没有新增页面或管理员状态入口，F-07 既有其他验收 TODO 保留。
-
-
-单项/批量分类当前证据：`classification-red.log` 先确认缺实现，HTTP 对照发现现金鉴权遗漏结构字段，修复后新匿名双库各 27 个 HTTP 响应及 12 张表全部列对照通过。`cash-transfer-write-all-<sqlite/postgres>.log` 为最新完整 backend 各 374 项、installDist 通过；Host 同次执行 `cash-transfer-write-all-<sqlite/postgres>.log` 各 13 项，均无 failure/error/skip；命令、显式环境和耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。Host 包含六个 `Kotlin*ResponseIntegrationTest` 及分类 ViewModel/用例。原生 8 项覆盖 editor、原始流水独立、同值/清空保护、完整成员、单成员恢复值、维护可见性、删除成员、三类版本溢出、投影晚期数据库故障全回滚；真实非空关系与候选保持原值，故障位置由真实 JDBC 指定异常标志证明。PG 四分支观察实际工作区锁等待后撤权、换区、到期和登出，SQLite 验证 middleware 后相同变化；均拒绝且财务表不变。4 个源定义全部断言与 9 个源参数经独立复核后计入，对照 API 黄金不另算迁移。
-
-分类性能先由真实完整 API 计数发现 14 条 SQL，`classification-performance-red.log`；锁后联查优化后保持原门槛。完整 PG 回归再由 `classification-full-plan-red.log` / `classification-join-order-red.log` 复现统计低估下的全局连接超时，`classification-live-stale-plan.txt` 记录错误形状。按 design 固定每级选中键边界后，最新新库完整回归通过，`classification-stale-lateral-plan.txt` 为保留夹具上独立查询 1.442ms 的计划证据，不冒充 API 耗时。实际 1,000 分类/10,000 投影、100 组/200 成员的五次 API p95：SQLite 8.586ms / 11 条 SQL，PG 77.395ms / 10 条 SQL；单成员分别 12/11 条 SQL。固定证据为 `cash-sql-values-classification-performance-<sqlite/postgres>.json`。计数包含真实 middleware、锁、重验和执行批次，SQLite 额外包含 BEGIN IMMEDIATE，未提高原 12 条/500ms 门槛。没有原 getrusage 高水位等效验证，三个相关原性能定义继续 pending。失败运行的旧专库均为本任务匿名 `_test` 库，没有真实数据。
-
-Cross-platform Impact Check：沿用既有 Compose classifyCashProjections 请求/结果和领域映射，完整回包由正式客户端分别对两库消费；本片没有共享生产代码、页面、文案、交互或 Native 行为变化。前述 iOS/JS/Wasm 编译仍适用；不运行或宣称浏览器/设备 QA。
-
-稳定收支仓库当前证据：`cash-entry-red.log`、`cash-entry-behavior-red.log` 先确认缺实现，两个缓存语义反例在 `cash-entry-review-red.log` 失败后修复。`cash-transfer-write-all-<sqlite/postgres>.log` 最新完整 backend 各 374 项、installDist 通过，0 failure/error/skip；精确命令、显式环境和耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。其中 12 个原生方法覆盖原四个 lookup 定义全部 12 参数、Python 固定摘要、人工冲突整事务回滚、旧根优先、明确拆分继承与各自恢复值、同值保护、单成员恢复、来源独立、初次/当前修订编辑及溢出回滚。`cash-entry-review-green.log` / `cash-entry-review-postgres.log` 为本片专项。原 Python `tests/contract/test_cash_entry_lookup.py` 在上述显式参考环境执行，12 passed、0 skip、12 项既有 SQLAlchemy 警告，6.56 秒；basetemp 为缓存根 `pytest-cash-entry-reference`，见 `cash-entry-python-reference.log`。
-
-本片只增加 JVM 内部仓库并开放既有字段规范化供它调用，没有共享生产代码、HTTP 装配或客户端行为变化。前述实际客户端、平台编译和分类 HTTP 黄金仍适用；不增加接口数；全量重建接入另见本节，公开现金写入及历史迁移任务继续未完成。
-
-
-SQL 源值当前证据：`cash-sql-values-red.log` 先确认缺少编解码器，`cash-sql-timestamp-postgres-red.log` 复现纳秒尾数被 PG 进位。`CashSqlValuesMigrationTest` 的 4 个方法通过 Decimal 表示、时间实际绑定、固定源值及 1,548 个完整文本/UTF-8 摘要接受/拒绝向量。`cash-transfer-write-all-<sqlite/postgres>.log` 最新完整后端各 374 项、Host 各 25 项及 installDist 通过，0 failure/error/skip；命令、环境和时间见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。SQL 源值向量不增加原 canonical 定义计数；当前合并上下文切片后的累计为 227/568。没有共享生产代码、UI 或 Native 行为修改，沿用既有平台编译边界。
-
-
-投影源及关系上下文当前证据：`projection-sources-red.log`、`relation-context-red.log` 先确认缺实现，`projection-sources-review-red.log` 三个边界反例失败；`relation-context-review-red.log`、`relation-context-error-order-red.log`、`relation-context-proof-collision-red.log` 分别复现数值键、错误次序和等价键覆盖问题。修复后当前 `cash-transfer-write-all-<sqlite/postgres>.log` 后端各 374 项、实际回包 Host 各 25 项及 installDist 通过，0 failure/error/skip；精确命令、环境、耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。其中 21 个原生方法覆盖确认闭包、显式完整组、旧版本拒绝、角色证据、500 批边界/查询预算、全部资金及未资助部分、SQLite 大整数、草稿/删除父和完整 ASCII token；另 1 方法在两个新匿名数据库逐字段对照全部来源、已解析关系、7 组完整上下文和 source digest。生成器的实际命令、显式 URL/目录和环境见 `projection-sources-oracle-commands.json`，输出见 `projection-sources-oracle-<sqlite/postgres>.log`，不包含真实账单。
-
-原 Python `tests/contract/test_cash_relation_context.py` 在本节解释器与显式双库环境执行 `-m pytest tests/contract/test_cash_relation_context.py -q --basetemp=/Users/huangwenlong/Library/Caches/finance-kotlin-backend/pytest-relation-context-reference`，58 passed、0 skip，25.97 秒，`relation-context-python-reference.log`。21 定义/56 源参数经逐断言独立复核计迁移；relation-origin writer 的 1 定义/2 参数仍 pending，黄金对照不另计原定义。读取/准备过程没有新增 HTTP、UI、Native 或公共模块消费者，页面数和平台验证范围不变。全量重建、发布消费与数量围栏及失败诊断见本节；公开现金写入与原性能定义仍待实施。
-
-
-事务生命周期及来源证明当前证据：`cash-sql-transaction-red.log` 先确认缺少证明能力；`cash-sql-transaction-review-red.log`、`cash-sql-transaction-trigger-red.log`、`cash-sql-transaction-dialect-red.log`、`cash-sql-transaction-engine-rollback-red.log`、`cash-sql-transaction-dollar-identifier-red.log` 复现边界及接口问题后修复。14 项原生方法在 SQLite/PG 专项各通过，见 `cash-sql-transaction-review-<sqlite/postgres>.log`；当前完整后端每库 374 项、Host 每库 25 项和 installDist 通过，0 failure/error/skip，实际命令、环境和耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。SQL 异常保守使旧证明失效，不把 SQLite 的 autoCommit 标志当作物理事务证据；普通 DML batch、元数据、savepoint 和现有接口全部回归。新增证明已由真实 publish 消费，仓库/事务/数量组合原定义经双库及复核计迁移；累计为 227 原定义/568 展开用例，接口仍为 38/86。无共享/平台/UI 改动，不追加浏览器或设备验证。
-
-
-数据集和全量重建当前证据：`projection-dataset-red.log`、`projection-service-red.log` 先确认缺少仓库/应用服务。10 项数据集原生方法覆盖 901 条真实写入及 900/1 分批、受限回查、完整角色/关系、旧人工值、无效证明、空集/重复发布、源变化/缺成员/活动集拒绝、两个晚期数据库故障的 11 表全列回滚，以及失败诊断双围栏。另 1 方法使用 `export_projection_dataset_contracts.py` 的新匿名双库黄金，对照三轮发布的 7 表全部列；保留草稿/合计/退款/转账/投资资金/人工值，随机 ID 按真实归属归一并另验 UUID、稳定身份，时钟逐轮推进微秒。PG NUMERIC 测试读数使用 `getBigDecimal().toPlainString()` 避免驱动文本/二进制零表示变化；不放宽金额表示或摘要比较。生成器实际命令/目录见 `projection-datasets-oracle-commands.json`，日志为 `projection-datasets-oracle-<sqlite/postgres>-v3.log`。
-
-7 项全量服务原生方法验证初次/重复构建、原来源仅完整校验一次、源变化围栏、实际非法关系、原活动集与独立安全诊断、迟到诊断、诊断失败不替换原 `projection.invalid_relation`、未知错误脱敏、存储失败直退，以及 caller-owned 初始化的提交/回滚和 ready 幂等。工作区创建已复用同一管线；既有认证/工作区黄金及故障回归同次通过。当前完整双库 `:backend:test :backend:installDist :shared:testAndroidHostTest` 各 374 后端/25 Host，0 failure/error/skip，见 `cash-transfer-write-all-<sqlite/postgres>.log` 和对应 results JSON。原数据集文件在显式参考环境运行 9 passed、0 skip、9 项既有 SQLAlchemy 警告，4.83 秒，`projection-dataset-python-reference.log`，basetemp 为 `pytest-projection-dataset-reference-v2`。本片计入 17 源定义/21 展开用例；接口仍 38/86，无共享/平台/UI 行为变化，不追加浏览器或设备验证。
-
-管理员重建当前证据：`projection-rebuild-red.log` 先确认缺实现；5 项原生方法覆盖 admin 成功、editor/viewer 拒绝、同码领域 409/仓库 503、初始/事务存储故障、未知异常、定位后与返回前撤权的完整回滚。PG 四模式通过 `pg_blocking_pids` 确认真实工作区锁等待后，再撤权、换区、过期或退出；拒绝后财务表与构建诊断均不变。SQLite 验证定位后相同变化，不冒充 PG 并发。另 1 方法通过真实 loopback Netty 每库 17 个 HTTP，完整比对 Python 响应、7 表全部列并核实来源表无写入；包括六类存储错误的原字面 code/固定非识别摘要。`projection-rebuild-storage-red.xml` 先复现错误 code 缩短，修复后通过。黄金生成器显式挂载 operations_service 并断言每例预期状态；准确命令、URL 和目录见 `projection-rebuild-oracle-commands.json`，输出为 `projection-rebuild-oracle-<sqlite/postgres>-v2.log`。完整双库当前各 374 后端/25 Host、installDist 通过，无 failure/error/skip，命令/环境/耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。原 admin-only 组合定义还含 sync 断言，继续 pending；累计仍 227/568，接口 38/86。无共享或 UI 改动，不追加浏览器/设备验证。
-
-
-增量维护当前证据：12 项原生方法和七步全列 Python 对照在 SQLite/真实 PostgreSQL 通过。原生测试覆盖受影响闭包拆组、独立项/相同组/无关行的实际身份、差量计数、草稿关注、状态唯一身份、未 ready 分支、跨上下文/事务拒绝、版本溢出及实际晚期 SQL 故障；完整来源、状态、收支、成员、关系和派生表逐列回滚。保存点失败先行见 `projection-incremental-savepoint-red.xml`、`projection-incremental-savepoint-lifecycle-red.xml`，修复后预刷新保存点之前的脏值、回滚重载原对象身份，事务结束清除监听。`projection-incremental-state-identity-red.xml` 复现旧状态引用，`projection-incremental-json-column-red.xml` 复现 SQLite 测试快照将 JSON affinity 误作数值；测试按声明列类型保留精确 NUMERIC。完整双库各 374 后端/25 Host、installDist 通过，0 failure/error/skip，准确命令、环境、耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。七步黄金是补充对照，不增加源定义；原 current_references 的四条断言和双库参数经独立只读复核，由 native 独立覆盖，计 1 定义/2 cases，累计 227/568。独立复核无剩余阻断，未代跑构建。无新增 HTTP、共享生产代码或 UI，页面数 10 不变，不追加浏览器/设备验证。公开现金写入接线及原完整性能仍未完成。
-
-分类独立移动当前证据：`category-projection-red.xml` 先复现投影未刷新及未触发晚期溢出；5 项原生方法在双库通过，覆盖来源/人工分类、无关整行及来源保留、无使用不推进、未 ready 只维护稳定收支、已删除来源排除、update 既有边界及晚期溢出导致目录和财务全列回滚。独立只读复核未发现生产 finding；合并组非根分类与大于 400 个子树分类的专门向量作为后续图/性能补充，不冒充本片已执行。最新完整双库各 374 后端/25 Host、installDist 通过，0 failure/error/skip，精确命令、显式环境、耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`，完整日志为 `cash-transfer-write-all-<sqlite/postgres>.log`。本片不增加原定义或 HTTP 数，累计仍 227/568、38/86。无共享生产代码、UI 或新平台入口，页面数 10 不变，不追加浏览器/设备验证。
-
-持久化图读取当前证据：7 个原定义的全部断言与 14 个双库参数经独立只读复核，由 `CashProjectionGraphReadMigrationTest` 独立覆盖：双账户真实等额退款分配每次重建相加、非 canonical 部分菱形的全量/局部金额、单种子拆旧组的 5 成员、经新邻居扩展旧组的 7 成员、实际组成项超额拒绝保留活动集、80 节点交替闭包的原 `12*n` 参数预算，以及拒绝错误类型后原字段保留。查询观测 P3 已修复；`projection-graph-observer-red.xml/log` 用重复执行同一 PreparedStatement 证明旧准备次数计数会漏，新观察器按实际执行绑定参数统计，且拒绝零观测。该批生产行为已由前述失败先行切片实现，本片补迁原测试，没有虚构缺实现失败。最新完整双库各 374 后端/25 Host、installDist 通过，0 failure/error/skip，命令/环境/耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`。完整原 Python 文件在专用参考环境 28 passed、0 skip、34 项既有 SQLAlchemy 警告、15.00 秒，实际命令、环境及输出见 `projection-graph-python-reference.json/log`。累计 215 定义/533 源参数，HTTP 38/86；黄金不另计数。无共享生产代码、UI 或平台入口变化，不追加浏览器/设备验证。
-
-余额快照当前证据：`cash-snapshot-red.log` 先确认缺实现，13 个原生方法完成 SQLite/真实 PG 验证；覆盖无快照不写、稳定账户 ID/当前名称及未知键、稀疏 JSON、crypto/security、save 复制及版本、精度 80 与全部有效位数、负零/尾零、草稿/删除/导入转账排除、manual 保留、批量时间、外层/保存点回滚。独立复核 P2 经实际失败回归关闭：`cash-snapshot-zero-red.xml` 为极大指数零 fixed 格式，`cash-snapshot-shapes-id-red.xml` 为非法集合及合法负 ID，`cash-snapshot-account-type-red.xml` / `cash-snapshot-type-default-red.xml` 为先校验真实字符串类型再处理缺省。账户 type 来自非空 String 列；Kotlin 内部边界拒绝无法由有效账户模型生成的非字符串，不转成余额桶，也不宣称与 Python Bool/整数动态键合并兼容。missing/null/空字符串保持缺省；实际 API 资格及禁止伪造内部字段随写入接口验收。三个源定义、12 个源参数由独立原生方法逐断言覆盖；statement_delta 在原代码仅是共享函数的 import alias，因此直接调用同一组成项增量函数可迁其纯测试，不代表导入完成。原参考三组测试 12 passed、0 skip，6.63 秒，实际命令、环境及输出为 `cash-snapshot-python-reference.json/log`。最新完整双库各 374 后端/25 Host、installDist 通过，0 failure/error/skip，命令/环境/耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`；无剩余审查 finding。累计 227 定义/568 源参数，HTTP 38/86。余额已由手工新建实际消费；其余现金写入仍待迁移。
-
-手工新建当前证据：严格协议 7 项、时间 3 项、真实写入/回滚 4 项、原边界及输入专项 10 项、权限 3 项及完整 HTTP 对照 1 项通过。Python 协议 308、仓库时间 10,033、原 policy 时间 10,020 个向量保留编码来源；两库各 52 个 HTTP 场景逐响应及 10 张财务表全列对照。包含 editor、私有字段/重复键/非有限数/编码/深度/字节/64 部分限制、精确分摊、缺省与明确清空、行修订、失败后序列、Unicode、NUL、巨指数零、超 Long ID 及全部财务行回滚。PG 以 `pg_blocking_pids/Lock` 确认等待后，分别撤权、换区和登出；SQLite 验证 middleware 后、BEGIN 前变化；无财务写入。
-
-当前完整 SQLite/PG 各 374 后端、25 Host、installDist，0 failure/error/skip；命令/环境/耗时见 `cash-transfer-write-all-<sqlite/postgres>-results.json`，输出见同前缀 log。SQLite 命令另含 business-domain JVM/JS/Wasm 各 9 项及 shared iOS arm64/simulator、JS/Wasm、Web 编译；156 tasks 通过。实际 Compose 创建请求保留金额字符串和请求体，成功解析及错误 code/status、不自动重试均通过；原客户端以 code 映射错误，不新增消息传播行为。真实 Netty 在 127.0.0.1:18346/18347 各 15 请求通过，脚本/命令/匿名专库/结果见 `manual-cash-live-<sqlite/postgres>.json/log`，两个服务均已退出。
-
-原 Python `tests/contract/test_cash_manual_create_boundary.py` 在上述显式 PostgreSQL 参考环境 16 passed、0 skip、5 项既有警告、8.15 秒；命令及结果见 `manual-cash-python-reference.json/log`。6 个原定义、14 个展开参数经独立复核迁移；OpenAPI 的 1 定义/2 参数继续 pending。当前合计 227/2612 定义、568/5840 参数及 HTTP 38/86；不把黄金或 Python 执行计作 Kotlin 原断言迁移。14 生成器检查含 `manual-cash-time-golden-check.log`、`manual-cash-text-golden-check.log` 和 `manual-cash-protocol-golden-check.log`，其余未变输入沿用原证据。
-
-Cross-platform Impact Check：共享 LedgerDecimal 仅增加可选失败原因回调，既有 Compose 调用保持原行为；Web/Android/iOS 仍共用原创建和输入流程，客户端实际回包及受影响编译已验证。没有 UI、文案或导航修改，不追加浏览器/设备交互；不宣称这些验证通过。当前 217 文件、31 Python 文件及 187 相对链接/锚点通过静态检查，见 `cash-transfer-write-static-check.json/links.json`。
-
-转账当前证据：`CashTransferRulesTest` 6 项、真实写入/回滚 5 项、原 editor 响应断言 1 项、当前权限 3 项及 HTTP 全列对照 1 项均通过；275 事件、181 快照差分覆盖符号/尾零/巨指数零、Unicode final-sigma、所有现金/贷款/借款/证券/加密组合及原范围错误。SQLite 与真实 PG 各 92 个 HTTP 场景逐响应及 13 张财务表全列比较，保持失败后序列及后续成功写入。原生迁移新增 3 定义/9 参数，精确资金调拨成功结果、份额和成本均独立断言；多币种新增/校准组合原定义仍 pending。
-
-转账完整回归 `cash-transfer-write-all-<sqlite/postgres>-results.json/log` 为每库 374 后端、25 Host、installDist，SQLite 同命令含 JVM/JS/Wasm 各 9 项和受影响 iOS/JS/Wasm/Web 编译，0 failure/error/skip。最后补齐源成功断言后，受影响的 16 后端和 3 Host 在两库重跑均通过，见 `cash-transfer-write-scoped-<sqlite/postgres>-results.json/log`；生产实现未改变。原 Python 参考上述显式双库环境运行 `tests/contract/test_cash_transfer_http_response.py`、`tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts`、`::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values` 及多币种文件两个转账定义：11 passed、0 skip、10 项既有弃用警告、7.42 秒，命令见 `cash-transfer-python-reference.json`，输出见同名 log。14 个生成器 `--check` 最新全部通过，见 `cash-transfer-generator-checks.log`。
-
-真实 Netty 转账验证由证据目录 `run_live_cash_transfer.py <sqlite/postgres>` 启动当前发行包，`verify_live_cash_transfer.py` 在 `127.0.0.1:18348/18349` 各走 16 个流程请求，覆盖实际建工作区/账户、同币种警告、精确现金/投资双侧、无效金额/跨币种/账户/代理/内部量化的 13 表无写入、投影及删除后会话还原。源数据库分别是旧任务专库 `transfer-target-v2_test.db` / `finance_kotlin_transfer_v1_test`，与当前 92 场景验收库分离；精确命令/环境/耗时和原始 trace 为 `cash-transfer-live-<sqlite/postgres>.json/log`。任务进程均 finally 退出，无浏览器或真实数据操作。Web/Native 共用既有 `createTransfer`，本片只新增实际响应集成测试，不新增页面或更改表单；相称编译已覆盖。
+文档核对范围为根 README、backend README、功能地图、routes/inventory、proposal/design/tasks、主规格及 delta、词表和项目 apply skill。根 README 的预览导航与现有主规格无需修改；余额校准、收支记录、关联流水等词表含义保持。backend README 与功能地图更新实际 40 个接口和旧现金限制，页面数仍为 10，Web/Native 既有 TODO 保留；新增源登记、夹具前置与快照错误顺序已沉淀到 apply skill。全量迁移尚未完成，保留原 Python 和 schema，未归档或切换生产入口；回滚本片只需撤回本机 Kotlin 改动，生产数据不受影响。
 
 ## 当前审查
+
+旧现金新增/余额校准本片由独立上下文完成范围、工程、DX/安全及原断言复核；生产错误类别/顺序、真实 editor、当前权限、事务回滚、完整 SQL 对照和新增源门禁均已检查。审查者只读，测试由实施者运行。已关闭 finding：
+
+| 严重级别与 finding | 处置与证据 |
+|---|---|
+| P2 响应编码回归缺少已有财务记录及无投影状态前置 | 同时覆盖 no-ready/ready、实际 editor、先保存真实记录；每个代理参数分别核对原 9 条断言及后续成功。独立重审确认，当前两库完整功能回归通过 |
+| P2 校准提前校验金额改变坏快照优先错误 | 仓库先检查币种字典再解析金额，服务不预先转换；`legacy-snapshot-order-red.log` 先失败，双库 Python 11 向量及 Kotlin 完整回归转绿；写回 design 和 apply skill |
+| P2 组成项 raw CESU 币种及快照异常类别 | 校验原始代理来源；内部形状错误与显式金额 ValueError 分开，投资头寸保留 shares/total_cost 次序；`resume-boundaries-sqlite-red.log` 先失败，最终双库功能回归通过 |
+
+源新增登记、两条 pytest 长 ID 映射及其余旧映射语义经复核；新 5 定义/9 参数原断言完整。范围、工程、DX/安全、原断言和最终 diff 无剩余阻断；审查者独立读取双库 XML、真实 HTTP 与 Python/客户端结果，未代跑测试。性能按用户明确调整不作为本轮阻断，原失败证据保留。OpenSpec 全量既有 12 项失败保留为整体遗留，不计本片通过。
 
 管理员重建独立复核关闭错误字面 P2：Python 原路由使用 StorageError 的完整固定说明，保留其标签和 file SQLite/postgresql 摘要，不拼接 URL 或驱动正文。领域/运行错误的类型按原来源保留，不按相同 code 推断。权限锁顺序、锁后及返回前重验、拒绝不写诊断、真实晚期回滚、匿名夹具恢复和 HTTP 黄金挂载/状态自检无剩余阻断。审查者未运行构建；最新完整双库和真实 HTTP 由实施者验证。包含 sync 的原组合定义不计迁移。
 

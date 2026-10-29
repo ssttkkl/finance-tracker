@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建及完整手工转账创建。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，共 40/86 个 HTTP 操作。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 工作区删除尚缺完整财务数据验证。分类 update 保持 Python 的调用边界；独立 move 已维护当前投影。账户余额/估值查询、旧写入适配及其余财务写入、查询和后台任务仍未迁移。原 Python 后端和正式运行入口保留，本预览不用于生产替换。
 
@@ -15,6 +15,8 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 内部来源证明绑定同一仓库和受管 JDBC 事务，提交、回滚、SQL 异常或连接关闭后拒绝旧证明；自动提交查询不能签成一次来源快照。SQLite 物理事务与 PG 隐式事务分别处理，普通 savepoint 保留外层身份。标准 JDBC 归属链保留受管连接，原生驱动 unwrap 和批次中的事务控制明确拒绝，普通 DML batch 保留。发布已消费同仓库/同事务证明，并重新核对来源摘要、事实及成员数量。暂存替换保留 900 条批次与完整角色/序号，旧数据集清理、稳定收支与活动指针同事务提交；非存储失败独立记录安全诊断，原活动指针/来源修订变化时不覆盖。新工作区创建复用该管线，管理员重建 HTTP 已接入并通过双库验证。
 
 手工转账保留现金、贷款、借款及证券/加密账户组合；双侧事件、现金部分关系、余额与投影在同一事务保存，完整响应由既有 Compose 创建 API 消费。同币种显式到账金额按原合同忽略并返回警告，跨币种要求到账金额；不新增手续费或客户端流程。匿名对照由 `scripts/export_cash_transfer_contracts.py` 准备新隔离双库，纯事件/余额对照由 `scripts/export_cash_transfer_rules.py --check` 验证。
+
+旧现金新增和余额校准分别使用 `POST /api/v1/cashflow/add` 与 `POST /api/v1/cashflow/checkin`。新增保留原来源、日期响应和金额精度；成功响应无法编码时整笔回滚。余额校准保存零金额事实，仅设置指定币种的余额，保留其他币种；快照结构损坏与金额错误保持原状态及检查顺序。两个入口都在锁后及返回前重验当前权限。Compose 当前没有这两个旧接口的消费者，本片不增加页面或客户端入口。
 
 ## 运行匿名预览
 
@@ -48,13 +50,15 @@ backend/build/install/backend/bin/backend
 
 增量全列黄金由 `scripts/export_projection_incremental_contracts.py` 按相同双库参数准备；完整测试设置 `FT_KOTLIN_PROJECTION_INCREMENTAL_CONTRACT_DIR` 为其输出目录。七步操作包含拆组、独立刷新、草稿新增/移除和人工备注，原生测试另核实实际行身份、保存点缓存及晚期失败回滚。
 
+手工新建、转账、旧现金新增/校准的完整 HTTP 与财务表对照分别由 `scripts/export_manual_cash_contracts.py`、`scripts/export_cash_transfer_contracts.py`、`scripts/export_legacy_cashflow_contracts.py` 按上述双库参数准备。完整后端测试还须设置 `FT_KOTLIN_MANUAL_CASH_CONTRACT_DIR`、`FT_KOTLIN_TRANSFER_CONTRACT_DIR` 和 `FT_KOTLIN_LEGACY_CASHFLOW_CONTRACT_DIR`。旧现金对照在每个后端包含 96 个 HTTP 场景，逐项核对响应及 13 张财务表全部列，失败必须没有财务写入。
+
 公共规则黄金由 `scripts/export_shared_rule_goldens.py` 从当前 Python 领域生成，`--check` 验证内容；需要项目 Python 3.11 / Unicode 14 oracle。它不访问数据库、网络或真实账单。共享测试可运行 `:business-domain:jvmTest`、`:business-domain:jsNodeTest`、`:business-domain:wasmJsNodeTest`，无需打开浏览器。
 
 非凭据字段的旧文本转换由 `scripts/export_python_string_goldens.py --check` 与 `PythonStringGoldenTest` 验证，覆盖 Python Unicode 14、随机有限浮点数、所有有限二进制幂及相邻值。旧名称和角色字段沿用该文本转换；资金角色兼容函数按原合同复用有限浮点转文本后，再执行精确十进制校验，关系端点继续拒绝浮点。金额运算始终使用精确十进制。
 
 分类实际回包验证先设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR=<仓库外输出目录>` 执行 `:backend:test`，再使用相同环境变量执行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinCategoryResponseIntegrationTest`。客户端通过正式 API 解码 Ktor 读写字节；写入取得 `id/revision` 确认后沿用目录刷新，目录名称路径按真实父 ID 转为领域祖先对象。
 
-Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执行 `scripts/check_kotlin_test_migration.py --collection <完整 pytest --collect-only -q 输出> --report <仓库外报告>` 检查源定义、展开参数、夹具及目标；追加 `--require-complete` 后，任何未迁移项都会失败。规则黄金和 Python 参考回归不能代替 Kotlin 原生测试；当前完整迁移门禁仍未通过。
+Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执行 `scripts/check_kotlin_test_migration.py --collection <完整 pytest --collect-only -q 输出> --report <仓库外报告>` 检查源定义、展开参数、夹具及目标；追加 `--require-complete` 后，任何未迁移项都会失败。授权修复新增的源回归通过 `source_additions` 记录当前指纹和理由，仍按同一断言及目标门禁验收，固定基线不变。规则黄金和 Python 参考回归不能代替 Kotlin 原生测试；当前完整迁移门禁仍未通过。本轮按用户要求仅验收功能，性能测试未作为完成门槛，原性能预算和未通过证据见实施记录。
 
 名称 casefold、币种大写与数字字符数据由 `scripts/export_category_casefold.py --check` 核对，沿用 Python 3.11 / Unicode 14。分类移动已同步修复 Python 与 Kotlin 的后代深度计算；仅影响后续命令，不自动修复现有数据库。
 
@@ -74,6 +78,6 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 单项和批量分类 PUT 保留完整成员、当前数据集/版本与同值人工保护；公共分类写入稳定收支对象，原始流水及其人工覆盖保持独立。单成员对象同步独立恢复值，多成员保留各自恢复值；整批原子更新，已保护且展示相同的重复命令不推进版本。锁等待后重新核实角色、会话有效期与当前工作区，原客户端通过 `KotlinClassificationResponseIntegrationTest` 实际消费回包。性能保留原 12 条 API SQL / 500 毫秒门槛；后端源测试和未迁移定义仍以对应表为准。
 
-内部余额快照仓库保留账户稳定 ID、当前名称和 crypto/security 映射，组成项增量以精度 80 计算并验证金额范围；草稿和删除记录不计余额，导入的普通转账排除，manual 来源保留。原生双库验证含负零、完整有效位数、账户改名及回滚；手工记账已接入；转账和导入仍待迁移。内部账户类型只接受真实账户模型提供的字符串。
+内部余额快照仓库保留账户稳定 ID、当前名称和 crypto/security 映射，组成项增量以精度 80 计算并验证金额范围；草稿和删除记录不计余额，导入的普通转账排除，manual 来源保留。原生双库验证含负零、完整有效位数、账户改名及回滚；手工记账、转账和旧现金新增/校准已接入，导入仍待迁移。内部账户类型只接受真实账户模型提供的字符串。
 
 手工新建的内部请求读取器已验证 65,536 字节、编码、重复键/非有限数、严格字段类型及 64 个现金部分限制；直接应用边界复制可变容器，保留缺省与明确清空的区别。POST `/api/v1/cash-records` 已使用该边界，原子保存流水、现金部分、余额及稳定收支/投影，并复用 Compose 现有创建消费者。缺省或明确清空备注/分类的人工保护与原 Python 一致；纯日期及无时区时间按 UTC 保存，正式入账的独立时间校验仍要求时区。OpenAPI schema 和其余现金入口继续待迁移。

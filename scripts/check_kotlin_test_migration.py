@@ -100,13 +100,20 @@ def inventory(baseline: str, roots: list[str]) -> tuple[dict[str, str], dict[str
     return original, current
 
 
-def check(original: dict[str, str], current: dict[str, str], entries: list[dict], root: Path, source_changes: dict | None = None):
+def check(original: dict[str, str], current: dict[str, str], entries: list[dict], root: Path,
+          source_changes: dict | None = None, source_additions: dict | None = None):
     errors, seen, states = [], set(), {}
     source_changes = source_changes or {}
+    source_additions = source_additions or {}
+    reviewed_sources = dict(original)
     for key in sorted(original.keys() | current.keys()):
         states[key] = "pending"
         if key not in original:
-            errors.append(f"New Python test needs explicit inventory review: {key}")
+            addition = source_additions.get(key, {})
+            if addition.get("source_sha256") != current[key] or not addition.get("reason"):
+                errors.append(f"New Python test needs explicit inventory review: {key}")
+            else:
+                reviewed_sources[key] = current[key]
         elif key not in current:
             errors.append(f"Baseline Python test was removed: {key}")
         elif original[key] != current[key]:
@@ -117,15 +124,18 @@ def check(original: dict[str, str], current: dict[str, str], entries: list[dict]
     for key in source_changes:
         if key not in original or key not in current or original[key] == current[key]:
             errors.append(f"Stale/unknown reviewed source change: {key}")
+    for key in source_additions:
+        if key in original or key not in current:
+            errors.append(f"Stale/unknown reviewed source addition: {key}")
     for entry in entries:
         key = entry["source"]
         if key in seen:
             errors.append(f"Duplicate mapping: {key}")
         seen.add(key)
-        if key not in original:
-            errors.append(f"Unknown baseline test: {key}")
+        if key not in reviewed_sources:
+            errors.append(f"Unknown baseline or reviewed added test: {key}")
             continue
-        if entry.get("source_sha256") != original[key]:
+        if entry.get("source_sha256") != reviewed_sources[key]:
             errors.append(f"Stale source fingerprint: {key}")
         if not entry.get("assertions") or not entry.get("parameters"):
             errors.append(f"Missing assertion/parameter review: {key}")
@@ -174,7 +184,7 @@ def main() -> int:
     if mapping["baseline"] != BASELINE or mapping["source_roots"] != SOURCE_ROOTS:
         raise ValueError("The migration baseline and full source roots cannot be narrowed through map metadata")
     original, current = inventory(mapping["baseline"], mapping["source_roots"])
-    errors, states = check(original, current, mapping["entries"], ROOT, mapping.get("source_changes"))
+    errors, states = check(original, current, mapping["entries"], ROOT, mapping.get("source_changes"), mapping.get("source_additions"))
     original_inputs, current_inputs = input_inventory(mapping["baseline"], mapping["source_roots"])
     errors.extend(check_inputs(original_inputs, current_inputs, mapping.get("input_changes", {})))
     nodes = []

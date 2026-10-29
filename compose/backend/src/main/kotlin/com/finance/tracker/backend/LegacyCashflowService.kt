@@ -89,7 +89,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
                 fingerprint=sourceFingerprint,counterparty=if(checkin) "" else input.counterparty,note=note,category=category)
             val snapshot=context.snapshot.load(lock=true)
             if(checkin) {
-                val exact=exactCashAmount(input.value,"value");context.snapshot.setBalance(snapshot,input.account,account.account.type,currency,exact.toString())
+                context.snapshot.setBalance(snapshot,input.account,account.account.type,currency,input.value)
             } else {
                 context.snapshot.updateBalance(snapshot,input.account,account.account.type,currency,amount.toString())
             }
