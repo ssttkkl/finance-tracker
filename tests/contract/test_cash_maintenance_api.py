@@ -291,6 +291,8 @@ def test_joint_current_relation_confirmation_is_one_http_task_and_keeps_zero_res
     assert len({record["projection_ref"]["projection_id"] for record in records}) == 1
     assert all(record["confirmation_status"] == "confirmed" for record in records)
     projected = client.get("/api/v1/cash-projections").json()["items"]
+    assert not any(item["projection_id"] == records[0]["projection_ref"]["projection_id"] for item in projected)
+    projected = client.get("/api/v1/cash-projections", params={"hide_zero_amount": "false"}).json()["items"]
     assert any(item["projection_id"] == records[0]["projection_ref"]["projection_id"] and Decimal(item["amount"]) == 0
         for item in projected)
 

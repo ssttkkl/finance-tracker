@@ -83,7 +83,9 @@ def test_upgrade_converts_active_and_staging_refunds_without_rebuilding_sources(
         assert all(row.rules_version == "cash-projection-v2" for row in session.scalars(select(CashProjectionDatasetModel)))
     with pytest.raises(ProjectionUpdatedError):
         query.list_cash_projections(limit=1, cursor=cursor)
-    full = next(item for item in query.list_cash_projections().items if item.projection_id == "cash:1101")
+    assert "cash:1101" not in {item.projection_id for item in query.list_cash_projections().items}
+    full = next(item for item in query.list_cash_projections(hide_zero_amount=False).items
+        if item.projection_id == "cash:1101")
     assert full.amount == "0" and full.confirmation_status == "confirmed"
 
 

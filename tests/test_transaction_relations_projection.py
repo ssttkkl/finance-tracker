@@ -61,9 +61,9 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
     assert relations[0]["status"] == "accepted"
     assert relations[0]["subtype"] == "currency_exchange"
 
-    page = CashLedgerQueryService(
-        relation_runtime.sessions, "relations-workspace",
-    ).list_cash_projections(limit=50)
+    service = CashLedgerQueryService(relation_runtime.sessions, "relations-workspace")
+    assert not any(item.economic_type == "internal_transfer" for item in service.list_cash_projections(limit=50).items)
+    page = service.list_cash_projections(limit=50, hide_zero_amount=False)
     matched = [
         item
         for item in page.items

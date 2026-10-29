@@ -154,7 +154,11 @@ def test_projection_api_returns_visible_internal_transfer(cash_web_runtime):
     )
     assert result.ok is True
 
-    response = client.get("/api/v1/cash-projections", params={"economic_type": "internal_transfer"})
+    hidden = client.get("/api/v1/cash-projections", params={"economic_type": "internal_transfer"})
+    assert hidden.status_code == 200 and hidden.json()["items"] == []
+    response = client.get("/api/v1/cash-projections", params={
+        "economic_type": "internal_transfer", "hide_zero_amount": "false",
+    })
     payload = response.json()
 
     assert response.status_code == 200
