@@ -51,6 +51,9 @@ class CashStatementDocumentGoldenTest {
             assertEquals(coverage.getValue("complete").jsonPrimitive.boolean, document.coverage.complete, "case $index")
             assertEquals(coverage.getValue("evidence").jsonPrimitive.content, document.coverage.evidence, "case $index")
             assertEquals(coverage.getValue("strategy_version").jsonPrimitive.content, document.coverage.strategyVersion)
+            assertEquals(coverage.getValue("start_inclusive").jsonPrimitive.boolean, document.coverage.startInclusive)
+            assertEquals(coverage.getValue("end_inclusive").jsonPrimitive.boolean, document.coverage.endInclusive)
+            assertEquals(coverage.getValue("time_precision").jsonPrimitive.content, document.coverage.timePrecision)
             assertEquals(coverage.getValue("filters").jsonObject, JsonObject(document.coverage.filters.mapValues { JsonPrimitive(it.value) }))
         }
     }

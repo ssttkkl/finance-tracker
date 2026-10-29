@@ -16,6 +16,8 @@
 
 来源事项选择的纯规则已实现，覆盖正文缺省／明确清空、固定字段、现金部分归属、多个来源冲突及当前事项修订。`scripts/export_cash_source_resolution_goldens.py --check` 校验 708 组匿名输入、完整结果和正文摘要。来源正文派生已覆盖微信、支付宝、建行、工行信用卡／借记卡和工银亚洲；保留原文备注、支付渠道与退款线索，账户身份只取可信解释，人工备注优先。`scripts/export_cash_source_effects_goldens.py --check` 校验完整结果及输入不变。单条流水详情及维护事务尚未接入这些规则，不能据此增加已验收 HTTP 数或关闭来源处理流程。
 
+账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照。行归一、上传接口和真实账单样本仍未迁移，不能据此宣称导入流程可用。
+
 稳定收支对象仓库已有双库原生测试，覆盖公共人工值、成员恢复值、合并冲突、拆分继承和事务内对象身份。该仓库已接入全量重建、新工作区初始化和内部增量维护；手工收支新建和转账创建已使用该仓库，其余公开现金写入仍待迁移。投影维护须在同一事务共用仓库上下文并完成 flush，不能跨事务复用缓存。保存点创建前保存既有脏值，回滚后恢复收支、成员和当前状态缓存。分类独立 move 服务已在同事务维护使用中的投影；update 按 Python 现状保留调用边界。
 
 SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python 微秒时间；固定小数、Unicode 键序、浮点拒绝和 UTF-8 摘要由 `scripts/export_cash_canonical_goldens.py --check` 的 1,548 个匿名向量验证。内部投影源读取、确认闭包和局部关系上下文已有双库测试；完整上下文与摘要通过 `scripts/export_projection_source_contracts.py` 的匿名 SQL 样本对照。联合校验在准备决定前重新核对版本、完整组、端点和角色证据，返回解析份额，不写关系或发布数据集。全量重建、暂存发布和内部增量维护已有双库测试；增量只替换受影响完整组，独立项及相同结构保留行身份。手工收支新建与转账创建已接入；转账编辑、维护及导入写入仍待迁移。持久化图的原生测试另核实双账户真实分配、部分菱形、拆旧组及 80 节点交替闭包预算；参数预算按实际 SQL 执行统计。

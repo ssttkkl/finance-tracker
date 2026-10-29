@@ -6,12 +6,15 @@
       "coverage": {
         "complete": true,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "bank-declared-range-sequence-v1",
         "filters": {
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "day"
       },
       "currency": null,
       "declared": null,
@@ -53,12 +56,15 @@
       "coverage": {
         "complete": true,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "bank-declared-range-sequence-v1",
         "filters": {
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "day"
       },
       "currency": null,
       "declared": null,
@@ -94,12 +100,15 @@
       "coverage": {
         "complete": false,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "",
         "filters": {
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "day"
       },
       "currency": null,
       "declared": null,
@@ -135,12 +144,15 @@
       "coverage": {
         "complete": true,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "bank-declared-range-sequence-v1",
         "filters": {
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "day"
       },
       "currency": null,
       "declared": null,
@@ -182,13 +194,16 @@
       "coverage": {
         "complete": true,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "bank-declared-range-sequence-v1",
         "filters": {
           "currency": "HKD",
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "second"
       },
       "currency": "HKD",
       "declared": 1,
@@ -231,13 +246,16 @@
       "coverage": {
         "complete": false,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "",
         "filters": {
           "currency": "HKD",
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "second"
       },
       "currency": "HKD",
       "declared": 2,
@@ -286,13 +304,16 @@
       "coverage": {
         "complete": false,
         "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
         "evidence": "",
         "filters": {
           "currency": "HKD",
           "export_type": "all"
         },
         "start": "2026-07-31T16:00:00+00:00",
-        "strategy_version": "bank-table-coverage-v1"
+        "start_inclusive": true,
+        "strategy_version": "bank-table-coverage-v1",
+        "time_precision": "second"
       },
       "currency": "HKD",
       "declared": 1,

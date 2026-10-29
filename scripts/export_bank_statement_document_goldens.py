@@ -76,7 +76,10 @@ def export(output: Path) -> None:
                     "currency": document.source_currency,
                     "coverage": {"start": document.coverage.start, "end": document.coverage.end,
                         "complete": document.coverage.complete, "evidence": document.coverage.evidence,
-                        "filters": document.coverage.filters, "strategy_version": document.coverage.strategy_version}}})
+                        "filters": document.coverage.filters, "strategy_version": document.coverage.strategy_version,
+                        "start_inclusive": document.coverage.start_inclusive,
+                        "end_inclusive": document.coverage.end_inclusive,
+                        "time_precision": document.coverage.time_precision}}})
         except StatementDocumentError as error:
             result.append({"content": base64.b64encode(content).decode(), "source": source, "ok": False,
                 "error": error.code})

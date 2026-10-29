@@ -25,6 +25,7 @@ dependencies {
     implementation("org.postgresql:postgresql:${libs.versions.postgresJdbc.get()}")
     implementation("org.bouncycastle:bcprov-jdk18on:1.86")
     implementation("org.apache.poi:poi-ooxml:5.4.1")
+    implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.jooq:jooq:$jooqVersion")
     add(codegen.implementationConfigurationName, "org.jooq:jooq-codegen:$jooqVersion")
     add(codegen.runtimeOnlyConfigurationName, "org.postgresql:postgresql:${libs.versions.postgresJdbc.get()}")

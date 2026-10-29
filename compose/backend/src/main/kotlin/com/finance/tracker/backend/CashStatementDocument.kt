@@ -14,6 +14,9 @@ import kotlinx.serialization.json.*
 
 internal class StatementDocumentFailure(val code: String) : RuntimeException(code)
 
+/** 加密 PDF 的密码失败；后续导入上下文据此区分必填与错误，不并入通用解析失败。 */
+internal class StatementPdfPasswordFailure(val required: Boolean) : RuntimeException("pdf_password")
+
 internal data class RawCashRow(val position: Int, val payload: Map<String, String>?, val errorCode: String? = null,
     val documentPosition: String? = null)
 
@@ -21,6 +24,8 @@ internal data class CashSourceCoverage(
     val start: String?, val end: String?, val complete: Boolean, val evidence: String,
     val filters: Map<String, String>, val strategyVersion: String,
     val startInclusive: Boolean = true, val endInclusive: Boolean = true,
+    val timePrecision: String = "second", val documentKey: String? = null, val pageTotal: Int? = null,
+    val pageFingerprints: Map<String, String> = emptyMap(),
 )
 
 internal data class CashStatementDocument(
@@ -29,7 +34,33 @@ internal data class CashStatementDocument(
     val declaredCount: Long?, val observedCount: Int, val sourceCurrency: String? = null,
 )
 
-/** 平台 CSV/TSV 账单的一次读取；XLSX/PDF 与来源身份处理仍在后续切片。 */
+/** 按账单字节和来源提示选择具体格式读取器；只返回原始文档，业务归一仍在后续切片。 */
+internal object CashStatementDocuments {
+    private val PDF_SOURCES = setOf("icbc", "icbc_credit", "icbc_debit")
+    private val BANK_SOURCES = setOf("ccb_debit", "icbc_asia")
+
+    fun readDocument(content: ByteArray, source: String? = null, password: String? = null): CashStatementDocument {
+        if (content.isEmpty()) throw StatementDocumentFailure("statement_input_invalid")
+        val normalized = source?.replace('-', '_')
+        if (content.startsWithPdf() || normalized in PDF_SOURCES)
+            return IcbcPdfDocumentReader.readIcbcDocument(content, normalized, password)
+        if (normalized in BANK_SOURCES || normalized == null && (content.isOle() || content.isUtf16()))
+            return BankStatementDocumentReader.readBankDocument(content, normalized)
+        return CashStatementDocumentReader.readPlatformDocument(content, normalized)
+    }
+
+    private fun ByteArray.startsWithPdf(): Boolean =
+        size >= 5 && this[0] == '%'.code.toByte() && this[1] == 'P'.code.toByte() && this[2] == 'D'.code.toByte() &&
+            this[3] == 'F'.code.toByte() && this[4] == '-'.code.toByte()
+
+    private fun ByteArray.isOle(): Boolean = size >= 8 && listOf(0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1)
+        .withIndex().all { (index, value) -> this[index] == value.toByte() }
+
+    private fun ByteArray.isUtf16(): Boolean = size >= 2 &&
+        ((this[0] == 0xFF.toByte() && this[1] == 0xFE.toByte()) || (this[0] == 0xFE.toByte() && this[1] == 0xFF.toByte()))
+}
+
+/** 平台 CSV/TSV/工作簿账单的一次读取。 */
 internal object CashStatementDocumentReader {
     private val required = mapOf(
         "alipay" to setOf("交易时间", "收/支", "金额", "交易对方"),

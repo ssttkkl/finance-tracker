@@ -50,8 +50,13 @@ def row(header, **changes):
 
 
 def xlsx_bytes(rows, *, count=1, export_type="全部", nickname="测试昵称"):
+    from datetime import datetime
     import openpyxl
     workbook = openpyxl.Workbook()
+    workbook.properties.created = datetime(2026, 1, 1)
+    workbook.properties.modified = datetime(2026, 1, 1)
+    workbook.properties.creator = "fixture"
+    workbook.properties.lastModifiedBy = "fixture"
     sheet = workbook.active
     for row in [["微信支付账单明细"], [f"微信昵称：[{nickname}]"], ["起始时间：[2026-08-01 00:00:00]"],
                 ["终止时间：[2026-08-31 23:59:59]"], [f"导出类型：[{export_type}]"], [f"共{count}笔记录"],
@@ -111,7 +116,8 @@ def export(output: Path) -> None:
                         "complete": document.coverage.complete, "evidence": document.coverage.evidence,
                         "filters": document.coverage.filters, "strategy_version": document.coverage.strategy_version,
                         "start_inclusive": document.coverage.start_inclusive,
-                        "end_inclusive": document.coverage.end_inclusive}}})
+                        "end_inclusive": document.coverage.end_inclusive,
+                        "time_precision": document.coverage.time_precision}}})
         except StatementDocumentError as error:
             result.append({"content": base64.b64encode(content).decode(), "source": source, "ok": False,
                 "error": error.code})

@@ -156,7 +156,8 @@ internal object BankStatementDocumentReader {
             startText?.let { manualInstantText(it.atZone(ZoneId.of("Asia/Shanghai")).toInstant()) },
             endText?.let { manualInstantText(it.atZone(ZoneId.of("Asia/Shanghai")).toInstant()) },
             verified, if (verified) "bank-declared-range-sequence-v1" else "", filters,
-            "bank-table-coverage-v1",
+            "bank-table-coverage-v1", startInclusive = true, endInclusive = false,
+            timePrecision = if (source == "ccb_debit") "day" else "second",
         )
     }
 
