@@ -50,6 +50,11 @@ class MutationPlanCommitHttpContractTest {
         val expectedReceipt = expected.getValue("receipt").jsonObject
         for ((key, value) in expectedReceipt) assertEquals(value, receipt[key], key)
         assertEquals(planId, receipt.getValue("plan_id").jsonPrimitive.content)
+        System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { output ->
+            val directory = Path.of(output)
+            java.nio.file.Files.createDirectories(directory)
+            java.nio.file.Files.writeString(directory.resolve("mutation-receipt-client.json"), receipt.toString())
+        }
         val state = db.read { connection ->
             val entry = connection.createStatement().use { statement ->
                 statement.executeQuery("SELECT note,revision,manual_fields FROM cash_entries WHERE workspace_id='commit-a' AND id='entry-2001'").use {

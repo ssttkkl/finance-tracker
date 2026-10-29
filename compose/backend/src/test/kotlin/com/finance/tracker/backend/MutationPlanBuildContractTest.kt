@@ -13,6 +13,7 @@ class MutationPlanBuildContractTest {
             System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
         val cases = Json.parseToJsonElement(root.resolve("builds.json").readText()).jsonArray
         assertTrue(cases.size >= 5)
+        val captured = mutableListOf<JsonObject>()
         for ((index, raw) in cases.withIndex()) {
             val case = raw.jsonObject
             val patch = case.getValue("patch").jsonObject
@@ -47,6 +48,17 @@ class MutationPlanBuildContractTest {
             for ((identifier, expected) in items) {
                 assertEquals(expected, MutationPlanView.item(plan, identifier), "case $index $identifier")
             }
+            if (index in setOf(0, 5)) captured += buildJsonObject {
+                put("view", case.getValue("view"))
+                put("items", case.getValue("items"))
+                put("item", MutationPlanView.item(plan, "pi_1"))
+            }
+        }
+        System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { output ->
+            val directory = java.nio.file.Path.of(output)
+            java.nio.file.Files.createDirectories(directory)
+            java.nio.file.Files.writeString(directory.resolve("mutation-plan-client.json"),
+                buildJsonObject { put("plans", JsonArray(captured)) }.toString())
         }
     }
 
