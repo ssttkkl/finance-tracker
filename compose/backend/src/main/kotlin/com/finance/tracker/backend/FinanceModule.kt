@@ -39,7 +39,8 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
     manualCash: ManualCashService = ManualCashService(database,now = clock),
     transfers: CashTransferService = CashTransferService(database,now = clock),
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
-    currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock)) {
+    currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
+    recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock)) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
@@ -63,6 +64,33 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 put("error", kotlinx.serialization.json.buildJsonObject {
                     put("code", JsonPrimitive("projection.unavailable")); put("message", JsonPrimitive("流水暂不可用，请稍后重试。"))
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
+                })
+            })
+        }
+        exception<CashRecordDetailFailure> { call, failure ->
+            val (status, message) = when (failure.code) {
+                "record_not_found" -> 404 to "未找到这条流水。"
+                "workspace_forbidden" -> 403 to "当前用户无权处理这些记录。"
+                "draft_required" -> 409 to "这条流水已确认，请刷新后修改。"
+                "posted_required" -> 409 to "请先补充并确认这条流水。"
+                else -> 422 to "修改内容有误，请检查后重试。"
+            }
+            call.respond(HttpStatusCode.fromValue(status), kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
+                })
+            })
+        }
+        exception<CashRecordReadUnavailable> { call, failure ->
+            val cause = failure.cause ?: failure
+            val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
+            val frames=cause.stackTrace.map {"${it.fileName}:${it.lineNumber}:${it.methodName}"}
+            runCatching {this@financeModule.log.error("cash_import_failure error_id={} stage=request scope=request type={} frames={}",diagnostic.errorId,cause.javaClass.simpleName,frames)}
+            call.respond(HttpStatusCode.ServiceUnavailable,kotlinx.serialization.json.buildJsonObject {
+                put("error",kotlinx.serialization.json.buildJsonObject {
+                    put("code",JsonPrimitive("import_unavailable"));put("message",JsonPrimitive("暂时无法处理账单，请稍后重试。"))
+                    put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(true));put("diagnostic",Json.encodeToJsonElement(diagnostic))
                 })
             })
         }
@@ -233,6 +261,12 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         get("/api/v1/evidence/cash-projections/{projection_id}") {
             val result = withContext(Dispatchers.IO) {
                 currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-records/{transaction_id}") {
+            val result = withContext(Dispatchers.IO) {
+                recordDetail.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"], call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
