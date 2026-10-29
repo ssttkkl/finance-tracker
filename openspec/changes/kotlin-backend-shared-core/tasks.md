@@ -67,6 +67,10 @@
 - [x] 4.7.8.7 逐断言迁移持久化图读取及增量集成：真实组成项等额退款分配、部分菱形、单种子拆旧组、新邻居旧组闭包、组成项预算拒绝、80 节点交替闭包参数预算和原类型不被重分类；双库与独立复核后再计源定义。
 - [ ] 4.7.9 迁移当前收支详情及按流水定位的两个 GET：同一数据库快照中的活动数据集、版本、成员、金额及安全待处理事项；保留隐藏/可维护、已删除/跨工作区/缺失成员错误。真实双库 HTTP、重建交错、当前权限重验及现有 Compose 成员消费验证，原组合测试未覆盖部分保持 pending。
 - [ ] 4.7.10 迁移收支证据 GET：同一快照返回根记录、完整成员/现金部分、已确认关系、非活动关系提示、退款时间线及白名单资金调拨信息；保留隐藏记录、精确金额、字符串标识、来源信息省略及原错误。先以 Python 匿名全响应和 Kotlin 原断言失败复现，再验证 SQLite/PG18、重建交错、当前授权和现有 Compose 消费；不扩大为账单原文或关系扫描接口。
+- [ ] 4.7.11 当前单条流水详情：按创建方式和当前角色返回字段、公共人工值、来源事项、候选、完整关联及可空投影位置；接通既有来源原文消费者，不新增编辑或导入入口。
+- [ ] 4.7.11.1 先迁来源事项只读选择规则：缺省/明确清空、固定字段、受保护字段、现金部分引用、多个来源冲突及修订；失败先行、原生断言和 Python 差分。该阶段不写流水或推进已验收接口数。
+- [ ] 4.7.11.2 迁移详情的 jOOQ 读取、当前来源可选动作及身份候选；授权与财务快照分别核验，隐藏/未初始化投影按原单条读取合同处理，损坏状态停止读取且不修复。
+- [ ] 4.7.11.3 接入 GET、原安全诊断和现有 Compose 来源读取链路，完成双库完整响应/无写入、授权变化、源断言核对、实际客户端和功能回归后提交推送；独立复核单独登记，不将自检冒充独立结论。
 - [ ] 4.8 维护计划/上下文/效果/确认/收据、CAS/TTL、当前事实证明、冲突及未知结果原键核实。
 - [x] 4.8.1 先迁永久收据按当前操作者/工作区读取、原键查询和行/关系结果分页的 5 个 GET；共享现有 Compose 收据协议，验证历史键严格解码、分页、脱敏、权限、当前投影引用及真实客户端解码。resolve/提交/暂存写入随后验收。
 - [x] 4.8.2 迁移永久收据仓库 create/replay/for_context 及写入前摘要/结果白名单，保留原键/单上下文永久唯一、冲突携原收据、业务写入同事务回滚；原生迁移原参数/断言并接入现有账户命令，完整双库回归后验收。历史 Alembic 升降级和 retry/resolve 不因仓库完成而关闭。
@@ -105,7 +109,7 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-2026-10-29 UTC；本阶段提交前验证的 HEAD 与 diff 比较基线为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`。当前任务 42/78；已验收 HTTP 40/86，当前详情、按流水定位和收支证据另有三个已实现接口等待最终独立复核。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `codex/kotlin-backend-shared-core` 分支及其 origin 同名分支，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
+2026-10-29 UTC；来源选择规则阶段提交前验证的 HEAD 与 diff 比较基线为 `394b23e5553b18a980e37f92d59d6146289cc37b`，jOOQ/证据读取的提交前验证 HEAD 为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`；下表按各证据标识区分，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`。当前任务 42/82；已验收 HTTP 40/86，当前详情、按流水定位和收支证据另有三个已实现接口等待最终独立复核。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `codex/kotlin-backend-shared-core` 分支及其 origin 同名分支，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
 
 已执行的 grill-me → grilling、explore、propose、jOOQ 架构确认和 apply 继续适用。用户明确要求本轮不运行性能测试，以功能迁移和功能测试为验收；功能回归使用 `-PbackendFunctionalOnly=true`，仅排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`。原预算不变，原分类删除失败 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留，不宣称性能通过。
 
@@ -117,6 +121,9 @@ Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `
 
 | 验证范围 | 当前实际命令、结果与证据 |
 |---|---|
+| 来源选择规则失败先行与差分 | `record-source-policy-red.log` 因缺实现失败；`record-source-policy-differential.log` 复现 JSON 浮点文本不同而值/摘要相同，差分保留类型及完整值校验；`record-source-reference-red.log` 复现事项标识接口不能接受原字符串。最终按字符串查找，前导零/超 Long 文本返回原 `issue_changed`；`scripts/export_cash_source_resolution_goldens.py --check` 验证 708 组完整值、错误、摘要及 Python 输入不变。8 项原生方法另核验归属、固定字段和容器复制，不把黄金计为原源定义完成 |
+| 来源选择规则完整功能回归 | `run_gradle.py sqlite record-source-final-retry-sqlite :backend:test :backend:installDist -PbackendFunctionalOnly=true`（12:49 UTC，248.66 秒）及 `run_gradle.py postgres record-source-final-pg18 :backend:test :backend:installDist -PbackendFunctionalOnly=true`（12:55 UTC，187.76 秒）两库各 435 项后端通过，0 failure/error/skip；SQLite 完成 installDist，PG installDist 为 UP-TO-DATE。先前 `record-source-final-sqlite.log` 因 Gradle daemon 退出中断，无 JUnit 结果，不计通过；两项明确性能测试保持排除 |
+| 来源选择规则 Python 功能参考 | `python -m pytest -q -p no:cacheprovider -m 'not performance'` 运行 `tests/contract/test_cash_source_issue_resolution.py tests/contract/test_cash_record_maintenance.py tests/contract/test_cash_independent_identity.py tests/contract/test_cash_draft_merge_plan.py`；显式 `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55432/ft_kr_jooq_reference_test`，清除 `FT_DATABASE_URL`。两库合计 250 passed、0 skip，447.23 秒，530 项既有 SQLAlchemy 警告；命令、HEAD、时间和 JUnit 见 `record-source-python-functional.json/xml/log`。这些包含尚未迁移的维护写入，仅作参考，不增加已迁移原定义 |
 | jOOQ 失败先行 | `jooq-persistence-red.json` 确认缺少持久化实现；`jooq-review-regressions-red.json` 于 10:56 UTC 复现代码生成 URI 原文泄漏和公共编辑读取无关损坏原文，`jooq-review-regressions-green.json` 16 个后端及 2 个代码生成测试通过。恢复窄列读取、固定安全错误及去除异常 cause；精确金额、UTC、JSON、caller-owned 事务与保存点均纳入双库完整回归 |
 | jOOQ 全部已实现功能 | `:backend:test :backend:codegenTest :backend:installDist -PbackendFunctionalOnly=true`，`jooq-final-functional-sqlite.json` / `jooq-final-functional-pg18.json` 两库各 415 项后端测试，0 failure/error/skip；SQLite 另实际运行 2 项 codegenTest，PG 为 UP-TO-DATE。后续证据接口验证见下行 |
 | 当前后端完整功能 | `:backend:test :backend:codegenTest :backend:installDist :shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest' -PbackendFunctionalOnly=true`。`evidence-final-sqlite.json`（12:00 UTC，100.46 秒）及 `evidence-final-pg18.json`（12:02 UTC，180.17 秒）各 425 个后端、12 个实际客户端测试，均无 failure/error/skip。此后只改资金调拨损坏类型拒绝，受影响复跑见下行；不把 425 项写成新增拒绝后的全量重跑 |
@@ -128,15 +135,17 @@ Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `
 | Python 功能参考 | `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55432/ft_kr_jooq_reference_test`，清除 `FT_DATABASE_URL`；`python -m pytest -q -p no:cacheprovider -m 'not performance'` 执行 `tests/test_application_cash_projection_evidence.py tests/test_relational_cash_projection_evidence.py tests/contract/test_web_api.py tests/contract/test_cash_current_projection_api.py`。58 passed、0 skip、70 项既有警告、pytest 87.21 秒；完整命令/时间/环境见 `evidence-python-functional.json/xml/log` |
 | 真实 Netty | 缓存根 `verify_live_evidence.py --backend <sqlite|postgres>` 启动当前 installDist，使用 loopback 18450/18451 和独立匿名库。两库各 23 个 HTTP 操作完成，包含注册/工作区/账户原键、精确新增、FX 转账、当前读取与完整证据 Python 回包对照、401/404、校准、输入/范围拒绝及失败无写入；15 表快照。`evidence-live-sqlite.json` / `evidence-live-postgres.json`，服务器已退出。最后资金形状拒绝不影响该成功路径，错误分支由原生专项验证 |
 | 官方代码生成与安全 | `:backend:generateJooq -PjooqOutput=<仓库外目录>` 真实执行，`jooq-codegen-gradle-verified.json/log`；`jooq-codegen-gradle-equal.json` 67 文件全部相同。`jooq-codegen-rejections.json` 验证 8 种显式目标拒绝，2 个 codegenTest 覆盖格式错误、凭据、参数和完整诊断去敏感原文。默认构建不联网查库 |
-| OpenSpec | `openspec validate kotlin-backend-shared-core --strict --json` 通过，`openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed；与当前 HEAD 导出的规格逐 finding/路径/级别完全一致，52 个缺失场景错误及 25 个长正文警告仍在其他 change/spec，见 `jooq-openspec-verification.json` 与 `jooq-openspec-{all,baseline,scoped,doctor}.json`。全局 6.4 未完成，不改动无关规格 |
-| 清单门禁 | `scripts/check_kotlin_test_migration.py --collection <缓存根>/evidence/collection.txt --report <缓存根>/evidence/evidence-migration-inventory.json` 无错误；`--require-complete` 仍按 2,381 个 pending 返回 1。当前 2,613 定义、5,844 原展开用例，已验收 232 定义/577 参数；新增六个源对应尚未计入已迁移，不能把 JUnit 方法或黄金样本当作原定义数 |
-| 静态、依赖和文档 | jOOQ 生成类型、SQL/Gson 未进入公共/Compose 模块；生产业务 SQL 已使用 DSL，仅事务、驱动和 schema 控制保留 JDBC。`:backend:dependencyInsight --dependency gson --configuration runtimeClasspath` 无依赖，见 `jooq-codegen-gradle-verified.log`。当前 8 份 Markdown 的 177 个本地链接/锚点、新增 Python 语法、生成器/17 个夹具变量、78 项任务/86 个接口及 `git diff --check` 均通过，见 `evidence-static-checks.json`；公共模块未发现 SQL/jOOQ/Gson 越界依赖 |
+| OpenSpec | 来源规则阶段 `openspec validate kotlin-backend-shared-core --strict --json` 重新通过；jOOQ 阶段 `openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed；与jOOQ 验证基线导出的规格逐 finding/路径/级别完全一致，52 个缺失场景错误及 25 个长正文警告仍在其他 change/spec，见 `jooq-openspec-verification.json` 与 `jooq-openspec-{all,baseline,scoped,doctor}.json`。全局 6.4 未完成，不改动无关规格 |
+| 清单门禁 | `scripts/check_kotlin_test_migration.py --collection <缓存根>/evidence/collection.txt --report <缓存根>/evidence/record-source-migration-inventory.json` 重新核对无错误；`--require-complete` 仍按 2,381 个 pending 返回 1。当前 2,613 定义、5,844 原展开用例，已验收 232 定义/577 参数；新增六个源对应尚未计入已迁移，不能把 JUnit 方法或黄金样本当作原定义数 |
+| 静态、依赖和文档 | 来源规则阶段 6 份 Markdown 的 178 个本地链接/锚点、Python 生成器语法、17 个夹具变量、82 项任务/86 个接口及 `git diff --check` 通过，见 `record-source-static.json`。公共模块无 SQL/jOOQ/Gson 越界依赖。此前 jOOQ 依赖核实见 `jooq-codegen-gradle-verified.log`，8 份 Markdown/177 链接见 `evidence-static-checks.json`，不作为本片新增静态结果 |
 
 Cross-platform Impact Check：本片为后端替换与既有证据协议接入，无 UI、导航、文案或产品交互改动。Web/Native 共用的现有协议消费者通过实际 Ktor 字节验证；来源原文仍需未迁移的当前单条流水详情，不计完整 F-03/F-04 流程可用。页面数保持 10，已有 Web/Native TODO 保留。Linux 无法运行 iOS 编译/测试，残余命令为 macOS/JDK 21/Xcode 上 `:business-domain:iosSimulatorArm64Test :business-contracts:iosSimulatorArm64Test :shared:compileKotlinIosSimulatorArm64`；不声称 iOS 或设备 QA 通过，也不打开浏览器。
 
 文档收尾范围为根 README、backend README、功能地图、routes/inventory、proposal/design/tasks、主规格/delta、词表及项目 apply skill。根 README 的预览导航和词表现有收支/关联流水/现金部分含义不变；其他文档原位更新 jOOQ、PostgreSQL 18、三个读取接口、夹具命令与实际限制。未归档、切流或删除 Python/schema；本机回滚可撤销 Kotlin 变更，生产数据不受影响。全仓 Python 功能回归曾在环境重启时中断，`python-functional.log` 无完成报告，不计通过；全量功能迁移、余下接口、后台任务、格式与历史迁移矩阵仍由 6.3/6.5 跟踪。
 
 ## 当前审查
+
+来源选择规则已按 Python 原实现完成范围、工程、DX/安全及 diff 自检：修订/种类优先、正文存在性、固定字段先行、归属、冲突、复制和摘要均有原生/差分及当前功能回归。关闭 P2 事项字符串编号被 Long 提前收窄；浮点断言保留类型、完整值及负零，错误和摘要仍严格比较。尚缺独立复核，4.7.11.1 暂不勾选，不增加原测试或 HTTP 验收数。该阶段无 UI/共享生产代码、schema 或新依赖变更，Web/Native 页面数与原 TODO 不变；README、功能地图、inventory、design/tasks、词表和 apply skill 已核对，无新领域概念，主规格/delta 行为不变。独立复核之后方可关闭相应任务。
 
 本片 jOOQ 与证据接口由实施者完成范围、工程、DX/安全及 diff 自检；当前没有可用独立复核上下文，没有宣称新的独立审查通过。既有历史切片的独立结论只覆盖其当时实现，不替代 jOOQ 全部改写及证据接口复核。以下处置通过失败先行及受影响测试验证，仍须独立重审后才能勾选对应任务。
 

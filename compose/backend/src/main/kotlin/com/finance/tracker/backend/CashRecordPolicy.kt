@@ -44,8 +44,8 @@ internal data class CashPolicyUpdate(val values: Map<String,Any?>,val typeChange
     val protectedFields: List<String>,val normalizedValues: Map<String,Any?>)
 
 internal object CashRecordPolicy {
-    private val mutable=setOf("counterparty","counterparty_account","counterparty_account_attrs","note","category_id","record_type","record_subtype","source_payload")
-    private val financial=setOf("amount","currency","occurred_at","account_id","account_name","components","cash_granularity")
+    private val mutable=mutableCashFields
+    private val financial=financialCashFields
     private val identity=setOf("record_id","source_type","source_scope_key","source_account_key","record_origin","manual_transfer_id")
     private val recognized=mutable+financial+identity
     private val textFields=setOf("counterparty","counterparty_account","note")
@@ -159,6 +159,7 @@ internal object CashRecordPolicy {
         }
         return left==right
     }
+    fun valuesEqual(left: Any?,right: Any?)=equal(left,right)
     private fun validPair(type: Any?,subtype: Any?)=validCashRecordPair(type,subtype)
     fun prepare(current: Map<*,*>,patch: Any?,protected: Set<String> = emptySet()): CashPolicyUpdate {
         if(patch !is Map<*,*> || patch.keys.any {it !is String}) throw CashPolicyError("invalid_field",emptyList())
