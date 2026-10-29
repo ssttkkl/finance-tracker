@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-10-29
+goal: Align existing zero-net projection regression tests with the approved default-on ledger filter without changing product behavior.
+skip_specs: true
