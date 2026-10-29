@@ -4744,6 +4744,192 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner",
+      "source_sha256": "8e2b773c8c7e165dee25a240879a49e47ce3f18946c29738143589cdfee5a133",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[None]",
+        "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[payload1]",
+        "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[payload2]",
+        "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner[payload3]"
+      ],
+      "assertions": [
+        "四种正文形状保留可信身份；异常字段类型及重名摘要不制造退款证据"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "arbitraryJsonCannotForgeIdentityOrRefundEvidence"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note",
+      "source_sha256": "e55302f38890059b7d88f90fe7da28f946730d29d73196cb9d4f9af65fed1949",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[12-True-ccb_debit]",
+        "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[12-True-icbc_debit]",
+        "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[-12-False-ccb_debit]",
+        "tests/test_cash_statement_effects.py::test_draft_amount_patch_refreshes_direction_dependent_evidence_without_replacing_note[-12-False-icbc_debit]"
+      ],
+      "assertions": [
+        "建行及工行借记卡各正负金额参数更新退款线索且保留备注"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "amountPatchRefreshesDirectionEvidenceWithoutChangingNote"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules",
+      "source_sha256": "3be8d9b016387469371ea1cf44a2edd911cc5a3eebf6d228d81fad18a5d2d703",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[alipay-payload0-12-expected0]",
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[wechat-payload1--12-expected1]",
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[ccb_debit-payload2-12-expected2]",
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[icbc_asia-payload3-12-expected3]",
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[icbc_credit-payload4-12-expected4]",
+        "tests/test_cash_statement_effects.py::test_each_source_uses_its_native_single_row_rules[icbc_debit-payload5--12-expected5]"
+      ],
+      "assertions": [
+        "六类来源逐项核对原测试的来源编号、渠道、摘要、原对方、退款和冲正线索"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "allSourcesUseTheirNativeSingleRowRules"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority",
+      "source_sha256": "e3c780fc9a802c8e19c8732d05f3d7180ba1639b1f3011360e3f7c4b7f32a6f0",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected0-patch0-]",
+        "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected1-patch1-\\u4eba\\u5de5\\u503c]",
+        "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected2-patch2-\\u672c\\u6b21\\u660e\\u786e\\u503c]",
+        "tests/test_cash_statement_effects.py::test_explicit_note_and_existing_protection_take_priority[protected3-patch3-]"
+      ],
+      "assertions": [
+        "四组保护与显式备注组合保留人工值、明确空值和本次修改"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "explicitNoteAndProtectionHavePriority"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_note_only_does_not_reinterpret_source_and_type_only_drops_cross_row_cache",
+      "source_sha256": "8374bed99addca520654005cdc2f11a1ddbd2336dc17e989e3d8fe51394cd3f4",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_note_only_does_not_reinterpret_source_and_type_only_drops_cross_row_cache"
+      ],
+      "assertions": [
+        "仅备注不重算解释；仅类型保留单行白名单、删除跨行缓存且字段不变"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "noteOnlyLeavesExplanationUnchangedAndTypeOnlyDropsCrossRowState"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_pdf_note_normalizes_only_column_names_and_preserves_raw_values",
+      "source_sha256": "9167a40b6a2fba507dad1d047030caad09fa8a4b3a0a7eee43e1a3048916e3f1",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_pdf_note_normalizes_only_column_names_and_preserves_raw_values"
+      ],
+      "assertions": [
+        "只规范化列名；原始备注及正文不变，可信身份不被正文卡号替换，渠道及正金额退款线索更新"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "pdfColumnNormalizationPreservesRawValuesAndTrustedIdentity"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_source_patch_replaces_note_and_stale_explanation_without_creating_manual_override",
+      "source_sha256": "4771e8bc1466e0dea7b5fe16a69378a8ae29876b2cceb106b83359dc32a2a1fb",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_source_patch_replaces_note_and_stale_explanation_without_creating_manual_override"
+      ],
+      "assertions": [
+        "备注完整保留；金额、类型与正文不变；旧退款及跨行决定删除，可信身份保留；完整输入未修改"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "sourcePatchReplacesNoteAndStaleExplanationWithoutChangingFinancialFields"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup",
+      "source_sha256": "838935d08a888ed12d9e1d943c6173af5f4eaa80f3bebd2731e052644c1853ac",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup[alipay-payload0-\\u5de5\\u5546\\u94f6\\u884c\\u50a8\\u84c4\\u5361(3697)]",
+        "tests/test_cash_statement_effects.py::test_source_patch_reuses_each_platform_converter_account_label_cleanup[wechat-payload1-\\u5de5\\u5546\\u94f6\\u884c\\u4fe1\\u7528\\u5361(9166)]"
+      ],
+      "assertions": [
+        "支付宝与微信两个参数保留原文，仅规范化完整银行账户标签"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "sourceRulesNormalizeOnlyCompletePlatformAccountLabels"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_statement_effects.py::test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text",
+      "source_sha256": "fbad0eb88be6ef284459dad116f673d0b9b467c546a9f5ca00bac3df615a08b6",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_statement_effects.py::test_wechat_source_patch_keeps_empty_product_empty_even_when_remark_has_text"
+      ],
+      "assertions": [
+        "微信商品明确为空时不回退备注，正文不变"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceEffectsTest.kt",
+          "test": "emptyWechatProductDoesNotFallBackToRemark"
+        }
+      ],
+      "reason": "原生断言及完整 Python 差分已通过；独立逐断言复核尚未完成，不计已迁移。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_exact_decimal.py::test_decimal_subclass_preserves_existing_conversion_protocol",
       "source_sha256": "a008f57b7392463c14c2cea222745737f181eb171792bfe615df9529314dfc7c",
       "status": "pending",
