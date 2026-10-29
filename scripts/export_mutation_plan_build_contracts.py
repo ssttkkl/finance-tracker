@@ -50,6 +50,13 @@ def seed(sessions):
             note="已确认", category_id="food", record_type="consumption", record_subtype="not_applicable",
             record_id="w2", source_type="wechat", source_payload={"备注": "已确认"}, relation_metadata={},
             manual_overrides={}, created_at=NOW))
+        session.add(CashTransactionModel(id=1003, workspace_id="plan-a", state="draft", record_origin="import",
+            account_id=101, row_revision=1, cash_granularity="atomic",
+            occurred_at=datetime(2026, 7, 3, 9, tzinfo=timezone.utc), amount="30.00", currency="CNY",
+            counterparty="咖啡店", counterparty_account="", counterparty_account_attrs=[], note="草稿",
+            category_id="food", record_type="consumption", record_subtype="not_applicable", record_id="w3",
+            source_type="wechat", source_payload={"备注": "草稿"}, relation_metadata={}, manual_overrides={},
+            created_at=NOW))
         session.add(CashTransactionModel(id=1001, workspace_id="plan-a", state="draft", record_origin="import",
             row_revision=1, cash_granularity="atomic", occurred_at=None, amount=None, currency="CNY",
             counterparty="咖啡店", counterparty_account="", counterparty_account_attrs=[], note="旧备注",
@@ -58,6 +65,9 @@ def seed(sessions):
         session.flush()
         session.add(CashTransactionComponentModel(id=2002, workspace_id="plan-a", cash_transaction_id=1002,
             account_id=101, amount="15.00", currency="CNY", ordinal=0, label="", source_key="", metadata_json={},
+            created_at=NOW))
+        session.add(CashTransactionComponentModel(id=2003, workspace_id="plan-a", cash_transaction_id=1003,
+            account_id=101, amount="30.00", currency="CNY", ordinal=0, label="", source_key="", metadata_json={},
             created_at=NOW))
 
 
@@ -71,6 +81,10 @@ CASES = [
     {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {"note": "改备注"}},
     {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {}},
     {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {"amount": "16"}},
+    {"intent": "finalize_draft", "transaction_id": "1003", "expected_revision": 1, "patch": {"note": "定稿"}},
+    {"intent": "finalize_draft", "transaction_id": "1003", "expected_revision": 1, "patch": {}},
+    {"intent": "finalize_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {}},
+    {"intent": "finalize_draft", "transaction_id": "1002", "expected_revision": 1, "patch": {}},
 ]
 
 

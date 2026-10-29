@@ -12,13 +12,25 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     private val workspace get() = context.workspace
 
     fun build(transactionId: Long, request: MutationPlanRequest): JsonObject {
-        if (request.intent !in setOf("save_draft", "edit_record")) throw MutationPlanFailure("plan_input_invalid")
+        if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft"))
+            throw MutationPlanFailure("plan_input_invalid")
         val record = record(transactionId)
-        if (request.intent == "save_draft" && record.state != "draft") throw MutationPlanFailure("draft_required")
-        if (request.intent == "edit_record" && record.state != "posted") throw MutationPlanFailure("posted_required")
+        if (request.intent in setOf("save_draft", "finalize_draft") && record.state != "draft")
+            throw MutationPlanFailure("draft_required")
+        if (request.intent == "edit_record" && record.state != "posted")
+            throw MutationPlanFailure("posted_required")
         val current = fields(record)
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
-        val operation = prepare(record, current, patch)
+        var operation = prepare(record, current, patch)
+        if (request.intent == "finalize_draft") {
+            val issue = operation.getValue("issues").jsonArray.firstOrNull()
+            if (issue != null) throw CashPolicyError(issue.jsonObject.getValue("code").jsonPrimitive.content,
+                listOfNotNull(issue.jsonObject["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull))
+            operation = JsonObject(operation + mapOf(
+                "values" to JsonObject(operation.getValue("values").jsonObject + ("state" to JsonPrimitive("posted"))),
+                "planned_action" to JsonPrimitive("finalize_draft"),
+            ))
+        }
         val entry = entry(transactionId)
         val entryPublic = entryPublic(operation, entry, current, patch)
         val contextRows = CashRelationContextService(context).load(setOf(transactionId))
@@ -73,7 +85,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         }
         val editable = if (state == "draft" || record.origin == "manual")
             editableCashRecordFields.sortedWith(cashRelationStringOrder) else emptyList()
-        val allowedActions = if (state == "draft") listOf("save_draft", "finalize_draft") else listOf("edit_record")
+        val allowedActions = if (record.state == "draft") listOf("save_draft", "finalize_draft") else listOf("edit_record")
         val detail = buildJsonObject {
             put("entry", buildJsonObject {
                 put("fields", JsonObject(entryPublic))

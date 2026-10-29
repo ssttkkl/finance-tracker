@@ -93,6 +93,40 @@ class MutationPlanHttpContractTest {
         assertEquals(expected.getValue("items").jsonObject.getValue("pi_1"), Json.parseToJsonElement(item.bodyAsText()))
     }
 
+    @Test fun finalizeDraftPlanPublishesPostedViewAndItem() = testApplication {
+        val db = database()
+        val expected = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv(
+            "FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR"))).resolve("builds.json").readText()).jsonArray[8].jsonObject
+        application { financeModule(db) }
+        val body = buildJsonObject {
+            put("intent", "finalize_draft"); put("transaction_id", "1003"); put("expected_revision", 1)
+            put("patch", buildJsonObject { put("note", "定稿") })
+        }
+        val created = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json); setBody(body.toString())
+        }
+        assertEquals(200, created.status.value, created.bodyAsText())
+        val view = Json.parseToJsonElement(created.bodyAsText()).jsonObject
+        val expectedView = expected.getValue("view").jsonObject
+        assertEquals(expectedView.getValue("items"), view.getValue("items"))
+        assertEquals(expectedView.getValue("summary"), view.getValue("summary"))
+        assertEquals(expectedView.getValue("item_counts"), view.getValue("item_counts"))
+        val planId = view.getValue("plan_id").jsonPrimitive.content
+        val item = client.get("/api/v1/cash-mutations/plans/$planId/items/pi_1") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }
+        assertEquals(expected.getValue("items").jsonObject.getValue("pi_1"), Json.parseToJsonElement(item.bodyAsText()))
+        val incomplete = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("intent", "finalize_draft"); put("transaction_id", "1001")
+                put("expected_revision", 1) }.toString())
+        }
+        assertEquals(422, incomplete.status.value)
+        assertEquals("account_missing", errorCode(incomplete.bodyAsText()))
+    }
+
     @Test fun planErrorsStayStableAndDoNotWrite() = testApplication {
         val db = database()
         application { financeModule(db) }
