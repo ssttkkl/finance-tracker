@@ -279,7 +279,7 @@ def test_relation_discovery_failure_stops_plan_without_recursive_retry(draft_run
 
 
 def test_unidentified_record_id_is_reused_when_only_relation_choice_changes(draft_runtime):
-    files = tuple(replace(file, document=replace(file.document,
+    files = tuple(file if file.source_type == "alipay" else replace(file, document=replace(file.document,
         rows=tuple(replace(row, provider_id=None) for row in file.document.rows))) for file in _mirror_files())
     with draft_runtime.sessions() as session:
         first = _build(session, draft_runtime, files)

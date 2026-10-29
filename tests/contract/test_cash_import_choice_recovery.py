@@ -16,7 +16,7 @@ def _extra():
 
 
 def _chosen(runtime, action):
-    files = tuple(replace(file, document=replace(file.document,
+    files = tuple(file if file.source_type == "alipay" else replace(file, document=replace(file.document,
         rows=tuple(replace(row, provider_id=None) for row in file.document.rows))) for file in _mirror_files()) + (_extra(),)
     service = _service(runtime)
     service._parser = lambda _upload: _extra().document
