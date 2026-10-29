@@ -16,9 +16,9 @@
 
 ## 4. 构建
 
-- [ ] 4.0.1 jOOQ 基础：可重现的官方 schema 代码生成、仅后端依赖、SQLite 文本/PG NUMERIC 金额、UTC/JSON 绑定及安全异常映射；失败先行并通过双库事务/保存点合同。
-- [ ] 4.0.2 jOOQ 垂直验证：迁移当前收支详情/定位与完整转账的查询写入调用链，保留当前权限、财务快照、金额表示和原子回滚；SQLite/PG18 功能及实际客户端回包验证。
-- [ ] 4.0.3 jOOQ 全量替换：迁移其余已实现仓库的业务 SQL，复核生成类型边界，运行全部已实现功能回归、安全检查、相称构建和独立审查；性能按用户要求排除。
+- [x] 4.0.1 jOOQ 基础：可重现的官方 schema 代码生成、仅后端依赖、SQLite 文本/PG NUMERIC 金额、UTC/JSON 绑定及安全异常映射；失败先行并通过双库事务/保存点合同。（独立复核 P2 已关闭；残余 P3 已登记）
+- [x] 4.0.2 jOOQ 垂直验证：迁移当前收支详情/定位与完整转账的查询写入调用链，保留当前权限、财务快照、金额表示和原子回滚；SQLite/PG18 功能及实际客户端回包验证。（独立复核确认持久化基础设施）
+- [x] 4.0.3 jOOQ 全量替换：迁移其余已实现仓库的业务 SQL，复核生成类型边界，运行全部已实现功能回归、安全检查、相称构建和独立审查；性能按用户要求排除。（独立复核确认；两库完整功能与 codegenTest 通过）
 - [x] 4.1 首片失败先行：匿名 Python 黄金、公共规则/DTO 差分、Ktor 旧会话/分类读取的双库 HTTP 与权限/过期/跨工作区/错误测试。
 - [x] 4.2 新增无 UI 的 KMP contracts/domain，实际接入 Compose 的认证 DTO、分类上级规则和精确分摊，移除对应双实现；实现首片 Ktor/JDBC。
 - [ ] 4.3 完整认证：注册/登录/登出、工作区创建/选择/重命名/删除、邀请预览/接受、成员/最后管理员，保持旧 Argon2/会话及全部错误合同；注册/登录按用户明确授权仅接受字符串凭据，补非字符串 400 与无写入反例。
@@ -29,7 +29,7 @@
 - [ ] 4.4 完整账户命令/查询：资格/币种/余额/别名、修订、引用、snapshot 与永久幂等收据。
 - [x] 4.4.1 稳定 ID 创建/查询/修改/删除及现金/投资列表，共享实际读写 DTO；56 组 HTTP/摘要/全部持久状态、原生 editor/CAS/原键/并发/失败回滚、坏快照/引用/撤权等待和实际 Compose 解码双库验收。
 - [ ] 4.4.2 旧写入适配/所有币种扩展的修订、底层 CAS、历史迁移/序列与 OpenAPI；账户余额/估值查询、别名及相关剩余接口随领域切片迁移。不能以 4.4.1 代替完整 4.4。
-- [ ] 4.5 完整分类写入：名称规范化、目录修订、锁、深度/循环/子树、移动/重排、删除影响及 entry/事实/投影、单项和批量分类。
+- [x] 4.5 完整分类写入：名称规范化、目录修订、锁、深度/循环/子树、移动/重排、删除影响及 entry/事实/投影、单项和批量分类。（4.5.1–4.5.4 全部完成并独立复核；原性能定义保持排除）
 - [x] 4.5.1 共享目录 wire 类型并修正 Compose 名称数组/对象路径差异，以实际后端响应验证客户端解码和领域映射；先失败测试，保留原 API 字段。
 - [x] 4.5.2 将分类上级/循环/深度规则接入真实服务端命令，与 Compose 使用同一入口，迁移相应 Python 参数和断言；财务引用、投影及批量分类另验，不能局部关闭 4.5。
 - [x] 4.5.3 分类删除检查和原子删除：完整迁移 entry/独立恢复值/含已删除事实的人工空分类保护、候选依赖失效和全部数据集清理；双库原生回归、原断言迁移、性能与实际客户端解码验证后计入接口。
@@ -40,7 +40,7 @@
 - [x] 4.7.1 迁移现金字段/转正式纯规则及对应原生单测；动态语言边界剩余 2 项已按 JVM 类型边界适配并复核。
 - [x] 4.7.1.1 现金字段/转正式规则 26 个原定义、59 个展开用例已逐断言迁入独立 JVM 测试并经复核；调用已有公共现金部分校验。
 - [x] 4.7.1.2 动态字符串子类属性/键的 2 项原断言按语言类型边界适配并独立复核，不以黄金替代。（JVM String final/不可变；原生断言固定容器深拷贝、共享引用与按值复制，清单标 retained）
-- [ ] 4.7.2 将规则接入实际现金写入、当前账户/修订/来源及完整组校验，双库验证余额/entry/投影/收据原子发布后才计接口进度。
+- [x] 4.7.2 将规则接入实际现金写入、当前账户/修订/来源及完整组校验，双库验证余额/entry/投影/收据原子发布后才计接口进度。（4.7.2.1–4.7.2.7 全部完成；OpenAPI 组合断言仍 pending 并已在子项登记）
 - [x] 4.7.2.1 迁移余额快照仓库和现金组成项增量：当前账户名称/稳定 ID 映射、精度 80 加减及 NUMERIC 范围、草稿/删除/导入转账排除、人工转账余额口径、版本与 caller-owned 回滚。逐参数核对原仓库、ledger 与 statement 直接别名入口；共享函数参数可独立验收，不代表实际导入/记账入口已接线。
 - [x] 4.7.2.2 迁移手工新建严格请求与应用字段边界：65,536 字节、真实编码、重复键/非有限数/深度、严格字段类型及组件 64 上限；缺省和显式 note/category 区分。复用现有 JSON 读取器，不改变账户请求边界。
 - [x] 4.7.2.3 实现实际手工流水和现金部分持久化、来源固定字段/显式人工保护、快照及独立增量投影同事务；字段/金额/币种/账户、时间及结果完整响应按 Python 对照，晚期故障全回滚。
@@ -110,7 +110,7 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-2026-10-29 UTC；来源正文效果阶段提交前验证的 HEAD 与 diff 比较基线为 `a460ac21d30e4840b1bb2cd18115c60077fcbca2`；来源选择规则阶段提交前验证的 HEAD 与 diff 比较基线为 `394b23e5553b18a980e37f92d59d6146289cc37b`，jOOQ/证据读取的提交前验证 HEAD 为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`；详情读取阶段提交前验证 HEAD 为 `37f290a2949c869e87795ad2406d0c8b63d04ea8`；下表按各证据标识区分，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前任务 50/83；已验收 HTTP 44/86，当前单条流水详情双库合同、独立复核与现有 Compose 来源消费已完成。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `continue-kotlin-backend-refactor` 推送至 `origin/codex/kotlin-backend-shared-core`，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
+2026-10-29 UTC；来源正文效果阶段提交前验证的 HEAD 与 diff 比较基线为 `a460ac21d30e4840b1bb2cd18115c60077fcbca2`；来源选择规则阶段提交前验证的 HEAD 与 diff 比较基线为 `394b23e5553b18a980e37f92d59d6146289cc37b`，jOOQ/证据读取的提交前验证 HEAD 为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`；详情读取阶段提交前验证 HEAD 为 `37f290a2949c869e87795ad2406d0c8b63d04ea8`；下表按各证据标识区分，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前任务 55/83；已验收 HTTP 44/86，当前单条流水详情双库合同、独立复核与现有 Compose 来源消费已完成。jOOQ 持久化独立复核 P2 已关闭，4.0.1–4.0.3、4.5、4.7.1、4.7.2 已勾选。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `continue-kotlin-backend-refactor` 推送至 `origin/codex/kotlin-backend-shared-core`，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
 
 已执行的 grill-me → grilling、explore、propose、jOOQ 架构确认和 apply 继续适用。用户明确要求本轮不运行性能测试，以功能迁移和功能测试为验收；功能回归使用 `-PbackendFunctionalOnly=true`，仅排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`。原预算不变，原分类删除失败 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留，不宣称性能通过。
 
@@ -140,7 +140,7 @@ Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `
 | 官方代码生成与安全 | `:backend:generateJooq -PjooqOutput=<仓库外目录>` 真实执行，`jooq-codegen-gradle-verified.json/log`；`jooq-codegen-gradle-equal.json` 67 文件全部相同。`jooq-codegen-rejections.json` 验证 8 种显式目标拒绝，2 个 codegenTest 覆盖格式错误、凭据、参数和完整诊断去敏感原文。默认构建不联网查库 |
 | 当前单条流水详情读取 | 生成器 `scripts/export_cash_record_detail_contracts.py --database-url <新隔离库> --output <仓库外目录>` 在 SQLite 与 PostgreSQL 18.6 各生成 36 组匿名 HTTP 用例（23 组 200 完整响应，13 组 401/403/404 安全错误），含真实 `asdict(SourceCoverage)` 默认覆盖、空 `pending_fields`、候选、来源动作成功/失败与降权；`:backend:test --tests '*CashRecordDetailContractTest*' -PbackendFunctionalOnly=true` 两库各 5 项通过，包含逐字段完整响应、全部相关表读取前后逐行一致、返回前降权去除编辑能力、撤权停止读取、损坏来源覆盖/待采用字段停止读取不修复。独立复核首轮 P1（无文档覆盖误判为损坏）与 P3（空数组、空证据键、字符串 page_total、绑定分批）已修复并重跑；证据根 `fixtures-sqlite/detail`、`fixtures-postgres/detail` |
 | 详情实际客户端与完整回归 | `:shared:testAndroidHostTest --tests '*KotlinRecordDetailResponseIntegrationTest*'` 两库各 2 项通过：一项用真实 Ktor 字节解码 `CashCurrentRecordDto` 与领域映射，逐项核对字段、条目、问题许可动作/候选/待采用载荷、关系、投影引用及 `source_payload`；另一项以证据回包调用既有 `KtorCashMaintenanceRepository.sources()`，验证成员修订/投影版本交叉检查与 `CashSourceMember` 组装。全量 `:shared:testAndroidHostTest` 437 项、0 failure/error/skip。`:backend:test :backend:installDist :backend:codegenTest -PbackendFunctionalOnly=true` 在 SQLite 与 PostgreSQL 18.6 各 450 项、0 failure/error/skip，installDist 与 2 项 codegenTest 通过；夹具由 `generate_fixtures.sh` 在仓库外重新生成 |
-| jOOQ 持久化复核修复 | 独立复核 P2：SQLite 连接未复现 Python 的 WAL/`synchronous=NORMAL` 与私有权限提示。`Database.kt` 现对每条连接设置 `foreign_keys`/`busy_timeout`/`journal_mode=WAL`/`synchronous=NORMAL`，启动读取主库及 `-wal`/`-shm` 权限并在预览入口输出脱敏提示；启动同时校验 29 张必需表存在，缺失返回 `storage.schema`。codegen 拒绝测试等待上限由 15 秒调整为 60 秒。两库完整功能回归含 codegenTest 通过；P3（生成目录陈旧项、生成表允许清单、PG socketTimeout）保留并在审查登记 |
+| jOOQ 持久化复核修复 | 独立复核 P2：SQLite 连接未复现 Python 的 WAL/`synchronous=NORMAL` 与私有权限提示。`Database.kt` 现对每条连接设置 `foreign_keys`/`busy_timeout`/`journal_mode=WAL`/`synchronous=NORMAL`，启动读取主库及 `-wal`/`-shm` 权限并在预览入口输出脱敏提示；启动同时校验 29 张必需表存在，缺失返回 `storage.schema`。codegen 拒绝测试等待上限由 15 秒调整为 60 秒。新增 `StorageContractTest` 2 项覆盖 PRAGMA、私/公权限、侧车提示及“修订正确但缺表”分支；两库完整功能回归含 codegenTest 通过。保留 P3（生成目录陈旧项、生成表允许清单、PG socketTimeout）并登记。 |
 | 语言类型边界 | `:backend:test --tests '*CashRecordPolicyLanguageBoundaryTest*'` 2 项通过：组件规范化保持共享容器引用、深拷贝隔离输入、account_id 字符串化；JVM String 不可附加属性且按值复制。`scripts/check_kotlin_test_migration.py` 无错误，两项原定义由 pending 调整为 retained，附执行命令与兼容说明 |
 | OpenSpec | 来源正文阶段 `openspec validate kotlin-backend-shared-core --strict --json` 重新通过；jOOQ 阶段 `openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed；与jOOQ 验证基线导出的规格逐 finding/路径/级别完全一致，52 个缺失场景错误及 25 个长正文警告仍在其他 change/spec，见 `jooq-openspec-verification.json` 与 `jooq-openspec-{all,baseline,scoped,doctor}.json`。全局 6.4 未完成，不改动无关规格 |
 | 清单门禁 | `scripts/check_kotlin_test_migration.py --collection <缓存根>/evidence/collection.txt --report <缓存根>/evidence/source-effects-migration-inventory.json` 重新核对无错误；`--require-complete` 仍按 2,381 个 pending 返回 1。当前 2,613 定义、5,844 原展开用例，已验收 232 定义/577 参数；证据读取六个及来源正文九个源对应尚未计入已迁移，不能把 JUnit 方法或黄金样本当作原定义数 |
@@ -234,6 +234,6 @@ SQL 源值适配独立只读复核无 finding。范围限定为当前 SQL 源值
 
 当前单条流水详情首轮独立复核发现 P1：真实 `asdict(SourceCoverage)` 的无文档覆盖被误判为损坏，使正常重复草稿返回 503。已修复为接受 null/空 `page_fingerprints`，并新增 1017/1018 覆盖默认结构合同；同时修复空数组 `pending_fields` 的 Python 等价、空白证据键过滤、字符串 `page_total` 拒绝、候选/绑定分批和诊断异常重复包装。P3 均有回归或合同覆盖，重审确认 P1 关闭且无回归；客户端用例已补 `sources()` 交叉检查、领域映射问题/关系/投影与待采用载荷。残余仅 Python 对空字符串/数字/布尔假值 `pending_fields` 视作缺省而 Kotlin 仍停止读取，属不可由应用产生的损坏状态，登记不阻断。复核对字段集合、序号、金额/时间格式、关系候选纳入、attention、来源动作准备、待采用字段 presence、错误状态与消息、无写入和损坏状态停止读取未发现其他阻断。
 
-jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/synchronous 与权限提示。已在 `Database.kt` 补齐四条 PRAGMA、启动权限提示和 29 张必需表校验，并将 codegen 拒绝测试等待上限改为 60 秒；双库完整功能与 codegenTest 通过，P2 重审待确认。保留 P3：生成到非空目录不会删除陈旧文件、生成器无表允许清单、PG `socketTimeout=30` 与 Python 不同；均不改变当前已生成类型或功能合同，登记为残余风险。
+jOOQ 持久化独立复核发现 P2：SQLite 适配器未复现 Python 的 WAL/synchronous 与权限提示。已在 `Database.kt` 补齐四条 PRAGMA、启动权限提示和 29 张必需表校验，并将 codegen 拒绝测试等待上限改为 60 秒；新增 `StorageContractTest` 覆盖 PRAGMA、权限、侧车和“修订正确但缺表”分支，双库完整功能与 codegenTest 通过。重审确认 P2 关闭且启动/安全行为无回归；保留 P3：生成到非空目录不会删除陈旧文件、生成器无表允许清单、PG `socketTimeout=30` 与 Python 不同，均登记为残余风险。
 
 来源选择规则与来源正文效果独立复核无 P1/P2；708/2,208 组黄金可由 `.venv` 重新生成且与提交资源一致。已修复 P3-1：效果黄金测试改用数值感知比较，避免 Python `1e-07` 与 JVM `1.0E-7` 的文本差异造成假失败。保留 P3：生成器未确定性覆盖 `posted/manual_transfer` 固定字段分支和 ICBC `交易场所` 回退，组件/金额冲突样本多为语义相等；`CashAmount`/组件 Map 的未检查强转由当前调用方保证，4.8 接入时须固定输入类型。上述均登记为残余风险，不阻断当前切片。
