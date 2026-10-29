@@ -39,7 +39,7 @@
 ## 7. 发布
 
 - [x] 7.1 按最终实现核对 README、docs、技能参考、功能地图和词表；README 无需修改。两个完整 `MODIFIED` 需求已同步到主规格并归档；功能地图已链接到本归档任务。
-- [x] 7.2 发布准备完成：新分支基于最新 `origin/main`；用户授权的顺序是先归档再推送并创建 main PR。原 PR #103 已合并，不合并或部署新 PR。无 schema 变更，回滚方式为回退本变更提交。
+- [x] 7.2 已先归档再推送到 `origin/feat/alipay-transaction-identity`；创建面向 `main` 的 PR #104（https://github.com/ssttkkl/finance-tracker/pull/104）。原 PR #103 已合并；不合并或部署本 PR。无 schema 变更，回滚方式为回退本变更提交。
 
 ## 8. 反思
 
@@ -48,6 +48,7 @@
 ## 验证证据
 
 - 分支：`feat/alipay-transaction-identity`；测试时 `HEAD=577898a60e1677bbbe08505590c761b97a05bfa9`，比较基线 `origin/main=849c2a69c59509e27e5a789574646a83b92a0022`。验证时间：2026-10-29 12:07 CST。
+- 提交：`577898a`（实现、规格与归档）、`2a32855`（提交后验证证据）。已推送新分支并创建 PR #104：<https://github.com/ssttkkl/finance-tracker/pull/104>，目标 `main`；未合并、未部署。
 - 双后端目标回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_cash_statement_rows.py tests/test_cash_statement_document.py tests/test_cash_source_scope.py tests/test_cash_source_batch.py tests/test_cash_source_matching.py tests/test_parsed_import_staging.py tests/contract/test_cash_source_storage.py tests/contract/test_cash_import_plan_api.py tests/test_cash_import_funding.py`，设置 `FT_TEST_POSTGRES_URL=postgresql+psycopg://ft_test@127.0.0.1:15439/cash_import_alipay_test`、`FT_REQUIRE_TEST_POSTGRES=1` 和测试容器提供的 `PGPASSWORD` 后，`583 passed, 0 skipped, 121 warnings`，136.47 秒。
 - 范围／来源实体补充回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_cash_source_scope.py tests/test_cash_source_matching.py -q` → `64 passed`。
 - 文档合同回归：`PYTHONPATH=tests:.:src uv run --offline pytest tests/test_runtime_docs.py tests/test_cash_document_fragments.py -q` → `33 passed`。
