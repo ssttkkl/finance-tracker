@@ -8,7 +8,7 @@ class CashStatementDocumentGoldenTest {
     @Test fun csvAndTsvDocumentsMatchPython() {
         val cases = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/python-cash-statement-documents.json"))
             .bufferedReader().use { it.readText() }).jsonArray
-        assertEquals(11, cases.size)
+        assertEquals(19, cases.size)
         for ((index, raw) in cases.withIndex()) {
             val case = raw.jsonObject
             val content = Base64.getDecoder().decode(case.getValue("content").jsonPrimitive.content)

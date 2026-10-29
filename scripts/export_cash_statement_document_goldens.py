@@ -3,6 +3,9 @@ from __future__ import annotations
 
 import argparse
 import base64
+from io import BytesIO
+import re
+from zipfile import ZipFile, ZIP_DEFLATED
 import csv
 from io import StringIO
 import json
@@ -46,6 +49,26 @@ def row(header, **changes):
     return [fields[key] for key in header]
 
 
+def xlsx_bytes(rows, *, count=1, export_type="全部", nickname="测试昵称"):
+    import openpyxl
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    for row in [["微信支付账单明细"], [f"微信昵称：[{nickname}]"], ["起始时间：[2026-08-01 00:00:00]"],
+                ["终止时间：[2026-08-31 23:59:59]"], [f"导出类型：[{export_type}]"], [f"共{count}笔记录"],
+                ["说明：请核对申请导出账单的微信号，不代表本人微信号字段"], WECHAT_HEADER, *rows]:
+        sheet.append(row)
+    stream = BytesIO(); workbook.save(stream); workbook.close()
+    return stream.getvalue()
+
+
+def rewrite_xlsx(content, change):
+    source = BytesIO(content); target = BytesIO()
+    with ZipFile(source) as archive, ZipFile(target, "w", ZIP_DEFLATED) as output:
+        for member in archive.infolist():
+            output.writestr(member, change(member.filename, archive.read(member.filename)))
+    return target.getvalue()
+
+
 def cases():
     alipay = row(ALIPAY_HEADER)
     wechat = row(WECHAT_HEADER, **{"金额(元)": "30.00", "交易单号": "wx-1"})
@@ -61,6 +84,14 @@ def cases():
         (b"", "alipay"),
         (b"not a statement", "alipay"),
         (alipay_csv([alipay], count=1), "unknown"),
+        (xlsx_bytes([wechat], count=1), "wechat"),
+        (xlsx_bytes([wechat[:-1]], count=1), "wechat"),
+        (xlsx_bytes([wechat], count=2), "wechat"),
+        (rewrite_xlsx(xlsx_bytes([wechat]), lambda name, body: body.replace(b"</sheetData>", b'<row r="200001"></row></sheetData>') if name == "xl/worksheets/sheet1.xml" else body), "wechat"),
+        (rewrite_xlsx(xlsx_bytes([wechat]), lambda name, body: body.replace(b"</sheetData>", b'<row r="10"><c r="ZZZZZZ10" t="n"><v>1</v></c></row></sheetData>') if name == "xl/worksheets/sheet1.xml" else body), "wechat"),
+        (rewrite_xlsx(xlsx_bytes([wechat]), lambda name, body: b'<!DOCTYPE worksheet [<!ENTITY x "unsafe">]>' + body if name == "xl/worksheets/sheet1.xml" else body), "wechat"),
+        (rewrite_xlsx(xlsx_bytes([wechat]), lambda name, body: b"not xml" if name == "xl/worksheets/sheet1.xml" else body), "wechat"),
+        (rewrite_xlsx(xlsx_bytes([wechat]), lambda name, body: body.replace(b'<dimension ref="A1:L10"', b'<dimension ref="A1:A1"') if name == "xl/worksheets/sheet1.xml" else body), "wechat"),
     ]
 
 
