@@ -37,9 +37,9 @@
 - [ ] 4.6 公共完整精确金额/币种/时间/类型/分摊规则，按 Python 边界及指定舍入黄金，逐步替换前端纯规则重复实现。
 - [x] 4.6.1 金额合法范围与已知现金部分一致性提供类型化和保留 JSON 类型的公共入口；固定/随机 Python 黄金在 JVM、JS、Wasm 通过，补齐 Unicode、零与极值指数、组成项引用和 ordinal 反例。
 - [ ] 4.7 现金新增/草稿/手工转账/删除/完整组/公共编辑、当前查询/证据、余额及原子投影。
-- [ ] 4.7.1 迁移现金字段/转正式纯规则及对应原生单测；动态语言边界剩余 2 项待适配。
+- [x] 4.7.1 迁移现金字段/转正式纯规则及对应原生单测；动态语言边界剩余 2 项已按 JVM 类型边界适配并复核。
 - [x] 4.7.1.1 现金字段/转正式规则 26 个原定义、59 个展开用例已逐断言迁入独立 JVM 测试并经复核；调用已有公共现金部分校验。
-- [ ] 4.7.1.2 动态字符串子类属性/键的 2 项原断言按语言类型边界适配并独立复核，不以黄金替代。
+- [x] 4.7.1.2 动态字符串子类属性/键的 2 项原断言按语言类型边界适配并独立复核，不以黄金替代。（JVM String final/不可变；原生断言固定容器深拷贝、共享引用与按值复制，清单标 retained）
 - [ ] 4.7.2 将规则接入实际现金写入、当前账户/修订/来源及完整组校验，双库验证余额/entry/投影/收据原子发布后才计接口进度。
 - [x] 4.7.2.1 迁移余额快照仓库和现金组成项增量：当前账户名称/稳定 ID 映射、精度 80 加减及 NUMERIC 范围、草稿/删除/导入转账排除、人工转账余额口径、版本与 caller-owned 回滚。逐参数核对原仓库、ledger 与 statement 直接别名入口；共享函数参数可独立验收，不代表实际导入/记账入口已接线。
 - [x] 4.7.2.2 迁移手工新建严格请求与应用字段边界：65,536 字节、真实编码、重复键/非有限数/深度、严格字段类型及组件 64 上限；缺省和显式 note/category 区分。复用现有 JSON 读取器，不改变账户请求边界。
@@ -68,10 +68,10 @@
 - [x] 4.7.9 迁移当前收支详情及按流水定位的两个 GET：同一数据库快照中的活动数据集、版本、成员、金额及安全待处理事项；保留隐藏/可维护、已删除/跨工作区/缺失成员错误。真实双库 HTTP、重建交错、当前权限重验及现有 Compose 成员消费验证，原组合测试未覆盖部分保持 pending。（独立复核无 P1/P2；P3 已登记）
 - [x] 4.7.10 迁移收支证据 GET：同一快照返回根记录、完整成员/现金部分、已确认关系、非活动关系提示、退款时间线及白名单资金调拨信息；保留隐藏记录、精确金额、字符串标识、来源信息省略及原错误。先以 Python 匿名全响应和 Kotlin 原断言失败复现，再验证 SQLite/PG18、重建交错、当前授权和现有 Compose 消费；不扩大为账单原文或关系扫描接口。（独立复核无 P1/P2；P3 已登记）
 - [ ] 4.7.11 当前单条流水详情：按创建方式和当前角色返回字段、公共人工值、来源事项、候选、完整关联及可空投影位置；接通既有来源原文消费者，不新增编辑或导入入口。
-- [ ] 4.7.11.1 先迁来源事项只读选择规则：缺省/明确清空、固定字段、受保护字段、现金部分引用、多个来源冲突及修订；失败先行、原生断言和 Python 差分。该阶段不写流水或推进已验收接口数。
-- [ ] 4.7.11.2 迁移详情的 jOOQ 读取、当前来源可选动作及身份候选；授权与财务快照分别核验，隐藏/未初始化投影按原单条读取合同处理，损坏状态停止读取且不修复。（实现、双库证据与首轮独立复核完成；P1 覆盖证据误判及 P3 已修复，重审待确认）
-- [ ] 4.7.11.2.1 迁移完整只读准备依赖的来源正文效果：原文备注、各来源当前单行解释、可信身份保留、显式修改及人工保护；原生断言和 Python 完整差分后提交推送，不计 HTTP 完成。
-- [ ] 4.7.11.3 接入 GET、原安全诊断和现有 Compose 来源读取链路，完成双库完整响应/无写入、授权变化、源断言核对、实际客户端和功能回归后提交推送；独立复核单独登记，不将自检冒充独立结论。（实现完成：36 组双库 HTTP、1 项实际客户端解码、双库各 450 项功能回归通过；独立复核待做）
+- [x] 4.7.11.1 先迁来源事项只读选择规则：缺省/明确清空、固定字段、受保护字段、现金部分引用、多个来源冲突及修订；失败先行、原生断言和 Python 差分。该阶段不写流水或推进已验收接口数。（独立复核无 P1/P2；P3 生成器分支缺口已登记）
+- [x] 4.7.11.2 迁移详情的 jOOQ 读取、当前来源可选动作及身份候选；授权与财务快照分别核验，隐藏/未初始化投影按原单条读取合同处理，损坏状态停止读取且不修复。（独立复核 P1 关闭、P3 无回归）
+- [x] 4.7.11.2.1 迁移完整只读准备依赖的来源正文效果：原文备注、各来源当前单行解释、可信身份保留、显式修改及人工保护；原生断言和 Python 完整差分后提交推送，不计 HTTP 完成。（独立复核无 P1/P2；P3-1 已修复，P3-2/P3-3 登记）
+- [x] 4.7.11.3 接入 GET、原安全诊断和现有 Compose 来源读取链路，完成双库完整响应/无写入、授权变化、源断言核对、实际客户端和功能回归后提交推送；独立复核单独登记，不将自检冒充独立结论。（独立复核确认客户端消费者合同；残余仅为 happy-path 证据 mock 与不可产生的假值损坏状态）
 - [ ] 4.8 维护计划/上下文/效果/确认/收据、CAS/TTL、当前事实证明、冲突及未知结果原键核实。
 - [x] 4.8.1 先迁永久收据按当前操作者/工作区读取、原键查询和行/关系结果分页的 5 个 GET；共享现有 Compose 收据协议，验证历史键严格解码、分页、脱敏、权限、当前投影引用及真实客户端解码。resolve/提交/暂存写入随后验收。
 - [x] 4.8.2 迁移永久收据仓库 create/replay/for_context 及写入前摘要/结果白名单，保留原键/单上下文永久唯一、冲突携原收据、业务写入同事务回滚；原生迁移原参数/断言并接入现有账户命令，完整双库回归后验收。历史 Alembic 升降级和 retry/resolve 不因仓库完成而关闭。
@@ -110,7 +110,7 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-2026-10-29 UTC；来源正文效果阶段提交前验证的 HEAD 与 diff 比较基线为 `a460ac21d30e4840b1bb2cd18115c60077fcbca2`；来源选择规则阶段提交前验证的 HEAD 与 diff 比较基线为 `394b23e5553b18a980e37f92d59d6146289cc37b`，jOOQ/证据读取的提交前验证 HEAD 为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`；详情读取阶段提交前验证 HEAD 为 `37f290a2949c869e87795ad2406d0c8b63d04ea8`；下表按各证据标识区分，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前任务 44/83；已验收 HTTP 43/86，当前单条流水详情已实现并完成双库响应核对，独立复核 P1/P3 已修复、重审待确认。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `continue-kotlin-backend-refactor` 推送至 `origin/codex/kotlin-backend-shared-core`，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
+2026-10-29 UTC；来源正文效果阶段提交前验证的 HEAD 与 diff 比较基线为 `a460ac21d30e4840b1bb2cd18115c60077fcbca2`；来源选择规则阶段提交前验证的 HEAD 与 diff 比较基线为 `394b23e5553b18a980e37f92d59d6146289cc37b`，jOOQ/证据读取的提交前验证 HEAD 为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`；详情读取阶段提交前验证 HEAD 为 `37f290a2949c869e87795ad2406d0c8b63d04ea8`；下表按各证据标识区分，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前任务 50/83；已验收 HTTP 44/86，当前单条流水详情双库合同、独立复核与现有 Compose 来源消费已完成。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `continue-kotlin-backend-refactor` 推送至 `origin/codex/kotlin-backend-shared-core`，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
 
 已执行的 grill-me → grilling、explore、propose、jOOQ 架构确认和 apply 继续适用。用户明确要求本轮不运行性能测试，以功能迁移和功能测试为验收；功能回归使用 `-PbackendFunctionalOnly=true`，仅排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`。原预算不变，原分类删除失败 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留，不宣称性能通过。
 
@@ -141,6 +141,7 @@ Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `
 | 当前单条流水详情读取 | 生成器 `scripts/export_cash_record_detail_contracts.py --database-url <新隔离库> --output <仓库外目录>` 在 SQLite 与 PostgreSQL 18.6 各生成 36 组匿名 HTTP 用例（23 组 200 完整响应，13 组 401/403/404 安全错误），含真实 `asdict(SourceCoverage)` 默认覆盖、空 `pending_fields`、候选、来源动作成功/失败与降权；`:backend:test --tests '*CashRecordDetailContractTest*' -PbackendFunctionalOnly=true` 两库各 5 项通过，包含逐字段完整响应、全部相关表读取前后逐行一致、返回前降权去除编辑能力、撤权停止读取、损坏来源覆盖/待采用字段停止读取不修复。独立复核首轮 P1（无文档覆盖误判为损坏）与 P3（空数组、空证据键、字符串 page_total、绑定分批）已修复并重跑；证据根 `fixtures-sqlite/detail`、`fixtures-postgres/detail` |
 | 详情实际客户端与完整回归 | `:shared:testAndroidHostTest --tests '*KotlinRecordDetailResponseIntegrationTest*'` 两库各 2 项通过：一项用真实 Ktor 字节解码 `CashCurrentRecordDto` 与领域映射，逐项核对字段、条目、问题许可动作/候选/待采用载荷、关系、投影引用及 `source_payload`；另一项以证据回包调用既有 `KtorCashMaintenanceRepository.sources()`，验证成员修订/投影版本交叉检查与 `CashSourceMember` 组装。全量 `:shared:testAndroidHostTest` 437 项、0 failure/error/skip。`:backend:test :backend:installDist :backend:codegenTest -PbackendFunctionalOnly=true` 在 SQLite 与 PostgreSQL 18.6 各 450 项、0 failure/error/skip，installDist 与 2 项 codegenTest 通过；夹具由 `generate_fixtures.sh` 在仓库外重新生成 |
 | jOOQ 持久化复核修复 | 独立复核 P2：SQLite 连接未复现 Python 的 WAL/`synchronous=NORMAL` 与私有权限提示。`Database.kt` 现对每条连接设置 `foreign_keys`/`busy_timeout`/`journal_mode=WAL`/`synchronous=NORMAL`，启动读取主库及 `-wal`/`-shm` 权限并在预览入口输出脱敏提示；启动同时校验 29 张必需表存在，缺失返回 `storage.schema`。codegen 拒绝测试等待上限由 15 秒调整为 60 秒。两库完整功能回归含 codegenTest 通过；P3（生成目录陈旧项、生成表允许清单、PG socketTimeout）保留并在审查登记 |
+| 语言类型边界 | `:backend:test --tests '*CashRecordPolicyLanguageBoundaryTest*'` 2 项通过：组件规范化保持共享容器引用、深拷贝隔离输入、account_id 字符串化；JVM String 不可附加属性且按值复制。`scripts/check_kotlin_test_migration.py` 无错误，两项原定义由 pending 调整为 retained，附执行命令与兼容说明 |
 | OpenSpec | 来源正文阶段 `openspec validate kotlin-backend-shared-core --strict --json` 重新通过；jOOQ 阶段 `openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed；与jOOQ 验证基线导出的规格逐 finding/路径/级别完全一致，52 个缺失场景错误及 25 个长正文警告仍在其他 change/spec，见 `jooq-openspec-verification.json` 与 `jooq-openspec-{all,baseline,scoped,doctor}.json`。全局 6.4 未完成，不改动无关规格 |
 | 清单门禁 | `scripts/check_kotlin_test_migration.py --collection <缓存根>/evidence/collection.txt --report <缓存根>/evidence/source-effects-migration-inventory.json` 重新核对无错误；`--require-complete` 仍按 2,381 个 pending 返回 1。当前 2,613 定义、5,844 原展开用例，已验收 232 定义/577 参数；证据读取六个及来源正文九个源对应尚未计入已迁移，不能把 JUnit 方法或黄金样本当作原定义数 |
 | 静态、依赖和文档 | 来源正文阶段 6 份 Markdown 的 179 个本地链接/锚点、Python 生成器语法、17 个夹具变量、83 项任务/86 个接口及 `git diff --check` 通过，见 `source-effects-static.json`。公共模块无 SQL/jOOQ/Gson 越界依赖。此前 jOOQ 依赖核实见 `jooq-codegen-gradle-verified.log`，8 份 Markdown/177 链接见 `evidence-static-checks.json`，不作为本片新增静态结果 |
@@ -151,9 +152,9 @@ Cross-platform Impact Check：本片为后端替换与既有证据协议接入�
 
 ## 当前审查
 
-来源正文效果按 Python 原算法完成范围、工程、安全及原断言自检：六类来源、空值／异常 JSON、PDF 列歧义、可信身份、人工备注、金额方向及规则优先级均覆盖。2,208 组完整差分和 9 个原生方法通过，输入容器不修改，未发现剩余自检 finding。尚无独立复核上下文，4.7.11.2.1 与 9 个源定义保持未完成，不能把原生方法或差分数量计为已验收原测试。本片不新增依赖、SQL、schema、HTTP 或共享生产代码；Web/Native 页面数保持 10，客户端编译／浏览器验证不适用。根 README、backend README、功能地图、inventory、design/tasks、主规格／delta、词表及 apply skill 已核对；无新领域概念或行为变化，主规格／词表无需修改。
+来源正文效果按 Python 原算法完成范围、工程、安全及原断言自检：六类来源、空值／异常 JSON、PDF 列歧义、可信身份、人工备注、金额方向及规则优先级均覆盖。2,208 组完整差分和 9 个原生方法通过，输入容器不修改。独立复核无 P1/P2，确认常量、正则、摘要、present 语义与六类来源规则逐项一致；P3-1 数值比较已改为按整数/浮点原始位比较，P3-2 生成器分支缺口和 P3-3 调用方类型合同作为残余风险登记。本片不新增依赖、SQL、schema、HTTP 或共享生产代码；Web/Native 页面数保持 10。根 README、backend README、功能地图、inventory、design/tasks、主规格／delta、词表及 apply skill 已核对；无新领域概念或行为变化。
 
-来源选择规则已按 Python 原实现完成范围、工程、DX/安全及 diff 自检：修订/种类优先、正文存在性、固定字段先行、归属、冲突、复制和摘要均有原生/差分及当前功能回归。关闭 P2 事项字符串编号被 Long 提前收窄；浮点断言保留类型、完整值及负零，错误和摘要仍严格比较。尚缺独立复核，4.7.11.1 暂不勾选，不增加原测试或 HTTP 验收数。该阶段无 UI/共享生产代码、schema 或新依赖变更，Web/Native 页面数与原 TODO 不变；README、功能地图、inventory、design/tasks、词表和 apply skill 已核对，无新领域概念，主规格/delta 行为不变。独立复核之后方可关闭相应任务。
+来源选择规则已按 Python 原实现完成范围、工程、DX/安全及 diff 自检：修订/种类优先、正文存在性、固定字段先行、归属、冲突、复制和摘要均有原生/差分及当前功能回归。关闭 P2 事项字符串编号被 Long 提前收窄；浮点断言保留类型、完整值及负零，错误和摘要仍严格比较。独立复核无 P1/P2，708 组黄金可由脚本重新生成且与提交资源一致；`posted/manual_transfer`、非等价金额/组件冲突及 ICBC 交易场所回退未纳入确定性生成器，登记为残余覆盖缺口。该阶段无 UI/共享生产代码、schema 或新依赖变更，Web/Native 页面数与原 TODO 不变；README、功能地图、inventory、design/tasks、词表和 apply skill 已核对。
 
 本片 jOOQ 与证据接口由实施者完成范围、工程、DX/安全及 diff 自检；当前没有可用独立复核上下文，没有宣称新的独立审查通过。既有历史切片的独立结论只覆盖其当时实现，不替代 jOOQ 全部改写及证据接口复核。以下处置通过失败先行及受影响测试验证，仍须独立重审后才能勾选对应任务。
 

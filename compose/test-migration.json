@@ -3449,28 +3449,46 @@
     {
       "source": "tests/test_cash_record_policy.py::test_component_normalization_deep_copies_scalar_subclass_attributes",
       "source_sha256": "d40c322b8c94844e0300f9dab1e3ffeda65cb4cc61567f93c093c505f361b7a6",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/test_cash_record_policy.py::test_component_normalization_deep_copies_scalar_subclass_attributes"
       ],
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "prepare_cash_record_update、validate_cash_record_for_posting、source_note 或 _component_values 的原入口及全部断言尚未迁移；component consistency 黄金不等同于这些策略测试。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashRecordPolicyLanguageBoundaryTest.kt",
+          "test": "componentNormalizationCopiesSharedContainersWithoutMutatingInput"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashRecordPolicyLanguageBoundaryTest.kt",
+          "test": "jvmStringsCannotCarryMutableAttributesAndRemainByValue"
+        }
+      ],
+      "reason": "Python str 子类可附加属性；JVM String 为 final 且不可变，无等价动态子类。按语言类型边界适配。",
+      "python_command": "python -m pytest -q tests/test_cash_record_policy.py::test_component_normalization_deep_copies_scalar_subclass_attributes",
+      "compatibility": "Kotlin 原生断言固定容器深拷贝、共享引用保持、字符串按值复制及不可附加属性；不以黄金替代。"
     },
     {
       "source": "tests/test_cash_record_policy.py::test_component_normalization_deep_copies_string_subclass_keys",
       "source_sha256": "8034489c5e56958a3a1b274605b5c34576efc520cfc8f9ab2caccbc44dd6ede0",
-      "status": "pending",
+      "status": "retained",
       "parameters": [
         "tests/test_cash_record_policy.py::test_component_normalization_deep_copies_string_subclass_keys"
       ],
       "assertions": [
         "原源函数及所有展开参数中的正常、边界、错误与无写入断言逐项迁移。"
       ],
-      "targets": [],
-      "reason": "prepare_cash_record_update、validate_cash_record_for_posting、source_note 或 _component_values 的原入口及全部断言尚未迁移；component consistency 黄金不等同于这些策略测试。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashRecordPolicyLanguageBoundaryTest.kt",
+          "test": "jvmStringsCannotCarryMutableAttributesAndRemainByValue"
+        }
+      ],
+      "reason": "Python str 子类可附加属性；JVM String 为 final 且不可变，无等价动态子类。按语言类型边界适配。",
+      "python_command": "python -m pytest -q tests/test_cash_record_policy.py::test_component_normalization_deep_copies_string_subclass_keys",
+      "compatibility": "Kotlin 原生断言固定容器深拷贝、共享引用保持、字符串按值复制及不可附加属性；不以黄金替代。"
     },
     {
       "source": "tests/test_cash_record_policy.py::test_component_normalization_preserves_values_and_input_isolation",
