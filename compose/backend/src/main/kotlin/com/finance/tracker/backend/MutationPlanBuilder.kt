@@ -40,6 +40,8 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         var operation = prepare(record, current, patch, entryRow,
             sourcePatch = resolved?.patch ?: emptyMap(), resolutions = resolved?.resolutions ?: emptyList(),
             existingIssues = existingIssues)
+        if (resolved != null) operation = JsonObject(operation + ("resolved_issue_ids" to
+            JsonArray(resolved.resolutions.map { JsonPrimitive(it.choice.issueId) })))
         if (request.intent == "finalize_draft") {
             val issue = operation.getValue("issues").jsonArray.firstOrNull()
             if (issue != null) throw CashPolicyError(issue.jsonObject.getValue("code").jsonPrimitive.content,

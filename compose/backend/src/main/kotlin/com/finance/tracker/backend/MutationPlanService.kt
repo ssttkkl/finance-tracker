@@ -144,8 +144,17 @@ class MutationPlanService(
                 }
                 "finalize_draft" -> {
                     val context = CashSqlContext(connection, workspace, database.sqlite, now)
-                    saveFinalizedRow(connection, workspace, transaction, operation, context)
+                    saveOperationRow(connection, workspace, transaction, operation, context, balance = true)
                     "finalized_draft"
+                }
+                "update_draft" -> {
+                    val context = CashSqlContext(connection, workspace, database.sqlite, now)
+                    saveOperationRow(connection, workspace, transaction, operation, context, balance = false)
+                    "saved_draft"
+                }
+                "duplicate" -> {
+                    saveIssues(connection, workspace, transaction, operation)
+                    "duplicate"
                 }
                 else -> throw MutationPlanFailure("plan_input_invalid")
             }
@@ -157,16 +166,19 @@ class MutationPlanService(
             val pendingItems = references.values.filter {
                 (it["attention_count"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L) > 0
             }.mapNotNull { it["projection_id"]?.jsonPrimitive?.contentOrNull }.distinct().size
+            val resolvedIssues = operation["resolved_issue_ids"]?.jsonArray?.size ?: 0
             val summary = buildJsonObject {
                 for (field in listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate",
                     "skipped", "relations_confirmed", "relations_deferred", "relations_ignored", "relations_removed",
                     "relations_failed", "resolved_issues")) put(field, 0)
                 put(outcome, 1)
+                if (resolvedIssues > 0) put("resolved_issues", resolvedIssues)
             }
+            val attention = attentionCount(connection, workspace, transaction)
             val resultSummary = buildJsonObject {
-                put("status", "completed"); put("summary", summary)
+                put("status", if (outcome != "duplicate" || resolvedIssues > 0) "completed" else "no_changes"); put("summary", summary)
                 put("retained_transaction_id", transaction.toString())
-                put("projection_version", version); put("needs_attention_count", 0); put("pending_item_count", pendingItems)
+                put("projection_version", version); put("needs_attention_count", attention); put("pending_item_count", pendingItems)
             }
             val results = JsonArray(listOf(buildJsonObject {
                 put("result_kind", "row"); put("item_ref", transaction.toString())
@@ -183,8 +195,48 @@ class MutationPlanService(
         return ReceiptRepositoryView.strip(receipt)
     }
 
-    private fun saveFinalizedRow(connection: java.sql.Connection, workspace: String, transaction: Long,
-        operation: JsonObject, context: CashSqlContext) {
+    private fun saveIssues(connection: java.sql.Connection, workspace: String, transaction: Long, operation: JsonObject) {
+        val sql = connection.jooq(database.sqlite)
+        val issue = CASH_TRANSACTION_ISSUES
+        val existing = sql.select(issue.ID, issue.ISSUE_KEY, issue.CODE, issue.FIELD_PATH).from(issue)
+            .where(issue.WORKSPACE_ID.eq(workspace)).and(issue.TRANSACTION_ID.eq(transaction)).fetch()
+        val retained = (operation["retained_issue_ids"]?.jsonArray ?: JsonArray(emptyList()))
+            .map { it.jsonPrimitive.content }.toMutableSet()
+        for (raw in operation["issues"]?.jsonArray ?: JsonArray(emptyList())) {
+            val value = raw.jsonObject
+            val code = value.getValue("code").jsonPrimitive.content
+            val fieldPath = value["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull
+            val old = existing.firstOrNull { it[issue.CODE] == code && it[issue.FIELD_PATH] == fieldPath }
+            if (old != null) {
+                retained += old[issue.ID]!!.toString()
+                sql.update(issue).set(issue.REVISION, Math.addExact(old[issue.REVISION]!!, 1L)).set(issue.UPDATED_AT, now())
+                    .where(issue.WORKSPACE_ID.eq(workspace)).and(issue.ID.eq(old[issue.ID]!!)).execute()
+            } else {
+                val key = "import:" + cashSourceDigest(JsonPrimitive(code), fieldPath?.let(::JsonPrimitive))
+                sql.insertInto(issue).set(issue.WORKSPACE_ID, workspace).set(issue.TRANSACTION_ID, transaction)
+                    .set(issue.ISSUE_KEY, key).set(issue.CODE, code).set(issue.FIELD_PATH, fieldPath)
+                    .set(issue.PENDING_FIELDS, JsonObject(emptyMap())).setNull(issue.PENDING_SOURCE_PAYLOAD)
+                    .set(issue.ORIGIN, JsonObject(emptyMap())).set(issue.REVISION, 1L)
+                    .set(issue.CREATED_AT, now()).set(issue.UPDATED_AT, now()).execute()
+            }
+        }
+        for (row in existing) if (row[issue.ID]!!.toString() !in retained) sql.deleteFrom(issue)
+            .where(issue.WORKSPACE_ID.eq(workspace)).and(issue.ID.eq(row[issue.ID]!!)).execute()
+    }
+
+    private fun attentionCount(connection: java.sql.Connection, workspace: String, transaction: Long): Int {
+        val sql = connection.jooq(database.sqlite)
+        val issue = CASH_TRANSACTION_ISSUES
+        val relation = TRANSACTION_RELATIONS
+        val hasIssue = sql.fetchExists(issue, issue.WORKSPACE_ID.eq(workspace).and(issue.TRANSACTION_ID.eq(transaction)))
+        val draftRelation = sql.fetchExists(relation, relation.WORKSPACE_ID.eq(workspace).and(relation.ACTIVE.isTrue)
+            .and(relation.STATE.eq("draft")).and(relation.PRIMARY_TRANSACTION_ID.eq(transaction)
+                .or(relation.SECONDARY_TRANSACTION_ID.eq(transaction))))
+        return if (hasIssue || draftRelation) 1 else 0
+    }
+
+    private fun saveOperationRow(connection: java.sql.Connection, workspace: String, transaction: Long,
+        operation: JsonObject, context: CashSqlContext, balance: Boolean) {
         val values = operation.getValue("values").jsonObject
         val current = operation.getValue("current").jsonObject
         val manual = operation.getValue("manual_fields").jsonArray.map { it.jsonPrimitive.content }
@@ -246,6 +298,8 @@ class MutationPlanService(
         for (row in existing) if (row.value1() !in wanted) sql.deleteFrom(CASH_TRANSACTION_COMPONENTS)
             .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace))
             .and(CASH_TRANSACTION_COMPONENTS.ID.eq(row.value1())).execute()
+        saveIssues(connection, workspace, transaction, operation)
+        if (!balance) return
         val account = ACCOUNTS
         val accountRow = (values["components"]?.jsonArray ?: JsonArray(emptyList())).firstOrNull()?.jsonObject
             ?.get("account_id")?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.toLong()?.let { id ->
