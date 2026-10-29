@@ -29,7 +29,7 @@ internal data class CashSourceCoverage(
     val pageFingerprints: Map<String, String> = emptyMap(),
 ) {
     init {
-        val hasEvidence = documentKey != null || pageTotal != null || pageFingerprints.isNotEmpty()
+        val hasEvidence = !documentKey.isNullOrEmpty() || pageTotal != null || pageFingerprints.isNotEmpty()
         if (hasEvidence) {
             val key = documentKey
             val total = pageTotal

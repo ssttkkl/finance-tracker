@@ -52,7 +52,7 @@ internal data class SourceOccurrence(
     }
 
     val documentScopeKey: String? get() =
-        coverage.documentKey?.let { sourceDigest("source-document-v1", sourceType, parserVersion, it) }
+        coverage.documentKey?.takeIf { it.isNotEmpty() }?.let { sourceDigest("source-document-v1", sourceType, parserVersion, it) }
 
     val documentOccurrenceKey: String?
         get() {
@@ -157,7 +157,7 @@ internal object CashSourceScope {
 internal object CashSourceDocuments {
     fun documentCompleteness(evidence: List<SourceDocumentEvidence>): Map<DocumentNamespace, Boolean> {
         val groups = linkedMapOf<DocumentNamespace, MutableList<CashSourceCoverage>>()
-        for (item in evidence) if (item.coverage.documentKey != null)
+        for (item in evidence) if (!item.coverage.documentKey.isNullOrEmpty())
             groups.getOrPut(item.namespace) { mutableListOf() } += item.coverage
         val result = linkedMapOf<DocumentNamespace, Boolean>()
         for ((namespace, coverages) in groups) {
@@ -184,7 +184,7 @@ internal object CashSourceDocuments {
     }
 
     fun currentDocumentCoverage(item: SourceDocumentEvidence, completeness: Map<DocumentNamespace, Boolean>): CashSourceCoverage {
-        if (item.coverage.documentKey == null) return item.coverage
+        if (item.coverage.documentKey.isNullOrEmpty()) return item.coverage
         val complete = completeness[item.namespace] == true
         return item.coverage.copy(complete = complete,
             evidence = if (complete) "icbc-pdf-export-pages-count-v1" else "")
