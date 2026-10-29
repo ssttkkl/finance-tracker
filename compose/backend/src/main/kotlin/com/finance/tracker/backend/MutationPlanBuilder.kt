@@ -12,16 +12,23 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     private val workspace get() = context.workspace
 
     fun build(transactionId: Long, request: MutationPlanRequest): JsonObject {
-        if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft"))
+        if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft", "edit_entry"))
             throw MutationPlanFailure("plan_input_invalid")
         val record = record(transactionId)
         if (request.intent in setOf("save_draft", "finalize_draft") && record.state != "draft")
             throw MutationPlanFailure("draft_required")
-        if (request.intent == "edit_record" && record.state != "posted")
+        if (request.intent in setOf("edit_record", "edit_entry") && record.state != "posted")
             throw MutationPlanFailure("posted_required")
+        if (request.intent == "edit_entry") {
+            val entry = entry(transactionId)
+            if (entry == null || entry.id != request.entryId || entry.revision != request.expectedEntryRevision)
+                throw CashPolicyError("entry_changed", emptyList())
+        }
+        if (request.memberPatches.isNotEmpty()) throw CashPolicyError("field_not_editable", emptyList())
         val current = fields(record)
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
-        var operation = prepare(record, current, patch)
+        val entryRow = entry(transactionId)
+        var operation = prepare(record, current, patch, entryRow)
         if (request.intent == "finalize_draft") {
             val issue = operation.getValue("issues").jsonArray.firstOrNull()
             if (issue != null) throw CashPolicyError(issue.jsonObject.getValue("code").jsonPrimitive.content,
@@ -31,7 +38,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 "planned_action" to JsonPrimitive("finalize_draft"),
             ))
         }
-        val entry = entry(transactionId)
+        val entry = entryRow
         val entryPublic = entryPublic(operation, entry, current, patch)
         val contextRows = CashRelationContextService(context).load(setOf(transactionId))
         val oldEdges = contextRows.relations.filter {
@@ -200,12 +207,8 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             }
     }
 
-    private fun prepare(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>): JsonObject {
+    private fun prepare(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>, entry: EntryRow?): JsonObject {
         val protected = protectedFields(record)
-        val update = CashRecordPolicy.prepare(current, patch, protected)
-        var base = LinkedHashMap(current).apply { putAll(update.values) }
-        val effects = prepareCashSourceEffects(base, patch, record.sourceType ?: "", record.relationMetadata, protected)
-        base = LinkedHashMap(effects.values)
         var policyPatch = LinkedHashMap(patch)
         val publicPatch = CashRecordPolicy.prepare(mapOf("state" to "draft"),
             patch.filterKeys { it in commonCashFields }).values
@@ -213,7 +216,12 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             val category = publicPatch["category_id"] as? String
             if (category != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)
                     .and(CASH_CATEGORIES.ID.eq(category)))) throw CashPolicyError("category_unavailable", listOf("category_id"))
+            if (entry != null && record.state == "posted") policyPatch = LinkedHashMap(policyPatch.filterKeys { it !in commonCashFields })
         }
+        val update = CashRecordPolicy.prepare(current, policyPatch, protected)
+        var base = LinkedHashMap(current).apply { putAll(update.values) }
+        val effects = prepareCashSourceEffects(base, patch, record.sourceType ?: "", record.relationMetadata, protected)
+        base = LinkedHashMap(effects.values)
         val parts = (base["components"] as? List<Map<String, Any?>>) ?: emptyList()
         val linked = linkedMapOf<String, Any?>()
         if ("components" !in policyPatch) for (field in listOf("amount", "currency", "account_id"))
@@ -255,8 +263,9 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 listOfNotNull(issue["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull))
         }
         val manual = if (record.state == "draft") patch.keys.filter { it in commonCashFields }.sortedWith(cashRelationStringOrder) else emptyList()
-        val action = if (valuesEqual(values, current) && manual.isEmpty()) "duplicate" else "update_${record.state}"
-        val diffs = fieldDiffs(current, values, patch, record)
+        val entryEdit = entry != null && publicPatch.isNotEmpty()
+        val action = if (valuesEqual(values, current) && manual.isEmpty() && !entryEdit) "duplicate" else "update_${record.state}"
+        val diffs = fieldDiffs(current, values, patch, record, entry)
         return buildJsonObject {
             put("transaction_id", record.id.toString()); put("expected_revision", record.revision)
             put("planned_action", action); put("current", wireObject(current)); put("values", wireObject(values))
@@ -293,8 +302,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             else values[field] ?: JsonNull
             result[field] = chosen
         }
-        if (entry == null) for (field in patch.keys.filter { it in commonCashFields })
-            result[field] = cashValueJson(patch[field])
+        for (field in patch.keys.filter { it in commonCashFields }) result[field] = cashValueJson(patch[field])
         return result
     }
 
@@ -342,13 +350,20 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     }
 
     private fun fieldDiffs(current: MutableMap<String, Any?>, values: MutableMap<String, Any?>,
-        patch: Map<String, Any?>, record: PlanRecord): List<JsonObject> {
+        patch: Map<String, Any?>, record: PlanRecord, entry: EntryRow?): List<JsonObject> {
         val diffs = linkedMapOf<String, JsonObject>()
         for ((field, value) in values) {
             if (field !in editableCashRecordFields) continue
             if (!CashRecordPolicy.valuesEqual(value, current[field])) diffs[field] = buildJsonObject {
                 put("field", field); put("current", cashValueJson(current[field]))
                 put("incoming", cashValueJson(value)); put("effective", cashValueJson(value)); put("resolution", "apply")
+            }
+        }
+        if (entry != null) for (field in patch.keys.filter { it in commonCashFields }) {
+            diffs[field] = buildJsonObject {
+                put("field", field); put("current", entryValue(entry, field))
+                put("incoming", cashValueJson(patch[field])); put("effective", cashValueJson(patch[field]))
+                put("resolution", "apply")
             }
         }
         return diffs.keys.sortedWith(cashRelationStringOrder).map { diffs.getValue(it) }

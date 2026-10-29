@@ -17,12 +17,14 @@ class MutationPlanBuildContractTest {
             val case = raw.jsonObject
             val patch = case.getValue("patch").jsonObject
             val transaction = case.getValue("transaction_id").jsonPrimitive.content
-            val request = MutationPlanRequest.parse(buildJsonObject {
+            val request = try { MutationPlanRequest.parse(buildJsonObject {
                 put("intent", case.getValue("intent").jsonPrimitive.content)
                 put("transaction_id", transaction)
                 put("expected_revision", case.getValue("expected_revision").jsonPrimitive.long)
                 put("patch", patch)
-            })
+                case["entry_id"]?.let { put("entry_id", it) }
+                case["expected_entry_revision"]?.let { put("expected_entry_revision", it) }
+            }) } catch (failure: MutationPlanFailure) { throw AssertionError("parse case $index ${case}", failure) }
             val result = runCatching {
                 db.read { connection ->
                     MutationPlanBuilder(CashSqlContext(connection, "plan-a", db.sqlite)).build(transaction.toLong(), request)
@@ -38,7 +40,7 @@ class MutationPlanBuildContractTest {
                 assertEquals(case.getValue("error").jsonPrimitive.content, code, "case $index $patch")
                 continue
             }
-            val plan = wrap(result.getOrThrow())
+            val plan = wrap(result.getOrElse { throw AssertionError("case $index ${case}", it) })
             assertEquals(case.getValue("view"), MutationPlanView.view(plan), "case $index $patch")
             val items = case.getValue("items").jsonObject
             for ((identifier, expected) in items) {

@@ -14,7 +14,8 @@ from sqlalchemy import inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
-    AccountModel, CashCategoryModel, CashCategoryStateModel, CashTransactionComponentModel, CashTransactionModel,
+    AccountModel, CashCategoryModel, CashCategoryStateModel, CashTransactionComponentModel, CashEntryMemberModel,
+    CashEntryModel, CashTransactionModel,
     UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel,
 )
 from ft.application.cash_import_plans import _public_detail, _resolve_detail
@@ -69,6 +70,12 @@ def seed(sessions):
         session.add(CashTransactionComponentModel(id=2003, workspace_id="plan-a", cash_transaction_id=1003,
             account_id=101, amount="30.00", currency="CNY", ordinal=0, label="", source_key="", metadata_json={},
             created_at=NOW))
+        session.add(CashEntryModel(id="entry-1002", workspace_id="plan-a", root_transaction_id=1002, revision=1,
+            category_id="food", note="已确认", counterparty="超市", counterparty_account="",
+            counterparty_account_attrs=[], manual_fields=[], split_inherit=None))
+        session.flush()
+        session.add(CashEntryMemberModel(workspace_id="plan-a", transaction_id=1002, entry_id="entry-1002",
+            standalone_values={}, standalone_manual_fields=[]))
 
 
 CASES = [
@@ -85,6 +92,12 @@ CASES = [
     {"intent": "finalize_draft", "transaction_id": "1003", "expected_revision": 1, "patch": {}},
     {"intent": "finalize_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {}},
     {"intent": "finalize_draft", "transaction_id": "1002", "expected_revision": 1, "patch": {}},
+    {"intent": "edit_entry", "transaction_id": "1002", "expected_revision": 1, "entry_id": "entry-1002",
+        "expected_entry_revision": 1, "patch": {"note": "条目备注"}},
+    {"intent": "edit_entry", "transaction_id": "1002", "expected_revision": 1, "entry_id": "entry-1002",
+        "expected_entry_revision": 2, "patch": {"note": "条目备注"}},
+    {"intent": "edit_entry", "transaction_id": "1002", "expected_revision": 1, "entry_id": "missing",
+        "expected_entry_revision": 1, "patch": {}},
 ]
 
 
@@ -115,8 +128,9 @@ def export(database_url: str, output: Path) -> None:
     cases = []
     with sessions() as session:
         for case in CASES:
-            data, _metadata = _input({"intent": case["intent"], "transaction_id": case["transaction_id"],
-                "expected_revision": case["expected_revision"], "patch": case["patch"]})
+            data, _metadata = _input({key: case[key] for key in
+                ("intent", "transaction_id", "expected_revision", "patch", "entry_id", "expected_entry_revision")
+                if key in case})
             try:
                 row = session.get(CashTransactionModel, int(case["transaction_id"]))
                 result = builder(session=session, preview_input=data, previous_plan=None, current_record=row)

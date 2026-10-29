@@ -127,6 +127,40 @@ class MutationPlanHttpContractTest {
         assertEquals("account_missing", errorCode(incomplete.bodyAsText()))
     }
 
+    @Test fun editEntryPlanPublishesEntryPatch() = testApplication {
+        val db = database()
+        val expected = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv(
+            "FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR"))).resolve("builds.json").readText()).jsonArray[12].jsonObject
+        application { financeModule(db) }
+        val body = buildJsonObject {
+            put("intent", "edit_entry"); put("transaction_id", "1002"); put("expected_revision", 1)
+            put("entry_id", "entry-1002"); put("expected_entry_revision", 1)
+            put("patch", buildJsonObject { put("note", "条目备注") })
+        }
+        val created = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json); setBody(body.toString())
+        }
+        assertEquals(200, created.status.value, created.bodyAsText())
+        val view = Json.parseToJsonElement(created.bodyAsText()).jsonObject
+        val expectedView = expected.getValue("view").jsonObject
+        assertEquals(expectedView.getValue("items"), view.getValue("items"))
+        assertEquals(expectedView.getValue("summary"), view.getValue("summary"))
+        val planId = view.getValue("plan_id").jsonPrimitive.content
+        val item = client.get("/api/v1/cash-mutations/plans/$planId/items/pi_1") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }
+        assertEquals(expected.getValue("items").jsonObject.getValue("pi_1"), Json.parseToJsonElement(item.bodyAsText()))
+        val stale = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("intent", "edit_entry"); put("transaction_id", "1002")
+                put("expected_revision", 1); put("entry_id", "entry-1002"); put("expected_entry_revision", 2) }.toString())
+        }
+        assertEquals(422, stale.status.value)
+        assertEquals("entry_changed", errorCode(stale.bodyAsText()))
+    }
+
     @Test fun planErrorsStayStableAndDoNotWrite() = testApplication {
         val db = database()
         application { financeModule(db) }
