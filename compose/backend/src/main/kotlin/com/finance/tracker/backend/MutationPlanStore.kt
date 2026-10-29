@@ -72,6 +72,8 @@ internal class MutationPlanStore(
         updated
     }
 
+    fun consume(id: String): Context? = synchronized(lock) { contexts.remove(id) }
+
     fun planId(contextId: String, planToken: String = tokenFactory(12)): String {
         if (!contextId.matches(Regex("[A-Za-z0-9_-]{43}")) || !planToken.matches(Regex("[A-Za-z0-9_-]{16}")))
             throw IllegalArgumentException("mutation_plan_id_invalid")

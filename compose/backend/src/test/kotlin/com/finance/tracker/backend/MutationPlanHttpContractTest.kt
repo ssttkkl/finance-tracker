@@ -198,6 +198,52 @@ class MutationPlanHttpContractTest {
         assertEquals("issue_changed", errorCode(stale.bodyAsText()))
     }
 
+    @Test fun rePreviewAdvancesPlanRevisionAndInvalidatesOldPlan() = testApplication {
+        val db = database()
+        application { financeModule(db) }
+        val first = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(planBody.toString())
+        }
+        assertEquals(200, first.status.value, first.bodyAsText())
+        val firstView = Json.parseToJsonElement(first.bodyAsText()).jsonObject
+        val context = firstView.getValue("edit_context_id").jsonPrimitive.content
+        val second = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("intent", "save_draft"); put("transaction_id", "1001"); put("expected_revision", 1)
+                put("patch", buildJsonObject { put("note", "第二次") })
+                put("edit_context_id", context); put("previous_plan_id", firstView.getValue("plan_id"))
+                put("expected_plan_revision", 1)
+            }.toString())
+        }
+        assertEquals(200, second.status.value, second.bodyAsText())
+        val secondView = Json.parseToJsonElement(second.bodyAsText()).jsonObject
+        assertEquals(2, secondView.getValue("plan_revision").jsonPrimitive.long)
+        assertEquals(context, secondView.getValue("edit_context_id").jsonPrimitive.content)
+        assertEquals("第二次", secondView.getValue("items").jsonArray.single().jsonObject
+            .getValue("display").jsonObject.getValue("note").jsonPrimitive.content)
+        val oldPlan = client.get("/api/v1/cash-mutations/plans/" +
+            firstView.getValue("plan_id").jsonPrimitive.content) {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }
+        assertEquals(409, oldPlan.status.value)
+        assertEquals("plan_changed", errorCode(oldPlan.bodyAsText()))
+        val stale = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject {
+                put("intent", "save_draft"); put("transaction_id", "1001"); put("expected_revision", 1)
+                put("edit_context_id", context); put("previous_plan_id", secondView.getValue("plan_id"))
+                put("expected_plan_revision", 1)
+            }.toString())
+        }
+        assertEquals(409, stale.status.value)
+        assertEquals("plan_changed", errorCode(stale.bodyAsText()))
+    }
+
     @Test fun planErrorsStayStableAndDoNotWrite() = testApplication {
         val db = database()
         application { financeModule(db) }

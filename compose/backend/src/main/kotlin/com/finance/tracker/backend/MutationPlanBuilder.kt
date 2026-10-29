@@ -321,6 +321,10 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             }))
             put("source_updates", JsonArray(emptyList())); put("pending_fields", JsonObject(emptyMap()))
             put("candidate_ids", JsonArray(emptyList()))
+            if (entry != null && publicPatch.isNotEmpty()) put("entry_edit", buildJsonObject {
+                put("entry_id", entry.id); put("revision", entry.revision)
+                put("patch", wireObject(publicPatch))
+            })
         }
     }
 
