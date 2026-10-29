@@ -1,0 +1,344 @@
+[
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMueslOiusOW9lQ0K5Lqk5piT5pe26Ze0LOS6pOaYk+WIhuexuyzkuqTmmJPlr7nmlrks5a+55pa56LSm5Y+3LOWVhuWTgeivtOaYjizmlLYv5pSvLOmHkeminSzmlLYv5LuY5qy+5pa55byPLOS6pOaYk+eKtuaAgSzkuqTmmJPorqLljZXlj7cs5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwLOaXpeeUqOeZvui0pyzmtYvor5XllYbmiLcsYWNjb3VudCwiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiLOaUr+WHuiwyMC4wMCzmtYvor5Xpk7booYzljaEs5Lqk5piT5oiQ5YqfLDAwMDAxMjMsbWVyY2hhbnQtMQ0KMjAyNi0wOC0xNSAxMDowMDowMCzml6XnlKjnmb7otKcs5rWL6K+V5ZWG5oi3LGFjY291bnQsIiAg5Y6f5aeL5o+P6L+wCuesrOS6jOihjCAgIizmlK/lh7osMjAuMDAs5rWL6K+V6ZO26KGM5Y2hLOS6pOaYk+aIkOWKnywwMDAwMTIzLG1lcmNoYW50LTENCg==",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 2,
+      "label": "fixture-owner@example.test",
+      "observed": 2,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 7
+        },
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 8
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5b6u5L+h5pSv5LuY6LSm5Y2V5piO57uGDQrlvq7kv6HmmLXnp7DvvJpb5rWL6K+V5pi156ewXQ0K6LW35aeL5pe26Ze077yaWzIwMjYtMDgtMDEgMDA6MDA6MDBdDQrnu4jmraLml7bpl7TvvJpbMjAyNi0wOC0zMSAyMzo1OTo1OV0NCuWvvOWHuuexu+Wei++8mlvlhajpg6hdDQrlhbEx56yU6K6w5b2VDQror7TmmI7vvJror7fmoLjlr7nnlLPor7flr7zlh7rotKbljZXnmoTlvq7kv6Hlj7fvvIzkuI3ku6PooajmnKzkurrlvq7kv6Hlj7flrZfmrrUNCuS6pOaYk+aXtumXtCzkuqTmmJPnsbvlnoss5Lqk5piT5a+55pa5LOWVhuWTgSzmlLYv5pSvLOmHkeminSjlhYMpLOaUr+S7mOaWueW8jyzlvZPliY3nirbmgIEs5Lqk5piT5Y2V5Y+3LOWVhuaIt+WNleWPtyzlpIfms6gNCjIwMjYtMDgtMTUgMTA6MDA6MDAs5pel55So55m+6LSnLOa1i+ivleWVhuaItyxhY2NvdW50LCIgIOWOn+Wni+aPj+i/sArnrKzkuozooYwgICIsMzAuMDAsMjAuMDAs5rWL6K+V6ZO26KGM5Y2hLHd4LTEsMDAwMDEyMyxtZXJjaGFudC0xDQo=",
+    "document": {
+      "account": null,
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": "测试昵称",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易单号": "wx-1",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易类型": "日用百货",
+            "商品": "account",
+            "商户单号": "0000123",
+            "备注": "merchant-1",
+            "当前状态": "测试银行卡",
+            "支付方式": "20.00",
+            "收/支": "  原始描述\n第二行  ",
+            "金额(元)": "30.00"
+          },
+          "position": 9
+        }
+      ],
+      "source_type": "wechat",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "wechat"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMeeslOiusOW9lQ0K5Lqk5piT5pe26Ze0CeS6pOaYk+WIhuexuwnkuqTmmJPlr7nmlrkJ5a+55pa56LSm5Y+3CeWVhuWTgeivtOaYjgnmlLYv5pSvCemHkeminQnmlLYv5LuY5qy+5pa55byPCeS6pOaYk+eKtuaAgQnkuqTmmJPorqLljZXlj7cJ5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwCeaXpeeUqOeZvui0pwnmtYvor5XllYbmiLcJYWNjb3VudAkiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiCeaUr+WHugkyMC4wMAnmtYvor5Xpk7booYzljaEJ5Lqk5piT5oiQ5YqfCTAwMDAxMjMJbWVyY2hhbnQtMQ0K",
+    "error": "statement_header_not_found",
+    "ok": false,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrlhbEx56yU6K6w5b2VDQrkuqTmmJPml7bpl7Qs5Lqk5piT5YiG57G7LOS6pOaYk+WvueaWuSzlr7nmlrnotKblj7cs5ZWG5ZOB6K+05piOLOaUti/mlK8s6YeR6aKdLOaUti/ku5jmrL7mlrnlvI8s5Lqk5piT54q25oCBLOS6pOaYk+iuouWNleWPtyzllYblrrborqLljZXlj7cNCjIwMjYtMDgtMTUgMTA6MDA6MDAs5pel55So55m+6LSnLOa1i+ivleWVhuaItyxhY2NvdW50LCIgIOWOn+Wni+aPj+i/sArnrKzkuozooYwgICIs5pSv5Ye6LDIwLjAwLOa1i+ivlemTtuihjOWNoSzkuqTmmJPmiJDlip8sMDAwMDEyMyxtZXJjaGFudC0xDQo=",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": false,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "",
+        "filters": {},
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": "fixture-owner@example.test",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 6
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMeeslOiusOW9lQ0K5Lqk5piT5pe26Ze0LOS6pOaYk+WIhuexuyzkuqTmmJPlr7nmlrks5a+55pa56LSm5Y+3LOWVhuWTgeivtOaYjizmlLYv5pSvLOmHkeminSzmlLYv5LuY5qy+5pa55byPLOS6pOaYk+eKtuaAgSzkuqTmmJPorqLljZXlj7cs5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwLOaXpeeUqOeZvui0pyzmtYvor5XllYbmiLcsYWNjb3VudCwiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiLOaUr+WHuixpbnZhbGlkLOa1i+ivlemTtuihjOWNoSzkuqTmmJPmiJDlip8sMDAwMDEyMyxtZXJjaGFudC0xDQo=",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": "fixture-owner@example.test",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "invalid"
+          },
+          "position": 7
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMueslOiusOW9lQ0K5Lqk5piT5pe26Ze0LOS6pOaYk+WIhuexuyzkuqTmmJPlr7nmlrks5a+55pa56LSm5Y+3LOWVhuWTgeivtOaYjizmlLYv5pSvLOmHkeminSzmlLYv5LuY5qy+5pa55byPLOS6pOaYk+eKtuaAgSzkuqTmmJPorqLljZXlj7cs5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwLOaXpeeUqOeZvui0pyzmtYvor5XllYbmiLcsYWNjb3VudCwiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiLOaUr+WHuiwyMC4wMCzmtYvor5Xpk7booYzljaEs5Lqk5piT5oiQ5YqfLDAwMDAxMjMsbWVyY2hhbnQtMQ0K",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": false,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 2,
+      "label": "fixture-owner@example.test",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 7
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMeeslOiusOW9lQ0K5Lqk5piT5pe26Ze0LOS6pOaYk+WIhuexuyzkuqTmmJPlr7nmlrks5a+55pa56LSm5Y+3LOWVhuWTgeivtOaYjizmlLYv5pSvLOmHkeminSzmlLYv5LuY5qy+5pa55byPLOS6pOaYk+eKtuaAgSzkuqTmmJPorqLljZXlj7cs5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwLOaXpeeUqOeZvui0pyzmtYvor5XllYbmiLcsYWNjb3VudCwiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiLOaUr+WHuiwyMC4wMCzmtYvor5Xpk7booYzljaEs5Lqk5piT5oiQ5YqfLDAwMDAxMjMNCg==",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": false,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": "fixture-owner@example.test",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": "row_shape_invalid",
+          "payload": null,
+          "position": 7
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "1qe4trGmvbvS17zHwrzD98+4sunRrw0K1qe4trGm1cu7p6O6W2ZpeHR1cmUtb3duZXJAZXhhbXBsZS50ZXN0XQ0KxvDKvMqxvOSjulsyMDI2LTA4LTAxIDAwOjAwOjAwXSDW1da5yrG85KO6WzIwMjYtMDgtMzEgMjM6NTk6NTldDQq9u9LXwODQzaO6W8irsr9dDQq5sjGxyrzHwrwNCr270tfKsbzkLL270te31sDgLL270te21Le9LLbUt73Vy7rFLMnMxrfLtcP3LMrVL9anLL3wtu4sytUvuLa/7re9yr0svbvS19e0zKwsvbvS17aptaW6xSzJzLzStqm1pbrFDQoyMDI2LTA4LTE1IDEwOjAwOjAwLMjV08Ow2bv1LLLiytTJzLunLGFjY291bnQsIiAg1K3KvMPoyvYKtdq2/tDQICAiLNans/YsMjAuMDAssuLK1NL40NC/qCy9u9LXs8m5piwwMDAwMTIzLG1lcmNoYW50LTENCg==",
+    "document": {
+      "account": "fixture-owner@example.test",
+      "coverage": {
+        "complete": true,
+        "end": "2026-08-31T15:59:59+00:00",
+        "end_inclusive": true,
+        "evidence": "platform-declared-range-filter-count-v1",
+        "filters": {
+          "export_type": "all"
+        },
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "platform-coverage-v1"
+      },
+      "declared": 1,
+      "label": "fixture-owner@example.test",
+      "observed": 1,
+      "parser_version": "platform-rows-v1",
+      "rows": [
+        {
+          "error_code": null,
+          "payload": {
+            "交易分类": "日用百货",
+            "交易对方": "测试商户",
+            "交易时间": "2026-08-15 10:00:00",
+            "交易状态": "交易成功",
+            "交易订单号": "0000123",
+            "商品说明": "  原始描述\n第二行  ",
+            "商家订单号": "merchant-1",
+            "对方账号": "account",
+            "收/付款方式": "测试银行卡",
+            "收/支": "支出",
+            "金额": "20.00"
+          },
+          "position": 7
+        }
+      ],
+      "source_type": "alipay",
+      "table_key": "csv:0"
+    },
+    "ok": true,
+    "source": "alipay"
+  },
+  {
+    "content": "",
+    "error": "statement_input_invalid",
+    "ok": false,
+    "source": "alipay"
+  },
+  {
+    "content": "bm90IGEgc3RhdGVtZW50",
+    "error": "statement_header_not_found",
+    "ok": false,
+    "source": "alipay"
+  },
+  {
+    "content": "77u/5pSv5LuY5a6d5Lqk5piT6K6w5b2V5piO57uG5p+l6K+iDQrmlK/ku5jlrp3otKbmiLfvvJpbZml4dHVyZS1vd25lckBleGFtcGxlLnRlc3RdDQrotbflp4vml7bpl7TvvJpbMjAyNi0wOC0wMSAwMDowMDowMF0g57uI5q2i5pe26Ze077yaWzIwMjYtMDgtMzEgMjM6NTk6NTldDQrkuqTmmJPnsbvlnovvvJpb5YWo6YOoXQ0K5YWxMeeslOiusOW9lQ0K5Lqk5piT5pe26Ze0LOS6pOaYk+WIhuexuyzkuqTmmJPlr7nmlrks5a+55pa56LSm5Y+3LOWVhuWTgeivtOaYjizmlLYv5pSvLOmHkeminSzmlLYv5LuY5qy+5pa55byPLOS6pOaYk+eKtuaAgSzkuqTmmJPorqLljZXlj7cs5ZWG5a626K6i5Y2V5Y+3DQoyMDI2LTA4LTE1IDEwOjAwOjAwLOaXpeeUqOeZvui0pyzmtYvor5XllYbmiLcsYWNjb3VudCwiICDljp/lp4vmj4/ov7AK56ys5LqM6KGMICAiLOaUr+WHuiwyMC4wMCzmtYvor5Xpk7booYzljaEs5Lqk5piT5oiQ5YqfLDAwMDAxMjMsbWVyY2hhbnQtMQ0K",
+    "error": "statement_source_unsupported",
+    "ok": false,
+    "source": "unknown"
+  }
+]
