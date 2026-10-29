@@ -12,9 +12,12 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     private val workspace get() = context.workspace
 
     fun build(transactionId: Long, request: MutationPlanRequest): JsonObject {
-        if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft", "edit_entry", "resolve_issue"))
-            throw MutationPlanFailure("plan_input_invalid")
+        if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft", "edit_entry", "resolve_issue",
+                "maintain_relations")) throw MutationPlanFailure("plan_input_invalid")
         val record = record(transactionId)
+        if (request.intent == "maintain_relations" &&
+            (request.relationChoices.isNotEmpty() || request.relationAdditions.isNotEmpty()))
+            throw MutationPlanFailure("plan_input_invalid")
         if (request.intent in setOf("save_draft", "finalize_draft") && record.state != "draft")
             throw MutationPlanFailure("draft_required")
         if (request.intent in setOf("edit_record", "edit_entry") && record.state != "posted")

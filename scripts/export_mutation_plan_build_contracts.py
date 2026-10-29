@@ -113,6 +113,8 @@ CASES = [
         "issue_resolutions": [{"issue_id": "6004", "expected_issue_revision": 1, "resolution": "keep_existing"}]},
     {"intent": "resolve_issue", "transaction_id": "1004", "expected_revision": 1, "patch": {},
         "issue_resolutions": [{"issue_id": "6004", "expected_issue_revision": 2, "resolution": "apply_source"}]},
+    {"intent": "maintain_relations", "transaction_id": "1002", "expected_revision": 1, "patch": {"note": "维护备注"}},
+    {"intent": "maintain_relations", "transaction_id": "1001", "expected_revision": 1, "patch": {}},
 ]
 
 
