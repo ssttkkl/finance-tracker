@@ -40,7 +40,8 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
     transfers: CashTransferService = CashTransferService(database,now = clock),
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
-    recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock)) {
+    recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
+    mutationPlans: MutationPlanService = MutationPlanService(database,now = clock)) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
@@ -82,6 +83,54 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 })
             })
         }
+        exception<MutationPlanFailure> { call, failure ->
+            val (status, message) = when (failure.code) {
+                "plan_not_found" -> 404 to "未找到这次核对内容。"
+                "plan_item_not_found" -> 404 to "未找到这条记录。"
+                "plan_changed", "record_changed" -> 409 to "流水已变化，请刷新后重试。"
+                "plan_expired" -> 410 to "本次核对已过期，请重新打开。"
+                "plan_page_invalid" -> 422 to "列表页码无效，请刷新后重试。"
+                "plan_cursor_invalid" -> 422 to "列表位置已失效，请刷新后重试。"
+                "category_unavailable" -> 422 to "分类已不可用，请重新选择。"
+                "draft_required" -> 409 to "这条流水已确认，请刷新后修改。"
+                "posted_required" -> 409 to "请先补充并确认这条流水。"
+                "record_not_found" -> 404 to "未找到这条流水。"
+                "plan_build_failed" -> 503 to "暂时无法准备核对内容，请稍后重试。"
+                else -> 422 to "核对选择有误，请重新核对。"
+            }
+            call.respond(HttpStatusCode.fromValue(status), kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
+                })
+            })
+        }
+        exception<MutationPlanFieldFailure> { call, failure ->
+            val reason = try { cashImportIssue(failure.code) } catch (_: IllegalArgumentException) {
+                cashImportIssue("record_input_invalid")
+            }
+            val message = if (failure.code == "fixed_field_conflict") "金额、币种、时间和账户不能修改，请删除后新建。"
+                else reason.message
+            val allowed = mutableCashFields + financialCashFields + setOf("record_id", "source_type",
+                "source_scope_key", "source_account_key", "record_origin", "manual_transfer_id", "state")
+            call.respond(HttpStatusCode.UnprocessableEntity, kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive(reason.code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(failure.fields.filter { it in allowed }.map { field ->
+                        kotlinx.serialization.json.buildJsonObject {
+                            put("field", JsonPrimitive(field)); put("code", JsonPrimitive(reason.code))
+                            put("message", JsonPrimitive(message))
+                        }
+                    }))
+                    put("retryable", JsonPrimitive(false))
+                })
+            })
+        }
+        exception<MutationPlanStore.Expired> { call, _ -> planStoreExpired(call) }
+        exception<MutationPlanStore.NotFound> { call, _ -> planStoreExpired(call) }
+        exception<MutationPlanStore.Forbidden> { call, _ -> planStoreExpired(call) }
+        exception<MutationPlanStore.RevisionConflict> { call, _ -> planStoreChanged(call) }
+        exception<MutationPlanStore.Closed> { call, _ -> planStoreChanged(call) }
         exception<CashRecordReadUnavailable> { call, failure ->
             val cause = failure.cause ?: failure
             val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
@@ -261,6 +310,47 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         get("/api/v1/evidence/cash-projections/{projection_id}") {
             val result = withContext(Dispatchers.IO) {
                 currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        post("/api/v1/cash-mutations/plans") {
+            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
+                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.preview(bearerToken(call.request.headers[HttpHeaders.Authorization]), body.value.jsonObject,
+                    call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-mutations/plans/{plan_id}") {
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.plan(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
+                    call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan") {
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.currentPlan(bearerToken(call.request.headers[HttpHeaders.Authorization]),
+                    call.parameters["edit_context_id"], call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-mutations/plans/{plan_id}/items") {
+            val limitParameter = call.request.queryParameters["limit"]
+            val limit = if (limitParameter == null) 50 else limitParameter.toIntOrNull()
+                ?: throw MutationPlanFailure("plan_page_invalid")
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.items(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
+                    call.request.queryParameters["cursor"], limit, call.request.queryParameters["confirmation_status"],
+                    call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}") {
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.item(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
+                    call.parameters["preview_item_id"], call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
@@ -501,3 +591,21 @@ private class AccountStorageFailure(val write: Boolean) : RuntimeException("acco
 private suspend fun <T> accountOperation(write: Boolean, block: () -> T): T = try {
     withContext(Dispatchers.IO) { block() }
 } catch (_: StorageFailure) { throw AccountStorageFailure(write) }
+
+private suspend fun planStoreExpired(call: io.ktor.server.application.ApplicationCall) {
+    call.respond(HttpStatusCode.Gone, kotlinx.serialization.json.buildJsonObject {
+        put("error", kotlinx.serialization.json.buildJsonObject {
+            put("code", JsonPrimitive("plan_expired")); put("message", JsonPrimitive("本次核对已过期，请重新打开。"))
+            put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+        })
+    })
+}
+
+private suspend fun planStoreChanged(call: io.ktor.server.application.ApplicationCall) {
+    call.respond(HttpStatusCode.Conflict, kotlinx.serialization.json.buildJsonObject {
+        put("error", kotlinx.serialization.json.buildJsonObject {
+            put("code", JsonPrimitive("plan_changed")); put("message", JsonPrimitive("核对内容已变化，请刷新后重试。"))
+            put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+        })
+    })
+}

@@ -48,7 +48,7 @@ class MutationPlanStoreTest {
         assertEquals("mp_$context.$plan", MutationPlanStore(ttlSeconds = 1800).planId(context, plan))
         assertEquals(context, MutationPlanStore.contextId("mp_$context.$plan"))
         for (invalid in listOf(null, "", "ip_$context.$plan", "mp_${"a".repeat(42)}.$plan", "mp_$context.${"b".repeat(15)}")) {
-            assertFailsWith<MutationPlanStore.NotFound>(invalid.toString()) { MutationPlanStore.contextId(invalid) }
+            assertFailsWith<MutationPlanFailure>(invalid.toString()) { MutationPlanStore.contextId(invalid) }
         }
         assertFailsWith<IllegalArgumentException> { MutationPlanStore(ttlSeconds = 0) }
         assertFailsWith<IllegalArgumentException> { MutationPlanStore(ttlSeconds = 1801) }

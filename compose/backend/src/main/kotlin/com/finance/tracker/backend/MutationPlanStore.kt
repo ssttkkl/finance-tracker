@@ -102,7 +102,7 @@ internal class MutationPlanStore(
         /** `mp_<43-char context>.<16-char token>`；其它形式一律 plan_not_found。 */
         internal fun contextId(planId: Any?): String {
             val match = (planId as? String)?.let { Regex("mp_([A-Za-z0-9_-]{43})\\.([A-Za-z0-9_-]{16})").matchEntire(it) }
-                ?: throw MutationPlanStore.NotFound()
+                ?: throw MutationPlanFailure("plan_not_found")
             return match.groupValues[1]
         }
 
