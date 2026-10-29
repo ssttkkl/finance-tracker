@@ -88,7 +88,23 @@ Archive a completed change in the experimental workflow.
 
    **If no tasks file exists:** Proceed without task-related warning.
 
-4. **Assess delta spec sync state**
+4. **Check backend design review**
+
+   Read `<changeRoot>/design-review.md` (use `changeRoot` from the status JSON in step 2).
+
+   **If the file is missing:**
+   - Stop. Do not archive.
+   - Tell the user to run `$backend-design-review change` for this change. If the change does not touch the database, backend interfaces, or data models, the implementing agent may draft `结论：不适用` with a reason, but an independent reviewer must confirm it.
+
+   **If the file exists:**
+   - Read the `## 结论` section. Accept only `结论：通过` or `结论：不适用`.
+   - If the conclusion is `结论：阻断`, or any finding status is `open`, `fixed`, or `escalated`, stop and report the open items. Do not archive.
+   - `closed`, `closed-not-applicable`, and `waived` findings do not block. A `waived` finding must record the user's decision and reason.
+   - Do not edit the review, close findings, or change priorities yourself. Route fixes back to the implementer and the independent reviewer.
+
+   **Exemption:** Archived changes are history and are not checked. Every active change, including one created before 2026-10-30, needs a review before archiving.
+
+5. **Assess delta spec sync state**
 
    Use `artifactPaths.specs.existingOutputPaths` from status JSON as the only
    delta-spec source. If the `specs` entry is missing or
@@ -119,7 +135,7 @@ Archive a completed change in the experimental workflow.
    form of main specs produced by this merge; do not use them as archive guidance,
    change CLI behavior, or copy the rule text into any output file.
 
-   Then run the `openspec-sync-specs` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 5 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
+   Then run the `openspec-sync-specs` workflow inline (agent-driven intelligent merge) for change '<name>', passing the delta spec analysis and the fetched specs-rule snapshot from above, and wait for it to finish. The inline sync must reuse that snapshot without fetching `specs` instructions again. Do not delegate it to a background task — step 6 would move `changeRoot` out from under a sync that is still reading it, leaving the change archived and the main specs never updated. If your agent can only run it by delegation, delegate synchronously and wait for the result.
 
    Then re-run the comparison from the top of this step against every capability that has a delta spec in `artifactPaths.specs.existingOutputPaths` — not only the ones the sync reports it touched. A successful sync leaves nothing left to apply, so each capability must now read as already synced:
    - ADDED requirements present
@@ -129,7 +145,7 @@ Archive a completed change in the experimental workflow.
 
    If the sync failed, or any capability does not match, report what differs and stop — do not archive. Nothing has moved and `changeRoot` is intact, so the user can fix the mismatch or re-run the sync and start the archive again.
 
-5. **Perform the archive**
+6. **Perform the archive**
 
    Create an `archive` directory under `planningHome.changesDir` if it doesn't exist:
    ```bash
@@ -146,13 +162,14 @@ Archive a completed change in the experimental workflow.
    mv "<changeRoot>" "<planningHome.changesDir>/archive/<target-name>"
    ```
 
-6. **Display summary**
+7. **Display summary**
 
    Show archive completion summary including:
    - Change name
    - Schema that was used
    - Archive location
    - Whether specs were synced (if applicable)
+   - Backend design review conclusion
    - Note about any warnings (incomplete artifacts/tasks)
 
 **Output On Success**
@@ -163,7 +180,8 @@ Archive a completed change in the experimental workflow.
 **Change:** <change-name>
 **Schema:** <schema-name>
 **Archived to:** the archive path derived from `planningHome.changesDir`/<target-name>/
-**Specs:** <"✓ Synced to main specs" only if the step 4 verification passed; otherwise "No delta specs" or "Sync skipped">
+**Specs:** <"✓ Synced to main specs" only if the step 5 verification passed; otherwise "No delta specs" or "Sync skipped">
+**Design review:** <"✓ 通过" | "不适用（已确认）">
 
 <"All artifacts complete. All tasks complete." — or, if archived with warnings, list them instead (e.g. "Archived with 2 incomplete tasks")>
 ```
@@ -171,7 +189,9 @@ Archive a completed change in the experimental workflow.
 **Guardrails**
 - Announce the selected change; prompt for selection when it is ambiguous
 - Use artifact graph (openspec status --json) for completion checking
-- Don't block archive on warnings - just inform and confirm
+- Don't block archive on artifact/task warnings - just inform and confirm; the backend design review in step 4 is a hard gate
+- Do not archive without an approved backend design review; never edit the review, close its findings, or change priorities yourself
+- The review must be authored by an independent context; the implementing agent must not write or rewrite its conclusion
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Show clear summary of what happened
 - If sync is requested, run the `openspec-sync-specs` workflow inline (agent-driven)
