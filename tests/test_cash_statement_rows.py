@@ -104,10 +104,11 @@ def test_platform_channel_converters_clean_only_supported_bank_account_labels(so
     assert row.fields["source_payload"][field] == raw
 
 
-def test_alipay_blank_transaction_id_remains_without_reliable_provider_identity():
-    parsed = _convert(_document(_payload("alipay", **{"交易订单号": ""}), _payload("alipay", **{"交易订单号": "000123"}), source="alipay"))
-    assert parsed.rows[0].provider_id is None
-    assert parsed.rows[1].provider_id == "000123"
+@pytest.mark.parametrize("identifier", ["", " ", "/", "-", "--", "x" * 513])
+def test_alipay_invalid_transaction_id_rejects_the_entire_file(identifier):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(_document(_payload("alipay", **{"交易订单号": identifier}), _payload("alipay", **{"交易订单号": "000123"}), source="alipay"))
 
 
 @pytest.mark.parametrize("identifier", ["", " ", "/", "--"])
@@ -155,13 +156,12 @@ def test_unexpected_importer_error_propagates_to_file_boundary(monkeypatch):
         _convert(_document(_payload(交易对方="bad"), _payload()))
 
 
-def test_structural_error_is_retained_without_creating_an_empty_cash_record():
+def test_alipay_structural_error_rejects_the_whole_file():
+    from ft.adapters.cash_statement_document import StatementDocumentError
     document = _document(_payload())
     document = replace(document, rows=(RawCashRow(1, None, "row_shape_invalid"), *document.rows))
-    parsed = _convert(document)
-    assert parsed.rows[0].error_code == "row_shape_invalid"
-    assert parsed.rows[0].fields is None
-    assert len(parsed.rows) == 2
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(document)
 
 
 @pytest.mark.parametrize("source,amount_field", [("alipay", "金额"), ("wechat", "金额(元)")])

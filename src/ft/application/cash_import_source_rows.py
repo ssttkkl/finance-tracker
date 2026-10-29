@@ -9,7 +9,7 @@ from dataclasses import replace
 from ft.domain.cash_source_matching import SourceDocumentEvidence, SourceOccurrence
 from ft.domain.cash_source_batch import SourceBatchInput
 from ft.domain.cash_source_documents import current_document_coverage, document_completeness
-from ft.domain.cash_source_scope import source_account_key
+from ft.domain.cash_source_scope import source_transaction_scope_key
 
 
 def source_batch_rows(files, *, resolved_fields=None, known_document_evidence=()):
@@ -60,7 +60,8 @@ def source_rows(file, *, resolved_fields=None):
         with cash_diagnostic_scope("row_planning", row_locations((f"{file.file_ref}:r{row.position}",)), scope="row", files=(file,)):
             values = copy_value(row.fields)
             values.update(copy_value((resolved_fields or {}).get(row.position, {})))
-            scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier)
+            scope = source_transaction_scope_key(document.source_type,
+                row.source_account_identifier or document.source_account_identifier)
             occurrence = SourceOccurrence(
                 source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
                 parser_version=document.parser_version, table_key=document.table_key, position=row.position,

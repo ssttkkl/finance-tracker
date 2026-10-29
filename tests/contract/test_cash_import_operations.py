@@ -471,7 +471,7 @@ def test_unknown_patch_field_rejects_plan_without_leaking_input(draft_runtime):
 
 
 def test_unidentified_equivalent_repetitions_do_not_create_extra_operations(draft_runtime):
-    first = _file(provider=None)
+    first = _as_source(_file(provider=None), "icbc_debit")
     coverage = SourceCoverage(start="2026-07-01T00:00:00Z", end="2026-08-01T00:00:00Z", complete=True, evidence="fixture")
     rows = (first.document.rows[0], replace(first.document.rows[0], position=2))
     first = replace(first, document=replace(first.document, rows=rows, coverage=coverage,

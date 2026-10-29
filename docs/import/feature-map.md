@@ -39,7 +39,7 @@ flowchart TD
 
 **取消与恢复：** 确认前可退出，按提示保留或撤销本次账户变更，包括新建账户和补齐币种。提交结果未知时按原提交核实；计划过期或内容失效时重新准备和核对。客户端不提供逐项失败处理入口。
 
-**账户与来源边界：** 微信交易使用固定 `source_scope_key` 和非空交易单号，不再填写来源名称或保存跨导入账户映射；昵称和支付宝脱敏账号只用于本次分组。跨渠道合并只共享本次目标选择。工银亚洲解析由本流程承载，不新增页面。
+**账户与来源边界：** 微信交易使用固定 `source_scope_key` 和非空交易单号，不再填写来源名称或保存跨导入账户映射。支付宝每条业务行必须有有效 `交易订单号`，同一工作区内跨支付宝账号按交易号匹配流水；账号分组和目标账户选择仍分别保留。微信昵称和支付宝脱敏账号只用于本次分组，跨渠道合并只共享本次目标选择。工银亚洲解析由本流程承载，不新增页面。支付宝流水号规则及验证见 [支付宝流水标识任务](../../openspec/changes/archive/2026-10-29-cash-import-alipay-transaction-identity/tasks.md)。
 
 ### 页面呈现与验证
 
@@ -68,7 +68,7 @@ flowchart TD
 | 能力 | 后端及共享基础的实现证据 | 客户端状态 |
 |---|---|---|
 | 多文件解析与临时内容 | [会话服务](../../src/ft/application/cash_import_context.py)、[会话 HTTP](../../src/ft/web/cash_import_routes.py)、[解析及清扫配置](cash-import-r2-staging.md)；一次解析，不留原文件，单文件错误可继续 | 已接共享准备页、逐文件重选与密码重传；微信来源名称设置入口及 `source_scope_label` 会话字段已移除。密码提交和文件分组回归见 [账户分组任务](../../openspec/changes/archive/2026-10-29-cash-import-source-account-grouping/tasks.md)。 |
-| 来源对应与资金账户 | [来源规划](../../src/ft/application/cash_import_source_plan.py)、[资金桥接](../../src/ft/application/cash_import_funding.py)、[账户映射](../../src/ft/application/cash_import_account_mappings.py)；微信固定范围加必有交易号，其他来源仍按来源账户隔离 | 微信昵称、支付宝脱敏账号仅作本次分组；同账号资金方式共组，不同账号分开。跨渠道同名组默认共享本次目标账户选择，选择冲突清空，关闭开关后独立选择。账户新建、币种补齐和预览行为沿用当前合同。 |
+| 来源对应与资金账户 | [来源规划](../../src/ft/application/cash_import_source_plan.py)、[资金桥接](../../src/ft/application/cash_import_funding.py)、[账户映射](../../src/ft/application/cash_import_account_mappings.py)；微信和支付宝使用固定交易范围与必有交易号，支付宝交易号跨账号匹配，银行等来源仍按来源账户隔离 | 微信昵称、支付宝脱敏账号仅作本次分组；同账号资金方式共组，不同账号分开。支付宝交易号跨账号匹配不合并资金账户组或目标账户选择。跨渠道同名组默认共享本次目标账户选择，选择冲突清空，关闭开关后独立选择。账户新建、币种补齐和预览行为沿用当前合同。 |
 | 统一预览与一次确认 | [业务计划](../../src/ft/application/cash_import_business_plan.py)、[联合提交](../../src/ft/application/cash_import_commit.py)、[计划 HTTP](../../src/ft/web/cash_plan_routes.py)；不可变计划提供按筛选的准确总数及序号分页 | 已接待确认优先、零待确认时默认全部的只读列表；复用主页流水行、Paging3 连续加载与右侧序号滚动条，详情在宽屏侧滑、小屏切入并在返回时保留列表位置和筛选；整份确认和实际收据摘要可演示。 |
 | 结果及失败恢复 | [失败项原因](../../src/ft/application/cash_import_issues.py)、[命令收据](../../src/ft/adapters/relational/cash_mutations.py)、[旧收据迁移](../../migrations/versions/20261023_49_unify_cash_import_receipts.py)；实际结果分页、未知核实、限时失败补处理 | 已接结果摘要与统一错误；实际草稿摘要及原命令未知核实均有 Web 证据，不提供逐项失败处理入口 |
 | 草稿及正式流水维护 | [当前详情／草稿保存](../../src/ft/application/cash_record_maintenance.py)、[维护规划](../../src/ft/application/cash_mutation_business_plan.py)、[维护提交](../../src/ft/application/cash_mutation_commit.py)；创建方式权限、稳定公共属性整笔编辑、来源问题及身份合并；原子草稿仅联动实际财务修改，保留来源明确组成项 | F-04 已接当前详情、普通草稿保存、分摊编辑、明确转正式和只读账单原文；公共属性整笔编辑已接入并通过真实 API 冒烟；来源采用和明确身份合并已通过真实 API 冒烟，演示验收待完成 |

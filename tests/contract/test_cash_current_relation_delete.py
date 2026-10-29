@@ -126,9 +126,11 @@ def test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revis
 
 @pytest.mark.parametrize("provider", ["synthetic-deleted-provider", None])
 def test_deleted_source_occurrence_is_silently_imported_as_a_new_record(context_runtime, provider):
-    from tests.contract.test_cash_import_operations import _file
+    from tests.contract.test_cash_import_operations import _as_source, _file
     runtime = context_runtime
     files = (_file(provider=provider),)
+    if provider is None:
+        files = (_as_source(files[0], "icbc_debit"),)
     importer, plan = _plan(runtime, files)
     identifier = _results(importer, _commit(importer, plan), "row")[0]["transaction_id"]
     before = _records(runtime).read(identifier)["fields"]

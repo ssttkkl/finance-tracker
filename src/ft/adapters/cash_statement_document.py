@@ -43,9 +43,10 @@ class CashStatementDocument:
 
 
 _REQUIRED = {
-    "alipay": {"交易时间", "收/支", "金额", "交易对方"},
+    "alipay": {"交易时间", "收/支", "金额", "交易对方", "交易订单号"},
     "wechat": {"交易时间", "收/支", "金额(元)", "交易对方", "交易单号"},
 }
+_ALIPAY_HEADER_MARKERS = {"交易分类", "商品说明", "收/付款方式", "商家订单号"}
 _MAX_INPUT_BYTES = 100 * 1024 * 1024
 _MAX_PARSED_BYTES = 25 * 1024 * 1024
 _MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
@@ -118,6 +119,8 @@ def _collect(records, source, table_key, *, pad_trailing=False):
                 raise StatementDocumentError("statement_header_not_found")
             matching_sources = [key for key, required in _REQUIRED.items() if required.issubset(cells)]
             if source is None and len(matching_sources) > 1:
+                raise StatementDocumentError("statement_header_invalid")
+            if source is None and "alipay" not in matching_sources and len(_ALIPAY_HEADER_MARKERS.intersection(cells)) >= 2:
                 raise StatementDocumentError("statement_header_invalid")
             detected_source = source or (matching_sources[0] if matching_sources else None)
             if detected_source in matching_sources:

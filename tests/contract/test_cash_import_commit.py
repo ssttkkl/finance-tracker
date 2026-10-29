@@ -514,9 +514,10 @@ def test_reimport_preserves_historical_relation_failure_without_creating_retry_b
 
 def test_reimport_of_identity_draft_preserves_its_unresolved_candidate_set(context_runtime):
     from ft.adapters.relational.models import CashIssueCandidateModel
+    unidentified_existing = _as_source(_file(provider=None), "icbc_debit")
     with context_runtime.sessions.begin() as session:
-        _bind_existing(session, context_runtime, _file(provider=None))
-    incoming = _file(letter="b", provider=None, note="新的原文")
+        _bind_existing(session, context_runtime, unidentified_existing)
+    incoming = _as_source(_file(letter="b", provider=None, note="新的原文"), "icbc_debit")
     first, plan = _plan(context_runtime, (incoming,))
     receipt = _commit(first, plan)
     assert receipt["summary"]["saved_draft"] == 1
@@ -867,9 +868,10 @@ def test_success_has_no_failed_subset_recovery_capability(context_runtime):
 @pytest.mark.parametrize("empty", [False, True])
 def test_preview_rejected_document_namespace_does_not_block_other_legal_rows(context_runtime, empty):
     from test_cash_source_documents import document_file, document_coverage, document_row
-    rows = () if empty else (document_row(),)
-    first = document_file(document_coverage({"2": "b" * 64}), rows=rows, source="alipay")
-    second = document_file(document_coverage({"2": "f" * 64}), rows=rows, source="alipay", letter="b")
+    first_rows = () if empty else (document_row(),)
+    second_rows = () if empty else (document_row(),)
+    first = document_file(document_coverage({"2": "b" * 64}), rows=first_rows, source="alipay")
+    second = document_file(document_coverage({"2": "f" * 64}), rows=second_rows, source="alipay", letter="b")
     service, plan = _plan(context_runtime, (first, second, _file(letter="c", provider="synthetic-good")))
     assert plan["summary"]["create_posted"] == 1 and plan["summary"].get("skip", 0) == (0 if empty else 2)
     receipt = _commit(service, plan)

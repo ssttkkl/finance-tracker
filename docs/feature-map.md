@@ -2,7 +2,7 @@
 
 本文是页面级功能、业务路径、实现证据、跨端覆盖与待办的统一盘点入口。按模块查页面，再进入模块文档查看入口、主路径、分支、失败恢复和实现证据；行为合同以 [OpenSpec 主规格](../openspec/specs/README.md) 为准。
 
-> 盘点日期：2026-10-29。行为盘点基于远端 `main` 的 `849c2a69c59509e27e5a789574646a83b92a0022`。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
+> 盘点日期：2026-10-29。行为盘点基于远端 `main` 的 `8297427e4036ee35f5f4d01d85417f85ad4522e4`。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
 
 ## 产品总览
 
