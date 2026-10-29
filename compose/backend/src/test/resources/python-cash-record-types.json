@@ -1,0 +1,3834 @@
+{
+  "accounts": [
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": null
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": ""
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": " "
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "/"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "-"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "--"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "(空)"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "（空）"
+    },
+    {
+      "account": "6222****1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222****1234"
+    },
+    {
+      "account": "6222****1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222 ＊＊＊＊ 1234"
+    },
+    {
+      "account": "6222****1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222-****-1234"
+    },
+    {
+      "account": "****",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "****"
+    },
+    {
+      "account": "****1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "****1234"
+    },
+    {
+      "account": "6222000011111234",
+      "attrs": [
+        "masked",
+        "reconstructed"
+      ],
+      "digest": "015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862",
+      "payload": {
+        "a": 1
+      },
+      "reference": "6222000011111234",
+      "source": "icbc_asia",
+      "value": "6222********1234"
+    },
+    {
+      "account": "6222********1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862",
+      "payload": {
+        "a": 1
+      },
+      "reference": "6223000011111234",
+      "source": "icbc_asia",
+      "value": "6222********1234"
+    },
+    {
+      "account": "6222********1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "015abd7f5cc57a2dd94b7590f04ad8084273905ee33ec5cebeae62276a97f862",
+      "payload": {
+        "a": 1
+      },
+      "reference": "622200001111",
+      "source": "icbc_asia",
+      "value": "6222********1234"
+    },
+    {
+      "account": "6222000011111234",
+      "attrs": [
+        "masked",
+        "reconstructed"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "6222000011111234",
+      "source": "icbc_asia",
+      "value": "6222********1234"
+    },
+    {
+      "account": "6222****1234",
+      "attrs": [
+        "masked"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "6222000011111234",
+      "source": "ccb_debit",
+      "value": "6222****1234"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "123"
+    },
+    {
+      "account": "1234",
+      "attrs": [
+        "tail"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "1234"
+    },
+    {
+      "account": "12345",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "12345"
+    },
+    {
+      "account": "6222000011111234",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222 0000 1111 1234"
+    },
+    {
+      "account": "6222000011111234",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222-0000-1111-1234"
+    },
+    {
+      "account": "1234",
+      "attrs": [
+        "tail"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "尾号1234"
+    },
+    {
+      "account": "1234",
+      "attrs": [
+        "tail"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "abc",
+      "value": "abc1234xyz"
+    },
+    {
+      "account": "a@example.test",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "a@example.test"
+    },
+    {
+      "account": "支付宝账户",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "支付宝账户"
+    },
+    {
+      "account": "()",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "()"
+    },
+    {
+      "account": "（）",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "（）"
+    },
+    {
+      "account": "( )",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "( )"
+    },
+    {
+      "account": "- -",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "- -"
+    },
+    {
+      "account": "6222000011111234",
+      "attrs": [
+        "full"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "6222 0000 1111 1234"
+    },
+    {
+      "account": "",
+      "attrs": [],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": " "
+    },
+    {
+      "account": "１２３４",
+      "attrs": [
+        "tail"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "尾号１２３４"
+    },
+    {
+      "account": "１２３４",
+      "attrs": [
+        "tail"
+      ],
+      "digest": "",
+      "payload": null,
+      "reference": "",
+      "source": "",
+      "value": "１２３４"
+    }
+  ],
+  "rows": [
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "reversal",
+      "row": {
+        "_is_reversal": true,
+        "summary": "消费",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "reversal",
+      "row": {
+        "_debit_offset_type": "reversal",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "reversal",
+      "row": {
+        "summary": "冲正",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "reversal",
+      "row": {
+        "summary": "消费",
+        "txn_type": "撤销交易"
+      },
+      "source": "wechat",
+      "type": "reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "transfer_reversal",
+      "row": {
+        "amount": "-20.00",
+        "status": "已退款",
+        "summary": "转账",
+        "txn_type": "转账"
+      },
+      "source": "wechat",
+      "type": "transfer_reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "transfer_reversal",
+      "row": {
+        "_refund_signal": "x",
+        "amount": "20.00",
+        "summary": "群收款",
+        "txn_type": "群收款"
+      },
+      "source": "wechat",
+      "type": "transfer_reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "transfer_reversal",
+      "row": {
+        "amount": "20.00",
+        "note": "QQ红包",
+        "status": "退款",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "transfer_reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "transfer_reversal",
+      "row": {
+        "amount": "20.00",
+        "refund_signal": "x",
+        "summary": "转账",
+        "txn_type": "转账红包"
+      },
+      "source": "alipay",
+      "type": "transfer_reversal"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "refund",
+      "row": {
+        "_refund_signal": "x",
+        "amount": "-20.00",
+        "summary": "消费",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "refund"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "refund",
+      "row": {
+        "_debit_offset_type": "refund",
+        "summary": "消费",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "refund"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "refund",
+      "row": {
+        "summary": "退款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "refund"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "refund",
+      "row": {
+        "summary": "",
+        "txn_type": "交易退款"
+      },
+      "source": "ccb_debit",
+      "type": "refund"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "refund",
+      "row": {
+        "summary": "",
+        "txn_type": "消费-退货"
+      },
+      "source": "ccb_debit",
+      "type": "refund"
+    },
+    {
+      "record_subtype": "credit_repayment",
+      "record_type": "repayment",
+      "row": {
+        "amount": "20.00",
+        "summary": "代理收款",
+        "txn_type": "消费"
+      },
+      "source": "ccb_debit",
+      "type": "repayment"
+    },
+    {
+      "record_subtype": "credit_repayment",
+      "record_type": "repayment",
+      "row": {
+        "summary": "",
+        "txn_type": "信用借还"
+      },
+      "source": "icbc_credit",
+      "type": "repayment"
+    },
+    {
+      "record_subtype": "credit_repayment",
+      "record_type": "repayment",
+      "row": {
+        "summary": "自动还款",
+        "txn_type": ""
+      },
+      "source": "icbc_credit",
+      "type": "repayment"
+    },
+    {
+      "record_subtype": "credit_repayment",
+      "record_type": "repayment",
+      "row": {
+        "summary": "购汇还款",
+        "txn_type": ""
+      },
+      "source": "icbc_credit",
+      "type": "repayment"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "offset_type": "benefit_rebate",
+        "summary": "",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "offset_type": "campaign_cashback",
+        "summary": "",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "_debit_offset_type": "fee_reversal",
+        "summary": "手续费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "_wechat_direction": "收入",
+        "summary": "",
+        "txn_type": "零钱提现"
+      },
+      "source": "wechat",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "_wechat_direction": "收入",
+        "summary": "",
+        "txn_type": "转账"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "_wechat_direction": "收入",
+        "summary": "",
+        "txn_type": "群收款"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "_wechat_direction": "收入",
+        "summary": "",
+        "txn_type": "微信红包"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "微信红包（单发）"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "微信红包（群红包）"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "二维码收款"
+      },
+      "source": "wechat",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "购买理财通"
+      },
+      "source": "wechat",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "赎回",
+        "txn_type": "理财通"
+      },
+      "source": "wechat",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转出",
+        "txn_type": "零钱通存取"
+      },
+      "source": "wechat",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "扫二维码付款"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "二维码付款"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "充值"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "零钱充值"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "缴费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "充值缴费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "_wechat_direction": "支出",
+        "summary": "",
+        "txn_type": "零钱提现"
+      },
+      "source": "wechat",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "_wechat_direction": "支出",
+        "summary": "",
+        "txn_type": "转账"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "_wechat_direction": "支出",
+        "summary": "",
+        "txn_type": "群收款"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "_wechat_direction": "支出",
+        "summary": "",
+        "txn_type": "微信红包"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "微信红包（单发）"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "微信红包（群红包）"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "二维码收款"
+      },
+      "source": "wechat",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "购买理财通"
+      },
+      "source": "wechat",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "赎回",
+        "txn_type": "理财通"
+      },
+      "source": "wechat",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "转出",
+        "txn_type": "零钱通存取"
+      },
+      "source": "wechat",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "扫二维码付款"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "二维码付款"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "充值"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "零钱充值"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "缴费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "充值缴费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "category": "income",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "20.00",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "-20.00",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "bad",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "_alipay_direction": "收入",
+        "summary": "",
+        "txn_type": "账户存取"
+      },
+      "source": "alipay",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "账户提现"
+      },
+      "source": "alipay",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "提现-银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "提现到银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转出到银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "转账红包"
+      },
+      "source": "alipay",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "收入",
+        "summary": "收益发放",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "收入",
+        "summary": "账户结息",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "卖出",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "赎回",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "买入",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "充值缴费"
+      },
+      "source": "alipay",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "income"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "_alipay_direction": "支出",
+        "summary": "",
+        "txn_type": "账户存取"
+      },
+      "source": "alipay",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "账户提现"
+      },
+      "source": "alipay",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "提现-银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "提现到银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "转出到银行卡",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "转账红包"
+      },
+      "source": "alipay",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "支出",
+        "summary": "收益发放",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "支出",
+        "summary": "账户结息",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "卖出",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "赎回",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "买入",
+        "txn_type": "投资理财"
+      },
+      "source": "alipay",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "充值缴费"
+      },
+      "source": "alipay",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "20.00",
+        "summary": "",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "-20.00",
+        "summary": "",
+        "txn_type": "其他"
+      },
+      "source": "alipay",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "轉賬"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "轉帳"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "转账"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "转帐"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "匯款"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "",
+        "txn_type": "汇款"
+      },
+      "source": "icbc_asia",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "提現"
+      },
+      "source": "icbc_asia",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "提现"
+      },
+      "source": "icbc_asia",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "取現"
+      },
+      "source": "icbc_asia",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "",
+        "txn_type": "取现"
+      },
+      "source": "icbc_asia",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "消費",
+        "txn_type": ""
+      },
+      "source": "icbc_asia",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "消费",
+        "txn_type": ""
+      },
+      "source": "icbc_asia",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "收入",
+        "summary": "基金购买",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "基金购买",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "收入",
+        "summary": "买入基金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "买入基金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "收入",
+        "summary": "理财",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "理财",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "基金赎回",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "基金赎回",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "卖出基金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "卖出基金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "收入",
+        "summary": "利息",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "支出",
+        "summary": "利息",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "收入",
+        "summary": "结息",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "支出",
+        "summary": "结息",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "收入",
+        "summary": "利息存入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "interest",
+      "row": {
+        "direction": "支出",
+        "summary": "利息存入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "interest"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "direction": "收入",
+        "summary": "手续费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "direction": "支出",
+        "summary": "手续费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "direction": "收入",
+        "summary": "管理费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "direction": "支出",
+        "summary": "管理费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_in",
+      "row": {
+        "direction": "收入",
+        "summary": "购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_in"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "direction": "支出",
+        "summary": "购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_in",
+      "row": {
+        "direction": "收入",
+        "summary": "个人购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_in"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "direction": "支出",
+        "summary": "个人购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_in",
+      "row": {
+        "direction": "收入",
+        "summary": "预约购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_in"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "direction": "支出",
+        "summary": "预约购汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_in",
+      "row": {
+        "direction": "收入",
+        "summary": "外汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_in"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "direction": "支出",
+        "summary": "外汇",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_in",
+      "row": {
+        "direction": "收入",
+        "summary": "汇兑",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_in"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "direction": "支出",
+        "summary": "汇兑",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "收入",
+        "summary": "银转证",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "银转证",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "收入",
+        "summary": "银行转证券",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_out",
+      "row": {
+        "direction": "支出",
+        "summary": "银行转证券",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "证转银",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "证转银",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "收入",
+        "summary": "证券转银行",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "investment_in",
+      "row": {
+        "direction": "支出",
+        "summary": "证券转银行",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "investment_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "转账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转帐",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "转帐",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转账支取",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "转账支取",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "支付宝转账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "支付宝转账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "跨境汇款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "跨境汇款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "跨行汇款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "跨行汇款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "转账存入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "转账存入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "网转",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "网转",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "他行汇入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "他行汇入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "银联入账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "银联入账",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "电子汇入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "电子汇入",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "存款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "存款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "ATM存款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "ordinary_transfer",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "ATM存款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "提现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "提现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "取现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "取现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "预约取现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "预约取现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "支付机构提现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "支付机构提现",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_in",
+      "row": {
+        "direction": "收入",
+        "summary": "ATM取款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_in"
+    },
+    {
+      "record_subtype": "withdraw_to_bank",
+      "record_type": "withdrawal_out",
+      "row": {
+        "direction": "支出",
+        "summary": "ATM取款",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "withdrawal_out"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "银联消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "银联消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "有卡自助消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "有卡自助消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "无卡自助交易",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "无卡自助交易",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "无卡支付",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "无卡支付",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "跨行其他渠道消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "跨行其他渠道消费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "充值",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "充值",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "收入",
+        "summary": "缴费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "direction": "支出",
+        "summary": "缴费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "工资",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "工资",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "奖金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "奖金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "年终奖",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "年终奖",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "年度奖金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "年度奖金",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "月日约定提取",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "月日约定提取",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "机构",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "支出",
+        "summary": "机构",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "direction": "收入",
+        "summary": "其他",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "other",
+      "row": {
+        "direction": "支出",
+        "summary": "其他",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "other"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "20.00",
+        "summary": "其他",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "other",
+      "row": {
+        "amount": "-20.00",
+        "summary": "其他",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "other"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "other",
+      "row": {
+        "amount": "-20.00",
+        "summary": "其他",
+        "txn_type": ""
+      },
+      "source": "other",
+      "type": "other"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "-20.00",
+        "bill_source": "wechat",
+        "summary": "",
+        "txn_type": "商户消费"
+      },
+      "source": null,
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "-20.00",
+        "source_type": "alipay",
+        "summary": "",
+        "txn_type": "其他"
+      },
+      "source": null,
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "other",
+      "row": {
+        "amount": "-20.00",
+        "note": "柜台转账",
+        "summary": "",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "other"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "20.00",
+        "location": "利息收入",
+        "summary": "",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "acct_name_raw": "工资代发",
+        "amount": "20.00",
+        "summary": "",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "fee",
+      "row": {
+        "amount": "-20.00",
+        "summary": "跨行转账手续费",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fee"
+    },
+    {
+      "record_subtype": "currency_exchange",
+      "record_type": "fx_out",
+      "row": {
+        "amount": "-20.00",
+        "summary": "个人购汇支出",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "fx_out"
+    },
+    {
+      "record_subtype": "cross_border_remittance",
+      "record_type": "transfer_out",
+      "row": {
+        "direction": "支出",
+        "summary": "跨境汇款",
+        "txn_type": ""
+      },
+      "source": "icbc_debit",
+      "type": "transfer_out"
+    },
+    {
+      "record_subtype": "cross_border_remittance",
+      "record_type": "transfer_in",
+      "row": {
+        "direction": "收入",
+        "summary": "跨境汇款",
+        "txn_type": ""
+      },
+      "source": "icbc_debit",
+      "type": "transfer_in"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "consumption",
+      "row": {
+        "amount": "-20.00",
+        "summary": "消费 ",
+        "txn_type": "商户消费"
+      },
+      "source": "wechat",
+      "type": "consumption"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "20.00",
+        "summary": "工资 ",
+        "txn_type": ""
+      },
+      "source": "ccb_debit",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": " 20.00",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "２０",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "1_000",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "+20.00",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "1e3",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    },
+    {
+      "record_subtype": "not_applicable",
+      "record_type": "income",
+      "row": {
+        "amount": "-0.00",
+        "summary": "",
+        "txn_type": "其他类型"
+      },
+      "source": "wechat",
+      "type": "income"
+    }
+  ],
+  "validation": [
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "consumption"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "consumption"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'consumption'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "consumption"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "fee"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "fee"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'fee'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "fee"
+    },
+    {
+      "kind": "default",
+      "subtype": "currency_exchange",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "fx_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "fx_in"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'fx_in'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "fx_in"
+    },
+    {
+      "kind": "default",
+      "subtype": "currency_exchange",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "fx_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "fx_out"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'fx_out'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "fx_out"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "income"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "income"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'income'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "income"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "interest"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "interest"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'interest'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "interest"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "investment_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "investment_in"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'investment_in'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "investment_in"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "investment_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "investment_out"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'investment_out'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "investment_out"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "other"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "other"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'other'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "other"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "refund"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "refund"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'refund'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "refund"
+    },
+    {
+      "kind": "default",
+      "subtype": "credit_repayment",
+      "type": "repayment"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "repayment"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'repayment'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "repayment"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "reversal"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "reversal"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'reversal'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "reversal"
+    },
+    {
+      "kind": "default",
+      "subtype": "ordinary_transfer",
+      "type": "transfer_in"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'transfer_in'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "transfer_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "transfer_in"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'transfer_in'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "transfer_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "transfer_in"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'transfer_in'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "transfer_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "transfer_in"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'transfer_in'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "transfer_in"
+    },
+    {
+      "kind": "default",
+      "subtype": "ordinary_transfer",
+      "type": "transfer_out"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'transfer_out'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "transfer_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "transfer_out"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'transfer_out'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "transfer_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "transfer_out"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'transfer_out'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "transfer_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "transfer_out"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'transfer_out'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "transfer_out"
+    },
+    {
+      "kind": "default",
+      "subtype": "not_applicable",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "transfer_reversal"
+    },
+    {
+      "error": "record_subtype 'withdraw_to_bank' is invalid for record_type 'transfer_reversal'",
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "transfer_reversal"
+    },
+    {
+      "kind": "default",
+      "subtype": "withdraw_to_bank",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'withdrawal_in'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "withdrawal_in"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "withdrawal_in"
+    },
+    {
+      "kind": "default",
+      "subtype": "withdraw_to_bank",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'credit_repayment' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "credit_repayment",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'cross_border_remittance' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "cross_border_remittance",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'currency_exchange' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "currency_exchange",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'internal_account_transfer' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "internal_account_transfer",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'not_applicable' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "record_subtype 'ordinary_transfer' is invalid for record_type 'withdrawal_out'",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": null,
+      "kind": "subtype",
+      "subtype": "withdraw_to_bank",
+      "type": "withdrawal_out"
+    },
+    {
+      "error": "unknown record_type: unknown",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": "unknown"
+    },
+    {
+      "error": "unknown record_type: unknown",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": "unknown"
+    },
+    {
+      "error": "unknown record_type: unknown",
+      "kind": "subtype",
+      "subtype": "unknown",
+      "type": "unknown"
+    },
+    {
+      "error": "unknown record_type: unknown",
+      "kind": "subtype",
+      "subtype": null,
+      "type": "unknown"
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": ""
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": ""
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "unknown",
+      "type": ""
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": null,
+      "type": ""
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "not_applicable",
+      "type": null
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "ordinary_transfer",
+      "type": null
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": "unknown",
+      "type": null
+    },
+    {
+      "error": "unknown record_type: ",
+      "kind": "subtype",
+      "subtype": null,
+      "type": null
+    },
+    {
+      "attrs": [],
+      "error": null,
+      "kind": "account_validation",
+      "value": ""
+    },
+    {
+      "attrs": [
+        "tail"
+      ],
+      "error": "counterparty_account_attrs must be empty when account is empty",
+      "kind": "account_validation",
+      "value": ""
+    },
+    {
+      "attrs": [
+        "tail"
+      ],
+      "error": null,
+      "kind": "account_validation",
+      "value": "1234"
+    },
+    {
+      "attrs": [],
+      "error": "counterparty_account_attrs is required for a non-empty account",
+      "kind": "account_validation",
+      "value": "1234"
+    },
+    {
+      "attrs": [
+        "full"
+      ],
+      "error": "counterparty_account_attrs full conflicts with account value",
+      "kind": "account_validation",
+      "value": "1234"
+    },
+    {
+      "attrs": [
+        "masked"
+      ],
+      "error": "counterparty_account_attrs masked requires an explicit mask",
+      "kind": "account_validation",
+      "value": "1234"
+    },
+    {
+      "attrs": [
+        "masked",
+        "reconstructed"
+      ],
+      "error": "counterparty_account_attrs reconstructed requires a full numeric value",
+      "kind": "account_validation",
+      "value": "1234"
+    },
+    {
+      "attrs": [
+        "masked"
+      ],
+      "error": null,
+      "kind": "account_validation",
+      "value": "6222****1234"
+    },
+    {
+      "attrs": [
+        "masked",
+        "reconstructed"
+      ],
+      "error": null,
+      "kind": "account_validation",
+      "value": "6222000011111234"
+    },
+    {
+      "attrs": [
+        "full"
+      ],
+      "error": null,
+      "kind": "account_validation",
+      "value": "6222000011111234"
+    },
+    {
+      "attrs": [
+        "full"
+      ],
+      "error": null,
+      "kind": "account_validation",
+      "value": "abc"
+    },
+    {
+      "attrs": [
+        "tail"
+      ],
+      "error": "counterparty_account_attrs tail requires exactly four digits",
+      "kind": "account_validation",
+      "value": "abc"
+    },
+    {
+      "attrs": null,
+      "error": "counterparty_account_attrs must be a JSON array",
+      "kind": "account_validation",
+      "value": ""
+    },
+    {
+      "attrs": [
+        "bad"
+      ],
+      "error": "counterparty_account_attrs has an invalid combination",
+      "kind": "account_validation",
+      "value": ""
+    },
+    {
+      "attrs": [
+        "tail",
+        "full"
+      ],
+      "error": "counterparty_account_attrs has an invalid combination",
+      "kind": "account_validation",
+      "value": ""
+    }
+  ]
+}
