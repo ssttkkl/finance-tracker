@@ -89,10 +89,6 @@ class CashImportTaskViewModel(
         }
     }
 
-    fun setSourceScope(fileRef: String, label: String?) = changeFile { context ->
-        repository.setSourceScope(context.sessionId, fileRef, context.revision ?: invalidTask(), label)
-    }
-
     fun removeFile(fileRef: String) = changeFile { context ->
         repository.removeFile(context.sessionId, fileRef, context.revision ?: invalidTask())
     }
@@ -111,6 +107,7 @@ class CashImportTaskViewModel(
     fun showPreparation() { if (state.value.canEdit) mutableState.value = state.value.copy(phase = ImportTaskPhase.PREPARE) }
 
     fun selectAccount(sourceRef: String, target: ImportAccountTarget) = edit { it.selectAccount(sourceRef, target) }
+    fun setMergeSameNameAcrossChannels(enabled: Boolean) = edit { it.setMergeSameNameAcrossChannels(enabled) }
     fun selectReviewFilter(value: String) = edit { it.changeFilter(value) }
     fun editRow(choice: ImportRecordChoice) = edit { it.editRow(choice) }
     fun editEntry(choice: ImportEntryChoice) = edit { it.editEntry(choice) }

@@ -48,7 +48,7 @@ async function setup(page: Page, unknown = false, unexpected = false, uploadDela
     display: { ...display, counterparty: "正常商户" }, statistics_eligible: true, member_refs: [{ row_ref: "row-confirmed" }],
     attention_reasons: [] as Array<Record<string, unknown>> };
   const context = { session_id: session, session_revision: 1, expires_at: "2099-01-01T00:00:00Z", state: "open",
-    files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay", source_scope_label: null,
+    files: [{ file_ref: "file", client_file_ref: "client", display_name: "synthetic.csv", source_type: "alipay",
       status: "ready", recognized_row_count: 2, issues: [] as Array<Record<string, unknown>>, can_retry: false }], source_accounts: [] as Array<Record<string, unknown>>, last_choices: null, last_plan_id: null,
     can_preview: true, receipt_id: null };
   const plan = { plan_id: planId, session_id: session, session_revision: 2, expires_at: context.expires_at,
@@ -483,10 +483,11 @@ test("file parsing shows row progress and removes a file immediately from the ri
   await expect(page.getByText("移除“synthetic.csv”？", { exact: true })).toHaveCount(0);
 });
 
-test("password-required file does not repeat the password instruction below its status", async ({ page }) => {
+test("password-required file does not repeat the password instruction below its status", async ({ page }, info) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);
   calls.context.files[0].status = "password_required";
+  calls.context.files[0].can_retry = true;
   calls.context.files[0].issues = [{ code: "password_required", message: "请填写账单密码并重新选择文件",
     blocking_scope: "file", next_action: "reselect_file" }];
 
@@ -495,8 +496,61 @@ test("password-required file does not repeat the password instruction below its 
   await expect(file).toContainText("需要文件密码");
   await expect(file).not.toContainText("请填写账单密码并重新选择文件");
   await expect(file.getByRole("textbox")).toHaveCount(1);
+  const submit = page.locator('[id="cash.import.retry-file"]:visible');
+  await expect(submit).toHaveText("提交");
+  await page.screenshot({ path: info.outputPath("password-submit-with-forward-arrow.png") });
 });
 
+test("cash import account choices are grouped by channel and account and expose the cross-channel merge switch", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push(
+    { source_account_ref: "alipay-wallet-a", source_type: "alipay", session_group_ref: "alipay-account-a",
+      session_label: "a***@example.test", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "alipay-reserve-a", source_type: "alipay", session_group_ref: "alipay-account-a",
+      session_label: "a***@example.test", display_name: "余额宝", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "alipay-wallet-b", source_type: "alipay", session_group_ref: "alipay-account-b",
+      session_label: "b***@example.test", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "wechat-nickname-a", source_type: "wechat", session_group_ref: "wechat-nickname-a",
+      session_label: "昵称甲", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+    { source_account_ref: "wechat-nickname-b", source_type: "wechat", session_group_ref: "wechat-nickname-b",
+      session_label: "昵称乙", display_name: "零钱", currencies: ["CNY"], row_count: 1,
+      suggestion: { basis: "none" }, selection: null },
+  );
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
+  await expect(mapping).toContainText("支付宝 - a***@example.test");
+  await expect(mapping).toContainText("支付宝 - b***@example.test");
+  await expect(mapping).toContainText("微信 - 昵称甲");
+  await expect(mapping).toContainText("微信 - 昵称乙");
+  const alipayA = page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible');
+  const alipayB = page.locator('[id="cash.import.account-session-group-alipay-account-b"]:visible');
+  const wechatA = page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible');
+  const wechatB = page.locator('[id="cash.import.account-session-group-wechat-nickname-b"]:visible');
+  const merge = page.locator('[id="cash.import.merge-same-name"]:visible');
+  await page.screenshot({ path: info.outputPath("account-choices-grouped-by-channel-and-account.png") });
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
+  await clickLocator(page, merge);
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已关闭");
+  await page.screenshot({ path: info.outputPath("account-choices-merge-disabled.png") });
+  await clickLocator(page, merge);
+  await expect(merge).toHaveAttribute("aria-label", "合并不同渠道的同名账户，已开启");
+  await expect(alipayA).toContainText("零钱");
+  await expect(alipayA).toContainText("余额宝");
+  await expect(alipayB).toContainText("零钱");
+  // The last account groups are below the compact viewport; scroll them into
+  // view before asserting their rendered semantics.
+  await page.mouse.move(180, 700);
+  await page.mouse.wheel(0, 900);
+  await expect(wechatA).toContainText("零钱");
+  await expect(wechatB).toContainText("零钱");
+  await page.screenshot({ path: info.outputPath("account-choices-bottom-account-groups.png") });
+});
 test("file retry input error does not claim review choices are invalid", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);

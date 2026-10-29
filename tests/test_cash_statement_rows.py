@@ -104,11 +104,17 @@ def test_platform_channel_converters_clean_only_supported_bank_account_labels(so
     assert row.fields["source_payload"][field] == raw
 
 
-@pytest.mark.parametrize("source,field", [("alipay", "交易订单号"), ("wechat", "交易单号")])
-def test_merchant_order_number_is_not_used_as_reliable_provider_identity(source, field):
-    parsed = _convert(_document(_payload(source, **{field: ""}), _payload(source, **{field: "000123"}), source=source))
+def test_alipay_blank_transaction_id_remains_without_reliable_provider_identity():
+    parsed = _convert(_document(_payload("alipay", **{"交易订单号": ""}), _payload("alipay", **{"交易订单号": "000123"}), source="alipay"))
     assert parsed.rows[0].provider_id is None
     assert parsed.rows[1].provider_id == "000123"
+
+
+@pytest.mark.parametrize("identifier", ["", " ", "/", "--"])
+def test_wechat_transaction_id_is_required_for_every_statement_row(identifier):
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    with pytest.raises(StatementDocumentError, match="statement_unreadable"):
+        _convert(_document(_payload("wechat", **{"交易单号": identifier}), source="wechat"))
 
 
 @pytest.mark.parametrize("source", ["alipay", "wechat"])

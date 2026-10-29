@@ -23,14 +23,15 @@ data class ImportIssue(
 )
 data class ImportContextFile(
     val fileRef: String, val clientFileRef: String, val displayName: String,
-    val sourceType: String?, val sourceScopeLabel: String?, val status: String,
+    val sourceType: String?, val status: String,
     val recognizedRowCount: Int?, val issues: List<ImportIssue>, val canRetry: Boolean,
     val diagnostic: ImportDiagnostic? = null,
 )
 data class ImportSourceAccount(
     val sourceAccountRef: String, val sourceType: String, val displayName: String,
     val currencies: List<String>, val rowCount: Int, val suggestion: ImportAccountTarget?,
-    val suggestionBasis: String, val selection: ImportAccountTarget?,
+    val suggestionBasis: String, val selection: ImportAccountTarget?, val sessionLabel: String? = null,
+    val sessionGroupRef: String? = null,
 )
 data class ImportContext(
     val sessionId: String, val revision: Long?, val expiresAt: String?, val state: String,
@@ -41,9 +42,8 @@ data class ImportContext(
 // 密码和平台文件句柄仅留在本次任务内存，不参与默认 data class 诊断输出。
 class ImportUpload(
     val clientFileRef: String, val file: FileSource, val password: String? = null,
-    val sourceHint: String? = null, val sourceScope: ImportSourceScope? = null,
+    val sourceHint: String? = null,
 )
-data class ImportSourceScope(val label: String?)
 data class ImportLocalFileFailure(val clientFileRef: String, val code: String)
 data class ImportUploadInterruption(val code: String, val status: Int, val receiptId: String?, val unprocessedFileRefs: List<String>, val diagnostic: ImportDiagnostic? = null)
 data class ImportUploadBatch(val context: ImportContext?, val localFailures: List<ImportLocalFileFailure>, val interruption: ImportUploadInterruption?)
@@ -133,7 +133,6 @@ data class ImportResolveResult(val status: String, val receipt: ImportReceipt?)
 interface CashImportLifecycleRepository {
     suspend fun upload(files: List<ImportUpload>, context: ImportContext? = null, replacingFileRef: String? = null, onContext: suspend (ImportContext) -> Unit = {}): ImportUploadBatch
     suspend fun context(sessionId: String): ImportContext
-    suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext
     suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext
     suspend fun cancel(sessionId: String): ImportContext
     suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan

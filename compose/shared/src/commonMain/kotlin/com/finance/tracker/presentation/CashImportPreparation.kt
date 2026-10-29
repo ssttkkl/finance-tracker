@@ -5,6 +5,7 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
@@ -25,6 +27,7 @@ import com.finance.tracker.domain.*
 import com.finance.tracker.core.LocalFinanceColorRoles
 import com.finance.tracker.resources.Res
 import com.finance.tracker.resources.ic_add
+import com.finance.tracker.resources.ic_arrow_forward
 import com.finance.tracker.resources.ic_close
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -47,10 +50,9 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
     fileNames: Map<String, String>, pendingFiles: List<CashImportPendingFile>, removingClientFileRefs: Set<String>,
     onPendingFinished: (String) -> Unit, onRemovePending: (String) -> Unit,
     onPick: (String?) -> Unit, onRetry: (ImportContextFile, String) -> Unit,
-    onRemove: (String) -> Unit, onScope: (String, String?) -> Unit, onSelectAccount: (String, String?) -> Unit,
+    onRemove: (String) -> Unit, onSelectAccount: (String, String?) -> Unit,
+    onMergeSameNameAcrossChannels: (Boolean) -> Unit,
     onCreateAccount: (ImportSourceAccount) -> Unit, onResolveAccounts: () -> Unit, mappingStep: Boolean, modifier: Modifier = Modifier) {
-    var scopeFile by remember { mutableStateOf<ImportContextFile?>(null) }
-    var scopeLabel by remember { mutableStateOf("") }
     val busy = !state.canEdit || accountState.busy
     Column(modifier.verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -95,9 +97,14 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
                                     modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().testTag("cash.import.password-${file.fileRef}"))
                                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
                                     verticalArrangement = Arrangement.Center, itemVerticalAlignment = Alignment.CenterVertically) {
-                                    if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy) { Text(localizedText("copy_e2d53a6d3a")) }
-                                    if (file.sourceType == "wechat") TextButton(onClick = { scopeFile = file; scopeLabel = file.sourceScopeLabel.orEmpty() }, enabled = !busy) {
-                                        Text(localizedText("cash_import_source_settings"))
+                                    if (file.canRetry) TextButton(onClick = { onRetry(file, password); password = "" }, enabled = !busy,
+                                        modifier = Modifier.testTag("cash.import.retry-${file.fileRef}")) {
+                                        if (file.status == "password_required") {
+                                            Icon(painterResource(Res.drawable.ic_arrow_forward), contentDescription = null,
+                                                modifier = Modifier.size(ButtonDefaults.IconSize))
+                                            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+                                            Text(localizedText("cash_import_password_submit"))
+                                        } else Text(localizedText("copy_e2d53a6d3a"))
                                     }
                                     RemoveCashImportFileButton(file.displayName, enabled = !busy,
                                         tag = "cash.import.remove-file-${file.fileRef}", onClick = { onRemove(file.fileRef) })
@@ -126,25 +133,53 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
         if (mappingStep) {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.mapping-step")) {
                 CashImportPreparationHeading(localizedText("cash_import_accounts_heading")) {}
-                state.context?.sourceAccounts.orEmpty().forEach { group ->
-                    val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
-                    Column(Modifier.fillMaxWidth().padding(vertical = 16.dp).testTag("cash.import.account-group-${group.sourceAccountRef}"),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(group.displayName, style = MaterialTheme.typography.titleMedium)
-                        Text(localizedText("cash_import_source_rows", group.rowCount.toString(), group.currencies.joinToString(" / ")),
-                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
-                            accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == target?.accountId }
-                                .map { it.id to it.name } +
-                            listOf(CashImportCreateAccountOption to localizedText("cash_import_create_account_option"))
-                        ChoicePicker(localizedText("cash_import_target_account"), target?.accountId.orEmpty(), accountOptions,
-                            { selected ->
-                                if (selected == CashImportCreateAccountOption) onCreateAccount(group)
-                                else onSelectAccount(group.sourceAccountRef, selected.takeIf(String::isNotEmpty))
-                            }, enabled = !busy && accountState.ready,
-                            semanticId = "cash.import.account-${group.sourceAccountRef}")
+                val mergeSameNameLabel = localizedText("cash_import_merge_same_name")
+                val mergeSameNameStateLabel = localizedText(if (state.mergeSameNameAcrossChannels)
+                    "cash_import_merge_same_name_on" else "cash_import_merge_same_name_off")
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("cash.import.merge-same-name")
+                    .toggleable(value = state.mergeSameNameAcrossChannels, enabled = !busy, role = Role.Switch,
+                        onValueChange = onMergeSameNameAcrossChannels)
+                    .semantics { contentDescription = "$mergeSameNameLabel，$mergeSameNameStateLabel" },
+                    horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(mergeSameNameLabel, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Switch(state.mergeSameNameAcrossChannels, onCheckedChange = null, enabled = !busy)
+                }
+                val sourceAccounts = state.context?.sourceAccounts.orEmpty()
+                sourceAccounts.groupBy { group ->
+                    group.sessionGroupRef?.takeIf { group.sessionLabel != null }?.let { "account::${group.sourceType}::$it" }
+                        ?: "channel::${group.sourceType}"
+                }.values.forEach { groups ->
+                    val firstGroup = groups.first()
+                    val hasAccountHeader = firstGroup.sessionGroupRef != null && firstGroup.sessionLabel != null
+                    val heading = if (hasAccountHeader) {
+                        "${cashImportAccountGroupChannelLabel(firstGroup.sourceType)} - ${firstGroup.sessionLabel}"
+                    } else cashImportSourceChannelLabel(firstGroup.sourceType)
+                    val sectionModifier = Modifier.fillMaxWidth().then(
+                        if (hasAccountHeader) Modifier.testTag("cash.import.account-session-group-${firstGroup.sessionGroupRef}") else Modifier)
+                    Column(sectionModifier) {
+                        Text(heading, Modifier.padding(top = 12.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium)
+                        groups.forEachIndexed { index, group ->
+                            val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
+                            Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cash.import.account-group-${group.sourceAccountRef}"),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(if (hasAccountHeader) group.displayName else group.sessionLabel?.let { "$it · ${group.displayName}" } ?: group.displayName,
+                                    style = MaterialTheme.typography.titleSmall)
+                                Text(localizedText("cash_import_source_rows", group.rowCount.toString(), group.currencies.joinToString(" / ")),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                val accountOptions = listOf("" to localizedText("cash_import_no_account")) +
+                                    accountState.accounts.filter { (it.active && it.type in setOf("cash", "loan", "lend")) || it.id == target?.accountId }
+                                        .map { it.id to it.name } +
+                                    listOf(CashImportCreateAccountOption to localizedText("cash_import_create_account_option"))
+                                ChoicePicker(localizedText("cash_import_target_account"), target?.accountId.orEmpty(), accountOptions,
+                                    { selected ->
+                                        if (selected == CashImportCreateAccountOption) onCreateAccount(group)
+                                        else onSelectAccount(group.sourceAccountRef, selected.takeIf(String::isNotEmpty))
+                                    }, enabled = !busy && accountState.ready,
+                                    semanticId = "cash.import.account-${group.sourceAccountRef}")
+                            }
+                            if (!hasAccountHeader || index == groups.lastIndex) HorizontalDivider()
+                        }
                     }
-                    HorizontalDivider()
                 }
             }
         }
@@ -158,11 +193,24 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
         }
         accountState.errorCode?.let { Text(cashImportTaskErrorText(it), Modifier.widthIn(max = 720.dp).fillMaxWidth(), color = MaterialTheme.colorScheme.error) }
     }
-    scopeFile?.let { file -> AlertDialog(onDismissRequest = { scopeFile = null }, title = { Text(localizedText("cash_import_source_settings")) },
-        text = { OutlinedTextField(scopeLabel, { scopeLabel = it }, label = { Text(localizedText("cash_import_source_name")) },
-            placeholder = { Text(localizedText("cash_import_default_source")) }, singleLine = true, isError = scopeLabel.length > 64) },
-        confirmButton = { TextButton(onClick = { scopeFile = null; onScope(file.fileRef, scopeLabel.takeIf(String::isNotBlank)) }, enabled = !busy && scopeLabel.length <= 64) { Text(localizedText("copy_fadf24dbc5")) } },
-        dismissButton = { TextButton(onClick = { scopeFile = null }) { Text(localizedText("copy_4d0b4688c7")) } }) }
+}
+
+@Composable
+private fun cashImportSourceChannelLabel(sourceType: String): String = when (sourceType.lowercase()) {
+    "alipay" -> localizedText("cash_source_alipay")
+    "wechat", "wechatpay", "wechat_pay" -> localizedText("cash_source_wechat")
+    "bank" -> localizedText("cash_source_bank")
+    "icbc_asia" -> localizedText("cash_source_icbc_asia")
+    "icbc_credit" -> localizedText("cash_source_icbc_credit")
+    "icbc_debit" -> localizedText("cash_import_channel_icbc_debit")
+    "ccb_debit" -> localizedText("cash_import_channel_ccb_debit")
+    else -> localizedText("cash_source_imported")
+}
+
+@Composable
+private fun cashImportAccountGroupChannelLabel(sourceType: String): String = when (sourceType.lowercase()) {
+    "wechat", "wechatpay", "wechat_pay" -> localizedText("cash_import_account_group_wechat")
+    else -> cashImportSourceChannelLabel(sourceType)
 }
 
 @Composable

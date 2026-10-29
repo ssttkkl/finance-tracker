@@ -9,7 +9,7 @@ from ft.application.parsed_import_staging import ParsedImportFile
 from ft.domain.cash_source_matching import SourceCoverage
 
 
-def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", label=None, ref="a", issues=(), product=""):
+def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="-30", owner="owner", nickname="微信昵称", ref="a", issues=(), product=""):
     display_names = {"icbc_credit": "工商银行信用卡", "icbc_debit": "工商银行借记卡",
         "ccb_debit": "建设银行", "icbc_asia": "工银亚洲"}
     rows = tuple(ParsedCashRow(index, {"amount": amount, "currency": "CNY", "occurred_at": "2026-10-01T10:00:00+00:00",
@@ -17,8 +17,9 @@ def _file(source="alipay", methods=("招商银行储蓄卡(1234)",), *, amount="
         "source_payload": {"付款方式": method, "商品说明": product}}, method, issue_codes=issues,
         source_explanation={"source_display_name": display_names[source] + (f"({owner[-4:]})" if source in display_names and owner else "")}
             if source in display_names else {}) for index, method in enumerate(methods, 1))
-    document = ParsedCashDocument(source, "table", "native-v1", rows, owner, owner, SourceCoverage(), len(rows), len(rows))
-    return ParsedImportFile(ref, ref, "fixture.csv", ref * 64, 100, source, "parsed", document, source_scope_label=label)
+    document = ParsedCashDocument(source, "table", "native-v1", rows, owner, owner, SourceCoverage(), len(rows), len(rows),
+        source_nickname=nickname if source == "wechat" else None)
+    return ParsedImportFile(ref, ref, "fixture.csv", ref * 64, 100, source, "parsed", document)
 
 
 def _scan(*files):
@@ -207,12 +208,46 @@ def test_new_account_revision_revalidates_current_eligibility_without_reselectio
     assert row.ready and row.fields["account_id"] == "1" and not row.issue_codes
 
 
-def test_wechat_default_scope_reuses_groups_but_named_sources_are_isolated():
-    files = [_file("wechat", ("零钱",), owner=None, ref="a"), _file("wechat", ("零钱",), owner="nickname", ref="b"),
-             _file("wechat", ("零钱",), owner=None, label="工作", ref="c")]
+@pytest.mark.parametrize(("owner", "expected"), [
+    ("alice@example.test", "a***@example.test"),
+    ("13812345678", "尾号 5678"),
+])
+def test_alipay_session_group_label_masks_source_account(owner, expected):
+    group, = _scan(_file("alipay", ("支付宝余额",), owner=owner)).groups
+    assert group.session_label == expected
+    assert owner not in group.session_label
+
+
+def test_alipay_without_source_account_uses_file_label():
+    group, = _scan(_file("alipay", ("支付宝余额",), owner=None, ref="no-owner")).groups
+    assert group.session_label == "fixture.csv"
+
+def test_wechat_same_nickname_groups_same_funding_method_within_session():
+    files = [_file("wechat", ("零钱",), owner=None, nickname="同一昵称", ref="a"),
+             _file("wechat", ("零钱",), owner="masked", nickname="同一昵称", ref="b")]
     scan = _scan(*files)
+    assert len(scan.groups) == 1
+    assert scan.rows[0].group_refs == scan.rows[1].group_refs
+    assert scan.groups[0].session_label == "同一昵称" and scan.groups[0].display_name == "微信零钱"
+    assert len(scan.groups[0].row_refs) == 2
+
+
+def test_wechat_different_nicknames_keep_same_funding_method_separate():
+    scan = _scan(_file("wechat", ("零钱",), nickname="账号甲", ref="a"),
+        _file("wechat", ("零钱",), nickname="账号乙", ref="b"))
     assert len(scan.groups) == 2
-    assert scan.rows[0].group_refs == scan.rows[1].group_refs != scan.rows[2].group_refs
+    assert scan.groups[0].display_name == scan.groups[1].display_name == "微信零钱"
+    assert scan.groups[0].session_label != scan.groups[1].session_label
+    assert scan.rows[0].group_refs != scan.rows[1].group_refs
+
+
+def test_wechat_without_nickname_groups_by_file_and_labels_group_with_filename():
+    first = _file("wechat", ("零钱",), nickname=None, ref="a")
+    second = _file("wechat", ("零钱",), nickname=None, ref="b")
+    scan = _scan(first, second)
+    assert len(scan.groups) == 2
+    assert {group.session_label for group in scan.groups} == {"fixture.csv"}
+    assert scan.rows[0].group_refs != scan.rows[1].group_refs
 
 
 def test_bank_uses_complete_owner_and_never_collapses_identical_card_tails():

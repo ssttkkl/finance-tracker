@@ -9,7 +9,7 @@ from datetime import datetime
 import re
 from typing import Any
 
-from ft.adapters.cash_statement_document import CashStatementDocument
+from ft.adapters.cash_statement_document import CashStatementDocument, StatementDocumentError
 from ft.adapters.cash_statement_evidence import extract_source_explanation
 from ft.adapters.cash_statement_effects import cash_source_note, derive_cash_source_explanation
 from ft.domain.cash_record_policy import source_note
@@ -44,6 +44,7 @@ class ParsedCashDocument:
     coverage: SourceCoverage
     declared_count: int | None
     observed_count: int
+    source_nickname: str | None = None
 
 
 def _normalize_row(payload, source, position):
@@ -169,7 +170,13 @@ def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDo
         try:
             with cash_diagnostic_scope("row_conversion", [{"row_number": row.position,
                     "position_kind": position_kind(document.table_key), "document_position": row.document_position}], scope="row"):
+                if document.source_type == "wechat":
+                    transaction_id = row.payload.get("交易单号", "").strip()
+                    if transaction_id in {"", "/", "-", "--"} or len(transaction_id) > 512:
+                        raise StatementDocumentError("statement_unreadable")
                 rows.append(_normalize_row(row.payload, document.source_type, row.position))
+        except StatementDocumentError:
+            raise
         except (ValueError, TypeError, ArithmeticError):
             # 可识别的源字段错误按行处理；内部异常交给文件解析边界。
             rows.append(ParsedCashRow(row.position, None, error_code="row_unreadable", disposition="skipped"))
@@ -178,7 +185,7 @@ def normalize_platform_document(document: CashStatementDocument) -> ParsedCashDo
     return ParsedCashDocument(
         document.source_type, document.table_key, document.parser_version + "+native-v1", tuple(rows),
         document.source_account_identifier, document.source_account_label, coverage,
-        document.declared_count, document.observed_count,
+        document.declared_count, document.observed_count, document.source_nickname,
     )
 
 

@@ -38,8 +38,6 @@ def _change(service, current, action, *, affected=False):
         return service.add_files(current.session_id, (_upload("added-one"),), expected_revision=current.revision)
     if action == "replace":
         return service.replace_file(current.session_id, target, _upload("replacement"), expected_revision=current.revision)
-    if action == "scope":
-        return service.set_file_source_scope(current.session_id, "file_c", "另一个来源", expected_revision=current.revision)
     if action == "remove":
         return service.remove_file(current.session_id, target, expected_revision=current.revision)
     added = service.add_files(current.session_id, (_upload("added-two"),), expected_revision=current.revision)
@@ -47,7 +45,7 @@ def _change(service, current, action, *, affected=False):
 
 
 @pytest.mark.parametrize("choice_action", ["defer", "ignore"])
-@pytest.mark.parametrize("file_action", ["add", "replace", "scope", "remove", "continuous"])
+@pytest.mark.parametrize("file_action", ["add", "replace", "remove", "continuous"])
 def test_unaffected_choice_and_unidentified_record_ids_survive_file_changes(context_runtime, file_action, choice_action):
     service, current, old_plan, choice, record_ids = _chosen(context_runtime, choice_action)
     changed = _change(service, current, file_action)

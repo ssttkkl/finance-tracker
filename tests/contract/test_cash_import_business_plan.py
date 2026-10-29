@@ -118,19 +118,18 @@ def test_frozen_preview_stores_member_values_once_and_restores_only_requested_de
     assert again["members"][0]["fields"]["source_payload"]["synthetic"] == evidence
 
 
-@pytest.mark.parametrize("same_scope", [True, False])
 @pytest.mark.parametrize("stored", [True, False])
-def test_wechat_refund_number_evidence_keeps_source_scope_even_inside_candidate_window(draft_runtime, same_scope, stored):
+def test_wechat_refund_number_evidence_is_global_across_session_nicknames(draft_runtime, stored):
     file = _file(provider="wechat-order")
-    expense = replace(file, source_type="wechat", source_scope_label="来源甲",
+    expense = replace(file, source_type="wechat",
         document=replace(file.document, source_type="wechat", rows=(replace(file.document.rows[0],
-            source_explanation={"txn_id": "wechat-order", "merchant_order_id": "merchant-key"}),)))
+            source_explanation={"txn_id": "wechat-order", "merchant_order_id": "merchant-key"}),), source_nickname="昵称甲"))
     file = _file(letter="b", amount="5", provider="merchant-key")
     row = file.document.rows[0]
-    refund = replace(file, source_type="wechat", source_scope_label="来源甲" if same_scope else "来源乙",
+    refund = replace(file, source_type="wechat",
         document=replace(file.document, source_type="wechat", rows=(replace(row,
             fields={**row.fields, "record_type": "refund"}, source_explanation={"txn_id": "merchant-key",
-                "txn_type": "商户消费-退款", "status": "退款成功", "direction": "收入"}),)))
+                "txn_type": "商户消费-退款", "status": "退款成功", "direction": "收入"}),), source_nickname="昵称乙"))
     if stored:
         with draft_runtime.sessions.begin() as session:
             _bind_existing(session, draft_runtime, expense)
@@ -138,11 +137,8 @@ def test_wechat_refund_number_evidence_keeps_source_scope_even_inside_candidate_
     with draft_runtime.sessions() as session:
         plan = _build(session, draft_runtime, (refund,) if stored else (expense, refund))
     accepted = [group for group in plan["relation_groups"] if group["action"] == "accept"]
-    assert bool(accepted) is same_scope
-    if same_scope:
-        assert len(plan["items"]) == 1 and Decimal(plan["items"][0]["display"]["amount"]) == Decimal("-7.5")
-    else:
-        assert all(len(item["member_refs"]) == 1 for item in plan["items"])
+    assert accepted
+    assert len(plan["items"]) == 1 and Decimal(plan["items"][0]["display"]["amount"]) == Decimal("-7.5")
 
 
 @pytest.mark.parametrize("same_counterparty", [True, False])

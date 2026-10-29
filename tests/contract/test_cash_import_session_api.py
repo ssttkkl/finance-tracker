@@ -165,8 +165,53 @@ def test_bad_upload_protocol_is_safe_and_closes_files(context_runtime, monkeypat
     assert all(file.closed for file in opened)
 
 
-def test_file_scope_and_remove_use_session_cas_and_keep_ttl(context_runtime, monkeypatch):
-    document = replace(_document(), source_type="wechat", source_account_identifier=None)
+def test_alipay_account_group_reference_is_session_scoped_and_label_is_masked(context_runtime, monkeypatch):
+    original = _document()
+    def document(owner, method):
+        row = original.rows[0]
+        return replace(original, source_account_identifier=owner, source_account_label=owner,
+            rows=(replace(row, payment_method=method),))
+    docs = {
+        "client-a": document("alice@example.test", "支付宝余额"),
+        "client-b": document("alice@example.test", "余额宝"),
+        "client-c": document("bob@example.test", "支付宝余额"),
+    }
+    client, _ = _client(context_runtime, monkeypatch, parser=lambda upload: docs[upload.client_file_ref])
+    metadata = {"files": [{"client_file_ref": key} for key in docs]}
+    files = [(f"file:{key}", (f"{key}.csv", key.encode(), "text/csv")) for key in docs]
+    first = _upload(client, metadata=metadata, files=files)
+    assert first.status_code == 201
+    view = first.json()
+    assert len(view["source_accounts"]) == 3
+    alice_wallet = next(item for item in view["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "支付宝余额")
+    alice_reserve = next(item for item in view["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "余额宝")
+    bob_wallet = next(item for item in view["source_accounts"] if item["session_label"] == "b***@example.test" and item["display_name"] == "支付宝余额")
+    assert alice_wallet["session_group_ref"] == alice_reserve["session_group_ref"]
+    assert alice_wallet["session_group_ref"] != bob_wallet["session_group_ref"]
+    assert "alice@example.test" not in first.text and "bob@example.test" not in first.text
+
+    second = _upload(client, metadata=metadata, files=files)
+    assert second.status_code == 201
+    second_wallet = next(item for item in second.json()["source_accounts"] if item["session_label"] == "a***@example.test" and item["display_name"] == "支付宝余额")
+    assert second_wallet["session_group_ref"] != alice_wallet["session_group_ref"]
+
+
+def test_alipay_missing_identity_keeps_each_file_group_separate(context_runtime, monkeypatch):
+    original = _document()
+    row = original.rows[0]
+    document = replace(original, source_account_identifier=None, source_account_label=None,
+        rows=(replace(row, payment_method="支付宝余额"),))
+    client, _ = _client(context_runtime, monkeypatch, parser=lambda _upload: document)
+    response = _upload(client, metadata={"files": [{"client_file_ref": "client-a"}, {"client_file_ref": "client-b"}]},
+        files=[("file:client-a", ("one.csv", b"one", "text/csv")),
+               ("file:client-b", ("two.csv", b"two", "text/csv"))])
+    assert response.status_code == 201
+    accounts = response.json()["source_accounts"]
+    assert {item["session_label"] for item in accounts} == {"one.csv", "two.csv"}
+    assert len({item["session_group_ref"] for item in accounts}) == 2
+
+def test_wechat_nickname_is_session_only_and_file_scope_route_is_removed(context_runtime, monkeypatch):
+    document = replace(_document(), source_type="wechat", source_account_identifier=None, source_account_label="昵称甲", source_nickname="昵称甲")
     calls = []
     def parser(_upload):
         calls.append(1)
@@ -175,26 +220,22 @@ def test_file_scope_and_remove_use_session_cas_and_keep_ttl(context_runtime, mon
     view = _upload(client).json()
     path = "/api/v1/cash-import/sessions/" + view["session_id"]
     file_path = path + "/files/" + view["files"][0]["file_ref"]
-    changed = client.patch(file_path, json={"expected_session_revision": 1, "source_scope_label": "另一来源"})
-    assert changed.status_code == 200 and changed.json()["session_revision"] == 2
-    assert changed.json()["expires_at"] == view["expires_at"] and calls == [1]
-    assert changed.json()["files"][0]["source_scope_label"] == "另一来源"
-    assert client.delete(file_path, headers={"If-Match": "1"}).status_code == 409
-    assert client.delete(file_path, headers={"If-Match": '"2"'}).status_code == 200
+    assert "source_scope_label" not in view["files"][0]
+    assert view["source_accounts"][0]["session_label"] == "昵称甲"
+    assert client.patch(file_path, json={"expected_session_revision": 1, "source_scope_label": "另一来源"}).status_code == 405
+    assert calls == [1]
+    assert client.delete(file_path, headers={"If-Match": '"1"'}).status_code == 200
     empty = client.get(path).json()
     assert empty["files"] == [] and empty["source_accounts"] == [] and empty["can_preview"] is False
     assert client.delete(path).status_code == 200
     assert client.get(path).json()["state"] == "cancelled"
 
 
-def test_explicit_null_scope_on_reupload_returns_to_default(context_runtime, monkeypatch):
+def test_upload_rejects_removed_source_scope_metadata(context_runtime, monkeypatch):
     document = replace(_document(), source_type="wechat", source_account_identifier=None)
     client, _ = _client(context_runtime, monkeypatch, parser=lambda _upload: document)
-    view = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "source_scope_label": "另一来源"}]}).json()
-    result = _upload(client, path="/api/v1/cash-import/sessions/" + view["session_id"] + "/files",
-        metadata={"expected_session_revision": 1, "file_ref": view["files"][0]["file_ref"],
-            "files": [{"client_file_ref": "client-a", "source_scope_label": None}]})
-    assert result.status_code == 200 and result.json()["files"][0]["source_scope_label"] is None
+    result = _upload(client, metadata={"files": [{"client_file_ref": "client-a", "source_scope_label": "另一来源"}]})
+    assert result.status_code == 422 and result.json()["error"]["code"] == "import_payload_invalid"
 
 
 def test_viewer_is_rejected_before_upload_files_are_opened(context_runtime, monkeypatch):

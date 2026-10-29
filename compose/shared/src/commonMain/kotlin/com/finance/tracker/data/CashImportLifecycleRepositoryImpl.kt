@@ -5,7 +5,7 @@ import kotlinx.coroutines.CancellationException
 
 class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : CashImportLifecycleRepository {
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch = guarded {
-        val inputs = files.map { CashImportUploadInput(it.clientFileRef, it.file, it.password, it.sourceHint, it.sourceScope?.let { scope -> CashImportScopeInput(scope.label) }) }
+        val inputs = files.map { CashImportUploadInput(it.clientFileRef, it.file, it.password, it.sourceHint) }
         val progress: suspend (CashImportSessionDto) -> Unit = { onContext(it.toDomain()) }
         val value = if (context == null) {
             if (replacingFileRef != null) invalidCashInput()
@@ -15,7 +15,6 @@ class KtorCashImportLifecycleRepository(private val api: FinanceApiClient) : Cas
             value.interruption?.let { ImportUploadInterruption(it.code, it.status, it.receiptId, it.unprocessedFileRefs, it.diagnostic) })
     }
     override suspend fun context(sessionId: String): ImportContext = guarded { api.readCashImportSession(sessionId).toDomain() }
-    override suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext = guarded { api.setCashImportFileScope(sessionId, fileRef, revision, label).toDomain() }
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext = guarded { api.removeCashImportFile(sessionId, fileRef, revision).toDomain() }
     override suspend fun cancel(sessionId: String): ImportContext = guarded { api.cancelCashImportSession(sessionId).toDomain() }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan = guarded { api.previewCashImport(sessionId, choices.toDto(revision, previousPlanId)).toDomain() }

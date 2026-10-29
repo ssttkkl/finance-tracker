@@ -62,8 +62,11 @@ class CashImportContextApiTest {
         assertEquals(listOf("ready", "password_required"), value.files.map { it.status })
         assertNull(value.files.last().recognizedRowCount)
         val group = value.sourceAccounts.single()
-        assertEquals("9007199254740993", group.suggestion.accountId)
-        assertEquals(7L, group.suggestion.expectedAccountRevision)
+        assertNull(group.suggestion.accountId)
+        assertNull(group.suggestion.expectedAccountRevision)
+        assertEquals("none", group.suggestion.basis)
+        assertEquals("昵称甲", group.sessionLabel)
+        assertEquals("account-group-one", group.sessionGroupRef)
         assertEquals("102", group.selection?.accountId)
         assertEquals("人工备注", value.lastPreviewInput!!["row_choices"]!!.jsonArray.single().jsonObject["patch"]!!.jsonObject["note"]!!.jsonPrimitive.content)
     }
@@ -109,7 +112,7 @@ class CashImportContextApiTest {
         client.close()
     }
 
-    @Test fun replacementUploadsOnlySelectedFileAndPreservesOmittedScope() = runTest {
+    @Test fun replacementUploadsOnlySelectedFileWithoutSourceScopeMetadata() = runTest {
         var body: JsonObject? = null
         var path: String? = null
         val client = client { call -> path = call.url.encodedPath; body = metadata(call.body.toByteArray()) }
@@ -125,30 +128,25 @@ class CashImportContextApiTest {
         client.close()
     }
 
-    @Test fun explicitDefaultScopeIsDifferentFromOmittedUploadScope() = runTest {
+    @Test fun uploadsNeverSendRemovedSourceScopeMetadata() = runTest {
         val received = mutableListOf<JsonObject>()
         val client = client { received += metadata(it.body.toByteArray())["files"]!!.jsonArray.single().jsonObject }
-        for (scope in listOf(null, CashImportScopeInput(null), CashImportScopeInput("second-account"))) {
-            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1)), sourceScope = scope)))
+        repeat(2) {
+            client.createCashImportSession(listOf(CashImportUploadInput("a", ContextFile("one.csv", byteArrayOf(1)))))
         }
-        assertFalse("source_scope_label" in received[0])
-        assertEquals(JsonNull, received[1]["source_scope_label"])
-        assertEquals("second-account", received[2]["source_scope_label"]!!.jsonPrimitive.content)
+        assertEquals(2, received.size)
+        assertTrue(received.all { "source_scope_label" !in it })
         client.close()
     }
 
-    @Test fun fileCommandsIncludeExplicitNullAndCurrentRevisionAndCancelTouchesOnlySession() = runTest {
+    @Test fun fileCommandsHaveNoSourceSettingPatchAndCancelTouchesOnlySession() = runTest {
         val calls = mutableListOf<HttpRequestData>()
         val client = client { calls += it }
         client.readCashImportSession("s1")
-        client.setCashImportFileScope("s1", "f1", 3, null)
         client.removeCashImportFile("s1", "f1", 4)
         client.cancelCashImportSession("s1")
-        assertEquals(listOf("GET", "PATCH", "DELETE", "DELETE"), calls.map { it.method.value })
-        val patch = apiJson.parseToJsonElement((calls[1].body as TextContent).text).jsonObject
-        assertEquals(JsonNull, patch["source_scope_label"])
-        assertEquals(3L, patch["expected_session_revision"]!!.jsonPrimitive.long)
-        assertEquals("4", calls[2].headers["If-Match"])
+        assertEquals(listOf("GET", "DELETE", "DELETE"), calls.map { it.method.value })
+        assertEquals("4", calls[1].headers["If-Match"])
         assertTrue(calls.all { it.url.encodedPath.startsWith("/api/v1/cash-import/sessions/") })
         assertEquals("/api/v1/cash-import/sessions/s1", calls.last().url.encodedPath)
         client.close()
@@ -355,9 +353,9 @@ class CashImportContextApiTest {
     }
     companion object {
         private val SESSION = """{"session_id":"s1","session_revision":3,"expires_at":"2026-10-23T10:00:00Z","state":"open","files":[
-          {"file_ref":"f1","client_file_ref":"a","display_name":"one.csv","source_type":"wechat","source_scope_label":null,"status":"ready","recognized_row_count":1,"issues":[],"can_retry":false},
-          {"file_ref":"f2","client_file_ref":"b","display_name":"two.pdf","source_type":null,"source_scope_label":null,"status":"password_required","recognized_row_count":null,"issues":[{"code":"statement_password_required","message":"请补充密码","field_path":null,"blocking_scope":"file","next_action":"reselect_file"}],"can_retry":true}],
-          "source_accounts":[{"source_account_ref":"source-one","source_type":"wechat","display_name":"微信零钱","currencies":["CNY"],"row_count":1,"suggestion":{"account_id":"9007199254740993","expected_account_revision":7,"basis":"confirmed_mapping"},"selection":{"account_id":"102","expected_account_revision":5}}],
+          {"file_ref":"f1","client_file_ref":"a","display_name":"one.csv","source_type":"wechat","status":"ready","recognized_row_count":1,"issues":[],"can_retry":false},
+          {"file_ref":"f2","client_file_ref":"b","display_name":"two.pdf","source_type":null,"status":"password_required","recognized_row_count":null,"issues":[{"code":"statement_password_required","message":"请补充密码","field_path":null,"blocking_scope":"file","next_action":"reselect_file"}],"can_retry":true}],
+          "source_accounts":[{"source_account_ref":"source-one","source_type":"wechat","session_group_ref":"account-group-one","session_label":"昵称甲","display_name":"微信零钱","currencies":["CNY"],"row_count":1,"suggestion":{"account_id":null,"expected_account_revision":null,"basis":"none"},"selection":{"account_id":"102","expected_account_revision":5}}],
           "last_preview_input":{"account_selections":[],"row_choices":[{"row_ref":"f1:r1","action":"apply","patch":{"note":"人工备注"}}],"relation_choices":[]},"last_plan_id":"ip_latest","can_preview":true,"receipt_id":null}""".trimIndent()
     }
 }

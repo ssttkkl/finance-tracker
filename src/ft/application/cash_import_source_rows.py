@@ -60,7 +60,7 @@ def source_rows(file, *, resolved_fields=None):
         with cash_diagnostic_scope("row_planning", row_locations((f"{file.file_ref}:r{row.position}",)), scope="row", files=(file,)):
             values = copy_value(row.fields)
             values.update(copy_value((resolved_fields or {}).get(row.position, {})))
-            scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier, scope_label=file.source_scope_label)
+            scope = source_account_key(document.source_type, row.source_account_identifier or document.source_account_identifier)
             occurrence = SourceOccurrence(
                 source_type=document.source_type, source_account_key=scope, file_digest=file.digest,
                 parser_version=document.parser_version, table_key=document.table_key, position=row.position,
