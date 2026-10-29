@@ -212,7 +212,9 @@ class DemoFinanceRepository : FinanceRepository {
             throw demoFailure("invalid_filter", 400)
         }
         val filtered = records.filter { transferRoot(it.id) == it.id }.filter { row ->
-            (transferMembers(row.id).ifEmpty { listOf(row.id) }).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
+            val displayedAmount = projection(row).amount
+            val amountVisible = !filters.hideZeroAmount || displayedAmount == null || compareDemoDecimals(displayedAmount, "0") != 0
+            amountVisible && (transferMembers(row.id).ifEmpty { listOf(row.id) }).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
         }.sortedWith(compareByDescending<CashRecord> { it.occurredAt }.thenByDescending { it.id })
         if (projectionVersion != null && projectionVersion != this.projectionVersion) {
             throw demoFailure("read_snapshot_changed", 409)
@@ -236,7 +238,7 @@ class DemoFinanceRepository : FinanceRepository {
             items = page.map(::projection),
             nextCursor = next,
             pageSize = page.size,
-            filters = mapOf("currency" to filters.currency, "category_id" to filters.categoryId),
+            filters = mapOf("currency" to filters.currency, "category_id" to filters.categoryId, "hide_zero_amount" to filters.hideZeroAmount.toString()),
             filterOptions = CashFilterOptions(
                 categories = categories.toList(),
                 currencies = listOf("CNY", "USD"),

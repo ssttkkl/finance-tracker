@@ -2,7 +2,7 @@
 
 本文是页面级功能、业务路径、实现证据、跨端覆盖与待办的统一盘点入口。按模块查页面，再进入模块文档查看入口、主路径、分支、失败恢复和实现证据；行为合同以 [OpenSpec 主规格](../openspec/specs/README.md) 为准。
 
-> 盘点日期：2026-10-29。行为盘点基于远端 `main` 的 `8297427e4036ee35f5f4d01d85417f85ad4522e4`。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
+> 盘点日期：2026-10-29。行为盘点基于已合并的 `origin/main`：`89682e5237e7bbe341ffc4b79ec84c2e8825a88c`。Compose Web、Android、iOS 共用 `compose/shared`，共享代码不代表各平台设备 QA 全部完成。
 
 ## 产品总览
 
@@ -58,7 +58,7 @@ flowchart TD
 | 功能 | 已记录的实现与验证范围 | 当前待办或边界 |
 |---|---|---|
 | F-01／F-02 | 认证恢复、工作区进入／创建已实现；共同入口壳有 Web Chrome 与 Android QA 记录 | 未形成覆盖全部状态与平台的验收矩阵，具体范围见 [认证](authentication/feature-map.md) 和 [工作区](workspace/feature-map.md) |
-| F-03 | 共享账本已接搜索、筛选、序号分页、批量操作；既有 Web 三尺寸、分页及浏览器回归有记录 | 历史 QA 不替代当前详情与导入任务的验收；见 [现金账本](cash-ledger/feature-map.md) |
+| F-03 | 共享账本已接搜索、默认隐藏零元结果、筛选、序号分页和批量操作；本次 Web Chrome 检查 390×844、768×1024，Android Host 与 iOS Simulator 共享测试通过，SQLite／PostgreSQL 合同通过 | 本次未做原生设备交互 QA；历史 QA 不替代当前详情与导入任务的验收；见 [现金账本](cash-ledger/feature-map.md) |
 | F-04 | 当前详情、草稿／分摊、转正式、普通记账／转账与公共编辑有真实 API Web 冒烟；关联维护有 Chromium 流程、共享单测、跨端编译和双后端契约证据 | 联合方案改选不可提交；复杂浏览器保存、最终演示和完整最终验收待完成；见 [F-04](cash-ledger/feature-map.md#f-04-收支详情与记账) |
 | F-05 | 共享文件／账户准备、统一核对、确认和收据已接入；账户分组与密码方向已获用户确认，有 Web 结果核实和账户撤销证据 | 本次未执行原生设备 QA；iOS 文件选择器交回后的完整导入、未知账户与账户编辑分支待验收；见 [导入](import/feature-map.md) |
 | F-06 | 邀请预览／接受／取消及内部 URI 路由已实现，有入口 QA 记录 | HTTPS Universal Links 待部署域名与签名配置；见 [F-06](workspace/feature-map.md#f-06-邀请预览与接受) |

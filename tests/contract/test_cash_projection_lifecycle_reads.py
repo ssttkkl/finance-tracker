@@ -161,6 +161,8 @@ def test_unknown_dates_paginate_by_stable_created_position(relation_context_runt
     first = service.list_cash_projections(limit=1)
     with pytest.raises(ValueError, match="invalid_cursor"):
         service.list_cash_projections(limit=1, cursor=first.next_cursor, state="posted")
+    with pytest.raises(ValueError, match="invalid_cursor"):
+        service.list_cash_projections(limit=1, cursor=first.next_cursor, hide_zero_amount=False)
 
 
 @pytest.mark.parametrize("filters, expected", [
@@ -186,28 +188,53 @@ def test_full_refund_stays_visible_without_overriding_explicit_filters_or_deleti
         _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1103, kind="refund_offset", state="confirmed")
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
-    confirmed = next(item for item in service.list_cash_projections().items if item.projection_id == "cash:1101")
+    assert "cash:1101" not in {item.projection_id for item in service.list_cash_projections().items}
+    confirmed = next(item for item in service.list_cash_projections(hide_zero_amount=False).items if item.projection_id == "cash:1101")
     assert confirmed.amount == "0" and confirmed.confirmation_status == "confirmed" and confirmed.statistics_eligible
     with runtime.sessions.begin() as session:
         sources = CashSourceRepository(session, runtime.workspace_id)
         sources.save_issue(1101, "one", code="source_update_conflict")
         sources.save_issue(1101, "two", code="source_update_conflict")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1101})
-    page = service.list_cash_projections(confirmation_status="pending")
+    hidden = service.list_cash_projections(confirmation_status="pending")
+    assert hidden.items == () and hidden.pending_item_count == 0
+    page = service.list_cash_projections(confirmation_status="pending", hide_zero_amount=False)
     assert len(page.items) == 1 and page.pending_item_count == 1
     assert page.items[0].amount == "0" and page.items[0].attention_count == 1 and page.items[0].statistics_eligible
     for filters in ({"currency": "USD"}, {"amount_min": "1"}, {"date_from": "2026-02-01"}):
-        assert not service.list_cash_projections(confirmation_status="pending", **filters).items
-    indexed = service.list_cash_projections(confirmation_status="pending", start_index=0, limit=1)
+        assert not service.list_cash_projections(confirmation_status="pending", hide_zero_amount=False, **filters).items
+    indexed = service.list_cash_projections(confirmation_status="pending", hide_zero_amount=False, start_index=0, limit=1)
     assert indexed.total_count == 1 and indexed.pending_item_count == 1
     assert sum(item.end_index - item.start_index for item in indexed.month_positions) == 1
+    filtered_indexed = service.list_cash_projections(confirmation_status="pending", start_index=0, limit=1)
+    assert filtered_indexed.total_count == filtered_indexed.pending_item_count == 0
     with runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1103).deleted_at = CREATED
-    hidden = service.list_cash_projections(confirmation_status="pending", start_index=0, limit=1)
-    assert hidden.projection_version == indexed.projection_version
-    assert hidden.total_count == hidden.pending_item_count == 0
-    assert not hidden.items and not hidden.month_positions and not hidden.monthly_summaries
-    assert not service.list_cash_projections(confirmation_status="pending").items
+    deleted = service.list_cash_projections(confirmation_status="pending", hide_zero_amount=False, start_index=0, limit=1)
+    assert deleted.projection_version == indexed.projection_version
+    assert deleted.total_count == deleted.pending_item_count == 0
+    assert not deleted.items and not deleted.month_positions and not deleted.monthly_summaries
+    assert not service.list_cash_projections(confirmation_status="pending", hide_zero_amount=False).items
+
+
+def test_hide_zero_amount_keeps_unknown_drafts_and_updates_counts(relation_context_runtime):
+    runtime = relation_context_runtime
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    _drafts(runtime)
+    with runtime.sessions.begin() as session:
+        session.add(CashTransactionModel(id=1203, workspace_id=runtime.workspace_id, state="draft",
+            account_id=None, amount=Decimal("0.000"), currency="CNY", occurred_at=None, created_at=CREATED,
+            record_type=None, record_subtype=None, source_type="lifecycle-fixture", record_id="1203"))
+        CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1201, 1202, 1203})
+    service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
+    hidden = service.list_cash_projections(state="draft", start_index=0, limit=20)
+    assert {item.projection_id for item in hidden.items} == {"cash:1201", "cash:1202"}
+    assert hidden.total_count == hidden.pending_item_count == 2
+    assert next(item for item in hidden.items if item.projection_id == "cash:1201").amount is None
+    shown = service.list_cash_projections(state="draft", hide_zero_amount=False, start_index=0, limit=20)
+    assert {item.projection_id for item in shown.items} == {"cash:1201", "cash:1202", "cash:1203"}
+    assert shown.total_count == shown.pending_item_count == 3
+    assert next(item for item in shown.items if item.projection_id == "cash:1203").amount == "0"
 
 
 def test_clearing_last_issue_keeps_full_refund_visible_and_confirmed(relation_context_runtime):
@@ -217,14 +244,16 @@ def test_clearing_last_issue_keeps_full_refund_visible_and_confirmed(relation_co
         CashSourceRepository(session, runtime.workspace_id).save_issue(1101, "one", code="source_update_conflict")
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
-    assert service.list_cash_projections().pending_item_count == 1
+    assert service.list_cash_projections().pending_item_count == 0
+    assert service.list_cash_projections(hide_zero_amount=False).pending_item_count == 1
     with runtime.sessions.begin() as session:
         CashSourceRepository(session, runtime.workspace_id).clear_issue(1101, "one")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1101})
-    page = service.list_cash_projections()
+    page = service.list_cash_projections(hide_zero_amount=False)
     assert page.pending_item_count == 0
     item = next(item for item in page.items if item.projection_id == "cash:1101")
     assert item.amount == "0" and item.confirmation_status == "confirmed" and item.attention_count == 0
+    assert "cash:1101" not in {item.projection_id for item in service.list_cash_projections().items}
 
 
 def test_other_hidden_zero_records_still_require_attention_to_be_visible(relation_context_runtime):
@@ -239,12 +268,13 @@ def test_other_hidden_zero_records_still_require_attention_to_be_visible(relatio
     with runtime.sessions.begin() as session:
         CashSourceRepository(session, runtime.workspace_id).save_issue(1105, "pending", code="source_update_conflict")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
-    item = next(item for item in query.list_cash_projections().items if item.projection_id == "cash:1105")
+    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
+    item = next(item for item in query.list_cash_projections(hide_zero_amount=False).items if item.projection_id == "cash:1105")
     assert item.amount == "0" and item.confirmation_status == "pending"
     with runtime.sessions.begin() as session:
         CashSourceRepository(session, runtime.workspace_id).clear_issue(1105, "pending")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
-    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
+    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections(hide_zero_amount=False).items}
 
 
 def test_list_metadata_and_month_summaries_share_the_page_snapshot(relation_context_runtime):
@@ -277,7 +307,7 @@ def test_list_metadata_and_month_summaries_share_the_page_snapshot(relation_cont
     assert current.pending_item_count == 2 and current.projection_version > page.projection_version
 
 
-@pytest.mark.parametrize("values", [{"state": "bogus"}, {"state": ["draft"]}, {"confirmation_status": "draft"}, {"confirmation_status": []}])
+@pytest.mark.parametrize("values", [{"state": "bogus"}, {"state": ["draft"]}, {"confirmation_status": "draft"}, {"confirmation_status": []}, {"hide_zero_amount": "sometimes"}, {"hide_zero_amount": 1}])
 def test_lifecycle_filters_reject_unknown_or_malformed_values(relation_context_runtime, values):
     with pytest.raises(ValueError, match="invalid_filter"):
         CashLedgerQueryService(relation_context_runtime.sessions, relation_context_runtime.workspace_id).list_cash_projections(**values)
@@ -296,3 +326,18 @@ def test_http_lists_nullable_drafts_and_forwards_lifecycle_filters(relation_cont
     assert unknown["amount"] is None and unknown["occurred_at"] is None and not unknown["statistics_eligible"]
     assert unknown["confirmation_status"] == "pending" and unknown["state"] == "draft"
     assert client.get("/api/v1/cash-projections", params={"state": "bad"}).status_code == 400
+
+
+def test_http_zero_amount_filter_defaults_on_and_can_show_full_refund(relation_context_runtime):
+    from tests.contract.test_web_api import _client
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1103, kind="refund_offset", state="confirmed")
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    client = _client(runtime)
+    hidden = client.get("/api/v1/cash-projections")
+    shown = client.get("/api/v1/cash-projections", params={"hide_zero_amount": "false"})
+    assert hidden.status_code == shown.status_code == 200
+    assert "cash:1101" not in {item["projection_id"] for item in hidden.json()["items"]}
+    refund = next(item for item in shown.json()["items"] if item["projection_id"] == "cash:1101")
+    assert refund["amount"] == "0"

@@ -598,6 +598,13 @@ class RelationalCashLedgerQueryRepository:
                 filter_conditions.append(CashProjectionModel.state == filters.state)
             if filters.confirmation_status is not None:
                 filter_conditions.append(CashProjectionModel.attention_count > 0 if filters.confirmation_status == "pending" else CashProjectionModel.attention_count == 0)
+            if filters.hide_zero_amount:
+                nonzero_amount = (
+                    func.decimal_compare(CashProjectionModel.net_amount, "0") != 0
+                    if s.bind.dialect.name == "sqlite"
+                    else CashProjectionModel.net_amount != Decimal("0")
+                )
+                filter_conditions.append(or_(CashProjectionModel.net_amount.is_(None), nonzero_amount))
             start,end=local_bounds(filters)
             if start:filter_conditions.append(CashProjectionModel.occurred_at>=start)
             if end:filter_conditions.append(CashProjectionModel.occurred_at<end)

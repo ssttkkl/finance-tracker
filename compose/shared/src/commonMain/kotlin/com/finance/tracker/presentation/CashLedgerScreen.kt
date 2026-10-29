@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.background
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -64,14 +65,18 @@ import androidx.compose.material3.FloatingActionButtonMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ToggleFloatingActionButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -83,6 +88,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -94,6 +100,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
 import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -250,6 +258,7 @@ internal fun CashLedgerScreen(
             Column(Modifier.padding(GeneratedTokens.Core.Space.Token4)) {
                 CashFilterPanel(
                     value = state.filters,
+                    pendingItemCount = state.page?.pendingItemCount ?: 0L,
                     sizeClass = sizeClass,
                     onChange = viewModel::updateFilters,
                     accounts = state.accounts,
@@ -260,15 +269,6 @@ internal fun CashLedgerScreen(
                     onInvalidAmount = viewModel::reportInvalidAmountFilter,
                 )
             }
-        }
-        val pendingItemCount = state.page?.pendingItemCount ?: 0
-        if (pendingItemCount > 0 || state.filters.confirmationStatus == "pending") {
-            FilterChip(
-                selected = state.filters.confirmationStatus == "pending",
-                onClick = { viewModel.updateFilters(state.filters.copy(confirmationStatus = if (state.filters.confirmationStatus == "pending") null else "pending")) },
-                label = { Text(if (pendingItemCount > 0) localizedText("cash_pending_count", pendingItemCount.toString()) else localizedText("cash_confirmation_pending")) },
-                modifier = Modifier.testTag("ledger.filter.pending"),
-            )
         }
         val summariesByMonth = if (listReady) state.page?.monthlySummaries.orEmpty().associateBy(CashMonthlySummary::month) else emptyMap()
         val monthPositions = if (listReady) state.page?.monthPositions.orEmpty() else emptyList()
@@ -873,6 +873,7 @@ private fun ledgerPagingErrorCode(cause: Throwable): String = when (cause) {
 @Composable
 private fun CashFilterPanel(
     value: CashFilters,
+    pendingItemCount: Long,
     sizeClass: WindowSizeClass,
     onChange: (CashFilters) -> Unit,
     accounts: List<Account>,
@@ -914,24 +915,53 @@ private fun CashFilterPanel(
             },
             singleLine = true,
         )
-        FlowRow(
+        Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            FilterChip(
-                selected = selectedType.isEmpty(),
-                onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
-                label = { Text(localizedText("ledger_quick_all")) },
-                modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
-            )
-            orderedTypes.forEach { economicType ->
-                FilterChip(
-                    selected = selectedType == economicType,
-                    onClick = { onChange(value.copy(economicType = economicType, transferSubtype = null)) },
-                    label = { Text(cashEconomicTypeQuickFilterLabel(economicType)) },
-                    modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-$economicType"),
-                )
+            FlowRow(
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (pendingItemCount > 0 || value.confirmationStatus == "pending") {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        FilterChip(
+                            selected = value.confirmationStatus == "pending",
+                            onClick = { onChange(value.copy(confirmationStatus = if (value.confirmationStatus == "pending") null else "pending")) },
+                            label = { Text(if (pendingItemCount > 0) localizedText("cash_pending_count", pendingItemCount.toString()) else localizedText("cash_confirmation_pending")) },
+                            modifier = Modifier.testTag("ledger.filter.pending"),
+                        )
+                        VerticalDivider(
+                            modifier = Modifier.height(24.dp).testTag("ledger.filter.pending-divider"),
+                        )
+                        FilterChip(
+                            selected = selectedType.isEmpty(),
+                            onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
+                            label = { Text(localizedText("ledger_quick_all")) },
+                            modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
+                        )
+                    }
+                } else {
+                    FilterChip(
+                        selected = selectedType.isEmpty(),
+                        onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
+                        label = { Text(localizedText("ledger_quick_all")) },
+                        modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
+                    )
+                }
+                orderedTypes.forEach { economicType ->
+                    FilterChip(
+                        selected = selectedType == economicType,
+                        onClick = { onChange(value.copy(economicType = economicType, transferSubtype = null)) },
+                        label = { Text(cashEconomicTypeQuickFilterLabel(economicType)) },
+                        modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-$economicType"),
+                    )
+                }
             }
             TextButton(
                 onClick = { detailedVisible = true },
@@ -1036,6 +1066,33 @@ private fun CashFilterGroup(
         content = {
             Text(title, style = MaterialTheme.typography.titleMedium)
             content()
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CashHideZeroAmountSwitch(
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier,
+) {
+    ListItem(
+        headlineContent = { Text(localizedText("ledger_hide_zero_amount")) },
+        modifier = modifier
+            .toggleable(
+                value = checked,
+                onValueChange = onCheckedChange,
+                role = Role.Switch,
+            )
+            .padding(vertical = 8.dp)
+            .testTag("ledger.filter.hide-zero-amount"),
+        colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+        trailingContent = {
+            Switch(
+                checked = checked,
+                onCheckedChange = null,
+            )
         },
     )
 }
@@ -1198,6 +1255,14 @@ private fun CashDetailedFilters(
                         amountMaxFilter(Modifier.weight(1f))
                     }
                 }
+                val onHideZeroAmountChange: (Boolean) -> Unit = {
+                    onChange(value.copy(hideZeroAmount = it))
+                }
+                CashHideZeroAmountSwitch(
+                    checked = value.hideZeroAmount,
+                    onCheckedChange = onHideZeroAmountChange,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
             CashFilterGroup(
                 title = localizedText("ledger_filter_group_category"),

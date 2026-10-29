@@ -73,10 +73,10 @@ Compose Web 后端连接预览使用 `node compose/qa/web/scripts/start-compose-
 |---|---|---|
 | 登录、注册、workspace、成员 | `/api/v1/auth/*` | Compose Multiplatform |
 | 账户管理 | `POST /api/v1/accounts`、`/api/v1/accounts/by-id/{account_id}`；写请求携带幂等键和所需修订 | Compose 查询已接入，独立编辑及导入退出补偿待接入 |
-| 收支浏览、详情与证据 | `/api/v1/cash-projections`、`/api/v1/cash-records/{transaction_id}`、`/api/v1/evidence/*` | 既有列表基础保留，正式／草稿及新维护合同待接入 |
+| 收支浏览、详情与证据 | `/api/v1/cash-projections`、`/api/v1/cash-records/{transaction_id}`、`/api/v1/evidence/*` | Compose 已接正式／草稿浏览、默认开启的零元筛选、详情与来源证据；零元条件同步影响列表、计数、汇总和分页 |
 | 手工流水、余额校准、转账 | `/api/v1/cashflow/*` 或 `POST /api/v1/cash-records` | 既有入口保留，不等同于新维护计划 |
 | 现金账单解析、统一预览和确认 | `/api/v1/cash-import/*` | Compose 已接会话、来源账户映射、分页核对、确认收据与错误诊断；功能演示验收仍在进行 |
-| 正式编辑、草稿补全与当前关联维护 | `/api/v1/cash-mutations/*`、`PATCH /api/v1/cash-records/{transaction_id}/draft` | 后端已完成，新详情与维护操作待接入 |
+| 正式编辑、草稿补全与当前关联维护 | `/api/v1/cash-mutations/*`、`PATCH /api/v1/cash-records/{transaction_id}/draft` | Compose 已接草稿补全、明确转正式、公共字段编辑与当前关系维护；联合方案改选仍不可提交 |
 | 分类与删除 | `/api/v1/cash-projections/*` 分类／删除命令、`DELETE /api/v1/cash-records/{transaction_id}` | 既有入口须按当前版本及目标范围合同验收 |
 | 投资查询与事件 | `/api/v1/investment-events`、`/api/v1/investment-portfolio` | Compose Multiplatform |
 | 报表与查询 | `/api/v1/queries/*`、`/api/v1/reports/*` | Compose Multiplatform |
