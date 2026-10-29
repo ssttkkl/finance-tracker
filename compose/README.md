@@ -6,8 +6,6 @@ This is a Kotlin Multiplatform project targeting Android, iOS, Web.
 
 在该 Static Site 的 **Environment** 中设置 `FT_API_ORIGIN`，值为后端公开的 HTTPS origin，例如 `https://finance-api.onrender.com`。共享模块会通过 BuildKonfig 在构建时把它编译进 Android、iOS 和 Web 客户端；它是公开配置，不要放 API 密钥或其他凭据。值只填写 origin，不带 `/api`、路径或查询参数。Compose Web 部署脚本在变量未设置或留空时会保留现有默认值 `http://127.0.0.1:8000`。部署到 Render 时，如果不设置该变量，站点访问者的浏览器会请求访问者自己设备上的 `127.0.0.1:8000`，而不是 Render 后端；线上使用时应设置后端的公开 HTTPS origin。后端服务还需设置 `FT_WEB_ORIGIN` 为 Compose 站点 origin（例如 `https://finance-tracker.onrender.com`），以允许该站点通过 CORS 访问 API。修改环境变量后选择重新构建并部署。
 
-仓库根目录的 `render.yaml` 仍用于 `web/` 下的服务配置，不用于此 Compose Web Static Site。
-
 ## 本地 Compose demo
 
 在仓库根目录运行：
@@ -24,7 +22,7 @@ node compose/qa/web/scripts/start-compose-demo.mjs
 
 Android、iOS 和 Web 都从共享模块的 BuildKonfig 读取 `FT_COMPOSE_DEMO_MODE` 与 `FT_API_ORIGIN`。演示模式默认关闭；API 地址默认为空。Android 可在仓库根目录运行 `cd compose && FT_COMPOSE_DEMO_MODE=true ./gradlew :androidApp:installDebug` 安装演示包。iOS Debug 构建也使用同一环境变量，Swift 入口仅在 `#if DEBUG` 下读取演示模式开关。可通过 `cd compose && FT_COMPOSE_DEMO_MODE=true xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build` 构建 iOS 演示包。Android、iOS Release 和仓库生产 Web 构建都会强制使用正式数据图。构建需连接 API 的原生包时，通过构建环境变量设置地址，例如 `FT_API_ORIGIN=http://localhost:8000 ./gradlew :androidApp:installDebug` 或 `FT_API_ORIGIN=http://localhost:8000 xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Debug -destination 'generic/platform=iOS Simulator' build`。Compose Web 本地预览在变量为空时使用预览站点 origin，再由本地代理转发 `/api/*` 请求。
 
-UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。旧 React UI 位于 `web/src`，仅作迁移参考；Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
+UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收位于 `openspec/specs/`，token 位于 `openspec/specs/shared/design-system/tokens/`。Compose Web 及其 QA 工具位于 `compose/webApp` 和 `compose/qa/web/`。
 
 * [/iosApp](./iosApp/iosApp) contains an iOS application. Even if you’re sharing your UI with Compose Multiplatform,
   you need this entry point for your iOS app. This is also where you should add SwiftUI code for your project.
@@ -35,8 +33,6 @@ UI 页面结构和样式以共享 Compose 实现为准；业务行为与验收�
   - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
     For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
     the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
 
 ### Running the apps
 

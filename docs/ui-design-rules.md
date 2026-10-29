@@ -95,7 +95,7 @@ A 类 UI 变更，以及任何重大调整用户可见 UI 的变更，都先按�
 - `scripts/generate_ui_tokens.py` 只生成 Compose Kotlin token；CI 只校验 Git token 与生成代码的一致性。
 - Compose 页面直接使用 Material 3 控件完成交互；按钮与文本输入在页面调用点明确声明业务回调、标签、禁用/错误状态、校验和语义 ID，不增加 Finance 控件包装层。现有 `FinanceTheme` 继续提供颜色、字体与 token，基础布局使用 Compose Foundation。
 - 除非仓库已验证可用的代码生成器，不得声称代码由工具自动生成；必须明确记录实际实现方式。
-- Compose Web、Android、iOS 共享页面语义、状态、文案和响应式不变量。旧 React UI 位于 `web/src`，仅作为迁移参考，不定义 Compose 的设计或实现合同。
+- Compose Web、Android、iOS 共享页面语义、状态、文案和响应式不变量；Compose 是当前 UI 的设计与实现合同。
 
 ## 7. Compose 实现与响应式 QA
 

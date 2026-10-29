@@ -2,7 +2,7 @@
 
 多账户、多币种个人财务工具：把消费、储蓄与投资放进同一套可审计账本，并提供投资组合估值与周期表现。
 
-项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。`web/`、`mobile/` 和 TypeScript shared packages 暂时保留为迁移参考，不属于默认开发、构建、测试或发布工作流。
+项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
 
 ## 运行边界
 
@@ -126,7 +126,7 @@ Compose Android：
 (cd compose && ./gradlew :androidApp:assembleDebug --no-configuration-cache)
 ```
 
-旧 `web/`、`mobile/` 和 TypeScript shared packages 仅供迁移期间查阅，不再从根目录启动或纳入默认 CI；需要运行旧实现时，应在独立迁移任务中显式执行其目录内命令。
+Compose Web、Android、iOS 使用 `compose/` 下的 Compose Multiplatform 工程；浏览器自动化入口位于 `compose/qa/web/`。仓库没有根级 npm workspace。
 
 双后端契约需要连接专用、名称以 `_test` 结尾的 PostgreSQL 数据库：
 

@@ -1,6 +1,6 @@
 # 现金账单解析会话与统一确认 API
 
-本参考对应当前后端入口，前缀均为 `/api/v1`。Compose 迁移完成情况以 [功能地图](../../../../docs/feature-map.md) 为准，旧客户端结构不是新接口合同。实施规则见 [active change](../../../../openspec/changes/cash-import-lifecycle-redesign/design.md)；验收后同步的主规格位于 `import/cash-import-session` 与 `import/statement-import`。
+本参考对应当前后端入口，前缀均为 `/api/v1`。Compose 迁移完成情况以 [功能地图](../../../../docs/feature-map.md) 为准，旧客户端结构不是新接口合同。实施与验收记录见 [归档变更](../../../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/design.md)；同步后的主规格位于 `import/cash-import-session` 与 `import/statement-import`。
 
 实现依据：
 
