@@ -1,6 +1,6 @@
 package com.finance.tracker.backend
 
-import com.finance.tracker.backend.persistence.generated.tables.references.CASH_TRANSACTIONS
+import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.time.Instant
 import kotlinx.serialization.json.*
 
@@ -132,13 +132,23 @@ class MutationPlanService(
                 ?: throw MutationPlanFailure("record_not_found")
             if (rowRevision != expectedRevision) throw MutationPlanFailure("record_changed")
             val operation = plan.getValue("operations").jsonArray.single().jsonObject
-            if (operation.getValue("planned_action").jsonPrimitive.content != "update_posted")
-                throw MutationPlanFailure("plan_input_invalid")
-            val entryEdit = operation["entry_edit"]?.takeIf { it != JsonNull }?.jsonObject
-                ?: throw MutationPlanFailure("plan_input_invalid")
-            val patch = entryEdit.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) }
-            CashEntryRepository(connection, workspace, database.sqlite).patch(transaction, patch,
-                entryEdit.getValue("revision").jsonPrimitive.long)
+            val action = operation.getValue("planned_action").jsonPrimitive.content
+            val outcome = when (action) {
+                "update_posted" -> {
+                    val entryEdit = operation["entry_edit"]?.takeIf { it != JsonNull }?.jsonObject
+                        ?: throw MutationPlanFailure("plan_input_invalid")
+                    val patch = entryEdit.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) }
+                    CashEntryRepository(connection, workspace, database.sqlite).patch(transaction, patch,
+                        entryEdit.getValue("revision").jsonPrimitive.long)
+                    "updated_posted"
+                }
+                "finalize_draft" -> {
+                    val context = CashSqlContext(connection, workspace, database.sqlite, now)
+                    saveFinalizedRow(connection, workspace, transaction, operation, context)
+                    "finalized_draft"
+                }
+                else -> throw MutationPlanFailure("plan_input_invalid")
+            }
             val context = CashSqlContext(connection, workspace, database.sqlite, now)
             val projectionState = CashProjectionRepository(context).requireReadyStateLock()
             val maintained = CashProjectionService.maintainInSession(context, setOf(transaction), projectionState)
@@ -151,7 +161,7 @@ class MutationPlanService(
                 for (field in listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate",
                     "skipped", "relations_confirmed", "relations_deferred", "relations_ignored", "relations_removed",
                     "relations_failed", "resolved_issues")) put(field, 0)
-                put("updated_posted", 1)
+                put(outcome, 1)
             }
             val resultSummary = buildJsonObject {
                 put("status", "completed"); put("summary", summary)
@@ -160,7 +170,7 @@ class MutationPlanService(
             }
             val results = JsonArray(listOf(buildJsonObject {
                 put("result_kind", "row"); put("item_ref", transaction.toString())
-                put("outcome", "updated_posted"); put("operation_ref", "op_1")
+                put("outcome", outcome); put("operation_ref", "op_1")
                 put("transaction_id", transaction.toString())
             }))
             val created = repository.create(current.userId, key, digest, "mutation", resultSummary, results,
@@ -171,6 +181,97 @@ class MutationPlanService(
         val after = reads.currentContext(token)
         sameContext(principal, after)
         return ReceiptRepositoryView.strip(receipt)
+    }
+
+    private fun saveFinalizedRow(connection: java.sql.Connection, workspace: String, transaction: Long,
+        operation: JsonObject, context: CashSqlContext) {
+        val values = operation.getValue("values").jsonObject
+        val current = operation.getValue("current").jsonObject
+        val manual = operation.getValue("manual_fields").jsonArray.map { it.jsonPrimitive.content }
+        val sql = connection.jooq(database.sqlite)
+        val overrides = linkedMapOf<String, JsonElement>()
+        (current["manual_overrides"] as? JsonObject)?.forEach { (key, value) -> overrides[key] = value }
+        manual.forEach { overrides[it] = JsonPrimitive(true) }
+        val updated = sql.update(CASH_TRANSACTIONS)
+            .set(CASH_TRANSACTIONS.NOTE, values.getValue("note").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.COUNTERPARTY, values.getValue("counterparty").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT, values.getValue("counterparty_account").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT_ATTRS, values["counterparty_account_attrs"] ?: JsonArray(emptyList()))
+            .set(CASH_TRANSACTIONS.CATEGORY_ID, values["category_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.RECORD_TYPE, values["record_type"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.RECORD_SUBTYPE, values["record_subtype"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, values["source_payload"] ?: JsonNull)
+            .set(CASH_TRANSACTIONS.AMOUNT, values["amount"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.let(::CashStoredDecimal))
+            .set(CASH_TRANSACTIONS.CURRENCY, values["currency"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.OCCURRED_AT, values["occurred_at"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.let(java.time.Instant::parse))
+            .set(CASH_TRANSACTIONS.ACCOUNT_ID, values["account_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.toLong())
+            .set(CASH_TRANSACTIONS.CASH_GRANULARITY, values.getValue("cash_granularity").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.STATE, values.getValue("state").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.SOURCE_TYPE, values["source_type"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.RECORD_ID, values.getValue("record_id").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.RECORD_ORIGIN, values.getValue("record_origin").jsonPrimitive.content)
+            .set(CASH_TRANSACTIONS.MANUAL_TRANSFER_ID, values["manual_transfer_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull)
+            .set(CASH_TRANSACTIONS.ROW_REVISION, Math.addExact(operation.getValue("expected_revision").jsonPrimitive.long, 1L))
+            .set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, JsonObject(overrides))
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.eq(transaction)).execute()
+        check(updated == 1)
+        val existing = sql.select(CASH_TRANSACTION_COMPONENTS.ID, CASH_TRANSACTION_COMPONENTS.ORDINAL)
+            .from(CASH_TRANSACTION_COMPONENTS).where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace))
+            .and(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID.eq(transaction)).fetch()
+        val wanted = mutableSetOf<Long>()
+        for (raw in values["components"]?.jsonArray ?: JsonArray(emptyList())) {
+            val part = raw.jsonObject
+            val identifier = part["component_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.toLong()
+            val accountId = part["account_id"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.toLong()
+            val amount = part["amount"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.let(::CashStoredDecimal)
+            val currency = part["currency"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull
+            val ordinal = part.getValue("ordinal").jsonPrimitive.content.toLong()
+            if (identifier != null) {
+                wanted += identifier
+                sql.update(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, accountId)
+                    .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, amount).set(CASH_TRANSACTION_COMPONENTS.CURRENCY, currency)
+                    .set(CASH_TRANSACTION_COMPONENTS.ORDINAL, ordinal)
+                    .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace))
+                    .and(CASH_TRANSACTION_COMPONENTS.ID.eq(identifier)).execute()
+            } else {
+                sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, workspace)
+                    .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, transaction)
+                    .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, accountId).set(CASH_TRANSACTION_COMPONENTS.AMOUNT, amount)
+                    .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, currency).set(CASH_TRANSACTION_COMPONENTS.ORDINAL, ordinal)
+                    .set(CASH_TRANSACTION_COMPONENTS.LABEL, "").set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")
+                    .set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, JsonObject(emptyMap()))
+                    .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, now()).execute()
+            }
+        }
+        for (row in existing) if (row.value1() !in wanted) sql.deleteFrom(CASH_TRANSACTION_COMPONENTS)
+            .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace))
+            .and(CASH_TRANSACTION_COMPONENTS.ID.eq(row.value1())).execute()
+        val account = ACCOUNTS
+        val accountRow = (values["components"]?.jsonArray ?: JsonArray(emptyList())).firstOrNull()?.jsonObject
+            ?.get("account_id")?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull?.toLong()?.let { id ->
+                sql.select(account.NAME, account.TYPE).from(account).where(account.WORKSPACE_ID.eq(workspace))
+                    .and(account.ID.eq(id)).fetchOne()
+            }
+        val componentsJson = JsonArray((values["components"]?.jsonArray ?: JsonArray(emptyList())).map { raw ->
+            val part = raw.jsonObject
+            buildJsonObject {
+                part["account_id"]?.let { put("account_id", it) }
+                put("account_name", accountRow?.value1()?.let(::JsonPrimitive) ?: JsonNull)
+                put("account_type", accountRow?.value2()?.let(::JsonPrimitive) ?: JsonNull)
+                part["amount"]?.let { put("amount", it) }
+                part["currency"]?.let { put("currency", it) }
+            }
+        })
+        val balanceRow = buildJsonObject {
+            put("record_origin", values.getValue("record_origin"))
+            put("record_type", values["record_type"] ?: JsonNull)
+            put("state", values.getValue("state"))
+            put("components", componentsJson)
+        }
+        val document = context.snapshot.load(lock = true)
+        CashBalanceService(context).applyComponents(document, balanceRow, 1)
+        document.value = JsonObject(document.value + ("updated_at" to (values["occurred_at"] ?: JsonNull)))
+        context.snapshot.save(document)
     }
 
     fun resolve(token: String?, planId: String?, idempotencyKey: String?, requestPrincipal: Principal? = null): JsonObject {

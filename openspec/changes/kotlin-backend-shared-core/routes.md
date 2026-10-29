@@ -38,7 +38,7 @@
 | GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 计划读取已实现；双库通过，其余意图未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；双库通过，其余意图未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 单项详情已实现；双库通过，其余意图未完成 |
-| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record entry-only 已实现；双库 Python 收据/状态 oracle、幂等重放与上下文消费通过；其他操作/意图未完成 |
+| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record + finalize_draft 已实现；双库 Python 收据/状态/余额/投影 oracle、幂等重放与上下文消费通过；save_draft/resolve_issue 与其他操作未完成 |
 | GET | `/api/v1/cash-import/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:213` | 未迁移 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:218` | 未迁移 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:227` | 未迁移 |
