@@ -1,0 +1,644 @@
+[
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "save_draft",
+      "issue_resolutions": [],
+      "patch": {
+        "note": "x"
+      },
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "save_draft",
+      "patch": {
+        "note": "x"
+      },
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "edit_record",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 2,
+          "issue_id": "1",
+          "resolution": "apply_source"
+        }
+      ],
+      "patch": {},
+      "relation_choices": [
+        {
+          "action": "accept",
+          "common_fields": {
+            "category_id": null,
+            "note": "n"
+          },
+          "inherit_common_fields": false,
+          "suggestion_id": "s:1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "edit_record",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 2,
+          "issue_id": "01",
+          "resolution": "apply_source"
+        }
+      ],
+      "patch": {},
+      "relation_choices": [
+        {
+          "action": "accept",
+          "common_fields": {
+            "category_id": null,
+            "note": "n"
+          },
+          "inherit_common_fields": false,
+          "suggestion_id": "s:1"
+        }
+      ],
+      "transaction_id": 42
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "finalize_draft",
+      "issue_resolutions": [],
+      "patch": {},
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "finalize_draft",
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "resolve_issue",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "7",
+          "resolution": "create_independent"
+        }
+      ],
+      "patch": {},
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "resolve_issue",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "7",
+          "resolution": "create_independent"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "maintain_relations",
+      "issue_resolutions": [],
+      "patch": {},
+      "relation_additions": [
+        {
+          "anchor_component_id": "100",
+          "common_fields": {
+            "note": "n"
+          },
+          "expected_target_revision": 1,
+          "kind": "payment_mirror",
+          "subtype": "ordinary",
+          "target_component_id": "101",
+          "target_transaction_id": "43"
+        }
+      ],
+      "relation_choices": [
+        {
+          "action": "defer",
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "maintain_relations",
+      "relation_additions": [
+        {
+          "anchor_component_id": "100",
+          "common_fields": {
+            "note": "n"
+          },
+          "expected_target_revision": 1,
+          "kind": "payment_mirror",
+          "subtype": "ordinary",
+          "target_component_id": "101",
+          "target_transaction_id": "43"
+        }
+      ],
+      "relation_choices": [
+        {
+          "action": "defer",
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "entry_id": "entry-1",
+      "expected_entry_revision": 4,
+      "expected_revision": 3,
+      "intent": "edit_entry",
+      "issue_resolutions": [],
+      "member_patches": [
+        {
+          "patch": {
+            "note": "m"
+          },
+          "transaction_id": "42"
+        }
+      ],
+      "patch": {},
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "entry_id": "entry-1",
+      "expected_entry_revision": 4,
+      "expected_revision": 3,
+      "intent": "edit_entry",
+      "member_patches": [
+        {
+          "patch": {
+            "note": "m"
+          },
+          "transaction_id": "42"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "data": {
+      "expected_revision": 3,
+      "intent": "resolve_issue",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "expected_target_revision": 2,
+          "issue_id": "7",
+          "resolution": "merge_into",
+          "target_transaction_id": "43"
+        }
+      ],
+      "patch": {},
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "expected_revision": 3,
+      "intent": "resolve_issue",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "expected_target_revision": 2,
+          "issue_id": "7",
+          "resolution": "merge_into",
+          "target_transaction_id": "43"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": null,
+      "expected_plan_revision": null,
+      "previous_plan_id": null
+    },
+    "ok": true
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_revision": 3,
+      "intent": "save_draft",
+      "patch": {},
+      "previous_plan_id": "mp_ccccccccccccccccccccccccccccccccccccccccccc.tttttttttttttttt",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 3,
+      "intent": "save_draft",
+      "patch": {},
+      "transaction_id": "42",
+      "unknown": 1
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 3,
+      "intent": "unknown",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 0,
+      "intent": "save_draft",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 9223372036854775808,
+      "intent": "save_draft",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "transaction_id": "0"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "transaction_id": "9223372036854775808"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "patch": [],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "relation_choices": [
+        {
+          "action": "accept",
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "resolve_issue",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "maintain_relations",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "1",
+          "resolution": "apply_source"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "finalize_draft",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "expected_target_revision": 1,
+          "issue_id": "1",
+          "resolution": "merge_into",
+          "target_transaction_id": "43"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "resolve_issue",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "expected_target_revision": 1,
+          "issue_id": "1",
+          "resolution": "merge_into",
+          "target_transaction_id": "43"
+        },
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "2",
+          "resolution": "create_independent"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_entry",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "member_patches": [
+        {
+          "patch": {},
+          "transaction_id": "42"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "entry_id": "e",
+      "expected_entry_revision": 1,
+      "expected_revision": 1,
+      "intent": "edit_entry",
+      "member_patches": [
+        {
+          "patch": {},
+          "transaction_id": "42"
+        },
+        {
+          "patch": {},
+          "transaction_id": "42"
+        },
+        {
+          "patch": {},
+          "transaction_id": "42"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "1",
+          "resolution": "apply_source",
+          "target_transaction_id": "2"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "issue_resolutions": [
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "1",
+          "resolution": "apply_source"
+        },
+        {
+          "expected_issue_revision": 1,
+          "issue_id": "1",
+          "resolution": "keep_existing"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "relation_choices": [
+        {
+          "action": "defer",
+          "common_fields": {
+            "note": "n"
+          },
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "relation_choices": [
+        {
+          "action": "accept",
+          "common_fields": {
+            "amount": "1"
+          },
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "relation_choices": [
+        {
+          "action": "accept",
+          "inherit_common_fields": "yes",
+          "suggestion_id": "s1"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "maintain_relations",
+      "relation_additions": [
+        {
+          "expected_target_revision": 1,
+          "target_transaction_id": "43"
+        }
+      ],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_revision": 1,
+      "intent": "edit_record",
+      "relation_additions": [],
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "error": "plan_input_invalid",
+    "input": {
+      "expected_plan_revision": 1,
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "previous_plan_id": "p",
+      "transaction_id": "42"
+    },
+    "ok": false
+  },
+  {
+    "data": {
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "issue_resolutions": [],
+      "patch": {},
+      "relation_choices": [],
+      "transaction_id": "42"
+    },
+    "input": {
+      "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_plan_revision": 1,
+      "expected_revision": 1,
+      "intent": "save_draft",
+      "previous_plan_id": "p",
+      "transaction_id": "42"
+    },
+    "metadata": {
+      "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_plan_revision": 1,
+      "previous_plan_id": "p"
+    },
+    "ok": true
+  }
+]
