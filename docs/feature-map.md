@@ -12,6 +12,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 旧现金新增/余额校准的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyCashflowService.kt) 已完成双库功能验收；[完整 HTTP 对照](../compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowHttpContractTest.kt) 核对 96 个场景及 13 张财务表，响应编码失败整笔回滚，校准仅修改指定币种余额。Web、Android、iOS 当前没有调用这两个旧接口，不新增对应页面或共享消费者；已有页面覆盖和 TODO 保留。
 
+已实现的 Kotlin 持久化调用已迁到 jOOQ，功能在 SQLite 和 PostgreSQL 18 验证；这是后端实现变化，页面数及原有 Web/Native TODO 不变。[当前收支读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentProjectionReadService.kt) 已实现详情、按流水定位和收支证据，实际回包由 [成员消费测试](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinCurrentProjectionResponseIntegrationTest.kt) 与 [证据消费测试](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinEvidenceResponseIntegrationTest.kt) 验证。最终独立审查仍待收尾；列表、单条流水详情及维护接口未完成，不能据此将 F-03/F-04 标为 Kotlin 后端全流程可用。完整账单原文读取仍依赖单条流水详情；旧证据 DTO 不支持草稿空金额／空时间，现有来源成员 DTO 可消费这些空值。公共生成类型没有进入 Web、Android 或 iOS，Linux 尚未验证 iOS 编译。
+
 本轮页面数仍为 10，F-01 认证、F-04 编辑分摊与 F-07 分类任务的入口、跨端覆盖和既有验收 TODO 不变。共享模块与新运行时的验证状态以本轮实施证据为准，不能把模块存在写成全部后端或所有平台已验收。其余 Kotlin HTTP、格式适配、完整导入/维护/投影/关系/投资和后台任务均未完成；原 Python 功能保留。
 
 稳定收支对象仓库的公共人工值、拆分恢复和事务缓存，以及投影源读取、局部关系上下文、完整组校验和摘要已有双库内部验证，已接入全量重建/原子发布与新工作区初始化，管理员重建 HTTP 已通过真实双库对照，内部增量维护已通过双库；手工收支新建与转账创建已接入，转账编辑、维护和导入写入仍待迁移；没有新增 Web 或 Native 入口，F-03/F-04 的迁移 TODO 保留。 转账创建迁移证据为 [`CashTransferService.kt`](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashTransferService.kt) 与 [`Compose 实际回包消费`](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinTransferResponseIntegrationTest.kt)；Web/Native 共用现有创建消费者，不增加页面。

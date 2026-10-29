@@ -44,7 +44,7 @@ class LegacyCashflowService(private val database:Database,private val now:()->In
         return database.write {c ->
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
-            c.prepareStatement("SELECT id FROM workspaces WHERE id=?"+if(database.sqlite) "" else " FOR UPDATE").use {it.setString(1,workspace);it.executeQuery().use {r ->if(!r.next()) throw AccessFailure(true)}}
+            if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
             reads.lockedContext(c,token,workspace,write=true)
             val context=CashSqlContext(c,workspace,database.sqlite,now)
             try {manualOriginalUtf8(source("account",input.account),original,normalized=input.account)} catch(failure:ManualCashBusinessFailure) {throw IllegalArgumentException(failure.message)}

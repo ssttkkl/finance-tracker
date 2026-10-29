@@ -76,6 +76,9 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
             }
         } catch (failure: SQLException) {
             throw StorageFailure(storageErrorCode(failure))
+        } catch (failure: org.jooq.exception.DataAccessException) {
+            val sql = failure.sqlCause() ?: throw failure
+            throw StorageFailure(storageErrorCode(sql))
         }
     }
 

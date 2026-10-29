@@ -10,9 +10,13 @@ import kotlinx.serialization.json.*
 
 class CurrentProjectionReadBoundaryTest {
     @Test fun detailAndLocationRetainOneSnapshotWhileARealRebuildPublishesAndPrunes() {
-        for (detail in listOf(false, true)) CurrentProjectionFixture().use { fixture -> fixture.withWal { testApplication {
+        for (operation in listOf("location", "detail", "evidence")) CurrentProjectionFixture().use { fixture -> fixture.withWal { testApplication {
             val service = CurrentProjectionReadService(fixture.db)
-            val before = if (detail) service.detail("synthetic-admin", fixture.projectionId) else service.location("synthetic-admin", fixture.identifier)
+            val before = when (operation) {
+                "location" -> service.location("synthetic-admin", fixture.identifier)
+                "detail" -> service.detail("synthetic-admin", fixture.projectionId)
+                else -> service.evidence("synthetic-admin", fixture.projectionId)
+            }
             val triggered = AtomicBoolean()
             application { financeModule(fixture.db, currentProjections = CurrentProjectionReadService(fixture.db, afterStateRead = {
                 if (triggered.compareAndSet(false, true)) {
@@ -28,24 +32,28 @@ class CurrentProjectionReadBoundaryTest {
                     CashProjectionService(fixture.db, fixture.workspace).rebuild()
                 }
             })) }
-            val path = if (detail) "/api/v1/cash-projections/${fixture.projectionId}" else "/api/v1/cash-records/${fixture.identifier}/projection"
+            val path = path(operation, fixture)
             val response = client.get(path) { bearerAuth("synthetic-admin") }
             assertEquals(200, response.status.value, response.bodyAsText())
             assertTrue(triggered.get())
             assertEquals(before, Json.parseToJsonElement(response.bodyAsText()))
             val after = Json.parseToJsonElement(client.get(path) { bearerAuth("synthetic-admin") }.bodyAsText()).jsonObject
             assertTrue(after.getValue("projection_version").jsonPrimitive.long > before.getValue("projection_version").jsonPrimitive.long)
-            if (detail) {
+            if (operation == "detail") {
                 assertEquals(JsonPrimitive("-42.230000000000000001"), after.getValue("projection").jsonObject["amount"])
                 assertEquals(JsonPrimitive(2), after.getValue("members").jsonArray.single().jsonObject["row_revision"])
                 assertEquals(JsonPrimitive("pending"), after.getValue("members").jsonArray.single().jsonObject["confirmation_status"])
                 assertEquals(1, after.getValue("issues").jsonArray.size)
+            } else if (operation == "evidence") {
+                assertEquals(JsonPrimitive("-42.230000000000000001"), after.getValue("projection").jsonObject["amount"])
+                assertEquals(JsonPrimitive(2), after.getValue("members").jsonArray.single().jsonObject["row_revision"])
+                assertEquals(after.getValue("root_record"), JsonObject(after.getValue("members").jsonArray.single().jsonObject - "roles"))
             } else assertEquals(JsonPrimitive(1), after["attention_count"])
         } } }
     }
 
     private fun authorizationChange(kind: String) {
-        for (phase in listOf("snapshot", "return")) for (detail in listOf(false, true)) CurrentProjectionFixture().use { fixture -> fixture.withWal { testApplication {
+        for (phase in listOf("snapshot", "return")) for (operation in listOf("location", "detail", "evidence")) CurrentProjectionFixture().use { fixture -> fixture.withWal { testApplication {
             fun row(table: String, condition: String) = fixture.db.read { c -> c.createStatement().use {
                 it.executeQuery("SELECT * FROM $table WHERE $condition").use { rows ->
                     assertTrue(rows.next()); (1..rows.metaData.columnCount).associate { index -> rows.metaData.getColumnName(index) to rows.getObject(index) }
@@ -77,18 +85,21 @@ class CurrentProjectionReadBoundaryTest {
             application { financeModule(fixture.db, currentProjections = service) }
             val before = currentProjectionDatabaseState(fixture.db, fixture.workspace)
             try {
-                val path = if (detail) "/api/v1/cash-projections/${fixture.projectionId}" else "/api/v1/cash-records/${fixture.identifier}/projection"
+                val path = path(operation, fixture)
                 val response = client.get(path) { bearerAuth("synthetic-admin") }
                 val status = when (kind) { "viewer" -> 200; "expiry", "logout" -> 401; else -> 403 }
                 assertTrue(changed.get())
-                assertEquals(status, response.status.value, "$kind $phase $detail ${response.bodyAsText()}")
+                assertEquals(status, response.status.value, "$kind $phase $operation ${response.bodyAsText()}")
                 if (status != 200) {
                     val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
                     assertEquals(setOf("error"), body.keys)
                     val error = body.getValue("error").jsonObject
                     assertEquals(JsonPrimitive(if (status == 401) "authentication_required" else "workspace_forbidden"), error["code"])
-                    assertEquals(JsonArray(emptyList()), error["field_errors"])
-                    assertEquals(JsonPrimitive(false), error["retryable"])
+                    if (operation == "evidence") assertEquals(setOf("code", "message"), error.keys)
+                    else {
+                        assertEquals(JsonArray(emptyList()), error["field_errors"])
+                        assertEquals(JsonPrimitive(false), error["retryable"])
+                    }
                 }
                 assertEquals(before, currentProjectionDatabaseState(fixture.db, fixture.workspace))
             } finally {
@@ -114,6 +125,7 @@ class CurrentProjectionReadBoundaryTest {
         for (changed in listOf(principal.copy(workspaceId = "fixture-a"), principal.copy(userId = "viewer"))) {
             assertTrue(assertFailsWith<AccessFailure> { service.location("synthetic-admin", fixture.identifier, changed) }.forbidden)
             assertTrue(assertFailsWith<AccessFailure> { service.detail("synthetic-admin", fixture.projectionId, changed) }.forbidden)
+            assertTrue(assertFailsWith<AccessFailure> { service.evidence("synthetic-admin", fixture.projectionId, changed) }.forbidden)
         }
     }
 
@@ -132,5 +144,12 @@ class CurrentProjectionReadBoundaryTest {
         val broken = CurrentProjectionReadService(fixture.db, afterStateRead = { throw failure })
         assertSame(failure, assertFailsWith<IllegalStateException> { broken.detail("synthetic-admin", fixture.projectionId) })
         assertSame(failure, assertFailsWith<IllegalStateException> { broken.location("synthetic-admin", fixture.identifier) })
+        assertSame(failure, assertFailsWith<IllegalStateException> { broken.evidence("synthetic-admin", fixture.projectionId) })
+    }
+
+    private fun path(operation: String, fixture: CurrentProjectionFixture): String = when (operation) {
+        "location" -> "/api/v1/cash-records/${fixture.identifier}/projection"
+        "detail" -> "/api/v1/cash-projections/${fixture.projectionId}"
+        else -> "/api/v1/evidence/cash-projections/${fixture.projectionId}"
     }
 }

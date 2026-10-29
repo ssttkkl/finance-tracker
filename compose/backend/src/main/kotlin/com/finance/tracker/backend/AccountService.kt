@@ -2,11 +2,13 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.AccountCommandViewDto
 import com.finance.tracker.business.contracts.AccountReferenceDto
+import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.sql.Connection
-import java.sql.SQLException
 import java.time.Instant
 import java.util.UUID
 import kotlinx.serialization.json.*
+import org.jooq.Record
+import org.jooq.exception.DataAccessException
 
 class AccountFailure(val code: String, val receiptId: String? = null) : RuntimeException(code)
 
@@ -15,8 +17,8 @@ class AccountService(private val database: Database, private val now: () -> Inst
     private val beforeCommit: () -> Unit = {}, private val afterCommit: () -> Unit = {},
     private val beforeWrite: () -> Unit = {}, private val beforeWorkspaceLock: () -> Unit = {}) {
     private val reads = ReadServices(database, now)
-    private val lock get() = if (database.sqlite) "" else " FOR UPDATE"
-    private val jsonValue get() = if (database.sqlite) "?" else "CAST(? AS JSON)"
+    private val a = ACCOUNTS
+    private val accountFields get() = listOf(a.ID, a.NAME, a.TYPE, a.ACTIVE, a.CURRENCIES, a.REVISION)
     private data class Row(val id: Long, var name: String, val type: String, var active: Boolean,
         var currencies: List<String>, var revision: Long)
     private fun invalid(): Nothing = throw AccountFailure("account_payload_invalid")
@@ -51,15 +53,11 @@ class AccountService(private val database: Database, private val now: () -> Inst
             val workspace = first.workspaceId ?: throw AccessFailure(true)
             if (write) {
                 beforeWorkspaceLock()
-                val exists = connection.prepareStatement("SELECT id FROM workspaces WHERE id=?$lock").use {
-                    it.setString(1,workspace); it.executeQuery().use { rows -> rows.next() }
-                }
+                val exists = connection.lockWorkspace(database.sqlite, workspace)
                 if (!exists || reads.session(connection,token,lock=true).workspaceId != workspace) throw AccessFailure(true)
-                connection.prepareStatement("SELECT role FROM workspace_memberships WHERE workspace_id=? AND user_id=?$lock").use {
-                    it.setString(1,workspace);it.setString(2,first.userId);it.executeQuery().use { rows ->
-                        if (!rows.next() || rows.getString(1) !in setOf("admin","editor")) throw AccessFailure(true)
-                    }
-                }
+                val m = WORKSPACE_MEMBERSHIPS
+                val query = connection.jooq(database.sqlite).select(m.ROLE).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.USER_ID.eq(first.userId))
+                if ((if (database.sqlite) query else query.forUpdate()).fetchOne(m.ROLE) !in setOf("admin", "editor")) throw AccessFailure(true)
             }
             val principal = reads.context(connection,token,write)
             if (principal.workspaceId != workspace) throw AccessFailure(true)
@@ -71,35 +69,31 @@ class AccountService(private val database: Database, private val now: () -> Inst
             throw failure
         }
     }
-    private fun accounts(connection: Connection, workspace: String): List<Row> = connection.prepareStatement(
-        "SELECT id,name,type,active,currencies,revision FROM accounts WHERE workspace_id=?").use {
-        it.setString(1,workspace);it.executeQuery().use { rows -> buildList {
-            while (rows.next()) add(Row(rows.getLong(1),rows.getString(2),rows.getString(3),rows.getBoolean(4),
-                Json.parseToJsonElement(rows.getString(5)).jsonArray.map { value -> value.jsonPrimitive.content },rows.getLong(6)))
-        } }
-    }
-    private fun account(connection: Connection, workspace: String, id: Long, write: Boolean): Row = connection.prepareStatement(
-        "SELECT id,name,type,active,currencies,revision FROM accounts WHERE workspace_id=? AND id=?" + if(write) lock else "").use {
-        it.setString(1,workspace);it.setLong(2,id);it.executeQuery().use { rows ->
-            if (!rows.next()) throw AccountFailure("account_not_found")
-            Row(rows.getLong(1),rows.getString(2),rows.getString(3),rows.getBoolean(4),
-                Json.parseToJsonElement(rows.getString(5)).jsonArray.map { v -> v.jsonPrimitive.content },rows.getLong(6))
-        }
+    private fun row(value: Record) = Row(value[a.ID]!!, value[a.NAME]!!, value[a.TYPE]!!, value[a.ACTIVE]!!,
+        value[a.CURRENCIES]!!.jsonArray.map { it.jsonPrimitive.content }, value[a.REVISION]!!)
+    private fun accounts(connection: Connection, workspace: String): List<Row> = connection.jooq(database.sqlite)
+        .select(accountFields).from(a).where(a.WORKSPACE_ID.eq(workspace)).fetch().map(::row)
+    private fun account(connection: Connection, workspace: String, id: Long, write: Boolean): Row {
+        val query = connection.jooq(database.sqlite).select(accountFields).from(a).where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.eq(id))
+        return (if (write && !database.sqlite) query.forUpdate() else query).fetchOne()?.let(::row) ?: throw AccountFailure("account_not_found")
     }
     private fun view(row: Row, deleted: Boolean = false) = AccountCommandViewDto(row.id.toString(),row.name,row.type,row.active,row.currencies,row.revision,deleted)
     private fun viewJson(row: Row, deleted: Boolean = false) = accountProtocolJson.encodeToJsonElement(view(row,deleted)).jsonObject
     // All account foreign keys in schema 20261028_51; permanent result text IDs are deliberately absent.
-    private fun referenced(c: Connection, workspace: String, row: Row): Boolean = listOf("statement_account_mappings",
-        "cash_transactions","cash_transaction_components","cash_projections","investment_events","account_aliases","sync_cursors").any { table ->
-        c.prepareStatement("SELECT 1 FROM $table WHERE workspace_id=? AND account_id=? LIMIT 1").use {
-            it.setString(1,workspace);it.setLong(2,row.id);it.executeQuery().use { rows -> rows.next() }
-        }
+    private fun referenced(c: Connection, workspace: String, row: Row): Boolean = listOf(
+        STATEMENT_ACCOUNT_MAPPINGS.WORKSPACE_ID to STATEMENT_ACCOUNT_MAPPINGS.ACCOUNT_ID,
+        CASH_TRANSACTIONS.WORKSPACE_ID to CASH_TRANSACTIONS.ACCOUNT_ID,
+        CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID to CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID,
+        CASH_PROJECTIONS.WORKSPACE_ID to CASH_PROJECTIONS.ACCOUNT_ID,
+        INVESTMENT_EVENTS.WORKSPACE_ID to INVESTMENT_EVENTS.ACCOUNT_ID,
+        ACCOUNT_ALIASES.WORKSPACE_ID to ACCOUNT_ALIASES.ACCOUNT_ID,
+        SYNC_CURSORS.WORKSPACE_ID to SYNC_CURSORS.ACCOUNT_ID).any { (owner, account) ->
+        c.jooq(database.sqlite).fetchExists(owner.table, owner.eq(workspace).and(account.eq(row.id)))
     }
     private fun snapshot(c: Connection, workspace: String, models: List<Row>, write: Boolean): JsonObject {
-        val raw = c.prepareStatement("SELECT payload FROM ledger_snapshots WHERE workspace_id=?" + if(write) lock else "").use {
-            it.setString(1,workspace);it.executeQuery().use { rows -> if(rows.next()) Json.parseToJsonElement(rows.getString(1)).jsonObject else
-                Json.parseToJsonElement("""{"updated_at":"","accounts":{"cash":{},"loan":{},"lend":{},"security":{}}}""").jsonObject }
-        }
+        val query = c.jooq(database.sqlite).select(LEDGER_SNAPSHOTS.PAYLOAD).from(LEDGER_SNAPSHOTS).where(LEDGER_SNAPSHOTS.WORKSPACE_ID.eq(workspace))
+        val raw = (if (write && !database.sqlite) query.forUpdate() else query).fetchOne(LEDGER_SNAPSHOTS.PAYLOAD)?.jsonObject
+            ?: Json.parseToJsonElement("""{"updated_at":"","accounts":{"cash":{},"loan":{},"lend":{},"security":{}}}""").jsonObject
         val buckets = raw["accounts"]?.let { check(it is JsonObject) { "invalid_snapshot_accounts" };it } ?: JsonObject(emptyMap())
         val byId = models.associateBy { it.id }
         return JsonObject(raw + ("accounts" to JsonObject(buckets.mapValues { (_,value) ->
@@ -152,12 +146,11 @@ class AccountService(private val database: Database, private val now: () -> Inst
     fun list(token: String?, view: String): JsonObject {
         if(view !in setOf("cash","investment")) throw AccountFailure("invalid_filter")
         return context(token,false) {c,user ->
-            val types=if(view=="cash") "'cash','loan','lend'" else "'security','crypto'"
-            val items=c.prepareStatement("SELECT id,name,type,active,currencies FROM accounts WHERE workspace_id=? AND type IN ($types) ORDER BY id").use {
-                it.setString(1,user.workspaceId);it.executeQuery().use {rows ->buildList {
-                    while(rows.next()) {
+            val types=if(view=="cash") listOf("cash", "loan", "lend") else listOf("security", "crypto")
+            val items = c.jooq(database.sqlite).select(a.ID, a.NAME, a.TYPE, a.ACTIVE, a.CURRENCIES).from(a)
+                .where(a.WORKSPACE_ID.eq(user.workspaceId)).and(a.TYPE.`in`(types)).orderBy(a.ID).fetch().map { row ->
                         val currencies=if(view=="investment") null else {
-                            val stored=Json.parseToJsonElement(rows.getString(5))
+                            val stored=row[a.CURRENCIES]!!
                             val values=when {
                                 !pythonTruthy(stored) -> emptyList()
                                 stored is JsonArray -> stored.toList()
@@ -169,9 +162,7 @@ class AccountService(private val database: Database, private val now: () -> Inst
                                 pythonString(value).codePoints().forEach {code ->append(pythonUpperCase[code] ?: String(Character.toChars(code)))}
                             }}
                         }
-                        add(accountProtocolJson.encodeToJsonElement(AccountReferenceDto(rows.getLong(1),rows.getString(2),rows.getString(3),rows.getBoolean(4),currencies)))
-                    }
-                } }
+                        accountProtocolJson.encodeToJsonElement(AccountReferenceDto(row[a.ID]!!,row[a.NAME]!!,row[a.TYPE]!!,row[a.ACTIVE]!!,currencies))
             }
             buildJsonObject {put("items",JsonArray(items))}
         }
@@ -211,18 +202,15 @@ class AccountService(private val database: Database, private val now: () -> Inst
             try {
                 var row = accountId?.let { account(c,workspace,it,true) }
                 if(row!=null && row.revision!=revision) throw AccountFailure("account_changed")
-                if("name" in payload) c.prepareStatement("SELECT id FROM accounts WHERE workspace_id=? AND name=? AND id<>?").use {
-                    it.setString(1,workspace);it.setString(2,payload.getValue("name").jsonPrimitive.content);it.setLong(3,row?.id ?: -1)
-                    it.executeQuery().use { rows -> if(rows.next()) throw AccountFailure("account_name_unavailable") }
-                }
+                val sql = c.jooq(database.sqlite)
+                if("name" in payload && sql.fetchExists(a, a.WORKSPACE_ID.eq(workspace)
+                    .and(a.NAME.eq(payload.getValue("name").jsonPrimitive.content)).and(a.ID.ne(row?.id ?: -1)))) throw AccountFailure("account_name_unavailable")
                 if(operation=="account_create") {
                     val at=now()
-                    val sql="INSERT INTO accounts(workspace_id,name,type,active,revision,currencies,metadata_json,created_at,updated_at) VALUES(?,?,?, ?,1,$jsonValue,$jsonValue,?,?) RETURNING id"
-                    val id=c.prepareStatement(sql).use {
-                        it.setString(1,workspace);it.setString(2,payload.getValue("name").jsonPrimitive.content);it.setString(3,payload.getValue("type").jsonPrimitive.content)
-                        it.setBoolean(4,true);it.setString(5,payload.getValue("currencies").toString());it.setString(6,"{}")
-                        it.instant(7,at,database.sqlite);it.instant(8,at,database.sqlite);it.executeQuery().use { rows -> check(rows.next());rows.getLong(1) }
-                    }
+                    val id = sql.insertInto(a).set(a.WORKSPACE_ID, workspace).set(a.NAME, payload.getValue("name").jsonPrimitive.content)
+                        .set(a.TYPE, payload.getValue("type").jsonPrimitive.content).set(a.ACTIVE, true).set(a.REVISION, 1L)
+                        .set(a.CURRENCIES, payload.getValue("currencies")).set(a.METADATA_JSON, JsonObject(emptyMap()))
+                        .set(a.CREATED_AT, at).set(a.UPDATED_AT, at).returningResult(a.ID).fetchSingle().value1()!!
                     row=account(c,workspace,id,true)
                 } else if(operation=="account_update") {
                     val current=requireNotNull(row)
@@ -230,11 +218,9 @@ class AccountService(private val database: Database, private val now: () -> Inst
                     payload["active"]?.let { current.active=it.jsonPrimitive.boolean }
                     payload["currencies"]?.let { current.currencies=it.jsonArray.map { currency -> currency.jsonPrimitive.content } }
                     current.revision++
-                    c.prepareStatement("UPDATE accounts SET name=?,active=?,currencies=$jsonValue,revision=?,updated_at=? WHERE workspace_id=? AND id=? AND revision=?").use {
-                        it.setString(1,current.name);it.setBoolean(2,current.active);it.setString(3,JsonArray(current.currencies.map(::JsonPrimitive)).toString())
-                        it.setLong(4,current.revision);it.instant(5,now(),database.sqlite);it.setString(6,workspace);it.setLong(7,current.id);it.setLong(8,requireNotNull(revision))
-                        if(it.executeUpdate()!=1) throw AccountFailure("account_changed")
-                    }
+                    if(sql.update(a).set(a.NAME, current.name).set(a.ACTIVE, current.active).set(a.CURRENCIES, JsonArray(current.currencies.map(::JsonPrimitive)))
+                        .set(a.REVISION, current.revision).set(a.UPDATED_AT, now()).where(a.WORKSPACE_ID.eq(workspace))
+                        .and(a.ID.eq(current.id)).and(a.REVISION.eq(requireNotNull(revision))).execute()!=1) throw AccountFailure("account_changed")
                 }
                 val current=requireNotNull(row)
                 val models=accounts(c,workspace)
@@ -247,9 +233,8 @@ class AccountService(private val database: Database, private val now: () -> Inst
                     val pockets=(buckets?.get(kind) as? JsonObject)?.toMutableMap()
                     pockets?.remove(current.name)
                     if(pockets!=null) buckets[kind]=JsonObject(pockets)
-                    c.prepareStatement("DELETE FROM accounts WHERE workspace_id=? AND id=? AND revision=?").use {
-                        it.setString(1,workspace);it.setLong(2,current.id);it.setLong(3,requireNotNull(revision));if(it.executeUpdate()!=1) throw AccountFailure("account_changed")
-                    }
+                    if(sql.deleteFrom(a).where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.eq(current.id)).and(a.REVISION.eq(requireNotNull(revision))).execute()!=1)
+                        throw AccountFailure("account_changed")
                     current.revision++
                 } else if(current.type in setOf("cash","loan","lend")) {
                     val all=buckets ?: throw AccountFailure("account_in_use")
@@ -270,8 +255,9 @@ class AccountService(private val database: Database, private val now: () -> Inst
                 }))} catch(failure: ReceiptConflict) {throw AccountFailure(failure.code,failure.receiptId)}
                 beforeCommit()
                 saved
-            } catch(failure: SQLException) {
-                if(failure.sqlState?.startsWith("23")==true || failure.errorCode and 0xff == 19)
+            } catch(failure: DataAccessException) {
+                val cause = failure.sqlCause() ?: throw failure
+                if(cause.sqlState?.startsWith("23")==true || cause.errorCode and 0xff == 19)
                     throw AccountFailure(if(operation=="account_delete") "account_in_use" else "account_name_unavailable")
                 throw failure
             }
@@ -284,8 +270,8 @@ class AccountService(private val database: Database, private val now: () -> Inst
                 models.firstOrNull { it.name==name && (it.type==kind || kind=="security" && it.type=="crypto") }?.id?.toString() ?: name
             })
         })))
-        c.prepareStatement("INSERT INTO ledger_snapshots(workspace_id,payload,version,updated_at) VALUES(?,$jsonValue,1,?) ON CONFLICT(workspace_id) DO UPDATE SET payload=excluded.payload,version=ledger_snapshots.version+1,updated_at=excluded.updated_at").use {
-            it.setString(1,workspace);it.setString(2,payload.toString());it.instant(3,now(),database.sqlite);it.executeUpdate()
-        }
+        val s = LEDGER_SNAPSHOTS; val at = now()
+        c.jooq(database.sqlite).insertInto(s).set(s.WORKSPACE_ID, workspace).set(s.PAYLOAD, payload).set(s.VERSION, 1L).set(s.UPDATED_AT, at)
+            .onConflict(s.WORKSPACE_ID).doUpdate().set(s.PAYLOAD, payload).set(s.VERSION, s.VERSION.plus(1L)).set(s.UPDATED_AT, at).execute()
     }
 }

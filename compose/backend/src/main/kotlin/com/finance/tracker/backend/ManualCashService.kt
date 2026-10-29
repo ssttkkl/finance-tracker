@@ -1,5 +1,9 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
+
 import java.math.MathContext
 import java.math.BigInteger
 import java.math.RoundingMode
@@ -50,21 +54,20 @@ internal fun manualInstantText(value:Instant):String {
 internal class ManualCashRecordRepository(private val context:CashSqlContext) {
     private data class Account(val id:Long,val name:String,val type:String,val currencies:JsonElement)
     private data class Part(val account:Account,var amount:CashAmount,val ordinal:Int,val label:String,val labelSource:JsonElement?)
-    private val c get()=context.connection
     private fun account(name:String?=null,id:BigInteger?=null,source:JsonElement?=null,original:DecodedPythonJson?=null):Account? {
         context.requireActive()
         val longId=id?.takeIf {it>=Long.MIN_VALUE.toBigInteger() && it<=Long.MAX_VALUE.toBigInteger()}?.toLong()
         if(id!=null && longId==null && context.sqlite) throw ManualCashInternalFailure()
         if(id==null) manualOriginalUtf8(source,original,normalized=name)
-        val predicate=if(id==null) "name=?" else if(longId!=null) "id=?" else "id=CAST(? AS BIGINT)"
-        return c.prepareStatement("SELECT id,name,type,currencies FROM accounts WHERE workspace_id=? AND $predicate").use {
-            it.setString(1,context.workspace);if(longId!=null) it.setLong(2,longId) else it.setString(2,id?.toString() ?: name)
-            it.executeQuery().use {r ->if(!r.next()) null else Account(r.getLong(1),r.getString(2),r.getString(3),Json.parseToJsonElement(r.getString(4)))}
-        }
+        val predicate = if (id == null) ACCOUNTS.NAME.eq(name) else if (longId != null) ACCOUNTS.ID.eq(longId)
+            else ACCOUNTS.ID.eq(DSL.`val`(id.toString()).cast(SQLDataType.BIGINT))
+        return context.sql.select(ACCOUNTS.ID, ACCOUNTS.NAME, ACCOUNTS.TYPE, ACCOUNTS.CURRENCIES).from(ACCOUNTS)
+            .where(ACCOUNTS.WORKSPACE_ID.eq(context.workspace)).and(predicate).fetchOne()?.let {
+                Account(it[ACCOUNTS.ID]!!, it[ACCOUNTS.NAME]!!, it[ACCOUNTS.TYPE]!!, it[ACCOUNTS.CURRENCIES]!!)
+            }
     }
     private fun integer(value:JsonElement,original:DecodedPythonJson?):BigInteger=try {pythonIntegerValue(value,original?.stringRepresentation(value))}
         catch(failure:CategoryFailure) {manualBusiness(failure.code)}
-    private fun insert(table:String,values:Map<String,Any?>):Long=context.insertCashRow(table,values)
     private fun validateCounterparty(value:String,attrs:JsonArray) {
         val normalized=attrs.map {pythonString(it)}
         if(normalized !in listOf(emptyList(),listOf("tail"),listOf("full"),listOf("masked"),listOf("masked","reconstructed"))) manualBusiness("counterparty_account_attrs has an invalid combination")
@@ -118,11 +121,34 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
         val note=manualText(input["note"]);val category=manualTrim(manualText(input["category_id"])).ifEmpty {null}
         for(key in listOf("counterparty","counterparty_account","note","category_id")) manualOriginalUtf8(input[key],original,normalized=if(key=="category_id") category.orEmpty() else null)
         val protection=buildJsonObject {for(key in listOf("note","category_id")) if(key in input) put(key,buildJsonObject {put("value",if(key=="note") JsonPrimitive(note) else category?.let(::JsonPrimitive) ?: JsonNull)})}
-        val id=insert("cash_transactions",linkedMapOf("workspace_id" to context.workspace,"account_id" to parent.id,
-            "state" to "posted","record_origin" to "manual","row_revision" to 1L,"cash_granularity" to "atomic",
-            "source_type" to null,"record_id" to "","source_payload" to JsonNull,"relation_metadata" to JsonNull,"source_fingerprint" to null,"manual_overrides" to JsonObject(emptyMap()),
-            "occurred_at" to occurred,"amount" to amount,"currency" to storedCurrency,"counterparty" to manualText(input["counterparty"]),"counterparty_account" to counterpartyAccount,
-            "counterparty_account_attrs" to attrs,"note" to note,"category_id" to category,"record_type" to type,"record_subtype" to subtype,"created_at" to context.now(),"deleted_at" to null,"deleted_by" to "","delete_reason" to ""))
+        val id=context.sql.insertInto(CASH_TRANSACTIONS)
+            .set(CASH_TRANSACTIONS.WORKSPACE_ID, context.workspace)
+            .set(CASH_TRANSACTIONS.ACCOUNT_ID, parent.id)
+            .set(CASH_TRANSACTIONS.STATE, "posted")
+            .set(CASH_TRANSACTIONS.RECORD_ORIGIN, "manual")
+            .set(CASH_TRANSACTIONS.ROW_REVISION, 1L)
+            .set(CASH_TRANSACTIONS.CASH_GRANULARITY, "atomic")
+            .setNull(CASH_TRANSACTIONS.SOURCE_TYPE)
+            .set(CASH_TRANSACTIONS.RECORD_ID, "")
+            .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, JsonNull)
+            .set(CASH_TRANSACTIONS.RELATION_METADATA, JsonNull)
+            .setNull(CASH_TRANSACTIONS.SOURCE_FINGERPRINT)
+            .set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, JsonObject(emptyMap()))
+            .set(CASH_TRANSACTIONS.OCCURRED_AT, occurred)
+            .set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal(amount.toString()))
+            .set(CASH_TRANSACTIONS.CURRENCY, storedCurrency)
+            .set(CASH_TRANSACTIONS.COUNTERPARTY, manualText(input["counterparty"]))
+            .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT, counterpartyAccount)
+            .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT_ATTRS, attrs)
+            .set(CASH_TRANSACTIONS.NOTE, note)
+            .set(CASH_TRANSACTIONS.CATEGORY_ID, category)
+            .set(CASH_TRANSACTIONS.RECORD_TYPE, type)
+            .set(CASH_TRANSACTIONS.RECORD_SUBTYPE, subtype)
+            .set(CASH_TRANSACTIONS.CREATED_AT, context.now())
+            .setNull(CASH_TRANSACTIONS.DELETED_AT)
+            .set(CASH_TRANSACTIONS.DELETED_BY, "")
+            .set(CASH_TRANSACTIONS.DELETE_REASON, "")
+            .returningResult(CASH_TRANSACTIONS.ID).fetchSingle().value1()!!
         val parts=(rawParts ?: JsonArray(listOf(buildJsonObject {put("account_id",parent.id);put("amount",input["amount"] ?: JsonPrimitive("0"))}))).mapIndexed {ordinal,raw ->
             val item=raw.jsonObject;val id=item["account_id"];val partName=manualTrim(manualText(item["account_name"]))
             val selected=when {
@@ -145,23 +171,36 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
         if(direction>=0 && parts.any {it.amount.arithmeticValue().signum()<0}) manualBusiness("组成项金额方向必须与父流水一致")
         val arithmetic=MathContext(80,RoundingMode.HALF_EVEN)
         if(parts.fold(java.math.BigDecimal.ZERO) {total,part ->total.add(part.amount.arithmeticValue(),arithmetic)}.compareTo(amount.arithmeticValue())!=0) manualBusiness("组成项金额之和必须等于父流水金额")
-        if(parts.size!=1 || parts.single().account.id!=parent.id) c.prepareStatement("UPDATE cash_transactions SET account_id=?,cash_granularity=?,row_revision=row_revision+1 WHERE workspace_id=? AND id=?").use {
-            it.setObject(1,if(parts.size==1) parts.single().account.id else null);it.setString(2,if(parts.size==1) "atomic" else "aggregate");it.setString(3,context.workspace);it.setLong(4,id);check(it.executeUpdate()==1)
-        }
+        if(parts.size!=1 || parts.single().account.id!=parent.id) check(context.sql.update(CASH_TRANSACTIONS)
+            .set(CASH_TRANSACTIONS.ACCOUNT_ID, if(parts.size==1) parts.single().account.id else null)
+            .set(CASH_TRANSACTIONS.CASH_GRANULARITY, if(parts.size==1) "atomic" else "aggregate")
+            .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.plus(1L))
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).and(CASH_TRANSACTIONS.ID.eq(id)).execute()==1)
         for(part in parts) manualOriginalUtf8(part.labelSource,original)
         for(part in parts) {
-            insert("cash_transaction_components",linkedMapOf("workspace_id" to context.workspace,"cash_transaction_id" to id,"account_id" to part.account.id,"amount" to part.amount,
-                "currency" to storedCurrency,"ordinal" to part.ordinal,"label" to part.label,"source_key" to "","metadata_json" to JsonObject(emptyMap()),"created_at" to context.now()))
+            context.sql.insertInto(CASH_TRANSACTION_COMPONENTS)
+            .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, context.workspace)
+            .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, id)
+            .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, part.account.id)
+            .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal(part.amount.toString()))
+            .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, storedCurrency)
+            .set(CASH_TRANSACTION_COMPONENTS.ORDINAL, part.ordinal.toLong())
+            .set(CASH_TRANSACTION_COMPONENTS.LABEL, part.label)
+            .set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")
+            .set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, JsonObject(emptyMap()))
+            .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, context.now())
+            .returningResult(CASH_TRANSACTION_COMPONENTS.ID).fetchSingle().value1()!!
         }
-        if(protection.isNotEmpty()) c.prepareStatement("UPDATE cash_transactions SET manual_overrides="+(if(context.sqlite) "?" else "CAST(? AS json)")+",row_revision=row_revision+1 WHERE workspace_id=? AND id=?").use {
-            it.setString(1,protection.toString());it.setString(2,context.workspace);it.setLong(3,id);check(it.executeUpdate()==1)
-        }
-        val components=c.prepareStatement("SELECT p.*,a.name AS account_name,a.type AS account_type FROM cash_transaction_components p JOIN accounts a ON a.workspace_id=p.workspace_id AND a.id=p.account_id WHERE p.workspace_id=? AND p.cash_transaction_id=? ORDER BY p.ordinal,p.id").use {
-            it.setString(1,context.workspace);it.setLong(2,id);it.executeQuery().use {r ->buildList {while(r.next()) add(buildJsonObject {
-                put("id",r.getLong("id"));put("cash_transaction_id",id);put("account_id",r.getLong("account_id"));put("account_name",r.getString("account_name"));put("account_type",r.getString("account_type"))
-                put("amount",fixedCashDecimal(r.cashDecimal("amount",context.sqlite)!!));put("currency",r.getString("currency"));put("ordinal",r.getInt("ordinal"));put("label",r.getString("label"));put("source_key",r.getString("source_key"));put("metadata",r.cashJson("metadata_json")!!)
-            })}}
-        }
+        if(protection.isNotEmpty()) check(context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, protection)
+            .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.plus(1L))
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).and(CASH_TRANSACTIONS.ID.eq(id)).execute()==1)
+        val p = CASH_TRANSACTION_COMPONENTS; val a = ACCOUNTS
+        val components = context.sql.select(p.ID, p.ACCOUNT_ID, a.NAME, a.TYPE, p.AMOUNT, p.CURRENCY, p.ORDINAL, p.LABEL, p.SOURCE_KEY, p.METADATA_JSON)
+            .from(p).join(a).on(a.WORKSPACE_ID.eq(p.WORKSPACE_ID).and(a.ID.eq(p.ACCOUNT_ID)))
+            .where(p.WORKSPACE_ID.eq(context.workspace)).and(p.CASH_TRANSACTION_ID.eq(id)).orderBy(p.ORDINAL, p.ID).fetch().map { r -> buildJsonObject {
+                put("id",r[p.ID]!!);put("cash_transaction_id",id);put("account_id",r[p.ACCOUNT_ID]!!);put("account_name",r[a.NAME]!!);put("account_type",r[a.TYPE]!!)
+                put("amount",fixedCashDecimal(r[p.AMOUNT]!!));put("currency",r[p.CURRENCY]!!);put("ordinal",r[p.ORDINAL]!!);put("label",r[p.LABEL]!!);put("source_key",r[p.SOURCE_KEY]!!);put("metadata",r[p.METADATA_JSON]!!)
+            } }
         val record=buildJsonObject {
             put("id",id);put("occurred_at",manualInstantText(occurred));put("amount",fixedCashDecimal(CashStoredDecimal(amount.toString())));put("currency",storedCurrency)
             put("counterparty",manualText(input["counterparty"]));put("counterparty_account",counterpartyAccount);put("note",note);put("category_id",category?.let(::JsonPrimitive) ?: JsonNull)
@@ -171,9 +210,11 @@ internal class ManualCashRecordRepository(private val context:CashSqlContext) {
         CashBalanceService(context).applyChanges(listOf(null to JsonObject(record+mapOf("record_origin" to JsonPrimitive("manual")))))
         CashProjectionService.maintainStandaloneFactIfReadyInSession(context,readCashFactRows(context,setOf(id)).single())
         val categoryWire=category?.let {key ->
-            val path=c.prepareStatement("SELECT a.id,a.name FROM cash_categories leaf JOIN cash_categories a ON a.workspace_id=leaf.workspace_id AND leaf.category_path LIKE a.category_path || '%' WHERE leaf.workspace_id=? AND leaf.id=? ORDER BY a.depth").use {
-                it.setString(1,context.workspace);it.setString(2,key);it.executeQuery().use {r ->buildList {while(r.next()) add(buildJsonObject {put("id",r.getString(1));put("name",r.getString(2))})}}
-            }
+            val leaf = CASH_CATEGORIES.`as`("leaf"); val ancestor = CASH_CATEGORIES.`as`("ancestor")
+            val path = context.sql.select(ancestor.ID, ancestor.NAME).from(leaf).join(ancestor)
+                .on(ancestor.WORKSPACE_ID.eq(leaf.WORKSPACE_ID).and(leaf.CATEGORY_PATH.like(ancestor.CATEGORY_PATH.concat("%"))))
+                .where(leaf.WORKSPACE_ID.eq(context.workspace)).and(leaf.ID.eq(key)).orderBy(ancestor.DEPTH)
+                .fetch().map { r -> buildJsonObject {put("id",r[ancestor.ID]!!);put("name",r[ancestor.NAME]!!)} }
             if(path.isEmpty()) JsonNull else buildJsonObject {put("id",key);put("name",path.last().getValue("name"));put("path",JsonArray(path))}
         }
         return buildJsonObject {put("record",if(category!=null) JsonObject(record+("category" to (categoryWire ?: JsonNull))) else record);put("relations",JsonArray(emptyList()));put("options",Json.encodeToJsonElement(buildLedgerOptions()))}
@@ -189,7 +230,7 @@ class ManualCashService(private val database:Database,private val now:()->Instan
         return database.write {c ->
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
-            c.prepareStatement("SELECT id FROM workspaces WHERE id=?"+if(database.sqlite) "" else " FOR UPDATE").use {it.setString(1,workspace);it.executeQuery().use {r ->if(!r.next()) throw AccessFailure(true)}}
+            if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
             reads.lockedContext(c,token,workspace,write=true)
             val result=ManualCashRecordRepository(CashSqlContext(c,workspace,database.sqlite,now)).create(input,original)
             beforeReturn();reads.lockedContext(c,token,workspace,write=true)

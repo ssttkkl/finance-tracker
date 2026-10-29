@@ -181,7 +181,7 @@ class CashProjectionIncrementalMigrationTest {
         fun call(target:Any,method:java.lang.reflect.Method,args:Array<out Any?>?):Any?=try {method.invoke(target,*(args ?: emptyArray()))} catch(f:java.lang.reflect.InvocationTargetException) {throw f.targetException}
         fun observe(c:Connection):Connection=java.lang.reflect.Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
             val result=call(c,method,args)
-            if(result is java.sql.PreparedStatement && (args?.firstOrNull() as? String).orEmpty().startsWith("UPDATE cash_projection_states SET projection_version="))
+            if(result is java.sql.PreparedStatement && (args?.firstOrNull() as? String).orEmpty().observedSql().startsWith("update cash_projection_states set projection_version="))
                 java.lang.reflect.Proxy.newProxyInstance(java.sql.PreparedStatement::class.java.classLoader,arrayOf(java.sql.PreparedStatement::class.java)) {_,operation,values ->try {call(result,operation,values)} catch(f:java.sql.SQLException) {if(f.message.orEmpty().contains("synthetic incremental failure")) reached=true;throw f}}
             else result
         } as Connection

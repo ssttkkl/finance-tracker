@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+
 import java.math.MathContext
 import java.math.RoundingMode
 import java.time.Instant
@@ -38,14 +40,19 @@ internal data class CashTransferStoredAccount(val id:Long,val account:CashTransf
 internal class CashTransferRepository(private val context:CashSqlContext) {
     fun accounts():List<CashTransferStoredAccount> {
         context.requireActive()
-        return context.connection.prepareStatement("SELECT id,name,type,active,currencies FROM accounts WHERE workspace_id=? ORDER BY created_at,id").use {s ->
-            s.setString(1,context.workspace);s.executeQuery().use {r ->buildList {while(r.next()) {
-                val name=r.getString("name");val type=r.getString("type");val currencies=Json.parseToJsonElement(r.getString("currencies")).jsonArray.filter(::pythonTruthy).map {item ->
-                    val text=pythonString(item);JsonPrimitive(buildString {text.codePoints().forEach {append(pythonUpperCase[it] ?: String(Character.toChars(it)))}})
+        val accounts = ACCOUNTS
+        return context.sql.select(accounts.ID, accounts.NAME, accounts.TYPE, accounts.ACTIVE, accounts.CURRENCIES).from(accounts)
+            .where(accounts.WORKSPACE_ID.eq(context.workspace)).orderBy(accounts.CREATED_AT, accounts.ID).fetch { row ->
+                val name = row[accounts.NAME]!!
+                val type = row[accounts.TYPE]!!
+                val currencies = row[accounts.CURRENCIES]!!.jsonArray.filter(::pythonTruthy).map { item ->
+                    val text = pythonString(item)
+                    JsonPrimitive(buildString { text.codePoints().forEach { append(pythonUpperCase[it] ?: String(Character.toChars(it))) } })
                 }
-                add(CashTransferStoredAccount(r.getLong("id"),CashTransferAccount(name,type),buildJsonObject {put("name",name);put("type",type);put("active",r.getBoolean("active"));put("currencies",JsonArray(currencies))}))
-            }}}
-        }
+                CashTransferStoredAccount(row[accounts.ID]!!, CashTransferAccount(name, type), buildJsonObject {
+                    put("name", name); put("type", type); put("active", row[accounts.ACTIVE]!!); put("currencies", JsonArray(currencies))
+                })
+            }
     }
     fun stage(account:CashTransferStoredAccount,row:JsonObject,original:DecodedPythonJson?,noteSource:JsonElement?,dateSurrogates:Set<Int>):Pair<Long,Long>? {
         context.requireActive()
@@ -66,12 +73,26 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
         }
         try {manualOriginalUtf8(noteSource ?: row["note"],original,normalized=row.getValue("note").jsonPrimitive.content)} catch(failure:ManualCashBusinessFailure) {throw IllegalArgumentException(failure.message)}
         if(investment) {
-            context.insertCashRow("investment_events",linkedMapOf("workspace_id" to context.workspace,"account_id" to account.id,"source_type" to null,
-                "record_id" to "","source_payload" to JsonNull,"occurred_at" to occurred,"record_type" to "funding","record_subtype" to "subaccount",
-                "currency" to row.getValue("currency").jsonPrimitive.content,"note" to row.getValue("note").jsonPrimitive.content,
-                "from_ticker" to row.getValue("from_ticker").jsonPrimitive.content,"from_amount" to investmentFrom,
-                "to_ticker" to row.getValue("to_ticker").jsonPrimitive.content,"to_amount" to investmentTo,
-                "commission" to CashAmount.parse("0"),"commission_asset" to "","payload" to buildJsonObject {put("manual_transfer_id",row.getValue("manual_transfer_id"))},"created_at" to context.now()))
+            context.sql.insertInto(INVESTMENT_EVENTS)
+            .set(INVESTMENT_EVENTS.WORKSPACE_ID, context.workspace)
+            .set(INVESTMENT_EVENTS.ACCOUNT_ID, account.id)
+            .setNull(INVESTMENT_EVENTS.SOURCE_TYPE)
+            .set(INVESTMENT_EVENTS.RECORD_ID, "")
+            .set(INVESTMENT_EVENTS.SOURCE_PAYLOAD, JsonNull)
+            .set(INVESTMENT_EVENTS.OCCURRED_AT, occurred)
+            .set(INVESTMENT_EVENTS.RECORD_TYPE, "funding")
+            .set(INVESTMENT_EVENTS.RECORD_SUBTYPE, "subaccount")
+            .set(INVESTMENT_EVENTS.CURRENCY, row.getValue("currency").jsonPrimitive.content)
+            .set(INVESTMENT_EVENTS.NOTE, row.getValue("note").jsonPrimitive.content)
+            .set(INVESTMENT_EVENTS.FROM_TICKER, row.getValue("from_ticker").jsonPrimitive.content)
+            .set(INVESTMENT_EVENTS.FROM_AMOUNT, investmentFrom?.let { CashStoredDecimal(it.toString()) })
+            .set(INVESTMENT_EVENTS.TO_TICKER, row.getValue("to_ticker").jsonPrimitive.content)
+            .set(INVESTMENT_EVENTS.TO_AMOUNT, investmentTo?.let { CashStoredDecimal(it.toString()) })
+            .set(INVESTMENT_EVENTS.COMMISSION, CashStoredDecimal(CashAmount.parse("0").toString()))
+            .set(INVESTMENT_EVENTS.COMMISSION_ASSET, "")
+            .set(INVESTMENT_EVENTS.PAYLOAD, buildJsonObject {put("manual_transfer_id",row.getValue("manual_transfer_id"))})
+            .set(INVESTMENT_EVENTS.CREATED_AT, context.now())
+            .returningResult(INVESTMENT_EVENTS.ID).fetchSingle().value1()!!
             return null
         }
         require(account.account.type in setOf("cash","loan","lend")) {"cashflow repository only supports cash, loan, and lend records"}
@@ -80,11 +101,32 @@ internal class CashTransferRepository(private val context:CashSqlContext) {
             "manual_transfer",transferId=row.getValue("manual_transfer_id").jsonPrimitive.content,note=row.getValue("note").jsonPrimitive.content)
     }
     fun relation(from:Pair<Long,Long>,to:Pair<Long,Long>,subtype:String) {
-        context.insertCashRow("transaction_relations",linkedMapOf("workspace_id" to context.workspace,"kind" to "transfer_pair","subtype" to subtype,
-            "primary_transaction_id" to from.first,"secondary_transaction_id" to to.first,"primary_component_id" to from.second,"secondary_component_id" to to.second,
-            "anchor_transaction_id" to from.first,"anchor_component_id" to from.second,"primary_role" to "outgoing","secondary_role" to "incoming",
-            "state" to "confirmed","active" to true,"row_revision" to 1L,"decision_group_id" to null,"decision_source" to "manual","evidence" to JsonObject(emptyMap()),
-            "applied_amount" to CashAmount.parse("0"),"rule_id" to "manual.transfer.v1","created_by" to "manual","created_at" to context.now(),"decided_by" to "","decided_at" to null,"decision_reason" to ""))
+        context.sql.insertInto(TRANSACTION_RELATIONS)
+            .set(TRANSACTION_RELATIONS.WORKSPACE_ID, context.workspace)
+            .set(TRANSACTION_RELATIONS.KIND, "transfer_pair")
+            .set(TRANSACTION_RELATIONS.SUBTYPE, subtype)
+            .set(TRANSACTION_RELATIONS.PRIMARY_TRANSACTION_ID, from.first)
+            .set(TRANSACTION_RELATIONS.SECONDARY_TRANSACTION_ID, to.first)
+            .set(TRANSACTION_RELATIONS.PRIMARY_COMPONENT_ID, from.second)
+            .set(TRANSACTION_RELATIONS.SECONDARY_COMPONENT_ID, to.second)
+            .set(TRANSACTION_RELATIONS.ANCHOR_TRANSACTION_ID, from.first)
+            .set(TRANSACTION_RELATIONS.ANCHOR_COMPONENT_ID, from.second)
+            .set(TRANSACTION_RELATIONS.PRIMARY_ROLE, "outgoing")
+            .set(TRANSACTION_RELATIONS.SECONDARY_ROLE, "incoming")
+            .set(TRANSACTION_RELATIONS.STATE, "confirmed")
+            .set(TRANSACTION_RELATIONS.ACTIVE, true)
+            .set(TRANSACTION_RELATIONS.ROW_REVISION, 1L)
+            .setNull(TRANSACTION_RELATIONS.DECISION_GROUP_ID)
+            .set(TRANSACTION_RELATIONS.DECISION_SOURCE, "manual")
+            .set(TRANSACTION_RELATIONS.EVIDENCE, JsonObject(emptyMap()))
+            .set(TRANSACTION_RELATIONS.APPLIED_AMOUNT, CashStoredDecimal(CashAmount.parse("0").toString()))
+            .set(TRANSACTION_RELATIONS.RULE_ID, "manual.transfer.v1")
+            .set(TRANSACTION_RELATIONS.CREATED_BY, "manual")
+            .set(TRANSACTION_RELATIONS.CREATED_AT, context.now())
+            .set(TRANSACTION_RELATIONS.DECIDED_BY, "")
+            .setNull(TRANSACTION_RELATIONS.DECIDED_AT)
+            .set(TRANSACTION_RELATIONS.DECISION_REASON, "")
+            .returningResult(TRANSACTION_RELATIONS.ID).fetchSingle().value1()!!
     }
 }
 
@@ -110,7 +152,7 @@ class CashTransferService(private val database:Database,private val now:()->Inst
         return database.write {c ->
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
-            c.prepareStatement("SELECT id FROM workspaces WHERE id=?"+if(database.sqlite) "" else " FOR UPDATE").use {it.setString(1,workspace);it.executeQuery().use {r ->if(!r.next()) throw AccessFailure(true)}}
+            if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
             reads.lockedContext(c,token,workspace,write=true)
             val context=CashSqlContext(c,workspace,database.sqlite,now);val repository=CashTransferRepository(context);val accounts=repository.accounts()
             fun validateName(key:String,name:String) {try {manualOriginalUtf8(input[key],original,normalized=name)} catch(failure:ManualCashBusinessFailure) {throw IllegalArgumentException(failure.message)}}

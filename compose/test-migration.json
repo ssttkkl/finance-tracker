@@ -1021,6 +1021,173 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary",
+      "source_sha256": "a49d70556858c1bba7d524064c37418d824da48e0b00e0ed98263e45f61dfa78",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _counts(context_runtime) == initial"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "directApplicationCannotBypassPublicFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded",
+      "source_sha256": "6db862ad790b61097ed32c216633f972cfacc93c6dfe8a6a264e5a951a066b61",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422, response.text",
+        "assert _counts(context_runtime) == initial"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "bodyIsStrictAndBoundedWithoutSavingAnything"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category",
+      "source_sha256": "653b6b1c6f2f79cbc79d93bdf81ff42b69c3fe976bd2315bdfa3b5675c5c79e5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201, response.text",
+        "assert row.state == 'posted' and row.source_payload is None and (not row.relation_metadata)",
+        "assert row.manual_overrides == {'note': {'value': ''}, 'category_id': {'value': None}}",
+        "assert component.cash_transaction_id == row.id and component.label == '现金'",
+        "assert not component.source_key and component.metadata_json == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "explicitEmptyNoteAndCategoryDeriveProtectionAndOnlyPublicComponentFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors",
+      "source_sha256": "b9a79c0196f140cf536cf07af23de538a61e0b173a70022297ce1b4e9538fdae",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[cash_web_runtime-encoding]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[cash_web_runtime-depth]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[postgres_cash_web_runtime-encoding]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[postgres_cash_web_runtime-depth]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422, response.text",
+        "assert response.json()['error']['message'] == '请检查填写内容后重试。'",
+        "assert _counts(context_runtime) == initial"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "invalidEncodingAndDeepJsonRemainSafeProtocolErrors"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection",
+      "source_sha256": "420aecce1db78e69444491e5b5bc29cad668da2767c4bb1216e2340b1fcdc4da",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201, response.text",
+        "assert row.manual_overrides == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "omittedNoteAndCategoryDoNotCreateProtection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything",
+      "source_sha256": "f708ad02a7f93550a4ff9621f13dc1d6e669c2bd037af80a441575e75319135d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422, (field, response.text)",
+        "assert 'private-input' not in response.text and 'forged' not in response.text",
+        "assert _counts(context_runtime) == initial"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
+          "test": "serverFieldsAreRejectedBeforeSavingAnything"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
+        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields",
+      "source_sha256": "61dd07cafc0497178c165200705695c4b51e88e9237288fd6e54303afa5d26f7",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[cash_web_runtime]",
+        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert schema['additionalProperties'] is False",
+        "assert {'amount', 'currency', 'occurred_at'} <= set(schema['required'])",
+        "assert 'manual_overrides' not in schema['properties'] and 'source_payload' not in schema['properties']"
+      ],
+      "targets": [],
+      "reason": "Ktor 尚无完整 OpenAPI 请求 schema；严格业务请求与持久化测试不能替代公开 schema 原断言。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_receipts.py::test_account_receipt_only_accepts_matching_whitelisted_account_results",
       "source_sha256": "c8e80583e6be35f3feae0435962f3a773d2a924ffb5023c2a3a18a3163cf1e3f",
       "status": "migrated",
@@ -2032,6 +2199,240 @@
       "compatibility": "JDBC repository reads full current context and requires explicit row revision increments at SQL mutation sites, replacing SQLAlchemy onupdate. No transaction/relation/projection writes occur during prepare. 500-parent batching and complete joined funding read retained."
     },
     {
+      "source": "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write",
+      "source_sha256": "6f34d973c9a667e4f90033d797c74170f04c29b51a76c35e56237b9ad3505e50",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[cash_web_runtime-CNY-None]",
+        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[cash_web_runtime-USD-17.25000]",
+        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[postgres_cash_web_runtime-CNY-None]",
+        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[postgres_cash_web_runtime-USD-17.25000]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201, response.text",
+        "assert body['ok'] is True",
+        "assert [row['amount'] for row in body['rows']] == ['-123.4500', to_amount or '123.4500']",
+        "assert body['details']['amount'] == '123.4500'",
+        "assert len(added) == 2",
+        "assert {row.amount for row in added} == {Decimal('-123.4500'), Decimal(to_amount or '123.4500')}",
+        "assert {row.record_origin for row in added} == {'manual_transfer'}",
+        "assert len({row.manual_transfer_id for row in added}) == 1 and added[0].manual_transfer_id",
+        "assert relation.kind == 'transfer_pair' and relation.state == 'confirmed' and relation.active",
+        "assert relation.rule_id == 'manual.transfer.v1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferBoundaryMigrationTest.kt",
+          "test": "directTransferReturnsRealJsonRowsAfterOneCompleteEditorWrite"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
+        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
+      ]
+    },
+    {
+      "source": "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write",
+      "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\ud800]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\udfff]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\ud800]",
+        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\udfff]"
+      ],
+      "assertions": [
+        "assert response.status_code == 400, response.text",
+        "assert 'surrogates not allowed' in response.json()['error']['code']",
+        "assert response.json()['error']['message'] == '请求参数无效。'",
+        "assert _financial_state(runtime) == before",
+        "assert success.status_code == 201, success.text",
+        "assert success.json()['row']['occurred_at'] == payload['date']",
+        "assert success.json()['row']['amount'] == '-1.2500'",
+        "assert len(after['cash_transactions']) == len(before['cash_transactions']) + 1",
+        "assert len(after['cash_transaction_components']) == len(before['cash_transaction_components']) + 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowResponseEncodingTest.kt",
+          "test": "legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Actual editor membership and existing financial rows are exercised with both missing and ready projection state. Each separator independently asserts the original error, all 13 financial tables unchanged, then a valid emoji response and exactly one new transaction/component."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary",
+      "source_sha256": "50ab55653987e3686a2a74b64bef9347f3fd7244eabf47f47535121dbe70b514",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[cash_web_runtime]",
+        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert created.status_code == 201",
+        "assert invalid.status_code == 400",
+        "assert written.status_code == 201",
+        "assert written.json()['row']['amount'] == '-12.340000000000000001'",
+        "assert len(rows) == 1",
+        "assert str(rows[0].amount) == '-12.340000000000000001'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "httpAccountCreationAndCashWritePreserveAllEighteenFractionalDigits"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Uses real HTTP account creation and the legacy add endpoint on SQLite and PostgreSQL. Numeric JSON amount is rejected; response and the sole matching stored row preserve all 18 fractional digits."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract",
+      "source_sha256": "a08a00ea4a0c6ff555554ded5488842e280a8614f7185347cec22efb0d07ad40",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract"
+      ],
+      "assertions": [
+        "assert response.status_code == 400",
+        "assert response.json()['error']['code'] == 'amount_must_be_decimal_string'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "The real Ktor endpoint preserves the 400 amount_must_be_decimal_string response and does not call the application writer."
+    },
+    {
+      "source": "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run",
+      "source_sha256": "32cc436335c036c14e47f8b79091aabccf6ce020afff58da09f19acbfb9424fc",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run"
+      ],
+      "assertions": [
+        "assert response.status_code == 403",
+        "assert response.json()['error']['code'] == 'workspace_forbidden'",
+        "assert operations.calls == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "A real viewer token is rejected with the original 403 workspace_forbidden; a beforeWrite observer proves the application writer was not called."
+    },
+    {
+      "source": "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts",
+      "source_sha256": "ec809365c3ecfbbee6e3cdd98d401a679fffe4f457c32727a6d7fb0e8ee1a891",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts"
+      ],
+      "assertions": [
+        "assert unbuilt.get('/api/v1/evidence/cash-projections/cash:1003').json()['error']['code'] == 'projection.unavailable'",
+        "assert client.get('/api/v1/evidence/cash-projections/cash:999').json()['error']['code'] == 'not_found'",
+        "assert 'source_snapshot' not in payload['root_record']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceHttpEvidenceKeepsNotFoundUnavailableAndOmittedSnapshots"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_web_api.py::test_projection_evidence_api_returns_the_projection_envelope",
+      "source_sha256": "999ff3ccff75c8e8bdd27ab5c7c900f153a457538cb40510a103aa455ce04c45",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_web_api.py::test_projection_evidence_api_returns_the_projection_envelope"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert payload['projection']['projection_id'] == 'cash:1003'",
+        "assert payload['root_record']['id'] == '1003'",
+        "assert payload['root_record']['counterparty'] == '咖啡店'",
+        "assert 'record_id' not in payload['root_record']",
+        "assert 'source_snapshot' not in payload['root_record']",
+        "assert payload['members'][0]['roles'] == ['root']",
+        "assert payload['accepted_relations'] == []",
+        "assert payload['inactive_relation_hints'] == []",
+        "assert payload['refund_timeline'] == []",
+        "assert components",
+        "assert isinstance(components[0]['id'], str)",
+        "assert isinstance(components[0]['cash_transaction_id'], str)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceHttpEvidenceKeepsEnvelopeAndStringComponentIdentifiers"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_cash_projection_evidence.py::test_evidence_reads_members_and_relations_in_fixed_batch_queries",
+      "source_sha256": "3a48b6ad13a44658b61512d3a2534b2108f9a1338b646e0c602e30848f4e7bf0",
+      "status": "pending",
+      "parameters": [
+        "tests/test_application_cash_projection_evidence.py::test_evidence_reads_members_and_relations_in_fixed_batch_queries"
+      ],
+      "assertions": [
+        "assert [member['id'] for member in evidence['members']] == ['1003', '1002']",
+        "assert len(relation) == 1",
+        "assert relation[0]['kind'] == 'payment_mirror'",
+        "assert relation[0]['rule_id'] == 'mirror.fixture.v1'",
+        "assert relation[0]['primary_record']['id'] == '1003'",
+        "assert relation[0]['secondary_record']['id'] == '1002'",
+        "assert len([statement for statement in statements if statement.lstrip().upper().startswith('SELECT')]) <= 9"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceMirrorEvidenceKeepsMembersEndpointsAndBoundedReadQueries"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_cash_projection_evidence.py::test_evidence_returns_root_members_and_explicit_absence",
+      "source_sha256": "2e1052727dd5323760e67c9ea1f64d01c42230263be1197fbfec31d6c1b14539",
+      "status": "pending",
+      "parameters": [
+        "tests/test_application_cash_projection_evidence.py::test_evidence_returns_root_members_and_explicit_absence"
+      ],
+      "assertions": [
+        "assert evidence['projection'].projection_id == 'cash:1003'",
+        "assert evidence['root_record']['id'] == '1003'",
+        "assert evidence['root_record']['account']['name'] == '日常账户'",
+        "assert 'source_snapshot' not in evidence['root_record']",
+        "assert [member['id'] for member in evidence['members']] == ['1003']",
+        "assert evidence['members'][0]['roles'] == ['root']",
+        "assert evidence['accepted_relations'] == []",
+        "assert evidence['inactive_relation_hints'] == []",
+        "assert evidence['refund_timeline'] == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceEvidenceReturnsRootMembersAndExplicitAbsence"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_application_cash_projections.py::test_diagnostic_write_failure_does_not_replace_build_error",
       "source_sha256": "c3844c721c2e35bbb969ea08a05fe36b794566f437486cf5e9ddef1244b956b6",
       "status": "migrated",
@@ -2120,6 +2521,28 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection",
+      "source_sha256": "fc69ffb3728236225a08bc123332aae18f3bf6478f68f9176da66d0fbacb454f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection"
+      ],
+      "assertions": [
+        "assert cashflow.add_manual_transaction(amount=Decimal('-20'), counterparty='午餐', account_name='日常账户', currency='CNY').ok",
+        "assert cashflow.checkin_balance(account_name='日常账户', balance=Decimal('200'), currency='CNY', date='2026-07-04').ok",
+        "assert state.projection_version == 3",
+        "assert members == 5"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
+          "test": "manualWriteAndBalanceCalibrationMaintainTheCompleteExistingProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Seeds the original three cash facts/components and rebuilds version 1, then invokes both real services and retains the two ok assertions, projection version 3 and five published members. Executed on both backends."
     },
     {
       "source": "tests/test_application_cash_projections.py::test_rebuild_is_idempotent_in_business_result",
@@ -4388,6 +4811,106 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values",
+      "source_sha256": "fa081b1442fe391a4bcf8fad0751418efa4c055fa46241243d12d53a37dfa55c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert snapshot['cash']['Cash']['CNY'] == '-1.230000000000000001'",
+        "assert usd['shares'] == '0.123456789012345678'",
+        "assert usd['total_cost'] == '0.123456789012345678'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferWriteTest.kt",
+          "test": "investmentAndCryptoSidesWriteFundingEventsAndSharesAndCostWithoutFakeCashRelations"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
+        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
+      ]
+    },
+    {
+      "source": "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts",
+      "source_sha256": "d9846e817d7116d09044a60b152b197e24dfb4a27878952cf1e46c20933aed9c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount0-None]",
+        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount1-None]",
+        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount2-to_amount2]",
+        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount3-to_amount3]"
+      ],
+      "assertions": [
+        "assert result.ok is False",
+        "assert result.error.code == 'transfer.invalid_amount'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferWriteTest.kt",
+          "test": "nonPositiveAndMissingArrivalAmountsHaveNoFinancialEffects"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "preconditions": [
+        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
+        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
+      ]
+    },
+    {
+      "source": "tests/test_relational_cash_projection_evidence.py::test_evidence_only_exposes_cash_inactive_relation_hints",
+      "source_sha256": "1805683856165f68503c7df5758f30cfe438128c3d36e1620758e2e50b3a5fa2",
+      "status": "pending",
+      "parameters": [
+        "tests/test_relational_cash_projection_evidence.py::test_evidence_only_exposes_cash_inactive_relation_hints"
+      ],
+      "assertions": [
+        "assert len(evidence['inactive_relation_hints']) == 1",
+        "assert hint['status'] == 'pending_review'",
+        "assert hint['primary_record']['id'] == '1003'",
+        "assert hint['secondary_record']['id'] == '1002'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceInactiveHintsExposeOnlyCashEndpoints"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable",
+      "source_sha256": "8fb89e5ea820dedbd11d4611e45402896c63f1c6b66ac04b0af9cd38bebf0b95",
+      "status": "pending",
+      "parameters": [
+        "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable[cash_web_runtime]",
+        "tests/test_relational_cash_projection_evidence.py::test_evidence_whitelists_snapshot_and_keeps_full_refund_readable[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert evidence['projection'].visible is True",
+        "assert evidence['projection'].hidden_reason is None",
+        "assert 'source_snapshot' not in evidence['root_record']",
+        "assert evidence['root_record']['record_type'] == 'consumption'",
+        "assert evidence['root_record']['record_subtype'] == 'not_applicable'",
+        "assert evidence['root_record']['account_name'] == '日常账户'",
+        "assert [member['id'] for member in evidence['members']] == ['1003', '1004']",
+        "assert evidence['refund_timeline'] == [{'record_id': 'cash-004', 'occurred_at': '2026-07-04T00:00:00+00:00', 'amount': '12.5', 'currency': 'CNY', 'source_type': 'fixture'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEvidenceSourceMigrationTest.kt",
+          "test": "sourceFullRefundStaysVisibleAndKeepsTimelineWithoutSourceSnapshot"
+        }
+      ],
+      "reason": "已逐条移植至 Kotlin 原生测试并执行双库功能验证；尚缺本片独立断言复核，保持 pending。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_relational_cash_projections.py::test_dataset_write_keeps_each_cash_member_unique",
       "source_sha256": "c23566b255ca195d80aa0a21e0bfffdc9e3a196dd5a15383dd97ffec0aad35e8",
       "status": "migrated",
@@ -4836,376 +5359,6 @@
       ],
       "targets": [],
       "reason": "已有错误名称拒绝，尚缺尾部空格精确匹配与财务数据不变断言。"
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything",
-      "source_sha256": "f708ad02a7f93550a4ff9621f13dc1d6e669c2bd037af80a441575e75319135d",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_rejects_server_fields_before_saving_anything[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert response.status_code == 422, (field, response.text)",
-        "assert 'private-input' not in response.text and 'forged' not in response.text",
-        "assert _counts(context_runtime) == initial"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "serverFieldsAreRejectedBeforeSavingAnything"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary",
-      "source_sha256": "a49d70556858c1bba7d524064c37418d824da48e0b00e0ed98263e45f61dfa78",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_direct_application_create_cannot_bypass_the_public_field_boundary[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert _counts(context_runtime) == initial"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "directApplicationCannotBypassPublicFields"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category",
-      "source_sha256": "653b6b1c6f2f79cbc79d93bdf81ff42b69c3fe976bd2315bdfa3b5675c5c79e5",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_derives_protection_for_explicit_empty_note_and_category[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert response.status_code == 201, response.text",
-        "assert row.state == 'posted' and row.source_payload is None and (not row.relation_metadata)",
-        "assert row.manual_overrides == {'note': {'value': ''}, 'category_id': {'value': None}}",
-        "assert component.cash_transaction_id == row.id and component.label == '现金'",
-        "assert not component.source_key and component.metadata_json == {}"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "explicitEmptyNoteAndCategoryDeriveProtectionAndOnlyPublicComponentFields"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded",
-      "source_sha256": "6db862ad790b61097ed32c216633f972cfacc93c6dfe8a6a264e5a951a066b61",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_body_is_strict_and_bounded[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert response.status_code == 422, response.text",
-        "assert _counts(context_runtime) == initial"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "bodyIsStrictAndBoundedWithoutSavingAnything"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection",
-      "source_sha256": "420aecce1db78e69444491e5b5bc29cad668da2767c4bb1216e2340b1fcdc4da",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_omitted_note_and_category_do_not_create_protection[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert response.status_code == 201, response.text",
-        "assert row.manual_overrides == {}"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "omittedNoteAndCategoryDoNotCreateProtection"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields",
-      "source_sha256": "61dd07cafc0497178c165200705695c4b51e88e9237288fd6e54303afa5d26f7",
-      "status": "pending",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[cash_web_runtime]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert schema['additionalProperties'] is False",
-        "assert {'amount', 'currency', 'occurred_at'} <= set(schema['required'])",
-        "assert 'manual_overrides' not in schema['properties'] and 'source_payload' not in schema['properties']"
-      ],
-      "targets": [],
-      "reason": "Ktor 尚无完整 OpenAPI 请求 schema；严格业务请求与持久化测试不能替代公开 schema 原断言。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
-    },
-    {
-      "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors",
-      "source_sha256": "b9a79c0196f140cf536cf07af23de538a61e0b173a70022297ce1b4e9538fdae",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[cash_web_runtime-encoding]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[cash_web_runtime-depth]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[postgres_cash_web_runtime-encoding]",
-        "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_invalid_encoding_and_deep_json_are_safe_protocol_errors[postgres_cash_web_runtime-depth]"
-      ],
-      "assertions": [
-        "assert response.status_code == 422, response.text",
-        "assert response.json()['error']['message'] == '请检查填写内容后重试。'",
-        "assert _counts(context_runtime) == initial"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ManualCashBoundaryMigrationTest.kt",
-          "test": "invalidEncodingAndDeepJsonRemainSafeProtocolErrors"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原 HTTP fixture 明确为 editor；Kotlin helper 在调用前降为 editor，清理前恢复 admin。",
-        "两个原 context_runtime 参数分别在 SQLite 与显式专用 PostgreSQL 运行；直接应用入口也保持同一实际工作区。"
-      ]
-    },
-    {
-      "source": "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts",
-      "source_sha256": "d9846e817d7116d09044a60b152b197e24dfb4a27878952cf1e46c20933aed9c",
-      "status": "migrated",
-      "parameters": [
-        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount0-None]",
-        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount1-None]",
-        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount2-to_amount2]",
-        "tests/test_postgres_adapter.py::test_transfer_rejects_non_positive_amounts[amount3-to_amount3]"
-      ],
-      "assertions": [
-        "assert result.ok is False",
-        "assert result.error.code == 'transfer.invalid_amount'"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferWriteTest.kt",
-          "test": "nonPositiveAndMissingArrivalAmountsHaveNoFinancialEffects"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
-        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
-      ]
-    },
-    {
-      "source": "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values",
-      "source_sha256": "fa081b1442fe391a4bcf8fad0751418efa4c055fa46241243d12d53a37dfa55c",
-      "status": "migrated",
-      "parameters": [
-        "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values"
-      ],
-      "assertions": [
-        "assert result.ok",
-        "assert snapshot['cash']['Cash']['CNY'] == '-1.230000000000000001'",
-        "assert usd['shares'] == '0.123456789012345678'",
-        "assert usd['total_cost'] == '0.123456789012345678'"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferWriteTest.kt",
-          "test": "investmentAndCryptoSidesWriteFundingEventsAndSharesAndCostWithoutFakeCashRelations"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
-        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write",
-      "source_sha256": "6f34d973c9a667e4f90033d797c74170f04c29b51a76c35e56237b9ad3505e50",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[cash_web_runtime-CNY-None]",
-        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[cash_web_runtime-USD-17.25000]",
-        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[postgres_cash_web_runtime-CNY-None]",
-        "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write[postgres_cash_web_runtime-USD-17.25000]"
-      ],
-      "assertions": [
-        "assert response.status_code == 201, response.text",
-        "assert body['ok'] is True",
-        "assert [row['amount'] for row in body['rows']] == ['-123.4500', to_amount or '123.4500']",
-        "assert body['details']['amount'] == '123.4500'",
-        "assert len(added) == 2",
-        "assert {row.amount for row in added} == {Decimal('-123.4500'), Decimal(to_amount or '123.4500')}",
-        "assert {row.record_origin for row in added} == {'manual_transfer'}",
-        "assert len({row.manual_transfer_id for row in added}) == 1 and added[0].manual_transfer_id",
-        "assert relation.kind == 'transfer_pair' and relation.state == 'confirmed' and relation.active",
-        "assert relation.rule_id == 'manual.transfer.v1'"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashTransferBoundaryMigrationTest.kt",
-          "test": "directTransferReturnsRealJsonRowsAfterOneCompleteEditorWrite"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "preconditions": [
-        "原内存 SQLite 参数在隔离 SQLite 验证，并追加真实 PostgreSQL；原 HTTP 两个后端参数与两币种组合均运行。",
-        "HTTP 原 fixture 使用 editor；目标原生测试在请求前显式降权，清理前恢复 admin。应用层失败结果适配为结构化异常，由原 HTTP 错误合同验证。"
-      ]
-    },
-    {
-      "source": "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write",
-      "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\ud800]",
-        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[cash_web_runtime-\\udfff]",
-        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\ud800]",
-        "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write[postgres_cash_web_runtime-\\udfff]"
-      ],
-      "assertions": [
-        "assert response.status_code == 400, response.text",
-        "assert 'surrogates not allowed' in response.json()['error']['code']",
-        "assert response.json()['error']['message'] == '请求参数无效。'",
-        "assert _financial_state(runtime) == before",
-        "assert success.status_code == 201, success.text",
-        "assert success.json()['row']['occurred_at'] == payload['date']",
-        "assert success.json()['row']['amount'] == '-1.2500'",
-        "assert len(after['cash_transactions']) == len(before['cash_transactions']) + 1",
-        "assert len(after['cash_transaction_components']) == len(before['cash_transaction_components']) + 1"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowResponseEncodingTest.kt",
-          "test": "legacyAddRejectsUnencodableSuccessBeforeCommittingEveryFinancialTable"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "Actual editor membership and existing financial rows are exercised with both missing and ready projection state. Each separator independently asserts the original error, all 13 financial tables unchanged, then a valid emoji response and exactly one new transaction/component."
-    },
-    {
-      "source": "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary",
-      "source_sha256": "50ab55653987e3686a2a74b64bef9347f3fd7244eabf47f47535121dbe70b514",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[cash_web_runtime]",
-        "tests/contract/test_cli_replacement_api.py::test_api_mutations_preserve_decimal_and_transaction_boundary[postgres_cash_web_runtime]"
-      ],
-      "assertions": [
-        "assert created.status_code == 201",
-        "assert invalid.status_code == 400",
-        "assert written.status_code == 201",
-        "assert written.json()['row']['amount'] == '-12.340000000000000001'",
-        "assert len(rows) == 1",
-        "assert str(rows[0].amount) == '-12.340000000000000001'"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
-          "test": "httpAccountCreationAndCashWritePreserveAllEighteenFractionalDigits"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "Uses real HTTP account creation and the legacy add endpoint on SQLite and PostgreSQL. Numeric JSON amount is rejected; response and the sole matching stored row preserve all 18 fractional digits."
-    },
-    {
-      "source": "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract",
-      "source_sha256": "a08a00ea4a0c6ff555554ded5488842e280a8614f7185347cec22efb0d07ad40",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cli_replacement_api.py::test_cashflow_replacement_rejects_numeric_amounts_to_preserve_decimal_contract"
-      ],
-      "assertions": [
-        "assert response.status_code == 400",
-        "assert response.json()['error']['code'] == 'amount_must_be_decimal_string'"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
-          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "The real Ktor endpoint preserves the 400 amount_must_be_decimal_string response and does not call the application writer."
-    },
-    {
-      "source": "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run",
-      "source_sha256": "32cc436335c036c14e47f8b79091aabccf6ce020afff58da09f19acbfb9424fc",
-      "status": "migrated",
-      "parameters": [
-        "tests/contract/test_cli_replacement_api.py::test_viewer_is_denied_before_http_replacement_mutations_run"
-      ],
-      "assertions": [
-        "assert response.status_code == 403",
-        "assert response.json()['error']['code'] == 'workspace_forbidden'",
-        "assert operations.calls == []"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
-          "test": "numericAmountsAndViewerRequestsAreRejectedBeforeTheApplicationRuns"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "A real viewer token is rejected with the original 403 workspace_forbidden; a beforeWrite observer proves the application writer was not called."
-    },
-    {
-      "source": "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection",
-      "source_sha256": "fc69ffb3728236225a08bc123332aae18f3bf6478f68f9176da66d0fbacb454f",
-      "status": "migrated",
-      "parameters": [
-        "tests/test_application_cash_projections.py::test_manual_cash_write_and_balance_checkin_maintain_complete_projection"
-      ],
-      "assertions": [
-        "assert cashflow.add_manual_transaction(amount=Decimal('-20'), counterparty='午餐', account_name='日常账户', currency='CNY').ok",
-        "assert cashflow.checkin_balance(account_name='日常账户', balance=Decimal('200'), currency='CNY', date='2026-07-04').ok",
-        "assert state.projection_version == 3",
-        "assert members == 5"
-      ],
-      "targets": [
-        {
-          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashflowMigrationTest.kt",
-          "test": "manualWriteAndBalanceCalibrationMaintainTheCompleteExistingProjection"
-        }
-      ],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "Seeds the original three cash facts/components and rebuilds version 1, then invokes both real services and retains the two ok assertions, projection version 3 and five published members. Executed on both backends."
     }
   ],
   "source_changes": {

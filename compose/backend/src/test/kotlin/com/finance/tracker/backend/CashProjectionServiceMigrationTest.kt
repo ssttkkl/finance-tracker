@@ -76,7 +76,7 @@ class CashProjectionServiceMigrationTest {
     @Test fun fullRebuildReadsAndValidatesSourcesExactlyOnceWhilePublicationStillFencesDigestAndCount() {
         var sourceReads=0
         fun observe(c:Connection):Connection=java.lang.reflect.Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
-            if(method.name=="prepareStatement" && (args?.firstOrNull() as? String).orEmpty().contains("AS funding_relation_id FROM cash_transactions tx")) sourceReads++
+            if(method.name=="prepareStatement" && (args?.firstOrNull() as? String).orEmpty().observedSql().contains("funding_relation_id from cash_transactions tx")) sourceReads++
             try {method.invoke(c,*(args ?: emptyArray()))} catch(f:java.lang.reflect.InvocationTargetException) {throw f.targetException}
         } as Connection
         inWorkspace(::observe) {db,workspace,account ->

@@ -1,7 +1,9 @@
 package com.finance.tracker.backend
 
 import java.sql.Connection
-import java.sql.ResultSet
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.Record
+import org.jooq.impl.DSL
 import java.util.UUID
 import kotlinx.serialization.json.*
 
@@ -21,46 +23,51 @@ internal class CashEntryRepository(private val connection:Connection,private val
     private val expiredMembers=mutableSetOf<Long>()
     private val knownEntries=linkedMapOf<String,CashEntry>()
     private val knownMembers=linkedMapOf<Long,CashEntryMember>()
-    private val jsonSlot=if(sqlite) "?" else "CAST(? AS json)"
-    private val entryColumns="id,root_transaction_id,revision,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,manual_fields,split_inherit"
+    private val sql = connection.jooq(sqlite)
+    private val e = CASH_ENTRIES.`as`("e")
+    private val m = CASH_ENTRY_MEMBERS.`as`("m")
+    private val entryFields = listOf(e.ID, e.ROOT_TRANSACTION_ID, e.REVISION, e.CATEGORY_ID, e.NOTE, e.COUNTERPARTY,
+        e.COUNTERPARTY_ACCOUNT, e.COUNTERPARTY_ACCOUNT_ATTRS, e.MANUAL_FIELDS, e.SPLIT_INHERIT)
+    private val memberFields = listOf(m.TRANSACTION_ID, m.ENTRY_ID, m.STANDALONE_VALUES, m.STANDALONE_MANUAL_FIELDS)
     init {(connection as? CashSqlTransactionBoundary)?.let {it.cashBeforeSavepoint(::flush);it.cashOnSavepointRollback(::reloadAfterSavepointRollback)}}
-    private fun textList(value:String)=Json.parseToJsonElement(value).jsonArray.map {check(it is JsonPrimitive && it.isString);it.content}
+    private fun textList(value: JsonElement) = value.jsonArray.map { check(it is JsonPrimitive && it.isString); it.content }
     private fun sorted(values:Collection<String>)=values.distinct().sortedWith(cashRelationStringOrder)
-    private fun entry(row:ResultSet,start:Int):CashEntry? {
-        val id=row.getString(start) ?: return null
+    private fun entry(row: Record): CashEntry? {
+        val id = row[e.ID] ?: return null
         return entries.getOrPut(id) {
-            val split=row.getBoolean(start+9).let {if(row.wasNull()) null else it}
-            CashEntry(id,row.getLong(start+1),row.getLong(start+2),buildJsonObject {
-                put("category_id",row.getString(start+3)?.let(::JsonPrimitive) ?: JsonNull);put("note",row.getString(start+4));put("counterparty",row.getString(start+5))
-                put("counterparty_account",row.getString(start+6));put("counterparty_account_attrs",Json.parseToJsonElement(row.getString(start+7)))
-            },textList(row.getString(start+8)),split).also {savedEntries[id]=it.copy();knownEntries[id]=it}
+            CashEntry(id, row[e.ROOT_TRANSACTION_ID]!!, row[e.REVISION]!!, buildJsonObject {
+                put("category_id", row[e.CATEGORY_ID]?.let(::JsonPrimitive) ?: JsonNull); put("note", row[e.NOTE]!!); put("counterparty", row[e.COUNTERPARTY]!!)
+                put("counterparty_account", row[e.COUNTERPARTY_ACCOUNT]!!); put("counterparty_account_attrs", row[e.COUNTERPARTY_ACCOUNT_ATTRS]!!)
+            }, textList(row[e.MANUAL_FIELDS]!!), row[e.SPLIT_INHERIT]).also { savedEntries[id] = it.copy(); knownEntries[id] = it }
         }
     }
-    private fun member(row:ResultSet):CashEntryMember {
-        val id=row.getLong(1)
-        fun loaded()=CashEntryMember(id,row.getString(2),Json.parseToJsonElement(row.getString(3)).jsonObject,textList(row.getString(4)))
-        val current=members.getOrPut(id) {loaded().also {savedMembers[id]=it.copy();knownMembers[id]=it}}
-        if(expiredMembers.remove(id)) {
-            val fresh=loaded();current.entryId=fresh.entryId;current.standaloneValues=fresh.standaloneValues;current.standaloneManualFields=fresh.standaloneManualFields;savedMembers[id]=current.copy()
+    private fun member(row: Record): CashEntryMember {
+        val id = row[m.TRANSACTION_ID]!!
+        fun loaded() = CashEntryMember(id, row[m.ENTRY_ID]!!, row[m.STANDALONE_VALUES]!!.jsonObject, textList(row[m.STANDALONE_MANUAL_FIELDS]!!))
+        val current = members.getOrPut(id) { loaded().also { savedMembers[id] = it.copy(); knownMembers[id] = it } }
+        if (expiredMembers.remove(id)) {
+            val fresh = loaded(); current.entryId = fresh.entryId; current.standaloneValues = fresh.standaloneValues
+            current.standaloneManualFields = fresh.standaloneManualFields; savedMembers[id] = current.copy()
         }
         return current
     }
     private fun reloadAfterSavepointRollback() {
-        if(knownEntries.isEmpty() && knownMembers.isEmpty()) return
-        entries.clear();members.clear();savedEntries.clear();savedMembers.clear();expiredMembers.clear()
-        for(batch in knownEntries.keys.toList().chunked(400)) connection.prepareStatement("SELECT $entryColumns FROM cash_entries WHERE workspace_id=? AND id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setString(index+2,id)};it.executeQuery().use {r ->while(r.next()) {
-                val id=r.getString(1);val original=knownEntries.getValue(id);val fresh=entry(r,1)!!
-                original.rootTransactionId=fresh.rootTransactionId;original.revision=fresh.revision;original.values=fresh.values;original.manualFields=fresh.manualFields;original.splitInherit=fresh.splitInherit
-                entries[id]=original;savedEntries[id]=original.copy();knownEntries[id]=original
-            }}
+        if (knownEntries.isEmpty() && knownMembers.isEmpty()) return
+        entries.clear(); members.clear(); savedEntries.clear(); savedMembers.clear(); expiredMembers.clear()
+        for (batch in knownEntries.keys.toList().chunked(400)) {
+            sql.select(entryFields).from(e).where(e.WORKSPACE_ID.eq(workspace)).and(e.ID.`in`(batch)).fetch().forEach { row ->
+                val id = row[e.ID]!!; val original = knownEntries.getValue(id); val fresh = entry(row)!!
+                original.rootTransactionId = fresh.rootTransactionId; original.revision = fresh.revision; original.values = fresh.values
+                original.manualFields = fresh.manualFields; original.splitInherit = fresh.splitInherit
+                entries[id] = original; savedEntries[id] = original.copy(); knownEntries[id] = original
+            }
         }
-        for(batch in knownMembers.keys.toList().chunked(400)) connection.prepareStatement("SELECT transaction_id,entry_id,standalone_values,standalone_manual_fields FROM cash_entry_members WHERE workspace_id=? AND transaction_id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};it.executeQuery().use {r ->while(r.next()) {
-                val id=r.getLong(1);val original=knownMembers.getValue(id);val fresh=member(r)
-                original.entryId=fresh.entryId;original.standaloneValues=fresh.standaloneValues;original.standaloneManualFields=fresh.standaloneManualFields
-                members[id]=original;savedMembers[id]=original.copy();knownMembers[id]=original
-            }}
+        for (batch in knownMembers.keys.toList().chunked(400)) {
+            sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.TRANSACTION_ID.`in`(batch)).fetch().forEach { row ->
+                val id = row[m.TRANSACTION_ID]!!; val original = knownMembers.getValue(id); val fresh = member(row)
+                original.entryId = fresh.entryId; original.standaloneValues = fresh.standaloneValues; original.standaloneManualFields = fresh.standaloneManualFields
+                members[id] = original; savedMembers[id] = original.copy(); knownMembers[id] = original
+            }
         }
     }
     fun expireMember(id:Long) {
@@ -72,24 +79,25 @@ internal class CashEntryRepository(private val connection:Connection,private val
         val ids=identifiers.distinct();if(ids.isEmpty()) return emptyMap<Long,CashEntryMember>() to emptyMap()
         if(autoFlush) flush()
         val found=linkedMapOf<Long,CashEntryMember>();val objects=linkedMapOf<String,CashEntry>()
-        if(ids.size<=400 && autoFlush) {
-            val columns=entryColumns.split(',').joinToString(",") {"e.$it"}
-            var matches=true
-            connection.prepareStatement("SELECT m.transaction_id,m.entry_id,m.standalone_values,m.standalone_manual_fields,$columns FROM cash_entry_members m LEFT JOIN cash_entries e ON e.workspace_id=? AND e.id=m.entry_id WHERE m.workspace_id=? AND m.transaction_id IN (${ids.joinToString(",") {"?"}})").use {
-                it.setString(1,workspace);it.setString(2,workspace);ids.forEachIndexed {index,id ->it.setLong(index+3,id)}
-                it.executeQuery().use {r ->while(r.next()) {
-                    val m=member(r);found[m.transactionId]=m;val e=entry(r,5)
-                    if(e==null || m.entryId!=e.id) matches=false
-                    if(e!=null) objects[e.id]=e
-                }}
+        if (ids.size <= 400 && autoFlush) {
+            var matches = true
+            sql.select(memberFields + entryFields).from(m).leftJoin(e).on(e.WORKSPACE_ID.eq(workspace)).and(e.ID.eq(m.ENTRY_ID))
+                .where(m.WORKSPACE_ID.eq(workspace)).and(m.TRANSACTION_ID.`in`(ids)).fetch().forEach { row ->
+                    val member = member(row); found[member.transactionId] = member; val entry = entry(row)
+                    if (entry == null || member.entryId != entry.id) matches = false
+                    if (entry != null) objects[entry.id] = entry
+                }
+            if (matches) return found to objects
+        } else for (batch in ids.chunked(400)) {
+            sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.TRANSACTION_ID.`in`(batch)).fetch().forEach { row ->
+                val member = member(row); found[member.transactionId] = member
             }
-            if(matches) return found to objects
-        } else for(batch in ids.chunked(400)) connection.prepareStatement("SELECT transaction_id,entry_id,standalone_values,standalone_manual_fields FROM cash_entry_members WHERE workspace_id=? AND transaction_id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};it.executeQuery().use {r ->while(r.next()) {val m=member(r);found[m.transactionId]=m}}
         }
         objects.clear()
-        for(batch in found.values.map {it.entryId}.distinct().chunked(400)) connection.prepareStatement("SELECT $entryColumns FROM cash_entries WHERE workspace_id=? AND id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setString(index+2,id)};it.executeQuery().use {r ->while(r.next()) {val e=entry(r,1)!!;objects[e.id]=e}}
+        for (batch in found.values.map { it.entryId }.distinct().chunked(400)) {
+            sql.select(entryFields).from(e).where(e.WORKSPACE_ID.eq(workspace)).and(e.ID.`in`(batch)).fetch().forEach { row ->
+                val entry = entry(row)!!; objects[entry.id] = entry
+            }
         }
         return found to objects
     }
@@ -107,37 +115,54 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
     }
     fun flush() {
-        for(e in entries.values) if(e!=savedEntries[e.id]) {
-            connection.prepareStatement("UPDATE cash_entries SET root_transaction_id=?,revision=?,category_id=?,note=?,counterparty=?,counterparty_account=?,counterparty_account_attrs=$jsonSlot,manual_fields=$jsonSlot,split_inherit=? WHERE workspace_id=? AND id=?").use {
-                it.setLong(1,e.rootTransactionId);it.setLong(2,e.revision);it.setString(3,e.values["category_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content)
-                it.setString(4,e.values.getValue("note").jsonPrimitive.content);it.setString(5,e.values.getValue("counterparty").jsonPrimitive.content);it.setString(6,e.values.getValue("counterparty_account").jsonPrimitive.content)
-                it.setString(7,e.values.getValue("counterparty_account_attrs").toString());it.setString(8,JsonArray(e.manualFields.map(::JsonPrimitive)).toString());it.setObject(9,e.splitInherit);it.setString(10,workspace);it.setString(11,e.id);check(it.executeUpdate()==1)
-            };savedEntries[e.id]=e.copy()
+        val table = CASH_ENTRIES
+        for (entry in entries.values) if (entry != savedEntries[entry.id]) {
+            check(sql.update(table).set(table.ROOT_TRANSACTION_ID, entry.rootTransactionId).set(table.REVISION, entry.revision)
+                .set(table.CATEGORY_ID, entry.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
+                .set(table.NOTE, entry.values.getValue("note").jsonPrimitive.content).set(table.COUNTERPARTY, entry.values.getValue("counterparty").jsonPrimitive.content)
+                .set(table.COUNTERPARTY_ACCOUNT, entry.values.getValue("counterparty_account").jsonPrimitive.content)
+                .set(table.COUNTERPARTY_ACCOUNT_ATTRS, entry.values.getValue("counterparty_account_attrs"))
+                .set(table.MANUAL_FIELDS, JsonArray(entry.manualFields.map(::JsonPrimitive))).set(table.SPLIT_INHERIT, entry.splitInherit)
+                .where(table.WORKSPACE_ID.eq(workspace)).and(table.ID.eq(entry.id)).execute() == 1)
+            savedEntries[entry.id] = entry.copy()
         }
-        for(m in members.values) if(m.transactionId !in expiredMembers && m!=savedMembers[m.transactionId]) {
-            connection.prepareStatement("UPDATE cash_entry_members SET entry_id=?,standalone_values=$jsonSlot,standalone_manual_fields=$jsonSlot WHERE workspace_id=? AND transaction_id=?").use {
-                it.setString(1,m.entryId);it.setString(2,m.standaloneValues.toString());it.setString(3,JsonArray(m.standaloneManualFields.map(::JsonPrimitive)).toString());it.setString(4,workspace);it.setLong(5,m.transactionId);check(it.executeUpdate()==1)
-            };savedMembers[m.transactionId]=m.copy()
+        val member = CASH_ENTRY_MEMBERS
+        for (value in members.values) if (value.transactionId !in expiredMembers && value != savedMembers[value.transactionId]) {
+            check(sql.update(member).set(member.ENTRY_ID, value.entryId).set(member.STANDALONE_VALUES, value.standaloneValues)
+                .set(member.STANDALONE_MANUAL_FIELDS, JsonArray(value.standaloneManualFields.map(::JsonPrimitive)))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.TRANSACTION_ID.eq(value.transactionId)).execute() == 1)
+            savedMembers[value.transactionId] = value.copy()
         }
     }
 
     private data class Source(val values:JsonObject,val manual:Set<String>)
-    private fun sources(ids:Collection<Long>):Map<Long,Source> {
-        val result=linkedMapOf<Long,Source>()
-        for(batch in ids.chunked(400)) connection.prepareStatement("SELECT id,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,manual_overrides FROM cash_transactions WHERE workspace_id=? AND id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};it.executeQuery().use {r ->while(r.next()) {
-                val values=buildJsonObject {put("category_id",r.getString(2)?.let(::JsonPrimitive) ?: JsonNull);put("note",r.getString(3));put("counterparty",r.getString(4));put("counterparty_account",r.getString(5));put("counterparty_account_attrs",Json.parseToJsonElement(r.getString(6)))}
-                val overrides=Json.parseToJsonElement(r.getString(7) ?: "null");val keys=if(overrides==JsonNull) emptySet() else overrides.jsonObject.keys
-                result[r.getLong(1)]=Source(values,keys intersect commonCashFields)
-            }}
+    private fun sources(ids: Collection<Long>): Map<Long, Source> {
+        val result = linkedMapOf<Long, Source>()
+        val fact = CASH_TRANSACTIONS
+        for (batch in ids.chunked(400)) {
+            sql.select(fact.ID, fact.CATEGORY_ID, fact.NOTE, fact.COUNTERPARTY, fact.COUNTERPARTY_ACCOUNT, fact.COUNTERPARTY_ACCOUNT_ATTRS, fact.MANUAL_OVERRIDES)
+                .from(fact).where(fact.WORKSPACE_ID.eq(workspace)).and(fact.ID.`in`(batch)).fetch().forEach { row ->
+                    val values = buildJsonObject {
+                        put("category_id", row[fact.CATEGORY_ID]?.let(::JsonPrimitive) ?: JsonNull); put("note", row[fact.NOTE]!!)
+                        put("counterparty", row[fact.COUNTERPARTY]!!); put("counterparty_account", row[fact.COUNTERPARTY_ACCOUNT]!!)
+                        put("counterparty_account_attrs", row[fact.COUNTERPARTY_ACCOUNT_ATTRS]!!)
+                    }
+                    val overrides = row[fact.MANUAL_OVERRIDES] ?: JsonNull
+                    val keys = if (overrides == JsonNull) emptySet() else overrides.jsonObject.keys
+                    result[row[fact.ID]!!] = Source(values, keys intersect commonCashFields)
+                }
         }
         return result
     }
-    private fun insert(e:CashEntry) {
-        connection.prepareStatement("INSERT INTO cash_entries(id,workspace_id,root_transaction_id,revision,category_id,note,counterparty,counterparty_account,counterparty_account_attrs,manual_fields,split_inherit) VALUES(?,?,?,1,?,?,?,?,$jsonSlot,$jsonSlot,NULL)").use {
-            it.setString(1,e.id);it.setString(2,workspace);it.setLong(3,e.rootTransactionId);it.setString(4,e.values["category_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content);it.setString(5,e.values.getValue("note").jsonPrimitive.content)
-            it.setString(6,e.values.getValue("counterparty").jsonPrimitive.content);it.setString(7,e.values.getValue("counterparty_account").jsonPrimitive.content);it.setString(8,e.values.getValue("counterparty_account_attrs").toString());it.setString(9,JsonArray(e.manualFields.map(::JsonPrimitive)).toString());check(it.executeUpdate()==1)
-        };entries[e.id]=e;savedEntries[e.id]=e.copy();knownEntries[e.id]=e
+    private fun insert(e: CashEntry) {
+        val table = CASH_ENTRIES
+        check(sql.insertInto(table).set(table.ID, e.id).set(table.WORKSPACE_ID, workspace).set(table.ROOT_TRANSACTION_ID, e.rootTransactionId)
+            .set(table.REVISION, 1L).set(table.CATEGORY_ID, e.values["category_id"]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content)
+            .set(table.NOTE, e.values.getValue("note").jsonPrimitive.content).set(table.COUNTERPARTY, e.values.getValue("counterparty").jsonPrimitive.content)
+            .set(table.COUNTERPARTY_ACCOUNT, e.values.getValue("counterparty_account").jsonPrimitive.content)
+            .set(table.COUNTERPARTY_ACCOUNT_ATTRS, e.values.getValue("counterparty_account_attrs"))
+            .set(table.MANUAL_FIELDS, JsonArray(e.manualFields.map(::JsonPrimitive))).setNull(table.SPLIT_INHERIT).execute() == 1)
+        entries[e.id] = e; savedEntries[e.id] = e.copy(); knownEntries[e.id] = e
     }
     private fun normalized(patch:Map<*,*>):JsonObject=JsonObject(patch.entries.associate {(key,value) ->
         val field=key as String
@@ -156,10 +181,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
         val changed=values.any {(field,value) ->entry.values[field]!=value || field !in entry.manualFields}
         if(changed) {
             entry.values=JsonObject(entry.values+values);entry.manualFields=sorted(entry.manualFields+values.keys);entry.revision=Math.addExact(entry.revision,1)
-            val group=mutableListOf<CashEntryMember>()
-            connection.prepareStatement("SELECT transaction_id,entry_id,standalone_values,standalone_manual_fields FROM cash_entry_members WHERE workspace_id=? AND entry_id=?").use {
-                it.setString(1,workspace);it.setString(2,entry.id);it.executeQuery().use {r ->while(r.next()) group+=member(r)}
-            }
+            val group = sql.select(memberFields).from(m).where(m.WORKSPACE_ID.eq(workspace)).and(m.ENTRY_ID.eq(entry.id)).fetch(::member)
             if(group.size==1) group.single().let {m ->m.standaloneValues=JsonObject(m.standaloneValues+values);m.standaloneManualFields=sorted(m.standaloneManualFields+values.keys)}
             flush()
         }
@@ -186,14 +208,15 @@ internal class CashEntryRepository(private val connection:Connection,private val
         };return result
     }
     private fun projectionForSource(id:Long):CashProjection {
-        val fact=connection.prepareStatement("SELECT id,account_id,occurred_at,amount,currency,counterparty,category_id,note,source_type,record_id,cash_granularity,state,created_at FROM cash_transactions WHERE workspace_id=? AND id=?").use {
-            it.setString(1,workspace);it.setLong(2,id);it.executeQuery().use {r ->
-                if(!r.next()) throw CashPolicyError("entry_changed",emptyList())
-                fun instant(value:String?)=value?.let {raw ->val text=raw.replace(' ','T');if(sqlite) java.time.LocalDateTime.parse(text).toInstant(java.time.ZoneOffset.UTC) else java.time.OffsetDateTime.parse(text).toInstant()}
-                val account=r.getLong(2).let {if(r.wasNull()) null else it}
-                CashProjectionFact.create(r.getLong(1),account,instant(r.getString(3)),r.getString(4),r.getString(5),r.getString(6),r.getString(7),r.getString(8),r.getString(9),r.getString(10),cashGranularity=r.getString(11),state=r.getString(12),createdAt=instant(r.getString(13)))
-            }
-        };return buildCashProjections(listOf(fact),emptyList()).projections.single()
+        val fact = CASH_TRANSACTIONS
+        val row = sql.select(fact.ID, fact.ACCOUNT_ID, fact.OCCURRED_AT, fact.AMOUNT, fact.CURRENCY, fact.COUNTERPARTY,
+            fact.CATEGORY_ID, fact.NOTE, fact.SOURCE_TYPE, fact.RECORD_ID, fact.CASH_GRANULARITY, fact.STATE, fact.CREATED_AT)
+            .from(fact).where(fact.WORKSPACE_ID.eq(workspace)).and(fact.ID.eq(id)).fetchOne()
+            ?: throw CashPolicyError("entry_changed", emptyList())
+        val source = CashProjectionFact.create(row[fact.ID]!!, row[fact.ACCOUNT_ID], row[fact.OCCURRED_AT], row[fact.AMOUNT]?.text,
+            row[fact.CURRENCY], row[fact.COUNTERPARTY]!!, row[fact.CATEGORY_ID], row[fact.NOTE]!!, row[fact.SOURCE_TYPE], row[fact.RECORD_ID]!!,
+            cashGranularity = row[fact.CASH_GRANULARITY]!!, state = row[fact.STATE]!!, createdAt = row[fact.CREATED_AT])
+        return buildCashProjections(listOf(source), emptyList()).projections.single()
     }
     fun applyEdit(id:Long,patch:Any?,revision:Long?):CashEntry {
         val entry=current(id)
@@ -206,9 +229,8 @@ internal class CashEntryRepository(private val connection:Connection,private val
     fun chooseCommon(ids:Collection<Long>,patch:Map<String,Any?>) {
         val values=normalized(patch.filterKeys {it in commonCashFields})
         val category=values["category_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content
-        if(category!=null) connection.prepareStatement("SELECT id FROM cash_categories WHERE workspace_id=? AND id=?").use {
-            it.setString(1,workspace);it.setString(2,category);it.executeQuery().use {r ->if(!r.next()) throw CashPolicyError("category_unavailable",listOf("category_id"))}
-        }
+        if (category != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace).and(CASH_CATEGORIES.ID.eq(category))))
+            throw CashPolicyError("category_unavailable", listOf("category_id"))
         if(values.isEmpty()) return
         for(id in ids.toSet()) {
             var entry=current(id)
@@ -218,14 +240,20 @@ internal class CashEntryRepository(private val connection:Connection,private val
     }
     fun removeMembers(ids:Collection<Long>) {
         val (ms,es)=forTransactions(ids)
-        for(batch in ms.keys.chunked(400)) connection.prepareStatement("DELETE FROM cash_entry_members WHERE workspace_id=? AND transaction_id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};check(it.executeUpdate()==batch.size)
+        for (batch in ms.keys.chunked(400)) {
+            check(sql.deleteFrom(CASH_ENTRY_MEMBERS).where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace))
+                .and(CASH_ENTRY_MEMBERS.TRANSACTION_ID.`in`(batch)).execute() == batch.size)
         }
         ms.keys.forEach {members.remove(it);savedMembers.remove(it);expiredMembers.remove(it)}
         es.values.forEach {it.revision=Math.addExact(it.revision,1)};flush()
-        for(id in es.keys) connection.prepareStatement("DELETE FROM cash_entries WHERE workspace_id=? AND id=? AND NOT EXISTS(SELECT 1 FROM cash_entry_members WHERE workspace_id=? AND entry_id=?)").use {
-            it.setString(1,workspace);it.setString(2,id);it.setString(3,workspace);it.setString(4,id);if(it.executeUpdate()==1) {entries.remove(id);savedEntries.remove(id)}
-        }
+        for (id in es.keys) deleteEmptyEntry(id)
+    }
+    private fun deleteEmptyEntry(id: String) {
+        val entry = CASH_ENTRIES
+        val member = CASH_ENTRY_MEMBERS
+        val count = sql.deleteFrom(entry).where(entry.WORKSPACE_ID.eq(workspace)).and(entry.ID.eq(id))
+            .andNotExists(DSL.selectOne().from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.ENTRY_ID.eq(id))).execute()
+        if (count == 1) { entries.remove(id); savedEntries.remove(id) }
     }
     fun reconcile(projections:List<CashProjection>):Map<String,CashEntry> {
         val ids=projections.flatMap {it.memberIds}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
@@ -266,14 +294,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
         }
         fresh.forEach(::insert)
         for(m in freshMembers) {
-            connection.prepareStatement("INSERT INTO cash_entry_members(workspace_id,transaction_id,entry_id,standalone_values,standalone_manual_fields) VALUES(?,?,?,$jsonSlot,$jsonSlot)").use {
-                it.setString(1,workspace);it.setLong(2,m.transactionId);it.setString(3,m.entryId);it.setString(4,m.standaloneValues.toString());it.setString(5,JsonArray(m.standaloneManualFields.map(::JsonPrimitive)).toString());check(it.executeUpdate()==1)
-            };savedMembers[m.transactionId]=m.copy()
+            val table = CASH_ENTRY_MEMBERS
+            check(sql.insertInto(table).set(table.WORKSPACE_ID, workspace).set(table.TRANSACTION_ID, m.transactionId).set(table.ENTRY_ID, m.entryId)
+                .set(table.STANDALONE_VALUES, m.standaloneValues).set(table.STANDALONE_MANUAL_FIELDS, JsonArray(m.standaloneManualFields.map(::JsonPrimitive))).execute() == 1)
+            savedMembers[m.transactionId] = m.copy()
         }
         flush();es.values.forEach {it.splitInherit=null};flush()
-        for(id in es.keys-used) connection.prepareStatement("DELETE FROM cash_entries WHERE workspace_id=? AND id=? AND NOT EXISTS(SELECT 1 FROM cash_entry_members WHERE workspace_id=? AND entry_id=?)").use {
-            it.setString(1,workspace);it.setString(2,id);it.setString(3,workspace);it.setString(4,id);if(it.executeUpdate()==1) {entries.remove(id);savedEntries.remove(id)}
-        }
+        for (id in es.keys-used) deleteEmptyEntry(id)
         return result
     }
 }

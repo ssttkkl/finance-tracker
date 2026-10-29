@@ -9,7 +9,7 @@ import kotlinx.serialization.json.*
 class CashProjectionSourceMigrationTest {
     private val statements=mutableListOf<String>()
     private fun observed(c:Connection):Connection=java.lang.reflect.Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
-        if(method.name=="prepareStatement") statements.add(args!![0] as String)
+        if(method.name=="prepareStatement") statements.add((args!![0] as String).replace("\"", "").replace("`", "").lowercase(java.util.Locale.ROOT).replace(Regex("\\s+as\\s+"), " ").replace(Regex("\\s+"), " "))
         try {method.invoke(c,*(args ?: emptyArray()))} catch(f:java.lang.reflect.InvocationTargetException) {throw f.targetException}
     } as Connection
     private fun inWorkspace(action:(Database,String,Long,String)->Unit) {
@@ -57,9 +57,9 @@ class CashProjectionSourceMigrationTest {
             val context=CashRelationReadRepository(CashSqlContext(c,workspace,db.sqlite)).readContext(data.ids.toSet())
             assertEquals(data.ids.toSet(),context.transactionIds);assertEquals(data.parts.values.map {it.toString()}.toSet(),context.components.map {it.componentId}.toSet())
             assertEquals(501,context.componentVersions.size);assertTrue(context.fundingVersions.isEmpty())
-            val parents=statements.filter {it.startsWith("SELECT id,account_id,occurred_at") && "FROM cash_transactions tx" in it}
-            assertEquals(listOf(501,2),parents.map {it.count {ch ->ch=='?'}})
-            val parts=statements.filter {"FROM cash_transaction_components p LEFT OUTER JOIN cash_investment_funding_relations" in it}
+            val parents=statements.filter {it.startsWith("select tx.id, tx.account_id, tx.occurred_at") && "from cash_transactions tx" in it}
+            assertEquals(listOf(501,2),parents.map {it.count {ch ->ch=='?'}}, statements.joinToString("\n"))
+            val parts=statements.filter {"from cash_transaction_components p left outer join cash_investment_funding_relations" in it}
             assertEquals(listOf(502,3),parts.map {it.count {ch ->ch=='?'}})
             assertTrue(statements.none {"source_payload" in it || "relation_metadata" in it})
         }
@@ -244,12 +244,12 @@ class CashProjectionSourceMigrationTest {
         statements.clear();val context=CashRelationReadRepository(CashSqlContext(c,workspace,db.sqlite)).readContext(setOf(id))
         assertEquals(listOf(first,second,third).map {it.toString()},context.components.map {it.componentId});assertEquals(setOf(first.toString(),second.toString()),context.fundingComponentIds)
         assertEquals(funding.take(2),context.fundingVersions.map {it.id});assertEquals(funding.first(),context.facts.single().fundingRelationId);assertEquals(3,context.componentVersions.size)
-        val reads=statements.filter {"FROM cash_transaction_components" in it || "FROM cash_investment_funding_relations" in it};assertEquals(1,reads.size);assertTrue("LEFT OUTER JOIN cash_investment_funding_relations" in reads.single())
+        val reads=statements.filter {"from cash_transaction_components" in it || "from cash_investment_funding_relations" in it};assertEquals(1,reads.size);assertTrue("left outer join cash_investment_funding_relations" in reads.single())
     }}
     @Test fun twoParentsUseOneComponentFundingQueryAndTokenKeepsPythonAsciiFieldOrder()=inWorkspace {db,workspace,account,_ ->db.write {c ->
         val data=contextSeed(c,db,workspace,account);statements.clear();val context=CashRelationReadRepository(CashSqlContext(c,workspace,db.sqlite)).readContext(data.ids.take(2).toSet())
         assertEquals(data.ids.take(2).map {data.parts.getValue(it).toString()}.toSet(),context.components.map {it.componentId}.toSet())
-        val reads=statements.filter {"FROM cash_transaction_components" in it || "FROM cash_investment_funding_relations" in it};assertEquals(1,reads.size);assertTrue("LEFT OUTER JOIN cash_investment_funding_relations" in reads.single())
+        val reads=statements.filter {"from cash_transaction_components" in it || "from cash_investment_funding_relations" in it};assertEquals(1,reads.size);assertTrue("left outer join cash_investment_funding_relations" in reads.single())
         val fixed=context.copy(transactionRevisions=listOf(7L to 4L),componentVersions=listOf(CashComponentVersion(17,7,3,"-100.00","CNY",4_294_967_296L)),relationRevisions=listOf(27L to 2L),relationGroups=listOf(27L to "联合🦝"),
             fundingVersions=listOf(CashFundingSqlRow(37,17,47,"cash_to_investment")),issueVersions=listOf(CashIssueVersion(57,7,3)),entryVersions=listOf(CashEntrySnapshot(7,"entry-人",5,"digest")),jointMembers=listOf(CashJointRelationMember("27","联合🦝",2L,"draft",true)))
         assertEquals("c47df766e28d1804c44dfa83b48e06f4cf1a7c4413d2cbdbebfedf96b0d5aff4",fixed.token())

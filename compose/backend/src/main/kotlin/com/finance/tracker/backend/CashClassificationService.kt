@@ -3,6 +3,11 @@ package com.finance.tracker.backend
 import java.sql.Connection
 import java.time.Instant
 import kotlinx.serialization.json.*
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.Query
+import org.jooq.Table
+import org.jooq.impl.DSL
+import org.jooq.impl.SQLDataType
 
 class CashClassificationService(private val database:Database,private val now:()->Instant=Instant::now,
     private val beforeWrite:()->Unit={},private val beforeWorkspaceLock:()->Unit={}) {
@@ -31,15 +36,15 @@ class CashClassificationService(private val database:Database,private val now:()
         return database.write {c ->
             val workspace=requestWorkspace ?: reads.session(c,token).workspaceId ?: throw AccessFailure(true)
             beforeWorkspaceLock()
-            val lock=if(database.sqlite) "" else " FOR UPDATE"
-            c.prepareStatement("SELECT id FROM workspaces WHERE id=?$lock").use {it.setString(1,workspace);it.executeQuery().use {r ->if(!r.next()) throw AccessFailure(true)}}
+            if (!c.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
             reads.lockedContext(c,token,workspace,write=true)
             val state=ProjectionStateRepository(c,workspace,database.sqlite).readyState() ?: throw CategoryFailure("projection.unavailable")
             check(projectionVersion!=null && projectionVersion!=JsonNull) {"projection version is not integer-compatible"}
             if(!categoryRevisionMatches(projectionVersion,null,state.projectionVersion,versionRepresentation)) throw CategoryFailure("projection.version_conflict")
-            val target=if(category==null || category==JsonNull) null else c.prepareStatement("SELECT id,category_path FROM cash_categories WHERE workspace_id=? AND id=?").use {
-                it.setString(1,workspace);it.setString(2,pythonString(category));it.executeQuery().use {r ->if(!r.next()) throw CategoryFailure("category.not_found");r.getString(1) to r.getString(2)}
-            }
+            val sql = c.jooq(database.sqlite); val categories = CASH_CATEGORIES
+            val target=if(category==null || category==JsonNull) null else sql.select(categories.ID, categories.CATEGORY_PATH).from(categories)
+                .where(categories.WORKSPACE_ID.eq(workspace)).and(categories.ID.eq(pythonString(category))).fetchOne()
+                ?.let { it.value1()!! to it.value2()!! } ?: throw CategoryFailure("category.not_found")
             val selected=select(c,workspace,state.datasetId,ids)
             val changed=linkedMapOf<String,Pair<Entry,JsonArray>>()
             val members=linkedMapOf<Long,Pair<JsonObject,JsonArray>>()
@@ -54,18 +59,23 @@ class CashClassificationService(private val database:Database,private val now:()
             var version=state.projectionVersion
             if(changed.isNotEmpty() || selected.any {it.category!=target?.first || it.path!=target?.second}) {
                 version=Math.addExact(version,1);val source=Math.addExact(state.sourceRevision,1)
-                val json=if(database.sqlite) "?" else "CAST(? AS json)"
-                if(changed.isNotEmpty()) c.prepareStatement("UPDATE cash_entries SET category_id=?,manual_fields=$json,revision=? WHERE workspace_id=? AND id=?").use {statement ->
-                    for((entry,fields) in changed.values) {statement.setString(1,target?.first);statement.setString(2,fields.toString());statement.setLong(3,Math.addExact(entry.revision,1));statement.setString(4,workspace);statement.setString(5,entry.id);statement.addBatch()};checkBatch(statement.executeBatch())
+                fun batch(queries: List<Query>) {
+                    if (queries.isEmpty()) return
+                    val batch = sql.batch(queries.first())
+                    queries.forEach { batch.bind(*it.bindValues.toTypedArray()) }
+                    checkBatch(batch.execute())
                 }
-                if(members.isNotEmpty()) c.prepareStatement("UPDATE cash_entry_members SET standalone_values=$json,standalone_manual_fields=$json WHERE workspace_id=? AND transaction_id=?").use {statement ->
-                    for((id,values) in members) {statement.setString(1,values.first.toString());statement.setString(2,values.second.toString());statement.setString(3,workspace);statement.setLong(4,id);statement.addBatch()};checkBatch(statement.executeBatch())
-                }
+                val entries = CASH_ENTRIES; val entryMembers = CASH_ENTRY_MEMBERS; val projections = CASH_PROJECTIONS; val states = CASH_PROJECTION_STATES
+                batch(changed.values.map { (entry, fields) -> sql.update(entries).set(entries.CATEGORY_ID, target?.first).set(entries.MANUAL_FIELDS, fields)
+                    .set(entries.REVISION, Math.addExact(entry.revision,1)).where(entries.WORKSPACE_ID.eq(workspace)).and(entries.ID.eq(entry.id)) })
+                batch(members.map { (id, values) -> sql.update(entryMembers).set(entryMembers.STANDALONE_VALUES, values.first)
+                    .set(entryMembers.STANDALONE_MANUAL_FIELDS, values.second).where(entryMembers.WORKSPACE_ID.eq(workspace)).and(entryMembers.TRANSACTION_ID.eq(id)) })
                 val instant=now()
-                c.prepareStatement("UPDATE cash_projections SET category_id=?,category_path=?,built_projection_version=?,updated_at=? WHERE workspace_id=? AND dataset_id=? AND id=?").use {statement ->
-                    for(row in selected) {statement.setString(1,target?.first);statement.setString(2,target?.second);statement.setLong(3,version);statement.instant(4,instant,database.sqlite);statement.setString(5,workspace);statement.setString(6,state.datasetId);statement.setLong(7,row.id);statement.addBatch()};checkBatch(statement.executeBatch())
-                }
-                c.prepareStatement("UPDATE cash_projection_states SET projection_version=?,source_revision=?,updated_at=? WHERE workspace_id=?").use {it.setLong(1,version);it.setLong(2,source);it.instant(3,instant,database.sqlite);it.setString(4,workspace);check(it.executeUpdate()==1)}
+                batch(selected.map { row -> sql.update(projections).set(projections.CATEGORY_ID, target?.first).set(projections.CATEGORY_PATH, target?.second)
+                    .set(projections.BUILT_PROJECTION_VERSION, version).set(projections.UPDATED_AT, instant).where(projections.WORKSPACE_ID.eq(workspace))
+                    .and(projections.DATASET_ID.eq(state.datasetId)).and(projections.ID.eq(row.id)) })
+                check(sql.update(states).set(states.PROJECTION_VERSION, version).set(states.SOURCE_REVISION, source).set(states.UPDATED_AT, instant)
+                    .where(states.WORKSPACE_ID.eq(workspace)).execute()==1)
             }
             buildJsonObject {put("projection_version",version);put("projection_count",selected.size);put("updated_transaction_count",selected.sumOf {it.members.size.toLong()});put("category_id",target?.first?.let(::JsonPrimitive) ?: JsonNull)}
         }
@@ -74,34 +84,50 @@ class CashClassificationService(private val database:Database,private val now:()
     private fun checkBatch(counts:IntArray) {check(counts.all {it==1 || it==java.sql.Statement.SUCCESS_NO_INFO}) {"classification write lost a selected row"}}
 
     private fun select(c:Connection,workspace:String,dataset:String,ids:List<String>):List<Selection> {
-        val marks=ids.joinToString(",") {"?"}
-        val materialized=if(database.sqlite) "" else "MATERIALIZED "
-        val joins=if(database.sqlite) """FROM selected s JOIN cash_projection_members pm ON pm.workspace_id=s.workspace_id AND pm.dataset_id=s.dataset_id AND pm.projection_row_id=s.id
-            JOIN cash_entry_members m ON m.workspace_id=pm.workspace_id AND m.transaction_id=pm.cash_transaction_id
-            JOIN cash_entries e ON e.workspace_id=m.workspace_id AND e.id=m.entry_id""" else """FROM selected s
-            JOIN LATERAL (SELECT * FROM cash_projection_members WHERE projection_row_id=s.id AND workspace_id=s.workspace_id AND dataset_id=s.dataset_id OFFSET 0) pm ON true
-            JOIN LATERAL (SELECT * FROM cash_entry_members WHERE workspace_id=pm.workspace_id AND transaction_id=pm.cash_transaction_id LIMIT 1) m ON true
-            JOIN LATERAL (SELECT * FROM cash_entries WHERE id=m.entry_id AND workspace_id=m.workspace_id LIMIT 1) e ON true"""
-        val sql="""WITH selected AS ${materialized}(SELECT p.* FROM cash_projections p WHERE p.workspace_id=? AND p.dataset_id=? AND p.projection_id IN ($marks)
-            AND (p.visible=true OR p.attention_count>0)
-            AND (SELECT root.workspace_id=p.workspace_id AND root.deleted_at IS NULL FROM cash_transactions root WHERE root.id=p.root_cash_transaction_id LIMIT 1)
-            AND (SELECT true FROM cash_projection_members member WHERE member.workspace_id=p.workspace_id AND member.dataset_id=p.dataset_id AND member.projection_row_id=p.id
-                AND (SELECT tx.workspace_id=member.workspace_id AND tx.deleted_at IS NOT NULL FROM cash_transactions tx WHERE tx.id=member.cash_transaction_id LIMIT 1) LIMIT 1) IS NULL LIMIT ?)
-            SELECT s.id,s.projection_id,s.root_cash_transaction_id,s.member_count,s.category_id,s.category_path,
-            e.id,e.root_transaction_id,e.revision,e.category_id,e.manual_fields,m.transaction_id,m.standalone_values,m.standalone_manual_fields,
-            (SELECT count(*) FROM cash_entry_members all_members WHERE all_members.workspace_id=e.workspace_id AND all_members.entry_id=e.id)
-            $joins"""
+        val p = CASH_PROJECTIONS.`as`("p"); val root = CASH_TRANSACTIONS.`as`("root")
+        val member = CASH_PROJECTION_MEMBERS.`as`("member"); val tx = CASH_TRANSACTIONS.`as`("tx")
+        val validRoot = DSL.select(DSL.field(root.WORKSPACE_ID.eq(p.WORKSPACE_ID).and(root.DELETED_AT.isNull)))
+            .from(root).where(root.ID.eq(p.ROOT_CASH_TRANSACTION_ID)).limit(1).asField<Boolean>()
+        val deleted = DSL.select(DSL.field(tx.WORKSPACE_ID.eq(member.WORKSPACE_ID).and(tx.DELETED_AT.isNotNull)))
+            .from(tx).where(tx.ID.eq(member.CASH_TRANSACTION_ID)).limit(1).asField<Boolean>()
+        val deletedMember = DSL.select(DSL.inline(true)).from(member).where(member.WORKSPACE_ID.eq(p.WORKSPACE_ID))
+            .and(member.DATASET_ID.eq(p.DATASET_ID)).and(member.PROJECTION_ROW_ID.eq(p.ID)).and(deleted.isTrue).limit(1).asField<Boolean>()
+        val selection = DSL.select(p.ID, p.WORKSPACE_ID, p.DATASET_ID, p.PROJECTION_ID, p.ROOT_CASH_TRANSACTION_ID, p.MEMBER_COUNT, p.CATEGORY_ID, p.CATEGORY_PATH)
+            .from(p).where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(dataset)).and(p.PROJECTION_ID.`in`(ids))
+            .and(p.VISIBLE.isTrue.or(p.ATTENTION_COUNT.gt(DSL.inline(0L)))).and(validRoot.isTrue).and(deletedMember.isNull).limit(ids.size)
+        val name = DSL.name("selected")
+        val selected = if (database.sqlite) name.`as`(selection) else name.asMaterialized(selection)
+        val sId = selected.field(p.ID)!!; val sWorkspace = selected.field(p.WORKSPACE_ID)!!; val sDataset = selected.field(p.DATASET_ID)!!
+        val pmTable = CASH_PROJECTION_MEMBERS; val mTable = CASH_ENTRY_MEMBERS; val eTable = CASH_ENTRIES
+        val pm: Table<*> = if (database.sqlite) pmTable.`as`("pm") else DSL.lateral(DSL.selectFrom(pmTable)
+            .where(pmTable.PROJECTION_ROW_ID.eq(sId)).and(pmTable.WORKSPACE_ID.eq(sWorkspace)).and(pmTable.DATASET_ID.eq(sDataset)).offset(0)).`as`("pm")
+        val pmWorkspace = pm.field(pmTable.WORKSPACE_ID)!!; val pmTransaction = pm.field(pmTable.CASH_TRANSACTION_ID)!!
+        val m: Table<*> = if (database.sqlite) mTable.`as`("m") else DSL.lateral(DSL.selectFrom(mTable)
+            .where(mTable.WORKSPACE_ID.eq(pmWorkspace)).and(mTable.TRANSACTION_ID.eq(pmTransaction)).limit(1)).`as`("m")
+        val mWorkspace = m.field(mTable.WORKSPACE_ID)!!; val mEntry = m.field(mTable.ENTRY_ID)!!
+        val e: Table<*> = if (database.sqlite) eTable.`as`("e") else DSL.lateral(DSL.selectFrom(eTable)
+            .where(eTable.ID.eq(mEntry)).and(eTable.WORKSPACE_ID.eq(mWorkspace)).limit(1)).`as`("e")
+        val eId = e.field(eTable.ID)!!; val eWorkspace = e.field(eTable.WORKSPACE_ID)!!
+        val joins = if (database.sqlite) selected.join(pm).on(pmWorkspace.eq(sWorkspace).and(pm.field(pmTable.DATASET_ID)!!.eq(sDataset))
+            .and(pm.field(pmTable.PROJECTION_ROW_ID)!!.eq(sId))).join(m).on(mWorkspace.eq(pmWorkspace).and(m.field(mTable.TRANSACTION_ID)!!.eq(pmTransaction)))
+            .join(e).on(eWorkspace.eq(mWorkspace).and(eId.eq(mEntry)))
+        else selected.join(pm).on(DSL.trueCondition()).join(m).on(DSL.trueCondition()).join(e).on(DSL.trueCondition())
+        val allMembers = CASH_ENTRY_MEMBERS.`as`("all_members")
+        val count = DSL.select(DSL.count().cast(SQLDataType.BIGINT)).from(allMembers)
+            .where(allMembers.WORKSPACE_ID.eq(eWorkspace)).and(allMembers.ENTRY_ID.eq(eId)).asField<Long>()
+        val projectionId = selected.field(p.PROJECTION_ID)!!; val projectionRoot = selected.field(p.ROOT_CASH_TRANSACTION_ID)!!
+        val memberCount = selected.field(p.MEMBER_COUNT)!!; val projectionCategory = selected.field(p.CATEGORY_ID)!!; val path = selected.field(p.CATEGORY_PATH)!!
+        val entryRoot = e.field(eTable.ROOT_TRANSACTION_ID)!!; val revision = e.field(eTable.REVISION)!!
+        val entryCategory = e.field(eTable.CATEGORY_ID)!!; val fields = e.field(eTable.MANUAL_FIELDS)!!
+        val transaction = m.field(mTable.TRANSACTION_ID)!!; val standalone = m.field(mTable.STANDALONE_VALUES)!!; val standaloneFields = m.field(mTable.STANDALONE_MANUAL_FIELDS)!!
         val result=linkedMapOf<String,Selection>()
-        c.prepareStatement(sql).use {statement ->
-            var index=1;statement.setString(index++,workspace);statement.setString(index++,dataset);ids.forEach {statement.setString(index++,it)}
-            statement.setInt(index,ids.size)
-            statement.executeQuery().use {r ->while(r.next()) {
-                val entry=Entry(r.getString(7),r.getLong(8),r.getLong(9),r.getString(10),Json.parseToJsonElement(r.getString(11)))
-                val key=r.getString(2)
-                val row=result.getOrPut(key) {Selection(r.getLong(1),key,r.getLong(3),r.getInt(4),r.getString(5),r.getString(6),entry,linkedMapOf())}
-                if(r.getLong(15)!=row.count.toLong() || entry.root!=row.root || row.entry.id!=entry.id) throw CategoryFailure("projection.version_conflict")
-                row.members[r.getLong(12)]=Member(r.getLong(12),Json.parseToJsonElement(r.getString(13)),Json.parseToJsonElement(r.getString(14)))
-            }}
+        c.jooq(database.sqlite).with(selected).select(sId, projectionId, projectionRoot, memberCount, projectionCategory, path,
+            eId, entryRoot, revision, entryCategory, fields, transaction, standalone, standaloneFields, count).from(joins).fetch().forEach { r ->
+                val entry=Entry(r[eId]!!,r[entryRoot]!!,r[revision]!!,r[entryCategory],r[fields]!!)
+                val key=r[projectionId]!!
+                val row=result.getOrPut(key) {Selection(r[sId]!!,key,r[projectionRoot]!!,r[memberCount]!!.toInt(),r[projectionCategory],r[path],entry,linkedMapOf())}
+                if(r[count]!=row.count.toLong() || entry.root!=row.root || row.entry.id!=entry.id) throw CategoryFailure("projection.version_conflict")
+                row.members[r[transaction]!!]=Member(r[transaction]!!,r[standalone]!!,r[standaloneFields]!!)
         }
         if(result.keys!=ids.toSet() || result.values.any {it.members.size!=it.count}) throw CategoryFailure("projection.version_conflict")
         return result.values.toList()

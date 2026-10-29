@@ -129,7 +129,7 @@ class CategoryDeletionMigrationTest {
             } as java.sql.Connection
             assertTrue(CategoryDeletionRepository(true).invalidateCandidates(observed,workspace,fixture.second).isEmpty())
             val plans=mutableListOf<String>()
-            for(query in queries.filter {it.trimStart().startsWith("SELECT candidate.id")}) c.prepareStatement("EXPLAIN QUERY PLAN $query").use {
+            for(query in queries.filter {it.observedSql().startsWith("select candidate.id")}) c.prepareStatement("EXPLAIN QUERY PLAN $query").use {
                 for(index in 1..it.parameterMetaData.parameterCount) it.setNull(index,java.sql.Types.NULL)
                 it.executeQuery().use {rows ->while(rows.next()) plans+=rows.getString(4)}
             }

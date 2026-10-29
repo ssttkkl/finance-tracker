@@ -4,7 +4,7 @@ import com.finance.tracker.business.contracts.*
 import com.finance.tracker.business.domain.CategoryNode
 import com.finance.tracker.business.domain.categoryNamePath
 import com.finance.tracker.business.domain.orderedCategoryNodes
-import java.security.MessageDigest
+import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.sql.Connection
 import java.time.Instant
 import java.time.LocalDateTime
@@ -24,16 +24,14 @@ fun bearerToken(header: String?): String? {
 class ReadServices(private val database: Database, private val now: () -> Instant = Instant::now) {
     internal fun session(connection: Connection, token: String?, lock: Boolean = false): Principal {
         if (token == null) throw AccessFailure()
-        val digest = tokenDigest(token)
-        connection.prepareStatement("""SELECT s.user_id, s.active_workspace_id, s.expires_at, u.email
-            FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_digest=?""" + if (lock && !database.sqlite) " FOR UPDATE OF s" else "").use { statement ->
-            statement.setString(1, digest)
-            statement.executeQuery().use { row ->
-                if (!row.next()) throw AccessFailure()
-                requireActiveExpiry(row.getString("expires_at"))
-                return Principal(row.getString("user_id"), row.getString("email"), row.getString("active_workspace_id"))
-            }
-        }
+        val sessions = USER_SESSIONS.`as`("s")
+        val users = USERS.`as`("u")
+        val expiry = sessions.EXPIRES_AT.coerce(String::class.java)
+        val query = connection.jooq(database.sqlite).select(sessions.USER_ID, sessions.ACTIVE_WORKSPACE_ID, expiry, users.EMAIL)
+            .from(sessions).join(users).on(users.ID.eq(sessions.USER_ID)).where(sessions.TOKEN_DIGEST.eq(tokenDigest(token)))
+        val row = (if (lock && !database.sqlite) query.forUpdate().of(sessions) else query).fetchOne() ?: throw AccessFailure()
+        requireActiveExpiry(row[expiry]!!)
+        return Principal(row[sessions.USER_ID]!!, row[users.EMAIL]!!, row[sessions.ACTIVE_WORKSPACE_ID])
     }
 
     private fun requireActiveExpiry(value:String) {
@@ -44,20 +42,26 @@ class ReadServices(private val database: Database, private val now: () -> Instan
         if(!expiry.isAfter(now())) throw AccessFailure()
     }
 
-    internal fun lockedContext(connection:Connection,token:String?,expectedWorkspace:String,write:Boolean):Principal {
-        if(token==null) throw AccessFailure()
-        return connection.prepareStatement("""SELECT s.user_id,s.active_workspace_id,s.expires_at,u.email,m.role FROM user_sessions s
-            JOIN users u ON u.id=s.user_id LEFT JOIN workspace_memberships m ON m.workspace_id=s.active_workspace_id AND m.user_id=s.user_id
-            WHERE s.token_digest=?"""+(if(database.sqlite) "" else " FOR UPDATE OF s")).use {
-            it.setString(1,tokenDigest(token));it.executeQuery().use {row ->
-                if(!row.next()) throw AccessFailure()
-                requireActiveExpiry(row.getString("expires_at"))
-                if(row.getString("active_workspace_id")!=expectedWorkspace) throw AccessFailure(true)
-                val currentRole=row.getString("role")?.let(::role) ?: throw AccessFailure(true)
-                if(write && !currentRole.canWrite) throw AccessFailure(true)
-                Principal(row.getString("user_id"),row.getString("email"),expectedWorkspace,currentRole)
-            }
-        }
+    internal fun lockedContext(connection: Connection, token: String?, expectedWorkspace: String, write: Boolean): Principal =
+        joinedContext(connection, token, expectedWorkspace, write, lock = true)
+
+    private fun joinedContext(connection: Connection, token: String?, expectedWorkspace: String?, write: Boolean, lock: Boolean): Principal {
+        if (token == null) throw AccessFailure()
+        val sessions = USER_SESSIONS.`as`("s")
+        val users = USERS.`as`("u")
+        val members = WORKSPACE_MEMBERSHIPS.`as`("m")
+        val expiry = sessions.EXPIRES_AT.coerce(String::class.java)
+        val query = connection.jooq(database.sqlite).select(sessions.USER_ID, sessions.ACTIVE_WORKSPACE_ID, expiry, users.EMAIL, members.ROLE)
+            .from(sessions).join(users).on(users.ID.eq(sessions.USER_ID))
+            .leftJoin(members).on(members.WORKSPACE_ID.eq(sessions.ACTIVE_WORKSPACE_ID)).and(members.USER_ID.eq(sessions.USER_ID))
+            .where(sessions.TOKEN_DIGEST.eq(tokenDigest(token)))
+        val row = (if (lock && !database.sqlite) query.forUpdate().of(sessions) else query).fetchOne() ?: throw AccessFailure()
+        requireActiveExpiry(row[expiry]!!)
+        val workspace = row[sessions.ACTIVE_WORKSPACE_ID] ?: throw AccessFailure(true)
+        if (expectedWorkspace != null && workspace != expectedWorkspace) throw AccessFailure(true)
+        val currentRole = row[members.ROLE]?.let(::role) ?: throw AccessFailure(true)
+        if (write && !currentRole.canWrite) throw AccessFailure(true)
+        return Principal(row[sessions.USER_ID]!!, row[users.EMAIL]!!, workspace, currentRole)
     }
 
     fun state(token: String?): SessionDto {
@@ -68,13 +72,11 @@ class ReadServices(private val database: Database, private val now: () -> Instan
     }
 
     internal fun state(connection: Connection, principal: Principal): SessionDto {
-        val workspaces = connection.prepareStatement("""SELECT w.id,w.name,m.role FROM workspace_memberships m
-            JOIN workspaces w ON w.id=m.workspace_id WHERE m.user_id=? ORDER BY w.created_at""").use { statement ->
-            statement.setString(1, principal.userId)
-            statement.executeQuery().use { rows -> buildList {
-                while (rows.next()) add(WorkspaceDto(rows.getString("id"), rows.getString("name"), role(rows.getString("role"))))
-            } }
-        }
+        val members = WORKSPACE_MEMBERSHIPS
+        val spaces = WORKSPACES
+        val workspaces = connection.jooq(database.sqlite).select(spaces.ID, spaces.NAME, members.ROLE).from(members)
+            .join(spaces).on(spaces.ID.eq(members.WORKSPACE_ID)).where(members.USER_ID.eq(principal.userId)).orderBy(spaces.CREATED_AT)
+            .fetch { WorkspaceDto(it[spaces.ID]!!, it[spaces.NAME]!!, role(it[members.ROLE]!!)) }
         return SessionDto(UserDto(principal.email), principal.workspaceId, workspaces)
     }
 
@@ -85,34 +87,18 @@ class ReadServices(private val database: Database, private val now: () -> Instan
 
     internal fun currentContext(token: String?): Principal {
         if (token == null) throw AccessFailure()
-        return database.read { connection ->
-            connection.prepareStatement("""SELECT s.user_id,s.active_workspace_id,s.expires_at,u.email,m.role FROM user_sessions s
-                JOIN users u ON u.id=s.user_id LEFT JOIN workspace_memberships m ON m.workspace_id=s.active_workspace_id AND m.user_id=s.user_id
-                WHERE s.token_digest=?""").use {
-                it.setString(1, tokenDigest(token))
-                it.executeQuery().use { row ->
-                    if (!row.next()) throw AccessFailure()
-                    requireActiveExpiry(row.getString("expires_at"))
-                    val workspace = row.getString("active_workspace_id") ?: throw AccessFailure(true)
-                    val currentRole = row.getString("role")?.let(::role) ?: throw AccessFailure(true)
-                    Principal(row.getString("user_id"), row.getString("email"), workspace, currentRole)
-                }
-            }
-        }
+        return database.read { connection -> joinedContext(connection, token, null, write = false, lock = false) }
     }
 
     internal fun context(connection: Connection, token: String?, write: Boolean): Principal {
         val principal = session(connection, token)
         if (principal.workspaceId == null) throw AccessFailure(true)
-        connection.prepareStatement("SELECT role FROM workspace_memberships WHERE workspace_id=? AND user_id=?").use { statement ->
-            statement.setString(1, principal.workspaceId); statement.setString(2, principal.userId)
-            statement.executeQuery().use { row ->
-                if (!row.next()) throw AccessFailure(true)
-                val role = role(row.getString("role"))
-                if (write && !role.canWrite) throw AccessFailure(true)
-                return principal.copy(role = role)
-            }
-        }
+        val members = WORKSPACE_MEMBERSHIPS
+        val currentRole = connection.jooq(database.sqlite).select(members.ROLE).from(members)
+            .where(members.WORKSPACE_ID.eq(principal.workspaceId)).and(members.USER_ID.eq(principal.userId))
+            .fetchOne(members.ROLE)?.let(::role) ?: throw AccessFailure(true)
+        if (write && !currentRole.canWrite) throw AccessFailure(true)
+        return principal.copy(role = currentRole)
     }
 
     fun categories(token: String?): CategoryDirectory {
@@ -120,17 +106,15 @@ class ReadServices(private val database: Database, private val now: () -> Instan
       return database.read { connection ->
         // Re-read authorization on the same connection as the requested data.
         val principal = context(connection, token, false)
-        val revision = connection.prepareStatement("SELECT revision FROM cash_category_states WHERE workspace_id=?").use {
-            it.setString(1, principal.workspaceId)
-            it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else 0L }
-        }
-        val records = connection.prepareStatement("SELECT id,parent_id,name,description,depth,sort_order FROM cash_categories WHERE workspace_id=?").use {
-            it.setString(1, principal.workspaceId)
-            it.executeQuery().use { rows -> buildList {
-                while (rows.next()) add(CategoryItem(rows.getString("id"), rows.getString("parent_id"), rows.getString("name"),
-                    rows.getString("description"), emptyList(), rows.getInt("depth"), rows.getInt("sort_order"), revision))
-            } }
-        }
+        val sql = connection.jooq(database.sqlite)
+        val state = CASH_CATEGORY_STATES
+        val revision = sql.select(state.REVISION).from(state).where(state.WORKSPACE_ID.eq(principal.workspaceId)).fetchOne(state.REVISION) ?: 0L
+        val category = CASH_CATEGORIES
+        val records = sql.select(category.ID, category.PARENT_ID, category.NAME, category.DESCRIPTION, category.DEPTH, category.SORT_ORDER)
+            .from(category).where(category.WORKSPACE_ID.eq(principal.workspaceId)).fetch {
+                CategoryItem(it[category.ID]!!, it[category.PARENT_ID], it[category.NAME]!!, it[category.DESCRIPTION],
+                    emptyList(), it[category.DEPTH]!!.toInt(), it[category.SORT_ORDER]!!.toInt(), revision)
+            }
         val items = records.associateBy { it.id }
         val nodes = records.map { CategoryNode(it.id, it.parentId, it.name, it.sortOrder) }
         val byId = nodes.associateBy { it.id }

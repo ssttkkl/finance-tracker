@@ -66,6 +66,7 @@
 - [x] 4.7.8.6 分类独立移动命令在同事务收集子树下未删除来源与稳定收支根，接入增量维护；原 update 的名称/父级编辑保持既有 Python 调用边界，不额外扩展旧缺陷修复。验证人工分类、来源分类、无使用/未 ready 分支和晚期失败整事务回滚。
 - [x] 4.7.8.7 逐断言迁移持久化图读取及增量集成：真实组成项等额退款分配、部分菱形、单种子拆旧组、新邻居旧组闭包、组成项预算拒绝、80 节点交替闭包参数预算和原类型不被重分类；双库与独立复核后再计源定义。
 - [ ] 4.7.9 迁移当前收支详情及按流水定位的两个 GET：同一数据库快照中的活动数据集、版本、成员、金额及安全待处理事项；保留隐藏/可维护、已删除/跨工作区/缺失成员错误。真实双库 HTTP、重建交错、当前权限重验及现有 Compose 成员消费验证，原组合测试未覆盖部分保持 pending。
+- [ ] 4.7.10 迁移收支证据 GET：同一快照返回根记录、完整成员/现金部分、已确认关系、非活动关系提示、退款时间线及白名单资金调拨信息；保留隐藏记录、精确金额、字符串标识、来源信息省略及原错误。先以 Python 匿名全响应和 Kotlin 原断言失败复现，再验证 SQLite/PG18、重建交错、当前授权和现有 Compose 消费；不扩大为账单原文或关系扫描接口。
 - [ ] 4.8 维护计划/上下文/效果/确认/收据、CAS/TTL、当前事实证明、冲突及未知结果原键核实。
 - [x] 4.8.1 先迁永久收据按当前操作者/工作区读取、原键查询和行/关系结果分页的 5 个 GET；共享现有 Compose 收据协议，验证历史键严格解码、分页、脱敏、权限、当前投影引用及真实客户端解码。resolve/提交/暂存写入随后验收。
 - [x] 4.8.2 迁移永久收据仓库 create/replay/for_context 及写入前摘要/结果白名单，保留原键/单上下文永久唯一、冲突携原收据、业务写入同事务回滚；原生迁移原参数/断言并接入现有账户命令，完整双库回归后验收。历史 Alembic 升降级和 retry/resolve 不因仓库完成而关闭。
@@ -104,42 +105,50 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-2026-10-29 UTC；HEAD 与本轮比较基线均为 `b5dbef2716c11b367432c01048d6c2c2f1977d2e`，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。当前工作区 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`。本片完成 4.7.2.7，任务为 42/77，HTTP 为 40/86（46.5%），还有 46 个 HTTP 操作待迁移。现有 `.devcontainer/devcontainer-lock.json` 修改不属于本片，保留用户状态。没有提交、推送、PR、部署、切流或真实数据操作。
+2026-10-29 UTC；本阶段提交前验证的 HEAD 与 diff 比较基线为 `779b148ca12fc3f7515bfaedf032c4ebeb882835`，迁移固定基线仍为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/workspaces/finance-tracker`，分支 `codex/kotlin-backend-shared-core`。当前任务 42/78；已验收 HTTP 40/86，当前详情、按流水定位和收支证据另有三个已实现接口等待最终独立复核。jOOQ 功能迁移与功能验证已完成，但独立复核未完成，4.0.1–4.0.3、4.7.9–4.7.10 保持未勾选。用户明确要求先提交并推送当前进度，后续每个实施阶段完成时提交并推送；授权限于本仓库 `codex/kotlin-backend-shared-core` 分支及其 origin 同名分支，不包含 PR、部署、切流或真实数据操作。当前提交保存已验证进度，不代表全量迁移或独立审查完成。
 
-已显式执行 grill-me → grilling、explore 和 apply，复用用户确认的完整迁移范围、无 UI 重设计及本地授权。用户后续明确要求本轮不运行性能测试，以功能迁移和功能测试通过为完成标准；通过 openspec-update-change 同步 proposal/design/tasks。性能阈值不变，此前已运行的分类删除性能检查未通过，原日志 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留；本轮后续功能回归明确排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`，不以忽略失败宣称性能通过。
+已执行的 grill-me → grilling、explore、propose、jOOQ 架构确认和 apply 继续适用。用户明确要求本轮不运行性能测试，以功能迁移和功能测试为验收；功能回归使用 `-PbackendFunctionalOnly=true`，仅排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`。原预算不变，原分类删除失败 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留，不宣称性能通过。
 
-当前旧现金新增/余额校准保持原账户、来源、日期、零金额事实、分币种余额与投影事务。快照结构错误保持原内部 500，现金余额非字典及金额拒绝保持 400；校准先检查余额结构，再解析目标金额。投资头寸先计算 shares，再读取 total_cost。组成项币种保留原始代理字符来源，不能把 CESU 字节拼成合法币种。响应编码回归覆盖 editor、已有财务记录、无投影状态及 ready 状态，并逐参数验证失败回滚和后续成功。
+工具、匿名夹具和证据根为 `/home/vscode/.cache/finance-kotlin-backend-20261029`（下文证据文件相对于 `evidence/`）。OpenSpec 1.15.0、Node 24.22.2、Python 3.11.18、pytest 9.2.0、Gradle 9.5.1、JDK 21.0.13；Android SDK 位于 `tooling/android-sdk`，compileSdk 37。jOOQ OSS 3.21.9 的 67 个官方生成文件通过真实 Gradle 重新生成并逐文件相等，生成结果仅留后端。
 
-本机工具、匿名夹具及证据根为 `/home/vscode/.cache/finance-kotlin-backend-20261029`（下文文件名均相对于其中 `evidence/`）。OpenSpec `1.15.0`、Node `v24.22.2`、Python `3.11.18`、pytest `9.2.0`、Gradle `9.5.1`、JDK `21`；Android SDK 位于同根 `tooling/android-sdk`，保留工程 `compileSdk=37`。原 macOS 证据未复制到本机，当前通过结论以此处实际执行结果为准；历史失败先行与审查处置继续由 Git 及后文原审查结论追溯。
+SQLite 使用 `oracle-sqlite`、`matrix-sqlite/<能力>`、`legacy-sqlite-v2`、`current-projection-sqlite-v6`、`evidence-sqlite-v3`。执行者显式准备 PostgreSQL 18.6 于 `127.0.0.1:55432`；用户 `postgres`，每个能力使用独立 `_test` 目标和参考库，变量写于 `matrix-postgres-env.json`，基础为 `ft_kr_jooq_schema_test`，证据接口为 `ft_kr_evidence_test` / `ft_kr_evidence_oracle_test`。原 PostgreSQL 16 服务保留。Python 参考库为 `ft_kr_jooq_reference_test`，通过 `FT_TEST_POSTGRES_URL` 显式提供。测试不探测、启动或自动重置数据库。
 
-SQLite 使用同根 `oracle-sqlite`、`legacy-sqlite-v2` 和 `matrix-sqlite/<能力>`。PostgreSQL `16.15` 由执行者显式准备于 `127.0.0.1:5432`，用户 `postgres`，库名全部以 `_test` 结尾：基础库 `ft_kotlin_resume_base_test`、旧现金目标/参考库 `ft_kotlin_resume_legacy_v2_test` / `ft_kotlin_resume_legacy_oracle_v2_test`，其余 `ft_kr_<能力>_test` / `ft_kr_<能力>_oracle_test`。完整显式变量分别保存在同根 `matrix-sqlite-env.json`、`matrix-postgres-env.json`；各运行结果 JSON 同时保存实际变量、命令、HEAD、开始时间和耗时。测试不探测或启动数据库，生成器拒绝覆盖已有 schema；所有夹具为任务匿名数据。
+Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `compose/` 执行，固定任务 JDK、Android SDK、缓存和完整能力变量；公共参数为 `--daemon --no-configuration-cache --max-workers=1 --project-cache-dir <缓存根>/gradle-project -Dorg.gradle.jvmargs=-Xmx2048m -Pkotlin.compiler.execution.strategy=in-process`。每次结果 JSON 保存实际命令、变量、HEAD、UTC 起点及耗时，JUnit XML 复制到同名目录。只把实际执行的任务计入本轮结果；UP-TO-DATE 不算重跑。
 
-Gradle 从 `compose/` 运行，公共参数为 `--daemon --no-configuration-cache --project-cache-dir /home/vscode/.cache/finance-kotlin-backend-20261029/gradle-project -Dorg.gradle.jvmargs=-Xmx2048m -Pkotlin.compiler.execution.strategy=in-process`；后端完整功能回归使用 `--max-workers=2`，恢复后的客户端构建使用 `--max-workers=1`。完整功能回归另带 `--init-script /home/vscode/.cache/finance-kotlin-backend-20261029/functional-tests.gradle`，其中仅排除用户明确暂缓的两个性能类。`JAVA_HOME`、`GRADLE_USER_HOME` 和 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 都指向同根任务目录。不同数据库的后端与实际客户端测试均实际执行，不复用另一数据库的缓存结果。
-
-| 验证范围 | 当前命令、结果与证据 |
+| 验证范围 | 当前实际命令、结果与证据 |
 |---|---|
-| 失败先行 | `resume-boundaries-sqlite-red.log` 实际复现快照根形状错误返回 400 和组成项 raw CESU 币种绕过；`legacy-snapshot-order-red.log` 复现坏 cash 桶与 `1e21` 同时出现时先返回金额错误。对应最小修复后 `resume-boundaries-sqlite-green.log` 30 项、`legacy-review-functional-green.json` 3 项通过，并纳入最终双库完整回归。新增源登记门禁由 `source-additions-red.log` 先复现后转绿；响应编码 Python/Kotlin 原失败回归已保存在进度提交，本轮加强 editor/已有数据/无状态前置 |
-| 匿名 HTTP 与持久状态 | `export_legacy_cashflow_contracts.py --database-url <新目标测试库> --oracle-database-url <新参考测试库> --output <仓库外目录>`：每库 96 个旧现金 HTTP 场景，完整响应及 13 张财务表全部列一致，失败无业务写入；`legacy-<sqlite/postgres>-v2-prepare.log`。其他 13 类生成器的双库准备共 26 次均成功，精确参数见 `prepare-matrix.json` |
-| 完整 Kotlin 后端功能 | SQLite：`:backend:test :backend:installDist :business-domain:jvmTest :business-domain:jsNodeTest :business-domain:wasmJsNodeTest :business-contracts:jvmTest :business-contracts:jsNodeTest :business-contracts:wasmJsNodeTest`；PG：`:backend:test :backend:installDist`。两库各 395 项，均 0 failure/error/skip；包括已迁移全部服务、96 组旧现金对照、晚期回滚和真实 PG 锁队列中的撤权/换区/登出。精确命令及 XML 为 `legacy-functional-all-<sqlite/postgres>.json` 和同名目录/log；分别 325.16 / 251.02 秒 |
-| 公共跨平台规则 | 上述 SQLite 命令中，business-domain JVM/JS/Wasm 各 10 项，business-contracts 各 3 项，共 39 项，0 failure/error/skip；覆盖有限十进制表示提取及原消费入口，见 `legacy-functional-all-sqlite.json` |
-| Compose 实际响应与编译 | `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest' :shared:compileAndroidMain :androidApp:compileDebugKotlin :shared:compileKotlinJs :shared:compileKotlinWasmJs :webApp:compileKotlinJs :webApp:compileKotlinWasmJs`，SQLite 实际回包 10 项通过，76 个构建 task 成功，274.79 秒；`legacy-client-platforms-resumed.json/log`。PG 同消费者使用其实际回包执行 `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest'`，10 项、0 failure/error/skip、19.87 秒，见 `legacy-client-postgres-final.json/log` |
-| Python 本片完整功能参考 | 显式 `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:5432/ft_kotlin_resume_reference_test`，清除继承的 `FT_DATABASE_URL`。Python `-m pytest -q -p no:cacheprovider -m 'not performance'` 执行响应编码、CLI 替代 API、多币种账户、应用投影、精确小数、手工创建边界、转账 HTTP 及 PostgreSQL adapter 八个完整文件：97 passed、0 skip、57 项既有弃用警告，pytest 277.39 秒；完整参数/环境/起止与 XML 为 `legacy-python-functional.json/xml/log` |
-| 错误顺序 Python 对照 | 新匿名 SQLite/PG 上分别实际执行 11 组坏快照与范围外金额组合，原状态/错误与 13 表无变化均通过；`legacy-snapshot-order-python-<sqlite/postgres>.log`，脚本为缓存根 `verify_python_snapshot_order.py`，PG 专库 `ft_kr_snapshot_order_test` |
-| 真实 Netty | 当前 installDist 在 `127.0.0.1:18350/18351` 各完成 11 个 HTTP 操作，真实注册/建区/账户、18 位精确新增、另币种新增、数值输入及坏响应回滚、校准保留其他币种、金额拒绝和无令牌拒绝，最后删除本测试工作区。每库 13 表快照及 SQL 金额断言通过；`legacy-live-<sqlite/postgres>.json`，脚本为缓存根 `verify_live_legacy.py`，SQLite 匿名文件与 `ft_kr_live_legacy_test` 专库。服务器均已退出，没有打开浏览器 |
-| 黄金内容 | 14 个生成器 `--check` 全部通过，包含共享金额、Unicode/Python 文本、时间、投影、关系、收据、选项、JSON 字节、SQL 摘要及手工/转账规则；命令和结果为 `legacy-generator-checks.json/log` |
-| 迁移清单门禁 | `check_kotlin_test_migration.py --collection <完整 collection.txt> --report <legacy-migration-inventory.json>` 无错误；门禁自身 `python -m unittest scripts/kotlin_migration_checks.py` 11 项通过，见 `migration-gate-functional.log`。完整 `--require-complete` 实际返回 1，映射错误为空、2,381 个定义 pending，见 `legacy-migration-complete.log`；不能作为全量迁移通过结论 |
-| OpenSpec | `openspec validate kotlin-backend-shared-core --strict --json` 通过；`openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed，52 项缺失原场景错误及 25 项长正文警告分布于其他 6 个 change 与 6 个主规格。将 HEAD 的 `openspec/` 只读导出至仓库外，使用同一 CLI 重跑后逐条错误、路径和级别完全一致；没有本片新增问题。完整结果/基线对照见 `legacy-openspec-verification.json` 和 `legacy-openspec-{all,baseline,scoped,doctor}.json`；全量 6.4 仍未完成，须由相关规格收尾后原命令通过 |
-| 静态与依赖 | 8 个已改 Markdown 文件的 173 个本地链接/锚点、3 个 Python 文件语法、73 项任务及 86 条接口计数、公共模块/后端 Gson 搜索和 `git diff --check` 通过，见 `legacy-static-checks.json`。`:backend:dependencyInsight --dependency gson --configuration runtimeClasspath` 未发现 Gson 依赖，见 `legacy-dependency-check.json/log` |
+| jOOQ 失败先行 | `jooq-persistence-red.json` 确认缺少持久化实现；`jooq-review-regressions-red.json` 于 10:56 UTC 复现代码生成 URI 原文泄漏和公共编辑读取无关损坏原文，`jooq-review-regressions-green.json` 16 个后端及 2 个代码生成测试通过。恢复窄列读取、固定安全错误及去除异常 cause；精确金额、UTC、JSON、caller-owned 事务与保存点均纳入双库完整回归 |
+| jOOQ 全部已实现功能 | `:backend:test :backend:codegenTest :backend:installDist -PbackendFunctionalOnly=true`，`jooq-final-functional-sqlite.json` / `jooq-final-functional-pg18.json` 两库各 415 项后端测试，0 failure/error/skip；SQLite 另实际运行 2 项 codegenTest，PG 为 UP-TO-DATE。后续证据接口验证见下行 |
+| 当前后端完整功能 | `:backend:test :backend:codegenTest :backend:installDist :shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest' -PbackendFunctionalOnly=true`。`evidence-final-sqlite.json`（12:00 UTC，100.46 秒）及 `evidence-final-pg18.json`（12:02 UTC，180.17 秒）各 425 个后端、12 个实际客户端测试，均无 failure/error/skip。此后只改资金调拨损坏类型拒绝，受影响复跑见下行；不把 425 项写成新增拒绝后的全量重跑 |
+| 证据失败先行及最后修改 | `evidence-native-red.json` 两项复现 404 缺入口；`evidence-root-membership-red.json` 复现根成员缺失时错误未映射，真实 Python 双库 404 对照见 `evidence-root-python.json`；`evidence-funding-shape-red.json` 复现内部类型数组/对象被静默忽略。`:backend:test --tests '*CashEvidence*' --tests '*CurrentProjection*' :backend:installDist :shared:testAndroidHostTest --tests '*KotlinEvidenceResponseIntegrationTest' -PbackendFunctionalOnly=true` 的最终 SQLite `evidence-reviewed-sqlite.json`（32.24 秒）与 PostgreSQL `evidence-reviewed-pg18.json`（51.83 秒）均为 27 项后端及 1 项客户端通过，无 failure/error/skip |
+| 全响应与无写入 | 当前详情/定位原双库各 90 组，证据接口由 `scripts/export_evidence_contracts.py --database-url <新目标库> --oracle-database-url <新参考库> --output <仓库外目录>` 各生成 54 组完整响应。Ktor 比较全部字段及 17 张财务表的全部列，覆盖根/成员/现金部分、关系顺序、隐藏记录、草稿 null、Long、资金白名单及安全错误。最终同一快照发布/清理交错，以及读取和返回前的撤权、换区、登出、过期与 viewer 降权都进入 27 项受影响回归 |
+| 原生源断言 | `CashEvidenceSourceMigrationTest` 逐条对应六个原定义/七个原展开参数，包括成员和关系一次批读、完整退款可见性/时间线、非活动提示、完整 HTTP envelope 和字符串现金部分标识。源对应表新增六项全部 pending，等待独立逐断言复核；包含资金调拨扫描/列表的组合原定义不计完成 |
+| 实际客户端与构建 | `jooq-client-builds-sqlite.json`：11 项实际 Ktor 消费通过，`:shared:compileAndroidMain :androidApp:compileDebugKotlin :shared:compileKotlinJs :shared:compileKotlinWasmJs :webApp:compileKotlinJs :webApp:compileKotlinWasmJs` 成功；PG 当时 11 项见 `jooq-review-client-pg18.json`。新增证据后双库各 12 项见完整回归；最终资金形状修改只重跑证据消费者。来源成员 DTO 支持草稿 null；旧 EvidenceDto 空金额/时间报 `request_failed`，断言并记录该既有限制，不宣称完整来源原文流程通过 |
+| 公共平台 | `jooq-functional-all-sqlite.json` 中 contracts JVM/JS/Wasm 各 3 项实际通过；domain 同任务为 UP-TO-DATE，未作为本轮重跑。证据接口没有修改公共规则或客户端生产代码 |
+| Python 功能参考 | `FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://postgres@127.0.0.1:55432/ft_kr_jooq_reference_test`，清除 `FT_DATABASE_URL`；`python -m pytest -q -p no:cacheprovider -m 'not performance'` 执行 `tests/test_application_cash_projection_evidence.py tests/test_relational_cash_projection_evidence.py tests/contract/test_web_api.py tests/contract/test_cash_current_projection_api.py`。58 passed、0 skip、70 项既有警告、pytest 87.21 秒；完整命令/时间/环境见 `evidence-python-functional.json/xml/log` |
+| 真实 Netty | 缓存根 `verify_live_evidence.py --backend <sqlite|postgres>` 启动当前 installDist，使用 loopback 18450/18451 和独立匿名库。两库各 23 个 HTTP 操作完成，包含注册/工作区/账户原键、精确新增、FX 转账、当前读取与完整证据 Python 回包对照、401/404、校准、输入/范围拒绝及失败无写入；15 表快照。`evidence-live-sqlite.json` / `evidence-live-postgres.json`，服务器已退出。最后资金形状拒绝不影响该成功路径，错误分支由原生专项验证 |
+| 官方代码生成与安全 | `:backend:generateJooq -PjooqOutput=<仓库外目录>` 真实执行，`jooq-codegen-gradle-verified.json/log`；`jooq-codegen-gradle-equal.json` 67 文件全部相同。`jooq-codegen-rejections.json` 验证 8 种显式目标拒绝，2 个 codegenTest 覆盖格式错误、凭据、参数和完整诊断去敏感原文。默认构建不联网查库 |
+| OpenSpec | `openspec validate kotlin-backend-shared-core --strict --json` 通过，`openspec doctor --json` 健康。`openspec validate --all --strict --json` 为 26 passed / 12 failed；与当前 HEAD 导出的规格逐 finding/路径/级别完全一致，52 个缺失场景错误及 25 个长正文警告仍在其他 change/spec，见 `jooq-openspec-verification.json` 与 `jooq-openspec-{all,baseline,scoped,doctor}.json`。全局 6.4 未完成，不改动无关规格 |
+| 清单门禁 | `scripts/check_kotlin_test_migration.py --collection <缓存根>/evidence/collection.txt --report <缓存根>/evidence/evidence-migration-inventory.json` 无错误；`--require-complete` 仍按 2,381 个 pending 返回 1。当前 2,613 定义、5,844 原展开用例，已验收 232 定义/577 参数；新增六个源对应尚未计入已迁移，不能把 JUnit 方法或黄金样本当作原定义数 |
+| 静态、依赖和文档 | jOOQ 生成类型、SQL/Gson 未进入公共/Compose 模块；生产业务 SQL 已使用 DSL，仅事务、驱动和 schema 控制保留 JDBC。`:backend:dependencyInsight --dependency gson --configuration runtimeClasspath` 无依赖，见 `jooq-codegen-gradle-verified.log`。当前 8 份 Markdown 的 177 个本地链接/锚点、新增 Python 语法、生成器/17 个夹具变量、78 项任务/86 个接口及 `git diff --check` 均通过，见 `evidence-static-checks.json`；公共模块未发现 SQL/jOOQ/Gson 越界依赖 |
 
-迁移测试固定基线包含 2,612 个原定义；授权新增响应编码回归后，当前共 2,613 个定义、5,844 个完整 pytest 用例。对应表登记 255 个定义，其中 232 migrated、23 pending；未登记的定义仍默认 pending，总计 2,381 pending。232 个定义对应 577 个源展开参数，不能与 JUnit 方法数或黄金样本数混用。本片新增 5 个定义/9 个参数的 24 条原 assert，经独立逐条复核后计迁移。pytest 9.2 对超过 100 字符的自动参数 ID 使用 `query6/query7/key1`，两个原收据映射按当前完整 collection 同步；原值、源/fixture 指纹和固定基线不变。新增源必须通过 `source_additions` 的当前指纹和理由检查，仍遵循全部参数/断言/目标门禁。
+Cross-platform Impact Check：本片为后端替换与既有证据协议接入，无 UI、导航、文案或产品交互改动。Web/Native 共用的现有协议消费者通过实际 Ktor 字节验证；来源原文仍需未迁移的当前单条流水详情，不计完整 F-03/F-04 流程可用。页面数保持 10，已有 Web/Native TODO 保留。Linux 无法运行 iOS 编译/测试，残余命令为 macOS/JDK 21/Xcode 上 `:business-domain:iosSimulatorArm64Test :business-contracts:iosSimulatorArm64Test :shared:compileKotlinIosSimulatorArm64`；不声称 iOS 或设备 QA 通过，也不打开浏览器。
 
-Cross-platform Impact Check：本片没有 UI、导航、文案或用户交互变化；旧现金两个接口无现有 Web/Native 消费者，不制造共享 DTO 或入口。已有手工创建、转账的共享余额/编码代码受影响，其 Ktor 实际回包由正式 Compose 消费者验证；有限小数表示提取由公共三平台测试及受影响 Android/Web 编译覆盖。Linux 无法执行 iOS 编译/测试，未宣称通过；在 macOS/JDK 21/Xcode 上执行 `:business-domain:iosSimulatorArm64Test :business-contracts:iosSimulatorArm64Test :shared:compileKotlinIosSimulatorArm64` 后才可关闭整体跨平台任务。本片后端功能验收不代表整体 6.2 已完成。按用户限制不打开浏览器，不执行或声称完成原生设备 QA。
-
-运行环境重启打断过一轮客户端构建和全仓 Python 功能回归：`legacy-client-platforms.log` 的 Gradle daemon 消失，后续恢复命令已完成；`python-functional.log` 仅收集 5,775 个非性能用例并执行部分，没有结束报告，不计通过。当前本片验收使用完整 Kotlin 双库功能回归及上表八文件 Python 参考；全仓 Python、其余未迁移功能和历史迁移矩阵仍由总任务 6.3/6.5 跟踪。原性能专项本轮按用户明确要求排除。
-
-文档核对范围为根 README、backend README、功能地图、routes/inventory、proposal/design/tasks、主规格及 delta、词表和项目 apply skill。根 README 的预览导航与现有主规格无需修改；余额校准、收支记录、关联流水等词表含义保持。backend README 与功能地图更新实际 40 个接口和旧现金限制，页面数仍为 10，Web/Native 既有 TODO 保留；新增源登记、夹具前置与快照错误顺序已沉淀到 apply skill。全量迁移尚未完成，保留原 Python 和 schema，未归档或切换生产入口；回滚本片只需撤回本机 Kotlin 改动，生产数据不受影响。
+文档收尾范围为根 README、backend README、功能地图、routes/inventory、proposal/design/tasks、主规格/delta、词表及项目 apply skill。根 README 的预览导航和词表现有收支/关联流水/现金部分含义不变；其他文档原位更新 jOOQ、PostgreSQL 18、三个读取接口、夹具命令与实际限制。未归档、切流或删除 Python/schema；本机回滚可撤销 Kotlin 变更，生产数据不受影响。全仓 Python 功能回归曾在环境重启时中断，`python-functional.log` 无完成报告，不计通过；全量功能迁移、余下接口、后台任务、格式与历史迁移矩阵仍由 6.3/6.5 跟踪。
 
 ## 当前审查
+
+本片 jOOQ 与证据接口由实施者完成范围、工程、DX/安全及 diff 自检；当前没有可用独立复核上下文，没有宣称新的独立审查通过。既有历史切片的独立结论只覆盖其当时实现，不替代 jOOQ 全部改写及证据接口复核。以下处置通过失败先行及受影响测试验证，仍须独立重审后才能勾选对应任务。
+
+| finding | 处置与回写 |
+|---|---|
+| P2 代码生成格式错误泄漏 URL 原文 | 固定错误去除 cause，两个 codegenTest 检查完整诊断及无文件输出；design/生成器/安全测试 |
+| P2 宽记录读取改变无关损坏原文的公共编辑边界 | 恢复原 13 列，applyEdit/chooseCommon 验证只改公共值且原文不变；design/仓库/原生测试 |
+| P2 证据根成员缺失错误不等价 | 显式转原 not_found 404，双库 Python HTTP 与 Kotlin 无写入回归；design/证据仓库 |
+| P2 损坏的资金调拨类型被静默过滤 | 数组/对象停止读取，保留原内部错误边界；原生失败先行及双库受影响复跑，design |
+| 既有客户端限制 | 旧 EvidenceDto 不接受草稿空金额/时间；来源成员 DTO 可读，完整原文仍缺单条详情。README/功能地图/inventory 明确记录，不以局部消费关闭整流程 |
+
+以下为已保存切片的独立审查结论；本片不将其当作新独立结论。
 
 旧现金新增/余额校准本片由独立上下文完成范围、工程、DX/安全及原断言复核；生产错误类别/顺序、真实 editor、当前权限、事务回滚、完整 SQL 对照和新增源门禁均已检查。审查者只读，测试由实施者运行。已关闭 finding：
 

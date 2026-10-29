@@ -36,6 +36,26 @@ class CashEntryRepositoryMigrationTest {
         repo.reconcile(buildCashProjections(facts,emptyList()).projections)
         return repo to ids
     }
+    @Test fun creatingMissingEntriesLeavesUnrelatedSourcePayloadUnreadAndUnchanged()=inWorkspace {db,workspace,_ ->
+        val account=deletionAccount(db,workspace)
+        db.write {c ->
+            val ids=(1..2).map {deletionFact(c,db,workspace,account,null)}
+            val payload=if(db.sqlite) "{invalid source payload" else "{\"private\":\"unrelated source text\"}"
+            val slot=if(db.sqlite) "?" else "CAST(? AS json)"
+            c.prepareStatement("UPDATE cash_transactions SET source_payload=$slot WHERE workspace_id=?").use {
+                it.setString(1,payload);it.setString(2,workspace);assertEquals(2,it.executeUpdate())
+            }
+            val repo=CashEntryRepository(c,workspace,db.sqlite)
+            assertEquals(JsonPrimitive("人工备注"),repo.applyEdit(ids[0],mapOf("note" to "人工备注"),null).values["note"])
+            repo.chooseCommon(listOf(ids[1]),mapOf("counterparty" to "公共交易对方"))
+            assertEquals(JsonPrimitive("公共交易对方"),repo.current(ids[1])!!.values["counterparty"])
+            c.prepareStatement("SELECT source_payload FROM cash_transactions WHERE workspace_id=? ORDER BY id").use {
+                it.setString(1,workspace);it.executeQuery().use {rows ->
+                    repeat(2) {assertTrue(rows.next());assertEquals(payload,rows.getString(1))};assertFalse(rows.next())
+                }
+            }
+        }
+    }
     @Test fun smallLookupIsOneQueryAndPreservesCurrentObjectIdentity()=inWorkspace {db,workspace,statements ->
         val account=deletionAccount(db,workspace)
         db.write {c ->
@@ -72,7 +92,7 @@ class CashEntryRepositoryMigrationTest {
         db.write {c ->val (repo,ids)=seed(c,db,workspace,account);val original=repo.forTransactions(ids);val first=original.first.getValue(ids[0]);val old=first.copy()
             first.entryId=original.first.getValue(ids[1]).entryId;first.standaloneValues=JsonObject(first.standaloneValues+mapOf("note" to JsonPrimitive("待丢弃")));first.standaloneManualFields=listOf("note")
             repo.expireMember(first.transactionId);statements.clear();val loaded=repo.forTransactions(listOf(ids[0]));assertSame(first,loaded.first[ids[0]]);assertEquals(old,first)
-            assertTrue(statements.none {it.startsWith("UPDATE")},statements.toString())
+            assertTrue(statements.none {it.observedSql().startsWith("update ")},statements.toString())
             c.prepareStatement("SELECT entry_id,standalone_values,standalone_manual_fields FROM cash_entry_members WHERE workspace_id=? AND transaction_id=?").use {it.setString(1,workspace);it.setLong(2,first.transactionId);it.executeQuery().use {r ->assertTrue(r.next());assertEquals(old.entryId,r.getString(1));assertEquals(old.standaloneValues,Json.parseToJsonElement(r.getString(2)));assertEquals(JsonArray(old.standaloneManualFields.map(::JsonPrimitive)),Json.parseToJsonElement(r.getString(3)))}}
         }
     }

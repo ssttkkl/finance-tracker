@@ -31,6 +31,8 @@
 
 PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等价，UTC 显式时区；BIGINT 在 SQLite 保持 INTEGER affinity。复合 workspace 外键、逻辑删除、来源证据和审计不删改。收据 `(workspace_id,user_id,idempotency_key)` 永久唯一，同时绑定 digest、operation、plan/context。请求结果未知按原键核实；暂存清理不能重新开放已消费命令。
 
+已实现的 Kotlin 业务查询和写入已改用 jOOQ OSS `3.21.9`，以 SQLite 和 PostgreSQL 18 功能矩阵验证。67 个官方生成文件只留后端，schema 仍由原 Alembic 管理；JDBC 继续负责事务、保存点和驱动配置。当前详情、按流水定位和收支证据三个 GET 已实现并有双库功能及实际客户端验证，最终独立审查尚未完成，暂不增加已验收 HTTP 数；其余查询及列表继续待迁移。证据不包含账单原文，完整来源流程依赖未迁移的单条流水详情；旧证据 DTO 的草稿空值解码限制保留，来源成员 DTO 的空值消费已覆盖。
+
 ## 格式矩阵
 
 | 来源 | 字节解码与预算 | 可共享内容 | 状态 |

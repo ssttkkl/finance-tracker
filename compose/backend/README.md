@@ -2,9 +2,15 @@
 
 此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，共 40/86 个 HTTP 操作。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
+当前收支详情、按流水定位及收支证据的三个 GET 已实现，功能由 SQLite、PostgreSQL 18 与现有 Compose 消费测试验证；最终独立审查尚未完成，暂不增加上面的已验收数。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；列表和维护入口仍待迁移。
+
+证据返回根记录、关联流水及现金部分、已确认关系、非活动关系提示和退款时间线，资金调拨信息仅含原白名单；不返回账单原文或待采用正文。来源成员消费者支持草稿空值，旧 `EvidenceDto` 对空金额／空时间仍解码失败，这一客户端既有限制保留；完整来源原文流程还依赖未迁移的单条流水详情接口。
+
 工作区删除尚缺完整财务数据验证。分类 update 保持 Python 的调用边界；独立 move 已维护当前投影。账户余额/估值查询、旧写入适配及其余财务写入、查询和后台任务仍未迁移。原 Python 后端和正式运行入口保留，本预览不用于生产替换。
 
 后端依赖独立的 `business-contracts`、`business-domain` JVM target，不依赖 Compose UI；JSON 使用 `kotlinx.serialization`。密码适配使用仅服务器依赖的 Argon2 实现，与原 Python 密码双向兼容；会话只保存 SHA-256 令牌摘要，保留有效期、当前工作区和成员权限。分类目录保留原排序、名称路径与修订，创建、移动和排序重读权限与目录修订；客户端和服务端共用祖先、循环与五层规则。注册和登录的凭据字段仅接受字符串；其他接口的现有字段转换保持原合同。
+
+已实现的业务查询和写入使用 jOOQ OSS `3.21.9` 的生成字段与 DSL，数据库功能矩阵为 SQLite 和 PostgreSQL 18。jOOQ 复用现有受管 JDBC 事务，不自行提交、回滚或重试；JDBC 仍负责驱动配置、schema 校验和事务控制。金额、UTC 微秒与 JSON 由后端专用绑定保留，SQL 及绑定值日志关闭。表、字段和记录类型位于 [生成目录](src/generated/kotlin)，不进入公共协议或 Compose 模块。
 
 现金字段、转正式、投影构建、关系角色及最终图的纯规则已迁入 JVM，并保留原生单测及 Python 匿名差分；投影和完整关系图已由内部全量重建与发布消费；手工收支新建和转账创建已接入同事务写入，其余现金写入仍待迁移。时间、投影与完整关系图差分分别由 `scripts/export_cash_time_goldens.py`、`scripts/export_projection_goldens.py` 和 `scripts/export_cash_relation_goldens.py` 生成，支持 `--check`，不读取数据库或真实账单。
 
@@ -44,7 +50,49 @@ backend/build/install/backend/bin/backend
 
 认证、工作区和分类的匿名黄金分别由 `scripts/export_auth_contracts.py`、`scripts/export_workspace_contracts.py` 与 `scripts/export_category_contracts.py` 准备。账户、收据、分类删除和收支分类黄金由 `scripts/export_account_contracts.py`、`scripts/export_receipt_contracts.py`、`scripts/export_category_deletion_contracts.py`、`scripts/export_classification_contracts.py` 准备。投影源和数据集全列对照分别由 `scripts/export_projection_source_contracts.py` 与 `scripts/export_projection_dataset_contracts.py` 准备。上述双库生成器均要求 `--database-url`、`--oracle-database-url` 和 `--output`：两个 URL 必须指向不同的新建测试库，前者供 Kotlin 使用，后者供 Python 生成预期结果。脚本拒绝覆盖已有 schema，不读取真实账本。
 
-在 `compose/` 同时设置 `FT_KOTLIN_CONTRACT_DIR`（读取黄金目录）、`FT_KOTLIN_AUTH_CONTRACT_DIR`（认证黄金目录）、`FT_KOTLIN_WORKSPACE_CONTRACT_DIR`（工作区黄金目录）、`FT_KOTLIN_CATEGORY_CONTRACT_DIR`（分类黄金目录）、`FT_KOTLIN_ACCOUNT_CONTRACT_DIR`（账户黄金目录）、`FT_KOTLIN_RECEIPT_CONTRACT_DIR`（收据黄金目录）、`FT_KOTLIN_CATEGORY_DELETION_CONTRACT_DIR`（分类删除黄金目录）与 `FT_KOTLIN_CLASSIFICATION_CONTRACT_DIR`（单项/批量分类黄金目录），另设置 `FT_KOTLIN_PROJECTION_SOURCE_CONTRACT_DIR`（投影源黄金）和 `FT_KOTLIN_PROJECTION_DATASET_CONTRACT_DIR`（数据集全列黄金），执行 `./gradlew :backend:test`。PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供本任务凭据。测试不复用另一数据库的 Gradle 结果。已启动本机 Netty 预览后，可从根目录使用 `scripts/verify_kotlin_http.py --origin http://127.0.0.1:18240 --fixtures <读取黄金目录>` 对比读取响应；工具只接受显式 loopback 地址，不启动服务。认证写入的真实 HTTP 冒烟证据见实施记录。
+在 `compose/` 为各能力设置下面的环境变量，值为对应生成器产出的仓库外目录。除基础读取外，需要目标和 Python 参考库的生成器必须显式使用两个不同的新测试数据库；每个能力使用独立目录和数据库。
+
+| 环境变量 | 夹具生成器（仓库根目录） |
+|---|---|
+| `FT_KOTLIN_CONTRACT_DIR` | `scripts/export_kotlin_contracts.py` |
+| `FT_KOTLIN_AUTH_CONTRACT_DIR` | `scripts/export_auth_contracts.py` |
+| `FT_KOTLIN_WORKSPACE_CONTRACT_DIR` | `scripts/export_workspace_contracts.py` |
+| `FT_KOTLIN_CATEGORY_CONTRACT_DIR` | `scripts/export_category_contracts.py` |
+| `FT_KOTLIN_ACCOUNT_CONTRACT_DIR` | `scripts/export_account_contracts.py` |
+| `FT_KOTLIN_RECEIPT_CONTRACT_DIR` | `scripts/export_receipt_contracts.py` |
+| `FT_KOTLIN_CATEGORY_DELETION_CONTRACT_DIR` | `scripts/export_category_deletion_contracts.py` |
+| `FT_KOTLIN_CLASSIFICATION_CONTRACT_DIR` | `scripts/export_classification_contracts.py` |
+| `FT_KOTLIN_PROJECTION_SOURCE_CONTRACT_DIR` | `scripts/export_projection_source_contracts.py` |
+| `FT_KOTLIN_PROJECTION_DATASET_CONTRACT_DIR` | `scripts/export_projection_dataset_contracts.py` |
+| `FT_KOTLIN_PROJECTION_REBUILD_CONTRACT_DIR` | `scripts/export_projection_rebuild_contracts.py` |
+| `FT_KOTLIN_PROJECTION_INCREMENTAL_CONTRACT_DIR` | `scripts/export_projection_incremental_contracts.py` |
+| `FT_KOTLIN_MANUAL_CASH_CONTRACT_DIR` | `scripts/export_manual_cash_contracts.py` |
+| `FT_KOTLIN_TRANSFER_CONTRACT_DIR` | `scripts/export_cash_transfer_contracts.py` |
+| `FT_KOTLIN_LEGACY_CASHFLOW_CONTRACT_DIR` | `scripts/export_legacy_cashflow_contracts.py` |
+| `FT_KOTLIN_CURRENT_PROJECTION_CONTRACT_DIR` | `scripts/export_current_projection_contracts.py` |
+| `FT_KOTLIN_EVIDENCE_CONTRACT_DIR` | `scripts/export_evidence_contracts.py` |
+
+PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：
+
+```bash
+./gradlew :backend:test :backend:codegenTest :backend:installDist -PbackendFunctionalOnly=true
+```
+
+`backendFunctionalOnly=true` 仅排除 `CategoryDeletionPerformanceTest` 和 `CashClassificationPerformanceTest`，保留其他原生断言、事务、并发及安全测试；不传该参数时维持原测试集合和性能预算。测试不探测或启动数据库，也不复用另一数据库的 Gradle 结果。已启动本机 Netty 预览后，可从根目录使用 `scripts/verify_kotlin_http.py --origin http://127.0.0.1:18240 --fixtures <读取黄金目录>` 对比读取响应；工具只接受显式 loopback 地址，不启动服务。
+
+## jOOQ 代码生成
+
+普通构建直接使用已校验的生成代码，无需连接数据库。重新生成时，先由执行者准备 PostgreSQL 18 的空 `_test` 数据库，再使用上述基础夹具生成器运行现有 Alembic 迁移。schema 事实源仍为原迁移，不手写或单独维护 jOOQ 表定义。
+
+在 `compose/` 使用 JDK 21 执行：
+
+```bash
+FT_JOOQ_CODEGEN_URL=jdbc:postgresql://127.0.0.1:55432/finance_jooq_test \
+FT_JOOQ_CODEGEN_USER=postgres \
+./gradlew :backend:generateJooq
+```
+
+按需通过 `FT_JOOQ_CODEGEN_PASSWORD` 提供密码；连接串不得包含凭据、查询参数或 fragment。生成器只读检查 PostgreSQL 18+ 和 `20261028_51`，随后调用官方 KotlinGenerator。可追加 `-PjooqOutput=<仓库外比较目录>`，将结果与生成目录逐文件比较。`./gradlew :backend:codegenTest` 不连接数据库，验证非法目标和格式错误不会输出代码或泄露连接串。
 
 管理员真实 HTTP 黄金由 `scripts/export_projection_rebuild_contracts.py` 按相同双库参数准备；运行完整测试还须设置 `FT_KOTLIN_PROJECTION_REBUILD_CONTRACT_DIR` 为其输出目录。
 
@@ -56,7 +104,7 @@ backend/build/install/backend/bin/backend
 
 非凭据字段的旧文本转换由 `scripts/export_python_string_goldens.py --check` 与 `PythonStringGoldenTest` 验证，覆盖 Python Unicode 14、随机有限浮点数、所有有限二进制幂及相邻值。旧名称和角色字段沿用该文本转换；资金角色兼容函数按原合同复用有限浮点转文本后，再执行精确十进制校验，关系端点继续拒绝浮点。金额运算始终使用精确十进制。
 
-分类实际回包验证先设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR=<仓库外输出目录>` 执行 `:backend:test`，再使用相同环境变量执行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinCategoryResponseIntegrationTest`。客户端通过正式 API 解码 Ktor 读写字节；写入取得 `id/revision` 确认后沿用目录刷新，目录名称路径按真实父 ID 转为领域祖先对象。
+实际回包验证先设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR=<仓库外输出目录>` 执行上述后端功能测试，再使用相同环境变量执行 `:shared:testAndroidHostTest --tests '*Kotlin*ResponseIntegrationTest'`。当前覆盖分类、账户、收据、选项、新建、转账和当前成员；对每个数据库分别生成并消费。客户端通过正式 API 解码 Ktor 读写字节；分类写入取得 `id/revision` 确认后沿用目录刷新，目录名称路径按真实父 ID 转为领域祖先对象。
 
 Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执行 `scripts/check_kotlin_test_migration.py --collection <完整 pytest --collect-only -q 输出> --report <仓库外报告>` 检查源定义、展开参数、夹具及目标；追加 `--require-complete` 后，任何未迁移项都会失败。授权修复新增的源回归通过 `source_additions` 记录当前指纹和理由，仍按同一断言及目标门禁验收，固定基线不变。规则黄金和 Python 参考回归不能代替 Kotlin 原生测试；当前完整迁移门禁仍未通过。本轮按用户要求仅验收功能，性能测试未作为完成门槛，原性能预算和未通过证据见实施记录。
 

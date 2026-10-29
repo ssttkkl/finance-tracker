@@ -2,6 +2,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.business.contracts.*
+import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.sql.Connection
 import java.time.Instant
 import kotlinx.serialization.json.*
@@ -13,9 +14,7 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
         val operation: (Connection)->T = {c ->
             val first=reads.context(c,token,write=false)
             beforeWorkspaceLock()
-            if(lock && !database.sqlite) c.prepareStatement("SELECT id FROM workspaces WHERE id=? FOR UPDATE").use {
-                it.setString(1,first.workspaceId);if(!it.executeQuery().use {rows ->rows.next()}) throw AccessFailure(true)
-            }
+            if(lock && !database.sqlite && !c.lockWorkspace(false, first.workspaceId!!)) throw AccessFailure(true)
             val principal=reads.context(c,token,write=false)
             if(principal.workspaceId!=first.workspaceId) throw AccessFailure(true)
             beforeRead()
@@ -47,13 +46,12 @@ class ReceiptReadService(private val database: Database,private val now: ()->Ins
             JsonObject(receiptJson.encodeToJsonElement(dto).jsonObject.filterKeys {it in row})
         }
         val ids=items.mapNotNull {it["transaction_id"]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content?.takeIf {text ->text.matches(Regex("[0-9]+"))}?.toLongOrNull()?.takeIf {it>0}}.toSet().sorted()
-        val refs=if(state==null || ids.isEmpty()) emptyList() else c.prepareStatement("""SELECT m.cash_transaction_id,p.projection_id FROM cash_projection_members m
-            JOIN cash_projections p ON p.id=m.projection_row_id WHERE m.workspace_id=? AND m.dataset_id=?
-            AND p.workspace_id=? AND p.dataset_id=? AND m.cash_transaction_id IN (${ids.joinToString(",") {"?"}})""").use {
-            it.setString(1,workspace);it.setString(2,state.first);it.setString(3,workspace);it.setString(4,state.first)
-            ids.forEachIndexed {index,id ->it.setLong(5+index,id)}
-            it.executeQuery().use {rows ->buildList {while(rows.next()) add(CashMutationProjectionRefDto(rows.getLong(1).toString(),rows.getString(2)))}}
-        }
+        val member = CASH_PROJECTION_MEMBERS; val projection = CASH_PROJECTIONS
+        val refs=if(state==null || ids.isEmpty()) emptyList() else c.jooq(database.sqlite)
+            .select(member.CASH_TRANSACTION_ID, projection.PROJECTION_ID).from(member).join(projection).on(projection.ID.eq(member.PROJECTION_ROW_ID))
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(state.first))
+            .and(projection.WORKSPACE_ID.eq(workspace)).and(projection.DATASET_ID.eq(state.first)).and(member.CASH_TRANSACTION_ID.`in`(ids))
+            .fetch().map { CashMutationProjectionRefDto(it[member.CASH_TRANSACTION_ID]!!.toString(), it[projection.PROJECTION_ID]!!) }
         val fresh=reads.context(c,token,write=false)
         if(fresh.workspaceId!=workspace || fresh.userId!=principal.userId) throw AccessFailure(true)
         val cursor=stored.getValue("next_after").takeUnless {it==JsonNull}?.jsonPrimitive?.content

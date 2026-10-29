@@ -1,5 +1,8 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.Field
+import org.jooq.impl.DSL
 import java.sql.Connection
 import java.sql.ResultSet
 import java.time.Instant
@@ -7,6 +10,7 @@ import kotlinx.serialization.json.*
 
 internal class CashSqlContext(val connection:Connection,val workspace:String,val sqlite:Boolean,val now:()->Instant=Instant::now) {
     private val transaction=(connection as? CashSqlTransactionBoundary)?.cashTransactionStamp()
+    val sql by lazy { connection.jooq(sqlite) }
     val entries=CashEntryRepository(connection,workspace,sqlite)
     val snapshot by lazy {CashSnapshotRepository(this)}
     internal var projectionState:CashLockedProjectionState?=null
@@ -18,23 +22,6 @@ internal fun ResultSet.nullableLong(column:String):Long?=getLong(column).let {if
 internal fun ResultSet.cashDecimal(column:String,sqlite:Boolean):CashStoredDecimal?=getString(column)?.let {storedCashDecimal(it,sqlite)}
 internal fun ResultSet.cashInstant(column:String,sqlite:Boolean):Instant?=storedCashInstant(getString(column),sqlite)
 internal fun ResultSet.cashJson(column:String):JsonElement?=getString(column)?.let(Json::parseToJsonElement)
-internal fun CashSqlContext.insertCashRow(table:String,values:Map<String,Any?>):Long {
-    requireActive()
-    val slots=values.values.joinToString(",") {when {
-        it is JsonElement && !sqlite ->"CAST(? AS json)"
-        it is CashAmount && !sqlite ->"CAST(? AS numeric)"
-        else ->"?"
-    }}
-    return connection.prepareStatement("INSERT INTO $table(${values.keys.joinToString(",")}) VALUES($slots) RETURNING id").use {s ->
-        values.values.forEachIndexed {index,value ->when(value) {
-            is Instant ->s.instant(index+1,value,sqlite)
-            is JsonElement ->s.setString(index+1,value.toString())
-            is CashAmount ->s.setString(index+1,if(sqlite) fixedCashDecimal(CashStoredDecimal(value.toString())) else value.toString())
-            else ->s.setObject(index+1,value)
-        }}
-        s.executeQuery().use {r ->check(r.next());r.getLong(1)}
-    }
-}
 internal data class CashFactSqlRow(val id:Long,val accountId:Long?,val occurredAt:Instant?,val amount:CashStoredDecimal?,val currency:String?,
     val counterparty:String,val categoryId:String?,val note:String,val sourceType:String?,val recordId:String,val cashGranularity:String,
     val state:String,val createdAt:Instant?,val rowRevision:Long,val recordType:String?,val recordSubtype:String?,val deletedAt:Instant?,val payload:JsonElement?,val fundingRelationId:Long?=null) {
@@ -43,15 +30,28 @@ internal data class CashFactSqlRow(val id:Long,val accountId:Long?,val occurredA
 }
 internal fun readCashFactRows(context:CashSqlContext,ids:Set<Long>?=null,liveOnly:Boolean=true,includePayload:Boolean=false,includeFunding:Boolean=false,forContext:Boolean=false):List<CashFactSqlRow> {
     context.requireActive();if(ids!=null && ids.isEmpty()) return emptyList()
-    val ordered=ids?.sorted()
-    val columns="id,account_id,occurred_at,amount,currency,counterparty,category_id,note,source_type,record_id,cash_granularity,state,row_revision,record_type,record_subtype,deleted_at"+(if(forContext) "" else ",created_at")+(if(includePayload) ",source_payload" else "")+
-        (if(includeFunding) ", (SELECT f.id FROM cash_investment_funding_relations f JOIN cash_transaction_components p ON p.workspace_id=f.workspace_id AND p.id=f.cash_transaction_component_id WHERE f.workspace_id=tx.workspace_id AND p.cash_transaction_id=tx.id AND f.status='accepted' AND f.active_slot='active' ORDER BY f.id LIMIT 1) AS funding_relation_id" else "")
-    val sql="SELECT $columns FROM cash_transactions tx WHERE workspace_id=?"+(if(liveOnly) " AND deleted_at IS NULL" else "")+(if(ordered!=null) " AND id IN (${ordered.joinToString(",") {"?"}})" else "")+" ORDER BY id"
-    return context.connection.prepareStatement(sql).use {
-        it.setString(1,context.workspace);ordered?.forEachIndexed {index,id ->it.setLong(index+2,id)}
-        it.executeQuery().use {r ->buildList {while(r.next()) add(CashFactSqlRow(r.getLong("id"),r.nullableLong("account_id"),r.cashInstant("occurred_at",context.sqlite),r.cashDecimal("amount",context.sqlite),r.getString("currency"),
-            r.getString("counterparty"),r.getString("category_id"),r.getString("note"),r.getString("source_type"),r.getString("record_id"),r.getString("cash_granularity"),r.getString("state"),if(forContext) null else r.cashInstant("created_at",context.sqlite)!!,
-            r.getLong("row_revision"),r.getString("record_type"),r.getString("record_subtype"),r.cashInstant("deleted_at",context.sqlite),if(includePayload) r.cashJson("source_payload") else null,if(includeFunding) r.nullableLong("funding_relation_id") else null))}}
+    val tx = CASH_TRANSACTIONS.`as`("tx")
+    val fields = mutableListOf<Field<*>>(tx.ID, tx.ACCOUNT_ID, tx.OCCURRED_AT, tx.AMOUNT, tx.CURRENCY, tx.COUNTERPARTY,
+        tx.CATEGORY_ID, tx.NOTE, tx.SOURCE_TYPE, tx.RECORD_ID, tx.CASH_GRANULARITY, tx.STATE, tx.ROW_REVISION,
+        tx.RECORD_TYPE, tx.RECORD_SUBTYPE, tx.DELETED_AT)
+    if (!forContext) fields += tx.CREATED_AT
+    if (includePayload) fields += tx.SOURCE_PAYLOAD
+    val funding = CASH_INVESTMENT_FUNDING_RELATIONS.`as`("f")
+    val part = CASH_TRANSACTION_COMPONENTS.`as`("p")
+    val fundingId = DSL.field(DSL.select(funding.ID).from(funding).join(part)
+        .on(part.WORKSPACE_ID.eq(funding.WORKSPACE_ID)).and(part.ID.eq(funding.CASH_TRANSACTION_COMPONENT_ID))
+        .where(funding.WORKSPACE_ID.eq(tx.WORKSPACE_ID)).and(part.CASH_TRANSACTION_ID.eq(tx.ID))
+        .and(funding.STATUS.eq("accepted")).and(funding.ACTIVE_SLOT.eq("active")).orderBy(funding.ID).limit(1)).`as`("funding_relation_id")
+    if (includeFunding) fields += fundingId
+    val condition = tx.WORKSPACE_ID.eq(context.workspace)
+        .and(if (liveOnly) tx.DELETED_AT.isNull else DSL.noCondition())
+        .and(if (ids != null) tx.ID.`in`(ids.sorted()) else DSL.noCondition())
+    return context.sql.select(fields).from(tx).where(condition).orderBy(tx.ID).fetch { row ->
+        CashFactSqlRow(row[tx.ID]!!, row[tx.ACCOUNT_ID], row[tx.OCCURRED_AT], row[tx.AMOUNT], row[tx.CURRENCY],
+            row[tx.COUNTERPARTY]!!, row[tx.CATEGORY_ID], row[tx.NOTE]!!, row[tx.SOURCE_TYPE], row[tx.RECORD_ID]!!,
+            row[tx.CASH_GRANULARITY]!!, row[tx.STATE]!!, if (forContext) null else row[tx.CREATED_AT]!!, row[tx.ROW_REVISION]!!,
+            row[tx.RECORD_TYPE], row[tx.RECORD_SUBTYPE], row[tx.DELETED_AT], if (includePayload) row[tx.SOURCE_PAYLOAD] else null,
+            if (includeFunding) row[fundingId] else null)
     }
 }
 internal data class CashComponentSqlRow(val id:Long,val transactionId:Long,val accountId:Long?,val amount:CashStoredDecimal?,val currency:String?,val ordinal:Long,val label:String="",val sourceKey:String="")

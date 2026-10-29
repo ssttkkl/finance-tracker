@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.business.domain.*
+import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.sql.Connection
 import java.time.Instant
 import java.util.UUID
@@ -12,7 +13,8 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     private val newId: () -> String = { UUID.randomUUID().toString().replace("-", "") },
     private val beforeDelete: () -> Unit = {},private val beforeWorkspaceLock: () -> Unit = {}) {
     private val reads = ReadServices(database, now)
-    private val lockSuffix get() = if (database.sqlite) "" else " FOR UPDATE"
+    private val category = CASH_CATEGORIES
+    private val categoryState = CASH_CATEGORY_STATES
     private data class Row(val id: String, var parentId: String?, var name: String, var normalized: String,
         var description: String?, var path: String, var depth: Int, var order: Int, var revision: Long)
     private data class Directory(val workspace: String, var revision: Long, val rows: MutableList<Row>)
@@ -24,28 +26,22 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         val initial = reads.session(connection, token)
         val workspace = initial.workspaceId ?: throw AccessFailure(true)
         beforeWorkspaceLock()
-        val exists = connection.prepareStatement("SELECT id FROM workspaces WHERE id=?$lockSuffix").use {
-            it.setString(1, workspace); it.executeQuery().use { it.next() }
-        }
+        val exists = connection.lockWorkspace(database.sqlite, workspace)
         if (!exists) throw AccessFailure(true)
         if (reads.session(connection, token, lock = true).workspaceId != workspace) throw AccessFailure(true)
         reads.context(connection, token, true)
-        val revision = connection.prepareStatement("SELECT revision FROM cash_category_states WHERE workspace_id=?$lockSuffix").use {
-            it.setString(1, workspace); it.executeQuery().use { rows -> if (rows.next()) rows.getLong(1) else null }
-        } ?: run {
-            connection.prepareStatement("INSERT INTO cash_category_states(workspace_id,revision,updated_at) VALUES(?,0,?)").use {
-                it.setString(1, workspace); it.instant(2, now(), database.sqlite); it.executeUpdate()
-            }
+        val sql = connection.jooq(database.sqlite)
+        val stateQuery = sql.select(categoryState.REVISION).from(categoryState).where(categoryState.WORKSPACE_ID.eq(workspace))
+        val revision = (if (database.sqlite) stateQuery else stateQuery.forUpdate()).fetchOne(categoryState.REVISION) ?: run {
+            sql.insertInto(categoryState).set(categoryState.WORKSPACE_ID, workspace).set(categoryState.REVISION, 0L).set(categoryState.UPDATED_AT, now()).execute()
             0L
         }
         if (!categoryRevisionMatches(revisionInput, expectedRevision, revision,revisionRepresentation)) throw CategoryFailure("category.revision_conflict")
-        val rows = if (!loadRows) mutableListOf<Row>() else connection.prepareStatement("SELECT id,parent_id,name,normalized_name,description,category_path,depth,sort_order,revision FROM cash_categories WHERE workspace_id=?").use {
-            it.setString(1, workspace)
-            it.executeQuery().use { result -> buildList {
-                while (result.next()) add(Row(result.getString(1), result.getString(2), result.getString(3), result.getString(4),
-                    result.getString(5), result.getString(6), result.getInt(7), result.getInt(8), result.getLong(9)))
-            }.toMutableList() }
-        }
+        val rows = if (!loadRows) mutableListOf<Row>() else sql.select(category.ID, category.PARENT_ID, category.NAME, category.NORMALIZED_NAME,
+            category.DESCRIPTION, category.CATEGORY_PATH, category.DEPTH, category.SORT_ORDER, category.REVISION).from(category)
+            .where(category.WORKSPACE_ID.eq(workspace)).fetch().map { row -> Row(row[category.ID]!!, row[category.PARENT_ID], row[category.NAME]!!,
+                row[category.NORMALIZED_NAME]!!, row[category.DESCRIPTION], row[category.CATEGORY_PATH]!!, row[category.DEPTH]!!.toInt(),
+                row[category.SORT_ORDER]!!.toInt(), row[category.REVISION]!!) }.toMutableList()
         action(connection, Directory(workspace, revision, rows))
     }
 
@@ -80,19 +76,16 @@ class CategoryService(private val database: Database, private val now: () -> Ins
     }
 
     private fun bump(connection: Connection, directory: Directory) {
-        connection.prepareStatement("UPDATE cash_category_states SET revision=?,updated_at=? WHERE workspace_id=?").use {
-            it.setLong(1, Math.addExact(directory.revision,1)); it.instant(2, now(), database.sqlite); it.setString(3, directory.workspace); check(it.executeUpdate() == 1)
-        }
+        check(connection.jooq(database.sqlite).update(categoryState).set(categoryState.REVISION, Math.addExact(directory.revision,1))
+            .set(categoryState.UPDATED_AT, now()).where(categoryState.WORKSPACE_ID.eq(directory.workspace)).execute() == 1)
         directory.revision=Math.addExact(directory.revision,1)
     }
 
     private fun persist(connection: Connection, directory: Directory, row: Row) {
-        connection.prepareStatement("""UPDATE cash_categories SET parent_id=?,parent_scope_key=?,name=?,normalized_name=?,
-            description=?,category_path=?,depth=?,sort_order=?,revision=?,updated_at=? WHERE workspace_id=? AND id=?""").use {
-            it.setString(1, row.parentId); it.setString(2, row.parentId ?: "__root__"); it.setString(3, row.name); it.setString(4, row.normalized)
-            it.setString(5, row.description); it.setString(6, row.path); it.setInt(7, row.depth); it.setInt(8, row.order); it.setLong(9, row.revision)
-            it.instant(10, now(), database.sqlite); it.setString(11, directory.workspace); it.setString(12, row.id); check(it.executeUpdate() == 1)
-        }
+        check(connection.jooq(database.sqlite).update(category).set(category.PARENT_ID, row.parentId).set(category.PARENT_SCOPE_KEY, row.parentId ?: "__root__")
+            .set(category.NAME, row.name).set(category.NORMALIZED_NAME, row.normalized).set(category.DESCRIPTION, row.description)
+            .set(category.CATEGORY_PATH, row.path).set(category.DEPTH, row.depth.toLong()).set(category.SORT_ORDER, row.order.toLong())
+            .set(category.REVISION, row.revision).set(category.UPDATED_AT, now()).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(row.id)).execute() == 1)
     }
 
     fun create(token: String?, name: String, parentId: String? = null, description: String? = null,
@@ -107,13 +100,11 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             duplicate(directory, parent?.id, normalized)
             val id = newId()
             val row = Row(id, parent?.id, normalizedName, normalized, detail, "${parent?.path ?: ""}/$id/", depth, nextOrder(directory, parent?.id), 1)
-            connection.prepareStatement("""INSERT INTO cash_categories(id,workspace_id,parent_id,parent_scope_key,name,normalized_name,
-                description,category_path,depth,sort_order,revision,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""").use {
-                it.setString(1, id); it.setString(2, directory.workspace); it.setString(3, row.parentId); it.setString(4, row.parentId ?: "__root__")
-                it.setString(5, row.name); it.setString(6, row.normalized); it.setString(7, row.description); it.setString(8, row.path)
-                it.setInt(9, row.depth); it.setInt(10, row.order); it.setLong(11, row.revision)
-                it.instant(12, now(), database.sqlite); it.instant(13, now(), database.sqlite); it.executeUpdate()
-            }
+            connection.jooq(database.sqlite).insertInto(category).set(category.ID, id).set(category.WORKSPACE_ID, directory.workspace)
+                .set(category.PARENT_ID, row.parentId).set(category.PARENT_SCOPE_KEY, row.parentId ?: "__root__").set(category.NAME, row.name)
+                .set(category.NORMALIZED_NAME, row.normalized).set(category.DESCRIPTION, row.description).set(category.CATEGORY_PATH, row.path)
+                .set(category.DEPTH, row.depth.toLong()).set(category.SORT_ORDER, row.order.toLong()).set(category.REVISION, row.revision)
+                .set(category.CREATED_AT, now()).set(category.UPDATED_AT, now()).execute()
             directory.rows.add(row)
             bump(connection, directory)
             item(directory, row)
@@ -130,13 +121,11 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         plan.violation?.let { throw CategoryFailure(it) }
         val affected=buildSet {
             for(batch in plan.depths.keys.chunked(400)) {
-                val placeholders=batch.joinToString(",") {"?"}
-                for((table,column,filter) in listOf(Triple("cash_transactions","id"," AND deleted_at IS NULL"),Triple("cash_entries","root_transaction_id",""))) {
-                    connection.prepareStatement("SELECT $column FROM $table WHERE workspace_id=? AND category_id IN ($placeholders)$filter").use {
-                        it.setString(1,directory.workspace);batch.forEachIndexed {index,id ->it.setString(index+2,id)}
-                        it.executeQuery().use {result ->while(result.next()) add(result.getLong(1))}
-                    }
-                }
+                val sql = connection.jooq(database.sqlite); val t = CASH_TRANSACTIONS; val e = CASH_ENTRIES
+                addAll(sql.select(t.ID).from(t).where(t.WORKSPACE_ID.eq(directory.workspace)).and(t.CATEGORY_ID.`in`(batch))
+                    .and(t.DELETED_AT.isNull).fetch(t.ID).filterNotNull())
+                addAll(sql.select(e.ROOT_TRANSACTION_ID).from(e).where(e.WORKSPACE_ID.eq(directory.workspace)).and(e.CATEGORY_ID.`in`(batch))
+                    .fetch(e.ROOT_TRANSACTION_ID).filterNotNull())
             }
         }
         val oldPath = row.path
@@ -184,9 +173,8 @@ class CategoryService(private val database: Database, private val now: () -> Ins
         val context=reads.context(connection,token,false)
         val workspace=context.workspaceId!!
         val impact=CategoryDeletionRepository(database.sqlite).impact(connection,workspace,categoryId)
-        val revision=connection.prepareStatement("SELECT revision FROM cash_category_states WHERE workspace_id=?").use {
-            it.setString(1,workspace);it.executeQuery().use {rows ->if(rows.next()) rows.getLong(1) else 0L}
-        }
+        val revision=connection.jooq(database.sqlite).select(categoryState.REVISION).from(categoryState)
+            .where(categoryState.WORKSPACE_ID.eq(workspace)).fetchOne(categoryState.REVISION) ?: 0L
         if(reads.context(connection,token,false).workspaceId!=workspace) throw AccessFailure(true)
         buildJsonObject {put("category_id",categoryId);put("revision",revision);put("category_revision",impact.rowRevision)
             put("child_count",impact.children);put("direct_usage_count",impact.usage)}
@@ -205,9 +193,7 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             if(!matches(categoryRevision,impact.rowRevision,"expected_category_revision") || !matches(usageCount,impact.usage,"expected_usage_count")) throw CategoryFailure("category.impact_changed")
             if(impact.usage!=0L && !confirmed) throw CategoryFailure("category.delete_confirmation_required")
             repository.clear(connection,directory.workspace,categoryId,now(),impact.usage)
-            connection.prepareStatement("DELETE FROM cash_categories WHERE workspace_id=? AND id=?").use {
-                it.setString(1,directory.workspace);it.setString(2,categoryId);check(it.executeUpdate()==1)
-            }
+            check(connection.jooq(database.sqlite).deleteFrom(category).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(categoryId)).execute()==1)
             bump(connection,directory)
             buildJsonObject {put("category_id",categoryId);put("cleared_transaction_count",impact.usage);put("revision",directory.revision)}
         }
@@ -225,10 +211,8 @@ class CategoryService(private val database: Database, private val now: () -> Ins
             if (otherIndex in siblings.indices) {
                 val other = siblings[otherIndex]
                 val previous = row.order; row.order = other.order; other.order = previous
-                if (other.order != row.order) connection.prepareStatement("UPDATE cash_categories SET sort_order=?,updated_at=? WHERE workspace_id=? AND id=?").use {
-                    it.setInt(1, other.order); it.instant(2, now(), database.sqlite)
-                    it.setString(3, directory.workspace); it.setString(4, other.id); check(it.executeUpdate() == 1)
-                }
+                if (other.order != row.order) check(connection.jooq(database.sqlite).update(category).set(category.SORT_ORDER, other.order.toLong())
+                    .set(category.UPDATED_AT, now()).where(category.WORKSPACE_ID.eq(directory.workspace)).and(category.ID.eq(other.id)).execute() == 1)
                 row.revision=Math.addExact(row.revision,1)
                 persist(connection, directory, row)
                 bump(connection, directory)

@@ -1,6 +1,11 @@
 package com.finance.tracker.backend
 
-import java.sql.ResultSet
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.Record
+import org.jooq.Field
+import org.jooq.Select
+import org.jooq.Record1
+import org.jooq.impl.DSL
 
 internal data class CashRelationSqlRow(val id:Long,val kind:String,val subtype:String,val primary:Long,val secondary:Long?,
     val primaryComponent:Long?,val secondaryComponent:Long?,val primaryRole:String?,val secondaryRole:String?,val applied:CashStoredDecimal,
@@ -15,61 +20,87 @@ internal data class CashRelationSqlContext(val seedIds:Set<Long>,val decisionGro
     val entryVersions:List<CashEntrySnapshot>,val relationGroups:List<Pair<Long,String>>,val fundingVersions:List<CashFundingSqlRow>,val fundingComponentIds:Set<String>)
 
 internal class CashRelationReadRepository(private val context:CashSqlContext) {
-    private val c get()=context.connection
+    private val sql get()=context.sql
     private val workspace get()=context.workspace
-    internal val graphColumns="id,kind,subtype,primary_transaction_id,secondary_transaction_id,primary_component_id,secondary_component_id,primary_role,secondary_role,applied_amount,state,active,decision_group_id,row_revision"
+    private val relation = TRANSACTION_RELATIONS
+    internal val graphFields = listOf(relation.ID, relation.KIND, relation.SUBTYPE, relation.PRIMARY_TRANSACTION_ID, relation.SECONDARY_TRANSACTION_ID,
+        relation.PRIMARY_COMPONENT_ID, relation.SECONDARY_COMPONENT_ID, relation.PRIMARY_ROLE, relation.SECONDARY_ROLE, relation.APPLIED_AMOUNT,
+        relation.STATE, relation.ACTIVE, relation.DECISION_GROUP_ID, relation.ROW_REVISION)
     private fun checked(ids:Set<Long>):List<Long> {if(ids.any {it<=0}) relationFailure("relation_data_invalid");return ids.sorted()}
-    internal fun row(r:ResultSet,rule:Boolean=false)=CashRelationSqlRow(r.getLong("id"),r.getString("kind"),r.getString("subtype"),r.getLong("primary_transaction_id"),r.nullableLong("secondary_transaction_id"),
-        r.nullableLong("primary_component_id"),r.nullableLong("secondary_component_id"),r.getString("primary_role"),r.getString("secondary_role"),r.cashDecimal("applied_amount",context.sqlite)!!,
-        r.getString("state"),r.getBoolean("active"),r.getString("decision_group_id"),r.getLong("row_revision"),if(rule) r.getString("rule_id") else "")
-    fun graphRowsForTransactions(ids:Set<Long>):List<CashRelationSqlRow> {
-        val result=sortedMapOf<Long,CashRelationSqlRow>()
-        for(batch in checked(ids).chunked(500)) {
-            val columns=if(context.sqlite) "id" else graphColumns
-            val branches=listOf("primary_transaction_id","secondary_transaction_id","anchor_transaction_id").map {endpoint ->
-                "SELECT $columns FROM transaction_relations WHERE workspace_id=? AND active=true AND $endpoint IN (${batch.joinToString(",") {"?"}})"
+    internal fun row(row: Record, rule: Boolean = false) = CashRelationSqlRow(row[relation.ID]!!, row[relation.KIND]!!, row[relation.SUBTYPE]!!,
+        row[relation.PRIMARY_TRANSACTION_ID]!!, row[relation.SECONDARY_TRANSACTION_ID], row[relation.PRIMARY_COMPONENT_ID], row[relation.SECONDARY_COMPONENT_ID],
+        row[relation.PRIMARY_ROLE], row[relation.SECONDARY_ROLE], row[relation.APPLIED_AMOUNT]!!, row[relation.STATE]!!, row[relation.ACTIVE]!!,
+        row[relation.DECISION_GROUP_ID], row[relation.ROW_REVISION]!!, if (rule) row[relation.RULE_ID]!! else "")
+    fun graphRowsForTransactions(ids: Set<Long>): List<CashRelationSqlRow> {
+        val result = sortedMapOf<Long, CashRelationSqlRow>()
+        for (batch in checked(ids).chunked(500)) {
+            val endpoints = listOf(relation.PRIMARY_TRANSACTION_ID, relation.SECONDARY_TRANSACTION_ID, relation.ANCHOR_TRANSACTION_ID)
+            val predicate = relation.WORKSPACE_ID.eq(workspace).and(relation.ACTIVE.isTrue)
+            val rows = if (context.sqlite) {
+                val branches = endpoints.map { DSL.select(relation.ID).from(relation).where(predicate).and(it.`in`(batch)) }
+                sql.select(graphFields).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
+                    .and(relation.ID.`in`(branches[0].union(branches[1]).union(branches[2]))).fetch()
+            } else {
+                val branches = endpoints.map { sql.select(graphFields).from(relation).where(predicate).and(it.`in`(batch)) }
+                branches[0].unionAll(branches[1]).unionAll(branches[2]).fetch()
             }
-            val sql=if(context.sqlite) "SELECT $graphColumns FROM transaction_relations WHERE workspace_id=? AND id IN (${branches.joinToString(" UNION ")})" else branches.joinToString(" UNION ALL ")
-            c.prepareStatement(sql).use {
-                var index=1;if(context.sqlite) it.setString(index++,workspace)
-                repeat(3) {_ ->it.setString(index++,workspace);batch.forEach {id ->it.setLong(index++,id)}}
-                it.executeQuery().use {r ->while(r.next()) {val relation=row(r);if(relation.active) result[relation.id]=relation}}
-            }
-        };return result.values.toList()
+            for (record in rows) { val edge = row(record); if (edge.active) result[edge.id] = edge }
+        }
+        return result.values.toList()
     }
-    fun graphRowsForGroups(groups:List<String>):List<CashRelationSqlRow> {
-        val result=sortedMapOf<Long,CashRelationSqlRow>()
-        for(batch in groups.distinct().sortedWith(cashRelationStringOrder).chunked(500)) c.prepareStatement("SELECT $graphColumns FROM transaction_relations WHERE workspace_id=? AND decision_group_id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,group ->it.setString(index+2,group)};it.executeQuery().use {r ->while(r.next()) {val relation=row(r);result[relation.id]=relation}}
-        };return result.values.toList()
+    fun graphRowsForGroups(groups: List<String>): List<CashRelationSqlRow> {
+        val result = sortedMapOf<Long, CashRelationSqlRow>()
+        for (batch in groups.distinct().sortedWith(cashRelationStringOrder).chunked(500)) {
+            sql.select(graphFields).from(relation).where(relation.WORKSPACE_ID.eq(workspace)).and(relation.DECISION_GROUP_ID.`in`(batch))
+                .fetch().forEach { val edge = row(it); result[edge.id] = edge }
+        }
+        return result.values.toList()
     }
     fun confirmedClosure(ids:Set<Long>):Set<Long> {
         val result=sortedSetOf<Long>()
         for(batch in checked(ids).chunked(500)) {
             val seeds=batch.filter {it !in result};if(seeds.isEmpty()) continue
-            val marks=seeds.joinToString(",") {"?"}
-            val sql=if(context.sqlite) """WITH RECURSIVE relation_directions(direction) AS (SELECT 0 UNION ALL SELECT 1), current_relation_closure(node) AS (
-                SELECT id FROM cash_transactions WHERE workspace_id=? AND id IN ($marks)
-                UNION SELECT CASE WHEN d.direction=0 THEN p.secondary_transaction_id ELSE s.primary_transaction_id END
-                FROM current_relation_closure reached CROSS JOIN relation_directions d
-                LEFT JOIN transaction_relations p ON d.direction=0 AND p.workspace_id=? AND p.primary_transaction_id=reached.node AND p.active=true AND p.state='confirmed'
-                LEFT JOIN transaction_relations s ON d.direction=1 AND s.workspace_id=? AND s.secondary_transaction_id=reached.node AND s.active=true AND s.state='confirmed'
-                WHERE CASE WHEN d.direction=0 THEN p.secondary_transaction_id ELSE s.primary_transaction_id END IS NOT NULL) SELECT node FROM current_relation_closure"""
-            else """WITH RECURSIVE current_relation_closure(node) AS (SELECT id FROM cash_transactions WHERE workspace_id=? AND id IN ($marks)
-                UNION SELECT neighbours.node FROM current_relation_closure reached JOIN LATERAL (
-                    SELECT secondary_transaction_id AS node FROM transaction_relations WHERE workspace_id=? AND active=true AND state='confirmed' AND primary_transaction_id=reached.node AND secondary_transaction_id IS NOT NULL
-                    UNION ALL SELECT primary_transaction_id AS node FROM transaction_relations WHERE workspace_id=? AND active=true AND state='confirmed' AND secondary_transaction_id=reached.node AND primary_transaction_id IS NOT NULL OFFSET 0
-                ) neighbours ON true) SELECT node FROM current_relation_closure"""
-            c.prepareStatement(sql).use {
-                var index=1;it.setString(index++,workspace);seeds.forEach {id ->it.setLong(index++,id)};it.setString(index++,workspace);it.setString(index,workspace)
-                it.executeQuery().use {r ->while(r.next()) result+=r.getLong(1)}
+            val reached = DSL.table(DSL.name("current_relation_closure")).`as`("reached")
+            val node = DSL.field(DSL.name("reached", "node"), Long::class.java)
+            val initial = DSL.select(CASH_TRANSACTIONS.ID).from(CASH_TRANSACTIONS)
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.`in`(seeds))
+            val cteName = DSL.name("current_relation_closure").fields("node")
+            if (context.sqlite) {
+                val directions = DSL.name("relation_directions").fields("direction").`as`(DSL.select(DSL.inline(0)).unionAll(DSL.select(DSL.inline(1))))
+                val d = directions.`as`("d")
+                val direction = d.field("direction", Int::class.java)!!
+                val outgoing = relation.`as`("p")
+                val incoming = relation.`as`("s")
+                val next = DSL.`when`(direction.eq(DSL.inline(0)), outgoing.SECONDARY_TRANSACTION_ID).otherwise(incoming.PRIMARY_TRANSACTION_ID)
+                val recursive = DSL.select(next).from(reached).crossJoin(d)
+                    .leftJoin(outgoing).on(direction.eq(DSL.inline(0))).and(outgoing.WORKSPACE_ID.eq(workspace)).and(outgoing.PRIMARY_TRANSACTION_ID.eq(node))
+                    .and(outgoing.ACTIVE.isTrue).and(outgoing.STATE.eq(DSL.inline("confirmed")))
+                    .leftJoin(incoming).on(direction.eq(DSL.inline(1))).and(incoming.WORKSPACE_ID.eq(workspace)).and(incoming.SECONDARY_TRANSACTION_ID.eq(node))
+                    .and(incoming.ACTIVE.isTrue).and(incoming.STATE.eq(DSL.inline("confirmed"))).where(next.isNotNull)
+                val closure = cteName.`as`(initial.union(recursive))
+                sql.withRecursive(directions, closure).select(closure.field("node", Long::class.java)).from(closure).fetch().forEach { result += it.value1()!! }
+            } else {
+                val neighbours = DSL.lateral(DSL.select(relation.SECONDARY_TRANSACTION_ID.`as`("node")).from(relation)
+                    .where(relation.WORKSPACE_ID.eq(workspace)).and(relation.ACTIVE.isTrue).and(relation.STATE.eq(DSL.inline("confirmed")))
+                    .and(relation.PRIMARY_TRANSACTION_ID.eq(node)).and(relation.SECONDARY_TRANSACTION_ID.isNotNull)
+                    .unionAll(DSL.select(relation.PRIMARY_TRANSACTION_ID.`as`("node")).from(relation)
+                        .where(relation.WORKSPACE_ID.eq(workspace)).and(relation.ACTIVE.isTrue).and(relation.STATE.eq(DSL.inline("confirmed")))
+                        .and(relation.SECONDARY_TRANSACTION_ID.eq(node)).and(relation.PRIMARY_TRANSACTION_ID.isNotNull)).offset(0)).`as`("neighbours")
+                val recursive = DSL.select(neighbours.field("node", Long::class.java)).from(reached).join(neighbours).on(DSL.trueCondition())
+                val closure = cteName.`as`(initial.union(recursive))
+                sql.withRecursive(closure).select(closure.field("node", Long::class.java)).from(closure).fetch().forEach { result += it.value1()!! }
             }
         };return result
     }
     fun issues(ids:Set<Long>):List<CashIssueVersion> {
         val result=sortedMapOf<Long,CashIssueVersion>()
-        for(batch in ids.sorted().chunked(500)) c.prepareStatement("SELECT id,transaction_id,revision FROM cash_transaction_issues WHERE workspace_id=? AND transaction_id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};it.executeQuery().use {r ->while(r.next()) {val issue=CashIssueVersion(r.getLong(1),r.getLong(2),r.getLong(3));result[issue.id]=issue}}
+        val issue = CASH_TRANSACTION_ISSUES
+        for (batch in ids.sorted().chunked(500)) {
+            sql.select(issue.ID, issue.TRANSACTION_ID, issue.REVISION).from(issue).where(issue.WORKSPACE_ID.eq(workspace))
+                .and(issue.TRANSACTION_ID.`in`(batch)).fetch().forEach { row ->
+                    val version = CashIssueVersion(row[issue.ID]!!, row[issue.TRANSACTION_ID]!!, row[issue.REVISION]!!)
+                    result[version.id] = version
+                }
         };return result.values.toList()
     }
     fun attention(ids:Set<Long>,relations:List<CashRelationSqlRow>):Set<Long> = issues(ids).map {it.transactionId}.toMutableSet().also {pending ->
@@ -94,14 +125,18 @@ internal class CashRelationReadRepository(private val context:CashSqlContext) {
         rows.filter {it.active && it.state=="draft"}.forEach {r ->listOfNotNull(r.primary,r.secondary).filter {it in parents}.forEach(pending::add)}
         val formal=parents.filterValues {it.state=="posted" && it.deletedAt==null}
         val parts=sortedMapOf<Long,CashComponentSqlRow>();val funding=sortedMapOf<Long,CashFundingSqlRow>()
-        for(batch in parents.keys.sorted().chunked(500)) c.prepareStatement("""SELECT p.id,p.cash_transaction_id,p.account_id,p.amount,p.currency,p.ordinal,
-            f.id AS funding_id,f.cash_transaction_component_id AS funding_component,f.investment_event_id AS funding_event,f.direction AS funding_direction
-            FROM cash_transaction_components p LEFT OUTER JOIN cash_investment_funding_relations f ON f.workspace_id=? AND f.cash_transaction_component_id=p.id AND f.status='accepted' AND f.active_slot='active'
-            WHERE p.workspace_id=? AND p.cash_transaction_id IN (${batch.joinToString(",") {"?"}})""").use {
-            it.setString(1,workspace);it.setString(2,workspace);batch.forEachIndexed {index,id ->it.setLong(index+3,id)};it.executeQuery().use {r ->while(r.next()) {
-                val part=CashComponentSqlRow(r.getLong("id"),r.getLong("cash_transaction_id"),r.nullableLong("account_id"),r.cashDecimal("amount",context.sqlite),r.getString("currency"),r.getLong("ordinal"));parts[part.id]=part
-                r.nullableLong("funding_id")?.let {id ->funding[id]=CashFundingSqlRow(id,r.getLong("funding_component"),r.getLong("funding_event"),r.getString("funding_direction"))}
-            }}
+        val part = CASH_TRANSACTION_COMPONENTS.`as`("p")
+        val fund = CASH_INVESTMENT_FUNDING_RELATIONS.`as`("f")
+        for (batch in parents.keys.sorted().chunked(500)) {
+            sql.select(part.ID, part.CASH_TRANSACTION_ID, part.ACCOUNT_ID, part.AMOUNT, part.CURRENCY, part.ORDINAL,
+                    fund.ID, fund.CASH_TRANSACTION_COMPONENT_ID, fund.INVESTMENT_EVENT_ID, fund.DIRECTION)
+                .from(part).leftJoin(fund).on(fund.WORKSPACE_ID.eq(workspace)).and(fund.CASH_TRANSACTION_COMPONENT_ID.eq(part.ID))
+                .and(fund.STATUS.eq(DSL.inline("accepted"))).and(fund.ACTIVE_SLOT.eq(DSL.inline("active")))
+                .where(part.WORKSPACE_ID.eq(workspace)).and(part.CASH_TRANSACTION_ID.`in`(batch)).fetch().forEach { row ->
+                    val component = CashComponentSqlRow(row[part.ID]!!, row[part.CASH_TRANSACTION_ID]!!, row[part.ACCOUNT_ID], row[part.AMOUNT], row[part.CURRENCY], row[part.ORDINAL]!!)
+                    parts[component.id] = component
+                    row[fund.ID]?.let { id -> funding[id] = CashFundingSqlRow(id, row[fund.CASH_TRANSACTION_COMPONENT_ID]!!, row[fund.INVESTMENT_EVENT_ID]!!, row[fund.DIRECTION]!!) }
+                }
         }
         val fundingByParent=linkedMapOf<Long,Long>()
         funding.values.forEach {row ->fundingByParent.putIfAbsent(parts.getValue(row.componentId).transactionId,row.id)}

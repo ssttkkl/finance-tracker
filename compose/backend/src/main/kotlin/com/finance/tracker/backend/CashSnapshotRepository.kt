@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import org.jooq.impl.DSL
 import java.math.MathContext
 import java.math.RoundingMode
 import kotlinx.serialization.json.*
@@ -19,13 +21,12 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
     private var accounts:List<Account>?=null
     private val c get()=context.connection
     private val workspace get()=context.workspace
-    private val lock get()=if(context.sqlite) "" else " FOR UPDATE"
     init {(c as? CashSqlTransactionBoundary)?.cashOnSavepointRollback {if(loaded!=null) {accounts=null;loaded!!.value=read(loadedWithLock)}}}
     private fun accountModels():List<Account> {
         context.requireActive()
-        return accounts ?: c.prepareStatement("SELECT id,name,type FROM accounts WHERE workspace_id=? ORDER BY id").use {
-            it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) add(Account(r.getLong(1),r.getString(2),r.getString(3)))}}
-        }.also {accounts=it}
+        val a = ACCOUNTS
+        return accounts ?: context.sql.select(a.ID, a.NAME, a.TYPE).from(a).where(a.WORKSPACE_ID.eq(workspace)).orderBy(a.ID)
+            .fetch { Account(it[a.ID]!!, it[a.NAME]!!, it[a.TYPE]!!) }.also { accounts = it }
     }
     private fun accountId(key:String):Long? {
         if(key.isEmpty()) return null
@@ -59,22 +60,26 @@ internal class CashSnapshotRepository(private val context:CashSqlContext) {
     }
     private fun read(lockRow:Boolean):JsonObject {
         context.requireActive()
-        val sql=if(lockRow && !context.sqlite) "SELECT s.payload FROM ledger_snapshots s JOIN workspaces w ON w.id=s.workspace_id WHERE s.workspace_id=? FOR UPDATE OF s,w"
-            else "SELECT payload FROM ledger_snapshots WHERE workspace_id=?"+if(lockRow) lock else ""
-        val stored=c.prepareStatement(sql).use {it.setString(1,workspace);it.executeQuery().use {r ->if(r.next()) Json.parseToJsonElement(r.getString(1)).let {value ->
-            check(value is JsonObject) {"snapshot must be a mapping"};value
-        } else null}}
-        if(lockRow && (context.sqlite || stored==null)) c.prepareStatement("SELECT id FROM workspaces WHERE id=?$lock").use {it.setString(1,workspace);it.executeQuery().use {r ->check(r.next()) {"snapshot workspace missing"}}}
+        val snapshots = LEDGER_SNAPSHOTS.`as`("s")
+        val spaces = WORKSPACES.`as`("w")
+        val query = context.sql.select(snapshots.PAYLOAD).from(snapshots)
+        val storedValue = if (lockRow && !context.sqlite) {
+            query.join(spaces).on(spaces.ID.eq(snapshots.WORKSPACE_ID)).where(snapshots.WORKSPACE_ID.eq(workspace))
+                .forUpdate().of(snapshots, spaces).fetchOne(snapshots.PAYLOAD)
+        } else query.where(snapshots.WORKSPACE_ID.eq(workspace)).fetchOne(snapshots.PAYLOAD)
+        val stored = storedValue?.let { check(it is JsonObject) { "snapshot must be a mapping" }; it }
+        if (lockRow && (context.sqlite || stored == null)) check(c.lockWorkspace(context.sqlite, workspace)) { "snapshot workspace missing" }
         return toNames(stored ?: Json.parseToJsonElement("""{"updated_at":"","accounts":{"cash":{},"loan":{},"lend":{},"security":{}}}""").jsonObject)
     }
     fun load(lock:Boolean=false):CashSnapshotDocument {context.requireActive();return loaded ?: CashSnapshotDocument(read(lock)).also {loaded=it;loadedWithLock=lock}}
     fun save(document:CashSnapshotDocument) {
         context.requireActive();val payload=toIds(copyCashJsonContainers(document.value).jsonObject)
-        val old=c.prepareStatement("SELECT version FROM ledger_snapshots WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {r ->if(r.next()) r.getLong(1) else null}}
-        val json=if(context.sqlite) "?" else "CAST(? AS json)"
-        c.prepareStatement("INSERT INTO ledger_snapshots(workspace_id,payload,version,updated_at) VALUES(?,$json,?,?) ON CONFLICT(workspace_id) DO UPDATE SET payload=excluded.payload,version=excluded.version,updated_at=excluded.updated_at").use {
-            it.setString(1,workspace);it.setString(2,payload.toString());it.setLong(3,old?.let {v ->Math.addExact(v,1)} ?: 1);it.instant(4,context.now(),context.sqlite);it.executeUpdate()
-        }
+        val snapshots = LEDGER_SNAPSHOTS
+        val old = context.sql.select(snapshots.VERSION).from(snapshots).where(snapshots.WORKSPACE_ID.eq(workspace)).fetchOne(snapshots.VERSION)
+        context.sql.insertInto(snapshots).set(snapshots.WORKSPACE_ID, workspace).set(snapshots.PAYLOAD, payload)
+            .set(snapshots.VERSION, old?.let { Math.addExact(it, 1L) } ?: 1L).set(snapshots.UPDATED_AT, context.now())
+            .onConflict(snapshots.WORKSPACE_ID).doUpdate().set(snapshots.PAYLOAD, DSL.excluded(snapshots.PAYLOAD))
+            .set(snapshots.VERSION, DSL.excluded(snapshots.VERSION)).set(snapshots.UPDATED_AT, DSL.excluded(snapshots.UPDATED_AT)).execute()
         loaded=CashSnapshotDocument(copyCashJsonContainers(document.value).jsonObject)
     }
     private fun pocket(document:CashSnapshotDocument,name:String,type:String):JsonObject {

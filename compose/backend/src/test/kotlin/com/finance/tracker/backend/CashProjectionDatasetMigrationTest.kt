@@ -14,11 +14,13 @@ class CashProjectionDatasetMigrationTest {
     private val calls=mutableListOf<SqlCall>()
     private var omitParentLookup=false
     private var publicationFailureReached=false
+    private fun String.parentLookup() = observedSql().replace("cash_projections.", "")
+        .startsWith("select id,projection_id from cash_projections")
     private fun observe(c:Connection):Connection {
         fun invoke(target:Any,method:java.lang.reflect.Method,args:Array<out Any?>?):Any?=try {method.invoke(target,*(args ?: emptyArray()))} catch(f:InvocationTargetException) {throw f.targetException}
         return Proxy.newProxyInstance(Connection::class.java.classLoader,arrayOf(Connection::class.java)) {_,method,args ->
             val sql=args?.firstOrNull() as? String
-            val actual=if(omitParentLookup && sql?.startsWith("SELECT id,projection_id FROM cash_projections")==true) args!!.mapIndexed {index,value ->if(index==0) "$sql AND projection_id='missing'" else value}.toTypedArray() else args
+            val actual=if(omitParentLookup && sql?.parentLookup()==true) args.mapIndexed {index,value ->if(index==0) "$sql AND projection_id='missing'" else value}.toTypedArray() else args
             val result=invoke(c,method,actual)
             if(result is PreparedStatement && sql!=null) {
                 val bound=linkedMapOf<Int,Any?>();var batch=0
@@ -26,7 +28,7 @@ class CashProjectionDatasetMigrationTest {
                     if(operation.name.startsWith("set") && values?.size==2 && values[0] is Int) bound[values[0] as Int]=if(operation.name=="setNull") null else values[1]
                     if(operation.name=="addBatch") batch++
                     if(operation.name in setOf("execute","executeQuery","executeUpdate","executeBatch","executeLargeBatch")) {
-                        calls+=SqlCall(sql,bound.toMap(),if(operation.name.endsWith("Batch")) batch else null);if(operation.name.endsWith("Batch")) batch=0
+                        calls+=SqlCall(sql.observedSql(),bound.toMap(),if(operation.name.endsWith("Batch")) batch else null);if(operation.name.endsWith("Batch")) batch=0
                     }
                     try {invoke(result,operation,values)} catch(f:java.sql.SQLException) {
                         if(f.message.orEmpty().contains("synthetic publication failure")) publicationFailureReached=true
@@ -141,8 +143,8 @@ class CashProjectionDatasetMigrationTest {
         db.write {c ->seed(c,db,workspace,account);val repository=CashProjectionRepository(CashSqlContext(c,workspace,db.sqlite),writeBatchSize=1)
             val proof=repository.readValidatedSources();val build=buildCashProjections(proof.facts,proof.relations);val dataset=repository.createStagingDataset(proof.digest,CASH_PROJECTION_RULES_VERSION);calls.clear()
             repository.replaceDataset(dataset,build,2)
-            val lookup=calls.filter {it.sql.startsWith("SELECT id,projection_id FROM cash_projections")};assertEquals(build.projections.size,lookup.size)
-            assertTrue(lookup.all {"workspace_id=?" in it.sql && "dataset_id=?" in it.sql && "projection_id IN" in it.sql && it.parameters[1]==workspace && it.parameters[2]==dataset})
+            val lookup=calls.filter {it.sql.parentLookup()};assertEquals(build.projections.size,lookup.size)
+            assertTrue(lookup.all {"workspace_id=?" in it.sql && "dataset_id=?" in it.sql && "projection_id in" in it.sql && it.parameters[1]==workspace && it.parameters[2]==dataset})
             assertEquals(build.projections.map {it.projectionId}.toSet(),lookup.flatMap {it.parameters.filterKeys {key ->key>=3}.values}.toSet())
             c.prepareStatement("SELECT id,projection_id FROM cash_projections WHERE workspace_id=? AND dataset_id=?").use {it.setString(1,workspace);it.setString(2,dataset);it.executeQuery().use {r ->val parents=mutableMapOf<String,Long>();while(r.next()) parents[r.getString(2)]=r.getLong(1)
                 assertEquals(build.projections.map {it.projectionId}.toSet(),parents.keys)
@@ -163,7 +165,7 @@ class CashProjectionDatasetMigrationTest {
             deletionInsert(c,db,"cash_entry_members",linkedMapOf("workspace_id" to workspace,"transaction_id" to ids[2],"entry_id" to "existing-public-$workspace","standalone_values" to buildJsonObject {put("note","恢复备注")},"standalone_manual_fields" to JsonArray(listOf(JsonPrimitive("note")))))
             val context=CashSqlContext(c,workspace,db.sqlite);val repository=CashProjectionRepository(context,now={deletionTime});val proof=repository.readValidatedSources();val build=buildCashProjections(proof.facts,proof.relations)
             val projection=build.projections.single {it.relations.isNotEmpty()};val dataset=repository.createStagingDataset(proof.digest,CASH_PROJECTION_RULES_VERSION);calls.clear();repository.replaceDataset(dataset,build,7)
-            assertTrue(calls.any {it.sql.startsWith("INSERT INTO cash_projections(")});val lookups=calls.filter {it.sql.startsWith("SELECT id,projection_id FROM cash_projections")}
+            assertTrue(calls.any {it.sql.startsWith("insert into cash_projections (") || it.sql.startsWith("insert into cash_projections(")});val lookups=calls.filter {it.sql.parentLookup()}
             assertTrue(lookups.any {it.parameters[1]==workspace && it.parameters[2]==dataset && projection.projectionId in it.parameters.values})
             c.prepareStatement("SELECT id,entry_id,note,category_id,category_path,built_projection_version FROM cash_projections WHERE workspace_id=? AND dataset_id=? AND projection_id=?").use {s ->s.setString(1,workspace);s.setString(2,dataset);s.setString(3,projection.projectionId);s.executeQuery().use {r ->
                 assertTrue(r.next());val parent=r.getLong(1);assertEquals("existing-public-$workspace",r.getString(2));assertEquals("保留备注",r.getString(3));assertEquals(category,r.getString(4));assertEquals("/$category/",r.getString(5));assertEquals(7L,r.getLong(6));assertFalse(r.next())
@@ -181,8 +183,8 @@ class CashProjectionDatasetMigrationTest {
         db.write {c ->val ids=seed(c,db,workspace,account,901);val repository=CashProjectionRepository(CashSqlContext(c,workspace,db.sqlite));assertEquals(900,repository.writeBatchSize)
             val proof=repository.readValidatedSources();val build=CashProjectionBuild(proof.facts.map {fact ->CashProjection("cash:${fact.id}",fact,fact.amount,CashEconomicType.EXPENSE,true,null,null,listOf(fact.id),listOf(fact to listOf("primary")),emptyList(),emptyList())})
             val dataset=repository.createStagingDataset(proof.digest,CASH_PROJECTION_RULES_VERSION);calls.clear();repository.replaceDataset(dataset,build,2)
-            for(table in listOf("cash_projections","cash_projection_members")) assertEquals(listOf(900,1),calls.filter {it.sql.startsWith("INSERT INTO $table(")}.map {it.batchSize},table)
-            val lookups=calls.filter {it.sql.startsWith("SELECT id,projection_id FROM cash_projections")};assertEquals(2,lookups.size);assertTrue(lookups.all {it.parameters[1]==workspace && it.parameters[2]==dataset})
+            for(table in listOf("cash_projections","cash_projection_members")) assertEquals(listOf(900,1),calls.filter {it.sql.startsWith("insert into $table (") || it.sql.startsWith("insert into $table(")}.map {it.batchSize},table)
+            val lookups=calls.filter {it.sql.parentLookup()};assertEquals(2,lookups.size);assertTrue(lookups.all {it.parameters[1]==workspace && it.parameters[2]==dataset})
             assertEquals(ids.map {"cash:$it"}.toSet(),lookups.flatMap {it.parameters.filterKeys {key ->key>=3}.values}.toSet());assertEquals(901L,count(c,"cash_projection_members",workspace,dataset))
         }
     }

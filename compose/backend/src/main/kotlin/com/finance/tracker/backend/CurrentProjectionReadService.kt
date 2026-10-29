@@ -3,12 +3,17 @@ package com.finance.tracker.backend
 import com.finance.tracker.business.contracts.CashCurrentMemberDto
 import com.finance.tracker.business.contracts.CashCurrentMembersDto
 import java.sql.Connection
-import java.sql.ResultSet
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.backend.persistence.generated.tables.records.CashProjectionsRecord
+import org.jooq.Condition
+import org.jooq.impl.DSL
 import java.time.Instant
 import kotlinx.serialization.json.*
 
 class CurrentProjectionNotFound(val record: Boolean) : RuntimeException("current_projection_not_found")
 class CurrentProjectionUnavailable : RuntimeException("projection.unavailable")
+class CashEvidenceNotFound : RuntimeException("not_found")
+class CashEvidenceUnavailable : RuntimeException("projection.unavailable")
 
 class CurrentProjectionReadService(
     private val database: Database,
@@ -27,6 +32,13 @@ class CurrentProjectionReadService(
             repository.detail(projectionId)
         }
 
+    fun evidence(token: String?, projectionId: String, requestPrincipal: Principal? = null): JsonObject =
+        try {
+            read(token, requestPrincipal, mapStorageToUnavailable = false) { it.evidence(projectionId) }
+        } catch (_: CurrentProjectionUnavailable) {
+            throw CashEvidenceUnavailable()
+        }
+
     private fun stableIdentifier(value: Any?): Long {
         val identifier = when (value) {
             is Long -> value
@@ -37,7 +49,8 @@ class CurrentProjectionReadService(
         return identifier?.takeIf { it > 0 } ?: throw CurrentProjectionNotFound(true)
     }
 
-    private fun <T> read(token: String?, requestPrincipal: Principal?, block: (CurrentProjectionReadRepository) -> T): T {
+    private fun <T> read(token: String?, requestPrincipal: Principal?, mapStorageToUnavailable: Boolean = true,
+        block: (CurrentProjectionReadRepository) -> T): T {
         try {
             val principal = reads.currentContext(token)
             if (requestPrincipal != null) sameContext(requestPrincipal, principal)
@@ -48,7 +61,8 @@ class CurrentProjectionReadService(
             beforeReturn()
             sameContext(principal, reads.currentContext(token))
             return result
-        } catch (_: StorageFailure) {
+        } catch (failure: StorageFailure) {
+            if (!mapStorageToUnavailable) throw failure
             throw CurrentProjectionUnavailable()
         }
     }
@@ -73,62 +87,57 @@ internal class CurrentProjectionReadRepository(
     private val sqlite: Boolean,
     private val afterStateRead: () -> Unit,
 ) {
+    private val sql = connection.jooq(sqlite)
+    private val p = CASH_PROJECTIONS.`as`("p")
+    private val member = CASH_PROJECTION_MEMBERS.`as`("member")
+    private val fact = CASH_TRANSACTIONS.`as`("fact")
+
     private fun active(): CurrentProjectionState {
-        val state = connection.prepareStatement("SELECT availability,active_dataset_id,projection_version FROM cash_projection_states WHERE workspace_id=?").use {
-            it.setString(1, workspace)
-            it.executeQuery().use { rows ->
-                if (!rows.next() || rows.getString(1) != "ready" || rows.getString(2).isNullOrEmpty()) throw CurrentProjectionUnavailable()
-                CurrentProjectionState(rows.getString(2), rows.getLong(3))
-            }
-        }
+        val row = sql.select(CASH_PROJECTION_STATES.AVAILABILITY, CASH_PROJECTION_STATES.ACTIVE_DATASET_ID, CASH_PROJECTION_STATES.PROJECTION_VERSION)
+            .from(CASH_PROJECTION_STATES).where(CASH_PROJECTION_STATES.WORKSPACE_ID.eq(workspace)).fetchOne()
+            ?: throw CurrentProjectionUnavailable()
+        val dataset = row[CASH_PROJECTION_STATES.ACTIVE_DATASET_ID]
+        if (row[CASH_PROJECTION_STATES.AVAILABILITY] != "ready" || dataset.isNullOrEmpty()) throw CurrentProjectionUnavailable()
+        val state = CurrentProjectionState(dataset, row[CASH_PROJECTION_STATES.PROJECTION_VERSION]!!)
         afterStateRead()
         return state
     }
 
-    private val activeSources = """EXISTS (SELECT 1 FROM cash_transactions root WHERE root.workspace_id=p.workspace_id
-        AND root.id=p.root_cash_transaction_id AND root.deleted_at IS NULL)
-        AND p.id NOT IN (SELECT member.projection_row_id FROM cash_projection_members member
-            JOIN cash_transactions fact ON fact.workspace_id=member.workspace_id AND fact.id=member.cash_transaction_id
-            WHERE member.workspace_id=p.workspace_id AND member.dataset_id=p.dataset_id AND fact.deleted_at IS NOT NULL)"""
+    private fun activeSources(): Condition {
+        val root = CASH_TRANSACTIONS.`as`("root")
+        val deletedMember = CASH_PROJECTION_MEMBERS.`as`("deleted_member")
+        val deletedFact = CASH_TRANSACTIONS.`as`("deleted_fact")
+        return DSL.exists(DSL.selectOne().from(root).where(root.WORKSPACE_ID.eq(p.WORKSPACE_ID))
+            .and(root.ID.eq(p.ROOT_CASH_TRANSACTION_ID)).and(root.DELETED_AT.isNull))
+            .and(p.ID.notIn(DSL.select(deletedMember.PROJECTION_ROW_ID).from(deletedMember)
+                .join(deletedFact).on(deletedFact.WORKSPACE_ID.eq(deletedMember.WORKSPACE_ID)).and(deletedFact.ID.eq(deletedMember.CASH_TRANSACTION_ID))
+                .where(deletedMember.WORKSPACE_ID.eq(p.WORKSPACE_ID)).and(deletedMember.DATASET_ID.eq(p.DATASET_ID)).and(deletedFact.DELETED_AT.isNotNull)))
+    }
 
     fun location(identifier: Long): JsonObject {
         val state = active()
-        val exists = connection.prepareStatement("SELECT id FROM cash_transactions WHERE workspace_id=? AND id=? AND deleted_at IS NULL").use {
-            it.setString(1, workspace); it.setLong(2, identifier); it.executeQuery().use(ResultSet::next)
-        }
-        if (!exists) throw CurrentProjectionNotFound(true)
-        return connection.prepareStatement("""SELECT p.projection_id,p.attention_count FROM cash_projections p
-            JOIN cash_projection_members member ON member.workspace_id=p.workspace_id AND member.dataset_id=p.dataset_id AND member.projection_row_id=p.id
-            WHERE p.workspace_id=? AND p.dataset_id=? AND member.cash_transaction_id=? AND $activeSources""").use {
-            it.setString(1, workspace); it.setString(2, state.dataset); it.setLong(3, identifier)
-            it.executeQuery().use { rows ->
-                if (!rows.next()) throw CurrentProjectionUnavailable()
-                buildJsonObject {
-                    put("transaction_id", identifier.toString()); put("projection_id", rows.getString(1))
-                    put("attention_count", rows.getLong(2)); put("projection_version", state.version)
-                }
-            }
+        if (!sql.fetchExists(CASH_TRANSACTIONS, CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)
+                .and(CASH_TRANSACTIONS.ID.eq(identifier)).and(CASH_TRANSACTIONS.DELETED_AT.isNull))) throw CurrentProjectionNotFound(true)
+        val row = sql.select(p.PROJECTION_ID, p.ATTENTION_COUNT).from(p)
+            .join(member).on(member.WORKSPACE_ID.eq(p.WORKSPACE_ID)).and(member.DATASET_ID.eq(p.DATASET_ID)).and(member.PROJECTION_ROW_ID.eq(p.ID))
+            .where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(state.dataset)).and(member.CASH_TRANSACTION_ID.eq(identifier))
+            .and(activeSources()).fetchOne() ?: throw CurrentProjectionUnavailable()
+        return buildJsonObject {
+            put("transaction_id", identifier.toString()); put("projection_id", row[p.PROJECTION_ID]!!)
+            put("attention_count", row[p.ATTENTION_COUNT]!!); put("projection_version", state.version)
         }
     }
 
     fun detail(projectionId: String): JsonObject {
         val state = active()
-        val row = connection.prepareStatement("""SELECT p.* FROM cash_projections p WHERE p.workspace_id=? AND p.dataset_id=?
-            AND p.projection_id=? AND (p.visible=true OR p.attention_count>0) AND $activeSources""").use {
-            it.setString(1, workspace); it.setString(2, state.dataset); it.setString(3, projectionId)
-            it.executeQuery().use { rows ->
-                if (!rows.next()) throw CurrentProjectionNotFound(false)
-                projectionRow(rows, state.version)
-            }
-        }
-        val members = connection.prepareStatement("""SELECT fact.id,fact.row_revision,fact.state,fact.source_type FROM cash_transactions fact
-            JOIN cash_projection_members member ON member.workspace_id=fact.workspace_id AND member.cash_transaction_id=fact.id
-            WHERE member.workspace_id=? AND member.dataset_id=? AND member.projection_row_id=? ORDER BY member.ordinal""").use {
-            it.setString(1, workspace); it.setString(2, state.dataset); it.setLong(3, row.id)
-            it.executeQuery().use { rows -> buildList {
-                while (rows.next()) add(CurrentProjectionMember(rows.getLong(1), rows.getLong(2), rows.getString(3), rows.getString(4)))
-            } }
-        }
+        val record = sql.selectFrom(p).where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(state.dataset))
+            .and(p.PROJECTION_ID.eq(projectionId)).and(p.VISIBLE.isTrue.or(p.ATTENTION_COUNT.gt(0)))
+            .and(activeSources()).fetchOne() ?: throw CurrentProjectionNotFound(false)
+        val row = projectionRow(record, state.version)
+        val members = sql.select(fact.ID, fact.ROW_REVISION, fact.STATE, fact.SOURCE_TYPE).from(fact)
+            .join(member).on(member.WORKSPACE_ID.eq(fact.WORKSPACE_ID)).and(member.CASH_TRANSACTION_ID.eq(fact.ID))
+            .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(state.dataset)).and(member.PROJECTION_ROW_ID.eq(row.id))
+            .orderBy(member.ORDINAL).fetch { CurrentProjectionMember(it[fact.ID]!!, it[fact.ROW_REVISION]!!, it[fact.STATE]!!, it[fact.SOURCE_TYPE]) }
         val ids = members.map { it.id }.toSet()
         if (members.size.toLong() != row.memberCount || row.root !in ids) throw CurrentProjectionUnavailable()
         val pending = attention(ids)
@@ -147,79 +156,82 @@ internal class CurrentProjectionReadRepository(
         ))
         return JsonObject(current + mapOf(
             "projection" to projection,
-            "members" to JsonArray(current.getValue("members").jsonArray.mapIndexed { index, member ->
-                JsonObject(member.jsonObject + ("state" to JsonPrimitive(members[index].state)))
+            "members" to JsonArray(current.getValue("members").jsonArray.mapIndexed { index, item ->
+                JsonObject(item.jsonObject + ("state" to JsonPrimitive(members[index].state)))
             }),
             "issues" to issues(ids),
         ))
     }
 
-    private fun projectionRow(rows: ResultSet, version: Long): CurrentProjectionRow {
-        val attention = rows.getLong("attention_count")
-        val state = rows.getString("state")
-        val root = rows.getLong("root_cash_transaction_id")
+    fun evidence(projectionId: String): JsonObject {
+        val state = active()
+        val record = sql.selectFrom(p).where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(state.dataset))
+            .and(p.PROJECTION_ID.eq(projectionId)).and(activeSources()).fetchOne() ?: throw CashEvidenceNotFound()
+        val row = projectionRow(record, state.version)
+        return CashEvidenceReadRepository(connection, workspace, sqlite).read(record, state.version, row.value) {
+            transfer(state.dataset, row)
+        }
+    }
+
+    private fun projectionRow(row: CashProjectionsRecord, version: Long): CurrentProjectionRow {
+        val attention = row.attentionCount!!
+        val state = row.state!!
+        val root = row.rootCashTransactionId!!
         val value = buildJsonObject {
-            for (field in listOf("projection_id", "counterparty", "note", "currency", "economic_type", "transfer_subtype", "source_type", "record_id", "hidden_reason", "entry_id"))
-                put(field, rows.getString(field)?.let(::JsonPrimitive) ?: JsonNull)
-            put("occurred_at", rows.cashInstant("occurred_at", sqlite)?.let { JsonPrimitive(manualInstantText(it)) } ?: JsonNull)
-            put("amount", displayAmount(rows.getString("net_amount")))
-            put("visible", rows.getBoolean("visible")); put("statistics_eligible", rows.getBoolean("statistics_eligible"))
-            put("member_count", rows.getLong("member_count")); put("attention_count", attention); put("state", state)
+            for (field in listOf(p.PROJECTION_ID, p.COUNTERPARTY, p.NOTE, p.CURRENCY, p.ECONOMIC_TYPE, p.TRANSFER_SUBTYPE, p.SOURCE_TYPE,
+                    p.RECORD_ID, p.HIDDEN_REASON, p.ENTRY_ID)) put(field.name, row[field]?.let(::JsonPrimitive) ?: JsonNull)
+            put("occurred_at", row.occurredAt?.let { JsonPrimitive(manualInstantText(it)) } ?: JsonNull)
+            put("amount", displayAmount(row.netAmount?.text))
+            put("visible", row.visible!!); put("statistics_eligible", row.statisticsEligible!!)
+            put("member_count", row.memberCount!!); put("attention_count", attention); put("state", state)
             put("confirmation_status", if (state == "draft" || attention != 0L) "pending" else "confirmed")
             put("projection_version", version); put("transaction_id", root.toString())
         }
-        return CurrentProjectionRow(rows.getLong("id"), rows.getString("projection_id"), root, rows.getLong("member_count"),
-            rows.nullableLong("account_id"), rows.getString("category_id"), attention, state, value)
+        return CurrentProjectionRow(row.id!!, row.projectionId!!, root, row.memberCount!!,
+            row.accountId, row.categoryId, attention, state, value)
     }
 
     private fun attention(ids: Set<Long>): Set<Long> = buildSet {
+        val issue = CASH_TRANSACTION_ISSUES
+        val relation = TRANSACTION_RELATIONS
         for (batch in ids.sorted().chunked(500)) {
-            val marks = batch.joinToString(",") { "?" }
-            val queries = listOf(
-                "SELECT transaction_id FROM cash_transaction_issues WHERE workspace_id=? AND transaction_id IN ($marks)",
-                "SELECT primary_transaction_id FROM transaction_relations WHERE workspace_id=? AND active=true AND state='draft' AND primary_transaction_id IN ($marks)",
-                "SELECT secondary_transaction_id FROM transaction_relations WHERE workspace_id=? AND active=true AND state='draft' AND secondary_transaction_id IN ($marks)",
-            )
-            connection.prepareStatement(queries.joinToString(" UNION ALL ")).use {
-                var index = 1
-                repeat(3) { _ -> it.setString(index++, workspace); batch.forEach { id -> it.setLong(index++, id) } }
-                it.executeQuery().use { rows -> while (rows.next()) add(rows.getLong(1)) }
-            }
+            val pendingRelation = relation.WORKSPACE_ID.eq(workspace).and(relation.ACTIVE.isTrue).and(relation.STATE.eq("draft"))
+            sql.select(issue.TRANSACTION_ID).from(issue).where(issue.WORKSPACE_ID.eq(workspace)).and(issue.TRANSACTION_ID.`in`(batch))
+                .unionAll(DSL.select(relation.PRIMARY_TRANSACTION_ID).from(relation).where(pendingRelation).and(relation.PRIMARY_TRANSACTION_ID.`in`(batch)))
+                .unionAll(DSL.select(relation.SECONDARY_TRANSACTION_ID).from(relation).where(pendingRelation).and(relation.SECONDARY_TRANSACTION_ID.`in`(batch)))
+                .fetch().forEach { add(it.value1()!!) }
         }
     }
 
     private fun issues(ids: Set<Long>): JsonArray = JsonArray(buildList {
-        for (batch in ids.sorted().chunked(500)) connection.prepareStatement("""SELECT id,transaction_id,revision,code,field_path FROM cash_transaction_issues
-            WHERE workspace_id=? AND transaction_id IN (${batch.joinToString(",") { "?" }}) ORDER BY id""").use {
-            it.setString(1, workspace); batch.forEachIndexed { index, id -> it.setLong(index + 2, id) }
-            it.executeQuery().use { rows -> while (rows.next()) {
-                val reason = try { cashImportIssue(rows.getString("code"), fieldPath = rows.getString("field_path")) }
-                    catch (_: IllegalArgumentException) { cashImportIssue("posting_incomplete") }
-                add(buildJsonObject {
-                    put("transaction_id", rows.getLong("transaction_id").toString()); put("issue_id", rows.getLong("id").toString()); put("revision", rows.getLong("revision"))
-                    put("code", reason.code); put("message", reason.message); put("field_path", reason.fieldPath?.let(::JsonPrimitive) ?: JsonNull)
-                    put("blocking_scope", reason.blockingScope); put("next_action", reason.nextAction)
-                    put("after_import_action", reason.afterImportAction?.let(::JsonPrimitive) ?: JsonNull)
-                })
-            } }
+        val issue = CASH_TRANSACTION_ISSUES
+        for (batch in ids.sorted().chunked(500)) {
+            sql.select(issue.ID, issue.TRANSACTION_ID, issue.REVISION, issue.CODE, issue.FIELD_PATH).from(issue)
+                .where(issue.WORKSPACE_ID.eq(workspace)).and(issue.TRANSACTION_ID.`in`(batch)).orderBy(issue.ID).fetch().forEach { row ->
+                    val reason = try { cashImportIssue(row[issue.CODE]!!, fieldPath = row[issue.FIELD_PATH]) }
+                        catch (_: IllegalArgumentException) { cashImportIssue("posting_incomplete") }
+                    add(buildJsonObject {
+                        put("transaction_id", row[issue.TRANSACTION_ID]!!.toString()); put("issue_id", row[issue.ID]!!.toString()); put("revision", row[issue.REVISION]!!)
+                        put("code", reason.code); put("message", reason.message); put("field_path", reason.fieldPath?.let(::JsonPrimitive) ?: JsonNull)
+                        put("blocking_scope", reason.blockingScope); put("next_action", reason.nextAction)
+                        put("after_import_action", reason.afterImportAction?.let(::JsonPrimitive) ?: JsonNull)
+                    })
+                }
         }
     })
 
     private fun account(id: Long?): JsonElement {
         if (id == null) return JsonNull
-        return connection.prepareStatement("SELECT id,name,type,active FROM accounts WHERE workspace_id=? AND id=?").use {
-            it.setString(1, workspace); it.setLong(2, id)
-            it.executeQuery().use { rows -> if (!rows.next()) JsonNull else buildJsonObject {
-                put("id", rows.getLong(1)); put("name", rows.getString(2)); put("type", rows.getString(3)); put("active", rows.getBoolean(4))
-            } }
-        }
+        val a = ACCOUNTS
+        val row = sql.select(a.ID, a.NAME, a.TYPE, a.ACTIVE).from(a).where(a.WORKSPACE_ID.eq(workspace)).and(a.ID.eq(id)).fetchOne() ?: return JsonNull
+        return buildJsonObject { put("id", row[a.ID]!!); put("name", row[a.NAME]!!); put("type", row[a.TYPE]!!); put("active", row[a.ACTIVE]!!) }
     }
 
     private fun category(id: String?): JsonElement {
         if (id.isNullOrEmpty()) return JsonNull
-        val categories = connection.prepareStatement("SELECT id,parent_id,name FROM cash_categories WHERE workspace_id=?").use {
-            it.setString(1, workspace); it.executeQuery().use { rows -> buildMap { while (rows.next()) put(rows.getString(1), rows.getString(2) to rows.getString(3)) } }
-        }
+        val c = CASH_CATEGORIES
+        val categories = sql.select(c.ID, c.PARENT_ID, c.NAME).from(c).where(c.WORKSPACE_ID.eq(workspace)).fetch()
+            .associate { it[c.ID]!! to (it[c.PARENT_ID] to it[c.NAME]!!) }
         val selected = categories[id] ?: return JsonNull
         val path = mutableListOf<JsonElement>()
         val visited = mutableSetOf<String>()
@@ -233,10 +245,11 @@ internal class CurrentProjectionReadRepository(
         return buildJsonObject { put("id", id); put("name", selected.second); put("path", JsonArray(path.reversed())) }
     }
 
-    private fun relations(dataset: String, rowId: Long): List<CurrentProjectionRelation> = connection.prepareStatement("""SELECT kind,subtype FROM cash_projection_relations
-        WHERE workspace_id=? AND dataset_id=? AND projection_row_id=? ORDER BY ordinal""").use {
-        it.setString(1, workspace); it.setString(2, dataset); it.setLong(3, rowId)
-        it.executeQuery().use { rows -> buildList { while (rows.next()) add(CurrentProjectionRelation(rows.getString(1), rows.getString(2))) } }
+    private fun relations(dataset: String, rowId: Long): List<CurrentProjectionRelation> {
+        val relation = CASH_PROJECTION_RELATIONS
+        return sql.select(relation.KIND, relation.SUBTYPE).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
+            .and(relation.DATASET_ID.eq(dataset)).and(relation.PROJECTION_ROW_ID.eq(rowId)).orderBy(relation.ORDINAL)
+            .fetch { CurrentProjectionRelation(it[relation.KIND]!!, it[relation.SUBTYPE]!!) }
     }
 
     private fun relationSummary(relations: List<CurrentProjectionRelation>): JsonArray = JsonArray(
@@ -247,47 +260,51 @@ internal class CurrentProjectionReadRepository(
     )
 
     private fun transfer(dataset: String, row: CurrentProjectionRow): JsonElement {
-        val cash = connection.prepareStatement("""SELECT first_part.account_id AS first_account,first_part.amount AS first_amount,first_part.currency AS first_currency,
-            second_part.account_id AS second_account,second_part.amount AS second_amount,second_part.currency AS second_currency
-            FROM cash_projection_relations published JOIN transaction_relations relation ON relation.workspace_id=published.workspace_id AND relation.id=published.transaction_relation_id
-            JOIN cash_transaction_components first_part ON first_part.workspace_id=relation.workspace_id AND first_part.id=relation.primary_component_id
-            JOIN cash_transaction_components second_part ON second_part.workspace_id=relation.workspace_id AND second_part.id=relation.secondary_component_id
-            JOIN cash_transactions first_parent ON first_parent.workspace_id=first_part.workspace_id AND first_parent.id=first_part.cash_transaction_id
-            JOIN cash_transactions second_parent ON second_parent.workspace_id=second_part.workspace_id AND second_parent.id=second_part.cash_transaction_id
-            JOIN accounts first_account ON first_account.workspace_id=first_part.workspace_id AND first_account.id=first_part.account_id
-            JOIN accounts second_account ON second_account.workspace_id=second_part.workspace_id AND second_account.id=second_part.account_id
-            WHERE published.workspace_id=? AND published.dataset_id=? AND published.projection_row_id=? AND published.kind='transfer_pair' ORDER BY published.ordinal""").use {
-            it.setString(1, workspace); it.setString(2, dataset); it.setLong(3, row.id)
-            it.executeQuery().use { rows -> if (!rows.next()) null else transferValue(rows) }
-        }
-        if (cash != null) return cash
-        return connection.prepareStatement("""SELECT funding.direction,part.account_id AS cash_account,part.amount AS cash_amount,part.currency AS cash_currency,
-            event.account_id AS investment_account,event.to_amount,event.from_amount,event.currency AS investment_currency
-            FROM cash_projections p JOIN cash_investment_funding_relations funding ON funding.workspace_id=p.workspace_id AND funding.id=p.funding_relation_id
-                AND funding.status='accepted' AND funding.active_slot='active'
-            JOIN cash_transaction_components part ON part.workspace_id=funding.workspace_id AND part.id=funding.cash_transaction_component_id
-            JOIN cash_transactions parent ON parent.workspace_id=part.workspace_id AND parent.id=part.cash_transaction_id
-            JOIN accounts cash_account ON cash_account.workspace_id=parent.workspace_id AND cash_account.id=part.account_id
-            JOIN investment_events event ON event.workspace_id=funding.workspace_id AND event.id=funding.investment_event_id
-            JOIN accounts investment_account ON investment_account.workspace_id=event.workspace_id AND investment_account.id=event.account_id
-            WHERE p.workspace_id=? AND p.dataset_id=? AND p.id=? AND p.economic_type='internal_transfer' AND p.transfer_subtype='bank_security_transfer'""").use {
-            it.setString(1, workspace); it.setString(2, dataset); it.setLong(3, row.id)
-            it.executeQuery().use { rows ->
-                if (!rows.next()) return@use JsonNull
-                val incoming = rows.getString("direction") == "cash_to_investment"
-                if (!incoming && rows.getString("direction") != "investment_to_cash") return@use JsonNull
-                val amount = rows.getString(if (incoming) "to_amount" else "from_amount") ?: return@use JsonNull
-                val cashSide = Triple(account(rows.getLong("cash_account")), displayAmount(rows.getString("cash_amount")), rows.getString("cash_currency"))
-                val investmentSide = Triple(account(rows.getLong("investment_account")), displayAmount(amount), rows.getString("investment_currency"))
-                transferValue(if (incoming) cashSide else investmentSide, if (incoming) investmentSide else cashSide)
-            }
-        }
+        val published = CASH_PROJECTION_RELATIONS.`as`("published")
+        val relation = TRANSACTION_RELATIONS.`as`("relation")
+        val first = CASH_TRANSACTION_COMPONENTS.`as`("first_part")
+        val second = CASH_TRANSACTION_COMPONENTS.`as`("second_part")
+        val firstParent = CASH_TRANSACTIONS.`as`("first_parent")
+        val secondParent = CASH_TRANSACTIONS.`as`("second_parent")
+        val firstAccount = ACCOUNTS.`as`("first_account")
+        val secondAccount = ACCOUNTS.`as`("second_account")
+        val cash = sql.select(first.ACCOUNT_ID, first.AMOUNT, first.CURRENCY, second.ACCOUNT_ID, second.AMOUNT, second.CURRENCY).from(published)
+            .join(relation).on(relation.WORKSPACE_ID.eq(published.WORKSPACE_ID)).and(relation.ID.eq(published.TRANSACTION_RELATION_ID))
+            .join(first).on(first.WORKSPACE_ID.eq(relation.WORKSPACE_ID)).and(first.ID.eq(relation.PRIMARY_COMPONENT_ID))
+            .join(second).on(second.WORKSPACE_ID.eq(relation.WORKSPACE_ID)).and(second.ID.eq(relation.SECONDARY_COMPONENT_ID))
+            .join(firstParent).on(firstParent.WORKSPACE_ID.eq(first.WORKSPACE_ID)).and(firstParent.ID.eq(first.CASH_TRANSACTION_ID))
+            .join(secondParent).on(secondParent.WORKSPACE_ID.eq(second.WORKSPACE_ID)).and(secondParent.ID.eq(second.CASH_TRANSACTION_ID))
+            .join(firstAccount).on(firstAccount.WORKSPACE_ID.eq(first.WORKSPACE_ID)).and(firstAccount.ID.eq(first.ACCOUNT_ID))
+            .join(secondAccount).on(secondAccount.WORKSPACE_ID.eq(second.WORKSPACE_ID)).and(secondAccount.ID.eq(second.ACCOUNT_ID))
+            .where(published.WORKSPACE_ID.eq(workspace)).and(published.DATASET_ID.eq(dataset)).and(published.PROJECTION_ROW_ID.eq(row.id))
+            .and(published.KIND.eq("transfer_pair")).orderBy(published.ORDINAL).limit(1).fetchOne()
+        if (cash != null) return transferValue(
+            Triple(account(cash[first.ACCOUNT_ID]), displayAmount(cash[first.AMOUNT]?.text), cash[first.CURRENCY]),
+            Triple(account(cash[second.ACCOUNT_ID]), displayAmount(cash[second.AMOUNT]?.text), cash[second.CURRENCY]),
+        )
+        val funding = CASH_INVESTMENT_FUNDING_RELATIONS.`as`("funding")
+        val part = CASH_TRANSACTION_COMPONENTS.`as`("part")
+        val parent = CASH_TRANSACTIONS.`as`("parent")
+        val event = INVESTMENT_EVENTS.`as`("event")
+        val cashAccount = ACCOUNTS.`as`("cash_account")
+        val investmentAccount = ACCOUNTS.`as`("investment_account")
+        val funded = sql.select(funding.DIRECTION, part.ACCOUNT_ID, part.AMOUNT, part.CURRENCY, event.ACCOUNT_ID, event.TO_AMOUNT, event.FROM_AMOUNT, event.CURRENCY)
+            .from(p).join(funding).on(funding.WORKSPACE_ID.eq(p.WORKSPACE_ID)).and(funding.ID.eq(p.FUNDING_RELATION_ID))
+            .and(funding.STATUS.eq("accepted")).and(funding.ACTIVE_SLOT.eq("active"))
+            .join(part).on(part.WORKSPACE_ID.eq(funding.WORKSPACE_ID)).and(part.ID.eq(funding.CASH_TRANSACTION_COMPONENT_ID))
+            .join(parent).on(parent.WORKSPACE_ID.eq(part.WORKSPACE_ID)).and(parent.ID.eq(part.CASH_TRANSACTION_ID))
+            .join(cashAccount).on(cashAccount.WORKSPACE_ID.eq(parent.WORKSPACE_ID)).and(cashAccount.ID.eq(part.ACCOUNT_ID))
+            .join(event).on(event.WORKSPACE_ID.eq(funding.WORKSPACE_ID)).and(event.ID.eq(funding.INVESTMENT_EVENT_ID))
+            .join(investmentAccount).on(investmentAccount.WORKSPACE_ID.eq(event.WORKSPACE_ID)).and(investmentAccount.ID.eq(event.ACCOUNT_ID))
+            .where(p.WORKSPACE_ID.eq(workspace)).and(p.DATASET_ID.eq(dataset)).and(p.ID.eq(row.id))
+            .and(p.ECONOMIC_TYPE.eq("internal_transfer")).and(p.TRANSFER_SUBTYPE.eq("bank_security_transfer")).fetchOne() ?: return JsonNull
+        val incoming = funded[funding.DIRECTION] == "cash_to_investment"
+        if (!incoming && funded[funding.DIRECTION] != "investment_to_cash") return JsonNull
+        val amount = funded[if (incoming) event.TO_AMOUNT else event.FROM_AMOUNT] ?: return JsonNull
+        val cashSide = Triple(account(funded[part.ACCOUNT_ID]), displayAmount(funded[part.AMOUNT]?.text), funded[part.CURRENCY])
+        val investmentSide = Triple(account(funded[event.ACCOUNT_ID]), displayAmount(amount.text), funded[event.CURRENCY])
+        return transferValue(if (incoming) cashSide else investmentSide, if (incoming) investmentSide else cashSide)
     }
-
-    private fun transferValue(rows: ResultSet): JsonObject = transferValue(
-        Triple(account(rows.getLong("first_account")), displayAmount(rows.getString("first_amount")), rows.getString("first_currency")),
-        Triple(account(rows.getLong("second_account")), displayAmount(rows.getString("second_amount")), rows.getString("second_currency")),
-    )
 
     private fun transferValue(from: Triple<JsonElement, JsonElement, String?>, to: Triple<JsonElement, JsonElement, String?>) = buildJsonObject {
         put("from_account", from.first); put("from_amount", from.second); put("from_currency", from.third?.let(::JsonPrimitive) ?: JsonNull)

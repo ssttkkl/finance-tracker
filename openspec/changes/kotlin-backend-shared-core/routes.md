@@ -68,9 +68,9 @@
 | POST | `/api/v1/operations/projections/rebuild` | `src/ft/web/operation_routes.py:381` | 已实现；双库实际发布/完整状态、真实 HTTP、领域/运行错误及锁等待撤权验证通过 |
 | GET | `/api/v1/accounts` | `src/ft/web/routes.py:56` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
 | GET | `/api/v1/cash-projections` | `src/ft/web/routes.py:62` | 未迁移 |
-| GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 未迁移 |
-| GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 未迁移 |
-| GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 未迁移 |
+| GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 已实现；双库功能/实际客户端验证，最终独立审查待完成 |
+| GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 已实现并通过 SQLite/PG18 功能、快照/权限交错及现有 Compose 成员消费；最终独立审查待完成，暂不计已验收 |
+| GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现并通过 SQLite/PG18 功能、隐藏/缺失/跨工作区边界及真实 Netty；最终独立审查待完成，暂不计已验收 |
 | GET | `/api/v1/investment-events` | `src/ft/web/routes.py:181` | 未迁移 |
 | GET | `/api/v1/evidence/investment-events/{event_id:path}` | `src/ft/web/routes.py:191` | 未迁移 |
 | GET | `/api/v1/investment-portfolio` | `src/ft/web/routes.py:199` | 未迁移 |

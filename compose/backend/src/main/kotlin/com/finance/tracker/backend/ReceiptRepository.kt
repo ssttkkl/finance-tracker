@@ -1,16 +1,20 @@
 package com.finance.tracker.backend
 
 import java.sql.Connection
-import java.time.LocalDateTime
-import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import kotlinx.serialization.json.*
+import org.jooq.Field
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.backend.persistence.generated.tables.records.CashMutationResultsRecord
 
 internal class ReceiptConflict(val code: String,val receiptId: String?=null): RuntimeException(code)
 
 internal class ReceiptRepository(private val connection: Connection,private val workspace: String,private val sqlite: Boolean,
     private val now: ()->java.time.Instant=java.time.Instant::now,private val nextId: ()->String={java.util.UUID.randomUUID().toString()}) {
+    private val sql = connection.jooq(sqlite)
+    private val receipts = CASH_MUTATION_RECEIPTS
+    private val resultRows = CASH_MUTATION_RESULTS
     private fun reference(value: Any?,maximum: Int)=receiptReference(value,maximum)!!
     fun replay(user: Any?,key: Any?,requestDigest: Any?,operation: Any?,planId: Any?=null): JsonObject? {
         val row=byKey(user,key)
@@ -21,7 +25,7 @@ internal class ReceiptRepository(private val connection: Connection,private val 
     fun forContext(user: Any?,sessionDigest: Any?=null,editContextDigest: Any?=null): JsonObject? {
         if((sessionDigest==null)==(editContextDigest==null)) throw IllegalArgumentException("mutation_context_invalid")
         val value=receiptDigest(sessionDigest ?: editContextDigest)!!
-        return lookup(reference(user,128),if(sessionDigest!=null) "session_digest" else "edit_context_digest",value)
+        return lookup(reference(user,128),if(sessionDigest!=null) receipts.SESSION_DIGEST else receipts.EDIT_CONTEXT_DIGEST,value)
     }
     fun create(user: Any?,key: Any?,requestDigest: Any?,operation: Any?,resultSummary: Any?,results: Any?,planId: Any?=null,sessionDigest: Any?=null,editContextDigest: Any?=null): JsonObject {
         val owner=reference(user,128);val requestKey=reference(key,255);val digest=receiptDigest(requestDigest)!!
@@ -34,45 +38,40 @@ internal class ReceiptRepository(private val connection: Connection,private val 
             throw ReceiptConflict(if(session!=null) "session_committed" else "edit_context_committed",it.getValue("receipt_id").jsonPrimitive.content)
         }
         val id=nextId();val at=now().truncatedTo(java.time.temporal.ChronoUnit.MICROS)
-        val json=if(sqlite) "?" else "CAST(? AS JSON)"
-        connection.prepareStatement("INSERT INTO cash_mutation_receipts(id,workspace_id,user_id,idempotency_key,request_digest,operation_kind,plan_id,session_digest,edit_context_digest,result_summary,created_at) VALUES(?,?,?,?,?,?,?,?,?,$json,?)").use {
-            it.setString(1,id);it.setString(2,workspace);it.setString(3,owner);it.setString(4,requestKey);it.setString(5,digest);it.setString(6,kind)
-            it.setString(7,plan);it.setString(8,session);it.setString(9,edit);it.setString(10,receiptAsciiJson(summary));it.instant(11,at,sqlite);it.executeUpdate()
-        }
-        connection.prepareStatement("INSERT INTO cash_mutation_results(workspace_id,receipt_id,result_kind,item_ref,outcome,code,operation_ref,transaction_id,relation_id,account_id) VALUES(?,?,?,?,?,?,?,?,?,?)").use {statement ->
-            for(item in items) {
-                statement.setString(1,workspace);statement.setString(2,id)
-                for((index,field) in listOf("result_kind","item_ref","outcome","code","operation_ref","transaction_id","relation_id","account_id").withIndex())
-                    statement.setString(3+index,item[field]?.takeUnless {it==JsonNull}?.jsonPrimitive?.content)
-                statement.addBatch()
+        sql.insertInto(receipts).set(receipts.ID, id).set(receipts.WORKSPACE_ID, workspace).set(receipts.USER_ID, owner)
+            .set(receipts.IDEMPOTENCY_KEY, requestKey).set(receipts.REQUEST_DIGEST, digest).set(receipts.OPERATION_KIND, kind)
+            .set(receipts.PLAN_ID, plan).set(receipts.SESSION_DIGEST, session).set(receipts.EDIT_CONTEXT_DIGEST, edit)
+            .set(receipts.RESULT_SUMMARY, summary).set(receipts.CREATED_AT, at).execute()
+        val records = items.map { item ->
+            fun text(key: String) = item[key]?.takeUnless { it == JsonNull }?.jsonPrimitive?.content
+            CashMutationResultsRecord().apply {
+                workspaceId = workspace; receiptId = id; resultKind = text("result_kind"); itemRef = text("item_ref"); outcome = text("outcome")
+                code = text("code"); operationRef = text("operation_ref"); transactionId = text("transaction_id"); relationId = text("relation_id"); accountId = text("account_id")
             }
-            if(items.isNotEmpty()) statement.executeBatch()
         }
+        if (records.isNotEmpty()) sql.batchInsert(records).execute()
         return get(owner,id)!!
     }
-    fun get(user: Any?,id: Any?): JsonObject?=lookup(reference(user,128),"id",reference(id,36))
-    fun byKey(user: Any?,key: Any?): JsonObject?=lookup(reference(user,128),"idempotency_key",reference(key,255))
+    fun get(user: Any?,id: Any?): JsonObject?=lookup(reference(user,128),receipts.ID,reference(id,36))
+    fun byKey(user: Any?,key: Any?): JsonObject?=lookup(reference(user,128),receipts.IDEMPOTENCY_KEY,reference(key,255))
     fun lookupKey(user: Any?,key: Any?): JsonObject? {
         if(key !is String || !validReceiptLookupKey(key)) throw IllegalArgumentException("mutation_reference_invalid")
-        return lookup(reference(user,128),"idempotency_key",key)
+        return lookup(reference(user,128),receipts.IDEMPOTENCY_KEY,key)
     }
-    private fun lookup(user: String,column: String,value: String): JsonObject?=connection.prepareStatement(
-        "SELECT id,plan_id,operation_kind,request_digest,session_digest,edit_context_digest,created_at,result_summary FROM cash_mutation_receipts WHERE workspace_id=? AND user_id=? AND $column=?").use {
-        it.setString(1,workspace);it.setString(2,user);it.setString(3,value)
-        it.executeQuery().use {row ->
-            if(!row.next()) null else {
-                val raw=row.getString("created_at").replace(' ','T')
-                val instant=if(sqlite) LocalDateTime.parse(raw).toInstant(ZoneOffset.UTC) else OffsetDateTime.parse(raw).toInstant()
-                val micros=instant.nano/1000
-                val created=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC).format(instant)+
-                    (if(micros==0) "" else "."+micros.toString().padStart(6,'0'))+"+00:00"
-                val summary=Json.parseToJsonElement(row.getString("result_summary")).jsonObject
-                buildJsonObject {
-                    for((key,columnName) in listOf("receipt_id" to "id","plan_id" to "plan_id","operation_kind" to "operation_kind","request_digest" to "request_digest","session_digest" to "session_digest","edit_context_digest" to "edit_context_digest"))
-                        put(key,row.getString(columnName)?.let(::JsonPrimitive) ?: JsonNull)
-                    put("committed",true);put("created_at",created);summary.forEach {(key,item) ->put(key,item)}
-                }
-            }
+    private fun lookup(user: String,column: Field<String?>,value: String): JsonObject? {
+        val row = sql.select(receipts.ID, receipts.PLAN_ID, receipts.OPERATION_KIND, receipts.REQUEST_DIGEST,
+            receipts.SESSION_DIGEST, receipts.EDIT_CONTEXT_DIGEST, receipts.CREATED_AT, receipts.RESULT_SUMMARY).from(receipts)
+            .where(receipts.WORKSPACE_ID.eq(workspace)).and(receipts.USER_ID.eq(user)).and(column.eq(value)).fetchOne() ?: return null
+        val instant = row[receipts.CREATED_AT]!!
+        val micros=instant.nano/1000
+        val created=DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss").withZone(ZoneOffset.UTC).format(instant)+
+            (if(micros==0) "" else "."+micros.toString().padStart(6,'0'))+"+00:00"
+        val summary = row[receipts.RESULT_SUMMARY]!!.jsonObject
+        return buildJsonObject {
+            for ((key, field) in listOf("receipt_id" to receipts.ID, "plan_id" to receipts.PLAN_ID, "operation_kind" to receipts.OPERATION_KIND,
+                "request_digest" to receipts.REQUEST_DIGEST, "session_digest" to receipts.SESSION_DIGEST, "edit_context_digest" to receipts.EDIT_CONTEXT_DIGEST))
+                put(key, row[field]?.let(::JsonPrimitive) ?: JsonNull)
+            put("committed",true);put("created_at",created);summary.forEach {(key,item) ->put(key,item)}
         }
     }
     fun results(user: Any?,receipt: Any?,resultKind: Any?=null,after: Any?=0,limit: Any?=50): JsonObject? {
@@ -80,17 +79,15 @@ internal class ReceiptRepository(private val connection: Connection,private val 
         val cursor=strictCashInteger(after)?.takeIf {it.signum()>=0 && it<=java.math.BigInteger.valueOf(Long.MAX_VALUE)}?.toLong()
         if(size==null || cursor==null || resultKind!=null && resultKind !in setOf("row","relation","file","account")) throw IllegalArgumentException("mutation_page_invalid")
         if(get(user,receipt)==null) return null
-        val items=connection.prepareStatement("SELECT id,result_kind,item_ref,outcome,code,operation_ref,transaction_id,relation_id,account_id FROM cash_mutation_results WHERE workspace_id=? AND receipt_id=? AND id>?"+
-            (if(resultKind==null) "" else " AND result_kind=?")+" ORDER BY id LIMIT ?").use {
-            it.setString(1,workspace);it.setString(2,reference(receipt,36));it.setLong(3,cursor)
-            if(resultKind!=null) it.setString(4,resultKind as String)
-            it.setInt(if(resultKind==null) 4 else 5,size+1)
-            it.executeQuery().use {rows ->buildList {while(rows.next()) add(buildJsonObject {
-                put("result_id",rows.getLong("id").toString())
-                for(field in listOf("result_kind","item_ref","outcome","code","operation_ref","transaction_id","relation_id","account_id"))
-                    put(field,rows.getString(field)?.let(::JsonPrimitive) ?: JsonNull)
-            })}}
-        }
+        val fields = listOf(resultRows.RESULT_KIND, resultRows.ITEM_REF, resultRows.OUTCOME, resultRows.CODE,
+            resultRows.OPERATION_REF, resultRows.TRANSACTION_ID, resultRows.RELATION_ID, resultRows.ACCOUNT_ID)
+        val predicate = resultRows.WORKSPACE_ID.eq(workspace).and(resultRows.RECEIPT_ID.eq(reference(receipt,36))).and(resultRows.ID.gt(cursor))
+        val items = sql.select(listOf(resultRows.ID) + fields).from(resultRows)
+            .where(if (resultKind == null) predicate else predicate.and(resultRows.RESULT_KIND.eq(resultKind as String)))
+            .orderBy(resultRows.ID).limit(size + 1).fetch().map { row -> buildJsonObject {
+                put("result_id", row[resultRows.ID]!!.toString())
+                for (field in fields) put(field.name, row[field]?.let(::JsonPrimitive) ?: JsonNull)
+            } }
         return buildJsonObject {put("items",JsonArray(items.take(size)));put("next_after",if(items.size>size) JsonPrimitive(items[size-1].getValue("result_id").jsonPrimitive.long) else JsonNull)}
     }
 }

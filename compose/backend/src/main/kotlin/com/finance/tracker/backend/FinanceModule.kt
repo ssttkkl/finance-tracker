@@ -43,6 +43,12 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashEvidenceNotFound> { call, _ ->
+            call.respond(HttpStatusCode.NotFound, ErrorBody(ErrorDetail("not_found", "当前工作区中找不到该收支记录。")))
+        }
+        exception<CashEvidenceUnavailable> { call, _ ->
+            call.respond(HttpStatusCode.ServiceUnavailable, ErrorBody(ErrorDetail("projection.unavailable", "账本数据暂不可用，请先完成更新。")))
+        }
         exception<CurrentProjectionNotFound> { call, failure ->
             call.respond(HttpStatusCode.NotFound, kotlinx.serialization.json.buildJsonObject {
                 put("error", kotlinx.serialization.json.buildJsonObject {
@@ -224,6 +230,12 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         }
     }
     routing {
+        get("/api/v1/evidence/cash-projections/{projection_id}") {
+            val result = withContext(Dispatchers.IO) {
+                currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
         get("/api/v1/cash-records/{transaction_id}/projection") {
             val result = withContext(Dispatchers.IO) {
                 currentProjections.location(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"]!!, call.attributes[requestPrincipalKey])

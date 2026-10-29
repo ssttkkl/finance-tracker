@@ -152,7 +152,7 @@ class CashClassificationMigrationTest {
       fun call(target:Any,method:java.lang.reflect.Method,args:Array<out Any?>?):Any?=try {method.invoke(target,*(args ?: emptyArray()))} catch(f:java.lang.reflect.InvocationTargetException) {throw f.targetException}
       fun observe(c:java.sql.Connection):java.sql.Connection=java.lang.reflect.Proxy.newProxyInstance(java.sql.Connection::class.java.classLoader,arrayOf(java.sql.Connection::class.java)) {_,method,args ->
           val value=call(c,method,args)
-          if(value is java.sql.PreparedStatement && (args?.firstOrNull() as? String)?.startsWith("UPDATE cash_projections SET")==true)
+          if(value is java.sql.PreparedStatement && (args?.firstOrNull() as? String)?.observedSql()?.startsWith("update cash_projections set")==true)
               java.lang.reflect.Proxy.newProxyInstance(java.sql.PreparedStatement::class.java.classLoader,arrayOf(java.sql.PreparedStatement::class.java)) {_,operation,values ->
                   try {call(value,operation,values)} catch(f:java.sql.SQLException) {
                       if(f.message.orEmpty().contains("synthetic classification failure")) projectionFailed=true

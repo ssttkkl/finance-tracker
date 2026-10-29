@@ -1,5 +1,7 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.generated.tables.references.*
+
 internal data class CashProjectionSources(val facts:List<CashProjectionFact>,val relations:List<CashProjectionRelation>)
 internal class CashValidatedProjectionSources(private val owner:CashProjectionSourceRepository,private val transaction:CashSqlTransactionStamp,val digest:String,sources:CashProjectionSources) {
     val facts:List<CashProjectionFact> = java.util.Collections.unmodifiableList(sources.facts.toList())
@@ -10,7 +12,7 @@ internal class CashValidatedProjectionSources(private val owner:CashProjectionSo
 }
 
 internal class CashProjectionSourceRepository(private val context:CashSqlContext) {
-    private val c get()=context.connection
+    private val sql get()=context.sql
     private val workspace get()=context.workspace
     private val relationReads=CashRelationReadRepository(context)
     fun readValidatedSources():CashValidatedProjectionSources {
@@ -19,8 +21,10 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
     }
     fun parentIdsForComponents(ids:Set<Long>):Set<Long> {
         val result=sortedSetOf<Long>()
-        for(batch in ids.sorted().chunked(500)) c.prepareStatement("SELECT cash_transaction_id FROM cash_transaction_components WHERE workspace_id=? AND id IN (${batch.joinToString(",") {"?"}})").use {
-            it.setString(1,workspace);batch.forEachIndexed {index,id ->it.setLong(index+2,id)};it.executeQuery().use {r ->while(r.next()) result+=r.getLong(1)}
+        val part = CASH_TRANSACTION_COMPONENTS
+        for (batch in ids.sorted().chunked(500)) {
+            sql.select(part.CASH_TRANSACTION_ID).from(part).where(part.WORKSPACE_ID.eq(workspace)).and(part.ID.`in`(batch))
+                .fetch().forEach { result += it[part.CASH_TRANSACTION_ID]!! }
         };return result
     }
     fun confirmedTransactionClosure(ids:Set<Long>,inputIsComponents:Boolean=false):Set<Long> = relationReads.confirmedClosure(if(inputIsComponents) parentIdsForComponents(ids) else ids)
@@ -28,12 +32,15 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
         var frontier=ids;val members=mutableSetOf<Long>();val visited=mutableSetOf<Long>()
         while(frontier.isNotEmpty()) {
             val confirmed=confirmedTransactionClosure(frontier);members+=confirmed;val groups=mutableSetOf<Long>()
-            for(batch in confirmed.sorted().chunked(500)) c.prepareStatement("SELECT projection_row_id FROM cash_projection_members WHERE workspace_id=? AND dataset_id=? AND cash_transaction_id IN (${batch.joinToString(",") {"?"}})").use {
-                it.setString(1,workspace);it.setString(2,dataset);batch.forEachIndexed {index,id ->it.setLong(index+3,id)};it.executeQuery().use {r ->while(r.next()) groups+=r.getLong(1)}
+            val member = CASH_PROJECTION_MEMBERS
+            for (batch in confirmed.sorted().chunked(500)) {
+                sql.select(member.PROJECTION_ROW_ID).from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset))
+                    .and(member.CASH_TRANSACTION_ID.`in`(batch)).fetch().forEach { groups += it[member.PROJECTION_ROW_ID]!! }
             }
-            val next=mutableSetOf<Long>()
-            for(batch in (groups-visited).sorted().chunked(500)) c.prepareStatement("SELECT cash_transaction_id FROM cash_projection_members WHERE workspace_id=? AND dataset_id=? AND projection_row_id IN (${batch.joinToString(",") {"?"}})").use {
-                it.setString(1,workspace);it.setString(2,dataset);batch.forEachIndexed {index,id ->it.setLong(index+3,id)};it.executeQuery().use {r ->while(r.next()) next+=r.getLong(1)}
+            val next = mutableSetOf<Long>()
+            for (batch in (groups - visited).sorted().chunked(500)) {
+                sql.select(member.CASH_TRANSACTION_ID).from(member).where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset))
+                    .and(member.PROJECTION_ROW_ID.`in`(batch)).fetch().forEach { next += it[member.CASH_TRANSACTION_ID]!! }
             }
             visited+=groups;frontier=next-members
         };return members
@@ -60,24 +67,33 @@ internal class CashProjectionSourceRepository(private val context:CashSqlContext
         context.requireActive();context.entries.flush()
         val facts=readCashFactRows(context,includePayload=true)
         val parts=linkedMapOf<Long,MutableList<Map<String,Any?>>>()
-        c.prepareStatement("SELECT id,cash_transaction_id,account_id,amount,currency,ordinal,label,source_key FROM cash_transaction_components WHERE workspace_id=? ORDER BY cash_transaction_id,ordinal,id").use {
-            it.setString(1,workspace);it.executeQuery().use {r ->while(r.next()) parts.getOrPut(r.getLong("cash_transaction_id")) {mutableListOf()}.add(linkedMapOf(
-                "id" to r.getLong("id"),"account_id" to r.nullableLong("account_id"),"amount" to r.cashDecimal("amount",context.sqlite),"currency" to r.getString("currency"),
-                "ordinal" to r.getLong("ordinal"),"label" to r.getString("label"),"source_key" to r.getString("source_key")))}
-        }
-        val relations=c.prepareStatement("SELECT ${relationReads.graphColumns},rule_id FROM transaction_relations WHERE workspace_id=? AND state IN ('confirmed','draft') AND active=true ORDER BY id").use {
-            it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) {val row=relationReads.row(r,rule=true);add(linkedMapOf<String,Any?>(
-                "id" to row.id,"kind" to row.kind,"primary_fact_id" to row.primaryComponent,"secondary_fact_id" to row.secondaryComponent,"primary_fact_type" to "cash","secondary_fact_type" to "cash",
-                "state" to row.state,"row_revision" to row.revision,"primary_transaction_id" to row.primary,"secondary_transaction_id" to row.secondary,"primary_role" to row.primaryRole,
-                "secondary_role" to row.secondaryRole,"decision_group_id" to row.decisionGroup,"subtype" to row.subtype,"rule_id" to row.ruleId,"applied_amount" to row.applied))}}}
-        }
-        val issues=c.prepareStatement("SELECT id,transaction_id,revision FROM cash_transaction_issues WHERE workspace_id=? ORDER BY id").use {
-            it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) add(listOf(r.getLong(1),r.getLong(2),r.getLong(3)))}}
-        }
-        val funding=c.prepareStatement("SELECT id,cash_transaction_component_id,investment_event_id,direction,status,rule_id,evidence,active_slot FROM cash_investment_funding_relations WHERE workspace_id=? AND status='accepted' AND active_slot='active' ORDER BY id").use {
-            it.setString(1,workspace);it.executeQuery().use {r ->buildList {while(r.next()) add(linkedMapOf<String,Any?>("id" to r.getLong("id"),"cash_transaction_component_id" to r.getLong("cash_transaction_component_id"),
-                "investment_event_id" to r.getLong("investment_event_id"),"direction" to r.getString("direction"),"status" to r.getString("status"),"rule_id" to r.getString("rule_id"),"evidence" to r.cashJson("evidence"),"active_slot" to r.getString("active_slot")))}}
-        }
+        val part = CASH_TRANSACTION_COMPONENTS
+        sql.select(part.ID, part.CASH_TRANSACTION_ID, part.ACCOUNT_ID, part.AMOUNT, part.CURRENCY, part.ORDINAL, part.LABEL, part.SOURCE_KEY)
+            .from(part).where(part.WORKSPACE_ID.eq(workspace)).orderBy(part.CASH_TRANSACTION_ID, part.ORDINAL, part.ID).fetch().forEach { row ->
+                parts.getOrPut(row[part.CASH_TRANSACTION_ID]!!) { mutableListOf() }.add(linkedMapOf(
+                    "id" to row[part.ID]!!, "account_id" to row[part.ACCOUNT_ID], "amount" to row[part.AMOUNT], "currency" to row[part.CURRENCY],
+                    "ordinal" to row[part.ORDINAL]!!, "label" to row[part.LABEL]!!, "source_key" to row[part.SOURCE_KEY]!!))
+            }
+        val relation = TRANSACTION_RELATIONS
+        val relations = sql.select(relationReads.graphFields + relation.RULE_ID).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
+            .and(relation.STATE.`in`("confirmed", "draft")).and(relation.ACTIVE.isTrue).orderBy(relation.ID).fetch { record ->
+                val row = relationReads.row(record, rule = true)
+                linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "primary_fact_id" to row.primaryComponent, "secondary_fact_id" to row.secondaryComponent,
+                    "primary_fact_type" to "cash", "secondary_fact_type" to "cash", "state" to row.state, "row_revision" to row.revision,
+                    "primary_transaction_id" to row.primary, "secondary_transaction_id" to row.secondary, "primary_role" to row.primaryRole,
+                    "secondary_role" to row.secondaryRole, "decision_group_id" to row.decisionGroup, "subtype" to row.subtype,
+                    "rule_id" to row.ruleId, "applied_amount" to row.applied)
+            }
+        val issue = CASH_TRANSACTION_ISSUES
+        val issues = sql.select(issue.ID, issue.TRANSACTION_ID, issue.REVISION).from(issue).where(issue.WORKSPACE_ID.eq(workspace)).orderBy(issue.ID)
+            .fetch { listOf(it[issue.ID]!!, it[issue.TRANSACTION_ID]!!, it[issue.REVISION]!!) }
+        val fund = CASH_INVESTMENT_FUNDING_RELATIONS
+        val funding = sql.select(fund.ID, fund.CASH_TRANSACTION_COMPONENT_ID, fund.INVESTMENT_EVENT_ID, fund.DIRECTION, fund.STATUS, fund.RULE_ID, fund.EVIDENCE, fund.ACTIVE_SLOT)
+            .from(fund).where(fund.WORKSPACE_ID.eq(workspace)).and(fund.STATUS.eq("accepted")).and(fund.ACTIVE_SLOT.eq("active")).orderBy(fund.ID).fetch { row ->
+                linkedMapOf<String, Any?>("id" to row[fund.ID]!!, "cash_transaction_component_id" to row[fund.CASH_TRANSACTION_COMPONENT_ID]!!,
+                    "investment_event_id" to row[fund.INVESTMENT_EVENT_ID]!!, "direction" to row[fund.DIRECTION]!!, "status" to row[fund.STATUS]!!,
+                    "rule_id" to row[fund.RULE_ID]!!, "evidence" to row[fund.EVIDENCE], "active_slot" to row[fund.ACTIVE_SLOT])
+            }
         val payload=linkedMapOf<String,Any?>("facts" to facts.map {row ->linkedMapOf<String,Any?>("id" to row.id,"state" to row.state,"row_revision" to row.rowRevision,"created_at" to row.createdAt,
             "record_type" to row.recordType,"record_subtype" to row.recordSubtype,"account_id" to row.accountId,"source_type" to row.sourceType,"record_id" to row.recordId,"source_payload" to row.payload,
             "occurred_at" to row.occurredAt,"amount" to row.amount,"currency" to row.currency,"counterparty" to row.counterparty,"note" to row.note,"category_id" to row.categoryId,"cash_granularity" to row.cashGranularity,
