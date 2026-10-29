@@ -30,6 +30,18 @@ internal data class ParsedCashDocument(
 
 /** 平台账单行归一；复用来源正文、分类和对方账号规则，不执行跨行配对。 */
 internal object CashStatementRowNormalization {
+    /** 按已读取文档的来源类型分派归一；原始文档与逐行归一保持同一边界。 */
+    fun normalizeDocument(document: CashStatementDocument): ParsedCashDocument = when (document.sourceType) {
+        "alipay", "wechat" -> normalizePlatformDocument(document)
+        "ccb_debit", "icbc_asia" -> normalizeBankDocument(document)
+        "icbc_credit", "icbc_debit" -> normalizeIcbcDocument(document)
+        else -> throw StatementDocumentFailure("statement_source_unsupported")
+    }
+
+    /** 读取并归一一份账单；不执行上传、去重、关系或持久化。 */
+    fun parseCashStatement(content: ByteArray, source: String? = null, password: String? = null): ParsedCashDocument =
+        normalizeDocument(CashStatementDocuments.readDocument(content, source, password))
+
     fun normalizePlatformDocument(document: CashStatementDocument): ParsedCashDocument {
         if (document.sourceType !in setOf("alipay", "wechat"))
             throw StatementDocumentFailure("statement_source_unsupported")
