@@ -109,9 +109,69 @@ class KotlinRecordDetailResponseIntegrationTest {
                 assertEquals(detail.transactionId, domain.transactionId)
                 assertEquals(detail.rowRevision, domain.rowRevision)
                 assertEquals(detail.fields, domain.fields.toJsonObject())
+                assertEquals(detail.relations.map { it.relationId }, domain.relations.map { it.relationId })
+                assertEquals(detail.relations.map { it.state }, domain.relations.map { it.state })
+                assertEquals(detail.issues.map { it.allowedResolutions }, domain.issues.map { it.allowedResolutions })
+                assertEquals(detail.issues.map { it.candidates.map { candidate -> candidate.transactionId } },
+                    domain.issues.map { issue -> issue.candidates.map { it.transactionId } })
+                assertEquals(detail.entry?.entryId, domain.entry?.entryId)
+                assertEquals(detail.entry?.editableFields, domain.entry?.editableFields)
+                assertEquals(detail.projectionRef?.projectionId, domain.projectionRef?.projectionId)
+                assertEquals(detail.projectionRef?.projectionVersion, domain.projectionRef?.projectionVersion)
+                detail.issues.zip(domain.issues).forEach { (actual, mapped) ->
+                    val body = actual.pendingSourcePayload
+                    if (body != null) assertEquals(body, mapped.pendingSourcePayload?.toJsonObject())
+                }
             } finally { client.close() }
         }
         assertTrue(seenDraft); assertTrue(seenEntry); assertTrue(seenRelation)
         assertTrue(seenProjection); assertTrue(seenAmbiguousCandidate); assertTrue(seenSourcePayload)
+    }
+
+    @Test fun existingSourcesConsumerCrossChecksEvidenceAndCurrentDetail() = runTest {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")))
+        val captures = Json.parseToJsonElement(Files.readString(root.resolve("detail-responses.json"))).jsonObject
+        val detail = captures.getValue("responses").jsonArray.map { it.jsonObject }
+            .first { it.getValue("path").jsonPrimitive.content == "/api/v1/cash-records/1001" }
+        val detailBody = detail.getValue("body").jsonPrimitive.content
+        val expected = Json.parseToJsonElement(detailBody).jsonObject
+        val revision = expected.getValue("row_revision").jsonPrimitive.long
+        val evidence = buildJsonObject {
+            put("projection_version", 7)
+            put("projection", buildJsonObject {
+                put("projection_id", "cash:1001"); put("occurred_at", "2026-07-03T09:00:00+00:00")
+                put("amount", "12.5"); put("currency", "CNY"); put("economic_type", "expense")
+                put("record_id", "wechat_1"); put("transaction_id", "1001"); put("member_count", 1)
+                put("visible", true)
+            })
+            put("members", JsonArray(listOf(buildJsonObject {
+                put("id", "1001"); put("row_revision", revision)
+                put("occurred_at", "2026-07-03T09:00:00+00:00"); put("amount", "12.5"); put("currency", "CNY")
+                put("counterparty", "咖啡店"); put("note", "原备注"); put("account_name", "日常账户")
+                put("components", JsonArray(listOf(buildJsonObject {
+                    put("id", "2001"); put("amount", "12.5"); put("currency", "CNY"); put("account_name", "日常账户")
+                })))
+            })))
+        }
+        val engine = MockEngine { request ->
+            when {
+                request.url.encodedPath == "/api/v1/evidence/cash-projections/cash%3A1001" ->
+                    respond(evidence.toString(), headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                request.url.encodedPath == "/api/v1/cash-records/1001" ->
+                    respond(detailBody, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                else -> error("unexpected ${request.url.encodedPath}")
+            }
+        }
+        val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+        try {
+            val sources = KtorCashMaintenanceRepository(client).sources("cash:1001")
+            assertEquals(7, sources.projectionVersion)
+            val source = sources.members.single()
+            assertEquals("1001", source.transactionId)
+            assertEquals("日常账户", source.accountName)
+            assertIs<StructuredObject>(source.sourcePayload)
+            assertEquals(expected.getValue("relations").jsonArray.size, source.relations.size)
+            assertEquals(expected.getValue("fields").jsonObject, source.fields.toJsonObject())
+        } finally { client.close() }
     }
 }

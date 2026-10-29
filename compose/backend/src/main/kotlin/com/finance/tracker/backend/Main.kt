@@ -29,6 +29,7 @@ fun main() {
         }
         else -> throw StorageFailure("storage.config")
     }
+    database.runtimeNotices.forEach { System.err.println("finance-tracker: $it") }
     database.validateSchema()
     val port = System.getenv("FT_KOTLIN_PORT")?.toIntOrNull() ?: 18240
     require(port in 1024..65535) { "invalid local preview port" }

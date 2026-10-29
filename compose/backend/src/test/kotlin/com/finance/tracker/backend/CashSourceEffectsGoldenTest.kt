@@ -15,6 +15,34 @@ class CashSourceEffectsGoldenTest {
         else -> error("unexpected source effect value")
     }
 
+    private fun assertWireEquals(expected: JsonElement, actual: JsonElement, context: String) {
+        when (expected) {
+            is JsonObject -> {
+                assertIs<JsonObject>(actual, context)
+                assertEquals(expected.keys, actual.keys, context)
+                expected.forEach { (key, value) -> assertWireEquals(value, actual.getValue(key), "$context.$key") }
+            }
+            is JsonArray -> {
+                assertIs<JsonArray>(actual, context)
+                assertEquals(expected.size, actual.size, context)
+                expected.forEachIndexed { index, value -> assertWireEquals(value, actual[index], "$context[$index]") }
+            }
+            is JsonPrimitive -> {
+                assertIs<JsonPrimitive>(actual, context)
+                if (expected == JsonNull || expected.isString || expected.booleanOrNull != null) {
+                    assertEquals(expected, actual, context)
+                } else {
+                    assertFalse(actual.isString, context)
+                    assertNull(actual.booleanOrNull, context)
+                    val integer = expected.content.matches(Regex("-?[0-9]+"))
+                    assertEquals(integer, actual.content.matches(Regex("-?[0-9]+")), context)
+                    if (integer) assertEquals(expected.content.toBigInteger(), actual.content.toBigInteger(), context)
+                    else assertEquals(expected.double.toRawBits(), actual.double.toRawBits(), context)
+                }
+            }
+        }
+    }
+
     @Test fun completeSourceEffectsMatchPythonWithoutMutatingInputs() {
         val cases = Json.parseToJsonElement(requireNotNull(javaClass.getResourceAsStream("/python-cash-source-effects.json"))
             .bufferedReader().use { it.readText() }).jsonArray
@@ -30,11 +58,11 @@ class CashSourceEffectsGoldenTest {
             val beforeExplanation = wire(explanation)
             val result = prepareCashSourceEffects(values, patch, input.getValue("source").jsonPrimitive.content,
                 explanation, input.getValue("protected").jsonArray.map { it.jsonPrimitive.content }.toSet())
-            assertEquals(expected.getValue("values"), wire(result.values), "case $index values: $input")
-            assertEquals(expected.getValue("explanation"), wire(result.explanation), "case $index explanation: $input")
-            assertEquals(before, wire(values), "case $index input values")
-            assertEquals(beforePatch, wire(patch), "case $index patch")
-            assertEquals(beforeExplanation, wire(explanation), "case $index source explanation")
+            assertWireEquals(expected.getValue("values"), wire(result.values), "case $index values: $input")
+            assertWireEquals(expected.getValue("explanation"), wire(result.explanation), "case $index explanation: $input")
+            assertWireEquals(before, wire(values), "case $index input values")
+            assertWireEquals(beforePatch, wire(patch), "case $index patch")
+            assertWireEquals(beforeExplanation, wire(explanation), "case $index source explanation")
         }
     }
 }

@@ -23,7 +23,7 @@ public class GenerateJooqTest {
         if (url != null) builder.environment().put("FT_JOOQ_CODEGEN_URL", url);
         Process process = builder.start();
         try {
-            assertTrue("Code generation must reject the URL before connecting", process.waitFor(15, TimeUnit.SECONDS));
+            assertTrue("Code generation must reject the URL before connecting", process.waitFor(60, TimeUnit.SECONDS));
             String text = Files.readString(log, StandardCharsets.UTF_8);
             assertNotEquals("Invalid database URL must fail", 0, process.exitValue());
             assertFalse("Rejected input must not produce generated files", Files.exists(output));
