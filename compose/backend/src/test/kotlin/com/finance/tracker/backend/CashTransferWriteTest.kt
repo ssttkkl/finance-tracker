@@ -8,7 +8,7 @@ import kotlinx.serialization.json.*
 class CashTransferWriteTest {
     private fun fixture(action:(Database,String)->Unit) {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
-        val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"))
+        val db=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
         val service=WorkspaceService(db);val name="手工转账事务测试";val workspace=service.create("synthetic-admin",name).activeWorkspaceId!!
         try {
             db.write {c ->for((name,type) in listOf("来源" to "cash","目标" to "cash","券商" to "security","加密" to "crypto","贷款" to "loan"))

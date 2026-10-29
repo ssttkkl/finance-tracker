@@ -103,7 +103,7 @@ class CashRecordDetailContractTest {
             db.write { connection ->
                 connection.prepareStatement("UPDATE cash_transaction_issues SET pending_fields=" +
                     (if (db.sqlite) "?" else "CAST(? AS json)") + " WHERE id=6002").use {
-                    it.setString(1, "[]"); assertEquals(1, it.executeUpdate())
+                    it.setString(1, "[\"x\"]"); assertEquals(1, it.executeUpdate())
                 }
             }
             assertFailsWith<CashRecordReadUnavailable> { CashRecordDetailService(db).detail("synthetic-admin", "1006") }

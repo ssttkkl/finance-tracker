@@ -149,11 +149,15 @@ def seed(sessions):
             occurred_at=None, record_type=None, record_subtype=None, source_type="wechat", record_id="wechat_15")
         _fact(session, 1016, "detail-a", amount="9", account_id=101, category_id="food", counterparty="冲突",
             note="", occurred_at=at(10), source_type="wechat", record_id="wechat_16")
+        _fact(session, 1017, "detail-a", state="draft", amount=None, account_id=None, counterparty="", note="",
+            occurred_at=None, record_type=None, record_subtype=None, source_type="wechat", record_id="wechat_17")
+        _fact(session, 1018, "detail-a", amount="7", account_id=101, category_id="food", counterparty="覆盖候选",
+            note="", occurred_at=at(11), source_type="wechat", record_id="wechat_18")
         session.flush()
         _parent_workspace.update({1001: "detail-a", 1002: "detail-a", 1003: "detail-a", 1004: "detail-a",
             1005: "detail-a", 1006: "detail-a", 1007: "detail-a", 1008: "detail-a", 1009: "detail-a",
             1010: "detail-a", 1011: "detail-b", 1012: "detail-a", 1013: "detail-a", 1014: "detail-a",
-            1015: "detail-a", 1016: "detail-a"})
+            1015: "detail-a", 1016: "detail-a", 1017: "detail-a", 1018: "detail-a"})
 
         _component(session, 2001, 1001, 101, "12.50")
         _component(session, 2002, 1002, 101, "-12.50")
@@ -169,6 +173,7 @@ def seed(sessions):
         _component(session, 2012, 1014, 101, "30")
         _component(session, 2013, 1015, 101, "9")
         _component(session, 2014, 1016, 101, "9")
+        _component(session, 2017, 1018, 101, "7")
 
         _entry(session, "entry-1001", 1001, "detail-a", members=[(1001, {}, ["note"])],
             revision=4, category_id="food", note="公共备注", counterparty="咖啡店", counterparty_account="尾号1234",
@@ -200,6 +205,9 @@ def seed(sessions):
             issue_key="source-update", code="source_update_pending", field_path=None,
             pending_source_payload={"备注": "坏分类"}, pending_fields={"category_id": "missing-category"},
             origin={}, revision=1, created_at=NOW, updated_at=NOW))
+        session.add(CashTransactionIssueModel(id=6005, workspace_id="detail-a", transaction_id=1007,
+            issue_key="empty-pending", code="source_update_pending", field_path=None,
+            pending_source_payload=None, pending_fields=[], origin={}, revision=1, created_at=NOW, updated_at=NOW))
         session.add(CashTransactionIssueModel(id=6004, workspace_id="detail-a", transaction_id=1014,
             issue_key="source-update", code="source_update_pending", field_path=None,
             pending_source_payload={"备注": "好备注"}, pending_fields={"note": "好备注"}, origin={}, revision=1,
@@ -207,18 +215,29 @@ def seed(sessions):
         session.add(CashTransactionIssueModel(id=6015, workspace_id="detail-a", transaction_id=1015,
             issue_key="identity", code="source_identity_ambiguous", field_path=None,
             pending_source_payload=None, pending_fields=None, origin={}, revision=1, created_at=NOW, updated_at=NOW))
+        session.add(CashTransactionIssueModel(id=6017, workspace_id="detail-a", transaction_id=1017,
+            issue_key="identity", code="source_identity_ambiguous", field_path=None,
+            pending_source_payload=None, pending_fields=None, origin={}, revision=1, created_at=NOW, updated_at=NOW))
         session.flush()
         session.add(CashIssueCandidateModel(id=6101, workspace_id="detail-a", issue_id=6002,
             candidate_transaction_id=1007, expected_row_revision=2))
         session.add(CashIssueCandidateModel(id=6115, workspace_id="detail-a", issue_id=6015,
             candidate_transaction_id=1016, expected_row_revision=1))
+        session.add(CashIssueCandidateModel(id=6117, workspace_id="detail-a", issue_id=6017,
+            candidate_transaction_id=1018, expected_row_revision=1))
 
-        binding = lambda identifier, transaction, key, evidence=None: CashSourceBindingModel(id=identifier, workspace_id="detail-a",
-            transaction_id=transaction, source_type="wechat", source_scope_kind="account", source_scope_key="scope-1",
-            identity_kind="provider_id", identity_key=key, identity_strength="provider", stable_evidence_key=evidence,
-            strategy_version="wechat-v1", coverage={}, revision=1, created_at=NOW, updated_at=NOW)
+        coverage = {"start": None, "end": None, "complete": False, "evidence": "", "filters": {},
+            "start_inclusive": True, "end_inclusive": False, "time_precision": "second",
+            "strategy_version": "source-coverage-v1", "document_key": None, "page_total": None,
+            "page_fingerprints": {}}
+        binding = lambda identifier, transaction, key, evidence=None, stored=None: CashSourceBindingModel(
+            id=identifier, workspace_id="detail-a", transaction_id=transaction, source_type="wechat",
+            source_scope_kind="account", source_scope_key="scope-1", identity_kind="provider_id", identity_key=key,
+            identity_strength="provider", stable_evidence_key=evidence, strategy_version="wechat-v1",
+            coverage={} if stored is None else stored, revision=1, created_at=NOW, updated_at=NOW)
         session.add_all([binding(7001, 1006, "provider-6"), binding(7002, 1007, "provider-7"),
-            binding(7015, 1015, "provider-15", "evidence-9"), binding(7016, 1016, "provider-16", "evidence-9")])
+            binding(7015, 1015, "provider-15", "evidence-9"), binding(7016, 1016, "provider-16", "evidence-9"),
+            binding(7017, 1017, "provider-17", None, coverage), binding(7018, 1018, "provider-18", None, coverage)])
 
         session.add(CashProjectionDatasetModel(id="ds1", workspace_id="detail-a", state="active", source_revision=4,
             source_digest="0" * 64, rules_version="projection-v1", created_at=NOW, published_at=NOW))
@@ -286,7 +305,7 @@ def export(database_url: str, output: Path) -> None:
 
     with TestClient(app) as client:
         for identifier in ("1001", "1002", "1003", "1004", "1005", "1006", "1007", "1008", "1012", "1013",
-                "1014", "1015", "01001"):
+                "1014", "1015", "1017", "01001"):
             capture(identifier, "admin")
         for identifier in ("1001", "1003", "1004", "1006", "1015"):
             capture(identifier, "editor")

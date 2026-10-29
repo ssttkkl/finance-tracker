@@ -34,6 +34,8 @@ class CashRecordDetailService(
             throw failure
         } catch (failure: StorageFailure) {
             throw failure
+        } catch (failure: CashRecordReadUnavailable) {
+            throw failure
         } catch (failure: Exception) {
             throw CashRecordReadUnavailable(failure)
         }
@@ -285,30 +287,34 @@ internal class CashRecordDetailRepository(
         val parent = CASH_TRANSACTIONS.`as`("parent")
         val found = linkedMapOf<Long, DetailCandidate>()
         val groups = linkedMapOf<String, MutableList<Long>>()
-        sql.select(candidate.ISSUE_ID, parent.ID, parent.ROW_REVISION, parent.STATE, parent.OCCURRED_AT, parent.AMOUNT,
-                parent.CURRENCY, parent.COUNTERPARTY, parent.NOTE)
-            .from(candidate).join(parent).on(parent.WORKSPACE_ID.eq(candidate.WORKSPACE_ID))
-            .and(parent.ID.eq(candidate.CANDIDATE_TRANSACTION_ID))
-            .where(candidate.WORKSPACE_ID.eq(workspace)).and(candidate.ISSUE_ID.`in`(ambiguous))
-            .and(parent.DELETED_AT.isNull).orderBy(candidate.ISSUE_ID, parent.ID).fetch().forEach { row ->
-                val identifier = row[parent.ID]!!
-                found[identifier] = DetailCandidate(identifier, row[parent.ROW_REVISION]!!, row[parent.STATE]!!,
-                    row[parent.OCCURRED_AT], row[parent.AMOUNT], row[parent.CURRENCY], row[parent.COUNTERPARTY]!!,
-                    row[parent.NOTE]!!, emptyList())
-                groups.getOrPut(row[candidate.ISSUE_ID]!!.toString()) { mutableListOf() } += identifier
-            }
+        for (batch in ambiguous.chunked(500)) {
+            sql.select(candidate.ISSUE_ID, parent.ID, parent.ROW_REVISION, parent.STATE, parent.OCCURRED_AT, parent.AMOUNT,
+                    parent.CURRENCY, parent.COUNTERPARTY, parent.NOTE)
+                .from(candidate).join(parent).on(parent.WORKSPACE_ID.eq(candidate.WORKSPACE_ID))
+                .and(parent.ID.eq(candidate.CANDIDATE_TRANSACTION_ID))
+                .where(candidate.WORKSPACE_ID.eq(workspace)).and(candidate.ISSUE_ID.`in`(batch))
+                .and(parent.DELETED_AT.isNull).orderBy(candidate.ISSUE_ID, parent.ID).fetch().forEach { row ->
+                    val identifier = row[parent.ID]!!
+                    found[identifier] = DetailCandidate(identifier, row[parent.ROW_REVISION]!!, row[parent.STATE]!!,
+                        row[parent.OCCURRED_AT], row[parent.AMOUNT], row[parent.CURRENCY], row[parent.COUNTERPARTY]!!,
+                        row[parent.NOTE]!!, emptyList())
+                    groups.getOrPut(row[candidate.ISSUE_ID]!!.toString()) { mutableListOf() } += identifier
+                }
+        }
         val accounts = linkedMapOf<Long, MutableList<String>>()
         if (found.isNotEmpty()) {
             val part = CASH_TRANSACTION_COMPONENTS
             val account = ACCOUNTS
-            sql.select(part.CASH_TRANSACTION_ID, account.NAME).from(part)
-                .join(account).on(account.WORKSPACE_ID.eq(part.WORKSPACE_ID)).and(account.ID.eq(part.ACCOUNT_ID))
-                .where(part.WORKSPACE_ID.eq(workspace)).and(part.CASH_TRANSACTION_ID.`in`(found.keys.toList()))
-                .orderBy(part.CASH_TRANSACTION_ID, part.ORDINAL).fetch().forEach { row ->
-                    val names = accounts.getOrPut(row[part.CASH_TRANSACTION_ID]!!) { mutableListOf() }
-                    val name = row[account.NAME]!!
-                    if (name !in names) names += name
-                }
+            for (batch in found.keys.sorted().chunked(400)) {
+                sql.select(part.CASH_TRANSACTION_ID, account.NAME).from(part)
+                    .join(account).on(account.WORKSPACE_ID.eq(part.WORKSPACE_ID)).and(account.ID.eq(part.ACCOUNT_ID))
+                    .where(part.WORKSPACE_ID.eq(workspace)).and(part.CASH_TRANSACTION_ID.`in`(batch))
+                    .orderBy(part.CASH_TRANSACTION_ID, part.ORDINAL).fetch().forEach { row ->
+                        val names = accounts.getOrPut(row[part.CASH_TRANSACTION_ID]!!) { mutableListOf() }
+                        val name = row[account.NAME]!!
+                        if (name !in names) names += name
+                    }
+            }
         }
         return groups.mapValues { (_, identifiers) -> identifiers.map { identifier ->
             found.getValue(identifier).copy(accounts = accounts[identifier] ?: emptyList())
@@ -398,6 +404,8 @@ internal class CashRecordDetailRepository(
         val rawPending = when (val pending = issue.pendingFields) {
             null, JsonNull -> null
             is JsonObject -> pending
+            // Python 把空列表视作缺省；非空容器仍是损坏状态。
+            is JsonArray -> if (pending.isEmpty()) null else throw CashRecordReadUnavailable(IllegalStateException("invalid pending fields"))
             else -> throw CashRecordReadUnavailable(IllegalStateException("invalid pending fields"))
         }
         val pendingFields = rawPending?.filterKeys { it in editableCashRecordFields } ?: emptyMap()
@@ -550,7 +558,7 @@ internal class CashRecordDetailRepository(
         if (bindings.any { it.sourceType != record.sourceType } ||
             account.map { it.scopeKey }.distinct().size > 1 ||
             account.filter { it.identityKind == "provider_id" }.map { it.identityKey }.distinct().size > 1 ||
-            bindings.mapNotNull { it.evidenceKey }.distinct().size > 1)
+            bindings.mapNotNull { it.evidenceKey?.takeIf(String::isNotEmpty) }.distinct().size > 1)
             throw SourceBindingConflict()
         val positions = linkedMapOf<String, MutableSet<String>>()
         val pages = linkedMapOf<Triple<String, String, String>, MutableMap<String, String>>()
@@ -569,10 +577,10 @@ internal class CashRecordDetailRepository(
         }
         if (positions.values.any { it.size > 1 }) throw SourceBindingConflict()
         val keys = bindings.map { listOf(it.sourceType, it.scopeKind, it.scopeKey, it.identityKind, it.identityKey) }
-        val evidenceKeys = bindings.mapNotNull { it.evidenceKey }.distinct().sorted()
+        val evidenceKeys = bindings.mapNotNull { it.evidenceKey?.takeIf(String::isNotEmpty) }.distinct().sorted()
         val others = linkedSetOf<Long>()
-        for (batch in keys.chunked(200)) others += bindingTransactions(batch, emptyList())
-        for (batch in evidenceKeys.chunked(400)) others += bindingTransactions(emptyList(), batch)
+        for (batch in keys.chunked(125)) others += bindingTransactions(batch, emptyList())
+        for (batch in evidenceKeys.chunked(125)) others += bindingTransactions(emptyList(), batch)
         others -= record.id
         for (batch in others.sorted().chunked(500)) {
             val tx = CASH_TRANSACTIONS
@@ -607,8 +615,8 @@ internal class CashRecordDetailRepository(
         if (objectValue.keys.any { it !in allowed }) throw invalidCoverage()
         val documentValue = objectValue["document_key"]?.takeIf { it != JsonNull } ?: return coverageWithoutDocument(objectValue)
         val document = (documentValue as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw invalidCoverage()
-        val total = (objectValue["page_total"] as? JsonPrimitive)?.contentOrNull?.toIntOrNull()
-            ?: throw invalidCoverage()
+        val total = (objectValue["page_total"] as? JsonPrimitive)?.takeIf { !it.isString && it.booleanOrNull == null }
+            ?.contentOrNull?.toIntOrNull() ?: throw invalidCoverage()
         val fingerprintsValue = objectValue["page_fingerprints"] as? JsonObject ?: throw invalidCoverage()
         val fingerprints = fingerprintsValue.mapValues { (_, item) ->
             (item as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw invalidCoverage()
@@ -621,8 +629,13 @@ internal class CashRecordDetailRepository(
     }
 
     private fun coverageWithoutDocument(value: JsonObject): Coverage {
-        if (value["page_total"]?.takeIf { it != JsonNull } != null || value["page_fingerprints"]?.takeIf { it != JsonNull } != null)
-            throw invalidCoverage()
+        // 真实绑定以 asdict(SourceCoverage) 保存：没有文档时键仍在，但值为 null/空对象。
+        if (value["page_total"]?.takeIf { it != JsonNull } != null) throw invalidCoverage()
+        val fingerprints = value["page_fingerprints"]?.takeIf { it != JsonNull }
+        if (fingerprints != null) {
+            val objectValue = fingerprints as? JsonObject ?: throw invalidCoverage()
+            if (objectValue.isNotEmpty()) throw invalidCoverage()
+        }
         return Coverage(null, emptyMap())
     }
 
