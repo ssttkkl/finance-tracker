@@ -11,16 +11,12 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
 import kotlinx.serialization.json.*
 
-/** null 表示明确切回默认来源；未提供包装值表示沿用来源设置。 */
-data class CashImportScopeInput(val label: String?)
-
 // 使用普通类，避免默认 data class.toString 将密码或原文件字段带进诊断。
 class CashImportUploadInput(
     val clientFileRef: String,
     val file: FileSource,
     val password: String? = null,
     val sourceHint: String? = null,
-    val sourceScope: CashImportScopeInput? = null,
 )
 
 private const val MAX_CONTEXT_FILE_BYTES = 100L * 1024 * 1024
@@ -57,19 +53,6 @@ suspend fun FinanceApiClient.addCashImportFiles(
 suspend fun FinanceApiClient.readCashImportSession(sessionId: String): CashImportSessionDto =
     request(HttpMethod.Get, contextPath(sessionId))
 
-suspend fun FinanceApiClient.setCashImportFileScope(
-    sessionId: String,
-    fileRef: String,
-    expectedSessionRevision: Long,
-    sourceScopeLabel: String?,
-): CashImportSessionDto {
-    requireContextRevision(expectedSessionRevision)
-    return request(HttpMethod.Patch, contextFilePath(sessionId, fileRef), buildJsonObject {
-        put("expected_session_revision", expectedSessionRevision)
-        put("source_scope_label", sourceScopeLabel?.let(::JsonPrimitive) ?: JsonNull)
-    })
-}
-
 suspend fun FinanceApiClient.removeCashImportFile(
     sessionId: String,
     fileRef: String,
@@ -105,7 +88,7 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
     val failures = mutableListOf<CashImportLocalFileFailure>()
     for ((index, input) in files.withIndex()) {
         val lastModifiedAtMillis = input.file.lastModifiedAtMillis
-        if ((input.password?.length ?: 0) > 1024 || (input.sourceScope?.label?.length ?: 0) > 64 ||
+        if ((input.password?.length ?: 0) > 1024 ||
             input.sourceHint?.matches(Regex("[a-z][a-z0-9_-]{0,63}")) == false ||
             lastModifiedAtMillis != null && lastModifiedAtMillis < 0) {
             failures += CashImportLocalFileFailure(input.clientFileRef, "import_payload_invalid")
@@ -118,7 +101,6 @@ private suspend fun FinanceApiClient.uploadCashImportContext(
                 put("client_file_ref", input.clientFileRef)
                 input.password?.let { put("password", it) }
                 input.sourceHint?.let { put("source_hint", it) }
-                input.sourceScope?.let { put("source_scope_label", it.label?.let(::JsonPrimitive) ?: JsonNull) }
                 lastModifiedAtMillis?.let { put("last_modified_at_ms", it) }
             })))
         }.toString()

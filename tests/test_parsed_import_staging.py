@@ -538,16 +538,16 @@ def test_sweep_does_not_extend_expiry_after_a_late_edit(staging):
     assert store.sweep_expired(limit=10).deleted == 1
 
 
-def test_wechat_scope_roundtrips_and_invalid_scope_never_replaces_session(staging):
+def test_wechat_candidates_require_transaction_numbers_before_staging(staging):
     from ft.application.parsed_import_staging import ParsedImportDataError
     store, _now, _client = staging
     file = _file()
-    file = replace(file, source_type="wechat", document=replace(file.document, source_type="wechat"), source_scope_label="工作微信")
+    file = replace(file, source_type="wechat", document=replace(file.document, source_type="wechat"))
     created = _create(store, files=(file,))
-    assert _get(store, created).files[0].source_scope_label == "工作微信"
-    for invalid in (replace(file, source_scope_label="  工作微信  "), replace(file, source_type="alipay", document=replace(file.document, source_type="alipay"))):
-        with pytest.raises(ParsedImportDataError, match="import_session_file_invalid"):
-            _replace(store, created, files=(invalid,))
+    assert _get(store, created).files[0].document.rows[0].provider_id == "001"
+    invalid = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], provider_id=None),)))
+    with pytest.raises(ParsedImportDataError, match="import_session_document_invalid"):
+        _replace(store, created, files=(invalid,))
     assert _get(store, created) == created
 
 

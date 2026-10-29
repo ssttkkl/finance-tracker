@@ -39,11 +39,12 @@ class CashStatementDocument:
     declared_count: int | None
     observed_count: int
     source_currency: str | None = None
+    source_nickname: str | None = None
 
 
 _REQUIRED = {
     "alipay": {"交易时间", "收/支", "金额", "交易对方"},
-    "wechat": {"交易时间", "收/支", "金额(元)", "交易对方"},
+    "wechat": {"交易时间", "收/支", "金额(元)", "交易对方", "交易单号"},
 }
 _MAX_INPUT_BYTES = 100 * 1024 * 1024
 _MAX_PARSED_BYTES = 25 * 1024 * 1024
@@ -144,10 +145,11 @@ def _collect(records, source, table_key, *, pad_trailing=False):
     if header is None:
         raise StatementDocumentError("statement_header_not_found")
     account, label, count, coverage = _declarations(metadata, source, len(rows), usable=all(row.error_code is None for row in rows))
+    nickname = _unanimous(_label_values(metadata, "微信昵称")) or None if source == "wechat" else None
     return CashStatementDocument(
         source_type=source, table_key=table_key, parser_version="platform-rows-v1",
         rows=tuple(rows), source_account_identifier=account, source_account_label=label,
-        coverage=coverage, declared_count=count, observed_count=len(rows),
+        coverage=coverage, declared_count=count, observed_count=len(rows), source_nickname=nickname,
     )
 
 

@@ -122,6 +122,8 @@ class SourceOccurrence:
         optional = ((self.source_account_key, 256), (self.provider_id, 512), (self.stable_evidence, 512))
         if any(not isinstance(value, str) or not value or len(value) > maximum for value, maximum in required) or any(value is not None and (not isinstance(value, str) or not value or len(value) > maximum) for value, maximum in optional) or type(self.position) is not int or self.position < 0 or not isinstance(self.fields, Mapping):
             raise ValueError("invalid_source_locator")
+        if self.source_type == "wechat" and self.provider_id is None:
+            raise ValueError("wechat_transaction_id_required")
         if self.document_position is not None and (not isinstance(self.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", self.document_position)):
             raise ValueError("invalid_source_locator")
 

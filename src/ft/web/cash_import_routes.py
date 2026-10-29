@@ -17,10 +17,9 @@ from ft.application.cash_import_errors import (
 )
 from ft.web.cash_plan_protocol import CashPlanErrorView
 from ft.application.parsed_import_staging import ImportSessionClosed, ImportSessionRevisionConflict
-from ft.domain.cash_source_scope import CashSourceScopeError
 from ft.web.cash_import_protocol import (
-    AddUploadMetadata, CashImportProtocolError, CashImportSessionView, SourceScopeInput,
-    UploadMetadata, expected_revision, json_input, upload_input,
+    AddUploadMetadata, CashImportProtocolError, CashImportSessionView,
+    UploadMetadata, expected_revision, upload_input,
 )
 
 
@@ -42,8 +41,6 @@ def _failure(error):
     elif isinstance(error, CashMutationConflict):
         code, status, message = "session_committed", 409, "本次导入已提交，请查看结果。"
         receipt_id = error.receipt_id
-    elif isinstance(error, CashSourceScopeError):
-        code, message = "source_scope_invalid", "来源名称不可用，请重新填写。"
     elif isinstance(error, CashImportProtocolError) and error.code == "upload_too_large":
         code, status, message = "upload_too_large", 413, "上传内容过多，请减少文件后重试。"
     elif isinstance(error, ValueError) and str(error) == "import_file_not_found":
@@ -134,18 +131,14 @@ def cash_import_router(services):
         except Exception as error:
             return _unavailable(error)
 
-    async def file_command(request, session_id, file_ref=None, *, remove=False):
+    async def file_command(request, session_id, file_ref=None):
         try:
             commands = services.parsed_import_context()
             if file_ref is None:
                 current = await run_in_threadpool(commands.cancel, session_id)
-            elif remove:
+            else:
                 current = await run_in_threadpool(commands.remove_file, session_id, file_ref,
                     expected_revision=expected_revision(request))
-            else:
-                body = await json_input(request, SourceScopeInput)
-                current = await run_in_threadpool(commands.set_file_source_scope, session_id, file_ref,
-                    body.source_scope_label, expected_revision=body.expected_session_revision)
             return await run_in_threadpool(commands.get_view, current.session_id)
         except _STORAGE_ERRORS as error:
             return _unavailable(error)
@@ -156,17 +149,11 @@ def cash_import_router(services):
         except Exception as error:
             return _unavailable(error)
 
-    @router.patch("/sessions/{session_id}/files/{file_ref}", response_model=CashImportSessionView,
-        openapi_extra={"requestBody": {"required": True, "content": {
-            "application/json": {"schema": SourceScopeInput.model_json_schema()}}}})
-    async def set_file_source_scope(session_id: str, file_ref: str, request: Request):
-        return await file_command(request, session_id, file_ref)
-
     @router.delete("/sessions/{session_id}/files/{file_ref}", response_model=CashImportSessionView,
         openapi_extra={"parameters": [{"in": "header", "name": "If-Match", "required": True,
             "schema": {"type": "string"}}]})
     async def remove_file(session_id: str, file_ref: str, request: Request):
-        return await file_command(request, session_id, file_ref, remove=True)
+        return await file_command(request, session_id, file_ref)
 
     @router.delete("/sessions/{session_id}", response_model=CashImportSessionView)
     async def cancel_session(session_id: str, request: Request):

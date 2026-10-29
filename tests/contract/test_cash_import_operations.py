@@ -41,7 +41,7 @@ def _file(*, amount="-12.5", name="合成商户", note="原始备注", letter="a
 _UNSET_OWNER = object()
 
 
-def _as_source(file, source, *, owner=_UNSET_OWNER, scope=None):
+def _as_source(file, source, *, owner=_UNSET_OWNER):
     document_owner = file.document.source_account_identifier if owner is _UNSET_OWNER else owner
     rows = file.document.rows
     if source in {"icbc_credit", "icbc_debit", "ccb_debit", "icbc_asia"}:
@@ -55,7 +55,7 @@ def _as_source(file, source, *, owner=_UNSET_OWNER, scope=None):
             updated.append(replace(row, source_explanation={**row.source_explanation, "source_display_name": label}))
         rows = tuple(updated)
     document = replace(file.document, source_type=source, source_account_identifier=document_owner, rows=rows)
-    return replace(file, source_type=source, source_scope_label=scope, document=document)
+    return replace(file, source_type=source, document=document)
 
 
 def _selections(files, account_id="101", revision=1):

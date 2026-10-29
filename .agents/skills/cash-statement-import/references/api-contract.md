@@ -22,7 +22,6 @@
 | `POST /cash-import/sessions` | multipart | `201 SessionView` |
 | `GET /cash-import/sessions/{session_id}` | 无 | 当前 `SessionView` |
 | `POST /cash-import/sessions/{session_id}/files` | multipart，含当前修订；重传时含 `file_ref` | 更新会话，不重读其他文件 |
-| `PATCH /cash-import/sessions/{session_id}/files/{file_ref}` | 当前修订及 `source_scope_label` | 修改微信来源，旧计划失效 |
 | `DELETE /cash-import/sessions/{session_id}/files/{file_ref}` | `If-Match: <session_revision>` | 移除文件解析内容，旧计划失效 |
 | `DELETE /cash-import/sessions/{session_id}` | 无 | 取消未提交任务；不撤销已保存账户或导入 |
 
@@ -34,7 +33,7 @@ multipart 有且只有一个文本部分 `metadata`，值为 JSON；每份文件
 {"files": [{"client_file_ref": "f1"}]}
 ```
 
-每个文件元数据还可含当次 `password`、可选已知 `source_hint` 和微信 `source_scope_label`；普通导入省略后两者，自动识别来源并使用默认微信范围。密码最多 1,024 字符，只用于当次解析，不放入请求头、URL 或持久缓存。无密码时省略。用户提供密码后重传单份文件：
+每个文件元数据还可含当次 `password` 和可选已知 `source_hint`；普通导入省略 `source_hint` 并自动识别来源。没有设置微信来源名称的字段或文件更新命令。微信每条交易必须有非空交易单号，并使用固定范围跨账号匹配。密码最多 1,024 字符，只用于当次解析，不放入请求头、URL 或持久缓存。无密码时省略。用户提供密码后重传单份文件：
 
 ```json
 {
@@ -44,18 +43,12 @@ multipart 有且只有一个文本部分 `metadata`，值为 JSON；每份文件
 }
 ```
 
-重传附且仅附 `file:f1`，使用原文件字节。添加文件则省略 `file_ref`，可附多份新文件。修改微信来源示例：
-
-```json
-{"expected_session_revision": 3, "source_scope_label": "另一个微信账号"}
-```
-
-`source_scope_label` 为 `null` 或空字符串表示默认来源，不要求用户填写微信号；非微信文件不能借此改渠道。成功后从响应取得最新修订。文件名明确以“密码”“password”或“pwd”等标记提供的值，可作为该文件当次上传的 `password`；不得从其他文件名信息推测密码，也不得从文件名猜来源身份。密码仅用于本次请求，不记录或持久化。
+重传附且仅附 `file:f1`，使用原文件字节。添加文件则省略 `file_ref`，可附多份新文件。成功后从响应取得最新修订。文件名明确以“密码”“password”或“pwd”等标记提供的值，可作为该文件当次上传的 `password`；不得从其他文件名信息推测密码，也不得从文件名猜来源身份。密码仅用于本次请求，不记录或持久化。
 
 `SessionView` 含 `session_id`、`session_revision`、`expires_at`、`state`（`open/committed/cancelled`）、`files[]`、`source_accounts[]`、`last_preview_input`、`last_plan_id`、`can_preview`、`receipt_id`。会话只保存限时解析内容，不提供原文件下载。
 
-- 文件项含 `file_ref`、`client_file_ref`、安全展示名、`source_type`、`source_scope_label`、`status`（`ready/partial/password_required/failed`）、`recognized_row_count`、安全 `issues[]`、`can_retry`。
-- 来源账户项含 `source_account_ref`、渠道、展示名、`currencies`、`row_count`、`suggestion` 和 `selection`。建议含 `account_id`、`expected_account_revision`、`basis`（`confirmed_mapping/legacy_mapping/account_alias/none`）。不使用已移除的 `groups`、`masked_evidence` 或 `mapping_revision` 字段。
+- 文件项含 `file_ref`、`client_file_ref`、安全展示名、`source_type`、`status`（`ready/partial/password_required/failed`）、`recognized_row_count`、安全 `issues[]`、`can_retry`。
+- 来源账户项含 `source_account_ref`、渠道、展示名、`currencies`、`row_count`、`suggestion` 和 `selection`；微信和支付宝账号组含只在本次会话使用的 `session_group_ref`；其 `session_label` 显示微信昵称、脱敏支付宝账号或文件名。身份不可用时按文件分组，这些字段不作为长期身份。建议含 `account_id`、`expected_account_revision`、`basis`（`confirmed_mapping/legacy_mapping/account_alias/none`）；微信建议固定为空并使用 `none`。不使用已移除的 `groups`、`masked_evidence` 或 `mapping_revision` 字段。
 - 单份文件错误不阻塞其他文件；使用 `can_preview` 判断下一步，不能要求所有文件就绪。已消费会话按持久结果恢复，不因临时清理丢失已知成功。
 
 ## 2. 独立账户操作

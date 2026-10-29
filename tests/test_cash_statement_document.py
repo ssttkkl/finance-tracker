@@ -29,14 +29,14 @@ def _alipay_row(**changes):
     return [fields[key] for key in ALIPAY_HEADER]
 
 
-def _xlsx(rows, *, count=1):
+def _xlsx(rows, *, count=1, header=WECHAT_HEADER):
     import openpyxl
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     for row in [["微信支付账单明细"], ["微信昵称：[测试昵称]"],
                 ["起始时间：[2026-08-01 00:00:00]"], ["终止时间：[2026-08-31 23:59:59]"],
                 ["导出类型：[全部]"], [f"共{count}笔记录"],
-                ["说明：请核对申请导出账单的微信号，不代表本人微信号字段"], WECHAT_HEADER, *rows]:
+                ["说明：请核对申请导出账单的微信号，不代表本人微信号字段"], header, *rows]:
         sheet.append(row)
     stream = BytesIO()
     workbook.save(stream)
@@ -117,6 +117,7 @@ def test_wechat_nickname_and_explanatory_account_word_are_not_owner_identity():
     document = _read(_xlsx([row]), "wechat")
     assert document.source_account_identifier is None
     assert document.source_account_label == "测试昵称"
+    assert document.source_nickname == "测试昵称"
     assert document.rows[0].payload["备注"] == "备注原文"
     assert document.coverage.complete
 
@@ -262,6 +263,14 @@ def test_xlsx_implicit_trailing_empty_cells_are_valid_fields():
     assert document.coverage.complete
 
 
+def test_wechat_transaction_id_column_is_required():
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    header = WECHAT_HEADER[:8] + WECHAT_HEADER[9:]
+    row = _wechat_row()[:8] + _wechat_row()[9:]
+    with pytest.raises(StatementDocumentError, match="statement_header_not_found"):
+        _read(_xlsx([row], header=header), "wechat")
+
+
 @pytest.mark.parametrize("fragment", [
     b'<row r="9"><c r="A9" t="n"><v>1</v></c></row>',
     b'<row r="10"><c r="A9" t="n"><v>1</v></c></row>',
@@ -305,6 +314,6 @@ def test_source_can_be_identified_from_the_same_header_read(content, source):
 
 def test_ambiguous_source_header_is_not_guessed():
     from ft.adapters.cash_statement_document import StatementDocumentError
-    content = _csv([_alipay_row()], count=1).replace("商家订单号".encode(), "金额(元)".encode())
+    content = _csv([_alipay_row()], count=1).replace("商家订单号".encode(), "金额(元)".encode()).replace("交易订单号".encode(), "交易单号".encode())
     with pytest.raises(StatementDocumentError, match="statement_header_invalid"):
         _read(content, None)

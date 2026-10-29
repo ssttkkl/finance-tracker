@@ -317,9 +317,10 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                         val source = files[file.clientFileRef]
                         if (source == null) pick(file.fileRef, password.takeIf(String::isNotEmpty))
                         else task.upload(listOf(ImportUpload(file.clientFileRef, source, password.takeIf(String::isNotEmpty))), file.fileRef)
-                    }, onRemove = task::removeFile, onScope = task::setSourceScope,
+                    }, onRemove = task::removeFile,
                     onSelectAccount = { ref, id -> if (id == null) task.selectAccount(ref, ImportAccountTarget(null, null))
                         else { selecting = ref to id; account.loadAccount(id) } },
+                    onMergeSameNameAcrossChannels = task::setMergeSameNameAcrossChannels,
                     onCreateAccount = { source ->
                         accountCreatePriorIds = accountState.accounts.mapTo(mutableSetOf()) { it.id } + accountState.currentAccounts.keys
                         accountForm = "new"

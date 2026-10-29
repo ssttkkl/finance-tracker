@@ -214,19 +214,19 @@ def test_mapping_and_records_rollback_together_on_publication_failure(context_ru
         assert not session.scalar(select(CashTransactionModel).where(CashTransactionModel.source_type == "alipay"))
 
 
-def _source(file, source, owner="fixture-owner", scope=None):
-    return _as_source(file, source, owner=owner, scope=scope)
+def _source(file, source, owner="fixture-owner"):
+    return _as_source(file, source, owner=owner)
 
 
-@pytest.mark.parametrize("source,other_owner,scope", [
-    ("wechat", None, "另一个本人来源"), ("alipay", "other-owner", None), ("alipay", None, None)])
-def test_mapping_does_not_cross_owner_or_file_local_scope(context_runtime, source, other_owner, scope):
+@pytest.mark.parametrize("other_owner", ["other-owner", None])
+def test_alipay_mapping_does_not_cross_source_account(context_runtime, other_owner):
     runtime = context_runtime
-    owner = None if source == "wechat" or other_owner is None else "fixture-owner"
+    source = "alipay"
+    owner = None if other_owner is None else "fixture-owner"
     first = _source(_file(), source, owner)
     service, plan = _plan(runtime, (first,))
     _commit(service, plan)
-    second = _source(_file(letter="b", provider="002"), source, other_owner, scope)
+    second = _source(_file(letter="b", provider="002"), source, other_owner)
     own = scan_cash_funding((first,)).groups[0].source_account_ref
     other = scan_cash_funding((second,)).groups[0].source_account_ref
     assert own != other
@@ -260,14 +260,13 @@ def test_suggestions_recheck_account_eligibility_without_writes(context_runtime,
     assert _mappings(runtime) == before
 
 
-@pytest.mark.parametrize("source,scope,kind,accepted", [
-    ("wechat", None, "payment_method", True), ("wechat", "另一个本人来源", "payment_method", False),
-    ("alipay", None, "payment_method", False), ("icbc_credit", None, "file_account", True),
-    ("ccb_debit", None, "card_tail", False)])
-def test_legacy_mapping_is_only_a_narrow_readonly_hint(context_runtime, source, scope, kind, accepted):
+@pytest.mark.parametrize("source,kind,accepted", [
+    ("alipay", "payment_method", False), ("icbc_credit", "file_account", True),
+    ("ccb_debit", "card_tail", False)])
+def test_legacy_mapping_is_only_a_narrow_readonly_hint(context_runtime, source, kind, accepted):
     runtime = context_runtime
     owner = "1234567890123456" if source in {"icbc_credit", "ccb_debit"} else None
-    file = _source(_file(), source, owner, scope)
+    file = _source(_file(), source, owner)
     group, = scan_cash_funding((file,)).groups
     key = owner[-4:] if kind == "card_tail" else owner if kind == "file_account" else group.identity_key
     with runtime.sessions.begin() as session:
@@ -276,3 +275,31 @@ def test_legacy_mapping_is_only_a_narrow_readonly_hint(context_runtime, source, 
     before = _mappings(runtime)
     assert _suggest(runtime, (file,))[group.source_account_ref]["account_id"] == ("101" if accepted else None)
     assert _mappings(runtime) == before
+
+
+def test_wechat_never_reads_persistent_mapping_or_alias_suggestions(context_runtime, monkeypatch):
+    from ft.adapters.relational.cash_funding_mappings import CashFundingMappingRepository
+    runtime = context_runtime
+    file = _source(_file(), "wechat", None)
+    group, = scan_cash_funding((file,)).groups
+    with runtime.sessions.begin() as session:
+        session.add(StatementAccountMappingModel(workspace_id=runtime.workspace_id, source_type="wechat",
+            identity_kind="funding_group_v1", source_account_key=group.source_account_ref, account_id=101))
+        session.add(StatementAccountMappingModel(workspace_id=runtime.workspace_id, source_type="wechat",
+            identity_kind="payment_method", source_account_key=group.identity_key, account_id=101))
+        session.add(AccountAliasModel(workspace_id=runtime.workspace_id, alias_type="account_identifier",
+            alias_value="1234567890123456", account_id=101))
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("WeChat suggestions must not query persistent account mappings")
+    monkeypatch.setattr(CashFundingMappingRepository, "lookup", forbidden)
+    suggestion = _suggest(runtime, (file,))[group.source_account_ref]
+    assert suggestion == {"account_id": None, "expected_account_revision": None, "basis": "none"}
+
+
+def test_wechat_commit_does_not_publish_cross_import_account_mapping(context_runtime):
+    runtime, file = context_runtime, _source(_file(), "wechat", None)
+    service, plan = _plan(runtime, (file,))
+    _commit(service, plan)
+    assert _mappings(runtime) == []
+    group, = scan_cash_funding((file,)).groups
+    assert _suggest(runtime, (file,))[group.source_account_ref]["account_id"] is None

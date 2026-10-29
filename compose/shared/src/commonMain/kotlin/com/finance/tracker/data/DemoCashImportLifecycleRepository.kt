@@ -21,7 +21,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         val id = old?.sessionId ?: "demo${++next}".padEnd(43, 'x')
         val kept = old?.files.orEmpty().filterNot { it.fileRef == replacingFileRef }
         val added = files.map { file -> ImportContextFile(replacingFileRef ?: "demo-file-${++next}", file.clientFileRef, file.file.name,
-            "demo_bank", null, "ready", 2, emptyList(), false) }
+            "demo_bank", "ready", 2, emptyList(), false) }
         val groups = if (kept.isEmpty() && added.isEmpty()) emptyList() else listOf(ImportSourceAccount("demo-source", "demo_bank", "日常账户", listOf("CNY"), // i18n-allow: demo-fixture
             (kept.size + added.size) * 2, ImportAccountTarget("1", accountVersions["1"] ?: 1), "existing_account", null))
         val selected = old?.lastChoices?.accountSelections?.filter { selection -> groups.any { it.sourceAccountRef == selection.sourceAccountRef } }
@@ -32,11 +32,6 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         return ImportUploadBatch(value, emptyList(), null)
     }
     override suspend fun context(sessionId: String) = contexts[sessionId] ?: fail("session_not_found", 404)
-    override suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext {
-        val old = open(sessionId, revision)
-        return old.copy(revision = revision + 1, files = old.files.map { if (it.fileRef == fileRef) it.copy(sourceScopeLabel = label) else it },
-            lastChoices = ImportChoiceSet(accountSelections = old.lastChoices?.accountSelections.orEmpty()), lastPlanId = null).also { contexts[sessionId] = it }
-    }
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext {
         val old = open(sessionId, revision); val remaining = old.files.filterNot { it.fileRef == fileRef }
         return old.copy(revision = revision + 1, files = remaining, sourceAccounts = if (remaining.isEmpty()) emptyList() else old.sourceAccounts,

@@ -326,23 +326,21 @@ class ImportTaskViewModelTest {
         assertTrue(vm.state.value.canEdit)
     } }
 
-    @Test fun lostFileCommandResponseLocksBothRemoveAndScopeUntilRefresh() = runTest { task { vm, repo, _ ->
+    @Test fun lostFileCommandResponseLocksRemoveUntilRefresh() = runTest { task { vm, repo, _ ->
         vm.restore(); advanceUntilIdle()
-        for (scopeChange in listOf(false, true)) {
-            vm.preview(); advanceUntilIdle()
-            assertTrue(vm.state.value.canConfirm)
-            repo.failFileMutation = true
-            if (scopeChange) vm.setSourceScope("f1", "other") else vm.removeFile("f1")
-            advanceUntilIdle()
-            assertFalse(vm.state.value.canEdit)
-            assertFalse(vm.state.value.canConfirm)
-            vm.confirm(); advanceUntilIdle(); assertTrue(repo.confirmations.isEmpty())
-            repo.failFileMutation = false
-            vm.refresh(); advanceUntilIdle()
-            assertTrue(vm.state.value.canEdit)
-            assertEquals(repo.current.revision, vm.state.value.context?.revision)
-            assertNull(vm.state.value.plan)
-        }
+        vm.preview(); advanceUntilIdle()
+        assertTrue(vm.state.value.canConfirm)
+        repo.failFileMutation = true
+        vm.removeFile("f1")
+        advanceUntilIdle()
+        assertFalse(vm.state.value.canEdit)
+        assertFalse(vm.state.value.canConfirm)
+        vm.confirm(); advanceUntilIdle(); assertTrue(repo.confirmations.isEmpty())
+        repo.failFileMutation = false
+        vm.refresh(); advanceUntilIdle()
+        assertTrue(vm.state.value.canEdit)
+        assertEquals(repo.current.revision, vm.state.value.context?.revision)
+        assertNull(vm.state.value.plan)
     } }
 
     @Test fun lostPreviewResponseLocksPreviousPlanUntilRefresh() = runTest { task { vm, repo, _ ->
@@ -381,7 +379,7 @@ class ImportTaskViewModelTest {
         vm.selectAccount("src", ImportAccountTarget(null, null))
         vm.removeFile("f1"); advanceUntilIdle()
         assertEquals(listOf("preview:2", "remove:3"), repo.events)
-        assertNull(repo.lastChoices?.accountSelections?.single()?.target?.accountId)
+        assertTrue(repo.lastChoices?.accountSelections.orEmpty().isEmpty())
         assertEquals(repo.lastChoices, vm.state.value.choices)
         assertEquals(4, vm.state.value.context?.revision)
         assertNull(vm.state.value.plan)
@@ -659,7 +657,6 @@ internal class TaskRepository : CashImportLifecycleRepository {
     }
     override suspend fun receipt(receiptId: String): ImportReceipt { receiptFailure?.let { throw it }; return taskReceipt() }
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch = uploadAction?.invoke(onContext) ?: error("unused")
-    override suspend fun setSourceScope(sessionId: String, fileRef: String, revision: Long, label: String?): ImportContext = mutateFile("scope", revision)
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext {
         return mutateFile("remove", revision)
     }

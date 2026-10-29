@@ -234,12 +234,13 @@ def test_current_mapping_get_error_keeps_original_change_semantics(error):
 
 
 @pytest.mark.parametrize('source', ['wechat', 'alipay'])
-def test_file_scope_reuse_preserves_digest_for_row_specific_accounts(source):
+def test_file_scope_reuse_preserves_digest_for_channel_scope(source):
     from ft.application.cash_import_source_rows import source_rows
     from ft.domain.cash_source_matching import _digest
     file = _file(source=source, methods=('余额',) * 3)
     file = replace(file, document=replace(file.document, rows=tuple(replace(row,
-        source_account_identifier=str(index)) for index, row in enumerate(file.document.rows))))
+        source_account_identifier=str(index), provider_id=f'wechat-{index}' if source == 'wechat' else row.provider_id)
+        for index, row in enumerate(file.document.rows))))
     for occurrence in source_rows(file).values():
         identity = (occurrence.source_type, occurrence.source_account_key, occurrence.file_digest, occurrence.parser_version) if source == 'wechat' else (
             occurrence.source_type, occurrence.file_digest, occurrence.parser_version)

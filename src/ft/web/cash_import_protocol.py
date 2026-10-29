@@ -39,7 +39,6 @@ class UploadFileMetadata(StrictInput):
     client_file_ref: str = Field(pattern=r"^[A-Za-z0-9_-]{1,128}$")
     password: str | None = Field(default=None, max_length=1024, repr=False)
     source_hint: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_-]{0,63}$")
-    source_scope_label: str | None = Field(default=None, max_length=64)
     last_modified_at_ms: FileModifiedAtMs | None = None
 
 
@@ -50,11 +49,6 @@ class UploadMetadata(StrictInput):
 class AddUploadMetadata(UploadMetadata):
     expected_session_revision: Revision
     file_ref: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{1,128}$")
-
-
-class SourceScopeInput(StrictInput):
-    expected_session_revision: Revision
-    source_scope_label: str | None = Field(max_length=64)
 
 
 class CashImportIssueView(StrictInput):
@@ -82,7 +76,6 @@ class CashImportFileView(StrictInput):
     client_file_ref: str
     display_name: str
     source_type: str | None
-    source_scope_label: str | None
     status: Literal["ready", "partial", "password_required", "failed"]
     recognized_row_count: int | None
     issues: list[CashImportIssueView]
@@ -93,6 +86,8 @@ class CashImportSourceAccountView(StrictInput):
     source_account_ref: str
     source_type: str
     display_name: str
+    session_label: str | None
+    session_group_ref: str | None = None
     currencies: list[str]
     row_count: int
     suggestion: CashImportAccountSuggestion
@@ -234,13 +229,8 @@ async def upload_input(request, model):
         uploads = []
         for item in metadata.files:
             part = found["file:" + item.client_file_ref]
-            # 明确 null 和缺省不同；空字符串经领域规范化后表示默认来源。
-            scope = item.source_scope_label
-            if scope is None and "source_scope_label" in item.model_fields_set:
-                scope = ""
             uploads.append(CashImportUpload(item.client_file_ref, part.filename or "账单", part.file,
-                password=item.password, source_hint=item.source_hint, source_scope_label=scope,
-                last_modified_at_ms=item.last_modified_at_ms))
+                password=item.password, source_hint=item.source_hint, last_modified_at_ms=item.last_modified_at_ms))
         yield metadata, tuple(uploads)
     except MultiPartException:
         raise CashImportProtocolError from None

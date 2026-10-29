@@ -16,10 +16,10 @@ private data class RestoredImportChoicesDto(
 internal fun CashImportIssueDto.toDomain() = ImportIssue(code, message, fieldPath, blockingScope, nextAction, afterImportAction)
 internal fun CashImportSessionDto.toDomain() = ImportContext(
     sessionId, sessionRevision, expiresAt, state,
-    files.map { ImportContextFile(it.fileRef, it.clientFileRef, it.displayName, it.sourceType, it.sourceScopeLabel, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.canRetry, it.diagnostic?.toDomain()) },
+    files.map { ImportContextFile(it.fileRef, it.clientFileRef, it.displayName, it.sourceType, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.canRetry, it.diagnostic?.toDomain()) },
     sourceAccounts.map { group -> ImportSourceAccount(group.sourceAccountRef, group.sourceType, group.displayName, group.currencies, group.rowCount,
         group.suggestion.accountId?.let { ImportAccountTarget(it, group.suggestion.expectedAccountRevision) }, group.suggestion.basis,
-        group.selection?.let { ImportAccountTarget(it.accountId, it.expectedAccountRevision) }) },
+        group.selection?.let { ImportAccountTarget(it.accountId, it.expectedAccountRevision) }, group.sessionLabel, group.sessionGroupRef) },
     lastPreviewInput?.let { input ->
         val value = apiJson.decodeFromJsonElement<RestoredImportChoicesDto>(input)
         ImportChoiceSet(value.accounts.map { ImportAccountSelection(it.sourceAccountRef, ImportAccountTarget(it.accountId, it.expectedAccountRevision)) },

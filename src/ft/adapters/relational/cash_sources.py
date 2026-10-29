@@ -6,11 +6,13 @@ from collections import defaultdict
 import json
 import re
 
-from sqlalchemy import Text, and_, cast, delete, func, or_, select, tuple_, union_all
+from sqlalchemy import Text, and_, cast, delete, or_, select, tuple_, union_all
 
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
-from ft.domain.cash_source_matching import SourceBindingKey, SourceCoverage, SourceDocumentEvidence, SourceOccurrence, SourceRecord, provider_identity_key, _digest, conflicting_source_document_pages
-from ft.domain.cash_source_scope import WECHAT_DEFAULT_SCOPE
+from ft.domain.cash_source_matching import (
+    SourceBindingKey, SourceCoverage, SourceDocumentEvidence, SourceOccurrence, SourceRecord,
+    _digest, conflicting_source_document_pages,
+)
 from .models import (
     CashIssueCandidateModel, CashSourceBindingModel, CashSourceEmptyPageModel,
     CashTransactionIssueModel, CashTransactionModel,
@@ -38,23 +40,10 @@ def _identifier(value):
     return value
 
 
-def _legacy_wechat_provider(parent):
-    payload = parent.source_payload
-    raw = payload.get("交易单号") if isinstance(payload, dict) else None
-    if (parent.source_type == "wechat" and isinstance(raw, str) and raw.strip() not in {"", "/", "-", "--"}
-        and len(raw.strip()) <= 512 and parent.record_id == "wechat_" + raw):
-        return raw.strip()
-    return None
-
-
-def _identity_parts(target, bindings):
+def _identity_parts(bindings):
     scopes = {binding.source_scope_key for binding in bindings if binding.source_scope_kind == "account"}
     providers = {binding.identity_key for binding in bindings if binding.identity_kind == "provider_id"}
     evidence = {binding.stable_evidence_key for binding in bindings if binding.stable_evidence_key}
-    legacy = _legacy_wechat_provider(target) if not scopes else None
-    if legacy:
-        scopes.add(WECHAT_DEFAULT_SCOPE)
-        providers.add(provider_identity_key(legacy))
     return scopes, providers, evidence
 
 
@@ -74,12 +63,6 @@ def _all_positions(bindings):
         if binding.source_scope_kind == "file_local" and binding.identity_kind == "file_occurrence":
             positions[binding.source_scope_key].add(binding.identity_key)
     return positions
-
-
-# 与 Python str.strip 使用同一空白集合，兼容旧读取器保留的原始交易号。
-_ID_WHITESPACE = " \t\r\n\v\f\x1c\x1d\x1e\x1f\x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
-
-
 class CashSourceRepository:
     def __init__(self, session, workspace_id: str):
         self.session = session
@@ -185,7 +168,7 @@ class CashSourceRepository:
 
     def _validate_scope(self, target, row):
         bindings = self.bindings_for(target.id)
-        scopes, providers, evidence = _identity_parts(target, bindings)
+        scopes, providers, evidence = _identity_parts(bindings)
         incoming_provider = next((spec.identity_key for spec in row.binding_specs if spec.identity_kind == "provider_id"), None)
         if target.source_type != row.source_type or row.source_account_key and scopes and scopes != {row.source_account_key} or incoming_provider and providers and incoming_provider not in providers or row.stable_evidence_binding_key and evidence and row.stable_evidence_binding_key not in evidence:
             raise SourceBindingConflict("source_identity_conflict")
@@ -199,10 +182,11 @@ class CashSourceRepository:
             return []
         from datetime import datetime
         direct_ids = sorted({binding.transaction_id for binding in self._for_occurrences(rows)})
-        legacy_numbers = sorted({row.provider_id for row in rows
-            if row.source_type == "wechat" and row.source_account_key == WECHAT_DEFAULT_SCOPE and row.provider_id})
+        time_sources = {row.source_type for row in rows if row.source_type != "wechat"}
         times = set()
         for row in rows:
+            if row.source_type == "wechat":
+                continue
             value = row.fields.get("occurred_at")
             try:
                 when = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -212,14 +196,20 @@ class CashSourceRepository:
                 pass
         # 旧数据的未知账户候选也读取，规划器会保留真实碰撞待处理，不能复制正式组。
         times = sorted(times)
+        if not direct_ids and not times:
+            return []
         by_id = {}
-        for offset in range(0, max(len(direct_ids), len(times), len(legacy_numbers)), 250):
+        for offset in range(0, max(len(direct_ids), len(times)), 250):
+            candidates = []
+            if direct_ids[offset:offset + 250]:
+                candidates.append(CashTransactionModel.id.in_(direct_ids[offset:offset + 250]))
+            if times[offset:offset + 250]:
+                candidates.append(and_(CashTransactionModel.source_type.in_(time_sources),
+                    CashTransactionModel.occurred_at.in_(times[offset:offset + 250])))
             for parent in self.session.scalars(select(CashTransactionModel).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.deleted_at.is_(None), CashTransactionModel.record_origin.in_(("import", "legacy")),
                 CashTransactionModel.source_type.in_({row.source_type for row in rows}),
-                or_(CashTransactionModel.id.in_(direct_ids[offset:offset + 250]), CashTransactionModel.occurred_at.in_(times[offset:offset + 250]),
-                    and_(CashTransactionModel.source_type == "wechat", CashTransactionModel.record_id.startswith("wechat_", autoescape=True),
-                        func.trim(func.substr(CashTransactionModel.record_id, 8), _ID_WHITESPACE).in_(legacy_numbers[offset:offset + 250]))),
+                or_(*candidates),
             )):
                 by_id[parent.id] = parent
         parents = [parent for parent in by_id.values() if parent.record_origin in {"import", "legacy"}]
@@ -252,11 +242,9 @@ class CashSourceRepository:
                 "record_type", "record_subtype", "source_payload",
             )}
             fields["components"] = [{"component_id": child.id, "account_id": child.account_id, "amount": child.amount, "currency": child.currency, "ordinal": child.ordinal} for child in children[parent.id]]
-            legacy_provider = _legacy_wechat_provider(parent) if not scopes else None
             result.append(SourceRecord(
                 transaction_id=str(parent.id), source_type=parent.source_type,
-                source_account_key=next(iter(scopes), WECHAT_DEFAULT_SCOPE if legacy_provider else None), fields=fields,
-                provider_id=legacy_provider,
+                source_account_key=next(iter(scopes), None), fields=fields,
                 coverages=tuple(SourceCoverage(**binding.coverage) for binding in verified),
                 binding_keys=frozenset(key.key for key in keys),
                 file_occurrences={scope: frozenset(positions) for scope, positions in _all_positions(aliases).items()},
@@ -431,7 +419,7 @@ class CashSourceRepository:
         if draft.state != "draft" or draft.id == target.id or draft.source_type != target.source_type:
             raise SourceBindingConflict("source_merge_requires_draft")
         draft_bindings, target_bindings = self.bindings_for(draft.id), self.bindings_for(target.id)
-        draft_identity, target_identity = _identity_parts(draft, draft_bindings), _identity_parts(target, target_bindings)
+        draft_identity, target_identity = _identity_parts(draft_bindings), _identity_parts(target_bindings)
         scopes, providers, evidence = (left | right for left, right in zip(draft_identity, target_identity))
         if len(scopes) > 1 or len(providers) > 1 or len(evidence) > 1:
             raise SourceBindingConflict("source_identity_conflict")

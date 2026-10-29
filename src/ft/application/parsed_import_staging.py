@@ -18,7 +18,6 @@ from typing import Any
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.cash_statement_evidence import valid_source_explanation
 from ft.domain.cash_source_matching import SourceCoverage
-from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
@@ -50,7 +49,6 @@ class ParsedImportFile:
     status: str
     document: ParsedCashDocument | None = None
     error_code: str | None = None
-    source_scope_label: str | None = None
     is_subset: bool = False
     last_modified_at_ms: int | None = None
     diagnostic: dict[str, Any] | None = None
@@ -120,7 +118,9 @@ def _valid_files(files):
             raise ParsedImportDataError("import_session_file_invalid")
         if item.document is not None:
             doc = item.document
-            if not isinstance(doc.rows, tuple) or len(doc.rows) > 100_000 or not isinstance(doc.coverage, SourceCoverage) or type(doc.coverage.complete) is not bool:
+            if (not isinstance(doc.rows, tuple) or len(doc.rows) > 100_000 or not isinstance(doc.coverage, SourceCoverage)
+                or type(doc.coverage.complete) is not bool
+                or doc.source_nickname is not None and (not isinstance(doc.source_nickname, str) or len(doc.source_nickname) > 255)):
                 raise ParsedImportDataError("import_session_document_invalid")
             try:
                 # frozen 的页面证明仍含可变映射，写入时重验构造器合同。
@@ -136,18 +136,14 @@ def _valid_files(files):
                     or not isinstance(row.payment_method, str)
                     or not valid_source_explanation(row.source_explanation)
                     or row.provider_id is not None and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
+                    or doc.source_type == "wechat" and row.disposition == "candidate"
+                        and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
                     or row.source_account_identifier is not None and (not isinstance(row.source_account_identifier, str) or not 1 <= len(row.source_account_identifier) <= 256)
                     or row.document_position is not None and (not isinstance(row.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", row.document_position))
                     or not isinstance(row.issue_codes, tuple)
                     or any(not isinstance(code, str) or not re.fullmatch(r"[a-z][a-z0-9_]{0,63}", code) for code in (*row.issue_codes, *((row.error_code,) if row.error_code is not None else ())))):
                     raise ParsedImportDataError("import_session_document_invalid")
                 positions.add(row.position)
-        try:
-            if (normalize_scope_label(item.source_scope_label) != item.source_scope_label
-                or item.source_scope_label is not None and item.source_type != "wechat"):
-                raise CashSourceScopeError
-        except CashSourceScopeError:
-            raise ParsedImportDataError("import_session_file_invalid") from None
 
 
 class _JsonBudgetFallback(Exception):

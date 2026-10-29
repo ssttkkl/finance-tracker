@@ -205,96 +205,32 @@ def test_replace_reparses_only_uploaded_file_and_changes_row_namespace(context_r
     assert b"one-use" not in service._staging._entries[created.session_id]
 
 
-def test_wechat_file_scope_change_invalidates_only_its_choices_without_parsing_or_extending_ttl(context_runtime):
-    from ft.application.parsed_import_staging import InMemoryParsedImportStore
-    calls, store = [], InMemoryParsedImportStore()
-    service = _service(context_runtime, lambda upload: calls.append(upload.client_file_ref) or replace(_document(),
-        source_type="wechat", source_account_identifier=None, source_account_label="昵称"), store)
-    created = service.create((_upload(), _upload("client-2")))
-    first, second = created.files
-    planned = store.replace(created.session_id, workspace_id=context_runtime.workspace_id, user_id=USER,
-        expected_revision=created.revision, files=created.files,
-        preview_input={"previous_plan_id": "previous", "row_choices": [
-            {"row_ref": first.file_ref + ":r8", "action": "apply"}, {"row_ref": second.file_ref + ":r8", "action": "defer"}]},
-        plan={"plan_id": "previous"})
-    changed = service.set_file_source_scope(created.session_id, first.file_ref, "  工作微信  ", expected_revision=planned.revision)
-    assert changed.revision == planned.revision + 1 and changed.plan is None
-    assert changed.files[0].source_scope_label == "工作微信" and changed.files[1].source_scope_label is None
-    assert changed.files[0].document == first.document and calls == ["client-1", "client-2"]
-    assert changed.expires_at == created.expires_at
-    assert changed.preview_input["row_choices"] == [{"row_ref": second.file_ref + ":r8", "action": "defer"}]
-    assert service.get(created.session_id).session == changed
-
-
-def test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries(context_runtime):
-    from ft.application.parsed_import_staging import ImportSessionRevisionConflict
-    from ft.adapters.relational.cash_mutations import CashMutationConflict
-    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
+def test_wechat_nickname_is_available_only_on_the_temporary_account_group(context_runtime):
+    from ft.application.cash_import_session_view import cash_import_session_view
+    from ft.application.cash_import_funding import scan_cash_funding
+    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat",
+        source_account_identifier=None, source_account_label="微信昵称甲", source_nickname="微信昵称甲"))
     created = service.create((_upload(),))
-    with pytest.raises(ImportSessionRevisionConflict):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=999)
-    _consume(context_runtime, created.session_id)
-    with pytest.raises(CashMutationConflict, match="session_committed"):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).receipt
+    groups = scan_cash_funding(created.files).groups
+    view = cash_import_session_view(created, groups, {group.source_account_ref: {
+        "account_id": None, "expected_account_revision": None, "basis": "none"} for group in groups})
+    assert "source_scope_label" not in view["files"][0]
+    assert view["source_accounts"][0]["session_label"] == "微信昵称甲"
+    assert "微信昵称甲" not in view["source_accounts"][0]["source_account_ref"]
 
 
-def test_wechat_scope_setting_rechecks_current_write_permission(context_runtime):
-    from ft.adapters.relational.models import WorkspaceMembershipModel
-    from ft.application.cash_import_context import CashImportPermissionDenied
-    service = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
-    created = service.create((_upload(),))
-    with context_runtime.sessions.begin() as session:
-        session.get(WorkspaceMembershipModel, (context_runtime.workspace_id, USER)).role = "viewer"
-    with pytest.raises(CashImportPermissionDenied):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).session == created
-
-
-def test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged(context_runtime):
-    from ft.domain.cash_source_scope import CashSourceScopeError
-    service = _service(context_runtime)
-    created = service.create((_upload(),))
-    with pytest.raises(CashSourceScopeError, match="source_scope_unsupported"):
-        service.set_file_source_scope(created.session_id, created.files[0].file_ref, "工作", expected_revision=created.revision)
-    assert service.get(created.session_id).session == created
-    wechat = _service(context_runtime, lambda _: replace(_document(), source_type="wechat"))
-    created = wechat.create((_upload(),))
-    with pytest.raises(CashSourceScopeError, match="source_scope_invalid"):
-        wechat.set_file_source_scope(created.session_id, created.files[0].file_ref, "invalid\n", expected_revision=created.revision)
-    assert wechat.get(created.session_id).session == created
-
-
-def test_file_replacement_preserves_wechat_scope_without_reusing_it_for_other_channels(context_runtime):
-    service = _service(context_runtime, lambda upload: replace(_document(), source_type="alipay" if upload.filename == "other.csv" else "wechat"))
-    created = service.create((replace(_upload(), source_scope_label="工作微信"),))
-    assert created.files[0].source_scope_label == "工作微信"
-    replacement = service.replace_file(created.session_id, created.files[0].file_ref, _upload(), expected_revision=created.revision)
-    assert replacement.files[0].source_scope_label == "工作微信"
-    cleared = service.set_file_source_scope(created.session_id, replacement.files[0].file_ref, None, expected_revision=replacement.revision)
-    assert cleared.files[0].source_scope_label is None
-    changed = service.set_file_source_scope(created.session_id, cleared.files[0].file_ref, "工作微信", expected_revision=cleared.revision)
-    other = service.replace_file(created.session_id, changed.files[0].file_ref, _upload(filename="other.csv"), expected_revision=changed.revision)
-    assert other.files[0].source_scope_label is None and other.files[0].status == "parsed"
-
-
-@pytest.mark.parametrize("failure", ["password", "unreadable"])
-def test_replacement_failure_preserves_selected_wechat_source_for_later_retry(context_runtime, failure):
-    from ft.application.cash_import_context import CashImportPasswordRequired
-    def parser(upload):
-        if upload.filename == "password.xlsx":
-            raise CashImportPasswordRequired()
-        if upload.filename == "unreadable.xlsx":
-            raise RuntimeError("private parser failure")
-        return replace(_document(), source_type="wechat")
-    service = _service(context_runtime, parser)
-    created = service.create((replace(_upload(), source_scope_label="工作微信"),))
-    failed = service.replace_file(created.session_id, created.files[0].file_ref, _upload(filename=failure + ".xlsx"), expected_revision=created.revision)
-    assert failed.files[0].document is None
-    assert failed.files[0].source_scope_label == "工作微信"
-    retried = service.replace_file(created.session_id, failed.files[0].file_ref, _upload(), expected_revision=failed.revision)
-    assert retried.files[0].status == "parsed" and retried.files[0].source_scope_label == "工作微信"
-    assert retried.expires_at == created.expires_at
+def test_replacement_reads_new_wechat_nickname_without_carrying_prior_session_label(context_runtime):
+    from ft.application.cash_import_funding import scan_cash_funding
+    service = _service(context_runtime, lambda upload: replace(_document(), source_type="wechat",
+        source_account_identifier=None, source_account_label=upload.filename, source_nickname=upload.filename))
+    created = service.create((_upload(filename="昵称甲.xlsx"),))
+    first_group, = scan_cash_funding(created.files).groups
+    updated = service.replace_file(created.session_id, created.files[0].file_ref,
+        _upload(filename="昵称乙.xlsx"), expected_revision=created.revision)
+    second_group, = scan_cash_funding(updated.files).groups
+    assert first_group.session_label == "昵称甲.xlsx"
+    assert second_group.session_label == "昵称乙.xlsx"
+    assert first_group.source_account_ref != second_group.source_account_ref
 
 
 def test_add_remove_and_stale_revision_do_not_reread_original_files(context_runtime):

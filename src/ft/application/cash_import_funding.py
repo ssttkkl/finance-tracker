@@ -9,6 +9,7 @@ from ft.copying import copy_value
 from dataclasses import dataclass, field
 from decimal import Decimal, localcontext
 import re
+import unicodedata
 
 from ft.application.statement_account_mapping import parse_alipay_payment_components, _normalize_alipay_payment_component, _normalize_wechat_payment_identity
 from ft.domain.cash_record_policy import CashRecordPolicyError, validate_cash_record_for_posting
@@ -35,6 +36,7 @@ class CashFundingGroup:
     origin_key: str = field(repr=False)
     identity_key: str = field(repr=False)
     display_name: str
+    session_label: str | None
     currencies: tuple[str, ...]
     row_refs: tuple[str, ...]
 
@@ -90,6 +92,29 @@ def _label(value):
         lambda match: "尾号 " + re.sub(r"[^0-9]", "", match[0])[-4:], value.replace("\n", " ").strip())[:128]
 
 
+def _session_account_label(value):
+    if not isinstance(value, str):
+        return None
+    value = " ".join(value.replace("\n", " ").split())[:128]
+    if not value:
+        return None
+    email = re.fullmatch(r"([^@\s]{1,64})@([^@\s]{1,253})", value)
+    if email:
+        return email.group(1)[:1] + "***@" + email.group(2)
+    if re.search(r"[*＊•●]", value):
+        digits = re.sub(r"[^0-9]", "", value)
+        return "尾号 " + digits[-4:] if len(digits) >= 4 else "账号已遮蔽"
+    if re.search(r"[0-9](?:[\s\-－—·]*[0-9]){7,}", value):
+        return _label(value)
+    if len(value) >= 4:
+        return value[:1] + "***" + value[-2:]
+    if len(value) == 2:
+        return value[:1] + "*"
+    if len(value) == 3:
+        return value[:1] + "*" + value[-1:]
+    return "账号"
+
+
 def _alipay_parts(method, amount, product_description=""):
     if method.count("&") >= 64:
         raise ValueError("funding_parts_too_large")
@@ -128,10 +153,26 @@ def _parts(file, row):
     document = file.document
     source = document.source_type
     owner = row.source_account_identifier or document.source_account_identifier
-    scope = source_account_key(source, owner, scope_label=file.source_scope_label)
+    scope = source_account_key(source, owner)
     local = _digest("funding-file-v1", source, file.digest, document.parser_version)
     origin = scope or local
+    session_label = None
+    if source == "wechat":
+        nickname = document.source_nickname
+        nickname = unicodedata.normalize("NFC", nickname.strip()) if isinstance(nickname, str) else ""
+        if nickname:
+            origin = _digest("wechat-session-nickname-v1", nickname)
+            session_label = nickname
+        else:
+            origin = _digest("wechat-session-file-v1", file.file_ref)
+            session_label = file.filename
     if source == "alipay":
+        account_label = _session_account_label(document.source_account_label or owner)
+        if owner is None:
+            file_label = _label(file.filename)
+            session_label = f"{account_label} · {file_label}" if account_label else file_label
+        else:
+            session_label = account_label or _label(file.filename)
         source_payload = row.fields.get("source_payload")
         product_description = source_payload.get("商品说明", "") if isinstance(source_payload, Mapping) else ""
         parts, issues = _alipay_parts(row.payment_method.strip(), row.fields.get("amount"), product_description)
@@ -153,7 +194,7 @@ def _parts(file, row):
         parts, issues = [("file_account" if owner else "file_local", owner or masked or "unknown", label, None)], []
     else:
         raise ValueError("funding_source_unsupported")
-    return [(kind, local if kind == "file_local" else origin, key, label, value) for kind, key, label, value in parts], issues
+    return [(kind, local if kind == "file_local" else origin, key, label, value) for kind, key, label, value in parts], issues, session_label
 
 
 def scan_cash_funding(files) -> CashFundingScan:
@@ -181,16 +222,16 @@ def scan_cash_funding(files) -> CashFundingScan:
                         and type(row) is ParsedCashRow and type(document.source_type) is str and document.source_type == "alipay"
                         and type(file.digest) is str and type(document.parser_version) is str
                         and type(row.fields) is dict and type(row.fields.get("source_payload")) is dict):
-                        raw = (row.source_account_identifier, document.source_account_identifier, file.source_scope_label,
+                        raw = (row.source_account_identifier, document.source_account_identifier,
                             row.payment_method, row.fields.get("amount"), row.fields["source_payload"].get("商品说明", ""))
                         if all(value is None or type(value) is str for value in raw):
                             parameters = raw
                     if parameters is not None and parameters in parts_cache:
-                        parts, issues = parts_cache[parameters]
+                        parts, issues, session_label = parts_cache[parameters]
                     else:
-                        parts, issues = _parts(file, row)
+                        parts, issues, session_label = _parts(file, row)
                         if parameters is not None and len(parts_cache) < 128:
-                            parts_cache[parameters] = parts, issues
+                            parts_cache[parameters] = parts, issues, session_label
                     values = []
                     for kind, origin, key, label, amount in parts:
                         if kind == "unresolved":
@@ -206,7 +247,7 @@ def scan_cash_funding(files) -> CashFundingScan:
                         if group_ref not in groups:
                             groups[group_ref] = {"source_account_ref": group_ref, "source_type": file.document.source_type,
                                 "identity_kind": kind, "origin_key": origin, "identity_key": key,
-                                "display_name": label, "currencies": set(), "row_refs": dict()}
+                                "display_name": label, "session_label": session_label, "currencies": set(), "row_refs": dict()}
                         group = groups[group_ref]
                         if fields.get("currency"):
                             group["currencies"].add(fields["currency"])

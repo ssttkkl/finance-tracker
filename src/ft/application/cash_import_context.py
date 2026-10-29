@@ -16,7 +16,6 @@ from ft.adapters.cash_statement_document import StatementDocumentError
 from ft.adapters.cash_statement_rows import ParsedCashDocument, parse_cash_statement
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.adapters.relational.models import WorkspaceMembershipModel
-from ft.domain.cash_source_scope import CashSourceScopeError, normalize_scope_label
 from ft.application.cash_import_errors import ImportSessionNotFound
 from ft.application.cash_import_choice_context import retained_choice_context
 from ft.application.parsed_import_staging import (
@@ -52,7 +51,6 @@ class CashImportUpload:
     content: bytes | BinaryIO = field(repr=False)
     password: str | None = field(default=None, repr=False)
     source_hint: str | None = None
-    source_scope_label: str | None = None
     last_modified_at_ms: int | None = None
 
 
@@ -138,22 +136,17 @@ class CashImportContextService:
                 or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", upload.client_file_ref) or upload.client_file_ref in refs
                 or not isinstance(upload.filename, str) or upload.source_hint is not None and not isinstance(upload.source_hint, str)
                 or upload.password is not None and not isinstance(upload.password, str)
-                or upload.source_scope_label is not None and not isinstance(upload.source_scope_label, str)
                 or upload.last_modified_at_ms is not None and (type(upload.last_modified_at_ms) is not int
                     or not 0 <= upload.last_modified_at_ms < 2 ** 63)):
                 raise CashImportInputError("import_files_invalid")
             refs.add(upload.client_file_ref)
 
-    def _parse(self, upload, *, previous_scope_label=None):
+    def _parse(self, upload):
         filename = _display_filename(upload.filename, upload.password)
         hint = upload.source_hint if upload.source_hint and re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", upload.source_hint) else None
         file = ParsedImportFile("f_" + uuid4().hex, upload.client_file_ref, filename, sha256(b"").hexdigest(),
             0, hint, "failed", error_code="statement_input_invalid", last_modified_at_ms=upload.last_modified_at_ms)
-        if previous_scope_label is not None:
-            file = replace(file, source_type="wechat", source_scope_label=previous_scope_label)
         try:
-            scope = normalize_scope_label(upload.source_scope_label) if upload.source_scope_label is not None else previous_scope_label
-            file = replace(file, source_scope_label=scope, source_type="wechat" if scope is not None else hint)
             with cash_diagnostic_scope("file_read", [{"file_ref": file.file_ref, "display_name": filename}], scope="file", files=(file,)):
                 raw = upload.content if isinstance(upload.content, bytes) else upload.content.read(_MAX_UPLOAD_BYTES + 1)
                 if not isinstance(raw, bytes):
@@ -166,18 +159,11 @@ class CashImportContextService:
                 document = self._parser(replace(upload, content=raw))
                 if not isinstance(document, ParsedCashDocument):
                     raise ValueError("unexpected_document_type")
-                if document.source_type != "wechat":
-                    file = replace(file, source_type=document.source_type, source_scope_label=None)
-                    if upload.source_scope_label is not None and scope is not None:
-                        raise CashSourceScopeError("source_scope_unsupported")
-                    scope = None
-                parsed = replace(file, source_type=document.source_type, status="parsed", document=document, error_code=None, source_scope_label=scope)
+                parsed = replace(file, source_type=document.source_type, status="parsed", document=document, error_code=None)
                 self._staging.validate_file(parsed)
                 return parsed
         except CashImportPasswordRequired as error:
             return replace(file, status="needs_password", error_code=error.code)
-        except CashSourceScopeError as error:
-            return replace(file, error_code=error.code)
         except StatementDocumentError as error:
             return replace(file, error_code=error.code if error.code in _FILE_ERRORS else "statement_unreadable", diagnostic=report_cash_failure(error))
         except ParsedImportDataError as error:
@@ -275,28 +261,12 @@ class CashImportContextService:
             old = next((file for file in current.files if file.file_ref == file_ref), None)
             if old is None:
                 raise CashImportInputError("import_file_not_found")
-        parsed = self._parse(replace(upload, client_file_ref=old.client_file_ref), previous_scope_label=old.source_scope_label)
+        parsed = self._parse(replace(upload, client_file_ref=old.client_file_ref))
         with self._uow as uow:
             current = self._current(uow, session_id, expected_revision)
             result = self._fit(lambda files: self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
                 expected_revision=expected_revision, files=files, preview_input=self._invalidate_input(current, (file_ref,)), plan=None, context_data=retained_choice_context(current)),
                 tuple(parsed if file.file_ref == file_ref else file for file in current.files), {parsed.file_ref})
-            uow.commit()
-            return result
-
-    def set_file_source_scope(self, session_id, file_ref, source_scope_label, *, expected_revision):
-        with self._uow as uow:
-            current = self._current(uow, session_id, expected_revision)
-            file = next((file for file in current.files if file.file_ref == file_ref), None)
-            if file is None:
-                raise CashImportInputError("import_file_not_found")
-            if file.status != "parsed" or file.source_type != "wechat":
-                raise CashSourceScopeError("source_scope_unsupported")
-            label = normalize_scope_label(source_scope_label)
-            result = self._staging.replace(session_id, workspace_id=self._workspace_id, user_id=self._user_id,
-                expected_revision=expected_revision,
-                files=tuple(replace(item, source_scope_label=label) if item.file_ref == file_ref else item for item in current.files),
-                preview_input=self._invalidate_input(current, (file_ref,)), plan=None, context_data=retained_choice_context(current))
             uow.commit()
             return result
 
