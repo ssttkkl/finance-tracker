@@ -2,7 +2,7 @@
 
 [返回产品总览](../feature-map.md) · [跨端覆盖与待办](../feature-map.md#跨端覆盖与待办)
 
-本模块包含 **2 项页面级功能**：F-08 投资持仓、F-09 投资流水。银证转账在投资流水详情中只读展示；投资账单与连接器接入边界见 [导入模块](import.md#无独立页面的能力)。
+本模块包含 **2 项页面级功能**：F-08 投资持仓、F-09 投资流水。银证转账在投资流水详情中只读展示；投资账单与连接器接入边界见 [导入模块](../import/feature-map.md#无独立页面的能力)。
 
 ## F-08 投资持仓
 
@@ -14,7 +14,7 @@
 
 ### 实现与验证证据
 
-持仓筛选、估值和表现已实现。各窗口共用非全屏基础对话框，正文滚动与关闭操作分区，关闭入口在左属于产品例外；尺寸及间距见 [UI 设计规范](../ui-design-rules.md) 和实现证据。既有 Web E2E、Android compact／regular／wide 主题布局 QA 通过；iPad 11 已验估值／详情，iPad 13 wide 已验深色布局。
+持仓筛选、估值和表现已实现。各窗口共用非全屏基础对话框，正文滚动与关闭操作分区，关闭入口在左属于产品例外；尺寸及间距见 [UI 设计规范](../shared/ui-design-rules.md) 和实现证据。既有 Web E2E、Android compact／regular／wide 主题布局 QA 通过；iPad 11 已验估值／详情，iPad 13 wide 已验深色布局。
 
 - [`InvestmentScreens.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentScreens.kt)
 - [`InvestmentDisplayLogic.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/InvestmentDisplayLogic.kt)

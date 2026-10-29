@@ -23,7 +23,7 @@
 ## 5. 审查
 
 - [x] 5.1 产品与工程复核账号可变性、幂等、绑定边界、跨渠道选择扇出及冲突恢复；无未关闭 P1/P2 finding。发现未绑定微信旧记录仍会由旧 `record_id` 或时间进入候选后，先加失败回归，再删除该兼容读取。
-- [x] 5.2 按 `docs/ui-design-rules.md`、Compose Material 3 组件与 Typography 规范检查账户分组、状态、命中区、间距、文字层级和密码按钮；Hallmark runtime 不可用，按其 audit 指引完成人工替代复核，未发现 critical/major finding。
+- [x] 5.2 按 `docs/shared/ui-design-rules.md`、Compose Material 3 组件与 Typography 规范检查账户分组、状态、命中区、间距、文字层级和密码按钮；Hallmark runtime 不可用，按其 audit 指引完成人工替代复核，未发现 critical/major finding。
 - [x] 5.3 以最新 `origin/main` 为基线复核最终差异、功能地图、链接、术语和无冲突 OpenSpec 文件；delta 与主规格一致，归档前后相关文档链接均指向有效路径。
 
 ## 6. 测试与 QA

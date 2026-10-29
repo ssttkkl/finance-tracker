@@ -45,7 +45,7 @@
 
 A 类完整变更。影响 Python 领域规则、ORM／Alembic、应用服务、FastAPI、Agent 写入口，以及 Compose 共享数据、状态、页面和演示；不恢复已移除 CLI。功能地图、词表和调用技能随实际能力同步，不提前声称覆盖完成。multipart 上传新增 `python-multipart`，并显式声明已使用的 Starlette API 下限，理由及资源边界见 design。客户端为逐文件有界读取显式声明既有传递依赖 `kotlinx-io 0.9.1`，解析版本保持不变。
 
-验收以 [主设计](../../../../docs/cash-import-redesign.md) 和 [跨层契约](../../../../docs/cash-import-redesign-contracts.md) 为输入，delta 是本实施变更的行为合同。非目标：重设计其他产品导航、全库重新配对、历史追溯或版本链、自动修正导入正式固定字段、保留原始文件、修改真实账本。允许只读使用 `~/.ft/bills`，测试数据库及中间结果均在仓库外，提交夹具必须去标识化。
+验收以 [主设计](../../../../docs/import/cash-import-redesign.md) 和 [跨层契约](../../../../docs/import/cash-import-redesign-contracts.md) 为输入，delta 是本实施变更的行为合同。非目标：重设计其他产品导航、全库重新配对、历史追溯或版本链、自动修正导入正式固定字段、保留原始文件、修改真实账本。允许只读使用 `~/.ft/bills`，测试数据库及中间结果均在仓库外，提交夹具必须去标识化。
 
 切换采用保留现有数据的 schema 迁移和写入口同步切换，不能用删库重建代替；停止旧版本写入后迁移，回滚先回滚应用与可逆 schema，已生成草稿或新状态时禁止无损保证之外的强制降级。具体风险与恢复条件写入 design 和验证证据。
 

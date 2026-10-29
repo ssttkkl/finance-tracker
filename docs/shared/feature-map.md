@@ -8,7 +8,7 @@
 
 Compose Web、Android、iOS 共用 `compose/shared/src/commonMain`，工程入口分别为：
 
-- [Web 工程](../../compose/webApp/) 与 [构建配置](../../compose/webApp/build.gradle.kts)
+- [Web 工程](../../compose/webApp) 与 [构建配置](../../compose/webApp/build.gradle.kts)
 - [Android](../../compose/androidApp/src/main/kotlin/com/finance/tracker/MainActivity.kt)
 - [iOS](../../compose/iosApp/iosApp/ContentView.swift)
 
@@ -20,7 +20,7 @@ F-01／F-02／未登录 F-06 共用登录式响应布局与居中卡片；已登
 
 桌面侧栏默认显示图标，鼠标进入展开、离开收回；鼠标点击导航产生的焦点不阻止收回，展开时可立即点击收起。键盘焦点可展开侧栏。头像悬停打开账号面板且停留时保持稳定，Enter／Space 可打开，Escape 关闭并把焦点返回头像。工作区切换、管理和退出位于侧栏底部，证据见 [侧栏折叠](../../openspec/changes/archive/2026-10-13-navigation-rail-collapse/tasks.md) 和 [账号面板](../../openspec/changes/archive/2026-10-13-account-menu-hover-stability/tasks.md)。
 
-全局 `FinanceTheme` 将现有 token 映射到 `surfaceContainer*`，影响各 Compose 平台的 Material 3 默认容器色。按钮和文本输入直接使用 Material 3，保留 `FinanceDataTable`／`Amount` 展示辅助函数，见 [组件 Registry](../design-system/registry.yaml) 与 [UI 设计规范](../ui-design-rules.md)。具体视觉尺寸与实现细节集中于设计规范和各模块链接的实现记录。
+全局 `FinanceTheme` 将现有 token 映射到 `surfaceContainer*`，影响各 Compose 平台的 Material 3 默认容器色。按钮和文本输入直接使用 Material 3，保留 `FinanceDataTable`／`Amount` 展示辅助函数，见 [组件 Registry](design-system/registry.yaml) 与 [UI 设计规范](ui-design-rules.md)。具体视觉尺寸与实现细节集中于设计规范和各模块链接的实现记录。
 
 ## 跨端合同与验收边界
 

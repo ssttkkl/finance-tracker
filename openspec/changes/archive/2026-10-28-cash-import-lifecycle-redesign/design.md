@@ -2,7 +2,7 @@
 
 本次仅实现和验收后端；Compose 接入、页面及客户端 QA 留给后续任务。字段权限与稳定收支对象按功能范围交付，万行导入预览性能优化独立处理，不作为本次功能交付的阻断项；万行时间预算及验收由 [PR #101 检查修复](../2026-10-28-fix-pr101-backend-checks/design.md#修复后的预算决策) 承载，当前为用户授权的 7 s／256 MiB，新预算须经远端验证。未实现的 UI delta 不同步，整个变更不提前归档。
 
-行为输入为 [主设计](../../../../docs/cash-import-redesign.md) 与 [跨层契约](../../../../docs/cash-import-redesign-contracts.md)。来源流水及资金分配保存在 `cash_transactions`、`cash_transaction_components`，当前关系保存在 `transaction_relations`，公共属性由稳定收支对象持有，投影按受影响闭包维护。导入采用限时解析会话、不可变计划和一次确认，不保留原文件；公开编辑使用当前维护计划及统一约束。
+行为输入为 [主设计](../../../../docs/import/cash-import-redesign.md) 与 [跨层契约](../../../../docs/import/cash-import-redesign-contracts.md)。来源流水及资金分配保存在 `cash_transactions`、`cash_transaction_components`，当前关系保存在 `transaction_relations`，公共属性由稳定收支对象持有，投影按受影响闭包维护。导入采用限时解析会话、不可变计划和一次确认，不保留原文件；公开编辑使用当前维护计划及统一约束。
 
 ## Goals / Non-Goals
 

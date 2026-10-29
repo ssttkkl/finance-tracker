@@ -18,4 +18,4 @@
 - [证券行情批量读取与回退](yfinance-market-grouping.md)
 - [Polymarket Gamma 字段解析](polymarket-gamma-field-quirks.md)
 
-操作总览见根目录 [README.md](../README.md) 和 [导入流程](../docs/import-flow.md)；现金导入字段及协议见 [接口与数据契约](../docs/cash-import-redesign-contracts.md)。
+操作总览见根目录 [README.md](../README.md) 和 [导入流程](../docs/import/import-flow.md)；现金导入字段及协议见 [接口与数据契约](../docs/import/cash-import-redesign-contracts.md)。

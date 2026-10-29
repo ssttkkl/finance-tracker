@@ -39,7 +39,7 @@
 ## 6. 功能地图与独立审查
 
 - [x] 6.1 已更新 `docs/feature-map.md`：登记账本页码索引与本地 FastScroller 来源、许可证，明确 Web/Native 共享 `commonMain` 覆盖。
-- [x] 6.2 Hallmark 技能调用入口在当前会话不可用；未声称执行 Hallmark。按 `.agents/skills/hallmark/references/verbs/audit.md` 与 `docs/ui-design-rules.md` 对最终 Compose 实现和 390/768/1440 px 截图进行人工替代审查。范围：`CashLedgerScreen`、`CashLedgerScrollbar`、Compact 初始/显示/隐藏与 Wide 常驻截图。发现：0 critical、0 major、0 minor；无结构性反模式、局部色值、遮挡列表内容或额外装饰层。蓝色输入描边来自 QA 截图时有焦点的搜索框，不是滚动条状态缺陷。
+- [x] 6.2 Hallmark 技能调用入口在当前会话不可用；未声称执行 Hallmark。按 `.agents/skills/hallmark/references/verbs/audit.md` 与 `docs/shared/ui-design-rules.md` 对最终 Compose 实现和 390/768/1440 px 截图进行人工替代审查。范围：`CashLedgerScreen`、`CashLedgerScrollbar`、Compact 初始/显示/隐藏与 Wide 常驻截图。发现：0 critical、0 major、0 minor；无结构性反模式、局部色值、遮挡列表内容或额外装饰层。蓝色输入描边来自 QA 截图时有焦点的搜索框，不是滚动条状态缺陷。
 - [x] 6.3 工程复核确认：筛选、工作区与版本先约束计数/定位；相同排序用于分页与月份区间；金额和 DTO 数字 ID 未经浮点转换；成功写操作共用 DTO 已覆盖接口合同测试。额外回顶浏览器步骤曾从滑轨空白位置起拖，未触发预期定位；该步骤超出本次验收合同，移除后保留按住显示与拖至未加载月份并精确落位验证。未发现阻断 finding。残余风险：10K 深度性能合同通过，未单独进行百万级数据压力测量。
 
 ## 7. 验证与发布准备

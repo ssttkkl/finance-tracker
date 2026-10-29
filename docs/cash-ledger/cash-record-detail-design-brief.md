@@ -1,6 +1,6 @@
 # 流水详情重新设计：需求与约束交接
 
-本文汇总本次对话确定的设计范围、业务含义和交互约束，作为实现验收依据。共享实现及走查证据见[归档任务记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)，其中保留了未完成的最终验收边界。用户已确认最新 `compose/qa/local-evidence/prototypes/cash-record-detail.html` 作为开发原型；实现保留其流程、结构与样式的业务含义，并遵守本文约束。
+本文汇总本次对话确定的设计范围、业务含义和交互约束，作为实现验收依据。共享实现及走查证据见[归档任务记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)，其中保留了未完成的最终验收边界。用户已确认最新 `compose/qa/local-evidence/prototypes/cash-record-detail.html` 作为开发原型；实现保留其流程、结构与样式的业务含义，并遵守本文约束。
 
 ## 1. 目标与范围
 
@@ -157,7 +157,7 @@
 
 ## 10. 视觉与实现约束
 
-必须先读 [UI 设计规范](ui-design-rules.md)、项目 `compose-material3` 技能和 Git token，再做设计。应用仓库 Hallmark 的信息层级、设计自检和最终审计，但不能另造品牌、配色或重复组件体系。
+必须先读 [UI 设计规范](../shared/ui-design-rules.md)、项目 `compose-material3` 技能和 Git token，再做设计。应用仓库 Hallmark 的信息层级、设计自检和最终审计，但不能另造品牌、配色或重复组件体系。
 
 视觉风格贴近 Material 3，默认采用 Material 3 Expressive 方向。重点是清楚的层级、适当的信息密度和可操作性，不要求 HTML 原型精准复现 token。
 
@@ -173,7 +173,7 @@
 
 ## 11. 工作流、验证及交付边界
 
-根目录 [AGENTS.md](../AGENTS.md) 是变更流程和授权事实源。重大 UI 加上新的财务写能力按 A 类处理，遵守 OpenSpec 与八阶段流程；计划、术语和行为变化先回写再实施。实施前调用项目 `grill-me → grilling`，本轮已明确的决定不应无故重新提问。
+根目录 [AGENTS.md](../../AGENTS.md) 是变更流程和授权事实源。重大 UI 加上新的财务写能力按 A 类处理，遵守 OpenSpec 与八阶段流程；计划、术语和行为变化先回写再实施。实施前调用项目 `grill-me → grilling`，本轮已明确的决定不应无故重新提问。
 
 原型先确认；Compose 第一版完成后，先做相称编译和真实 Web 代表视口检查，立即提供最新 Compose 演示，再根据用户反馈迭代。不为提前打磨所有细节而延迟演示，不把原型确认当作最终 QA 通过。
 
@@ -189,21 +189,21 @@
 
 | 入口 | 用途 |
 |---|---|
-| [CashCurrentRecordPanel.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt) | 当前详情、关联和原文展示 |
-| [CashRecordSummary.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordSummary.kt) | 顶部基础信息与摘要 |
-| [CashRelationTreatment.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRelationTreatment.kt) | 现有完整建议、冲突和解除选择 |
-| [CashRecordTaskViewModel.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt) | 当前维护状态、预览与提交 |
-| [CashSourceDtos.kt](../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashSourceDtos.kt) | 证据字段的客户端读取缺口 |
-| [cash_current_relation_plan.py](../src/ft/application/cash_current_relation_plan.py) | 现有关系／建议维护；不搜索新配对 |
-| [cash_import_business_plan.py](../src/ft/application/cash_import_business_plan.py) | 完整方案、公共值冲突及计划明细 |
-| [cash_relation_policy.py](../src/ft/domain/cash_relation_policy.py) | 关系端点、角色及类型资格 |
-| [cash_relation_graph.py](../src/ft/domain/cash_relation_graph.py) | 金额、占用、额度及完整关系图校验 |
-| [关系证据查询](../src/ft/adapters/relational/web_queries.py) | 成员角色与已确认关系端点 |
-| [完整关系方案测试](../tests/contract/test_cash_current_relation_plan.py) | 联合建议、拒绝及失效场景 |
-| [变更记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/proposal.md) | 本轮 A 类需求、实施及验收记录 |
-| [既有维护变更](../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/proposal.md) | 共享维护基础；其中排除任意搜索的旧范围不代表本轮新需求被取消 |
+| [CashCurrentRecordPanel.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt) | 当前详情、关联和原文展示 |
+| [CashRecordSummary.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordSummary.kt) | 顶部基础信息与摘要 |
+| [CashRelationTreatment.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRelationTreatment.kt) | 现有完整建议、冲突和解除选择 |
+| [CashRecordTaskViewModel.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt) | 当前维护状态、预览与提交 |
+| [CashSourceDtos.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashSourceDtos.kt) | 证据字段的客户端读取缺口 |
+| [cash_current_relation_plan.py](../../src/ft/application/cash_current_relation_plan.py) | 现有关系／建议维护；不搜索新配对 |
+| [cash_import_business_plan.py](../../src/ft/application/cash_import_business_plan.py) | 完整方案、公共值冲突及计划明细 |
+| [cash_relation_policy.py](../../src/ft/domain/cash_relation_policy.py) | 关系端点、角色及类型资格 |
+| [cash_relation_graph.py](../../src/ft/domain/cash_relation_graph.py) | 金额、占用、额度及完整关系图校验 |
+| [关系证据查询](../../src/ft/adapters/relational/web_queries.py) | 成员角色与已确认关系端点 |
+| [完整关系方案测试](../../tests/contract/test_cash_current_relation_plan.py) | 联合建议、拒绝及失效场景 |
+| [变更记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/proposal.md) | 本轮 A 类需求、实施及验收记录 |
+| [既有维护变更](../../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/proposal.md) | 共享维护基础；其中排除任意搜索的旧范围不代表本轮新需求被取消 |
 
-流水详情共享 Compose 实现及后端关联搜索、预览和提交的验收证据集中维护于 [归档任务记录](../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。该 change 已于 2026-10-28 归档；其中的验证状态和未完成边界仍按原记录保留，不据此宣称整个功能已完成最终验收。
+流水详情共享 Compose 实现及后端关联搜索、预览和提交的验收证据集中维护于 [归档任务记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)。该 change 已于 2026-10-28 归档；其中的验证状态和未完成边界仍按原记录保留，不据此宣称整个功能已完成最终验收。
 
 本机确认原型为 `compose/qa/local-evidence/prototypes/cash-record-detail.html`；同目录其他文件不作为实施依据。用户后续明确的正文无折叠和弹窗复用流水表格约束优先于原型残留旧标记。原型浏览器操作和静态语法检查不能替代正式产品验证。
 

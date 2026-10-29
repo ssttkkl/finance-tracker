@@ -95,7 +95,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 
 ## 账单导入
 
-现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。本轮功能仍在浏览器演示验收中，Android 仅完成共享编译与主机单测，iOS 未验证。流程从 [现金账单导入](docs/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import-flow.md)。
+现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。本轮功能仍在浏览器演示验收中，Android 仅完成共享编译与主机单测，iOS 未验证。流程从 [现金账单导入](docs/import/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import/import-flow.md)。
 
 支持的来源包括：`alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit`、`icbc-asia`、`dfzq`、`ibkr`、`schwab`、`usmart-hk` / `usmart_hk`。交易所和 Polymarket 使用受控后端同步，不由客户端接触密钥。
 
@@ -151,10 +151,10 @@ PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index 
 |---|---|
 | [Compose 功能地图](docs/feature-map.md) | 产品总览、各模块页面与业务路径、实现证据和跨端待办 |
 | [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
-| [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
-| [现金流水：存储、展示与操作](docs/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
-| [现金账单导入](docs/cash-import-flow.md) | 从业务到后端执行、接口与数据、一致性机制的主阅读入口；内含详细参考导航 |
-| [UI 设计约束](docs/ui-design-rules.md) | Compose UI 实现与审查约定 |
+| [导入、关系与同步流程](docs/import/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
+| [现金流水：存储、展示与操作](docs/cash-ledger/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
+| [现金账单导入](docs/import/cash-import-flow.md) | 从业务到后端执行、接口与数据、一致性机制的主阅读入口；内含详细参考导航 |
+| [UI 设计约束](docs/shared/ui-design-rules.md) | Compose UI 实现与审查约定 |
 | [OpenSpec](openspec/) | 行为规格、active changes 与归档 |
 | [解析与行情参考](references/) | 账单格式、解析器与行情适配细节 |
 

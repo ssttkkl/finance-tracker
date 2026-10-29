@@ -13,4 +13,4 @@
 | F-08 投资持仓 | 按投资账户筛选持仓 |
 | F-09 投资流水 | 按投资账户筛选事件 |
 
-账户新建、币种补齐与取消恢复的具体路径和验证缺口见 [导入模块](import.md)。账户别名、生命周期、多币种和分币种余额以 [账户规格](../../openspec/specs/accounts/multi-currency-accounts/spec.md) 为准，不据后端能力认定存在独立客户端管理入口。
+账户新建、币种补齐与取消恢复的具体路径和验证缺口见 [导入模块](../import/feature-map.md)。账户别名、生命周期、多币种和分币种余额以 [账户规格](../../openspec/specs/accounts/multi-currency-accounts/spec.md) 为准，不据后端能力认定存在独立客户端管理入口。

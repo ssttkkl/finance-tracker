@@ -197,4 +197,4 @@ Native CI 放在 `.github/workflows/mobile-ci.yml`，只依赖根级 `package-lo
 - 信息架构：进入工作区 → 看收支 → 记一笔 → 导入账单；删除了桌面侧栏、宽表格、技术状态标签和重复教学段落。
 - 原型状态：正常列表、空账本、填写、加载、错误、成功、禁用、账单密码提示、账户映射和删除确认。
 - 响应式预检目标：320 px、375 px、414 px、768 px；需确认无横向滚动、可点击文字不换行，另按项目规则补查 390 px 和 1440 px。
-- Hallmark 最终 `audit`：2026-09-06 按 `docs/ui-design-rules.md` 完成人工等价审查；运行时没有可执行的 Hallmark CLI，因此未声称执行不存在的命令。critical/major 均为 0，既有 Web CSS 的少量非 token 像素字面量作为 minor 延期；截图与详细证据回写 `tasks.md`，审查日志写入 `.hallmark/log.json`。本原型的预检自评为 `P5 H5 E4 S5 R5 V4`。
+- Hallmark 最终 `audit`：2026-09-06 按 `docs/shared/ui-design-rules.md` 完成人工等价审查；运行时没有可执行的 Hallmark CLI，因此未声称执行不存在的命令。critical/major 均为 0，既有 Web CSS 的少量非 token 像素字面量作为 minor 延期；截图与详细证据回写 `tasks.md`，审查日志写入 `.hallmark/log.json`。本原型的预检自评为 `P5 H5 E4 S5 R5 V4`。

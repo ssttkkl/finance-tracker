@@ -2,7 +2,7 @@
 
 ## 1. 思考
 
-- [x] 阅读 `openspec/project-context.md`、当前 workspace-entry / cross-platform-presentation 主规格、登录/工作区/邀请实现、页面骨架及 `docs/ui-design-rules.md`。
+- [x] 阅读 `openspec/project-context.md`、当前 workspace-entry / cross-platform-presentation 主规格、登录/工作区/邀请实现、页面骨架及 `docs/shared/ui-design-rules.md`。
 - [x] 明确目标、非目标、验收、边界与风险；用户确认三类访问入口共用 `AuthResponsiveShell` 和居中表单卡片，所有已登录页面标题统一位于 `TopAppBar`。
 - [x] 完成 Hallmark 设计预检记录；保留 FinanceTheme 品牌蓝和现有表单语言，不添加装饰插画、虚构指标或重复说明。
 

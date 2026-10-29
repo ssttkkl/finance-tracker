@@ -48,4 +48,4 @@
 - PostgreSQL：仅使用本机专用 `finance_tracker_test`；最终已重建 `public` schema 并迁移至 `20260803_16`。新来源 PostgreSQL 分支、映射 PostgreSQL 用例均通过。
 - 工具验证：`uv build`、`uv run python -m compileall -q src`、`git diff --check`、`openspec validate --all --strict`、`openspec doctor` 通过。
 - 未完成的全套单命令：`uv run pytest -q` 被执行环境中断，已以目录和文件分组补跑受影响及主要功能回归。既有 10 万事实现金投影性能门禁与 CSV 解析无共享路径，本次不适用；若调整投影、关系索引或导入批处理性能，需补跑 `tests/test_cash_projection_performance.py` 和 `tests/test_wealth_performance.py`。
-- 发布准备：先按 `docs/import-flow.md` 添加 `icbc_asia_current_account` 映射并确保目标账户支持账单币种，再显式运行 `ft import FILE --source icbc-asia-current-account`。失败不写入事实；已导入事实需要撤销时使用既有逻辑删除流程。不得自动导入 `Downloads` 或 `~/.ft/bills` 的真实账单。
+- 发布准备：先按 `docs/import/import-flow.md` 添加 `icbc_asia_current_account` 映射并确保目标账户支持账单币种，再显式运行 `ft import FILE --source icbc-asia-current-account`。失败不写入事实；已导入事实需要撤销时使用既有逻辑删除流程。不得自动导入 `Downloads` 或 `~/.ft/bills` 的真实账单。

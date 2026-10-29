@@ -1,6 +1,6 @@
 ## 1. 思考
 
-- [x] 1.1 阅读 `openspec/project-context.md`、`openspec/specs/cash-ledger-browser/spec.md`、`docs/ui-design-rules.md`、生产入口和现有 Web 样式，确认这是不涉及业务数据的 B 类 Web 行为变更。
+- [x] 1.1 阅读 `openspec/project-context.md`、`openspec/specs/cash-ledger-browser/spec.md`、`docs/shared/ui-design-rules.md`、生产入口和现有 Web 样式，确认这是不涉及业务数据的 B 类 Web 行为变更。
 - [x] 1.2 显式读取并尝试进入项目 `grill-me` 的 `/grilling` session；当前运行时只提供技能声明文件，没有可执行 session API，已依据用户明确要求锁定目标为生产入口禁止双指缩放，非目标为字号、布局和原型。
 
 ## 2. 计划

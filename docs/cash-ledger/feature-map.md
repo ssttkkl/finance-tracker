@@ -30,7 +30,7 @@
 
 详细筛选按时间、金额、分类、账户和其他条件分组；`COMPACT` 纵向排列并使用 Bottom Sheet，`REGULAR`／`WIDE` 在组内并排显示可配对字段并使用非全屏 Dialog。桌面表格依次显示选择、日期、账户、交易信息、分类、流水类型、金额和操作；交易对方后显示备注，窄屏卡片保持同一信息关系。
 
-窄屏滚动条滚动时显示、停止 2 秒后渐隐；桌面滚动条常驻。滚动条均覆盖列表而不挤占内容宽度，交互热区为 40 dp。桌面月份容器和吸顶栏与筛选卡右侧对齐，行内容内缩 16 dp、分隔线全宽。列宽、Dialog 尺寸和间距等实现细节见下方设计与任务证据，具体 UI 规范见 [UI 设计规范](../ui-design-rules.md)。
+窄屏滚动条滚动时显示、停止 2 秒后渐隐；桌面滚动条常驻。滚动条均覆盖列表而不挤占内容宽度，交互热区为 40 dp。桌面月份容器和吸顶栏与筛选卡右侧对齐，行内容内缩 16 dp、分隔线全宽。列宽、Dialog 尺寸和间距等实现细节见下方设计与任务证据，具体 UI 规范见 [UI 设计规范](../shared/ui-design-rules.md)。
 
 ### 实现与验证证据
 
@@ -42,7 +42,7 @@
 - [`web_queries.py`](../../src/ft/adapters/relational/web_queries.py)
 - [`routes.py`](../../src/ft/web/routes.py)
 - [`FinanceComponents.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/FinanceComponents.kt)
-- [`docs/design-system/registry.yaml`](../design-system/registry.yaml)
+- [`docs/shared/design-system/registry.yaml`](../shared/design-system/registry.yaml)
 - [`compose-cash-ledger-redesign/tasks.md`](../../openspec/changes/archive/2026-10-21-compose-cash-ledger-redesign/tasks.md)
 - [`compose-cash-import-account-mapping-redesign/tasks.md`](../../openspec/changes/archive/2026-10-17-compose-cash-import-account-mapping-redesign/tasks.md)
 
@@ -83,12 +83,12 @@
 - [`CashCurrentRecordPanel.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt)
 - [`CashRecordSummary.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordSummary.kt)
 - [`CashLedgerViewModel.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerViewModel.kt)
-- [现金流水](../cash-ledger.md)
+- [现金流水](cash-ledger.md)
 - [`CashLedgerScreen.kt`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashLedgerScreen.kt)
 - [`维护任务`](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt)
 - [关联实施记录](../../openspec/changes/archive/2026-10-28-cash-record-detail-relations-redesign/tasks.md)
 - [`维护实施记录`](../../openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/tasks.md#当前审查与验证)
-- [操作流程](../cash-ledger.md#5-操作流程及作用范围)
+- [操作流程](cash-ledger.md#5-操作流程及作用范围)
 - [关联共享详情](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashDetailRelations.kt)
 
 ## F-07 收支分类管理

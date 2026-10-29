@@ -34,7 +34,7 @@
 
 - [x] 5.1 完成范围复核：确认未改变匹配规则、CLI 语义、账户映射流程或账本 schema。
 - [x] 5.2 完成工程与安全复核：检查会话/工作区隔离、输入篡改、幂等、事务回滚、敏感来源数据和 SQLite/PostgreSQL 一致性。
-- [x] 5.3 按 `docs/ui-design-rules.md` 完成可见文案必要性、术语和响应式影响审查，并运行 Hallmark `audit`；记录 finding 和修复。
+- [x] 5.3 按 `docs/shared/ui-design-rules.md` 完成可见文案必要性、术语和响应式影响审查，并运行 Hallmark `audit`；记录 finding 和修复。
 
 ## 6. 验证与浏览器 QA
 
@@ -60,7 +60,7 @@
 - 测试先行：新增缓存命中不重跑规划器、关系上下文变更零写入与刷新、候选篡改失败关闭、拒绝可审计、映射变更失败关闭、缺少预览失败关闭、成功态重开清会话等回归。`tests/contract/test_cash_import_dual_backend.py` 覆盖 SQLite 和 PostgreSQL 的命中、幂等、失效和候选篡改；`web/tests/CashImportPage.test.tsx` 覆盖自动刷新、决定清空、焦点与成功后重新开始。
 - 工程/安全复核（实现后独立范围化复核）：缓存仅保存在服务端导入暂存区，计划使用稳定来源引用；确认先锁定工作区并校验外部上下文、计划摘要、映射摘要和使用者决定，再写入账户、映射、流水、关系和投影。审查发现并修复两项阻断问题：成功态可复用已完成令牌导致 `import_session_not_found`；无预览确认可回退到旧二次配对路径。候选验证不再只凭 `proposal_key` 短路。未发现剩余 critical/major finding。
 - 范围复核：未修改退款、同笔支付、转账或还款规则；CLI 仍走原有一次命令导入；无表结构或迁移。旧 `ImportDrawer` 仅为未连接会话的孤立组件，实际应用路由 `/cash-import` 已使用会话 API，未形成可达的绕过入口。
-- UI/Hallmark 审查：已按 `docs/ui-design-rules.md` 和 Hallmark `audit` 清单检查本次恢复与重新开始状态。新增可见业务文案仅为“相关流水已变化，请重新确认配对。”；恢复后焦点进入“配对”标题；390 px 和 1440 px 无页面横向溢出。未发现 critical 或 major finding；没有增加教学区、重复说明或实现术语。
+- UI/Hallmark 审查：已按 `docs/shared/ui-design-rules.md` 和 Hallmark `audit` 清单检查本次恢复与重新开始状态。新增可见业务文案仅为“相关流水已变化，请重新确认配对。”；恢复后焦点进入“配对”标题；390 px 和 1440 px 无页面横向溢出。未发现 critical 或 major finding；没有增加教学区、重复说明或实现术语。
 - SQLite 与 PostgreSQL：`FT_TEST_POSTGRES_URL='postgresql+psycopg://postgres@127.0.0.1:55432/finance_tracker_test' FT_REQUIRE_TEST_POSTGRES=1 uv run pytest -q tests/contract/test_cash_import_dual_backend.py` → `13 passed in 7.18s`。测试库名以 `_test` 结尾，使用专用本地 Docker PostgreSQL；SQLite 同一矩阵已在完整回归中执行。
 - 最终测试：`uv run pytest -q` → `1518 passed, 183 skipped, 1 warning in 387.36s`；受影响集合 `86 passed, 11 skipped, 1 warning in 18.53s`；`uv run python -m compileall -q src` 通过；`cd web && npm test -- --run` → `127 passed`；`cd web && npm run build`（`tsc -b && vite build`）通过；`git diff --check` 通过。唯一警告为 Starlette `TestClient` 对 `httpx` 的上游弃用提示，未由本变更引入。
 - 浏览器 QA：在生产构建预览 `http://127.0.0.1:5175` 和专用 SQLite 数据库上，以合成 CSV `tests/fixtures/cash_import_browser_refund.csv` 走完创建账户、自动退款冲销预览、确认导入（`POST /cash-import/commit` 200）、空配对重复导入、成功态从第 1 步重新开始及重新选择同一账单。关系上下文变更试验得到预期 `409 import_relation_reconfirmation_required`，随后同一令牌 `POST /cash-import/preview` 200，页面保留在“配对”、清空旧决定、显示业务文案并聚焦配对标题。控制台除该预期 409 的浏览器资源记录外无错误；成功和重新开始流程无控制台错误。测试时新注册的合成账号曾因旧 URL 指向无权工作区收到 403，创建其专用测试工作区后不影响导入流程。截图：`/tmp/ft-import-reconfirm-qa.okxbQV/reconfirm-relations-1440.png`、`reconfirm-recovery-1440.png`、`reconfirm-recovery-390.png`、`restart-preview-1440.png`、`restart-preview-390.png`；已检查 320、375、390、414、768、1440 px，页面无横向溢出。

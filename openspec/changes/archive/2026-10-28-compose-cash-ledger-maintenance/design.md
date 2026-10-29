@@ -4,7 +4,7 @@
 
 当前共享入口已接入状态筛选、当前详情、草稿、来源问题及完整关系维护；旧全字段编辑、任意关联页面和 `CashRecordApi` 已移除，创建及正式编辑由编辑模块承载。导入使用生命周期、恢复基础及真实 App 入口；当前受影响验证已完成，完整用户演示确认仍待取得。
 
-后端行为输入为 [现金流水](../../../../docs/cash-ledger.md)、[维护接口](../../../../docs/cash-import-redesign-contracts.md#35-后续维护与读取) 和 [后端 delta](../2026-10-28-cash-import-lifecycle-redesign/proposal.md)。服务端匹配、来源身份、金额与事务规则不在本轮重定义。
+后端行为输入为 [现金流水](../../../../docs/cash-ledger/cash-ledger.md)、[维护接口](../../../../docs/import/cash-import-redesign-contracts.md#35-后续维护与读取) 和 [后端 delta](../2026-10-28-cash-import-lifecycle-redesign/proposal.md)。服务端匹配、来源身份、金额与事务规则不在本轮重定义。
 
 ## Goals / Non-Goals
 

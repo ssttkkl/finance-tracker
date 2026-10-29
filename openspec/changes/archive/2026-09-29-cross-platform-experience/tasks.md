@@ -1,6 +1,6 @@
 ## 1. 思考
 
-- [x] 1.1 阅读 `AGENTS.md`、`openspec/project-context.md`、相关主规格、Expo 迁移 change、`DOMAIN_GLOSSARY.md` 和 `docs/ui-design-rules.md`。
+- [x] 1.1 阅读 `AGENTS.md`、`openspec/project-context.md`、相关主规格、Expo 迁移 change、`DOMAIN_GLOSSARY.md` 和 `docs/shared/ui-design-rules.md`。
 - [x] 1.2 以 Web 为事实源确定第一阶段页面范围、Native 已覆盖范围、未覆盖缺口和 `compact`/`regular`/`wide` 设备矩阵。
 - [x] 1.3 在独立 `.worktrees/cross-platform-experience` 中确认基线 `fdb766c`，保留主工作树的既有未提交文件。
 
