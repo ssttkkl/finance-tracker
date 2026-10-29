@@ -1,0 +1,307 @@
+[
+  {
+    "edit_ref": "ie_3d451a184210274dc50fdc03c42aeb3d09cca0fe289adc8ac1db1b39288bf9b7",
+    "input": {
+      "edges": [],
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ]
+      ],
+      "parent_ops": {},
+      "parents": [
+        "42"
+      ],
+      "relations": [],
+      "rows": [
+        [
+          42,
+          3
+        ]
+      ]
+    },
+    "target": {
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ]
+      ],
+      "final_edges": [],
+      "members": [
+        {
+          "transaction_id": "42"
+        }
+      ],
+      "parent_ids": [
+        "42"
+      ],
+      "relation_dependencies": [],
+      "relations": [],
+      "rows": [
+        [
+          42,
+          3
+        ]
+      ]
+    }
+  },
+  {
+    "edit_ref": "ie_ca2f087bb8dd3a61cbcf6e47a23832cdf1f50463690783f0769c6e33098b0306",
+    "input": {
+      "edges": [
+        {
+          "active": true,
+          "applied_amount": "12.50",
+          "id": 9,
+          "kind": "payment_mirror",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": "2",
+          "secondary_role": "expense",
+          "secondary_transaction_id": "43",
+          "state": "confirmed",
+          "subtype": "ordinary"
+        }
+      ],
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ]
+      ],
+      "parent_ops": {
+        "42": [
+          "row-1"
+        ]
+      },
+      "parents": [
+        "42"
+      ],
+      "relations": [
+        [
+          9,
+          2
+        ]
+      ],
+      "rows": [
+        [
+          42,
+          3
+        ]
+      ]
+    },
+    "target": {
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ]
+      ],
+      "final_edges": [
+        {
+          "active": true,
+          "applied_amount": "12.50",
+          "id": 9,
+          "kind": "payment_mirror",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": "2",
+          "secondary_role": "expense",
+          "secondary_transaction_id": "43",
+          "state": "confirmed",
+          "subtype": "ordinary"
+        }
+      ],
+      "members": [
+        {
+          "row_refs": [
+            "row-1"
+          ]
+        }
+      ],
+      "parent_ids": [
+        "42"
+      ],
+      "relation_dependencies": [],
+      "relations": [
+        [
+          9,
+          2
+        ]
+      ],
+      "rows": [
+        [
+          42,
+          3
+        ]
+      ]
+    }
+  },
+  {
+    "edit_ref": "ie_b2bafbbfd8b2a63c4b6eaf35e45c170b5a2efbec8a6a4f3428627417a9d8dd54",
+    "input": {
+      "edges": [
+        {
+          "active": true,
+          "applied_amount": "12.50",
+          "id": 9,
+          "kind": "payment_mirror",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": "2",
+          "secondary_role": "expense",
+          "secondary_transaction_id": "43",
+          "state": "confirmed",
+          "subtype": "ordinary"
+        },
+        {
+          "active": false,
+          "applied_amount": "0",
+          "id": 10,
+          "kind": "refund_offset",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": null,
+          "secondary_role": null,
+          "secondary_transaction_id": null,
+          "state": "draft",
+          "subtype": "refund"
+        }
+      ],
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ],
+        [
+          43,
+          "e2",
+          2,
+          "d2"
+        ]
+      ],
+      "parent_ops": {
+        "42": []
+      },
+      "parents": [
+        "42",
+        "43"
+      ],
+      "relations": [
+        [
+          9,
+          2
+        ],
+        [
+          10,
+          1
+        ]
+      ],
+      "rows": [
+        [
+          42,
+          3
+        ],
+        [
+          43,
+          1
+        ]
+      ]
+    },
+    "target": {
+      "entries": [
+        [
+          42,
+          "e1",
+          4,
+          "d1"
+        ],
+        [
+          43,
+          "e2",
+          2,
+          "d2"
+        ]
+      ],
+      "final_edges": [
+        {
+          "active": true,
+          "applied_amount": "12.50",
+          "id": 9,
+          "kind": "payment_mirror",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": "2",
+          "secondary_role": "expense",
+          "secondary_transaction_id": "43",
+          "state": "confirmed",
+          "subtype": "ordinary"
+        },
+        {
+          "active": false,
+          "applied_amount": "0",
+          "id": 10,
+          "kind": "refund_offset",
+          "primary_component_id": "1",
+          "primary_role": "expense",
+          "primary_transaction_id": "42",
+          "secondary_component_id": null,
+          "secondary_role": null,
+          "secondary_transaction_id": null,
+          "state": "draft",
+          "subtype": "refund"
+        }
+      ],
+      "members": [
+        {
+          "row_refs": []
+        },
+        {
+          "transaction_id": "43"
+        }
+      ],
+      "parent_ids": [
+        "42",
+        "43"
+      ],
+      "relation_dependencies": [],
+      "relations": [
+        [
+          9,
+          2
+        ],
+        [
+          10,
+          1
+        ]
+      ],
+      "rows": [
+        [
+          42,
+          3
+        ],
+        [
+          43,
+          1
+        ]
+      ]
+    }
+  }
+]
