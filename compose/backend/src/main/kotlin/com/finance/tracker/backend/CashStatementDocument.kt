@@ -24,13 +24,33 @@ internal data class RawCashRow(val position: Int, val payload: Map<String, Strin
 internal data class CashSourceCoverage(
     val start: String?, val end: String?, val complete: Boolean, val evidence: String,
     val filters: Map<String, String>, val strategyVersion: String,
-    val startInclusive: Boolean = true, val endInclusive: Boolean = true,
+    val startInclusive: Boolean = true, val endInclusive: Boolean = false,
     val timePrecision: String = "second", val documentKey: String? = null, val pageTotal: Int? = null,
     val pageFingerprints: Map<String, String> = emptyMap(),
 ) {
+    init {
+        val hasEvidence = documentKey != null || pageTotal != null || pageFingerprints.isNotEmpty()
+        if (hasEvidence) {
+            val key = documentKey
+            val total = pageTotal
+            if (key == null || !Regex("[0-9a-f]{64}").matches(key) ||
+                total == null || total !in 1..2000 ||
+                pageFingerprints.isEmpty() || pageFingerprints.size > total ||
+                pageFingerprints.any { (page, fingerprint) ->
+                    !Regex("[1-9][0-9]{0,3}").matches(page) || page.toInt() > total ||
+                        !Regex("[0-9a-f]{64}").matches(fingerprint)
+                })
+                throw IllegalArgumentException("invalid_source_document_evidence")
+        }
+    }
+
+    fun comparable(other: CashSourceCoverage, value: String?): Boolean =
+        contains(value) && other.contains(value) && filters == other.filters &&
+            timePrecision == other.timePrecision && strategyVersion == other.strategyVersion
+
     fun contains(value: String?): Boolean {
         if (!complete || evidence.isEmpty() || start == null || end == null || value == null) return false
-        val offset = Regex("(?:Z|[+-]\\d{2}:?\\d{2})$")
+        val offset = Regex("[T ].*?(?:Z|[+-]\\d{2}(?::?\\d{2})?(?::?\\d{2})?)$")
         if (!offset.containsMatchIn(start) || !offset.containsMatchIn(end) || !offset.containsMatchIn(value)) return false
         return try {
             val startTime = pythonCashTimestamp(start)
@@ -399,7 +419,7 @@ internal object CashStatementDocumentReader {
         val coverage = CashSourceCoverage(dates[0], dates[1], complete,
             if (complete) "platform-declared-range-filter-count-v1" else "",
             if (exportType != null) mapOf("export_type" to exportType) else emptyMap(),
-            "platform-coverage-v1")
+            "platform-coverage-v1", startInclusive = true, endInclusive = true)
         return Declarations(account, label, count, coverage)
     }
 

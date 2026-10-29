@@ -1,0 +1,2083 @@
+{
+  "comparables": [
+    {
+      "comparable": true,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "inside",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00:00"
+    },
+    {
+      "comparable": true,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "start-inclusive",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-07-31T16:00:00+00:00"
+    },
+    {
+      "comparable": false,
+      "contains": false,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "end-exclusive",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-31T16:00:00+00:00"
+    },
+    {
+      "comparable": false,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "filters",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "income"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00:00"
+    },
+    {
+      "comparable": false,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "precision",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "day"
+      },
+      "when": "2026-08-15T02:00:00+00:00"
+    },
+    {
+      "comparable": false,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "strategy",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "other",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00:00"
+    },
+    {
+      "comparable": false,
+      "contains": false,
+      "left": {
+        "complete": false,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "incomplete",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00:00"
+    },
+    {
+      "comparable": true,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31 16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31 16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "space-separator",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31 16:00:00+00:00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31 16:00:00+00:00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15 02:00:00+00:00"
+    },
+    {
+      "comparable": true,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "hour-offset",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00"
+    },
+    {
+      "comparable": true,
+      "contains": true,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00:30",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00:30",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "offset-seconds",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31T16:00:00+00:00:30",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31T16:00:00+00:00:30",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15T02:00:00+00:00:30"
+    },
+    {
+      "comparable": false,
+      "contains": false,
+      "left": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "name": "date-only",
+      "right": {
+        "complete": true,
+        "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "end": "2026-08-31",
+        "end_inclusive": false,
+        "evidence": "e",
+        "filters": {
+          "export_type": "all"
+        },
+        "page_fingerprints": {
+          "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        "page_total": 1,
+        "start": "2026-07-31",
+        "start_inclusive": true,
+        "strategy_version": "source-coverage-v1",
+        "time_precision": "second"
+      },
+      "when": "2026-08-15"
+    }
+  ],
+  "documents": [
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          true
+        ]
+      ],
+      "current": [
+        {
+          "complete": true,
+          "evidence": "icbc-pdf-export-pages-count-v1",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": true,
+          "evidence": "icbc-pdf-export-pages-count-v1",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "2": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+              "2": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "consistent"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "missing-page"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "fingerprint-conflict"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-09-30T00:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "declaration-conflict"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-07-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-08-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "unbounded"
+    },
+    {
+      "completeness": [],
+      "current": [
+        {
+          "complete": true,
+          "evidence": "e",
+          "namespace": null
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": null,
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {},
+            "page_total": null,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "name": "no-key"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          true
+        ],
+        [
+          [
+            "icbc_debit",
+            "v",
+            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          ],
+          true
+        ]
+      ],
+      "current": [
+        {
+          "complete": true,
+          "evidence": "icbc-pdf-export-pages-count-v1",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": true,
+          "evidence": "icbc-pdf-export-pages-count-v1",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "two-documents"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "income"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "filters-conflict"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "day"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "precision-conflict"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "other",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "strategy-conflict"
+    },
+    {
+      "completeness": [
+        [
+          [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ],
+          false
+        ]
+      ],
+      "current": [
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        },
+        {
+          "complete": false,
+          "evidence": "",
+          "namespace": [
+            "icbc_debit",
+            "v",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          ]
+        }
+      ],
+      "evidence": [
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 1,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        },
+        {
+          "coverage": {
+            "complete": true,
+            "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "end": "2026-08-31T16:00:00+00:00",
+            "end_inclusive": false,
+            "evidence": "e",
+            "filters": {
+              "export_type": "all"
+            },
+            "page_fingerprints": {
+              "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+            },
+            "page_total": 2,
+            "start": "2026-07-31T16:00:00+00:00",
+            "start_inclusive": true,
+            "strategy_version": "source-coverage-v1",
+            "time_precision": "second"
+          },
+          "parser_version": "v",
+          "source_type": "icbc_debit"
+        }
+      ],
+      "name": "page-total-conflict"
+    }
+  ],
+  "occurrences": [
+    {
+      "binding_keys": [
+        "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": null,
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "base",
+      "observation_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "ccc620d99a56b95ddb9cb15323301ecca55291c3f33159921e3c4c5ba7fce03d",
+        "392cee3060af1af8262f608227d2f181ca2b774ab20ce9d54b76cca741805609",
+        "6769f678504375b0fa76a7eee2c3ebad896a8de05374bcfc80a0f77ba322fe6f"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "dec9da38ba2b168e0785928f571fa4a41e4064381fc5c22b3412c8203f404a9c",
+          "identity_kind": "provider_id",
+          "key": "ccc620d99a56b95ddb9cb15323301ecca55291c3f33159921e3c4c5ba7fce03d",
+          "scope_key": "wechat:default:v1",
+          "scope_kind": "account",
+          "source_type": "wechat"
+        },
+        {
+          "identity_key": "7e1c1ec1ea97d09889b2071db0727abe65487226a650201daf37e98a9f0a254c",
+          "identity_kind": "file_occurrence",
+          "key": "392cee3060af1af8262f608227d2f181ca2b774ab20ce9d54b76cca741805609",
+          "scope_key": "wechat:default:v1",
+          "scope_kind": "account",
+          "source_type": "wechat"
+        },
+        {
+          "identity_key": "7e1c1ec1ea97d09889b2071db0727abe65487226a650201daf37e98a9f0a254c",
+          "identity_kind": "file_occurrence",
+          "key": "6769f678504375b0fa76a7eee2c3ebad896a8de05374bcfc80a0f77ba322fe6f",
+          "scope_key": "683923fb00c65498861f432f3b56229a40fae8d97871dde0b584de06167778a0",
+          "scope_kind": "file_local",
+          "source_type": "wechat"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": null,
+      "file_binding_key": "6769f678504375b0fa76a7eee2c3ebad896a8de05374bcfc80a0f77ba322fe6f",
+      "file_scope_key": "683923fb00c65498861f432f3b56229a40fae8d97871dde0b584de06167778a0",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "wx-1",
+        "source_account_key": "wechat:default:v1",
+        "source_type": "wechat",
+        "table_key": "sheet:0"
+      },
+      "name": "wechat-provider",
+      "observation_scope_key": "683923fb00c65498861f432f3b56229a40fae8d97871dde0b584de06167778a0",
+      "occurrence_key": "7e1c1ec1ea97d09889b2071db0727abe65487226a650201daf37e98a9f0a254c",
+      "ok": true,
+      "provider_binding_key": "ccc620d99a56b95ddb9cb15323301ecca55291c3f33159921e3c4c5ba7fce03d",
+      "provider_identity": "dec9da38ba2b168e0785928f571fa4a41e4064381fc5c22b3412c8203f404a9c",
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "8b03db2506f5588986305ed064fc970701aba8ff5e8f218931319e8c7a87c7ee",
+        "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "7f3228de122a7b27c285a8c7cc6c810bc8c3bab90142b4ff816e500ae97fb552",
+          "identity_kind": "provider_id",
+          "key": "8b03db2506f5588986305ed064fc970701aba8ff5e8f218931319e8c7a87c7ee",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": null,
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "0000123",
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "stable_evidence": "evidence-1",
+        "table_key": "sheet:0"
+      },
+      "name": "provider-evidence",
+      "observation_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": "8b03db2506f5588986305ed064fc970701aba8ff5e8f218931319e8c7a87c7ee",
+      "provider_identity": "7f3228de122a7b27c285a8c7cc6c810bc8c3bab90142b4ff816e500ae97fb552",
+      "stable_evidence_binding_key": "729381e5cfd4b852f227cda2432dc8a8e3335741ef5cb126a3c535615c03778d"
+    },
+    {
+      "binding_keys": [
+        "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+        "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+        "af694af1dd170a8f429dfe9239ec3d51c5e7af5c4d536bc7d79996d64876ddeb"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+          "identity_kind": "file_occurrence",
+          "key": "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+          "scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+          "identity_kind": "file_occurrence",
+          "key": "af694af1dd170a8f429dfe9239ec3d51c5e7af5c4d536bc7d79996d64876ddeb",
+          "scope_key": "e0c4ebdd27a0d012c6fa79d7a5e4b13a0c1c80a6e69881035c8e5d77d20104b4",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+      "document_occurrence_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+      "document_page": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "1"
+      ],
+      "document_page_scope_key": "e0c4ebdd27a0d012c6fa79d7a5e4b13a0c1c80a6e69881035c8e5d77d20104b4",
+      "document_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "end": "2026-08-31T16:00:00+00:00",
+          "end_inclusive": false,
+          "evidence": "e",
+          "filters": {
+            "export_type": "all"
+          },
+          "page_fingerprints": {
+            "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "page_total": 1,
+          "start": "2026-07-31T16:00:00+00:00",
+          "start_inclusive": true,
+          "strategy_version": "source-coverage-v1",
+          "time_precision": "second"
+        },
+        "document_position": "p1:t0:r1",
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "document",
+      "observation_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "end": "2026-08-31T16:00:00+00:00",
+          "end_inclusive": false,
+          "evidence": "e",
+          "filters": {
+            "export_type": "all"
+          },
+          "page_fingerprints": {
+            "2": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "page_total": 2,
+          "start": "2026-07-31T16:00:00+00:00",
+          "start_inclusive": true,
+          "strategy_version": "source-coverage-v1",
+          "time_precision": "second"
+        },
+        "document_position": "p1:t0:r1",
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "document-page-missing",
+      "observation_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "2e4ffe8aa3e2b7f2031993b605dca5eadc12a918bf026a40fef17fced3271ef0",
+          "scope_key": "6222",
+          "scope_kind": "account",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "end": "2026-08-31T16:00:00+00:00",
+          "end_inclusive": false,
+          "evidence": "e",
+          "filters": {
+            "export_type": "all"
+          },
+          "page_fingerprints": {
+            "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "page_total": 1,
+          "start": "2026-07-31T16:00:00+00:00",
+          "start_inclusive": true,
+          "strategy_version": "source-coverage-v1",
+          "time_precision": "second"
+        },
+        "document_position": null,
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "document-no-position",
+      "observation_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+        "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+        "af694af1dd170a8f429dfe9239ec3d51c5e7af5c4d536bc7d79996d64876ddeb"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+          "identity_kind": "file_occurrence",
+          "key": "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+          "scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        },
+        {
+          "identity_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+          "identity_kind": "file_occurrence",
+          "key": "af694af1dd170a8f429dfe9239ec3d51c5e7af5c4d536bc7d79996d64876ddeb",
+          "scope_key": "e0c4ebdd27a0d012c6fa79d7a5e4b13a0c1c80a6e69881035c8e5d77d20104b4",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": "4b51407958718ac9185ea76e67032712341da8fdc8ae90f740db0d13095ff073",
+      "document_occurrence_key": "d335ea8b9e47ed093bb8830d9e75074d5a0f72313a9cf4df3ef95d4f7704c266",
+      "document_page": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "1"
+      ],
+      "document_page_scope_key": "e0c4ebdd27a0d012c6fa79d7a5e4b13a0c1c80a6e69881035c8e5d77d20104b4",
+      "document_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "end": "2026-08-31T16:00:00+00:00",
+          "end_inclusive": false,
+          "evidence": "e",
+          "filters": {
+            "export_type": "all"
+          },
+          "page_fingerprints": {
+            "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+          },
+          "page_total": 1,
+          "start": "2026-07-31T16:00:00+00:00",
+          "start_inclusive": true,
+          "strategy_version": "source-coverage-v1",
+          "time_precision": "second"
+        },
+        "document_position": "p1:t0:r1",
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": null,
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "document-no-account",
+      "observation_scope_key": "bffc0842de751fbab75a56ca56b6c778d697f028f36b25fefe52769474ae3370",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "cff011172e2f4588ab3730f4567ea0cfe10cd0ed03134cc81fa666976f703822",
+        "6adb714417f6195ef6a90bfad48cd7a739c330d00aca199cd79e3924158825c6",
+        "2adc92a0cda5958c29e62e8c49a94232e2b4792efc74bdd9799ce50ca401fe8b"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "6ac903f89593e8c3d597f83625500e70697fd7a8274047b5db3ce06f73a87e21",
+          "identity_kind": "file_occurrence",
+          "key": "cff011172e2f4588ab3730f4567ea0cfe10cd0ed03134cc81fa666976f703822",
+          "scope_key": "d8ff397217c60178fe9161c466c0a87696233a4328d4f4aa2fd78431935629f2",
+          "scope_kind": "file_local",
+          "source_type": "icbc_credit"
+        },
+        {
+          "identity_key": "a598e5bb7a5c378aaa0f1a9718b8033bb7c8759379386e5c2b14791c07f51c53",
+          "identity_kind": "file_occurrence",
+          "key": "6adb714417f6195ef6a90bfad48cd7a739c330d00aca199cd79e3924158825c6",
+          "scope_key": "d4d79785e43bf65d75fe3d818da8215da66be933aa665be048411c52849bd393",
+          "scope_kind": "file_local",
+          "source_type": "icbc_credit"
+        },
+        {
+          "identity_key": "a598e5bb7a5c378aaa0f1a9718b8033bb7c8759379386e5c2b14791c07f51c53",
+          "identity_kind": "file_occurrence",
+          "key": "2adc92a0cda5958c29e62e8c49a94232e2b4792efc74bdd9799ce50ca401fe8b",
+          "scope_key": "01704b4c990639f4ad5e2c7a90b987a5c1c9ee9f2621d89de0798bb022f0c2ff",
+          "scope_kind": "file_local",
+          "source_type": "icbc_credit"
+        }
+      ],
+      "document_binding_key": "6adb714417f6195ef6a90bfad48cd7a739c330d00aca199cd79e3924158825c6",
+      "document_occurrence_key": "a598e5bb7a5c378aaa0f1a9718b8033bb7c8759379386e5c2b14791c07f51c53",
+      "document_page": [
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "2"
+      ],
+      "document_page_scope_key": "01704b4c990639f4ad5e2c7a90b987a5c1c9ee9f2621d89de0798bb022f0c2ff",
+      "document_scope_key": "d4d79785e43bf65d75fe3d818da8215da66be933aa665be048411c52849bd393",
+      "file_binding_key": "cff011172e2f4588ab3730f4567ea0cfe10cd0ed03134cc81fa666976f703822",
+      "file_scope_key": "d8ff397217c60178fe9161c466c0a87696233a4328d4f4aa2fd78431935629f2",
+      "input": {
+        "coverage": {
+          "complete": true,
+          "document_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "end": "2026-08-31T16:00:00+00:00",
+          "end_inclusive": false,
+          "evidence": "e",
+          "filters": {
+            "export_type": "all"
+          },
+          "page_fingerprints": {
+            "1": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "2": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+          },
+          "page_total": 2,
+          "start": "2026-07-31T16:00:00+00:00",
+          "start_inclusive": true,
+          "strategy_version": "source-coverage-v1",
+          "time_precision": "second"
+        },
+        "document_position": "p2:t1:r2",
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": null,
+        "source_account_key": null,
+        "source_type": "icbc_credit",
+        "table_key": "sheet:0"
+      },
+      "name": "credit-pages",
+      "observation_scope_key": "d4d79785e43bf65d75fe3d818da8215da66be933aa665be048411c52849bd393",
+      "occurrence_key": "6ac903f89593e8c3d597f83625500e70697fd7a8274047b5db3ce06f73a87e21",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": null,
+      "stable_evidence_binding_key": null
+    },
+    {
+      "binding_keys": [
+        "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410"
+      ],
+      "binding_specs": [
+        {
+          "identity_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+          "identity_kind": "file_occurrence",
+          "key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+          "scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+          "scope_kind": "file_local",
+          "source_type": "ccb_debit"
+        }
+      ],
+      "document_binding_key": null,
+      "document_occurrence_key": null,
+      "document_page": null,
+      "document_page_scope_key": null,
+      "document_scope_key": null,
+      "file_binding_key": "c27218557375b61a520b51a07eb7e5bd409a890f642d9a54eae77160bb827410",
+      "file_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "wx-1",
+        "source_account_key": null,
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "provider-no-account",
+      "observation_scope_key": "2c48a6ad54122bca3f5a9c960c5658f9c4dad744d4dee1d215ddacc3f935ef0e",
+      "occurrence_key": "0db35a12fa16b8b01dcb467edc0a44b28c62d60776c0e367823d0daed4b67de4",
+      "ok": true,
+      "provider_binding_key": null,
+      "provider_identity": "dec9da38ba2b168e0785928f571fa4a41e4064381fc5c22b3412c8203f404a9c",
+      "stable_evidence_binding_key": null
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-file"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-parser"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt"
+      },
+      "name": "bad-table"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-account"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "provider_id": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-provider"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "stable_evidence": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-stable"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": -1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-position"
+    },
+    {
+      "error": "invalid_source_locator",
+      "input": {
+        "document_position": "p0:t0:r0",
+        "fields": {
+          "amount": "-20.00"
+        },
+        "file_digest": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "parser_version": "bank-table-rows-v1",
+        "position": 1,
+        "source_account_key": "6222",
+        "source_type": "ccb_debit",
+        "table_key": "sheet:0"
+      },
+      "name": "bad-document-position"
+    }
+  ],
+  "scopes": [
+    {
+      "label": null,
+      "owner": null,
+      "source_type": "wechat",
+      "value": "wechat:default:v1"
+    },
+    {
+      "label": " 命名 账户 ",
+      "owner": "ignored",
+      "source_type": "wechat",
+      "value": "wechat:named:v1:命名 账户"
+    },
+    {
+      "label": "",
+      "owner": null,
+      "source_type": "wechat",
+      "value": "wechat:default:v1"
+    },
+    {
+      "label": null,
+      "owner": "6222",
+      "source_type": "ccb_debit",
+      "value": "6222"
+    },
+    {
+      "label": null,
+      "owner": null,
+      "source_type": "ccb_debit",
+      "value": null
+    },
+    {
+      "error": "source_scope_invalid",
+      "label": null,
+      "owner": "",
+      "source_type": "ccb_debit"
+    },
+    {
+      "label": null,
+      "owner": "6666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
+      "source_type": "ccb_debit",
+      "value": "6666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666"
+    },
+    {
+      "error": "source_scope_invalid",
+      "label": null,
+      "owner": "66666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666666",
+      "source_type": "ccb_debit"
+    },
+    {
+      "error": "source_scope_invalid",
+      "label": "bad\u0000label",
+      "owner": null,
+      "source_type": "wechat"
+    },
+    {
+      "error": "source_scope_invalid",
+      "label": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "owner": null,
+      "source_type": "wechat"
+    },
+    {
+      "error": "source_scope_unsupported",
+      "label": "label",
+      "owner": "6222",
+      "source_type": "ccb_debit"
+    },
+    {
+      "label": "   ",
+      "owner": null,
+      "source_type": "wechat",
+      "value": "wechat:default:v1"
+    },
+    {
+      "label": "é",
+      "owner": null,
+      "source_type": "wechat",
+      "value": "wechat:named:v1:é"
+    },
+    {
+      "label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "owner": null,
+      "source_type": "wechat",
+      "value": "wechat:named:v1:😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀"
+    },
+    {
+      "error": "source_scope_invalid",
+      "label": "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+      "owner": null,
+      "source_type": "wechat"
+    }
+  ]
+}
