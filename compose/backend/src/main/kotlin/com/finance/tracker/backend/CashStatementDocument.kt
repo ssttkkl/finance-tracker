@@ -10,6 +10,7 @@ import java.nio.charset.StandardCharsets
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.serialization.json.*
 
 internal class StatementDocumentFailure(val code: String) : RuntimeException(code)
@@ -27,6 +28,43 @@ internal data class CashSourceCoverage(
     val timePrecision: String = "second", val documentKey: String? = null, val pageTotal: Int? = null,
     val pageFingerprints: Map<String, String> = emptyMap(),
 )
+
+private val statementSourceTimezones = mapOf("alipay" to "Asia/Shanghai", "wechat" to "Asia/Shanghai",
+    "icbc_credit" to "Asia/Shanghai", "icbc_debit" to "Asia/Shanghai", "ccb_debit" to "Asia/Shanghai",
+    "icbc_asia" to "Asia/Hong_Kong")
+
+private val explicitStatementOffset = Regex("(?:Z|[+-]\\d{2}(?::?\\d{2})?)$")
+private val basicStatementDate = Regex("\\d{8}")
+private val basicStatementDateTime = Regex("(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})(.*)")
+private val compactStatementOffset = Regex("([+-]\\d{2})(\\d{2})$")
+private val hourOnlyStatementOffset = Regex("([+-]\\d{2})$")
+
+/** 来源时间按渠道时区解释并输出 UTC；无 offset 的时间不使用本机时区。 */
+internal fun normalizeStatementTimestamp(value: String, source: String): String {
+    var text = value.trim { it.code in pythonWhitespace }.replace(',', '.')
+    if (basicStatementDate.matches(text)) text = "${text.take(4)}-${text.substring(4, 6)}-${text.substring(6, 8)}"
+    else basicStatementDateTime.matchEntire(text)?.let {
+        text = "${it.groupValues[1]}-${it.groupValues[2]}-${it.groupValues[3]}T" +
+            "${it.groupValues[4]}:${it.groupValues[5]}:${it.groupValues[6]}${it.groupValues[7]}"
+    }
+    text = compactStatementOffset.replace(text) { "${it.groupValues[1]}:${it.groupValues[2]}" }
+    text = hourOnlyStatementOffset.replace(text) { "${it.groupValues[1]}:00" }
+    if (text.length > 10 && text[10] == ' ') text = text.substring(0, 10) + "T" + text.substring(11)
+    val zone = ZoneId.of(statementSourceTimezones[source] ?: "UTC")
+    val instant = try {
+        try {
+            val parsed = pythonCashTimestamp(text)
+            if (explicitStatementOffset.containsMatchIn(text) || text.endsWith("Z")) parsed
+            else LocalDateTime.ofInstant(parsed, ZoneOffset.UTC).atZone(zone).toInstant()
+        } catch (_: InvalidCashValue) {
+            val parsed = pythonCashTimestamp(text, allowNaive = true)
+            LocalDateTime.ofInstant(parsed, ZoneOffset.UTC).atZone(zone).toInstant()
+        }
+    } catch (_: InvalidCashValue) {
+        throw IllegalArgumentException("invalid timestamp")
+    }
+    return manualInstantText(instant)
+}
 
 internal data class CashStatementDocument(
     val sourceType: String, val tableKey: String, val parserVersion: String, val rows: List<RawCashRow>,
@@ -73,9 +111,6 @@ internal object CashStatementDocumentReader {
     private const val MAX_PHYSICAL_ROWS = 200_000
     private const val MAX_COLUMNS = 128
     private const val DATE = "\\d{4}[-/]\\d{2}[-/]\\d{2}[ T]\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})?"
-    private val sourceTimezones = mapOf("alipay" to "Asia/Shanghai", "wechat" to "Asia/Shanghai",
-        "icbc_credit" to "Asia/Shanghai", "icbc_debit" to "Asia/Shanghai", "ccb_debit" to "Asia/Shanghai",
-        "icbc_asia" to "Asia/Hong_Kong")
 
     fun readPlatformDocument(content: ByteArray, source: String? = null): CashStatementDocument {
         if (source != null && source !in required) fail("statement_source_unsupported")
@@ -368,15 +403,6 @@ internal object CashStatementDocumentReader {
     private fun unanimous(values: List<Any?>): String? {
         val distinct = values.toSet()
         return if (distinct.size == 1) distinct.first()?.toString() else null
-    }
-
-    private fun normalizeStatementTimestamp(value: String, source: String): String {
-        val trimmed = pythonTrim(value).replace("Z", "+00:00")
-        val text = if (trimmed.length > 10 && trimmed[10] == ' ') trimmed.substring(0, 10) + "T" + trimmed.substring(11) else trimmed
-        val parsed = try { OffsetDateTime.parse(text) } catch (_: java.time.format.DateTimeParseException) {
-            LocalDateTime.parse(text).atZone(ZoneId.of(sourceTimezones[source] ?: "UTC")).toOffsetDateTime()
-        }
-        return manualInstantText(parsed.toInstant())
     }
 
     private fun pythonTrim(value: String): String {

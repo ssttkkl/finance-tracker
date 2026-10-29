@@ -43,7 +43,7 @@ private fun Map<*, *>.sourceText(key: String, pdf: Boolean = false): String {
     return (if (pdf) value.replace("\n", "") else value).sourceTrim()
 }
 
-private fun cashSourceNote(sourceType: String, payload: Any?): String {
+internal fun cashSourceNote(sourceType: String, payload: Any?): String {
     val cells = sourceCells(sourceType, payload)
     return if (sourceType == "wechat") cells["商品"] as? String ?: "" else CashRecordPolicy.sourceNote(cells)
 }
@@ -109,7 +109,7 @@ private fun extractLeftover(counterparty: String, brand: String): String {
     return leftoverEnd.replace(leftoverStart.replace(result, ""), "").sourceTrim()
 }
 
-private fun normalizeSourceCounterparty(raw: String, description: String): Pair<String, String> {
+internal fun normalizeSourceCounterparty(raw: String, description: String): Pair<String, String> {
     if (raw.isEmpty()) return raw to description
     var counterparty = installmentPrefix.replace(raw, "")
     paymentPrefixes.firstOrNull(counterparty::startsWith)?.let {
