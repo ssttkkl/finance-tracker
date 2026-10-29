@@ -161,6 +161,43 @@ class MutationPlanHttpContractTest {
         assertEquals("entry_changed", errorCode(stale.bodyAsText()))
     }
 
+    @Test fun resolveIssuePlanPublishesResolvedItem() = testApplication {
+        val db = database()
+        val expected = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv(
+            "FT_KOTLIN_PLAN_BUILD_CONTRACT_DIR"))).resolve("builds.json").readText()).jsonArray[15].jsonObject
+        application { financeModule(db) }
+        val body = buildJsonObject {
+            put("intent", "resolve_issue"); put("transaction_id", "1004"); put("expected_revision", 1)
+            put("issue_resolutions", JsonArray(listOf(buildJsonObject {
+                put("issue_id", "6004"); put("expected_issue_revision", 1); put("resolution", "apply_source")
+            })))
+        }
+        val created = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json); setBody(body.toString())
+        }
+        assertEquals(200, created.status.value, created.bodyAsText())
+        val view = Json.parseToJsonElement(created.bodyAsText()).jsonObject
+        val expectedView = expected.getValue("view").jsonObject
+        assertEquals(expectedView.getValue("items"), view.getValue("items"))
+        assertEquals(expectedView.getValue("summary"), view.getValue("summary"))
+        val planId = view.getValue("plan_id").jsonPrimitive.content
+        val item = client.get("/api/v1/cash-mutations/plans/$planId/items/pi_1") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }
+        assertEquals(expected.getValue("items").jsonObject.getValue("pi_1"), Json.parseToJsonElement(item.bodyAsText()))
+        val stale = client.post("/api/v1/cash-mutations/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+            contentType(ContentType.Application.Json)
+            setBody(buildJsonObject { put("intent", "resolve_issue"); put("transaction_id", "1004")
+                put("expected_revision", 1); put("issue_resolutions", JsonArray(listOf(buildJsonObject {
+                    put("issue_id", "6004"); put("expected_issue_revision", 2); put("resolution", "apply_source")
+                }))) }.toString())
+        }
+        assertEquals(409, stale.status.value)
+        assertEquals("issue_changed", errorCode(stale.bodyAsText()))
+    }
+
     @Test fun planErrorsStayStableAndDoNotWrite() = testApplication {
         val db = database()
         application { financeModule(db) }

@@ -24,6 +24,7 @@ class MutationPlanBuildContractTest {
                 put("patch", patch)
                 case["entry_id"]?.let { put("entry_id", it) }
                 case["expected_entry_revision"]?.let { put("expected_entry_revision", it) }
+                case["issue_resolutions"]?.let { put("issue_resolutions", it) }
             }) } catch (failure: MutationPlanFailure) { throw AssertionError("parse case $index ${case}", failure) }
             val result = runCatching {
                 db.read { connection ->

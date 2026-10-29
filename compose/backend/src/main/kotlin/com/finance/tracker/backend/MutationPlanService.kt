@@ -38,6 +38,8 @@ class MutationPlanService(
                     .build(transaction, request)
             } catch (failure: CashPolicyError) {
                 throw MutationPlanFieldFailure(failure.code, failure.fields).also { it.addSuppressed(failure) }
+            } catch (_: ReceiptConflict) {
+                throw MutationPlanFailure("issue_changed")
             }
             MutationPlanView.validateBuild(built)
             Triple(principal, context, built)

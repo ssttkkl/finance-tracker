@@ -15,7 +15,7 @@ from sqlalchemy import inspect, select
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
     AccountModel, CashCategoryModel, CashCategoryStateModel, CashTransactionComponentModel, CashEntryMemberModel,
-    CashEntryModel, CashTransactionModel,
+    CashEntryModel, CashTransactionIssueModel, CashTransactionModel,
     UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel,
 )
 from ft.application.cash_import_plans import _public_detail, _resolve_detail
@@ -51,6 +51,11 @@ def seed(sessions):
             note="已确认", category_id="food", record_type="consumption", record_subtype="not_applicable",
             record_id="w2", source_type="wechat", source_payload={"备注": "已确认"}, relation_metadata={},
             manual_overrides={}, created_at=NOW))
+        session.add(CashTransactionModel(id=1004, workspace_id="plan-a", state="draft", record_origin="import",
+            row_revision=1, cash_granularity="atomic", occurred_at=None, amount=None, currency="CNY",
+            counterparty="咖啡店", counterparty_account="", counterparty_account_attrs=[], note="原备注",
+            category_id="food", record_type=None, record_subtype=None, record_id="w4", source_type="wechat",
+            source_payload={"备注": "原备注"}, relation_metadata={}, manual_overrides={}, created_at=NOW))
         session.add(CashTransactionModel(id=1003, workspace_id="plan-a", state="draft", record_origin="import",
             account_id=101, row_revision=1, cash_granularity="atomic",
             occurred_at=datetime(2026, 7, 3, 9, tzinfo=timezone.utc), amount="30.00", currency="CNY",
@@ -76,6 +81,10 @@ def seed(sessions):
         session.flush()
         session.add(CashEntryMemberModel(workspace_id="plan-a", transaction_id=1002, entry_id="entry-1002",
             standalone_values={}, standalone_manual_fields=[]))
+        session.add(CashTransactionIssueModel(id=6004, workspace_id="plan-a", transaction_id=1004,
+            issue_key="source-update", code="source_update_pending", field_path=None,
+            pending_source_payload={"备注": "账单备注"}, pending_fields={"note": "账单备注"}, origin={}, revision=1,
+            created_at=NOW, updated_at=NOW))
 
 
 CASES = [
@@ -98,6 +107,12 @@ CASES = [
         "expected_entry_revision": 2, "patch": {"note": "条目备注"}},
     {"intent": "edit_entry", "transaction_id": "1002", "expected_revision": 1, "entry_id": "missing",
         "expected_entry_revision": 1, "patch": {}},
+    {"intent": "resolve_issue", "transaction_id": "1004", "expected_revision": 1, "patch": {},
+        "issue_resolutions": [{"issue_id": "6004", "expected_issue_revision": 1, "resolution": "apply_source"}]},
+    {"intent": "resolve_issue", "transaction_id": "1004", "expected_revision": 1, "patch": {},
+        "issue_resolutions": [{"issue_id": "6004", "expected_issue_revision": 1, "resolution": "keep_existing"}]},
+    {"intent": "resolve_issue", "transaction_id": "1004", "expected_revision": 1, "patch": {},
+        "issue_resolutions": [{"issue_id": "6004", "expected_issue_revision": 2, "resolution": "apply_source"}]},
 ]
 
 
@@ -129,8 +144,8 @@ def export(database_url: str, output: Path) -> None:
     with sessions() as session:
         for case in CASES:
             data, _metadata = _input({key: case[key] for key in
-                ("intent", "transaction_id", "expected_revision", "patch", "entry_id", "expected_entry_revision")
-                if key in case})
+                ("intent", "transaction_id", "expected_revision", "patch", "entry_id", "expected_entry_revision",
+                 "issue_resolutions") if key in case})
             try:
                 row = session.get(CashTransactionModel, int(case["transaction_id"]))
                 result = builder(session=session, preview_input=data, previous_plan=None, current_record=row)
