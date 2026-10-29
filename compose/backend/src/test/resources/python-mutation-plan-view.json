@@ -1,0 +1,643 @@
+{
+  "checks": [
+    {
+      "expected": {
+        "additional_effects": [
+          {
+            "field": "note",
+            "kind": "field_value_changed",
+            "reference": "42"
+          }
+        ],
+        "can_commit": true,
+        "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+        "expires_at": "2026-10-29T12:30:00+00:00",
+        "invalidated_choices": [
+          {
+            "code": "source_update_pending",
+            "kind": "issue",
+            "reference": "7"
+          }
+        ],
+        "item_counts": {
+          "confirmed": 1,
+          "pending": 1
+        },
+        "items": [
+          {
+            "anticipated_state": "posted",
+            "attention_reasons": [],
+            "confirmation_status": "confirmed",
+            "detail_available": true,
+            "display": {
+              "accounts": [
+                "日常账户",
+                "日常账户"
+              ],
+              "amount": "1.50",
+              "category_id": "food",
+              "counterparty": "咖啡店",
+              "counterparty_account": "尾号1234",
+              "counterparty_account_attrs": [
+                "尾号"
+              ],
+              "currency": "CNY",
+              "note": "公共备注",
+              "occurred_at": "2026-10-29T09:00:00+00:00"
+            },
+            "member_refs": [
+              {
+                "transaction_id": "42"
+              }
+            ],
+            "preview_item_id": "pi_1",
+            "statistics_eligible": true
+          },
+          {
+            "anticipated_state": "draft",
+            "attention_reasons": [
+              {
+                "blocking_scope": "row",
+                "code": "source_update_pending",
+                "field_path": null,
+                "message": "账单更新尚未确认，可稍后处理",
+                "next_action": "open_record"
+              }
+            ],
+            "confirmation_status": "pending",
+            "detail_available": true,
+            "display": {
+              "accounts": [],
+              "amount": null,
+              "category_id": null,
+              "counterparty": "",
+              "counterparty_account": null,
+              "currency": "CNY",
+              "note": "",
+              "occurred_at": null
+            },
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "preview_item_id": "pi_2",
+            "statistics_eligible": false
+          }
+        ],
+        "pages": {
+          "items": null
+        },
+        "plan_id": "mp_ccccccccccccccccccccccccccccccccccccccccccc.tttttttttttttttt",
+        "plan_revision": 2,
+        "summary": {
+          "duplicate": 1,
+          "update_draft": 1
+        }
+      },
+      "kind": "view"
+    },
+    {
+      "expected": {
+        "items": [
+          {
+            "anticipated_state": "posted",
+            "attention_reasons": [],
+            "confirmation_status": "confirmed",
+            "detail_available": true,
+            "display": {
+              "accounts": [
+                "日常账户",
+                "日常账户"
+              ],
+              "amount": "1.50",
+              "category_id": "food",
+              "counterparty": "咖啡店",
+              "counterparty_account": "尾号1234",
+              "counterparty_account_attrs": [
+                "尾号"
+              ],
+              "currency": "CNY",
+              "note": "公共备注",
+              "occurred_at": "2026-10-29T09:00:00+00:00"
+            },
+            "member_refs": [
+              {
+                "transaction_id": "42"
+              }
+            ],
+            "preview_item_id": "pi_1",
+            "statistics_eligible": true
+          }
+        ],
+        "next_cursor": "WyJtcF9jY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjLnR0dHR0dHR0dHR0dHR0dHQiLCJpdGVtcyIsImFsbCIsMV0"
+      },
+      "kind": "page",
+      "limit": 1
+    },
+    {
+      "cursor": "WyJtcF9jY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjY2NjLnR0dHR0dHR0dHR0dHR0dHQiLCJpdGVtcyIsImFsbCIsMV0",
+      "expected": {
+        "items": [
+          {
+            "anticipated_state": "draft",
+            "attention_reasons": [
+              {
+                "blocking_scope": "row",
+                "code": "source_update_pending",
+                "field_path": null,
+                "message": "账单更新尚未确认，可稍后处理",
+                "next_action": "open_record"
+              }
+            ],
+            "confirmation_status": "pending",
+            "detail_available": true,
+            "display": {
+              "accounts": [],
+              "amount": null,
+              "category_id": null,
+              "counterparty": "",
+              "counterparty_account": null,
+              "currency": "CNY",
+              "note": "",
+              "occurred_at": null
+            },
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "preview_item_id": "pi_2",
+            "statistics_eligible": false
+          }
+        ],
+        "next_cursor": null
+      },
+      "kind": "page",
+      "limit": 1
+    },
+    {
+      "confirmation_status": "pending",
+      "expected": {
+        "items": [
+          {
+            "anticipated_state": "draft",
+            "attention_reasons": [
+              {
+                "blocking_scope": "row",
+                "code": "source_update_pending",
+                "field_path": null,
+                "message": "账单更新尚未确认，可稍后处理",
+                "next_action": "open_record"
+              }
+            ],
+            "confirmation_status": "pending",
+            "detail_available": true,
+            "display": {
+              "accounts": [],
+              "amount": null,
+              "category_id": null,
+              "counterparty": "",
+              "counterparty_account": null,
+              "currency": "CNY",
+              "note": "",
+              "occurred_at": null
+            },
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "preview_item_id": "pi_2",
+            "statistics_eligible": false
+          }
+        ],
+        "next_cursor": null
+      },
+      "kind": "page"
+    },
+    {
+      "expected": {
+        "entry": {
+          "edit_ref": "entry-1",
+          "editable_fields": [
+            "note"
+          ],
+          "fields": {
+            "category_id": "food",
+            "note": "公共备注"
+          }
+        },
+        "field_diffs": [
+          {
+            "current": "旧",
+            "effective": "新",
+            "field": "note",
+            "incoming": "新",
+            "resolution": "apply",
+            "transaction_id": "42"
+          }
+        ],
+        "issues": [],
+        "members": [
+          {
+            "allowed_actions": [
+              "apply"
+            ],
+            "editable_fields": [
+              "note"
+            ],
+            "fields": {
+              "amount": "1.50",
+              "category_id": "food",
+              "components": [
+                {
+                  "account_id": "1",
+                  "amount": "1.50",
+                  "currency": "CNY",
+                  "ordinal": 0
+                }
+              ],
+              "currency": "CNY",
+              "note": "新备注",
+              "record_id": "r1",
+              "source_type": "wechat",
+              "state": "posted"
+            },
+            "planned_action": "update_draft",
+            "row_revision": 1,
+            "transaction_id": "42"
+          }
+        ],
+        "preview_item_id": "pi_1",
+        "relation_choices": [],
+        "relation_effects": [],
+        "relation_members": []
+      },
+      "id": "pi_1",
+      "kind": "item"
+    },
+    {
+      "expected": {
+        "entry": {
+          "edit_ref": "entry-2",
+          "editable_fields": [],
+          "fields": {
+            "note": "旧备注"
+          }
+        },
+        "field_diffs": [],
+        "issues": [
+          {
+            "blocking_scope": "row",
+            "code": "source_update_pending",
+            "field_path": null,
+            "message": "账单更新尚未确认，可稍后处理",
+            "next_action": "open_record"
+          }
+        ],
+        "members": [
+          {
+            "allowed_actions": [],
+            "editable_fields": [],
+            "fields": {
+              "amount": "2.00",
+              "components": [],
+              "currency": "CNY",
+              "note": "旧备注"
+            },
+            "planned_action": "duplicate",
+            "row_revision": 2,
+            "transaction_id": "43"
+          }
+        ],
+        "preview_item_id": "pi_2",
+        "relation_choices": [
+          {
+            "action": "defer",
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "display": {
+                  "accounts": [
+                    "日常账户"
+                  ],
+                  "amount": "2.00",
+                  "category_id": null,
+                  "counterparty": null,
+                  "counterparty_account": null,
+                  "currency": "CNY",
+                  "note": null,
+                  "occurred_at": null
+                },
+                "member_refs": [
+                  {
+                    "transaction_id": "44"
+                  }
+                ],
+                "relations": []
+              }
+            ],
+            "kind": "payment_mirror",
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "subtype": "ordinary",
+            "suggestion_id": "s1"
+          }
+        ],
+        "relation_effects": [
+          {
+            "effect": "keep",
+            "kind": "payment_mirror",
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "relation_id": "9",
+            "subtype": "ordinary"
+          }
+        ],
+        "relation_members": []
+      },
+      "id": "pi_2",
+      "kind": "item"
+    },
+    {
+      "args": {
+        "limit": 0
+      },
+      "error": "plan_page_invalid",
+      "expected_error": "plan_page_invalid",
+      "kind": "page"
+    },
+    {
+      "args": {
+        "confirmation_status": "invalid"
+      },
+      "error": "plan_page_invalid",
+      "expected_error": "plan_page_invalid",
+      "kind": "page"
+    },
+    {
+      "args": {
+        "cursor": "not-a-cursor"
+      },
+      "error": "plan_cursor_invalid",
+      "expected_error": "plan_cursor_invalid",
+      "kind": "page"
+    },
+    {
+      "args": {
+        "id": "missing"
+      },
+      "error": "plan_item_not_found",
+      "expected_error": "plan_item_not_found",
+      "kind": "item"
+    }
+  ],
+  "plan": {
+    "additional_effects": [
+      {
+        "field": "note",
+        "kind": "field_value_changed",
+        "reference": "42"
+      }
+    ],
+    "can_commit": true,
+    "detail_values": {
+      "43": {
+        "amount": "2.00",
+        "components": [],
+        "currency": "CNY",
+        "note": "旧备注"
+      }
+    },
+    "edit_context_id": "ccccccccccccccccccccccccccccccccccccccccccc",
+    "expires_at": "2026-10-29T12:30:00+00:00",
+    "file_results": [],
+    "invalidated_choices": [
+      {
+        "code": "source_update_pending",
+        "kind": "issue",
+        "reference": "7"
+      }
+    ],
+    "item_counts": {
+      "confirmed": 1,
+      "pending": 1
+    },
+    "item_details": {
+      "pi_1": {
+        "entry": {
+          "edit_ref": "entry-1",
+          "editable_fields": [
+            "note"
+          ],
+          "fields": {
+            "category_id": "food",
+            "note": "公共备注"
+          }
+        },
+        "field_diffs": [
+          {
+            "current": "旧",
+            "effective": "新",
+            "field": "note",
+            "incoming": "新",
+            "resolution": "apply",
+            "transaction_id": "42"
+          }
+        ],
+        "issues": [],
+        "members": [
+          {
+            "allowed_actions": [
+              "apply"
+            ],
+            "editable_fields": [
+              "note"
+            ],
+            "fields_ref": {
+              "operation_ref": "op_1"
+            },
+            "planned_action": "update_draft",
+            "row_revision": 1,
+            "transaction_id": "42"
+          }
+        ],
+        "relation_choices": [],
+        "relation_effects": [],
+        "relation_members": []
+      },
+      "pi_2": {
+        "entry": {
+          "edit_ref": "entry-2",
+          "editable_fields": [],
+          "fields": {
+            "note": "旧备注"
+          }
+        },
+        "field_diffs": [],
+        "issues": [
+          {
+            "code": "source_update_pending"
+          }
+        ],
+        "members": [
+          {
+            "allowed_actions": [],
+            "editable_fields": [],
+            "fields_ref": {
+              "transaction_id": "43"
+            },
+            "planned_action": "duplicate",
+            "row_revision": 2,
+            "transaction_id": "43"
+          }
+        ],
+        "relation_choices": [
+          {
+            "action": "defer",
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "display": {
+                  "accounts": [
+                    "日常账户"
+                  ],
+                  "amount": "2.00",
+                  "currency": "CNY"
+                },
+                "member_refs": [
+                  {
+                    "transaction_id": "44"
+                  }
+                ],
+                "relations": []
+              }
+            ],
+            "kind": "payment_mirror",
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "subtype": "ordinary",
+            "suggestion_id": "s1"
+          }
+        ],
+        "relation_effects": [
+          {
+            "effect": "keep",
+            "kind": "payment_mirror",
+            "member_refs": [
+              {
+                "transaction_id": "43"
+              }
+            ],
+            "relation_id": "9",
+            "subtype": "ordinary"
+          }
+        ],
+        "relation_members": []
+      }
+    },
+    "items": [
+      {
+        "anticipated_state": "posted",
+        "attention_reasons": [],
+        "confirmation_status": "confirmed",
+        "detail_available": true,
+        "display": {
+          "accounts": [
+            "日常账户",
+            "日常账户"
+          ],
+          "amount": "1.50",
+          "category_id": "food",
+          "counterparty": "咖啡店",
+          "counterparty_account": "尾号1234",
+          "counterparty_account_attrs": [
+            "尾号"
+          ],
+          "currency": "CNY",
+          "note": "公共备注",
+          "occurred_at": "2026-10-29T09:00:00+00:00"
+        },
+        "member_refs": [
+          {
+            "transaction_id": "42"
+          }
+        ],
+        "preview_item_id": "pi_1",
+        "statistics_eligible": true
+      },
+      {
+        "anticipated_state": "draft",
+        "attention_reasons": [
+          {
+            "blocking_scope": "row",
+            "code": "source_update_pending",
+            "field_path": null,
+            "next_action": "open_record"
+          }
+        ],
+        "confirmation_status": "pending",
+        "detail_available": true,
+        "display": {
+          "accounts": [],
+          "amount": null,
+          "counterparty": "",
+          "currency": "CNY",
+          "note": "",
+          "occurred_at": null
+        },
+        "member_refs": [
+          {
+            "transaction_id": "43"
+          }
+        ],
+        "preview_item_id": "pi_2",
+        "statistics_eligible": false
+      }
+    ],
+    "operations": [
+      {
+        "operation_ref": "op_1",
+        "row_refs": [
+          "row_1"
+        ],
+        "transaction_id": "42",
+        "values": {
+          "amount": "1.50",
+          "category_id": "food",
+          "components": [
+            {
+              "account_id": "1",
+              "amount": "1.50",
+              "component_id": "18446744073709551616",
+              "currency": "CNY",
+              "ordinal": 0
+            }
+          ],
+          "currency": "CNY",
+          "note": "新备注",
+          "record_id": "r1",
+          "source_type": "wechat",
+          "state": "posted"
+        }
+      }
+    ],
+    "plan_id": "mp_ccccccccccccccccccccccccccccccccccccccccccc.tttttttttttttttt",
+    "plan_revision": 2,
+    "processing_details": [],
+    "summary": {
+      "duplicate": 1,
+      "update_draft": 1
+    }
+  }
+}
