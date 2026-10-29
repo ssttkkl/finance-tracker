@@ -127,6 +127,18 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 })
             })
         }
+        exception<ReceiptConflict> { call, failure ->
+            val (code, message) = if (failure.code in setOf("edit_context_committed", "session_committed"))
+                failure.code to "本次修改已提交，请查看结果。"
+            else "idempotency_conflict" to "这次操作与上次不同，请核实后重试。"
+            call.respond(HttpStatusCode.Conflict, kotlinx.serialization.json.buildJsonObject {
+                put("error", kotlinx.serialization.json.buildJsonObject {
+                    put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                })
+                failure.receiptId?.let { put("receipt_id", JsonPrimitive(it)) }
+            })
+        }
         exception<MutationPlanStore.Expired> { call, _ -> planStoreExpired(call) }
         exception<MutationPlanStore.NotFound> { call, _ -> planStoreExpired(call) }
         exception<MutationPlanStore.Forbidden> { call, _ -> planStoreExpired(call) }
@@ -345,6 +357,17 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 mutationPlans.items(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
                     call.request.queryParameters["cursor"], limit, call.request.queryParameters["confirmation_status"],
                     call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        post("/api/v1/cash-mutations/plans/{plan_id}/commit") {
+            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
+                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
+            val expected = ((body.value as? JsonObject)?.get("expected_plan_revision") as? JsonPrimitive)?.content?.toLongOrNull()
+                ?: throw MutationPlanFailure("plan_input_invalid")
+            val result = withContext(Dispatchers.IO) {
+                mutationPlans.commit(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
+                    expected, call.request.headers["Idempotency-Key"], call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }

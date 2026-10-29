@@ -99,6 +99,80 @@ class MutationPlanService(
             MutationPlanView.item(checkedPlan(current, planId, null), previewItemId)
         }
 
+    fun commit(token: String?, planId: String?, expectedPlanRevision: Long, idempotencyKey: String?,
+        requestPrincipal: Principal? = null): JsonObject {
+        val key = idempotencyKey?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,255}")) }
+            ?: throw MutationPlanFailure("idempotency_key_required")
+        if (expectedPlanRevision < 1) throw MutationPlanFailure("plan_input_invalid")
+        val principal = reads.currentContext(token)
+        if (requestPrincipal != null) sameContext(requestPrincipal, principal)
+        val receipt = database.write { connection ->
+            val current = planContext(connection, token, write = true)
+            if (requestPrincipal != null) sameContext(requestPrincipal, current)
+            val workspace = current.workspaceId ?: throw AccessFailure(true)
+            val repository = ReceiptRepository(connection, workspace, database.sqlite, now)
+            val digest = cashSourceDigest(JsonPrimitive("cash-mutation-commit-v1"), JsonPrimitive(planId),
+                JsonPrimitive(expectedPlanRevision))
+            repository.replay(current.userId, key, digest, "mutation", planId)?.let { return@write it }
+            val contextId = MutationPlanStore.contextId(planId)
+            val contextDigest = tokenDigest(contextId)
+            repository.forContext(current.userId, editContextDigest = contextDigest)?.let {
+                throw ReceiptConflict("edit_context_committed", it.getValue("receipt_id").jsonPrimitive.content)
+            }
+            val stored = store.get(contextId, workspace, current.userId)
+            val plan = checkedPlan(stored, planId, expectedPlanRevision)
+            if (plan["can_commit"]?.jsonPrimitive?.booleanOrNull != true) throw MutationPlanFailure("plan_input_invalid")
+            val input = stored.previewInput ?: throw MutationPlanFailure("plan_changed")
+            val transaction = input.getValue("transaction_id").jsonPrimitive.content.toLong()
+            val expectedRevision = input.getValue("expected_revision").jsonPrimitive.long
+            val sql = connection.jooq(database.sqlite)
+            val rowRevision = sql.select(CASH_TRANSACTIONS.ROW_REVISION).from(CASH_TRANSACTIONS)
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.eq(transaction))
+                .and(CASH_TRANSACTIONS.DELETED_AT.isNull).fetchOne(CASH_TRANSACTIONS.ROW_REVISION)
+                ?: throw MutationPlanFailure("record_not_found")
+            if (rowRevision != expectedRevision) throw MutationPlanFailure("record_changed")
+            val operation = plan.getValue("operations").jsonArray.single().jsonObject
+            if (operation.getValue("planned_action").jsonPrimitive.content != "update_posted")
+                throw MutationPlanFailure("plan_input_invalid")
+            val entryEdit = operation["entry_edit"]?.takeIf { it != JsonNull }?.jsonObject
+                ?: throw MutationPlanFailure("plan_input_invalid")
+            val patch = entryEdit.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) }
+            CashEntryRepository(connection, workspace, database.sqlite).patch(transaction, patch,
+                entryEdit.getValue("revision").jsonPrimitive.long)
+            val context = CashSqlContext(connection, workspace, database.sqlite, now)
+            val projectionState = CashProjectionRepository(context).requireReadyStateLock()
+            val maintained = CashProjectionService.maintainInSession(context, setOf(transaction), projectionState)
+            val version = maintained["projection_version"]?.jsonPrimitive?.longOrNull ?: projectionState.projectionVersion
+            val references = CashProjectionRepository(context).currentReferences(setOf(transaction), projectionState.datasetId)
+            val pendingItems = references.values.filter {
+                (it["attention_count"]?.jsonPrimitive?.contentOrNull?.toLongOrNull() ?: 0L) > 0
+            }.mapNotNull { it["projection_id"]?.jsonPrimitive?.contentOrNull }.distinct().size
+            val summary = buildJsonObject {
+                for (field in listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate",
+                    "skipped", "relations_confirmed", "relations_deferred", "relations_ignored", "relations_removed",
+                    "relations_failed", "resolved_issues")) put(field, 0)
+                put("updated_posted", 1)
+            }
+            val resultSummary = buildJsonObject {
+                put("status", "completed"); put("summary", summary)
+                put("retained_transaction_id", transaction.toString())
+                put("projection_version", version); put("needs_attention_count", 0); put("pending_item_count", pendingItems)
+            }
+            val results = JsonArray(listOf(buildJsonObject {
+                put("result_kind", "row"); put("item_ref", transaction.toString())
+                put("outcome", "updated_posted"); put("operation_ref", "op_1")
+                put("transaction_id", transaction.toString())
+            }))
+            val created = repository.create(current.userId, key, digest, "mutation", resultSummary, results,
+                planId = planId, editContextDigest = contextDigest)
+            store.consume(contextId)
+            created
+        }
+        val after = reads.currentContext(token)
+        sameContext(principal, after)
+        return ReceiptRepositoryView.strip(receipt)
+    }
+
     private fun <T> read(token: String?, requestPrincipal: Principal?, block: (Principal) -> T): T {
         val principal = reads.currentContext(token)
         if (requestPrincipal != null) sameContext(requestPrincipal, principal)
@@ -153,4 +227,10 @@ class MutationPlanService(
     private fun sameContext(expected: Principal, actual: Principal) {
         if (expected.workspaceId != actual.workspaceId || expected.userId != actual.userId) throw AccessFailure(true)
     }
+}
+
+internal object ReceiptRepositoryView {
+    fun strip(receipt: JsonObject): JsonObject = JsonObject(receipt.filterKeys {
+        it !in setOf("request_digest", "session_digest", "edit_context_digest")
+    })
 }
