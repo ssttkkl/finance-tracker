@@ -149,7 +149,7 @@ PYTHONPATH=tests:.:src uv run python scripts/run_backend_tests.py --shard-index 
 
 | 文档 | 内容 |
 |---|---|
-| [Compose 功能地图](docs/feature-map.md) | Compose 页面、实现证据与当前覆盖缺口 |
+| [Compose 功能地图](docs/feature-map.md) | 产品总览、各模块页面与业务路径、实现证据和跨端待办 |
 | [文档索引](docs/README.md) | 当前文档与 OpenSpec 导航 |
 | [导入、关系与同步流程](docs/import-flow.md) | 现金/投资账单导入和连接器同步概览 |
 | [现金流水：存储、展示与操作](docs/cash-ledger.md) | 从业务对象到列表与统计、详情维护、分类／关联／删除及当前后端入口 |
