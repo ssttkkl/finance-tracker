@@ -14,7 +14,7 @@ from sqlalchemy import inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
-    AccountModel, CashCategoryModel, CashCategoryStateModel, CashTransactionModel,
+    AccountModel, CashCategoryModel, CashCategoryStateModel, CashTransactionComponentModel, CashTransactionModel,
     UserModel, UserSessionModel, WorkspaceMembershipModel, WorkspaceModel,
 )
 from ft.application.cash_import_plans import _public_detail, _resolve_detail
@@ -44,19 +44,33 @@ def seed(sessions):
             revision=1, created_at=NOW, updated_at=NOW))
         session.add(AccountModel(id=101, workspace_id="plan-a", name="日常账户", type="cash", active=True,
             currencies=["CNY"], revision=1, created_at=NOW, updated_at=NOW))
+        session.add(CashTransactionModel(id=1002, workspace_id="plan-a", state="posted", record_origin="import", account_id=101,
+            row_revision=1, cash_granularity="atomic", occurred_at=datetime(2026, 7, 2, 9, tzinfo=timezone.utc),
+            amount="15.00", currency="CNY", counterparty="超市", counterparty_account="", counterparty_account_attrs=[],
+            note="已确认", category_id="food", record_type="consumption", record_subtype="not_applicable",
+            record_id="w2", source_type="wechat", source_payload={"备注": "已确认"}, relation_metadata={},
+            manual_overrides={}, created_at=NOW))
         session.add(CashTransactionModel(id=1001, workspace_id="plan-a", state="draft", record_origin="import",
             row_revision=1, cash_granularity="atomic", occurred_at=None, amount=None, currency="CNY",
             counterparty="咖啡店", counterparty_account="", counterparty_account_attrs=[], note="旧备注",
             category_id="food", record_type=None, record_subtype=None, record_id="w1", source_type="wechat",
             source_payload={"备注": "旧备注"}, relation_metadata={}, manual_overrides={}, created_at=NOW))
+        session.flush()
+        session.add(CashTransactionComponentModel(id=2002, workspace_id="plan-a", cash_transaction_id=1002,
+            account_id=101, amount="15.00", currency="CNY", ordinal=0, label="", source_key="", metadata_json={},
+            created_at=NOW))
 
 
 CASES = [
-    {"note": "新备注"},
-    {"amount": "20"},
-    {},
-    {"category_id": None, "counterparty": "新店"},
-    {"unknown_field": "x"},
+    {"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {"note": "新备注"}},
+    {"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {"amount": "20"}},
+    {"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {}},
+    {"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1,
+        "patch": {"category_id": None, "counterparty": "新店"}},
+    {"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1, "patch": {"unknown_field": "x"}},
+    {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {"note": "改备注"}},
+    {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {}},
+    {"intent": "edit_record", "transaction_id": "1002", "expected_revision": 1, "patch": {"amount": "16"}},
 ]
 
 
@@ -86,11 +100,11 @@ def export(database_url: str, output: Path) -> None:
     builder = CashMutationBusinessPlanBuilder("plan-a")
     cases = []
     with sessions() as session:
-        for patch in CASES:
-            data, _metadata = _input({"intent": "save_draft", "transaction_id": "1001", "expected_revision": 1,
-                "patch": patch})
+        for case in CASES:
+            data, _metadata = _input({"intent": case["intent"], "transaction_id": case["transaction_id"],
+                "expected_revision": case["expected_revision"], "patch": case["patch"]})
             try:
-                row = session.get(CashTransactionModel, 1001)
+                row = session.get(CashTransactionModel, int(case["transaction_id"]))
                 result = builder(session=session, preview_input=data, previous_plan=None, current_record=row)
                 _validate_build(result)
                 item_counts = {status: sum(item["confirmation_status"] == status for item in result["items"])
@@ -103,9 +117,9 @@ def export(database_url: str, output: Path) -> None:
                     identifier = item["preview_item_id"]
                     items[identifier] = _public_detail(_resolve_detail(plan, plan["item_details"][identifier])) | {
                         "preview_item_id": identifier}
-                cases.append({"patch": patch, "ok": True, "view": view, "items": items})
+                cases.append({**case, "ok": True, "view": view, "items": items})
             except ValueError as error:
-                cases.append({"patch": patch, "ok": False, "error": getattr(error, "code", "record_input_invalid")})
+                cases.append({**case, "ok": False, "error": getattr(error, "code", "record_input_invalid")})
     output.mkdir(parents=True, exist_ok=True)
     (output / "builds.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
     (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc, "schema_revision": "20261028_51"}) + "\n")

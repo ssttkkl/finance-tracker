@@ -12,15 +12,13 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     private val workspace get() = context.workspace
 
     fun build(transactionId: Long, request: MutationPlanRequest): JsonObject {
-        if (request.intent != "save_draft") {
-            if (request.intent in setOf("edit_record", "edit_entry")) throw MutationPlanFailure("posted_required")
-            throw MutationPlanFailure("plan_input_invalid")
-        }
+        if (request.intent !in setOf("save_draft", "edit_record")) throw MutationPlanFailure("plan_input_invalid")
         val record = record(transactionId)
-        if (record.state != "draft") throw MutationPlanFailure("draft_required")
+        if (request.intent == "save_draft" && record.state != "draft") throw MutationPlanFailure("draft_required")
+        if (request.intent == "edit_record" && record.state != "posted") throw MutationPlanFailure("posted_required")
         val current = fields(record)
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
-        val operation = prepareDraft(record, current, patch)
+        val operation = prepare(record, current, patch)
         val entry = entry(transactionId)
         val entryPublic = entryPublic(operation, entry, current, patch)
         val contextRows = CashRelationContextService(context).load(setOf(transactionId))
@@ -43,19 +41,20 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         val issues = operation.getValue("issues").jsonArray
         val displayRetained = operation.getValue("display_retained_issues").jsonArray
         val attention = JsonArray(issues.toList() + displayRetained.toList())
+        val state = operation.getValue("values").jsonObject.getValue("state").jsonPrimitive.content
         val fact = CashProjectionFact.create(transactionId, record.accountId, record.occurredAt,
             operationAmountText(operation), operation.getValue("values").jsonObject["currency"]?.jsonPrimitive?.contentOrNull,
             entryPublic["counterparty"]?.jsonPrimitive?.contentOrNull ?: "", entryPublic["category_id"]?.let { if (it == JsonNull) null else it.jsonPrimitive.contentOrNull },
             entryPublic["note"]?.jsonPrimitive?.contentOrNull ?: "", record.sourceType, record.recordId, null,
-            record.granularity, "draft", record.createdAt, issues.isNotEmpty())
+            record.granularity, state, record.createdAt, issues.isNotEmpty())
         val projection = buildCashProjections(listOf(fact), emptyList()).projections.singleOrNull()
             ?: throw MutationPlanFailure("plan_build_failed")
         val accounts = accounts()
         val accountNames = displayAccounts(operation.getValue("values").jsonObject, accounts)
         val item = buildJsonObject {
             put("preview_item_id", "pi_1")
-            put("confirmation_status", "pending")
-            put("anticipated_state", "draft")
+            put("confirmation_status", if (state == "draft" || issues.isNotEmpty()) "pending" else "confirmed")
+            put("anticipated_state", state)
             put("display", buildJsonObject {
                 put("occurred_at", projection.occurredAt?.let { JsonPrimitive(manualInstantText(it)) } ?: JsonNull)
                 put("amount", projection.netAmount?.let { JsonPrimitive(cashAmountText(it)) } ?: JsonNull)
@@ -67,12 +66,14 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 put("counterparty_account_attrs", entryPublic.getValue("counterparty_account_attrs"))
                 put("accounts", JsonArray(accountNames.map(::JsonPrimitive)))
             })
-            put("statistics_eligible", false)
+            put("statistics_eligible", state == "posted" && issues.isEmpty())
             put("member_refs", JsonArray(listOf(buildJsonObject { put("transaction_id", transactionId.toString()) })))
             put("attention_reasons", attention)
             put("detail_available", true)
         }
-        val editable = editableCashRecordFields.sortedWith(cashRelationStringOrder)
+        val editable = if (state == "draft" || record.origin == "manual")
+            editableCashRecordFields.sortedWith(cashRelationStringOrder) else emptyList()
+        val allowedActions = if (state == "draft") listOf("save_draft", "finalize_draft") else listOf("edit_record")
         val detail = buildJsonObject {
             put("entry", buildJsonObject {
                 put("fields", JsonObject(entryPublic))
@@ -84,7 +85,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 put("planned_action", operation.getValue("planned_action"))
                 put("fields_ref", buildJsonObject { put("operation_ref", "op_1") })
                 put("editable_fields", JsonArray(editable.map(::JsonPrimitive)))
-                put("allowed_actions", JsonArray(listOf(JsonPrimitive("save_draft"), JsonPrimitive("finalize_draft"))))
+                put("allowed_actions", JsonArray(allowedActions.map(::JsonPrimitive)))
                 put("row_revision", request.expectedRevision)
             })))
             put("relation_members", JsonArray(emptyList()))
@@ -187,7 +188,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             }
     }
 
-    private fun prepareDraft(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>): JsonObject {
+    private fun prepare(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>): JsonObject {
         val protected = protectedFields(record)
         val update = CashRecordPolicy.prepare(current, patch, protected)
         var base = LinkedHashMap(current).apply { putAll(update.values) }
@@ -228,13 +229,21 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         if (categoryId != null && !sql.fetchExists(CASH_CATEGORIES, CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)
                 .and(CASH_CATEGORIES.ID.eq(categoryId)))) throw CashPolicyError("category_unavailable", listOf("category_id"))
         val issues = mutableListOf<JsonObject>()
-        val accountIssues = draftAccounts(values, accounts())
-        issues += accountIssues
-        try { CashRecordPolicy.validateForPosting(values) } catch (failure: CashPolicyError) {
-            issues += issueJson(cashImportIssue(failure.code, fieldPath = failure.fields.firstOrNull()))
+        val validatesAccounts = record.state == "draft" ||
+            record.origin in setOf("manual", "manual_transfer") && patch.keys.any { it in setOf("amount", "currency", "account_id", "components", "cash_granularity") }
+        if (validatesAccounts) {
+            issues += draftAccounts(values, accounts())
+            try { CashRecordPolicy.validateForPosting(values) } catch (failure: CashPolicyError) {
+                issues += issueJson(cashImportIssue(failure.code, fieldPath = failure.fields.firstOrNull()))
+            }
+        }
+        if (record.state == "posted" && issues.isNotEmpty()) {
+            val issue = issues.first()
+            throw CashPolicyError(issue.getValue("code").jsonPrimitive.content,
+                listOfNotNull(issue["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull))
         }
         val manual = if (record.state == "draft") patch.keys.filter { it in commonCashFields }.sortedWith(cashRelationStringOrder) else emptyList()
-        val action = if (valuesEqual(values, current) && manual.isEmpty()) "duplicate" else "update_draft"
+        val action = if (valuesEqual(values, current) && manual.isEmpty()) "duplicate" else "update_${record.state}"
         val diffs = fieldDiffs(current, values, patch, record)
         return buildJsonObject {
             put("transaction_id", record.id.toString()); put("expected_revision", record.revision)
@@ -386,8 +395,9 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     }
 
     private fun cashAmountText(amount: CashAmount): String {
-        val decimal = java.math.BigDecimal(amount.numericText())
-        val negativeZero = amount.toString().startsWith('-') && decimal.signum() == 0
+        val raw = amount.toString()
+        val decimal = java.math.BigDecimal(raw)
+        val negativeZero = raw.startsWith('-') && decimal.signum() == 0
         return (if (negativeZero) "-" else "") + decimal.toPlainString()
     }
 

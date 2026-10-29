@@ -16,13 +16,16 @@ class MutationPlanBuildContractTest {
         for ((index, raw) in cases.withIndex()) {
             val case = raw.jsonObject
             val patch = case.getValue("patch").jsonObject
+            val transaction = case.getValue("transaction_id").jsonPrimitive.content
             val request = MutationPlanRequest.parse(buildJsonObject {
-                put("intent", "save_draft"); put("transaction_id", "1001"); put("expected_revision", 1)
+                put("intent", case.getValue("intent").jsonPrimitive.content)
+                put("transaction_id", transaction)
+                put("expected_revision", case.getValue("expected_revision").jsonPrimitive.long)
                 put("patch", patch)
             })
             val result = runCatching {
                 db.read { connection ->
-                    MutationPlanBuilder(CashSqlContext(connection, "plan-a", db.sqlite)).build(1001, request)
+                    MutationPlanBuilder(CashSqlContext(connection, "plan-a", db.sqlite)).build(transaction.toLong(), request)
                 }
             }
             if (!case.getValue("ok").jsonPrimitive.boolean) {
