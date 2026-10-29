@@ -55,7 +55,7 @@
 
 - 由独立复核上下文、人工或可用辅助工具审查：产品看用户、优先级、范围与成功标准；工程看边界、数据流、失败、兼容、回滚、测试与复杂度；设计看任务、层级、状态、无障碍与响应式；DX 看 API/CLI/SDK 可发现性、一致性、错误、示例与迁移成本；安全看资产、信任边界、权限、输入、日志、依赖及外部回调；最终 diff 查 artifact 偏离、遗漏测试与回归。
 - 在正式 artifact 原位维护审查范围、风险、按严重级别排序的 finding、处置理由和回写位置；阻断项修复后重审，无 finding 也记录结论。`tasks.md` 集中记录当前实际命令、结果、`HEAD`、比较基线、执行时间和遗留风险；不追加逐轮日志。未运行项写明不适用理由、残余风险和准确补跑条件；HEAD、目标分支或依赖变化后重跑受影响验证，不能用旧结果冒充当前通过。
-- **后端设计评审：**数据库、后端接口和数据模型的增量评审按 `docs/design-review/backend/rules.md` 执行，结论写入 `openspec/changes/<name>/design-review.md`；全量评审按需输出到 `docs/design-review/backend/reports/YYYY-MM-DD-<scope>.md`。每条 finding 必须带建议改法，并包含位置、与现有设计重复的证据、持续成本或失效场景；不能只盯 PR diff，要沿调用关系查看相关查询、写入逻辑、调用方和测试。报告模板见 `docs/design-review/backend/report-template.md`。
+- **后端设计评审：**数据库、后端接口和数据模型的增量评审按 `docs/design-review/backend/rules.md` 执行，结论写入 `openspec/changes/<name>/design-review.md`；全量评审按需输出到 `docs/design-review/backend/reports/YYYY-MM-DD-<scope>.md`。每条 finding 必须带建议改法和证据，不能只盯 PR diff；证据字段、P0/P1/P2 和范围控制见规则文件，报告模板见 `docs/design-review/backend/report-template.md`。
 - **存储与双后端：**存储行为变更以同一 Application Service 和用户合同在 SQLite、真实 PostgreSQL 运行契约矩阵。开发及 SQLite 回归后，人工准备专用 PostgreSQL 库，优先本地 Docker 或本机 psql；库名必须以 `_test` 结尾，显式设置 `FT_TEST_POSTGRES_URL`。测试不得自动探测／启动数据库；未配置只能记未完成，skip 不算通过。性能与安全风险必须运行专项检查。
 - **默认前端验证范围：**Web 执行受影响流程的真实浏览器冒烟；Android、iOS 仅执行相称的编译和单元测试，不默认执行设备／模拟器交互、截图或端到端 QA。用户明确要求时才追加这些原生端验证；未运行的设备 QA 不宣称通过，也不因默认未执行而阻断交付。跨端影响分析和实现合同仍须保持一致。
 - **Web 冒烟：**UI、交互、路由、响应式或用户可见文案修改，在仓库现有开发／QA 构建或适用的生产预览中，选择代表视口走通受影响主流程、关键交互及直接相关的复现分支；涉及登录、权限、滚动或跨页时实际执行。单测、类型检查、构建和静态截图不能替代真实浏览器操作；不默认穷举全部状态、主题、视口或运行完整 Web 端到端回归，额外范围由用户明确指定。缺浏览器 Skill 换等效工具；浏览器不可用记未完成／阻断，不得宣称通过。证据记录浏览器、URL、视口、步骤、必要截图及控制台／网络错误；代码或依赖变化后只重跑受影响冒烟。
