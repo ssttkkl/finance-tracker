@@ -587,7 +587,7 @@ erDiagram
 | `created_at` | `UTC` | 默认当前 UTC | 创建时间；默认当前 UTC 时间 |
 | `updated_at` | `UTC` | 默认当前 UTC | 最近更新时间；创建和 ORM 更新时取当前 UTC 时间 |
 
-唯一约束包含 `(workspace_id, source_type, source_scope_kind, source_scope_key, identity_kind, identity_key)`。微信使用固定 `source_scope_key` 和必有交易单号，允许跨微信账号匹配；支付宝、银行等渠道仍按来源账户隔离。流水复合外键采用 `CASCADE`。数据库检查范围、身份类别、证据强度枚举，范围键和身份键非空字符串，以及 `revision >= 1`。修订号有服务端默认值 `1`，ORM 更新时加一；索引覆盖所属流水和稳定证据键。流水软删除时来源释放依赖业务删除流程，不能把物理外键级联当作软删除行为。
+唯一约束包含 `(workspace_id, source_type, source_scope_kind, source_scope_key, identity_kind, identity_key)`。微信使用固定 `source_scope_key` 和必有交易单号，允许跨微信账号匹配；支付宝使用独立固定范围和必有 `交易订单号`，允许跨支付宝账号匹配；银行等其他渠道仍按来源账户隔离。流水复合外键采用 `CASCADE`。数据库检查范围、身份类别、证据强度枚举，范围键和身份键非空字符串，以及 `revision >= 1`。修订号有服务端默认值 `1`，ORM 更新时加一；索引覆盖所属流水和稳定证据键。流水软删除时来源释放依赖业务删除流程，不能把物理外键级联当作软删除行为。
 
 ### 6.6 `cash_source_empty_pages`：认证空页证据
 

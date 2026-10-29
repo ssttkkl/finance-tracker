@@ -317,3 +317,10 @@ def test_ambiguous_source_header_is_not_guessed():
     content = _csv([_alipay_row()], count=1).replace("商家订单号".encode(), "金额(元)".encode()).replace("交易订单号".encode(), "交易单号".encode())
     with pytest.raises(StatementDocumentError, match="statement_header_invalid"):
         _read(content, None)
+
+
+def test_alipay_transaction_order_number_header_is_required():
+    from ft.adapters.cash_statement_document import StatementDocumentError
+    content = _csv([_alipay_row()], count=1).replace("交易订单号".encode(), "账单编号".encode())
+    with pytest.raises(StatementDocumentError):
+        _read(content, "alipay")

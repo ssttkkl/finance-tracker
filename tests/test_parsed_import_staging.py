@@ -538,11 +538,12 @@ def test_sweep_does_not_extend_expiry_after_a_late_edit(staging):
     assert store.sweep_expired(limit=10).deleted == 1
 
 
-def test_wechat_candidates_require_transaction_numbers_before_staging(staging):
+@pytest.mark.parametrize("source", ["alipay", "wechat"])
+def test_platform_candidates_require_transaction_numbers_before_staging(staging, source):
     from ft.application.parsed_import_staging import ParsedImportDataError
     store, _now, _client = staging
     file = _file()
-    file = replace(file, source_type="wechat", document=replace(file.document, source_type="wechat"))
+    file = replace(file, source_type=source, document=replace(file.document, source_type=source))
     created = _create(store, files=(file,))
     assert _get(store, created).files[0].document.rows[0].provider_id == "001"
     invalid = replace(file, document=replace(file.document, rows=(replace(file.document.rows[0], provider_id=None),)))

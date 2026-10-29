@@ -387,6 +387,40 @@ def test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_faile
     assert results["items"][0]["code"] == "fixed_field_conflict"
 
 
+def test_http_alipay_order_identity_crosses_accounts_without_merging_account_groups(context_runtime, monkeypatch):
+    from ft.adapters.relational.models import CashTransactionModel
+    first = _file(letter="a")
+    second = _file(letter="b")
+    first = replace(first, document=replace(first.document, source_account_identifier="masked-account-a"))
+    second = replace(second, document=replace(second.document, source_account_identifier="masked-account-b"))
+    client, _store, view = _setup(context_runtime, monkeypatch, files=(first, second))
+    assert len(view["source_accounts"]) == 2
+    assert len({item["source_account_ref"] for item in view["source_accounts"]}) == 2
+
+    plan = _preview(client, view).json()
+    receipt = _commit(client, plan, "cross-account-alipay-import").json()
+    assert receipt["summary"]["created_posted"] == 1
+    with context_runtime.sessions() as session:
+        imported = session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == context_runtime.workspace_id,
+            CashTransactionModel.source_type == "alipay", CashTransactionModel.record_origin == "import")).all()
+        assert len(imported) == 1
+
+    later = _file(letter="c")
+    later = replace(later, document=replace(later.document, source_account_identifier="masked-account-c"))
+    client, _store, later_view = _setup(context_runtime, monkeypatch, files=(later,))
+    assert len(later_view["source_accounts"]) == 1
+    duplicate = _preview(client, later_view).json()
+    assert duplicate["items"] == [] and duplicate["summary"]["duplicate"] == 1
+    repeated = _commit(client, duplicate, "cross-account-alipay-reimport").json()
+    assert repeated["status"] == "no_changes" and repeated["summary"]["duplicate"] == 1
+    with context_runtime.sessions() as session:
+        imported = session.scalars(select(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == context_runtime.workspace_id,
+            CashTransactionModel.source_type == "alipay", CashTransactionModel.record_origin == "import")).all()
+        assert len(imported) == 1
+
+
 def test_http_permission_is_rechecked_for_repreview_and_replay(context_runtime, monkeypatch):
     client, _, view = _setup(context_runtime, monkeypatch)
     plan = _preview(client, view).json()

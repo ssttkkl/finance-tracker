@@ -18,6 +18,7 @@ from typing import Any
 from ft.adapters.cash_statement_rows import ParsedCashDocument, ParsedCashRow
 from ft.adapters.cash_statement_evidence import valid_source_explanation
 from ft.domain.cash_source_matching import SourceCoverage
+from ft.domain.cash_source_scope import is_valid_platform_transaction_id
 from ft.application.cash_import_errors import (
     ImportSessionError, ImportSessionExpired, ImportSessionForbidden,
     ImportSessionNotFound, ImportSessionStorageUnavailable,
@@ -137,7 +138,8 @@ def _valid_files(files):
                     or not valid_source_explanation(row.source_explanation)
                     or row.provider_id is not None and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
                     or doc.source_type == "wechat" and row.disposition == "candidate"
-                        and (not isinstance(row.provider_id, str) or not 1 <= len(row.provider_id) <= 512)
+                        and not is_valid_platform_transaction_id(row.provider_id)
+                    or doc.source_type == "alipay" and not is_valid_platform_transaction_id(row.provider_id)
                     or row.source_account_identifier is not None and (not isinstance(row.source_account_identifier, str) or not 1 <= len(row.source_account_identifier) <= 256)
                     or row.document_position is not None and (not isinstance(row.document_position, str) or not re.fullmatch(r"p[1-9][0-9]{0,3}:t[0-9]{1,2}:r[1-9][0-9]{0,5}", row.document_position))
                     or not isinstance(row.issue_codes, tuple)
