@@ -1,0 +1,404 @@
+{
+  "cases": {
+    "merchant": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 1,
+        "signals": [
+          "refund",
+          "merchant",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e1"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "2"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "order_lock_late": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 1728000,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 1,
+        "signals": [
+          "refund",
+          "merchant",
+          "order_lock",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e1"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "20",
+          "within_auto": "true",
+          "priority": "4"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "title": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "未知",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 1,
+        "signals": [
+          "refund",
+          "title_exact",
+          "same_account",
+          "title_exact_unique"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e1"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "3"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "account": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 2,
+        "signals": [
+          "refund",
+          "counterparty_account",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e1",
+          "e2"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "3"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "weak": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "退款",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 1,
+        "signals": [
+          "refund",
+          "same_account",
+          "weak_link",
+          "weak_unique_strong"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "1"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "nearest": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 2,
+        "signals": [
+          "refund",
+          "merchant",
+          "same_account",
+          "full_nearest_unique"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e2",
+          "e1"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "2"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    },
+    "tie": {
+      "kind": "refund_offset",
+      "primary_fact_id": "r1",
+      "secondary_fact_id": null,
+      "primary_fact_type": "cash",
+      "secondary_fact_type": null,
+      "subtype": "",
+      "status": "pending_review",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "weak",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 2,
+        "signals": [
+          "refund",
+          "merchant",
+          "same_account"
+        ],
+        "open_leg": true,
+        "anchor_role": "refund",
+        "candidate_fact_ids": [
+          "e1",
+          "e2"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "2"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": true
+    },
+    "account_only_multi": null,
+    "zero_candidates": {
+      "kind": "refund_offset",
+      "primary_fact_id": "r1",
+      "secondary_fact_id": null,
+      "primary_fact_type": "cash",
+      "secondary_fact_type": null,
+      "subtype": "",
+      "status": "pending_review",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "weak",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 0,
+        "signals": [
+          "refund",
+          "open_leg_zero_candidate"
+        ],
+        "open_leg": true,
+        "anchor_role": "refund",
+        "candidate_fact_ids": [],
+        "extras": {
+          "refund_amount": "10.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": true
+    },
+    "transfer_candidate": null,
+    "other_account": null,
+    "other_currency": null,
+    "too_late": null,
+    "remaining": null,
+    "title_account_conflict": null,
+    "event_collapse": {
+      "kind": "refund_offset",
+      "primary_fact_id": "e1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.merchant_or_order.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 86400,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "candidate_count": 1,
+        "signals": [
+          "refund",
+          "merchant",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "e1"
+        ],
+        "extras": {
+          "refund_amount": "10.00",
+          "expense_amount": "10.00",
+          "remaining_before": "10.00",
+          "days": "1",
+          "within_auto": "true",
+          "priority": "2"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "r1",
+      "open_leg": false
+    }
+  }
+}
