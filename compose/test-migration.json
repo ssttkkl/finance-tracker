@@ -4762,6 +4762,727 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_cash_source_batch.py::test_a_distinct_occurrence_in_the_same_file_as_a_rejected_identity_is_preserved",
+      "source_sha256": "d5a3895a968ed46b37ddce18d6964d16c6f9f637866c6af3d22c1b7820577911",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_a_distinct_occurrence_in_the_same_file_as_a_rejected_identity_is_preserved"
+      ],
+      "assertions": [
+        "assert results['a:r2'].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "selectedIdentityStillBlocksUnprovenCrossFileCollision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_an_explicit_null_patch_is_different_from_omitting_the_field",
+      "source_sha256": "545136c16491e5434b879b1321e527d9a5a4f51e783e2b26dcab5bc999f26ce8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_an_explicit_null_patch_is_different_from_omitting_the_field"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' and row.reason == 'batch_identity_conflict' for row in _batch(rows, [_old(fields={'category_id': 'old'})]).values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "invalidRowsNullPatchesAndEquivalentAmountsKeepOriginalBoundaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_business_result_counts_are_independent_of_file_input_order_and_input_is_unchanged",
+      "source_sha256": "346583e24d4f6df3c8657ab05b53c4085f9308c519086ce2d15f02559edd0176",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_business_result_counts_are_independent_of_file_input_order_and_input_is_unchanged"
+      ],
+      "assertions": [
+        "assert files == before",
+        "assert len(_writes(results)) == 3",
+        "assert sum((row.action == 'batch_duplicate' for row in results.values())) == 3"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "permutationPreservesBusinessCountsAndDoesNotMutateInput"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_conflict_propagates_through_all_provider_and_verified_evidence_aliases",
+      "source_sha256": "8c9ff33066b75bcb59ca4456c036a6b280650489238dcb571199d7de3eb959e0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_conflict_propagates_through_all_provider_and_verified_evidence_aliases"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' for row in _batch(rows).values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "sourceProofsPropagateConflictAndKeepEveryOldTarget"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_cross_file_collisions_without_comparable_scope_are_pending_not_two_formal_groups",
+      "source_sha256": "adcb7cec41746bcb0d108c71400cfb63ea7606a2c533cb9d3f482949b286a40f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_cross_file_collisions_without_comparable_scope_are_pending_not_two_formal_groups[owner]",
+        "tests/test_cash_source_batch.py::test_cross_file_collisions_without_comparable_scope_are_pending_not_two_formal_groups[coverage]",
+        "tests/test_cash_source_batch.py::test_cross_file_collisions_without_comparable_scope_are_pending_not_two_formal_groups[filters]",
+        "tests/test_cash_source_batch.py::test_cross_file_collisions_without_comparable_scope_are_pending_not_two_formal_groups[precision]"
+      ],
+      "assertions": [
+        "assert all((row.action == 'pending' and (not row.bind) for row in results.values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "unknownOwnersAndIncomparableCoverageDeferOnlyUnprovenRows"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_crossed_names_defer_only_the_ambiguous_set_without_greedy_remainders",
+      "source_sha256": "5d3314452f5ce48c36cdc3d8dd7bc005be130fb476c75bcfe8257d5696b6e9af",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_crossed_names_defer_only_the_ambiguous_set_without_greedy_remainders[old0]",
+        "tests/test_cash_source_batch.py::test_crossed_names_defer_only_the_ambiguous_set_without_greedy_remainders[old1]"
+      ],
+      "assertions": [
+        "assert all((results[key].action == 'pending' for key in rows if not key.startswith('c:')))",
+        "assert results['c:r1'].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "crossedNamesDeferTheWholeAmbiguousSetWithoutGreedyRemainders"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_deleted_bindings_do_not_join_or_resurrect_previous_records",
+      "source_sha256": "961b4d30a3c8adf0f668c33e3a56ccc5ac4ce44e9f4eb891e6e0e84ddb583a4b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_deleted_bindings_do_not_join_or_resurrect_previous_records"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch(rows, [deleted]))) == 1",
+        "assert all((row.transaction_id is None for row in _batch(rows, [deleted]).values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_different_provider_ids_can_exclude_unknown_owner_cross_file_candidates",
+      "source_sha256": "67056cf8fb8f7f5ae9a9fb571978c63dd8cf99b8ff3c3efb12e2390c82aa6b59",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_different_provider_ids_can_exclude_unknown_owner_cross_file_candidates"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch({**_file('a', [first]), **_file('b', [second])}))) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_different_raw_ids_with_unknown_owners_are_excluded_without_inventing_scope",
+      "source_sha256": "3c5463b45f0979321791d4f9a32a8805b88b550e123fbd1ca9448c06910fa427",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_different_raw_ids_with_unknown_owners_are_excluded_without_inventing_scope"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch({**_file('a', [first]), **_file('b', [second])}))) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_distinct_known_owners_are_independent_despite_overlapping_dates_and_internal_accounts",
+      "source_sha256": "0c83a4b7862f5f79be5c7acb0c4af64f22761aa88b17bbfbec2c498e0cd6f736",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_distinct_known_owners_are_independent_despite_overlapping_dates_and_internal_accounts"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch(rows))) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_distinct_modification_times_override_file_selection_order",
+      "source_sha256": "f9fcb2493382e343aae5b98757d328a241b74c4f22fd37229067826125889664",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_distinct_modification_times_override_file_selection_order"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'new'",
+        "assert results['b:r1'].action == 'batch_duplicate' and results['b:r1'].duplicate_of == 'a:r1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "reliableSnapshotUsesTimeThenSelectionOrderAndPreservesFixedConflict"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_equivalent_decimal_and_time_values_do_not_create_a_false_identity_conflict",
+      "source_sha256": "4c6bd865c995eb57d1d9183e9f7e70a5dd6666ce9e231f65539e14c5979c77a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_equivalent_decimal_and_time_values_do_not_create_a_false_identity_conflict"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch({**_file('a', [first]), **_file('b', [second])}))) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "invalidRowsNullPatchesAndEquivalentAmountsKeepOriginalBoundaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_file_bindings_to_the_same_target_join_the_conflict_group_without_provider_ids",
+      "source_sha256": "b1bbf51ff2708068d825d536166ae15cbb86a442d96b172e0a3e3e1c3aea8b72",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_file_bindings_to_the_same_target_join_the_conflict_group_without_provider_ids"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' for row in _batch(rows, [old]).values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "snapshotPayloadChangesAndCombinedIdentityRetainConflicts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_invalid_row_is_isolated_from_valid_rows_even_with_the_same_provider_id",
+      "source_sha256": "adfceb7d1039c0486c7f488bca86d232510d0e8479c3730ff5df3dfbb56cf41e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_invalid_row_is_isolated_from_valid_rows_even_with_the_same_provider_id"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'conflict' and results['a:r1'].reason == 'invalid_field'",
+        "assert results['b:r1'].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "invalidRowsNullPatchesAndEquivalentAmountsKeepOriginalBoundaries"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_joint_identity_checks_the_combined_evidence_against_the_old_target",
+      "source_sha256": "9371949402a5cbeeca8f7b3dac6c53aad50cda405a7b13c04a671df637b19784",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_joint_identity_checks_the_combined_evidence_against_the_old_target"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' and row.reason == 'source_identity_conflict' for row in _batch(rows, [old]).values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "snapshotPayloadChangesAndCombinedIdentityRetainConflicts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_joint_identity_keeps_the_old_target_evidence_from_every_occurrence",
+      "source_sha256": "c25366eddf4b1ffa218e2a0e9903c863574b12f8fb9c6c82d4d0e9bc143b7ca3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_joint_identity_keeps_the_old_target_evidence_from_every_occurrence[verified]",
+        "tests/test_cash_source_batch.py::test_joint_identity_keeps_the_old_target_evidence_from_every_occurrence[file]"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' and row.reason == 'fixed_field_conflict' for row in results.values()))",
+        "assert not any((row.bind for row in results.values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "sourceProofsPropagateConflictAndKeepEveryOldTarget"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_known_aliases_share_one_pending_record_when_old_correspondence_is_unknown",
+      "source_sha256": "1263927b2b9541b151435217fdc7efd0ae3eafa03df50f51612e74146f8865dd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_known_aliases_share_one_pending_record_when_old_correspondence_is_unknown"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'pending'",
+        "assert results['b:r1'].duplicate_of == 'a:r1'",
+        "assert results['b:r1'].candidate_ids == results['a:r1'].candidate_ids"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "uniqueWeakRowsAndKnownAliasesPreserveProvenCorrespondence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_known_distinct_ids_do_not_collapse_when_the_financial_index_matches",
+      "source_sha256": "2b16146af947d0c7b9ae2118843560d1b671e4c9eb29459c13cfa3e40f541450",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_known_distinct_ids_do_not_collapse_when_the_financial_index_matches"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch(rows))) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "distinctReliableRowsAndSameFileWeakOccurrenceAreNeverCollapsed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_large_ambiguous_sets_share_candidate_groups_instead_of_expanding_each_row",
+      "source_sha256": "7163f786bd6f8193ec6f312a99a354411ae9727b44f6d086354e4d737803e587",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_large_ambiguous_sets_share_candidate_groups_instead_of_expanding_each_row"
+      ],
+      "assertions": [
+        "assert all((row.action == 'pending' for row in results.values()))",
+        "assert sum((len(group.row_refs) + len(group.candidate_ids) for group in results.plan.groups)) <= count * 3",
+        "assert len(json.dumps(asdict(results.plan), ensure_ascii=False).encode()) < count * 1200",
+        "assert perf_counter() - started < 2"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "reason": "用户明确排除性能验证；该原定义的时间和规模预算保持未验证，小规模共享组功能另有原生测试。"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_large_equal_multisets_have_bounded_planning_work",
+      "source_sha256": "ca4ac87a890e5d430056bcf899ac7cb1a37b849768d0eaa8e3da2dd73e896928",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_large_equal_multisets_have_bounded_planning_work"
+      ],
+      "assertions": [
+        "assert not _writes(results) and (not any((row.action == 'pending' for row in results.values())))",
+        "assert perf_counter() - started < 2"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "reason": "用户明确排除性能验证；该原定义的时间和规模预算保持未验证，小规模共享组功能另有原生测试。"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_large_rejected_identity_keeps_one_shared_collision_context",
+      "source_sha256": "ad92abed80ad361809d9e5a4a74e1165c36e5ac10c88e647d838f3f15aaa2406",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_large_rejected_identity_keeps_one_shared_collision_context"
+      ],
+      "assertions": [
+        "assert sum((row.action == 'conflict' for row in results.values())) == count",
+        "assert sum((row.action == 'pending' for row in results.values())) == count",
+        "assert sum((len(group.row_refs) for group in results.plan.groups)) <= count",
+        "assert len(json.dumps(asdict(results.plan), ensure_ascii=False).encode()) < count * 1200",
+        "assert perf_counter() - started < 2"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "reason": "用户明确排除性能验证；该原定义的时间和规模预算保持未验证，小规模共享组功能另有原生测试。"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_large_uniform_multiset_results_use_shared_references_with_linear_size",
+      "source_sha256": "162521c3ab25470df986f7d744a588ee297f1c21447831eae90374bee69c0685",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_large_uniform_multiset_results_use_shared_references_with_linear_size"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == count",
+        "assert sum((len(group.row_refs) for group in results.plan.groups)) <= count * 2",
+        "assert len(json.dumps(asdict(results.plan), ensure_ascii=False).encode()) < count * 1200",
+        "assert perf_counter() - started < 2"
+      ],
+      "targets": [],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "reason": "用户明确排除性能验证；该原定义的时间和规模预算保持未验证，小规模共享组功能另有原生测试。"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_locator_collision_with_inconsistent_input_is_a_row_conflict_not_a_planner_exception",
+      "source_sha256": "1068c12b98384da2560228d2f1e4d89b6deb9533431facccb591a1deef55fc6b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_locator_collision_with_inconsistent_input_is_a_row_conflict_not_a_planner_exception"
+      ],
+      "assertions": [
+        "assert all((row.action == 'conflict' for row in results.values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "snapshotPayloadChangesAndCombinedIdentityRetainConflicts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_one_file_cannot_count_its_weak_occurrence_as_its_own_distinct_proven_occurrence",
+      "source_sha256": "3888c5e4169ac7d9884b03fd4fcb18941dbe772c5e3ba7212e0af98e66aed7a7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_one_file_cannot_count_its_weak_occurrence_as_its_own_distinct_proven_occurrence"
+      ],
+      "assertions": [
+        "assert len(_writes(_batch(rows))) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "distinctReliableRowsAndSameFileWeakOccurrenceAreNeverCollapsed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_one_weak_unique_row_in_each_export_can_share_a_proven_correspondence",
+      "source_sha256": "593307a450074548bd5a1de0553a8887fcf24be13e5797139c06810ab5384572",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_one_weak_unique_row_in_each_export_can_share_a_proven_correspondence"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'duplicate' and results['a:r1'].transaction_id == '1'",
+        "assert results['b:r1'].action == 'batch_duplicate' and results['b:r1'].duplicate_of == 'a:r1'",
+        "assert results['b:r1'].bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "uniqueWeakRowsAndKnownAliasesPreserveProvenCorrespondence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_overlapping_exports_add_only_the_common_excess_over_existing_records",
+      "source_sha256": "fbcb6bfd3cb1aba8f9fb332da0a16231bb1b90248bd56ab5863dbc340e9b6191",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_overlapping_exports_add_only_the_common_excess_over_existing_records"
+      ],
+      "assertions": [
+        "assert [row.action for row in _writes(results)] == ['new']",
+        "assert all((not row.bind for row in results.values() if row.action in {'duplicate', 'batch_duplicate'}))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "overlappingMultisetsUseMaximumMultiplicityAndOnlyCommonExcess"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_overlapping_uniform_exports_use_maximum_multiplicity",
+      "source_sha256": "94e7e9736c31736f565fbcf02c8921200421a22b7e3ff0df03d9d77013201552",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_overlapping_uniform_exports_use_maximum_multiplicity"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == 3",
+        "assert sum((row.action == 'batch_duplicate' for row in results.values())) == 2",
+        "assert all((not row.bind and len(_equivalent_rows(row, results)) == 3 for row in results.values() if row.action == 'batch_duplicate'))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "overlappingMultisetsUseMaximumMultiplicityAndOnlyCommonExcess"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_proven_distinct_ids_in_different_files_survive_a_weak_equivalent_export",
+      "source_sha256": "56f3e574b72416e43586906fc091414c7da0a54e2c7897508f905981adcd5c42",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_proven_distinct_ids_in_different_files_survive_a_weak_equivalent_export"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == 2",
+        "assert results['c:r1'].action == results['c:r2'].action == 'batch_duplicate'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "scopeAndDeletedEvidenceCannotCreateOrResurrectExtraRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_reliable_id_needs_no_range_and_shares_one_operation_across_files",
+      "source_sha256": "c3a1d95ba6e9ef39a4a9f47f3bfb32ba06367c0be6ae0f0775a33d137fd3ba6a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_reliable_id_needs_no_range_and_shares_one_operation_across_files"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == 1 and results['b:r1'].bind",
+        "assert results['b:r1'].duplicate_of == 'a:r1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "uniqueWeakRowsAndKnownAliasesPreserveProvenCorrespondence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_reliable_identity_selects_the_newest_snapshot_as_the_only_batch_operation",
+      "source_sha256": "cb54c8af67ccf5d49274808306d26019af603c8b50dfa47873d40ebb3ad98cc7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_reliable_identity_selects_the_newest_snapshot_as_the_only_batch_operation[fields0]",
+        "tests/test_cash_source_batch.py::test_reliable_identity_selects_the_newest_snapshot_as_the_only_batch_operation[fields1]"
+      ],
+      "assertions": [
+        "assert results['b:r1'].action == 'new'",
+        "assert results['a:r1'].action == 'batch_duplicate' and results['a:r1'].duplicate_of == 'b:r1'",
+        "assert results['c:r1'].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "snapshotPayloadChangesAndCombinedIdentityRetainConflicts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_reordered_nonuniform_equal_sets_are_automatic_without_individual_old_bindings",
+      "source_sha256": "a6dad935f26cd45f39df6f10c5a4a4b5202cb60a026c038fb1cb9b19df993e86",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_reordered_nonuniform_equal_sets_are_automatic_without_individual_old_bindings"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == (0 if old else 2)",
+        "assert not any((row.action in {'pending', 'conflict'} for row in results.values()))",
+        "assert all((not row.bind and row.transaction_id is None for row in results.values()))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "reorderedEqualSetsAndUniformUpdatesKeepUncertainBindingsEmpty"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_reuploading_the_same_file_in_one_batch_preserves_two_occurrences_not_four",
+      "source_sha256": "dca3ce6c70132b2d8b4ef12d256f253e0553ba560650dfa5f1d758b7bf63ab0a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_reuploading_the_same_file_in_one_batch_preserves_two_occurrences_not_four"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == 2",
+        "assert duplicate.action == 'batch_duplicate'",
+        "assert duplicate.duplicate_of == f'a:r{position}' and duplicate.bind"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "repeatedFileKeepsOccurrencesAndExactDuplicateBindings"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_selected_identity_still_blocks_its_unproven_cross_file_collision",
+      "source_sha256": "4615cbe982f830e99b2e38ce3dae9a81d5c3be2a80049b524fa12da3ebf3a865",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_selected_identity_still_blocks_its_unproven_cross_file_collision"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'batch_duplicate' and results['a:r1'].duplicate_of == 'b:r1'",
+        "assert results['b:r1'].action == 'new'",
+        "assert results['c:r1'].action == 'pending'",
+        "assert results['d:r1'].action == results['e:r1'].action == 'new'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "selectedIdentityStillBlocksUnprovenCrossFileCollision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_selected_snapshot_still_uses_existing_fixed_financial_conflict_rule",
+      "source_sha256": "c13cefdea9a4e67a9866fbfd3f0d1953d0a71e9a8a2d778005c787b4ff633bd6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_selected_snapshot_still_uses_existing_fixed_financial_conflict_rule"
+      ],
+      "assertions": [
+        "assert results['b:r1'].action == 'conflict' and results['b:r1'].reason == 'fixed_field_conflict'",
+        "assert results['a:r1'].action == 'conflict' and results['a:r1'].reason == 'fixed_field_conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "reliableSnapshotUsesTimeThenSelectionOrderAndPreservesFixedConflict"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_snapshot_timestamp_tie_or_missing_time_falls_back_to_later_selected_file",
+      "source_sha256": "15195a5dfc455d2c36ef6d4b8fd797105b6f5822d384d0e6f96ee169c28b747a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_snapshot_timestamp_tie_or_missing_time_falls_back_to_later_selected_file[timestamps0]",
+        "tests/test_cash_source_batch.py::test_snapshot_timestamp_tie_or_missing_time_falls_back_to_later_selected_file[timestamps1]",
+        "tests/test_cash_source_batch.py::test_snapshot_timestamp_tie_or_missing_time_falls_back_to_later_selected_file[timestamps2]"
+      ],
+      "assertions": [
+        "assert results['b:r1'].action == 'new'",
+        "assert results['a:r1'].action == 'batch_duplicate' and results['a:r1'].duplicate_of == 'b:r1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "reliableSnapshotUsesTimeThenSelectionOrderAndPreservesFixedConflict"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_uniform_updates_run_once_per_existing_target_across_files",
+      "source_sha256": "c065d9a981447c79416a26f3100a15a60ba121c6a0555e9ed9c42224ffb8ec94",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_uniform_updates_run_once_per_existing_target_across_files"
+      ],
+      "assertions": [
+        "assert {row.transaction_id for row in _writes(results)} == {'1', '2'}",
+        "assert len(_writes(results)) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "reorderedEqualSetsAndUniformUpdatesKeepUncertainBindingsEmpty"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_unknown_owner_crossing_a_known_owner_is_not_another_formal_record",
+      "source_sha256": "c278df6e5ecd8457acb0ce269edc25237db2649f16780ac5ed960676df4adae5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_unknown_owner_crossing_a_known_owner_is_not_another_formal_record"
+      ],
+      "assertions": [
+        "assert results['a:r1'].action == 'new'",
+        "assert results['b:r1'].action == 'pending' and _equivalent_rows(results['b:r1'], results) == ('a:r1',)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "unknownOwnersAndIncomparableCoverageDeferOnlyUnprovenRows"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_source_batch.py::test_weak_row_can_report_equivalent_to_two_proven_distinct_ids_without_binding_either",
+      "source_sha256": "40984ccb6ef3981fb424c34d5b53f0adf75da2070da7ac261aa8650c6c5b6d29",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_batch.py::test_weak_row_can_report_equivalent_to_two_proven_distinct_ids_without_binding_either"
+      ],
+      "assertions": [
+        "assert len(_writes(results)) == 2",
+        "assert all((results[key].action == 'batch_duplicate' and (not results[key].bind) and (_equivalent_rows(results[key], results) == ('a:r1', 'a:r2')) for key in ('b:r1', 'b:r2')))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceBatchTest.kt",
+          "test": "distinctReliableRowsAndSameFileWeakOccurrenceAreNeverCollapsed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner",
       "source_sha256": "8e2b773c8c7e165dee25a240879a49e47ce3f18946c29738143589cdfee5a133",
       "status": "pending",
@@ -5583,6 +6304,11 @@
       "baseline_sha256": null,
       "current_sha256": "b664fd07ca9f37c234b231cfecb64c34ba4cd648baa20e61c916fbb1a6202ccf",
       "reason": "新增授权回归使用现有双库 context_runtime 和 editor helper，完整财务表读取用于无写入断言。"
+    },
+    "pyproject.toml": {
+      "baseline_sha256": "5e6ccf8242ba60becd530d67ce4bea23337e447db6bda927367ce30d0e078c20",
+      "current_sha256": "211bb6827ed36d919be687e7e65da4c00e6fefb6d35d240f43603cf151a0cc11",
+      "reason": "既有 16b1147 的 PDF 匿名夹具生成新增 pypdf/reportlab 开发依赖；当前 diff 仅此两项，未改 pytest 收集、参数或断言。"
     }
   }
 }

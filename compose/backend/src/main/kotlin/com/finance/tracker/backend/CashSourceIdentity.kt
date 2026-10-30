@@ -198,7 +198,7 @@ internal object CashSourceDocuments {
 /** Python `json.dumps(ensure_ascii=False, sort_keys=True, separators=(",", ":"))` 的稳定摘要。 */
 internal fun sourceDigest(vararg values: Any?): String = tokenDigest(sourceJson(values.toList()).toString())
 
-private fun pythonStringOrder(first: String, second: String): Int {
+internal fun pythonStringOrder(first: String, second: String): Int {
     val left = first.codePoints().iterator()
     val right = second.codePoints().iterator()
     while (left.hasNext() && right.hasNext()) {

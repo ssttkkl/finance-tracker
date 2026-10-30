@@ -36,6 +36,7 @@ internal data class DocumentPageProof(val sourceType: String, val parserVersion:
 
 /** 来源对应解析：只产生结果，不写账本。 */
 internal object CashSourceResolver {
+    private val stringOrder = Comparator<String>(::pythonStringOrder)
     fun resolveSourceFile(rows: List<SourceOccurrence>, records: List<SourceRecord>): List<SourceResolution> {
         if (rows.map { Triple(it.sourceType, it.fileDigest, it.parserVersion) }.distinct().size > 1)
             throw IllegalArgumentException("one_source_file_required")
@@ -131,7 +132,7 @@ internal object CashSourceResolver {
                     if (matched.action != "conflict") used += target.transactionId
                 } else {
                     results[row.occurrenceKey] = SourceResolution(row.occurrenceKey, "pending",
-                        candidateIds = targets.keys.sorted(), reason = "source_identity_ambiguous")
+                        candidateIds = targets.keys.sortedWith(stringOrder), reason = "source_identity_ambiguous")
                 }
                 continue
             }
@@ -152,7 +153,7 @@ internal object CashSourceResolver {
                         possible.none { record -> record.coverages.any { row.coverage.comparable(it, row.fields["occurred_at"]) } })
                     results[row.occurrenceKey] = if (needsPending)
                         SourceResolution(row.occurrenceKey, "pending",
-                            candidateIds = possible.map { it.transactionId }.sorted(), reason = "source_identity_ambiguous")
+                            candidateIds = possible.map { it.transactionId }.sortedWith(stringOrder), reason = "source_identity_ambiguous")
                     else SourceResolution(row.occurrenceKey, "new", bind = true)
                 }
                 continue
@@ -182,7 +183,7 @@ internal object CashSourceResolver {
                 members.all { (it.providerId to it.stableEvidence) == (members.first().providerId to members.first().stableEvidence) } &&
                 candidates.all { difference(members.first(), it).second.isEmpty() }
             if (uniform) {
-                val sorted = candidates.sortedBy { it.transactionId }
+                val sorted = candidates.sortedWith(compareBy(stringOrder) { it.transactionId })
                 val changed = sorted.any { difference(members.first(), it).first }
                 for ((index, row) in members.withIndex()) {
                     results[row.occurrenceKey] = if (changed && index < sorted.size) matched(row, sorted[index])
@@ -191,7 +192,7 @@ internal object CashSourceResolver {
                 }
                 continue
             }
-            val ids = candidates.map { it.transactionId }.sorted()
+            val ids = candidates.map { it.transactionId }.sortedWith(stringOrder)
             for (row in members) results[row.occurrenceKey] = SourceResolution(row.occurrenceKey, "pending",
                 candidateIds = ids, reason = "source_identity_ambiguous")
         }
@@ -242,7 +243,7 @@ internal object CashSourceResolver {
         }.toSet()
     }
 
-    private fun indexOf(fields: Map<String, Any?>): Index? {
+    internal fun indexOf(fields: Map<String, Any?>): Index? {
         val amount = fields["amount"] ?: return null
         val currency = fields["currency"] as? String ?: return null
         val occurred = fields["occurred_at"] ?: return null
@@ -253,7 +254,7 @@ internal object CashSourceResolver {
         return Index(time, if (cash.representation.negative && value != "0") "-$value" else value, currency)
     }
 
-    private fun patch(row: SourceOccurrence): Map<String, Any?> =
+    internal fun patch(row: SourceOccurrence): Map<String, Any?> =
         row.fields.filterKeys { it in mutableCashFields || it in financialCashFields }
 
     private fun difference(row: SourceOccurrence, old: SourceRecord): Pair<Boolean, String> = try {
@@ -338,7 +339,7 @@ internal object CashSourceResolver {
         return true
     }
 
-    private fun recordBindingKeys(record: SourceRecord): Set<String> {
+    internal fun recordBindingKeys(record: SourceRecord): Set<String> {
         val keys = record.bindingKeys.toMutableSet()
         if (record.providerId.present() && record.sourceAccountKey.present())
             keys += sourceDigest(record.sourceType, "account", record.sourceAccountKey, "provider_id",
@@ -352,5 +353,19 @@ internal object CashSourceResolver {
 
     private fun String?.present(): Boolean = !this.isNullOrEmpty()
 
-    private data class Index(val occurredAt: Instant, val amount: String, val currency: String)
+    internal data class Index(val occurredAt: Instant, val amount: String, val currency: String)
+
+    internal fun compatible(row: SourceOccurrence, old: SourceOccurrence): Boolean {
+        if (row.documentOccurrenceKey != null && row.documentScopeKey == old.documentScopeKey &&
+            old.documentOccurrenceKey != null && row.documentOccurrenceKey != old.documentOccurrenceKey) return false
+        val reliable = row.providerBindingKey != null && (row.providerBindingKey == old.providerBindingKey ||
+            row.providerBindingKey in old.bindingKeys) || row.stableEvidenceBindingKey != null &&
+            (row.stableEvidenceBindingKey == old.stableEvidenceBindingKey || row.stableEvidenceBindingKey in old.bindingKeys)
+        if (!reliable && row.fileScopeKey == old.fileScopeKey && row.occurrenceKey != old.occurrenceKey) return false
+        return !(row.providerId != null && old.providerId != null && row.providerId != old.providerId ||
+            row.providerBindingKey != null && old.providerBindingKey != null && row.providerBindingKey != old.providerBindingKey ||
+            row.stableEvidence != null && old.stableEvidence != null && row.stableEvidence != old.stableEvidence ||
+            row.stableEvidenceBindingKey != null && old.stableEvidenceBindingKey != null &&
+            row.stableEvidenceBindingKey != old.stableEvidenceBindingKey)
+    }
 }
