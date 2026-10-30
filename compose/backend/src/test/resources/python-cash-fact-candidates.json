@@ -1,0 +1,70 @@
+{
+  "mirror": [
+    [
+      "b1"
+    ],
+    [
+      "m1",
+      "exp1",
+      "exp_other",
+      "p2p_exp",
+      "exp2"
+    ],
+    [
+      "br"
+    ],
+    [
+      "mr",
+      "p2p"
+    ]
+  ],
+  "transfer_in": [
+    "in1",
+    "in2"
+  ],
+  "transfer_pair": [
+    [
+      "in1"
+    ],
+    [],
+    [
+      "fx_in"
+    ]
+  ],
+  "refund": [
+    [
+      "m1",
+      "b1",
+      "exp1",
+      "p2p_exp",
+      "exp2"
+    ],
+    [
+      "ref"
+    ],
+    [
+      "m1",
+      "b1",
+      "exp1",
+      "p2p_exp"
+    ]
+  ],
+  "by_id": [
+    "b1",
+    "br",
+    "exp1",
+    "exp2",
+    "exp_other",
+    "fx_in",
+    "fx_out",
+    "in1",
+    "in2",
+    "late",
+    "m1",
+    "mr",
+    "out",
+    "p2p",
+    "p2p_exp",
+    "ref"
+  ]
+}
