@@ -2329,6 +2329,477 @@
       "compatibility": "A real viewer token is rejected with the original 403 workspace_forbidden; a beforeWrite observer proves the application writer was not called."
     },
     {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_add_remove_and_stale_revision_do_not_reread_original_files",
+      "source_sha256": "b5ee48c516175a9fb81ea009a4a85c8863ae6fdecd316ec3cc52b8ea0fa3e85a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_add_remove_and_stale_revision_do_not_reread_original_files[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_add_remove_and_stale_revision_do_not_reread_original_files[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "追加只解析新文件",
+        "删除不重新解析",
+        "过期修订拒绝且不解析"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "addRemoveAndStaleRevisionDoNotRereadOriginalFiles"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_aggregate_budget_marks_new_file_failed_and_keeps_existing_file",
+      "source_sha256": "9c23ba7b539a90274ae3471d06fdeaa42421d32c6acedb54feb79e0cdecd8507",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_aggregate_budget_marks_new_file_failed_and_keeps_existing_file[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_aggregate_budget_marks_new_file_failed_and_keeps_existing_file[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "超预算新文件标记失败",
+        "原文件保持不变",
+        "错误码为内容过多"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "aggregateBudgetMarksNewFileFailedAndKeepsExistingFile"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_bad_document_from_one_importer_does_not_block_the_other_file",
+      "source_sha256": "169a9635d7f5ddd1c2fae90d3c1e5e0158a87ca5a1b3973fc03e5427163cafe0",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_bad_document_from_one_importer_does_not_block_the_other_file[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_bad_document_from_one_importer_does_not_block_the_other_file[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "一个文件失败不阻止另一个文件成功"
+      ],
+      "targets": [],
+      "reason": "Kotlin 解析器返回显式文档类型，形状错误在编译期排除；类型化失败隔离由独立回归覆盖。",
+      "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k bad_document_from_one_importer",
+      "compatibility": "Kotlin 以类型化解析失败验证同一边界，不再接受任意返回形状。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_cancel_clears_body_and_cannot_be_reopened",
+      "source_sha256": "1a66fe6cbc94c7ad2b524642d67a477b0b929adeb608155c3c27e246a7a01943",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_cancel_clears_body_and_cannot_be_reopened[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_cancel_clears_body_and_cannot_be_reopened[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "取消清空文件",
+        "重复取消幂等",
+        "取消后追加返回已关闭"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "cancelClearsBodyAndCannotBeReopened"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication",
+      "source_sha256": "1fb377c59b5534e57ef9b93d14b40bf682b2051d0385c06fa43fd2bc37d2b80b",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "解析期间提交成功后拒绝晚到发布",
+        "原会话保持不变"
+      ],
+      "targets": [],
+      "reason": "晚到发布阻止需要永久收据与工作区事务，待上传 HTTP 切片。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled",
+      "source_sha256": "2f4156a3d08868b4af3cbff2bf554c503bf0ce92e46788d7e87e640fc722724a",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "收据优先于存储缺失",
+        "已消费会话不能取消"
+      ],
+      "targets": [],
+      "reason": "消费收据优先于临时存储缺失的路径待收据接入；取消已消费会话同样待 HTTP 切片。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows",
+      "source_sha256": "920cd46504c3c4d716d73ebc333236f6487e8851fc98048f2338696e2ac245f1",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "扩展名误导仍按内容识别来源",
+        "金额不可读行保留问题码",
+        "成功文件可恢复",
+        "声明数量为空"
+      ],
+      "targets": [],
+      "reason": "银行表格解析与不完整行保留已由现有文档和行归一 Python 对照覆盖，本层只消费同一归一结果。",
+      "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k default_parser_accepts_bank_tables_and_preserves_incomplete_rows",
+      "compatibility": "Kotlin BankStatementDocumentGoldenTest 与 BankRowNormalizationGoldenTest 使用同一 Python 对照。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_each_file_parsed_once_and_only_parsed_rows_survive",
+      "source_sha256": "0f94614bf69c951a6e04b3d1940da283470be5d5616fa3f488f632f736fe76aa",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_each_file_parsed_once_and_only_parsed_rows_survive[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_each_file_parsed_once_and_only_parsed_rows_survive[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "每个文件只解析一次",
+        "恢复会话不重读正文",
+        "解析行字段保留",
+        "密码与原文不进入会话资料",
+        "纯准备层没有财务写入入口"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "eachFileParsedOnceAndOnlyParsedRowsAreKept"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import",
+      "source_sha256": "de890b703d3b89baa1641cd37d1dcfa653c907f387074fe7a81872754135ff4a",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import[cash_web_runtime-mutation]",
+        "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import[postgres_cash_web_runtime-mutation]"
+      ],
+      "assertions": [
+        "非导入上下文对会话命令不可见",
+        "计划预览、读取和提交拒绝",
+        "提交结果查询为未提交"
+      ],
+      "targets": [],
+      "reason": "会话读取、取消与追加已拒绝非导入上下文；计划读取、提交和收据查询待 HTTP/收据切片迁移。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_file_parser_failure_and_password_request_are_isolated",
+      "source_sha256": "865a9372929ed671004664dd9e3cef5c1a57e2294c2386f33d34a8ddd4afb68e",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_file_parser_failure_and_password_request_are_isolated[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_file_parser_failure_and_password_request_are_isolated[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "失败文件为 statement_unreadable",
+        "密码文件为 password_required",
+        "成功文件保留解析行",
+        "技术正文不进入会话",
+        "密码文件无文档"
+      ],
+      "targets": [],
+      "reason": "Kotlin 解析器为显式类型；已知格式错误与密码请求映射为文件结果，未知异常按内部错误停止，不复制 Python 的任意异常吸收。",
+      "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k file_parser_failure_and_password_request_are_isolated",
+      "compatibility": "密码与已知格式错误的文件结果与 Python 一致；未知异常处理是 Kotlin 边界的刻意收窄。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_file_replacement_preserves_wechat_scope_without_reusing_it_for_other_channels",
+      "source_sha256": "65fcce8afb9ab186043df4e4e45eccbe38afd4d518c490cb1811b244cfaaac10",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_file_replacement_preserves_wechat_scope_without_reusing_it_for_other_channels[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_file_replacement_preserves_wechat_scope_without_reusing_it_for_other_channels[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "替换继承微信范围",
+        "清空范围生效",
+        "其他来源替换后范围为空"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "replacementPreservesWechatScopeWithoutReusingItForOtherChannels"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_oversized_file_keeps_observed_size_and_does_not_invoke_parser",
+      "source_sha256": "4849197e8d600ce89344c9890144da89747828dd596ab45ac64edbd2e6595c0b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_oversized_file_keeps_observed_size_and_does_not_invoke_parser[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_oversized_file_keeps_observed_size_and_does_not_invoke_parser[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "超过单次读取上限不调用解析器",
+        "记录观察大小",
+        "文件标记失败"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "oversizedFileKeepsObservedSizeAndDoesNotInvokeParser"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock",
+      "source_sha256": "4d1ed027fea3ed1793f60317476e7cd88e5b07f285c83fc3d3b8dd65930dbf0f",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "解析期间其他工作区命令可进入"
+      ],
+      "targets": [],
+      "reason": "纯准备层不持有工作区锁；解析与另一命令并发的真实边界待工作区事务切片。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation",
+      "source_sha256": "6e1fa963e678fc034ce53856084328d3521951cad3bf324ba0a12d866e7914ee",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[cash_web_runtime-\\u5de5\\u884c\\u6d41\\u6c34\\u5bc6\\u7801\\uff08fixture-secret\\uff09.pdf-None]",
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[cash_web_runtime-\\u5de5\\u884c\\u6d41\\u6c34\\uff08\\u5bc6\\u7801\\uff1afixture-secret\\uff09.pdf-None]",
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[cash_web_runtime-filename2-fixture-secret]",
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[postgres_cash_web_runtime-\\u5de5\\u884c\\u6d41\\u6c34\\u5bc6\\u7801\\uff08fixture-secret\\uff09.pdf-None]",
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[postgres_cash_web_runtime-\\u5de5\\u884c\\u6d41\\u6c34\\uff08\\u5bc6\\u7801\\uff1afixture-secret\\uff09.pdf-None]",
+        "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation[postgres_cash_web_runtime-filename2-fixture-secret]"
+      ],
+      "assertions": [
+        "括号内密码被移除",
+        "密码键值形式被移除",
+        "截断前移除密码并限制 255 码点"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "displayFilenameMatchesPythonContracts"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_display_name",
+      "source_sha256": "a3f3448bc3e6bddcaaac196d40c3c8bf59824bb3f2e376c4c659a6a7ba529e64",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_display_name[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_pdf_password_retry_uses_only_new_upload_and_scrubs_password_from_display_name[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "首次无密码返回 password_required",
+        "错误密码返回 password_incorrect",
+        "正确密码后解析成功且修订递增",
+        "替换不延长过期时间",
+        "只使用本次上传正文和密码",
+        "显示文件名不含密码"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "replacementFailurePreservesSelectedWechatSourceForLaterRetry"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/IcbcPdfDocumentGoldenTest.kt",
+          "test": "icbcPdfDocumentsMatchPython"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "displayFilenameMatchesPythonContracts"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_replace_reparses_only_uploaded_file_and_changes_row_namespace",
+      "source_sha256": "6ac98d8276108f1b3595da531d1d8d22775fcca556b02362725f00ca71992455",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_replace_reparses_only_uploaded_file_and_changes_row_namespace[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_replace_reparses_only_uploaded_file_and_changes_row_namespace[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "只重新解析被替换文件",
+        "替换后文件引用改变",
+        "其他文件保持不变",
+        "旧计划清空",
+        "过时行选择按命名空间移除",
+        "一次性密码不进入会话"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "replaceReparsesOnlyUploadedFileAndChangesRowNamespace"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_replacement_failure_preserves_selected_wechat_source_for_later_retry",
+      "source_sha256": "62d697adb4d5b08a284f398ac74aa19e241fad38ec83f3b34807f6847dabf45d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_replacement_failure_preserves_selected_wechat_source_for_later_retry[cash_web_runtime-password]",
+        "tests/contract/test_parsed_cash_import_context.py::test_replacement_failure_preserves_selected_wechat_source_for_later_retry[cash_web_runtime-unreadable]",
+        "tests/contract/test_parsed_cash_import_context.py::test_replacement_failure_preserves_selected_wechat_source_for_later_retry[postgres_cash_web_runtime-password]",
+        "tests/contract/test_parsed_cash_import_context.py::test_replacement_failure_preserves_selected_wechat_source_for_later_retry[postgres_cash_web_runtime-unreadable]"
+      ],
+      "assertions": [
+        "密码失败保留已选微信来源",
+        "不可读失败保留已选微信来源",
+        "重试后解析成功并保留范围",
+        "过期时间不延长",
+        "无效新范围保留已确认来源"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "replacementFailurePreservesSelectedWechatSourceForLaterRetry"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "invalidReplacementScopeKeepsTheConfirmedWechatSource"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing",
+      "source_sha256": "352be825209d5cf947f59dba5b301b3c8b632d09f67b2b34c43a6628857197b8",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "解析后权限撤销拒绝发布",
+        "会话存储保持为空"
+      ],
+      "targets": [],
+      "reason": "解析后权限重验需要工作区事务与成员查询，待上传 HTTP 切片。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged",
+      "source_sha256": "9ba0c4157a976d39671c96efeb2b3b44ae4d4dac77f3b085fca7f3604a8c5e2f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "非微信来源拒绝设置范围",
+        "无效范围标签拒绝",
+        "失败后会话不变"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "scopeSettingIsOnlyForWechatAndInvalidValuesLeaveSessionUnchanged"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_source_can_be_detected_and_converted_without_a_second_reader",
+      "source_sha256": "81ee0b3c473fd9d747ee1459fcc96b2dd631265aeb8869a0ad7dc2d3e22a3bfb",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_source_can_be_detected_and_converted_without_a_second_reader[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_source_can_be_detected_and_converted_without_a_second_reader[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "按正文识别支付宝来源",
+        "金额归一为负支出",
+        "不进行第二次读取"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "sourceCanBeDetectedAndConvertedWithoutASecondReader"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_unexpected_converter_diagnostic_survives_staging_and_replacement_clears_it",
+      "source_sha256": "c50b43215ebb67b09d62eaf1b1a65b5718e59afcdd02e69972cbc7b18f61e1dd",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_unexpected_converter_diagnostic_survives_staging_and_replacement_clears_it[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_unexpected_converter_diagnostic_survives_staging_and_replacement_clears_it[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "文件级诊断定位到行转换",
+        "诊断随会话恢复",
+        "错误正文不进入日志",
+        "替换后诊断清除"
+      ],
+      "targets": [],
+      "reason": "Kotlin 内部未知异常停止整次操作；类型化文件错误保留 file_read 诊断，替换后诊断清除由独立回归覆盖。",
+      "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k unexpected_converter_diagnostic",
+      "compatibility": "诊断结构由同一编码校验；内部异常策略按 Kotlin 边界收窄。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_wechat_file_scope_change_invalidates_only_its_choices_without_parsing_or_extending_ttl",
+      "source_sha256": "c273713637d6b24de2b39cc2183f1eb32ee919e4262e40a670c9d62aa4f6a6a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_file_scope_change_invalidates_only_its_choices_without_parsing_or_extending_ttl[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_file_scope_change_invalidates_only_its_choices_without_parsing_or_extending_ttl[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "修订递增一",
+        "范围标签归一化",
+        "其他文件不变",
+        "不重新解析",
+        "过期时间不延长",
+        "只移除该文件的行选择"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "wechatScopeChangeInvalidatesOnlyItsChoicesWithoutParsingOrExtendingTtl"
+        }
+      ]
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission",
+      "source_sha256": "87d9e3dff093a58eaf54a6b4f1ff151f11856793201f04ad50d696a4a932f169",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "解析后权限降级拒绝写入",
+        "会话保持不变"
+      ],
+      "targets": [],
+      "reason": "成员权限查询属于工作区事务层，待上传 HTTP 切片接入。"
+    },
+    {
+      "source": "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries",
+      "source_sha256": "84b8aca2b82b003b9891147d2b0bdf98f6c59505beda5ae0ac0e5118a89c8758",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries[cash_web_runtime]",
+        "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "错误修订拒绝",
+        "已消费会话拒绝修改",
+        "收据仍可读取"
+      ],
+      "targets": [],
+      "reason": "修订冲突与关闭已在纯层覆盖；已消费会话的 session_committed 取决于永久收据，待上传 HTTP 切片。"
+    },
+    {
       "source": "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts",
       "source_sha256": "ec809365c3ecfbbee6e3cdd98d401a679fffe4f457c32727a6d7fb0e8ee1a891",
       "status": "pending",
@@ -3057,6 +3528,147 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_common_decision_survives_file_invalidation_and_continued_restore",
+      "source_sha256": "b8ba88fbdf3bd7fbb23bb057982ff784bdee51718b25e5560a4f66e132c02d00",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_common_decision_survives_file_invalidation_and_continued_restore"
+      ],
+      "assertions": [
+        "公共决定经多次恢复保持不变",
+        "空备注、共同对方和空分类合法"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "commonDecisionSurvivesRepeatedRestore"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "choiceContextsMatchPythonContracts"
+        }
+      ]
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups",
+      "source_sha256": "d4029310b95d3c8b93a0baf1074fea55128b37693af0287301f8903600330feb",
+      "status": "pending",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[accept]",
+        "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[defer]",
+        "tests/test_cash_import_choice_context.py::test_explicit_exemption_does_not_extend_to_adjacent_unselected_groups[ignore]"
+      ],
+      "assertions": [
+        "显式豁免只作用于该组",
+        "邻近未选择组保持延迟",
+        "无关组保持默认"
+      ],
+      "targets": [],
+      "reason": "业务计划的选择应用尚未迁移到 Kotlin。"
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_invalidated_common_decision_rejects_non_public_or_invalid_values",
+      "source_sha256": "48453b9070d10e4bc22943a27cf6c9534d6c75263f3223072d66ec8ade02f43f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_invalidated_common_decision_rejects_non_public_or_invalid_values[patch0]",
+        "tests/test_cash_import_choice_context.py::test_invalidated_common_decision_rejects_non_public_or_invalid_values[patch1]",
+        "tests/test_cash_import_choice_context.py::test_invalidated_common_decision_rejects_non_public_or_invalid_values[patch2]"
+      ],
+      "assertions": [
+        "金额字段不允许",
+        "备注类型错误拒绝",
+        "账户属性形状错误拒绝"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "choiceContextsMatchPythonContracts"
+        }
+      ]
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_latest_plan_replaces_the_single_proof_instead_of_building_history",
+      "source_sha256": "c6f2246758e94e61f55ad145820e9d6e6780fca0dbf8a9f5568db4b4163a7cd9",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_latest_plan_replaces_the_single_proof_instead_of_building_history"
+      ],
+      "assertions": [
+        "最新计划覆盖单一证明",
+        "旧组不保留",
+        "历史不累积"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "latestPlanReplacesTheSingleProofInsteadOfBuildingHistory"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "choiceContextsMatchPythonContracts"
+        }
+      ]
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair",
+      "source_sha256": "cf7cc70f715d10c1eb0bf743bed7986d19ac6193877c3870622a65f529ac46a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>0]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>1]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>2]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>3]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>4]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>5]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>6]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>7]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>8]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>9]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>10]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>11]",
+        "tests/test_cash_import_choice_context.py::test_malformed_private_proof_fails_closed_without_repair[<lambda>12]"
+      ],
+      "assertions": [
+        "版本、未知键、嵌套值、成员形状、候选、动作、建议标识、代数类型与越界全部整体拒绝"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "choiceContextsMatchPythonContracts"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "previousAndWithoutSeparateChoiceProof"
+        }
+      ]
+    },
+    {
+      "source": "tests/test_cash_import_choice_context.py::test_only_revalidation_fields_survive_and_current_plan_is_not_retained",
+      "source_sha256": "868e7c6ce5ca23a0a0fb15b9d616ad2f802aa478a97a0006b5bbcca147cfda52",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_choice_context.py::test_only_revalidation_fields_survive_and_current_plan_is_not_retained"
+      ],
+      "assertions": [
+        "只保留非事务操作的记录引用",
+        "候选只保留标识",
+        "私密字段与计划标识不进入证明",
+        "其他上下文数据保留",
+        "previous/without 分离证明"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "choiceContextsMatchPythonContracts"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportChoiceContextTest.kt",
+          "test": "previousAndWithoutSeparateChoiceProof"
+        }
+      ]
     },
     {
       "source": "tests/test_cash_import_config.py::test_import_staging_backend_must_be_explicit",

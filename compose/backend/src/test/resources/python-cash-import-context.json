@@ -1,0 +1,2458 @@
+{
+  "filenames": [
+    {
+      "filename": "synthetic.csv",
+      "password": null,
+      "expected": "synthetic.csv"
+    },
+    {
+      "filename": "dir/sub/report.xlsx",
+      "password": null,
+      "expected": "report.xlsx"
+    },
+    {
+      "filename": "dir\\sub\\report.xlsx",
+      "password": null,
+      "expected": "report.xlsx"
+    },
+    {
+      "filename": "statement",
+      "password": null,
+      "expected": "statement"
+    },
+    {
+      "filename": "statement.",
+      "password": null,
+      "expected": "statement."
+    },
+    {
+      "filename": "bill.weird",
+      "password": null,
+      "expected": "bill.weird"
+    },
+    {
+      "filename": "账单.csv",
+      "password": "账单",
+      "expected": "账单.csv"
+    },
+    {
+      "filename": "工行流水密码（fixture-secret）.pdf",
+      "password": null,
+      "expected": "工行流水.pdf"
+    },
+    {
+      "filename": "工行流水（密码：fixture-secret）.pdf",
+      "password": null,
+      "expected": "工行流水.pdf"
+    },
+    {
+      "filename": "工行（password: fixture-secret）.pdf",
+      "password": null,
+      "expected": "工行.pdf"
+    },
+    {
+      "filename": "工行（pwd=fixture-secret）.pdf",
+      "password": null,
+      "expected": "工行.pdf"
+    },
+    {
+      "filename": "account 6222 0212 3456 7890.csv",
+      "password": null,
+      "expected": "account 尾号7890.csv"
+    },
+    {
+      "filename": "account 6222-0212-3456-7890.pdf",
+      "password": null,
+      "expected": "account 尾号7890.pdf"
+    },
+    {
+      "filename": "   .pdf",
+      "password": null,
+      "expected": "账单.pdf"
+    },
+    {
+      "filename": "（）【】.csv",
+      "password": null,
+      "expected": "账单.csv"
+    },
+    {
+      "filename": "账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账fixture-secret.pdf",
+      "password": "fixture-secret",
+      "expected": "账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账账.pdf"
+    },
+    {
+      "filename": "emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀.pdf",
+      "password": null,
+      "expected": "emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emoji😀emo"
+    },
+    {
+      "filename": "/",
+      "password": null,
+      "expected": "账单"
+    },
+    {
+      "filename": "file.PDF",
+      "password": null,
+      "expected": "file.PDF"
+    },
+    {
+      "filename": "订单（密码 ）.xlsx",
+      "password": null,
+      "expected": "订单（密码 ）.xlsx"
+    }
+  ],
+  "invalidations": [
+    {
+      "preview_input": {
+        "entry_choices": [
+          {
+            "x": 1
+          }
+        ],
+        "row_choices": [
+          {
+            "row_ref": "f_old:r8",
+            "action": "apply"
+          },
+          {
+            "row_ref": "f_keep:r8",
+            "action": "defer"
+          }
+        ],
+        "previous_plan_id": "previous",
+        "expected_session_revision": 3,
+        "other": {
+          "nested": [
+            "keep"
+          ]
+        }
+      },
+      "revision": 3,
+      "obsolete_refs": [
+        "f_old"
+      ],
+      "expected": {
+        "row_choices": [
+          {
+            "row_ref": "f_keep:r8",
+            "action": "defer"
+          }
+        ],
+        "previous_plan_id": null,
+        "expected_session_revision": 4,
+        "other": {
+          "nested": [
+            "keep"
+          ]
+        }
+      }
+    },
+    {
+      "preview_input": {
+        "row_choices": "not-a-list",
+        "previous_plan_id": null
+      },
+      "revision": 1,
+      "obsolete_refs": [],
+      "expected": {
+        "row_choices": "not-a-list",
+        "previous_plan_id": null
+      }
+    },
+    {
+      "preview_input": {
+        "row_choices": [
+          {
+            "row_ref": 5
+          },
+          {
+            "no_ref": true
+          }
+        ],
+        "keep": 1
+      },
+      "revision": 2,
+      "obsolete_refs": [
+        "f_old"
+      ],
+      "expected": {
+        "row_choices": [
+          {
+            "row_ref": 5
+          },
+          {
+            "no_ref": true
+          }
+        ],
+        "keep": 1
+      }
+    },
+    {
+      "preview_input": {},
+      "revision": 1,
+      "obsolete_refs": [
+        "f_old"
+      ],
+      "expected": {}
+    },
+    {
+      "preview_input": {
+        "entry_choices": {},
+        "expected_session_revision": 9
+      },
+      "revision": 9,
+      "obsolete_refs": [],
+      "expected": {
+        "expected_session_revision": 10
+      }
+    }
+  ],
+  "choices": [
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "accept",
+              "candidate_id": "c9",
+              "common_fields": {
+                "note": "x"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {}
+      },
+      "expected": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "accept",
+              "candidate_id": "c9",
+              "common_fields": {
+                "note": "x"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {}
+      }
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 2,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": true,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {},
+        "extra": 1
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": "not-a-list",
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f:r1"
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          },
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "extra": 1
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "defer",
+              "common_fields": {
+                "note": "x"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg3",
+              "action": "defer"
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "accept",
+              "common_fields": {
+                "amount": "-1.00"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {}
+      },
+      "ok": false
+    },
+    {
+      "kind": "validated",
+      "input": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {
+          "sg1": -1
+        }
+      },
+      "ok": false
+    },
+    {
+      "kind": "from_plan",
+      "input": {
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          },
+          {
+            "occurrence_key": "f_2:r2",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "t3"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "amount": "-1.00"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "defer"
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg1": 0
+        }
+      },
+      "expected": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "defer"
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg1": 0
+        }
+      }
+    },
+    {
+      "kind": "retained",
+      "context": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "accept",
+              "candidate_id": "c9",
+              "common_fields": {
+                "note": "x"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {},
+        "other": "keep"
+      },
+      "plan": null,
+      "expected": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "accept",
+              "candidate_id": "c9",
+              "common_fields": {
+                "note": "x"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {},
+        "other": "keep"
+      }
+    },
+    {
+      "kind": "retained",
+      "context": {
+        "version": 2,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {}
+      },
+      "plan": {
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          },
+          {
+            "occurrence_key": "f_2:r2",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "t3"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "amount": "-1.00"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg2": {
+            "choice": {
+              "suggestion_id": "sg2",
+              "action": "defer"
+            },
+            "member_refs": [
+              {
+                "row_ref": "f_1:r3"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg1": 0
+        }
+      },
+      "expected": {
+        "version": 2,
+        "operations": [
+          {
+            "occurrence_key": "f_1:r1",
+            "values": {
+              "record_id": "t1"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg1",
+            "source_suggestion_id": "sg1",
+            "choice_generation": 0,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {},
+        "relation_choice_generations": {},
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "f_1:r1",
+              "values": {
+                "record_id": "t1"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg1",
+              "source_suggestion_id": "sg1",
+              "choice_generation": 0,
+              "member_refs": [
+                {
+                  "row_ref": "f_1:r1"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "c1"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg2": {
+              "choice": {
+                "suggestion_id": "sg2",
+                "action": "defer"
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f_1:r3"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg1": 0
+          }
+        }
+      }
+    },
+    {
+      "kind": "retained",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        }
+      },
+      "plan": {
+        "plan_id": "old-not-executable",
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one",
+              "amount": "123.45",
+              "source_payload": "private-source"
+            }
+          },
+          {
+            "occurrence_key": "two",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "posted-existing"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one",
+                "display": "private-display",
+                "edges": [
+                  "private-edge"
+                ]
+              }
+            ],
+            "edges": [
+              "not-an-operation"
+            ],
+            "evidence": "private-proof",
+            "action": "accept"
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      },
+      "expected": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      },
+      "expected": {
+        "version": 1,
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one"
+              }
+            ]
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": true,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 2,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          },
+          "edges": [
+            "private"
+          ]
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one",
+                "amount": "1"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "a",
+                  "transaction_id": "b"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": null
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": [],
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "foreign",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": true,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": -1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 0,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": true
+          }
+        }
+      }
+    },
+    {
+      "kind": "previous_invalid",
+      "context": {
+        "retry_other_data": {
+          "keep": true
+        },
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": -1
+          }
+        }
+      }
+    },
+    {
+      "kind": "retained",
+      "context": {},
+      "plan": {
+        "plan_id": "old-not-executable",
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one",
+              "amount": "123.45",
+              "source_payload": "private-source"
+            }
+          },
+          {
+            "occurrence_key": "two",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "posted-existing"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one",
+                "display": "private-display",
+                "edges": [
+                  "private-edge"
+                ]
+              }
+            ],
+            "edges": [
+              "not-an-operation"
+            ],
+            "evidence": "private-proof",
+            "action": "accept"
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null,
+              "common_fields": {
+                "note": "",
+                "counterparty": "共同对方",
+                "category_id": null
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      },
+      "expected": {
+        "relation_choice_context": {
+          "version": 1,
+          "operations": [
+            {
+              "occurrence_key": "one",
+              "values": {
+                "record_id": "import-v1:one"
+              }
+            }
+          ],
+          "relation_groups": [
+            {
+              "suggestion_id": "sg_one",
+              "source_suggestion_id": "sg_root",
+              "choice_generation": 1,
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                },
+                {
+                  "transaction_id": "t2"
+                }
+              ],
+              "candidates": [
+                {
+                  "candidate_id": "candidate_one"
+                }
+              ]
+            }
+          ],
+          "invalidated_relation_choices": {
+            "sg_stale": {
+              "choice": {
+                "suggestion_id": "sg_stale",
+                "action": "accept",
+                "candidate_id": null,
+                "common_fields": {
+                  "note": "",
+                  "counterparty": "共同对方",
+                  "category_id": null
+                }
+              },
+              "member_refs": [
+                {
+                  "row_ref": "f:r1"
+                }
+              ]
+            }
+          },
+          "relation_choice_generations": {
+            "sg_root": 1
+          }
+        }
+      }
+    },
+    {
+      "kind": "retained_invalid",
+      "context": {},
+      "plan": {
+        "plan_id": "old-not-executable",
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one",
+              "amount": "123.45",
+              "source_payload": "private-source"
+            }
+          },
+          {
+            "occurrence_key": "two",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "posted-existing"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one",
+                "display": "private-display",
+                "edges": [
+                  "private-edge"
+                ]
+              }
+            ],
+            "edges": [
+              "not-an-operation"
+            ],
+            "evidence": "private-proof",
+            "action": "accept"
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null,
+              "common_fields": {
+                "amount": "-1"
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      }
+    },
+    {
+      "kind": "retained_invalid",
+      "context": {},
+      "plan": {
+        "plan_id": "old-not-executable",
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one",
+              "amount": "123.45",
+              "source_payload": "private-source"
+            }
+          },
+          {
+            "occurrence_key": "two",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "posted-existing"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one",
+                "display": "private-display",
+                "edges": [
+                  "private-edge"
+                ]
+              }
+            ],
+            "edges": [
+              "not-an-operation"
+            ],
+            "evidence": "private-proof",
+            "action": "accept"
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null,
+              "common_fields": {
+                "note": 1
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      }
+    },
+    {
+      "kind": "retained_invalid",
+      "context": {},
+      "plan": {
+        "plan_id": "old-not-executable",
+        "operations": [
+          {
+            "occurrence_key": "one",
+            "values": {
+              "record_id": "import-v1:one",
+              "amount": "123.45",
+              "source_payload": "private-source"
+            }
+          },
+          {
+            "occurrence_key": "two",
+            "transaction_id": "t2",
+            "values": {
+              "record_id": "posted-existing"
+            }
+          }
+        ],
+        "relation_groups": [
+          {
+            "suggestion_id": "sg_one",
+            "source_suggestion_id": "sg_root",
+            "choice_generation": 1,
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              },
+              {
+                "transaction_id": "t2"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "candidate_one",
+                "display": "private-display",
+                "edges": [
+                  "private-edge"
+                ]
+              }
+            ],
+            "edges": [
+              "not-an-operation"
+            ],
+            "evidence": "private-proof",
+            "action": "accept"
+          }
+        ],
+        "invalidated_relation_choices": {
+          "sg_stale": {
+            "choice": {
+              "suggestion_id": "sg_stale",
+              "action": "accept",
+              "candidate_id": null,
+              "common_fields": {
+                "counterparty_account_attrs": [
+                  1
+                ]
+              }
+            },
+            "member_refs": [
+              {
+                "row_ref": "f:r1"
+              }
+            ]
+          }
+        },
+        "relation_choice_generations": {
+          "sg_root": 1
+        }
+      }
+    }
+  ]
+}
