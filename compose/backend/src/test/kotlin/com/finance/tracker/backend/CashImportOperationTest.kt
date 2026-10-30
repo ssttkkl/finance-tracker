@@ -172,6 +172,12 @@ class CashImportOperationTest {
             assertEquals(canonical(expected.getValue("rows")), canonical(sourceJson(prepared.rows)))
             assertEquals(canonical(expected.getValue("operations")), canonical(sourceJson(prepared.operations)))
             assertEquals(expected.getValue("candidate_sets"), sourceJson(prepared.candidateSets))
+            val snapshotContext = CashSqlContext(connection, workspace, db.sqlite)
+            val preview = CashImportPreviewPreparation(snapshotContext).prepare(prepared.operations, prepared.source.rows.rows)
+            val snapshot = CashImportPreviewSnapshotBuilder(snapshotContext, now = { now }).build(preview, prepared.rows)
+            assertEquals(3, snapshot.values.size)
+            assertEquals(3, snapshot.parentOps.size)
+            assertEquals(3, snapshot.entryPublic.size)
             @Suppress("UNCHECKED_CAST")
             val deferredChoices = cashSourceValue(expected.getValue("deferred").jsonObject.getValue("choices")) as List<Any?>
             val deferred = CashImportOperationPlanner(CashSqlContext(connection, workspace, db.sqlite))

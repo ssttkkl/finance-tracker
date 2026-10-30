@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import replace
+from dataclasses import asdict, replace
 import json
 from pathlib import Path
 
@@ -13,7 +13,7 @@ from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_relation_context import CashRelationGraphService
 
-from export_cash_import_operation_contracts import WORKSPACE, connect, files, seed
+from export_cash_import_operation_contracts import NOW, WORKSPACE, connect, files, seed
 
 
 def export(database_url: str, output: Path) -> None:
@@ -28,7 +28,7 @@ def export(database_url: str, output: Path) -> None:
                     "patch": {"note": "人工备注", "category_id": "op-food"}},
                    {"row_ref": "f_w" + "0" * 31 + ":r1", "action": "apply", "patch": {"note": "新备注"}}]
         draft_choices = [{"row_ref": choice["row_ref"], "action": "defer"} for choice in choices]
-        builder = CashImportBusinessPlanBuilder(WORKSPACE)
+        builder = CashImportBusinessPlanBuilder(WORKSPACE, clock=lambda: NOW)
         cases = []
         for name, previous, entry_choices, extra in (
             ("normal", None, [], []),
@@ -64,6 +64,20 @@ def export(database_url: str, output: Path) -> None:
                     "candidate_ids": sorted(candidates), "retained_parent_ids": sorted(retained),
                     "context_seed_ids": sorted(context.seed_ids),
                     "context_transaction_ids": sorted(context.transaction_ids), "context_token": context.token})
+                snapshot = builder._snapshot(session, context, operations, accounts, rows, normalized_operations=True)
+                cases[-1]["snapshot"] = {
+                    "values": _wire(snapshot.values),
+                    "facts": {key: _wire(asdict(value)) for key, value in snapshot.facts.items()},
+                    "components": {key: _wire(asdict(value)) for key, value in snapshot.components.items()},
+                    "edges": {str(key): _wire(asdict(value)) for key, value in snapshot.edges.items()},
+                    "funding": {str(key): _wire(value) for key, value in snapshot.funding.items()},
+                    "parent_ops": {key: value["operation_ref"] for key, value in snapshot.parent_ops.items()},
+                    "entry_public": _wire(snapshot.entry_public),
+                    "removed_relation_ids": sorted(snapshot.removed_relations),
+                    "removed_funding_ids": sorted(snapshot.removed_funding),
+                    "operations": _wire(operations),
+                    "rows": _wire(rows),
+                }
         try:
             builder._entry_parents([{"edit_ref": "missing"}], {"entry_targets": {}})
             raise AssertionError("missing entry target unexpectedly accepted")
