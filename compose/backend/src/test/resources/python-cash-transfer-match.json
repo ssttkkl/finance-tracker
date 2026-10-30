@@ -1,0 +1,348 @@
+{
+  "cases": {
+    "accepted": {
+      "kind": "transfer_pair",
+      "primary_fact_id": "out",
+      "secondary_fact_id": "inc",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "ordinary_transfer",
+      "status": "accepted",
+      "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "candidate_count": 1,
+        "signals": [
+          "opposite_sign",
+          "record_subtype",
+          "counterparty_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "inc"
+        ],
+        "extras": {}
+      },
+      "created_by": "system",
+      "anchor_fact_id": "out",
+      "open_leg": false
+    },
+    "ambiguous": {
+      "kind": "transfer_pair",
+      "primary_fact_id": "out",
+      "secondary_fact_id": null,
+      "primary_fact_type": "cash",
+      "secondary_fact_type": null,
+      "subtype": "ordinary_transfer",
+      "status": "pending_review",
+      "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+      "confidence": "weak",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "candidate_count": 2,
+        "signals": [
+          "opposite_sign",
+          "record_subtype",
+          "counterparty_account"
+        ],
+        "open_leg": true,
+        "anchor_role": "out",
+        "candidate_fact_ids": [
+          "inc",
+          "inc2"
+        ],
+        "extras": {}
+      },
+      "created_by": "system",
+      "anchor_fact_id": "out",
+      "open_leg": true
+    },
+    "same_account": null,
+    "late": null,
+    "credit": {
+      "kind": "transfer_pair",
+      "primary_fact_id": "out",
+      "secondary_fact_id": "inc",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "credit_repayment",
+      "status": "accepted",
+      "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "candidate_count": 1,
+        "signals": [
+          "opposite_sign",
+          "record_subtype",
+          "counterparty_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "inc"
+        ],
+        "extras": {}
+      },
+      "created_by": "system",
+      "anchor_fact_id": "out",
+      "open_leg": false
+    },
+    "fx": {
+      "kind": "transfer_pair",
+      "primary_fact_id": "fx_out",
+      "secondary_fact_id": "fx_in",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "currency_exchange",
+      "status": "accepted",
+      "rule_id": "transfer_pair.currency_exchange.time60.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 30,
+        "same_currency": false,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "transfer_pair.currency_exchange.time60.v1",
+        "candidate_count": 1,
+        "signals": [
+          "opposite_sign",
+          "record_subtype",
+          "counterparty_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "fx_in"
+        ],
+        "extras": {}
+      },
+      "created_by": "system",
+      "anchor_fact_id": "fx_out",
+      "open_leg": false
+    },
+    "fx_same_currency": null,
+    "targeted": [
+      {
+        "kind": "transfer_pair",
+        "primary_fact_id": "out",
+        "secondary_fact_id": "inc",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "ordinary_transfer",
+        "status": "accepted",
+        "rule_id": "transfer_pair.cross_border_remittance.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "",
+          "source_pair": [
+            "",
+            ""
+          ],
+          "rule_id": "transfer_pair.cross_border_remittance.v1",
+          "candidate_count": 1,
+          "signals": [
+            "opposite_sign",
+            "record_subtype",
+            "counterparty_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "inc"
+          ],
+          "extras": {}
+        },
+        "created_by": "system",
+        "anchor_fact_id": "out",
+        "open_leg": false
+      }
+    ],
+    "targeted_no_alias": [],
+    "phase_c": [
+      {
+        "kind": "transfer_pair",
+        "primary_fact_id": "fx_out",
+        "secondary_fact_id": "fx_in",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "currency_exchange",
+        "status": "accepted",
+        "rule_id": "transfer_pair.currency_exchange.time60.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "0",
+          "time_delta_seconds": 30,
+          "same_currency": false,
+          "counterparty_similarity": "",
+          "source_pair": [
+            "",
+            ""
+          ],
+          "rule_id": "transfer_pair.currency_exchange.time60.v1",
+          "candidate_count": 1,
+          "signals": [
+            "opposite_sign",
+            "record_subtype",
+            "counterparty_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "fx_in"
+          ],
+          "extras": {}
+        },
+        "created_by": "system",
+        "anchor_fact_id": "fx_out",
+        "open_leg": false
+      },
+      {
+        "kind": "transfer_pair",
+        "primary_fact_id": "out",
+        "secondary_fact_id": "inc",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "ordinary_transfer",
+        "status": "accepted",
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "",
+          "source_pair": [
+            "",
+            ""
+          ],
+          "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+          "candidate_count": 1,
+          "signals": [
+            "opposite_sign",
+            "record_subtype",
+            "counterparty_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "inc"
+          ],
+          "extras": {}
+        },
+        "created_by": "system",
+        "anchor_fact_id": "out",
+        "open_leg": false
+      }
+    ],
+    "phase_c_seed": [
+      {
+        "kind": "transfer_pair",
+        "primary_fact_id": "out",
+        "secondary_fact_id": "inc",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "ordinary_transfer",
+        "status": "accepted",
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "",
+          "source_pair": [
+            "",
+            ""
+          ],
+          "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+          "candidate_count": 1,
+          "signals": [
+            "opposite_sign",
+            "record_subtype",
+            "counterparty_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "inc"
+          ],
+          "extras": {}
+        },
+        "created_by": "system",
+        "anchor_fact_id": "out",
+        "open_leg": false
+      }
+    ],
+    "counterparty_invalid": {
+      "kind": "transfer_pair",
+      "primary_fact_id": "out",
+      "secondary_fact_id": "inc",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "ordinary_transfer",
+      "status": "accepted",
+      "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+        "candidate_count": 1,
+        "signals": [
+          "opposite_sign",
+          "record_subtype",
+          "counterparty_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "inc"
+        ],
+        "extras": {}
+      },
+      "created_by": "system",
+      "anchor_fact_id": "out",
+      "open_leg": false
+    }
+  }
+}
