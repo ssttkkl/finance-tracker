@@ -20,6 +20,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.buildJsonObject
 
 private val requestPrincipalKey=io.ktor.util.AttributeKey<Principal>("finance.request.principal")
 
@@ -141,7 +142,33 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         }
         exception<MutationPlanStore.Expired> { call, _ -> planStoreExpired(call) }
         exception<MutationPlanStore.NotFound> { call, _ -> planStoreExpired(call) }
-        exception<MutationPlanStore.Forbidden> { call, _ -> planStoreExpired(call) }
+        exception<MutationPlanStore.Forbidden> { call, _ ->
+            call.respond(HttpStatusCode.NotFound, buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive("session_not_found")); put("message", JsonPrimitive("未找到本次导入。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                })
+            })
+        }
+        exception<ParsedImportDataError> { call, _ ->
+            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive("import_payload_invalid")); put("message", JsonPrimitive("导入信息有误，请检查后重试。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                })
+            })
+        }
+        exception<ParsedImportStorageUnavailable> { call, _ ->
+            val diagnostic = com.finance.tracker.business.contracts.CashDiagnosticDto(
+                java.util.UUID.randomUUID().toString().replace("-", ""), "request", "request", emptyList(), 0)
+            call.respond(HttpStatusCode.ServiceUnavailable, buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive("import_unavailable")); put("message", JsonPrimitive("暂时无法处理账单，请稍后重试。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
+                    put("diagnostic", Json.encodeToJsonElement(diagnostic))
+                })
+            })
+        }
         exception<MutationPlanStore.RevisionConflict> { call, _ -> planStoreChanged(call) }
         exception<MutationPlanStore.Closed> { call, _ -> planStoreChanged(call) }
         exception<CashRecordReadUnavailable> { call, failure ->

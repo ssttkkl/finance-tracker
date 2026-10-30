@@ -8,12 +8,13 @@ import kotlinx.serialization.json.JsonObject
 /** 维护计划的临时上下文；只保存冻结计划，不写财务事实。 */
 internal class MutationPlanStore(
     private val ttlSeconds: Int = 1800,
-    private val clock: () -> Instant = Instant::now,
+    clock: () -> Instant = Instant::now,
     private val tokenFactory: (Int) -> String = ::secureUrlToken,
+    private val staging: ParsedImportStore = InMemoryParsedImportStore(ttlSeconds, clock, tokenFactory = tokenFactory),
 ) {
     data class Context(
         val id: String, val workspaceId: String, val userId: String,
-        val createdAt: Instant, val expiresAt: Instant, val revision: Long, val cancelled: Boolean,
+        val createdAt: Instant, val expiresAt: Instant, val revision: java.math.BigInteger, val cancelled: Boolean,
         val transactionId: String, val plan: JsonObject?, val previewInput: JsonObject?,
     )
 
@@ -23,71 +24,52 @@ internal class MutationPlanStore(
     internal class RevisionConflict : RuntimeException("plan_changed")
     internal class Closed : RuntimeException("plan_changed")
 
-    private val lock = Any()
-    private val contexts = linkedMapOf<String, Context>()
+    init { require(ttlSeconds in 1..1800) { "mutation_plan_ttl_invalid" } }
 
-    init {
-        if (ttlSeconds !in 1..1800) throw IllegalArgumentException("mutation_plan_ttl_invalid")
+    private fun <T> translate(action: () -> T): T = try { action() }
+        catch (_: ParsedImportNotFound) { throw NotFound() }
+        catch (_: ParsedImportForbidden) { throw Forbidden() }
+        catch (_: ParsedImportExpired) { throw Expired() }
+        catch (_: ParsedImportRevisionConflict) { throw RevisionConflict() }
+        catch (_: ParsedImportClosed) { throw Closed() }
+
+    private fun context(session: ParsedImportSession): Context {
+        if (session.workflowKind != "mutation" || session.files.isNotEmpty()) throw NotFound()
+        val data = session.contextData
+        if (!session.cancelled && (data.keys != setOf("transaction_id", "version") ||
+                data["version"] != 1 || data["transaction_id"] !is String ||
+                !(data["transaction_id"] as String).matches(Regex("[1-9][0-9]{0,18}")) ||
+                data["transaction_id"].toString().toLongOrNull() == null)) throw MutationPlanFailure("plan_changed")
+        return Context(session.sessionId, session.workspaceId, session.userId, session.createdAt, session.expiresAt,
+            session.revision, session.cancelled, data["transaction_id"] as? String ?: "",
+            session.plan?.let { sourceJson(it) as JsonObject },
+            if (session.previewInput.isEmpty()) null else sourceJson(session.previewInput) as JsonObject)
     }
 
-    fun create(workspaceId: String, userId: String, transactionId: String): Context = synchronized(lock) {
+    fun create(workspaceId: String, userId: String, transactionId: String): Context = translate {
         requireOwner(workspaceId, userId)
         require(transactionId.matches(Regex("[1-9][0-9]{0,18}")) && transactionId.toLongOrNull()?.let { it > 0 } == true) {
             "mutation_plan_transaction_invalid"
         }
-        val now = clock()
-        var id: String
-        do { id = tokenFactory(32) } while (id.length != 43 || id in contexts)
-        val context = Context(id, workspaceId, userId, now, now.plusSeconds(ttlSeconds.toLong()), 1, false,
-            transactionId, null, null)
-        contexts[id] = context
-        context
+        context(staging.create(workspaceId, userId, emptyList(), "mutation", mapOf("transaction_id" to transactionId, "version" to 1)))
     }
 
-    fun get(id: String, workspaceId: String, userId: String): Context = synchronized(lock) {
-        val context = readValid(id)
-        if (context.workspaceId != workspaceId || context.userId != userId) throw Forbidden()
-        context
+    fun get(id: String, workspaceId: String, userId: String): Context = translate { context(staging.get(id, workspaceId, userId)) }
+
+    fun replace(id: String, workspaceId: String, userId: String, expectedRevision: Number,
+        plan: JsonObject, previewInput: JsonObject): Context = translate {
+        context(staging.replace(id, workspaceId, userId, expectedRevision, emptyList(),
+            previewInput.mapValues { cashSourceValue(it.value) }, plan.mapValues { cashSourceValue(it.value) })!!)
     }
 
-    fun replace(id: String, workspaceId: String, userId: String, expectedRevision: Long,
-        plan: JsonObject, previewInput: JsonObject): Context = synchronized(lock) {
-        val current = readValid(id)
-        if (current.workspaceId != workspaceId || current.userId != userId) throw Forbidden()
-        if (expectedRevision != current.revision) throw RevisionConflict()
-        if (current.cancelled) throw Closed()
-        val updated = current.copy(revision = current.revision + 1, plan = plan, previewInput = previewInput)
-        contexts[id] = updated
-        updated
+    fun cancel(id: String, workspaceId: String, userId: String, expectedRevision: Number): Context = translate {
+        context(staging.cancel(id, workspaceId, userId, expectedRevision))
     }
-
-    /** 原实现重复取消是幂等的；已取消上下文不再推进修订。 */
-    fun cancel(id: String, workspaceId: String, userId: String, expectedRevision: Long): Context = synchronized(lock) {
-        val current = readValid(id)
-        if (current.workspaceId != workspaceId || current.userId != userId) throw Forbidden()
-        if (expectedRevision != current.revision) throw RevisionConflict()
-        if (current.cancelled) return current
-        val updated = current.copy(revision = current.revision + 1, cancelled = true, plan = null, previewInput = null)
-        contexts[id] = updated
-        updated
-    }
-
-    fun consume(id: String): Context? = synchronized(lock) { contexts.remove(id) }
 
     fun planId(contextId: String, planToken: String = tokenFactory(12)): String {
         if (!contextId.matches(Regex("[A-Za-z0-9_-]{43}")) || !planToken.matches(Regex("[A-Za-z0-9_-]{16}")))
             throw IllegalArgumentException("mutation_plan_id_invalid")
         return "mp_$contextId.$planToken"
-    }
-
-    private fun readValid(id: String): Context {
-        if (!id.matches(Regex("[A-Za-z0-9_-]{43}"))) throw NotFound()
-        val context = contexts[id] ?: throw NotFound()
-        if (!clock().isBefore(context.expiresAt)) {
-            contexts.remove(id)
-            throw Expired()
-        }
-        return context
     }
 
     private fun requireOwner(workspaceId: String, userId: String) {

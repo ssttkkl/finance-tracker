@@ -21,6 +21,61 @@ class MutationPlanHttpContractTest {
         put("patch", buildJsonObject { put("note", "新备注") })
     }
 
+    @Test fun rePreviewUsesTheValidatedRevisionWhenStorageChangesAfterRead() {
+        val objects = R2ParsedImportStoreTest.Client()
+        var replaceAfterRead = false
+        val provider = object : ParsedObjectClient by objects {
+            override fun get(bucket: String, key: String): ParsedObjectResponse {
+                val response = objects.get(bucket, key)
+                if (replaceAfterRead) {
+                    replaceAfterRead = false
+                    val stored = Json.parseToJsonElement(objects.objects.getValue(key).decodeToString()).jsonObject
+                    val plan = stored.getValue("plan").jsonObject
+                    objects.objects[key] = JsonObject(stored + mapOf(
+                        "revision" to JsonPrimitive(3),
+                        "plan" to JsonObject(plan + ("context_revision" to JsonPrimitive(3))),
+                    )).toString().encodeToByteArray()
+                }
+                return response
+            }
+        }
+        val service = MutationPlanService(database(), staging = R2ParsedImportStore(provider, "bucket"))
+        val first = service.preview("synthetic-admin", planBody)
+        val writes = objects.writes.size
+        replaceAfterRead = true
+        val failure = assertFailsWith<MutationPlanFailure> {
+            service.preview("synthetic-admin", JsonObject(planBody + mapOf(
+                "edit_context_id" to first.getValue("edit_context_id"),
+                "previous_plan_id" to first.getValue("plan_id"),
+                "expected_plan_revision" to JsonPrimitive(1),
+            )))
+        }
+        assertEquals("plan_changed", failure.code)
+        assertEquals(writes, objects.writes.size)
+        assertEquals(first, service.plan("synthetic-admin", first.getValue("plan_id").jsonPrimitive.content))
+    }
+
+    @Test fun sharedR2StorageSurvivesServiceReplacementAndReportsSafeReadFailure() = testApplication {
+        val db = database()
+        val objects = R2ParsedImportStoreTest.Client()
+        val staging = R2ParsedImportStore(objects, "bucket")
+        val first = MutationPlanService(db, staging = staging)
+        val view = first.preview("synthetic-admin", planBody)
+        val id = view.getValue("plan_id").jsonPrimitive.content
+        val next = MutationPlanService(db, staging = staging)
+        assertEquals(view, next.plan("synthetic-admin", id))
+        application { financeModule(db, mutationPlans = next) }
+        objects.failRead = true
+        val response = client.get("/api/v1/cash-mutations/plans/$id") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }
+        assertEquals(503, response.status.value)
+        val error = Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("error").jsonObject
+        assertEquals("import_unavailable", error.getValue("code").jsonPrimitive.content)
+        assertEquals(JsonPrimitive(true), error.getValue("retryable"))
+        assertTrue("diagnostic" in error); assertFalse(response.bodyAsText().contains("provider"))
+    }
+
     @Test fun saveDraftPlanPublishesAndReadsThroughHttp() = testApplication {
         val db = database()
         val expected = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv(
