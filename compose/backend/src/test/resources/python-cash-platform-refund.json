@@ -1,0 +1,97 @@
+{
+  "alipay": {
+    "order": [
+      true,
+      true,
+      false,
+      false
+    ],
+    "index": 1,
+    "statuses": [
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "wechat": {
+    "embedded": [
+      "18.00",
+      "18",
+      null,
+      null
+    ],
+    "origin": [
+      true,
+      false,
+      true
+    ],
+    "income_leg": [
+      true,
+      false,
+      true
+    ],
+    "pay": [
+      true,
+      false,
+      true
+    ],
+    "merchant": [
+      true,
+      false
+    ],
+    "cp": [
+      true,
+      true,
+      true,
+      false
+    ],
+    "scenarios": {
+      "r1_merchant": {
+        "index": 0,
+        "rule": "import.wechat.mer_txn.v1"
+      },
+      "r1_txn": {
+        "index": 1,
+        "rule": "import.wechat.mer_txn.v1"
+      },
+      "r1_ambiguous": {
+        "index": 3,
+        "rule": "import.wechat.full_status_pay.v1"
+      },
+      "r2": {
+        "index": 2,
+        "rule": "import.wechat.full_status_pay.v1"
+      },
+      "r2_closest": {
+        "index": 1,
+        "rule": "import.wechat.full_status_pay.v1"
+      },
+      "r3": {
+        "index": 0,
+        "rule": "import.wechat.partial_embedded.v1"
+      },
+      "r4": {
+        "index": 0,
+        "rule": "import.wechat.residual.v1"
+      },
+      "transfer_type": null,
+      "none": null
+    },
+    "pairs": [
+      [
+        0,
+        1,
+        "import.wechat.full_status_pay.v1"
+      ]
+    ],
+    "transfer_pairs": [
+      [
+        0,
+        1,
+        "import.wechat.transfer_return.v1"
+      ]
+    ]
+  }
+}
