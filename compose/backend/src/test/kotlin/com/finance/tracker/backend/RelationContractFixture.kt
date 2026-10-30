@@ -40,7 +40,7 @@ internal object RelationContractFixture {
                 listOf(93001L, 9301L, "alipay", "REL-1", "consumption", "-100.00", "atomic", 94001L, "-100.00"),
                 listOf(93002L, 9301L, "wechat", "REL-2", "refund", "30.00", "atomic", 94002L, "30.00"),
                 listOf(93003L, 9302L, "ccb_debit", "REL-3", "transfer_out", "-50.00", "atomic", 94003L, "-50.00"),
-                listOf(93004L, 9302L, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", 94004L, "50.00"),
+                listOf(93004L, 9301L, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", 94004L, "50.00"),
                 listOf(93005L, 9301L, "alipay", "REL-5", "consumption", "-20.00", "atomic", 94005L, "-20.00"),
                 listOf(93006L, 9302L, "alipay", "REL-6", "consumption", "-20.00", "aggregate", 94006L, "-12.00"),
                 listOf(93007L, 9302L, "icbc_debit", "REL-7", "consumption", "-30.00", "atomic", 94008L, "-30.00"))
@@ -70,7 +70,7 @@ internal object RelationContractFixture {
                 sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ID, row[7] as Long)
                     .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, workspace)
                     .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, row[0] as Long)
-                    .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, 9301L)
+                    .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, row[1] as Long)
                     .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal(row[8] as String))
                     .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, "CNY").set(CASH_TRANSACTION_COMPONENTS.ORDINAL, 0L)
                     .set(CASH_TRANSACTION_COMPONENTS.LABEL, "").set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")
@@ -80,7 +80,7 @@ internal object RelationContractFixture {
             sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ID, 94007L)
                 .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, workspace)
                 .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, 93006L)
-                .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, 9301L)
+                .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, 9302L)
                 .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal("-8.00"))
                 .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, "CNY").set(CASH_TRANSACTION_COMPONENTS.ORDINAL, 1L)
                 .set(CASH_TRANSACTION_COMPONENTS.LABEL, "").set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")

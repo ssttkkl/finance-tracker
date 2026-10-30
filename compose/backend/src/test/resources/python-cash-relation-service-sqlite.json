@@ -60,8 +60,8 @@
           "id": "94006",
           "amount": "-12.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -85,8 +85,8 @@
           "id": "94007",
           "amount": "-8.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -110,8 +110,8 @@
           "id": "94003",
           "amount": "-50.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -160,8 +160,8 @@
           "id": "94008",
           "amount": "-30.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -209,17 +209,17 @@
       ],
       "proposals": [
         {
-          "key": "proposal:85c76dae902bc632dc3b3b2ad5489187",
+          "key": "proposal:6355f0a8d6ec9014d3be5862d8ccb61d",
           "body": {
             "kind": "refund_offset",
-            "primary_fact_id": "94002",
-            "secondary_fact_id": null,
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
             "primary_fact_type": "cash",
-            "secondary_fact_type": null,
+            "secondary_fact_type": "cash",
             "subtype": "",
-            "status": "pending_review",
+            "status": "accepted",
             "rule_id": "refund_offset.merchant_or_order.v1",
-            "confidence": "weak",
+            "confidence": "strong",
             "evidence": {
               "amount_delta": "70.00",
               "time_delta_seconds": 0,
@@ -230,17 +230,16 @@
                 "alipay"
               ],
               "rule_id": "refund_offset.merchant_or_order.v1",
-              "candidate_count": 2,
+              "candidate_count": 1,
               "signals": [
                 "refund",
                 "merchant",
                 "same_account"
               ],
-              "open_leg": true,
-              "anchor_role": "refund",
+              "open_leg": false,
+              "anchor_role": "",
               "candidate_fact_ids": [
-                "94001",
-                "94008"
+                "94001"
               ],
               "extras": {
                 "refund_amount": "30.00",
@@ -253,12 +252,52 @@
             },
             "created_by": "system",
             "anchor_fact_id": "94002",
-            "open_leg": true
+            "open_leg": false
+          }
+        },
+        {
+          "key": "proposal:bab0aeafecd2b15cb4b8d2c08223d70d",
+          "body": {
+            "kind": "transfer_pair",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash",
+            "subtype": "ordinary_transfer",
+            "status": "accepted",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+            "confidence": "strong",
+            "evidence": {
+              "amount_delta": "0.00",
+              "time_delta_seconds": 0,
+              "same_currency": true,
+              "counterparty_similarity": "",
+              "source_pair": [
+                "",
+                ""
+              ],
+              "rule_id": "transfer_pair.normalized.same_currency.time10.v1",
+              "candidate_count": 1,
+              "signals": [
+                "opposite_sign",
+                "record_subtype",
+                "counterparty_account"
+              ],
+              "open_leg": false,
+              "anchor_role": "",
+              "candidate_fact_ids": [
+                "94004"
+              ],
+              "extras": {}
+            },
+            "created_by": "system",
+            "anchor_fact_id": "94003",
+            "open_leg": false
           }
         }
       ],
-      "context_digest": "8797245e255efc0f6ef26457fe22113f07214fbd4949939b605ac3ee423a1827",
-      "external_context_digest": "8b6004c2c6307eb7d6b0bd00d7ab79a77731f1c24d586681b7ab0b78ab40f0f9"
+      "context_digest": "4b9bfccb0e9e99a7c3ce72017eba7678b190cb90aa9efee9fb2aab4d168743b2",
+      "external_context_digest": "f7375699c354d5b2d97bc668faffea4809e8d60d0038dcf9194a4e75f1750334"
     },
     "preview": {
       "facts": [
@@ -320,8 +359,8 @@
           "id": "94006",
           "amount": "-12.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -345,8 +384,8 @@
           "id": "94007",
           "amount": "-8.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -370,8 +409,8 @@
           "id": "94003",
           "amount": "-50.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -420,8 +459,8 @@
           "id": "94008",
           "amount": "-30.00",
           "currency": "CNY",
-          "account_id": "9301",
-          "account_name": "现金",
+          "account_id": "9302",
+          "account_name": "工资卡",
           "account_type": "cash",
           "occurred_at": "2026-10-01T09:00:00+00:00",
           "counterparty": "商户",
@@ -493,14 +532,770 @@
         }
       ],
       "proposals": [],
-      "context_digest": "90893ea8354e21f65c1b5e302250dd208096f3900a9b06174ba961d59724ccff",
-      "external_context_digest": "8b6004c2c6307eb7d6b0bd00d7ab79a77731f1c24d586681b7ab0b78ab40f0f9"
+      "context_digest": "0c7910f1b850759907474811dccd0d314f358edffd2555239d3440350c029cbf",
+      "external_context_digest": "f7375699c354d5b2d97bc668faffea4809e8d60d0038dcf9194a4e75f1750334"
     },
-    "external_digest": "8b6004c2c6307eb7d6b0bd00d7ab79a77731f1c24d586681b7ab0b78ab40f0f9",
+    "external_digest": "f7375699c354d5b2d97bc668faffea4809e8d60d0038dcf9194a4e75f1750334",
     "validation": [
       null,
       null,
       "import_relation_reconfirmation_required"
-    ]
+    ],
+    "decisions": {
+      "pending_before": [
+        {
+          "id": "r1",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94001,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93001,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94001,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94001,
+          "anchor_record_id": 93001,
+          "anchor_component_id": 94001,
+          "applied_amount": "10",
+          "status": "pending_review",
+          "rule_id": "refund.pending.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r2",
+          "workspace_id": "relation-workspace",
+          "kind": "transfer_pair",
+          "subtype": "ordinary_transfer",
+          "primary_fact_id": 94003,
+          "secondary_fact_id": null,
+          "primary_record_id": 93003,
+          "secondary_record_id": null,
+          "primary_component_id": 94003,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94003,
+          "anchor_record_id": 93003,
+          "anchor_component_id": 94003,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "transfer.open.v1",
+          "candidate_fact_ids": [
+            94004
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r3",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94002,
+          "secondary_fact_id": null,
+          "primary_record_id": 93002,
+          "secondary_record_id": null,
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94002,
+          "anchor_record_id": 93002,
+          "anchor_component_id": 94002,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.open.v1",
+          "candidate_fact_ids": [
+            94001
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r4",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93007,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "5",
+          "status": "pending_review",
+          "rule_id": "refund.reject.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r6",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "ordinary",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93007,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.supersede.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r8",
+          "workspace_id": "relation-workspace",
+          "kind": "transfer_pair",
+          "subtype": "ordinary_transfer",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": null,
+          "primary_record_id": 93007,
+          "secondary_record_id": null,
+          "primary_component_id": 94008,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "transfer.open2.v1",
+          "candidate_fact_ids": [
+            94003
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r9",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "alternate",
+          "primary_fact_id": 94002,
+          "secondary_fact_id": null,
+          "primary_record_id": 93002,
+          "secondary_record_id": null,
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94002,
+          "anchor_record_id": 93002,
+          "anchor_component_id": 94002,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.open2.v1",
+          "candidate_fact_ids": [
+            94001,
+            94004
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r10",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "delete",
+          "primary_fact_id": 94005,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93005,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94005,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94005,
+          "anchor_record_id": 93005,
+          "anchor_component_id": 94005,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.delete.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        }
+      ],
+      "accept": [
+        {
+          "ok": true,
+          "count": 1,
+          "message": "关系已确认",
+          "details": {
+            "id": "r1",
+            "workspace_id": "relation-workspace",
+            "kind": "refund_offset",
+            "subtype": "",
+            "primary_fact_id": 94001,
+            "secondary_fact_id": 94002,
+            "primary_record_id": 93001,
+            "secondary_record_id": 93002,
+            "primary_component_id": 94001,
+            "secondary_component_id": 94002,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash",
+            "anchor_fact_id": 94001,
+            "anchor_record_id": 93001,
+            "anchor_component_id": 94001,
+            "applied_amount": "10",
+            "status": "accepted",
+            "rule_id": "refund.pending.v1",
+            "candidate_fact_ids": [],
+            "created_by": "system",
+            "created_at": "<now>",
+            "decided_by": "user",
+            "decided_at": "<now>",
+            "decision_reason": "确认",
+            "superseded_by_id": null,
+            "active_slot": "active"
+          }
+        },
+        {
+          "ok": true,
+          "count": 1,
+          "message": "关系已确认",
+          "details": {
+            "id": "r2",
+            "workspace_id": "relation-workspace",
+            "kind": "transfer_pair",
+            "subtype": "ordinary_transfer",
+            "primary_fact_id": 94003,
+            "secondary_fact_id": 94004,
+            "primary_record_id": 93003,
+            "secondary_record_id": 93004,
+            "primary_component_id": 94003,
+            "secondary_component_id": 94004,
+            "primary_fact_type": "cash",
+            "secondary_fact_type": "cash",
+            "anchor_fact_id": 94003,
+            "anchor_record_id": 93003,
+            "anchor_component_id": 94003,
+            "applied_amount": "0",
+            "status": "accepted",
+            "rule_id": "transfer.open.v1",
+            "candidate_fact_ids": [],
+            "created_by": "system",
+            "created_at": "<now>",
+            "decided_by": "user",
+            "decided_at": "<now>",
+            "decision_reason": "",
+            "superseded_by_id": null,
+            "active_slot": "active"
+          }
+        }
+      ],
+      "accept_errors": [
+        {
+          "error": "ValueError: 只能确认 pending_review 状态的关系"
+        },
+        {
+          "error": "ValueError: 找不到关系：999999"
+        },
+        {
+          "error": "ValueError: 确认待配对关系时，必须通过 --other 指定对侧流水"
+        },
+        {
+          "error": "ValueError: 指定的对侧流水不在待配对候选中"
+        },
+        {
+          "error": "ValueError: 退款待配对关系的对侧必须是负金额消费流水"
+        }
+      ],
+      "reject": {
+        "ok": true,
+        "count": 1,
+        "message": "关系已驳回",
+        "details": {
+          "id": "r4",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93007,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "5",
+          "status": "rejected",
+          "rule_id": "refund.reject.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "user",
+          "decided_at": "<now>",
+          "decision_reason": "不要",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        }
+      },
+      "reject_error": {
+        "error": "ValueError: 只能驳回 pending_review 状态的关系"
+      },
+      "supersede": {
+        "ok": true,
+        "count": 1,
+        "message": "关系已被新结果取代",
+        "details": {
+          "old_id": "r6",
+          "new_id": "replacement"
+        }
+      },
+      "delete": {
+        "ok": true,
+        "count": 1,
+        "message": "现金流水已逻辑删除",
+        "details": {
+          "fact_id": 93005,
+          "deleted_at": "<now>",
+          "deleted_by": "user",
+          "delete_reason": "误记",
+          "event_id": null
+        }
+      },
+      "delete_error": {
+        "error": "ValueError: cash fact already deleted: 93005"
+      },
+      "persist_rejected": [
+        {
+          "id": "r4",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93007,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "5",
+          "status": "rejected",
+          "rule_id": "refund.reject.v1",
+          "candidate_fact_ids": [],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "user",
+          "decided_at": "<now>",
+          "decision_reason": "不要",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "persisted_2",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "p2p_return",
+          "primary_fact_id": 94007,
+          "secondary_fact_id": 94002,
+          "primary_record_id": 93006,
+          "secondary_record_id": 93002,
+          "primary_component_id": 94007,
+          "secondary_component_id": 94002,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "anchor_fact_id": 94007,
+          "anchor_record_id": 93006,
+          "anchor_component_id": 94007,
+          "applied_amount": "0",
+          "status": "rejected",
+          "rule_id": "refund.new.v1",
+          "candidate_fact_ids": [],
+          "created_by": "web",
+          "created_at": "<now>",
+          "decided_by": "web",
+          "decided_at": null,
+          "decision_reason": "import_rejected",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        }
+      ],
+      "pending_after": [
+        {
+          "id": "r3",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_fact_id": 94002,
+          "secondary_fact_id": null,
+          "primary_record_id": 93002,
+          "secondary_record_id": null,
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94002,
+          "anchor_record_id": 93002,
+          "anchor_component_id": 94002,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.open.v1",
+          "candidate_fact_ids": [
+            94001
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r8",
+          "workspace_id": "relation-workspace",
+          "kind": "transfer_pair",
+          "subtype": "ordinary_transfer",
+          "primary_fact_id": 94008,
+          "secondary_fact_id": null,
+          "primary_record_id": 93007,
+          "secondary_record_id": null,
+          "primary_component_id": 94008,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94008,
+          "anchor_record_id": 93007,
+          "anchor_component_id": 94008,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "transfer.open2.v1",
+          "candidate_fact_ids": [
+            94003
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        },
+        {
+          "id": "r9",
+          "workspace_id": "relation-workspace",
+          "kind": "refund_offset",
+          "subtype": "alternate",
+          "primary_fact_id": 94002,
+          "secondary_fact_id": null,
+          "primary_record_id": 93002,
+          "secondary_record_id": null,
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": null,
+          "anchor_fact_id": 94002,
+          "anchor_record_id": 93002,
+          "anchor_component_id": 94002,
+          "applied_amount": "0",
+          "status": "pending_review",
+          "rule_id": "refund.open2.v1",
+          "candidate_fact_ids": [
+            94001,
+            94004
+          ],
+          "created_by": "system",
+          "created_at": "<now>",
+          "decided_by": "",
+          "decided_at": null,
+          "decision_reason": "",
+          "superseded_by_id": null,
+          "active_slot": "active"
+        }
+      ],
+      "project": {
+        "balances": {
+          "现金|CNY": "-20",
+          "工资卡|CNY": "-100"
+        },
+        "expenses": {
+          "CNY": "120"
+        },
+        "income": {},
+        "excluded_transfer_fact_ids": [
+          94003,
+          94004
+        ],
+        "mirror_groups": [
+          [
+            94001
+          ],
+          [
+            94002
+          ],
+          [
+            94003
+          ],
+          [
+            94004
+          ],
+          [
+            94006
+          ],
+          [
+            94007
+          ],
+          [
+            94008
+          ]
+        ],
+        "net_expense_by_group": {
+          "94001": "70",
+          "94006": "12",
+          "94007": "8",
+          "94008": "30"
+        }
+      },
+      "final_rows": [
+        {
+          "id": "persisted_2",
+          "kind": "refund_offset",
+          "subtype": "p2p_return",
+          "primary_component_id": 94007,
+          "secondary_component_id": 94002,
+          "state": "ignored",
+          "active": true,
+          "row_revision": 1,
+          "decision_source": "manual",
+          "applied_amount": "0",
+          "rule_id": "refund.new.v1",
+          "created_by": "web",
+          "decided_by": "web",
+          "decision_reason": "import_rejected"
+        },
+        {
+          "id": "r1",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_component_id": 94001,
+          "secondary_component_id": 94002,
+          "state": "confirmed",
+          "active": true,
+          "row_revision": 3,
+          "decision_source": "manual",
+          "applied_amount": "10",
+          "rule_id": "refund.pending.v1",
+          "created_by": "system",
+          "decided_by": "user",
+          "decision_reason": "确认"
+        },
+        {
+          "id": "r10",
+          "kind": "refund_offset",
+          "subtype": "delete",
+          "primary_component_id": 94005,
+          "secondary_component_id": 94002,
+          "state": "draft",
+          "active": false,
+          "row_revision": 3,
+          "decision_source": "manual",
+          "applied_amount": "0",
+          "rule_id": "refund.delete.v1",
+          "created_by": "system",
+          "decided_by": "user",
+          "decision_reason": "fact deleted: 误记"
+        },
+        {
+          "id": "r2",
+          "kind": "transfer_pair",
+          "subtype": "ordinary_transfer",
+          "primary_component_id": 94003,
+          "secondary_component_id": 94004,
+          "state": "confirmed",
+          "active": true,
+          "row_revision": 3,
+          "decision_source": "manual",
+          "applied_amount": "0",
+          "rule_id": "transfer.open.v1",
+          "created_by": "system",
+          "decided_by": "user",
+          "decision_reason": ""
+        },
+        {
+          "id": "r3",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "state": "draft",
+          "active": true,
+          "row_revision": 1,
+          "decision_source": "rule",
+          "applied_amount": "0",
+          "rule_id": "refund.open.v1",
+          "created_by": "system",
+          "decided_by": "",
+          "decision_reason": ""
+        },
+        {
+          "id": "r4",
+          "kind": "refund_offset",
+          "subtype": "",
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "state": "ignored",
+          "active": true,
+          "row_revision": 3,
+          "decision_source": "manual",
+          "applied_amount": "5",
+          "rule_id": "refund.reject.v1",
+          "created_by": "system",
+          "decided_by": "user",
+          "decision_reason": "不要"
+        },
+        {
+          "id": "r6",
+          "kind": "refund_offset",
+          "subtype": "ordinary",
+          "primary_component_id": 94008,
+          "secondary_component_id": 94002,
+          "state": "draft",
+          "active": false,
+          "row_revision": 4,
+          "decision_source": "rule",
+          "applied_amount": "0",
+          "rule_id": "refund.supersede.v1",
+          "created_by": "system",
+          "decided_by": "system",
+          "decision_reason": "supersede"
+        },
+        {
+          "id": "r8",
+          "kind": "transfer_pair",
+          "subtype": "ordinary_transfer",
+          "primary_component_id": 94008,
+          "secondary_component_id": null,
+          "state": "draft",
+          "active": true,
+          "row_revision": 1,
+          "decision_source": "rule",
+          "applied_amount": "0",
+          "rule_id": "transfer.open2.v1",
+          "created_by": "system",
+          "decided_by": "",
+          "decision_reason": ""
+        },
+        {
+          "id": "r9",
+          "kind": "refund_offset",
+          "subtype": "alternate",
+          "primary_component_id": 94002,
+          "secondary_component_id": null,
+          "state": "draft",
+          "active": true,
+          "row_revision": 1,
+          "decision_source": "rule",
+          "applied_amount": "0",
+          "rule_id": "refund.open2.v1",
+          "created_by": "system",
+          "decided_by": "",
+          "decision_reason": ""
+        },
+        {
+          "id": "replacement",
+          "kind": "refund_offset",
+          "subtype": "p2p_return",
+          "primary_component_id": 94005,
+          "secondary_component_id": 94002,
+          "state": "draft",
+          "active": false,
+          "row_revision": 3,
+          "decision_source": "manual",
+          "applied_amount": "0",
+          "rule_id": "refund.replacement.v1",
+          "created_by": "system",
+          "decided_by": "user",
+          "decision_reason": "fact deleted: 误记"
+        }
+      ],
+      "final_candidates": [
+        [
+          "r3",
+          94001
+        ],
+        [
+          "r8",
+          94003
+        ],
+        [
+          "r9",
+          94001
+        ],
+        [
+          "r9",
+          94004
+        ]
+      ]
+    }
   }
 }

@@ -203,7 +203,255 @@ internal class CashRelationService(private val context: CashSqlContext) {
     fun refundRemaining(facts: List<RelationFact>): Map<String, BigDecimal> =
         CashRelationPlanCache.refundRemaining(facts,
             relations.listActive(kind = "refund_offset", status = "accepted"))
+
+    fun listPending(kind: String? = null): List<Map<String, Any?>> =
+        relations.listActive(kind = kind, status = "pending_review")
+
+    /** 关系余额/损益投影；已删除事实由纯投影规则排除。 */
+    fun project(): Map<String, Any?> {
+        val accepted = relations.listActive().filter { it["status"] == "accepted" }
+        val result = CashRelationProjection.project(activeCashFacts(includeDeleted = true), accepted)
+        fun wireId(value: String): Any = value.toLongOrNull() ?: value
+        fun idOrder(first: Any, second: Any): Int = when {
+            first is Long && second is Long -> first.compareTo(second)
+            else -> first.toString().compareTo(second.toString())
+        }
+        return linkedMapOf(
+            "balances" to result.balances.entries.associate { "${it.key.first}|${it.key.second}" to it.value },
+            "expenses" to result.expenses, "income" to result.income,
+            "excluded_transfer_fact_ids" to result.excludedTransferFactIds.map(::wireId)
+                .sortedWith(Comparator(::idOrder)),
+            "mirror_groups" to result.mirrorGroups.map { group -> group.map(::wireId).sortedWith(Comparator(::idOrder)) },
+            "net_expense_by_group" to result.netExpenseByGroup)
+    }
+
+    private fun requireActiveCash(factId: Any?): RelationFact {
+        val key = text(factId)
+        return activeCashFacts().firstOrNull { it.id == key }
+            ?: throw IllegalArgumentException("找不到有效现金流水：$key")
+    }
+    private fun componentParents(ids: Set<Long>): Map<Long, Long> {
+        if (ids.isEmpty()) return emptyMap()
+        return context.sql.select(CASH_TRANSACTION_COMPONENTS.ID, CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID)
+            .from(CASH_TRANSACTION_COMPONENTS)
+            .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(context.workspace))
+            .and(CASH_TRANSACTION_COMPONENTS.ID.`in`(ids.sorted())).fetch()
+            .associate { it.value1()!! to it.value2()!! }
+    }
+    private fun validateTransferEndpointAvailability(factIds: List<String>, relationId: Any?,
+        candidates: List<Map<String, Any?>>? = null) {
+        val endpoints = factIds.filter { it.isNotEmpty() }.toSet()
+        val rows = candidates ?: relations.listForComponents(endpoints.toList(), activeOnly = true)
+        for (relation in rows) {
+            if (relation["status"] == "superseded") continue
+            if (relation["kind"] != "transfer_pair") continue
+            if (relation["status"] != "accepted" || text(relation["id"]) == text(relationId)) continue
+            val occupied = setOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+            if (endpoints.any { it in occupied })
+                throw IllegalArgumentException("指定的转账端点已被另一条已确认关系占用")
+        }
+    }
+    private fun validateOpenLegOther(rel: Map<String, Any?>, other: RelationFact) {
+        val kind = text(rel["kind"])
+        if (other.deleted) throw IllegalArgumentException("指定的对侧流水已删除")
+        if (kind == "refund_offset") {
+            if (other.signedAmount.signum() >= 0)
+                throw IllegalArgumentException("退款待配对关系的对侧必须是负金额消费流水")
+            return
+        }
+        if (kind == "transfer_pair") {
+            val anchor = requireActiveCash(rel["primary_fact_id"])
+            if (text(rel["subtype"]) == "currency_exchange") {
+                if (!CashRelationCore.isFxOutRecord(anchor) || !CashRelationCore.isFxInRecord(other))
+                    throw IllegalArgumentException("个人购汇待配对关系必须连接购汇转出和购汇转入")
+                if (anchor.currency == other.currency)
+                    throw IllegalArgumentException("个人购汇待配对关系的两端币种必须不同")
+                if (CashTransferMatch.matchPersonalFxExchange(anchor, listOf(other)) == null)
+                    throw IllegalArgumentException("指定的对侧不在个人购汇待配对候选范围内")
+            }
+            return
+        }
+        throw IllegalArgumentException("关系类型 $kind 不支持确认待配对关系")
+    }
+
+    /** 确认前把候选关系纳入完整投影图；非法图必须失败关闭。 */
+    private fun validateProjectionAcceptance(relation: Map<String, Any?>, otherFactId: Any?) {
+        fun invalid(): Nothing = throw IllegalArgumentException("该关系无法形成有效收支投影")
+        val rawPrimary = text(relation["primary_component_id"]).ifEmpty { text(relation["primary_fact_id"]) }
+        val rawSecondary = listOf(text(otherFactId), text(relation["secondary_component_id"]),
+            text(relation["secondary_fact_id"])).firstOrNull { it.isNotEmpty() } ?: "0"
+        var primaryId = rawPrimary.toLongOrNull() ?: invalid()
+        var secondaryId = rawSecondary.toLongOrNull() ?: invalid()
+        if (secondaryId == 0L) throw IllegalArgumentException("关系缺少对侧流水，无法形成有效收支投影")
+        if (CashRelationCore.isOpenLegRelation(relation) && relation["kind"] == "refund_offset") {
+            val swap = primaryId
+            primaryId = secondaryId
+            secondaryId = swap
+        }
+        val parents = componentParents(setOf(primaryId, secondaryId))
+        val candidatePrimary = parents[primaryId] ?: throw IllegalArgumentException("关系组成项不存在")
+        val candidateSecondary = parents[secondaryId] ?: throw IllegalArgumentException("关系组成项不存在")
+        try {
+            val graph = CashRelationReadRepository(context).readContext(setOf(candidatePrimary, candidateSecondary))
+            val previous = graph.relations.firstOrNull { text(it.id) == text(relation["id"]) } ?: invalid()
+            var roles = previous.primaryRole to previous.secondaryRole
+            if (previous.secondaryComponentId == null) {
+                val primary = graph.components.firstOrNull { it.componentId == primaryId.toString() } ?: invalid()
+                val amount = CashRelationGeometry.asDecimal((primary.amount as CashDecimalLiteral).text)
+                roles = legacyCashRelationRoles(previous.kind.toString(), previous.subtype.toString(), amount)
+            }
+            val candidate = previous.copy(primaryTransactionId = candidatePrimary.toString(),
+                secondaryTransactionId = candidateSecondary.toString(),
+                primaryComponentId = primaryId.toString(), secondaryComponentId = secondaryId.toString(),
+                primaryRole = roles.first, secondaryRole = roles.second, state = "confirmed")
+            val edges = graph.relations.map { if (text(it.id) == text(candidate.id)) candidate else it }
+            buildCashRelationGraph(graph.facts, graph.components, edges, graph.fundingComponentIds)
+        } catch (_: CashProjectionFailure) {
+            invalid()
+        } catch (_: CashRelationFailure) {
+            invalid()
+        } catch (_: InvalidCashValue) {
+            invalid()
+        }
+    }
+    private fun supersedeSystemPaymentMirrorConflicts(factIds: List<String>, replacementRelationId: Any?) {
+        val endpoints = factIds.filter { it.isNotEmpty() }.toSet()
+        if (endpoints.isEmpty()) return
+        for (relation in relations.listForFacts(endpoints.toList(), activeOnly = true)) {
+            if (relation["kind"] != "payment_mirror") continue
+            if (relation["status"] != "accepted") continue
+            if (replacementRelationId != null && text(relation["id"]) == text(replacementRelationId)) continue
+            val occupied = setOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+            if (endpoints.none { it in occupied }) continue
+            if (CashRelationSerialization.isHumanDecision(relation))
+                throw IllegalArgumentException("指定的支付镜像端点已被另一条人工关系占用")
+            relations.updateStatus(relation["id"], status = "superseded", decidedBy = "system",
+                decisionReason = "superseded_by_human_payment_mirror", supersededById = replacementRelationId)
+        }
+    }
+
+    fun accept(relationId: Any?, actor: String, reason: String = "", otherFactId: Any? = null): RelationDecision {
+        val relation = relations.get(relationId)
+            ?: throw IllegalArgumentException("找不到关系：${text(relationId)}")
+        if (relation["status"] != "pending_review")
+            throw IllegalArgumentException("只能确认 pending_review 状态的关系")
+        val openLeg = CashRelationCore.isOpenLegRelation(relation)
+        val other: RelationFact?
+        val factIds: List<String>
+        if (openLeg) {
+            if (otherFactId == null || text(otherFactId).isEmpty())
+                throw IllegalArgumentException("确认待配对关系时，必须通过 --other 指定对侧流水")
+            other = requireActiveCash(otherFactId)
+            val candidates = (relation["candidate_fact_ids"] as? List<*>)?.map { text(it) }?.toSet().orEmpty()
+            if (other.id !in candidates)
+                throw IllegalArgumentException("指定的对侧流水不在待配对候选中")
+            validateOpenLegOther(relation, other)
+            factIds = listOf(text(relation["primary_fact_id"]), text(otherFactId))
+        } else {
+            if (text(relation["secondary_fact_id"]).isEmpty())
+                throw IllegalArgumentException("待审核的双边关系缺少对侧流水，无法确认")
+            other = null
+            factIds = listOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+        }
+        if (relation["kind"] == "payment_mirror")
+            supersedeSystemPaymentMirrorConflicts(factIds, relationId)
+        validateTransferEndpointAvailability(factIds, relationId)
+        validateProjectionAcceptance(relation, otherFactId)
+        val updated = if (openLeg) {
+            val refund = relation["kind"] == "refund_offset"
+            relations.bindOtherLeg(relationId, otherFactId, otherComponentId = other!!.id,
+                primaryFactId = if (refund) otherFactId else null,
+                primaryComponentId = if (refund) other.id else null,
+                status = "accepted", decidedBy = actor, decisionReason = reason)
+        } else relations.updateStatus(relationId, status = "accepted", decidedBy = actor, decisionReason = reason)
+        val componentIds = factIds.mapNotNull { it.toLongOrNull() }.toSet()
+        CashProjectionService.maintainIfReadyInSession(context, componentIds, knownComponentIds = componentIds)
+        return RelationDecision(ok = true, count = 1, message = "关系已确认", details = updated)
+    }
+
+    fun reject(relationId: Any?, actor: String, reason: String = ""): RelationDecision {
+        val relation = relations.get(relationId)
+            ?: throw IllegalArgumentException("找不到关系：${text(relationId)}")
+        if (relation["status"] != "pending_review")
+            throw IllegalArgumentException("只能驳回 pending_review 状态的关系")
+        val updated = relations.updateStatus(relationId, status = "rejected", decidedBy = actor,
+            decisionReason = reason.ifEmpty { "rejected" })
+        val componentIds = listOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+            .filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
+        CashProjectionService.maintainIfReadyInSession(context, emptySet(), knownComponentIds = componentIds)
+        return RelationDecision(ok = true, count = 1, message = "关系已驳回", details = updated)
+    }
+
+    fun supersede(relationId: Any?, replacement: Map<String, Any?>, actor: String = "system",
+        reason: String = "supersede"): RelationDecision {
+        val old = relations.get(relationId)
+            ?: throw IllegalArgumentException("找不到关系：${text(relationId)}")
+        if (old["status"] == "superseded") throw IllegalArgumentException("该关系已被新结果取代")
+        relations.updateStatus(relationId, status = "superseded", decidedBy = actor, decisionReason = reason)
+        val newId = relations.add(replacement)
+        relations.updateStatus(relationId, status = "superseded", decidedBy = actor,
+            decisionReason = reason, supersededById = newId)
+        val componentIds = listOf(old["primary_fact_id"], old["secondary_fact_id"],
+            replacement["primary_fact_id"], replacement["secondary_fact_id"])
+            .map { text(it) }.filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
+        CashProjectionService.maintainIfReadyInSession(context, componentIds, knownComponentIds = componentIds)
+        return RelationDecision(ok = true, count = 1, message = "关系已被新结果取代",
+            details = linkedMapOf("old_id" to text(relationId), "new_id" to newId))
+    }
+
+    fun logicalDeleteCash(factId: Any?, actor: String, reason: String): RelationDecision {
+        val trimmed = reason.trim()
+        if (trimmed.isEmpty()) throw IllegalArgumentException("delete reason is required")
+        val id = text(factId).toLongOrNull() ?: throw IllegalArgumentException("cash fact not found: $factId")
+        val row = context.sql.select(CASH_TRANSACTIONS.ID, CASH_TRANSACTIONS.DELETED_AT)
+            .from(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace))
+            .and(CASH_TRANSACTIONS.ID.eq(id)).fetchOne()
+            ?: throw IllegalArgumentException("cash fact not found: $factId")
+        if (row.value2() != null) throw IllegalArgumentException("cash fact already deleted: $factId")
+        val now = context.now()
+        context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, now)
+            .set(CASH_TRANSACTIONS.DELETED_BY, actor).set(CASH_TRANSACTIONS.DELETE_REASON, trimmed)
+            .set(CASH_TRANSACTIONS.ROW_REVISION, CASH_TRANSACTIONS.ROW_REVISION.add(1))
+            .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace))
+            .and(CASH_TRANSACTIONS.ID.eq(id)).execute()
+        val related = relations.listForFacts(listOf(id), activeOnly = true)
+        for (relation in related) relations.updateStatus(relation["id"], status = "superseded",
+            decidedBy = actor, decisionReason = "fact deleted: $trimmed")
+        val components = related.flatMap { listOf(text(it["primary_fact_id"]), text(it["secondary_fact_id"])) }
+            .filter { it.isNotEmpty() }.mapNotNull { it.toLongOrNull() }.toSet()
+        CashProjectionService.maintainIfReadyInSession(context, setOf(id), knownComponentIds = components)
+        return RelationDecision(ok = true, count = 1, message = "现金流水已逻辑删除",
+            details = linkedMapOf("fact_id" to factId, "deleted_at" to now, "deleted_by" to actor,
+                "delete_reason" to trimmed, "event_id" to null))
+    }
+
+    /** 导入拒绝的自动提案：人工决定保持，系统结果更新为 rejected，否则新建 rejected 记录。 */
+    fun persistRejectedProposal(proposal: RelationProposal): Map<String, Any?> {
+        val subtype = proposal.subtype.ifEmpty { "" }
+        val existing = relations.findByBusinessKey(proposal.kind, proposal.primaryFactId,
+            proposal.secondaryFactId, subtype = subtype, componentA = proposal.primaryFactId,
+            componentB = proposal.secondaryFactId)
+        if (existing != null) {
+            if (CashRelationSerialization.isHumanDecision(existing)) return existing
+            return relations.updateStatus(existing["id"], status = "rejected", decidedBy = "web",
+                decisionReason = "import_rejected")
+        }
+        val id = relations.add(linkedMapOf(
+            "kind" to proposal.kind, "subtype" to subtype,
+            "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
+            "primary_component_id" to proposal.primaryFactId, "secondary_component_id" to proposal.secondaryFactId,
+            "primary_fact_type" to proposal.primaryFactType, "secondary_fact_type" to proposal.secondaryFactType,
+            "anchor_fact_id" to proposal.effectiveAnchorFactId.ifEmpty { proposal.primaryFactId },
+            "anchor_component_id" to proposal.effectiveAnchorFactId.ifEmpty { proposal.primaryFactId },
+            "status" to "rejected", "rule_id" to proposal.ruleId,
+            "candidate_fact_ids" to proposal.evidence.candidateFactIds,
+            "created_by" to "web", "decided_by" to "web", "decision_reason" to "import_rejected"))
+        return relations.get(id)!!
+    }
 }
+
+internal data class RelationDecision(val ok: Boolean, val count: Int, val message: String,
+    val details: Map<String, Any?>)
 
 internal fun pythonRelationTruthy(value: Any?): Boolean = when (value) {
     null -> false

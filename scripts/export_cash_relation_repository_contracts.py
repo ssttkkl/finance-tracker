@@ -60,7 +60,7 @@ def seed(sessions):
             (93001, 9301, "alipay", "REL-1", "consumption", "-100.00", "atomic", (("94001", "-100.00"),)),
             (93002, 9301, "wechat", "REL-2", "refund", "30.00", "atomic", (("94002", "30.00"),)),
             (93003, 9302, "ccb_debit", "REL-3", "transfer_out", "-50.00", "atomic", (("94003", "-50.00"),)),
-            (93004, 9302, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", (("94004", "50.00"),)),
+            (93004, 9301, "icbc_debit", "REL-4", "transfer_in", "50.00", "atomic", (("94004", "50.00"),)),
             (93005, 9301, "alipay", "REL-5", "consumption", "-20.00", "atomic", (("94005", "-20.00"),)),
             (93006, 9302, "alipay", "REL-6", "consumption", "-20.00", "aggregate",
                 (("94006", "-12.00"), ("94007", "-8.00"))),
@@ -79,7 +79,7 @@ def seed(sessions):
         for transaction_id, _account, _source, _record, _type, _amount, _granularity, parts in rows:
             for ordinal, (component_id, amount) in enumerate(parts):
                 session.add(CashTransactionComponentModel(id=int(component_id), workspace_id=WORKSPACE,
-                    cash_transaction_id=transaction_id, account_id=9301, amount=amount, currency="CNY",
+                    cash_transaction_id=transaction_id, account_id=_account, amount=amount, currency="CNY",
                     ordinal=ordinal, label="", source_key="", metadata_json={}, created_at=NOW))
         session.flush()
         session.add(TransactionRelationModel(id=9001, workspace_id=WORKSPACE, kind="payment_mirror", subtype="",

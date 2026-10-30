@@ -89,4 +89,144 @@ class CashRelationServiceTest {
                 cached + ("external_context_digest" to "0".repeat(64))) } }.exceptionOrNull()?.message)
         assertEquals(expected.getValue("validation"), sourceJson(results))
     }
+
+    private val labels = linkedMapOf<Long, String>()
+    private fun normDecision(value: Any?): Any? = when (value) {
+        null -> null
+        is java.math.BigDecimal -> value.stripTrailingZeros().toPlainString()
+        is java.time.Instant -> if (value == RelationContractFixture.now) ParsedImportCodec.timeText(value) else "<now>"
+        is Map<*, *> -> linkedMapOf<String, Any?>().apply {
+            for ((key, item) in value) put(key.toString(), normDecision(item))
+            labels[(value["id"] as? Number)?.toLong()]?.let { put("id", it) }
+        }
+        is List<*> -> value.map { normDecision(it) }
+        else -> value
+    }
+
+    @Test fun relationDecisionsMatchPython() {
+        val database = database()
+        RelationContractFixture.seed(database, jdbcUrl)
+        fun sqliteContext(connection: java.sql.Connection) = CashSqlContext(connection, workspace, database.sqlite)
+        fun clearRelations() = database.write { connection ->
+            val sql = connection.jooq(database.sqlite)
+            sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+        }
+        fun addRelation(label: String, payload: Map<String, Any?>): Long =
+            database.write { connection -> CashRelationRepository(sqliteContext(connection)).add(payload) }
+                .also { labels[it] = label }
+        fun <T> withService(block: CashRelationService.() -> T): T =
+            database.write { connection -> CashRelationService(sqliteContext(connection)).block() }
+        fun capture(block: CashRelationService.() -> Any?): Any? = try {
+            val value = withService(block)
+            normDecision(if (value is RelationDecision) linkedMapOf("ok" to value.ok, "count" to value.count,
+                "message" to value.message, "details" to value.details) else if (value is Unit) null else value)
+        } catch (failure: IllegalArgumentException) {
+            linkedMapOf("error" to "ValueError: ${failure.message}")
+        }
+
+        clearRelations()
+        val ids = linkedMapOf<String, Long>()
+        ids["r1"] = addRelation("r1", mapOf("kind" to "refund_offset", "primary_fact_id" to "93001",
+            "secondary_fact_id" to "93002", "status" to "pending_review", "rule_id" to "refund.pending.v1",
+            "applied_amount" to "10.00"))
+        ids["r2"] = addRelation("r2", mapOf("kind" to "transfer_pair", "primary_fact_id" to "93003",
+            "status" to "pending_review", "subtype" to "ordinary_transfer", "rule_id" to "transfer.open.v1",
+            "anchor_fact_id" to "93003", "candidate_fact_ids" to listOf(94004)))
+        ids["r3"] = addRelation("r3", mapOf("kind" to "refund_offset", "primary_fact_id" to "93002",
+            "status" to "pending_review", "rule_id" to "refund.open.v1", "anchor_fact_id" to "93002",
+            "candidate_fact_ids" to listOf(94001)))
+        ids["r4"] = addRelation("r4", mapOf("kind" to "refund_offset", "primary_fact_id" to "93007",
+            "secondary_fact_id" to "93002", "status" to "pending_review", "rule_id" to "refund.reject.v1",
+            "applied_amount" to "5.00"))
+        ids["r6"] = addRelation("r6", mapOf("kind" to "refund_offset", "primary_fact_id" to "93007",
+            "secondary_fact_id" to "93002", "status" to "pending_review", "subtype" to "ordinary",
+            "rule_id" to "refund.supersede.v1"))
+        ids["r8"] = addRelation("r8", mapOf("kind" to "transfer_pair", "primary_fact_id" to "93007",
+            "status" to "pending_review", "subtype" to "ordinary_transfer", "rule_id" to "transfer.open2.v1",
+            "anchor_fact_id" to "93007", "candidate_fact_ids" to listOf(94003)))
+        ids["r9"] = addRelation("r9", mapOf("kind" to "refund_offset", "primary_fact_id" to "93002",
+            "status" to "pending_review", "subtype" to "alternate", "rule_id" to "refund.open2.v1",
+            "anchor_fact_id" to "93002", "candidate_fact_ids" to listOf(94004, 94001)))
+        ids["r10"] = addRelation("r10", mapOf("kind" to "refund_offset", "primary_fact_id" to "93005",
+            "secondary_fact_id" to "93002", "status" to "pending_review", "subtype" to "delete",
+            "rule_id" to "refund.delete.v1"))
+
+        val cases = linkedMapOf<String, Any?>()
+        cases["pending_before"] = capture { listPending() }
+        cases["accept"] = listOf(
+            capture { accept(ids.getValue("r1"), actor = "user", reason = "确认") },
+            capture { accept(ids.getValue("r2"), actor = "user", otherFactId = 94004) })
+        cases["accept_errors"] = listOf(
+            capture { accept(ids.getValue("r1"), actor = "user") },
+            capture { accept(999999, actor = "user") },
+            capture { accept(ids.getValue("r8"), actor = "user") },
+            capture { accept(ids.getValue("r8"), actor = "user", otherFactId = 94006) },
+            capture { accept(ids.getValue("r9"), actor = "user", otherFactId = 94004) })
+        cases["reject"] = capture { reject(ids.getValue("r4"), actor = "user", reason = "不要") }
+        cases["reject_error"] = capture { reject(ids.getValue("r4"), actor = "user") }
+        @Suppress("UNCHECKED_CAST")
+        val superseded = capture {
+            supersede(ids.getValue("r6"), linkedMapOf("kind" to "refund_offset", "subtype" to "p2p_return",
+                "primary_fact_id" to "93005", "secondary_fact_id" to "93002", "status" to "pending_review",
+                "rule_id" to "refund.replacement.v1"))
+        } as Map<String, Any?>
+        @Suppress("UNCHECKED_CAST")
+        val supersedeDetails = superseded.getValue("details") as MutableMap<String, Any?>
+        val newId = (supersedeDetails["new_id"] as Number).toLong()
+        supersedeDetails["old_id"] = labels[ids.getValue("r6")]
+        supersedeDetails["new_id"] = "replacement"
+        labels[newId] = "replacement"
+        cases["supersede"] = superseded
+        cases["delete"] = capture { logicalDeleteCash(93005, actor = "user", reason = "误记") }
+        cases["delete_error"] = capture { logicalDeleteCash(93005, actor = "user", reason = "again") }
+        val persisted = listOf(
+            capture { persistRejectedProposal(RelationProposal(kind = "refund_offset",
+                primaryFactId = "94008", secondaryFactId = "94002", status = "accepted",
+                ruleId = "refund.reject.v1",
+                evidence = RelationEvidence(extras = linkedMapOf("refund_amount" to "5.00")))) },
+            capture { persistRejectedProposal(RelationProposal(kind = "refund_offset",
+                primaryFactId = "94007", secondaryFactId = "94002", subtype = "p2p_return", status = "accepted",
+                ruleId = "refund.new.v1",
+                evidence = RelationEvidence(extras = linkedMapOf("refund_amount" to "30.00")))) })
+        for ((index, item) in persisted.withIndex()) {
+            @Suppress("UNCHECKED_CAST")
+            val map = item as Map<String, Any?>
+            val identifier = (map["id"] as? Number)?.toLong()
+            if (identifier != null && identifier !in labels) {
+                labels[identifier] = "persisted_${index + 1}"
+                (map as MutableMap)["id"] = labels.getValue(identifier)
+            }
+        }
+        cases["persist_rejected"] = persisted
+        cases["pending_after"] = capture { listPending() }
+        cases["project"] = capture { project() }
+
+        val finalRows = database.read { connection ->
+            connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
+                .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
+                .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
+                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                        "primary_component_id" to row.primaryComponentId,
+                        "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
+                        "active" to row.active, "row_revision" to row.rowRevision,
+                        "decision_source" to row.decisionSource,
+                        "applied_amount" to row.appliedAmount?.let { java.math.BigDecimal(fixedCashDecimal(it)) },
+                        "rule_id" to row.ruleId, "created_by" to row.createdBy, "decided_by" to row.decidedBy,
+                        "decision_reason" to row.decisionReason)
+                }
+        }
+        @Suppress("UNCHECKED_CAST")
+        cases["final_rows"] = (normDecision(finalRows) as List<Map<String, Any?>>)
+            .sortedBy { it["id"].toString() }
+        val finalCandidates = database.read { connection ->
+            connection.jooq(database.sqlite).select(CASH_RELATION_CANDIDATES.RELATION_ID,
+                CASH_RELATION_CANDIDATES.CANDIDATE_COMPONENT_ID).from(CASH_RELATION_CANDIDATES)
+                .where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).fetch()
+                .map { listOf<Any?>(labels[it.value1()] ?: it.value1(), it.value2()) }
+                .sortedWith(compareBy({ it[0].toString() }, { it[1].toString().toLong() }))
+        }
+        cases["final_candidates"] = finalCandidates
+        assertEquals(golden(database).getValue("decisions"), sourceJson(cases))
+    }
 }

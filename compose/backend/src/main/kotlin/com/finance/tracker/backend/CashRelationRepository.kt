@@ -147,11 +147,8 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         return resolveComponent(factId, null)
     }
 
-    private fun legacyRoles(kind: String, subtype: String, amount: BigDecimal): Pair<String?, String?> = when (kind) {
-        "payment_mirror" -> (if (amount.signum() > 0) "refund" else "expense").let { it to it }
-        "refund_offset" -> (if (subtype == "p2p_return") "p2p_out" to "p2p_in" else "expense" to "refund")
-        else -> "outgoing" to "incoming"
-    }
+    private fun legacyRoles(kind: String, subtype: String, amount: BigDecimal): Pair<String?, String?> =
+        legacyCashRelationRoles(kind, subtype, amount)
     private fun endpointValues(kind: String, subtype: String, primary: Long, secondary: Long?,
         anchor: Long): EndpointValues {
         val ids = setOfNotNull(primary, secondary, anchor)
@@ -400,7 +397,7 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         if (row.secondaryComponentId != null || row.state != "draft" || !row.active)
             throw IllegalArgumentException("只能更新待配对关系的候选")
         replaceCandidates(id, candidateIds(values))
-        context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ROW_REVISION, row.rowRevision + 2)
+        context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ROW_REVISION, row.rowRevision + 1)
             .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(context.workspace))
             .and(TRANSACTION_RELATIONS.ID.eq(id)).execute()
         return get(id)!!
@@ -411,10 +408,11 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         val row = relationQuery().and(TRANSACTION_RELATIONS.ID.eq(id)).fetchOne()?.let(::toStored)
             ?: throw IllegalArgumentException("relation not found: $relationId")
         val (active, state) = stateValues(status)
+        val changed = active != row.active || state != null && state != row.state
         var update = context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ACTIVE, active)
         if (state != null) update = update.set(TRANSACTION_RELATIONS.STATE, state)
         update = update.set(TRANSACTION_RELATIONS.ROW_REVISION,
-            row.rowRevision + if (status != "pending_review") 2 else 1)
+            row.rowRevision + 1 + if (status != "pending_review" && changed) 1 else 0)
         if (decidedBy.isNotEmpty()) update = update.set(TRANSACTION_RELATIONS.DECIDED_BY, decidedBy)
             .set(TRANSACTION_RELATIONS.DECIDED_AT, context.now())
             .set(TRANSACTION_RELATIONS.DECISION_SOURCE, if (decidedBy == "system") "rule" else "manual")
@@ -474,4 +472,11 @@ internal class CashRelationRepository(private val context: CashSqlContext) {
         if (changed) replaceCandidates(id, emptyList())
         return get(id)!!
     }
+}
+
+/** 旧服务形成的端点角色；新建议必须通过来源证据发现角色。 */
+internal fun legacyCashRelationRoles(kind: String, subtype: String, amount: BigDecimal): Pair<String?, String?> = when (kind) {
+    "payment_mirror" -> (if (amount.signum() > 0) "refund" else "expense").let { it to it }
+    "refund_offset" -> (if (subtype == "p2p_return") "p2p_out" to "p2p_in" else "expense" to "refund")
+    else -> "outgoing" to "incoming"
 }
