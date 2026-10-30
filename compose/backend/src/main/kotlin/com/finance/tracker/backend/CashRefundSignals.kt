@@ -48,7 +48,7 @@ internal data class RelationProposal(
         "secondary_fact_id" to secondaryFactId, "primary_fact_type" to primaryFactType,
         "secondary_fact_type" to secondaryFactType, "subtype" to subtype, "status" to status,
         "rule_id" to ruleId, "confidence" to confidence, "evidence" to evidence.json(),
-        "created_by" to createdBy, "anchor_fact_id" to anchor, "open_leg" to isOpenLeg)
+        "created_by" to createdBy, "anchor_fact_id" to anchorFactId, "open_leg" to isOpenLeg)
 }
 
 /** 退款文本门与标题匹配；分类只读取正式 record_type，不从文本推断一级类型。 */

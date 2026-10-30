@@ -1,0 +1,652 @@
+{
+  "cases": {
+    "strong": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "time_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b1"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 5
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "date_only": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b3",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "payment_mirror.bank_date_only.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 21600,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.bank_date_only.v1",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "short_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b3"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 21600
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "date_only_no_identity": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b4",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "pending_review",
+      "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+      "confidence": "weak",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 21600,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "short_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b4"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 21600
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "short_text": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b6",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 30,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "short_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b6"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 30
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "late_text": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b2",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 600,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "short_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b2"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 600
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "amount_delta": null,
+    "cross_account": null,
+    "same_group": null,
+    "multi_strong": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "p1",
+      "secondary_fact_id": "b1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "pending_review",
+      "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+      "confidence": "weak",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 5,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "candidate_count": 2,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "time_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "b1",
+          "b7"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 5
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "refund_dual": {
+      "kind": "payment_mirror",
+      "primary_fact_id": "pr",
+      "secondary_fact_id": "br",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "payment_mirror.refund_dual_source.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0.00",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "商户",
+        "source_pair": [
+          "alipay",
+          "icbc_debit"
+        ],
+        "rule_id": "payment_mirror.refund_dual_source.v1",
+        "candidate_count": 1,
+        "signals": [
+          "platform_bank",
+          "exact_amount",
+          "time_window",
+          "platform_not_after_bank",
+          "same_account"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [
+          "br"
+        ],
+        "extras": {
+          "lag_bank_minus_platform": 0
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "",
+      "open_leg": false
+    },
+    "greedy": [
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g1",
+        "secondary_fact_id": "g3",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 4,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "time_window",
+            "platform_not_after_bank",
+            "same_account",
+            "candidate_group_pending"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g1",
+            "g2",
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 5
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      },
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g2",
+        "secondary_fact_id": "g4",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 50,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 4,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "short_window",
+            "platform_not_after_bank",
+            "same_account",
+            "candidate_group_pending"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g1",
+            "g2",
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 50
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      }
+    ],
+    "greedy_seed": [
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g1",
+        "secondary_fact_id": "g3",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 4,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "time_window",
+            "platform_not_after_bank",
+            "same_account",
+            "candidate_group_pending"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g1",
+            "g2",
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 5
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      },
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g2",
+        "secondary_fact_id": "g4",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 50,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 4,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "short_window",
+            "platform_not_after_bank",
+            "same_account",
+            "candidate_group_pending"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g1",
+            "g2",
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 50
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      }
+    ],
+    "greedy_unique": [
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g1",
+        "secondary_fact_id": "g3",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 2,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "time_window",
+            "platform_not_after_bank",
+            "same_account",
+            "mutual_uniqueness_required"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 5
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "g1",
+        "open_leg": false
+      },
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g2",
+        "secondary_fact_id": "g4",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 50,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 2,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "short_window",
+            "platform_not_after_bank",
+            "same_account",
+            "mutual_uniqueness_required"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 50
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "g2",
+        "open_leg": false
+      }
+    ],
+    "greedy_blocked": [
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g1",
+        "secondary_fact_id": "g4",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "accepted",
+        "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 50,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.same_account.exact.business_day.v1",
+          "candidate_count": 1,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "short_window",
+            "platform_not_after_bank",
+            "same_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 50
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      },
+      {
+        "kind": "payment_mirror",
+        "primary_fact_id": "g2",
+        "secondary_fact_id": "g3",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "0.00",
+          "time_delta_seconds": 5,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "alipay",
+            "icbc_debit"
+          ],
+          "rule_id": "payment_mirror.platform_bank.near.weak.v2",
+          "candidate_count": 2,
+          "signals": [
+            "platform_bank",
+            "exact_amount",
+            "time_window",
+            "platform_not_after_bank",
+            "same_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "g3",
+            "g4"
+          ],
+          "extras": {
+            "lag_bank_minus_platform": 5
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "",
+        "open_leg": false
+      }
+    ]
+  }
+}

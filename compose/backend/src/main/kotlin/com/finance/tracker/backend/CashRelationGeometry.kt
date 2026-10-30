@@ -112,7 +112,6 @@ internal object CashRelationGeometry {
     fun mainStyleCrossVerify(left: Any?, right: Any?): Boolean {
         fun parts(value: Any?): Pair<String, String> = when (value) {
             is Map<*, *> -> (value["counterparty"]?.toString().orEmpty()) to (value["note"]?.toString().orEmpty())
-            is RelationFact -> value.counterparty to value.note
             else -> value?.toString().orEmpty() to ""
         }
         val (leftCounterparty, leftDescription) = parts(left)
