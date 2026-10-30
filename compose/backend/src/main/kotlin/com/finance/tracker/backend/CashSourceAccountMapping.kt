@@ -239,7 +239,7 @@ internal object CashSourceAccountMapping {
     private fun groupId(sourceType: String, identityKind: String, sourceKey: String): String =
         "group_" + sourceDigest(sourceType, identityKind, sourceKey).take(24)
 
-    private fun normalizeAlipayComponent(value: String): String {
+    internal fun normalizeAlipayComponent(value: String): String {
         var component = text(value)
         if (component.isEmpty() || nonFundingMarkers.any { it in component }) return ""
         component = installment.replace(component, "")
@@ -248,7 +248,7 @@ internal object CashSourceAccountMapping {
         return if (component in setOf("账户余额", "余额")) "支付宝余额" else component
     }
 
-    private fun normalizeWechatPaymentIdentity(value: Any?): String {
+    internal fun normalizeWechatPaymentIdentity(value: Any?): String {
         val method = text(value)
         return if (method in setOf("/", "零钱", "微信零钱")) "微信零钱" else method
     }

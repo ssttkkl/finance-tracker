@@ -79,6 +79,7 @@ internal object CashRecordPolicy {
             else ->invalid()
         }
     }
+    internal fun copyValue(value: Any?): Any? = clone(value)
     private fun jsonValue(value: Any?,depth: Int=0) {
         if(depth>64) invalid()
         when(value) {

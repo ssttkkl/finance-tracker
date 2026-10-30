@@ -20,7 +20,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 Kotlin 多文件来源批次规划已实现重复出现合并、最大次数、可靠快照选择和共同结果引用，见 [实现](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashSourceBatch.kt)。当前为导入内部规则，尚未接上传、暂存或提交事务；页面数仍为 10，Web、Native 和共享客户端均无变动，F-05 的 Kotlin 导入流程 TODO 保留。
 
-Kotlin 内部来源账户建议及对应发布仓库已实现，读取不写默认，同值发布不改变修订；上传、资金组扫描和成功使用证明的真实接线仍待完成，F-05 页面数与两端 TODO 不变。
+Kotlin 内部来源账户建议及对应发布仓库已实现，读取不写默认，同值发布不改变修订；[资金组扫描与账户选择准备](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportFunding.kt) 已实现并通过完整 Python 结果对照及原生回归；上传与成功使用证明的真实接线仍待完成，F-05 页面数与两端 TODO 不变。
 
 Kotlin 解析会话已具备编解码、内存/R2 条件对象端口、修订与原有效期、取消和公开页缓存，见 [存储实现](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ParsedImportStore.kt)。R2 SDK 与清扫器已接本机运行入口，维护计划已使用同一配置存储，提交失败保留方案，提交成功后清空临时正文；上传接口仍未接入，F-05 两端 TODO 保留。本片不改变 Web、Native 或共享客户端。
 
