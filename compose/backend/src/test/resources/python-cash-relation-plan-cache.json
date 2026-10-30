@@ -1,0 +1,339 @@
+{
+  "cases": {
+    "cached": {
+      "version": 1,
+      "plan_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "external_context_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "proposals": [
+        {
+          "proposal_key": "proposal:0325dfbd96fcee3027081c8a9db210d9",
+          "kind": "transfer_pair",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.open",
+          "confidence": "weak",
+          "primary_ref": "wechat:R2",
+          "secondary_ref": "",
+          "anchor_ref": "wechat:R2",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": true,
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 0,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": true,
+            "anchor_role": "",
+            "candidate_refs": [
+              "alipay:R1"
+            ],
+            "extras": {}
+          }
+        },
+        {
+          "proposal_key": "proposal:2e6e1d054370370568e04a33665f1c20",
+          "kind": "refund_offset",
+          "subtype": "",
+          "status": "accepted",
+          "rule_id": "scan.refund",
+          "confidence": "weak",
+          "primary_ref": "alipay:R1",
+          "secondary_ref": "wechat:R2",
+          "anchor_ref": "alipay:R1",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": false,
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 5,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [
+              "refund"
+            ],
+            "open_leg": false,
+            "anchor_role": "",
+            "candidate_refs": [
+              "wechat:R2"
+            ],
+            "extras": {
+              "refund_amount": "30.00"
+            }
+          }
+        },
+        {
+          "proposal_key": "proposal:f537f41fa72cd53c937cb76df24cf6bd",
+          "kind": "refund_offset",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.refund",
+          "confidence": "weak",
+          "primary_ref": "alipay:R1",
+          "secondary_ref": "wechat:R2",
+          "anchor_ref": "alipay:R1",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": false,
+          "evidence": {
+            "amount_delta": "0.00",
+            "time_delta_seconds": null,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": false,
+            "anchor_role": "",
+            "candidate_refs": [
+              "wechat:R2",
+              "alipay:R1"
+            ],
+            "extras": {
+              "refund_amount": "30.00"
+            }
+          }
+        }
+      ]
+    },
+    "decoded": [
+      {
+        "key": "proposal:0325dfbd96fcee3027081c8a9db210d9",
+        "body": {
+          "kind": "transfer_pair",
+          "primary_fact_id": "q1",
+          "secondary_fact_id": null,
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.open",
+          "confidence": "weak",
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 0,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": true,
+            "anchor_role": "",
+            "candidate_fact_ids": [
+              "p1"
+            ],
+            "extras": {}
+          },
+          "created_by": "system",
+          "anchor_fact_id": "q1",
+          "open_leg": true
+        }
+      },
+      {
+        "key": "proposal:2e6e1d054370370568e04a33665f1c20",
+        "body": {
+          "kind": "refund_offset",
+          "primary_fact_id": "p1",
+          "secondary_fact_id": "q1",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "subtype": "",
+          "status": "accepted",
+          "rule_id": "scan.refund",
+          "confidence": "weak",
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 5,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [
+              "refund"
+            ],
+            "open_leg": false,
+            "anchor_role": "",
+            "candidate_fact_ids": [
+              "q1"
+            ],
+            "extras": {
+              "refund_amount": "30.00"
+            }
+          },
+          "created_by": "system",
+          "anchor_fact_id": "p1",
+          "open_leg": false
+        }
+      },
+      {
+        "key": "proposal:f537f41fa72cd53c937cb76df24cf6bd",
+        "body": {
+          "kind": "refund_offset",
+          "primary_fact_id": "p1",
+          "secondary_fact_id": "q1",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.refund",
+          "confidence": "weak",
+          "evidence": {
+            "amount_delta": "0.00",
+            "time_delta_seconds": null,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": false,
+            "anchor_role": "",
+            "candidate_fact_ids": [
+              "q1",
+              "p1"
+            ],
+            "extras": {
+              "refund_amount": "30.00"
+            }
+          },
+          "created_by": "system",
+          "anchor_fact_id": "p1",
+          "open_leg": false
+        }
+      }
+    ],
+    "decoded_facts": [
+      "p1",
+      "q1"
+    ],
+    "by_reference": [
+      "alipay:R1",
+      "p1",
+      "q1",
+      "wechat:R2"
+    ],
+    "resolve_ref": [
+      "p1",
+      "p1",
+      "p1",
+      "q1",
+      "missing"
+    ],
+    "seeds": {
+      "expanded": [
+        "p1",
+        "unknown",
+        "q1"
+      ],
+      "all": [
+        "p1",
+        "q1"
+      ]
+    },
+    "aliases": {
+      "card_tails": {
+        "1234": [
+          "a",
+          "b"
+        ]
+      },
+      "account_identifiers": {
+        "622202123456": [
+          "a"
+        ]
+      }
+    },
+    "expanded": [
+      {
+        "id": "c1",
+        "parent_id": "p1",
+        "component_ordinal": 1,
+        "amount": "-60.00",
+        "account_id": "a",
+        "cash_granularity": "aggregate",
+        "currency": "CNY",
+        "record_id": "R1"
+      },
+      {
+        "id": "c2",
+        "parent_id": "p1",
+        "component_ordinal": 2,
+        "amount": "-40.00",
+        "account_id": "b",
+        "cash_granularity": "aggregate",
+        "currency": "CNY",
+        "record_id": "R1"
+      },
+      {
+        "id": "c3",
+        "parent_id": "q1",
+        "component_ordinal": null,
+        "amount": "30.00",
+        "account_id": "a",
+        "cash_granularity": "atomic",
+        "currency": "CNY",
+        "record_id": "R2"
+      },
+      {
+        "id": "s1",
+        "parent_id": null,
+        "component_ordinal": null,
+        "amount": "-5.00",
+        "account_id": null,
+        "cash_granularity": null,
+        "currency": "CNY",
+        "record_id": "R3"
+      }
+    ],
+    "remaining": {
+      "p1": "70.00"
+    },
+    "decisions": {
+      "mirror": [
+        "p1",
+        "q1"
+      ],
+      "matches": true,
+      "primary": true,
+      "wrong_key": false,
+      "candidate": false
+    },
+    "legality": [
+      null,
+      "import_relation_reconfirmation_required"
+    ],
+    "decode_error": "import_relation_reconfirmation_required",
+    "key_error": "import_relation_reconfirmation_required"
+  }
+}

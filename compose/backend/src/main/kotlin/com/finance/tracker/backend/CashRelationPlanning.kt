@@ -72,7 +72,7 @@ internal object CashRelationPlanning {
         return ProjectionValidationContext(active, projectionFacts, componentToParent.entries.map { it.key to it.value }.sortedBy { it.first })
     }
 
-    private fun localized(context: ProjectionValidationContext, acceptedRelations: List<Map<String, Any?>>,
+    fun localizedValidationInputs(context: ProjectionValidationContext, acceptedRelations: List<Map<String, Any?>>,
         companions: List<RelationProposal>, proposal: RelationProposal): Triple<List<Map<String, Any?>>, List<RelationProposal>, ProjectionValidationContext>? {
         val componentToParent = context.componentToParent.toMap()
         val relationRows = mutableListOf<Triple<Map<String, Any?>, Long, Long>>()
