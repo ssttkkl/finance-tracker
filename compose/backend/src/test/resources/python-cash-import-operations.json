@@ -1,0 +1,872 @@
+{
+  "files": [
+    {
+      "file_ref": "f_a0000000000000000000000000000000",
+      "client_file_ref": "client-a",
+      "filename": "支付宝账单.csv",
+      "digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "size": 100,
+      "source_type": "alipay",
+      "status": "parsed",
+      "source_scope_label": null
+    },
+    {
+      "file_ref": "f_w0000000000000000000000000000000",
+      "client_file_ref": "client-w",
+      "filename": "微信账单.csv",
+      "digest": "wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+      "size": 100,
+      "source_type": "wechat",
+      "status": "parsed",
+      "source_scope_label": null
+    }
+  ],
+  "groups": [
+    {
+      "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+      "source_type": "alipay"
+    },
+    {
+      "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+      "source_type": "wechat"
+    }
+  ],
+  "choices": [
+    {
+      "row_ref": "f_a0000000000000000000000000000000:r1",
+      "action": "keep_existing"
+    },
+    {
+      "row_ref": "f_a0000000000000000000000000000000:r2",
+      "action": "apply",
+      "patch": {
+        "note": "人工备注",
+        "category_id": "op-food"
+      }
+    },
+    {
+      "row_ref": "f_w0000000000000000000000000000000:r1",
+      "action": "apply",
+      "patch": {
+        "note": "新备注"
+      }
+    }
+  ],
+  "rows": [
+    {
+      "row_ref": "f_a0000000000000000000000000000000:r1",
+      "operation_ref": "op_1",
+      "planned_action": "duplicate",
+      "transaction_id": "7501"
+    },
+    {
+      "row_ref": "f_a0000000000000000000000000000000:r2",
+      "operation_ref": "op_2",
+      "planned_action": "create_posted",
+      "transaction_id": null
+    },
+    {
+      "row_ref": "f_a0000000000000000000000000000000:r3",
+      "operation_ref": null,
+      "planned_action": "skip",
+      "code": "invalid_field",
+      "issues": [
+        {
+          "code": "invalid_field",
+          "message": "流水信息需要核对",
+          "field_path": null,
+          "blocking_scope": "row",
+          "next_action": "edit"
+        }
+      ]
+    },
+    {
+      "row_ref": "f_w0000000000000000000000000000000:r1",
+      "operation_ref": "op_3",
+      "planned_action": "finalize_draft",
+      "transaction_id": "7502"
+    }
+  ],
+  "operations": [
+    {
+      "transaction_id": "7501",
+      "expected_revision": 1,
+      "planned_action": "duplicate",
+      "current": {
+        "state": "posted",
+        "amount": "-12.30",
+        "occurred_at": "2026-10-01T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "订单号": "ALI-1",
+          "付款方式": "支付宝余额"
+        },
+        "components": [
+          {
+            "component_id": "9501",
+            "account_id": "9201",
+            "amount": "-12.30",
+            "currency": "CNY",
+            "ordinal": 0
+          }
+        ],
+        "record_id": "ALI-1",
+        "source_type": "alipay"
+      },
+      "values": {
+        "state": "posted",
+        "amount": "-12.30",
+        "occurred_at": "2026-10-01T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "订单号": "ALI-1",
+          "付款方式": "支付宝余额"
+        },
+        "components": [
+          {
+            "component_id": "9501",
+            "account_id": "9201",
+            "amount": "-12.30",
+            "currency": "CNY",
+            "ordinal": 0
+          }
+        ],
+        "record_id": "ALI-1",
+        "source_type": "alipay"
+      },
+      "manual_fields": [],
+      "field_diffs": [],
+      "issues": [
+        {
+          "code": "relation_pending",
+          "message": "待确认合并，可回主页处理",
+          "field_path": null,
+          "blocking_scope": "row",
+          "next_action": "review_relation",
+          "after_import_action": "open_home_item"
+        }
+      ],
+      "pending_fields": {},
+      "type_changed": false,
+      "keep_existing": true,
+      "expected_issues": [
+        {
+          "issue_id": "5501",
+          "revision": 1,
+          "code": "relation_pending",
+          "field_path": null,
+          "issue_key": "relation:sg1"
+        }
+      ],
+      "retained_issue_ids": [
+        "5501"
+      ],
+      "expected_accounts": [],
+      "candidate_ids": [],
+      "occurrence_key": "d396b81d864e4179cadd635d024b6ccb8643ae3e1e40d1e78e1843ab4d57a828",
+      "operation_ref": "op_1",
+      "source_updates": [
+        {
+          "row_ref": "f_a0000000000000000000000000000000:r1",
+          "bind": true,
+          "uncertain": false
+        }
+      ],
+      "row_refs": [
+        "f_a0000000000000000000000000000000:r1"
+      ]
+    },
+    {
+      "entry_edit": {
+        "entry_id": null,
+        "revision": null,
+        "patch": {
+          "note": "人工备注",
+          "category_id": "op-food"
+        }
+      },
+      "entry_snapshot": [],
+      "transaction_id": null,
+      "expected_revision": null,
+      "planned_action": "create_posted",
+      "current": null,
+      "values": {
+        "state": "posted",
+        "amount": "-5.00",
+        "currency": "CNY",
+        "occurred_at": "2026-10-02T10:00:00+00:00",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "components": [
+          {
+            "ordinal": 0,
+            "account_id": "9201",
+            "amount": "-5.00",
+            "currency": "CNY"
+          }
+        ],
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "source_payload": {
+          "订单号": "NEW-1",
+          "付款方式": "支付宝余额"
+        },
+        "record_id": "provider-v1:21e6924891213bc01dda7323a3aa8a579983dc59fcfe5e472425265e1f68f079",
+        "source_type": "alipay"
+      },
+      "manual_fields": [],
+      "field_diffs": [],
+      "issues": [],
+      "pending_fields": {},
+      "type_changed": true,
+      "candidate_ids": [],
+      "source_group_ref": null,
+      "source_explanation": {},
+      "expected_issues": [],
+      "expected_accounts": [
+        {
+          "account_id": "9201",
+          "exists": true,
+          "active": true,
+          "type": "cash",
+          "currency_support": {
+            "CNY": true
+          }
+        }
+      ],
+      "used_account_selections": [
+        {
+          "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+          "source_type": "alipay",
+          "account_id": "9201"
+        }
+      ],
+      "retained_issue_ids": [],
+      "occurrence_key": "1fc296f01daa593e595bf495bff1e8efc4ee146c66b07349b6c7c26c733099a8",
+      "operation_ref": "op_2",
+      "source_updates": [
+        {
+          "row_ref": "f_a0000000000000000000000000000000:r2",
+          "bind": true,
+          "uncertain": false
+        }
+      ],
+      "row_refs": [
+        "f_a0000000000000000000000000000000:r2"
+      ]
+    },
+    {
+      "entry_edit": {
+        "entry_id": "entry-7502",
+        "revision": 1,
+        "patch": {
+          "note": "新备注"
+        }
+      },
+      "entry_snapshot": [
+        [
+          7502,
+          "entry-7502",
+          1,
+          "71ade2b268eca7f64c1a60f68d77cab70a0e4c48019984b1c0566ac995a373c2"
+        ]
+      ],
+      "transaction_id": "7502",
+      "expected_revision": 1,
+      "planned_action": "finalize_draft",
+      "current": {
+        "state": "draft",
+        "amount": "-9.00",
+        "occurred_at": "2026-10-03T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "旧备注",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "交易单号": "W1",
+          "付款方式": "零钱"
+        },
+        "components": [],
+        "record_id": "wechat_W1",
+        "source_type": "wechat"
+      },
+      "values": {
+        "state": "posted",
+        "amount": "-9.00",
+        "occurred_at": "2026-10-03T10:00:00+00:00",
+        "currency": "CNY",
+        "account_id": "9201",
+        "cash_granularity": "atomic",
+        "counterparty": "商户",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "note": "",
+        "category_id": null,
+        "record_type": "consumption",
+        "record_subtype": "not_applicable",
+        "source_payload": {
+          "订单号": "W1",
+          "付款方式": "零钱"
+        },
+        "components": [
+          {
+            "ordinal": 0,
+            "account_id": "9201",
+            "amount": "-9.00",
+            "currency": "CNY"
+          }
+        ],
+        "record_id": "wechat_W1",
+        "source_type": "wechat"
+      },
+      "manual_fields": [],
+      "field_diffs": [
+        {
+          "field": "amount",
+          "current": "-9.00",
+          "incoming": "-9.00",
+          "effective": "-9.00",
+          "resolution": "apply"
+        },
+        {
+          "field": "occurred_at",
+          "current": "2026-10-03T10:00:00+00:00",
+          "incoming": "2026-10-03T10:00:00+00:00",
+          "effective": "2026-10-03T10:00:00+00:00",
+          "resolution": "apply"
+        },
+        {
+          "field": "note",
+          "current": "旧备注",
+          "incoming": "",
+          "effective": "",
+          "resolution": "apply"
+        },
+        {
+          "field": "source_payload",
+          "current": {
+            "交易单号": "W1",
+            "付款方式": "零钱"
+          },
+          "incoming": {
+            "订单号": "W1",
+            "付款方式": "零钱"
+          },
+          "effective": {
+            "订单号": "W1",
+            "付款方式": "零钱"
+          },
+          "resolution": "apply"
+        },
+        {
+          "field": "components",
+          "current": [],
+          "incoming": [
+            {
+              "ordinal": 0,
+              "account_id": "9201",
+              "amount": "-9.00",
+              "currency": "CNY"
+            }
+          ],
+          "effective": [
+            {
+              "ordinal": 0,
+              "account_id": "9201",
+              "amount": "-9.00",
+              "currency": "CNY"
+            }
+          ],
+          "resolution": "apply"
+        }
+      ],
+      "issues": [],
+      "pending_fields": {},
+      "type_changed": false,
+      "candidate_ids": [],
+      "source_group_ref": null,
+      "source_explanation": {},
+      "expected_issues": [],
+      "expected_accounts": [
+        {
+          "account_id": "9201",
+          "exists": true,
+          "active": true,
+          "type": "cash",
+          "currency_support": {
+            "CNY": true
+          }
+        }
+      ],
+      "used_account_selections": [
+        {
+          "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+          "source_type": "wechat",
+          "account_id": "9201"
+        }
+      ],
+      "retained_issue_ids": [],
+      "occurrence_key": "331857e0e4b6ebe47b2985aebbf354afa7923a639e5b7545e2ff9429304e5533",
+      "operation_ref": "op_3",
+      "source_updates": [
+        {
+          "row_ref": "f_w0000000000000000000000000000000:r1",
+          "bind": true,
+          "uncertain": false
+        }
+      ],
+      "row_refs": [
+        "f_w0000000000000000000000000000000:r1"
+      ]
+    }
+  ],
+  "candidate_sets": {},
+  "deferred": {
+    "choices": [
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r1",
+        "action": "defer",
+        "patch": {
+          "note": "延后"
+        }
+      }
+    ],
+    "rows": [
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r1",
+        "operation_ref": "op_1",
+        "planned_action": "duplicate",
+        "transaction_id": "7501"
+      },
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r2",
+        "operation_ref": "op_2",
+        "planned_action": "create_posted",
+        "transaction_id": null
+      },
+      {
+        "row_ref": "f_a0000000000000000000000000000000:r3",
+        "operation_ref": null,
+        "planned_action": "skip",
+        "code": "invalid_field",
+        "issues": [
+          {
+            "code": "invalid_field",
+            "message": "流水信息需要核对",
+            "field_path": null,
+            "blocking_scope": "row",
+            "next_action": "edit"
+          }
+        ]
+      },
+      {
+        "row_ref": "f_w0000000000000000000000000000000:r1",
+        "operation_ref": "op_3",
+        "planned_action": "finalize_draft",
+        "transaction_id": "7502"
+      }
+    ],
+    "operations": [
+      {
+        "entry_snapshot": [
+          [
+            7501,
+            "entry-7501",
+            1,
+            "3401fa8beb767b1e37076f5cbb697df27c977babf3b163de5a97c82cdc28ed99"
+          ]
+        ],
+        "transaction_id": "7501",
+        "expected_revision": 1,
+        "planned_action": "duplicate",
+        "current": {
+          "state": "posted",
+          "amount": "-12.30",
+          "occurred_at": "2026-10-01T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "订单号": "ALI-1",
+            "付款方式": "支付宝余额"
+          },
+          "components": [
+            {
+              "component_id": "9501",
+              "account_id": "9201",
+              "amount": "-12.30",
+              "currency": "CNY",
+              "ordinal": 0
+            }
+          ],
+          "record_id": "ALI-1",
+          "source_type": "alipay"
+        },
+        "values": {
+          "state": "posted",
+          "amount": "-12.30",
+          "occurred_at": "2026-10-01T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "订单号": "ALI-1",
+            "付款方式": "支付宝余额"
+          },
+          "components": [
+            {
+              "component_id": "9501",
+              "account_id": "9201",
+              "amount": "-12.30",
+              "currency": "CNY",
+              "ordinal": 0
+            }
+          ],
+          "record_id": "ALI-1",
+          "source_type": "alipay"
+        },
+        "manual_fields": [],
+        "field_diffs": [
+          {
+            "field": "amount",
+            "current": "-12.30",
+            "incoming": "-12.30",
+            "effective": "-12.30",
+            "resolution": "apply"
+          },
+          {
+            "field": "occurred_at",
+            "current": "2026-10-01T10:00:00+00:00",
+            "incoming": "2026-10-01T10:00:00+00:00",
+            "effective": "2026-10-01T10:00:00+00:00",
+            "resolution": "apply"
+          }
+        ],
+        "issues": [
+          {
+            "code": "relation_pending",
+            "message": "待确认合并，可回主页处理",
+            "field_path": null,
+            "blocking_scope": "row",
+            "next_action": "review_relation",
+            "after_import_action": "open_home_item"
+          }
+        ],
+        "pending_fields": {},
+        "type_changed": false,
+        "candidate_ids": [],
+        "source_group_ref": null,
+        "source_explanation": {},
+        "expected_issues": [
+          {
+            "issue_id": "5501",
+            "revision": 1,
+            "code": "relation_pending",
+            "field_path": null,
+            "issue_key": "relation:sg1"
+          }
+        ],
+        "expected_accounts": [],
+        "used_account_selections": [],
+        "retained_issue_ids": [
+          "5501"
+        ],
+        "occurrence_key": "d396b81d864e4179cadd635d024b6ccb8643ae3e1e40d1e78e1843ab4d57a828",
+        "operation_ref": "op_1",
+        "source_updates": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r1",
+            "bind": true,
+            "uncertain": false
+          }
+        ],
+        "row_refs": [
+          "f_a0000000000000000000000000000000:r1"
+        ]
+      },
+      {
+        "entry_snapshot": [],
+        "transaction_id": null,
+        "expected_revision": null,
+        "planned_action": "create_posted",
+        "current": null,
+        "values": {
+          "state": "posted",
+          "amount": "-5.00",
+          "currency": "CNY",
+          "occurred_at": "2026-10-02T10:00:00+00:00",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "components": [
+            {
+              "ordinal": 0,
+              "account_id": "9201",
+              "amount": "-5.00",
+              "currency": "CNY"
+            }
+          ],
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "source_payload": {
+            "订单号": "NEW-1",
+            "付款方式": "支付宝余额"
+          },
+          "record_id": "provider-v1:21e6924891213bc01dda7323a3aa8a579983dc59fcfe5e472425265e1f68f079",
+          "source_type": "alipay"
+        },
+        "manual_fields": [],
+        "field_diffs": [],
+        "issues": [],
+        "pending_fields": {},
+        "type_changed": true,
+        "candidate_ids": [],
+        "source_group_ref": null,
+        "source_explanation": {},
+        "expected_issues": [],
+        "expected_accounts": [
+          {
+            "account_id": "9201",
+            "exists": true,
+            "active": true,
+            "type": "cash",
+            "currency_support": {
+              "CNY": true
+            }
+          }
+        ],
+        "used_account_selections": [
+          {
+            "source_account_ref": "14226b265a1a19344ea3aa1c851883268e4ba3d4059e7ea196c34cb0826c494c",
+            "source_type": "alipay",
+            "account_id": "9201"
+          }
+        ],
+        "retained_issue_ids": [],
+        "occurrence_key": "1fc296f01daa593e595bf495bff1e8efc4ee146c66b07349b6c7c26c733099a8",
+        "operation_ref": "op_2",
+        "source_updates": [
+          {
+            "row_ref": "f_a0000000000000000000000000000000:r2",
+            "bind": true,
+            "uncertain": false
+          }
+        ],
+        "row_refs": [
+          "f_a0000000000000000000000000000000:r2"
+        ]
+      },
+      {
+        "entry_snapshot": [
+          [
+            7502,
+            "entry-7502",
+            1,
+            "71ade2b268eca7f64c1a60f68d77cab70a0e4c48019984b1c0566ac995a373c2"
+          ]
+        ],
+        "transaction_id": "7502",
+        "expected_revision": 1,
+        "planned_action": "finalize_draft",
+        "current": {
+          "state": "draft",
+          "amount": "-9.00",
+          "occurred_at": "2026-10-03T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "旧备注",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "交易单号": "W1",
+            "付款方式": "零钱"
+          },
+          "components": [],
+          "record_id": "wechat_W1",
+          "source_type": "wechat"
+        },
+        "values": {
+          "state": "posted",
+          "amount": "-9.00",
+          "occurred_at": "2026-10-03T10:00:00+00:00",
+          "currency": "CNY",
+          "account_id": "9201",
+          "cash_granularity": "atomic",
+          "counterparty": "商户",
+          "counterparty_account": "",
+          "counterparty_account_attrs": [],
+          "note": "",
+          "category_id": null,
+          "record_type": "consumption",
+          "record_subtype": "not_applicable",
+          "source_payload": {
+            "订单号": "W1",
+            "付款方式": "零钱"
+          },
+          "components": [
+            {
+              "ordinal": 0,
+              "account_id": "9201",
+              "amount": "-9.00",
+              "currency": "CNY"
+            }
+          ],
+          "record_id": "wechat_W1",
+          "source_type": "wechat"
+        },
+        "manual_fields": [],
+        "field_diffs": [
+          {
+            "field": "amount",
+            "current": "-9.00",
+            "incoming": "-9.00",
+            "effective": "-9.00",
+            "resolution": "apply"
+          },
+          {
+            "field": "occurred_at",
+            "current": "2026-10-03T10:00:00+00:00",
+            "incoming": "2026-10-03T10:00:00+00:00",
+            "effective": "2026-10-03T10:00:00+00:00",
+            "resolution": "apply"
+          },
+          {
+            "field": "note",
+            "current": "旧备注",
+            "incoming": "",
+            "effective": "",
+            "resolution": "apply"
+          },
+          {
+            "field": "source_payload",
+            "current": {
+              "交易单号": "W1",
+              "付款方式": "零钱"
+            },
+            "incoming": {
+              "订单号": "W1",
+              "付款方式": "零钱"
+            },
+            "effective": {
+              "订单号": "W1",
+              "付款方式": "零钱"
+            },
+            "resolution": "apply"
+          },
+          {
+            "field": "components",
+            "current": [],
+            "incoming": [
+              {
+                "ordinal": 0,
+                "account_id": "9201",
+                "amount": "-9.00",
+                "currency": "CNY"
+              }
+            ],
+            "effective": [
+              {
+                "ordinal": 0,
+                "account_id": "9201",
+                "amount": "-9.00",
+                "currency": "CNY"
+              }
+            ],
+            "resolution": "apply"
+          }
+        ],
+        "issues": [],
+        "pending_fields": {},
+        "type_changed": false,
+        "candidate_ids": [],
+        "source_group_ref": null,
+        "source_explanation": {},
+        "expected_issues": [],
+        "expected_accounts": [
+          {
+            "account_id": "9201",
+            "exists": true,
+            "active": true,
+            "type": "cash",
+            "currency_support": {
+              "CNY": true
+            }
+          }
+        ],
+        "used_account_selections": [
+          {
+            "source_account_ref": "bc538668d470f5baaaec1d9f64f7c842ac87d22206d17dfa1fc4c48929432da4",
+            "source_type": "wechat",
+            "account_id": "9201"
+          }
+        ],
+        "retained_issue_ids": [],
+        "occurrence_key": "331857e0e4b6ebe47b2985aebbf354afa7923a639e5b7545e2ff9429304e5533",
+        "operation_ref": "op_3",
+        "source_updates": [
+          {
+            "row_ref": "f_w0000000000000000000000000000000:r1",
+            "bind": true,
+            "uncertain": false
+          }
+        ],
+        "row_refs": [
+          "f_w0000000000000000000000000000000:r1"
+        ]
+      }
+    ],
+    "candidate_sets": {}
+  }
+}
