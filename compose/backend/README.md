@@ -18,7 +18,7 @@
 
 账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；账户映射持久化、暂存运行时接线、上传接口和真实账单样本仍未迁移，不能据此宣称导入流程可用。
 
-解析会话已实现私有 JSON 编解码、独立文件/整体预算、用户与工作区隔离、原到期时间、条件替换、取消清空、不可变计划快照与有界公开页缓存。内存存储和 R2 条件对象端口使用同一生命周期测试；R2 端口保留未知结果、关闭读取流并按元数据分页清扫。真实 S3/R2 HTTP 客户端、后台清扫器和运行时接线尚未迁移，当前不提供可用的 Kotlin 上传会话。匿名格式对照由 `scripts/export_parsed_import_codec_goldens.py --output compose/backend/src/test/resources/python-parsed-import-codec.json --check` 验证。
+解析会话已实现私有 JSON 编解码、独立文件/整体预算、用户与工作区隔离、原到期时间、条件替换、取消清空、不可变计划快照与有界公开页缓存。内存存储和 R2 条件对象端口使用同一生命周期测试；R2 端口保留未知结果、关闭读取流并按元数据分页清扫。AWS S3 SDK 客户端和后台清扫器已接本机运行入口，启动首扫失败则拒绝启动，停止时等待在途扫描并关闭客户端；对象请求保留条件头，结果未知不自动重试。上传接口和维护计划尚未接此存储，当前不提供可用的 Kotlin 上传会话。匿名格式对照由 `scripts/export_parsed_import_codec_goldens.py --output compose/backend/src/test/resources/python-parsed-import-codec.json --check` 验证。
 
 稳定收支对象仓库已有双库原生测试，覆盖公共人工值、成员恢复值、合并冲突、拆分继承和事务内对象身份。该仓库已接入全量重建、新工作区初始化和内部增量维护；手工收支新建和转账创建已使用该仓库，其余公开现金写入仍待迁移。投影维护须在同一事务共用仓库上下文并完成 flush，不能跨事务复用缓存。保存点创建前保存既有脏值，回滚后恢复收支、成员和当前状态缓存。分类独立 move 服务已在同事务维护使用中的投影；update 按 Python 现状保留调用边界。
 
@@ -42,11 +42,15 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 ```sh
 FT_KOTLIN_PREVIEW=true \
+FT_IMPORT_STAGING_BACKEND=memory \
+FT_IMPORT_STAGING_ALLOW_MEMORY=1 \
 FT_DATABASE_URL=sqlite+pysqlite:////absolute/path/to/anonymous_test.db \
 FT_KOTLIN_PORT=18240 \
 JAVA_OPTS=-Xmx512m \
 backend/build/install/backend/bin/backend
 ```
+
+暂存后端必须显式配置。上述本机示例使用内存；R2 使用 `FT_IMPORT_STAGING_BACKEND=r2`，并设置 `FT_R2_ENDPOINT`（HTTPS origin）、`FT_R2_BUCKET`、`FT_R2_ACCESS_KEY_ID` 和 `FT_R2_SECRET_ACCESS_KEY`，凭据留在仓库外。`FT_R2_REGION` 默认 `auto`，`FT_R2_PREFIX` 默认 `cash-import`。`FT_IMPORT_STAGING_TTL_SECONDS` 为 1–1800，清扫间隔 `FT_IMPORT_STAGING_SWEEP_SECONDS` 为 1–60，页大小 `FT_IMPORT_STAGING_SWEEP_PAGE_SIZE` 为 1–200；默认分别为 1800、30、100。真实 R2 部署连通性未验证，本轮只用本机合成 HTTP 服务核对协议。
 
 服务仅监听 `127.0.0.1`，默认端口 `18240`。`FT_WEB_ORIGIN` 可指定无路径、凭据、query 或 fragment 的 HTTPS origin；默认 `http://127.0.0.1:5173`，另允许 `localhost` / `127.0.0.1` 的显式 HTTP 端口，不使用 Cookie 认证。没有 `FT_KOTLIN_PREVIEW=true` 时拒绝启动。
 

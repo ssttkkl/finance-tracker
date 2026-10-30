@@ -3059,6 +3059,64 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_cash_import_config.py::test_import_staging_backend_must_be_explicit",
+      "source_sha256": "85cc6e47dc950ea80ce616d616074eb24275f218ffe4e6de8f3179bb532178c7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_config.py::test_import_staging_backend_must_be_explicit"
+      ],
+      "assertions": [
+        "with pytest.raises(StorageConfigurationError, match='FT_IMPORT_STAGING_BACKEND'):\n    ImportStagingSettings.load(environ={})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
+          "test": "backendAndLocalMemorySwitchMustBeExplicit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_import_config.py::test_import_staging_rejects_invalid_ttl_and_unknown_backend",
+      "source_sha256": "a4f9fd5cc5e42213abba6281203c810b34184aa91578c6025621923279c030d8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_config.py::test_import_staging_rejects_invalid_ttl_and_unknown_backend"
+      ],
+      "assertions": [
+        "with pytest.raises(StorageConfigurationError, match='FT_IMPORT_STAGING_BACKEND'):\n    ImportStagingSettings.load(environ={'FT_IMPORT_STAGING_BACKEND': 'filesystem'})",
+        "with pytest.raises(StorageConfigurationError, match='FT_IMPORT_STAGING_TTL_SECONDS'):\n    ImportStagingSettings.load(environ={'FT_IMPORT_STAGING_BACKEND': 'memory', 'FT_IMPORT_STAGING_ALLOW_MEMORY': '1', 'FT_IMPORT_STAGING_TTL_SECONDS': '1801'})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
+          "test": "invalidBackendTtlAndCleanupSettingsNeverConstructRuntime"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_import_config.py::test_memory_import_staging_requires_an_explicit_local_switch",
+      "source_sha256": "718c7cbaf9a59bb10e46dfb104914a55ecc64dfaa9b654739a960d2bcb415cf0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_config.py::test_memory_import_staging_requires_an_explicit_local_switch"
+      ],
+      "assertions": [
+        "assert settings.backend == 'memory'",
+        "assert settings.ttl_seconds == 900",
+        "assert isinstance(store, InMemoryParsedImportStore)",
+        "assert cleanup is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
+          "test": "backendAndLocalMemorySwitchMustBeExplicit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_cash_projection.py::test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply",
       "source_sha256": "0c38df3bce1d4c6628633a62d36307f5df268f6bd187b077bd359a9d7154d02c",
       "status": "migrated",
@@ -5733,6 +5791,165 @@
         }
       ],
       "compatibility": "独立复核确认语言适配：LedgerDecimal 私有构造、不可变类型承接 Python typed Decimal 校验边界；保留原表示向量与拒绝向量，运算不依赖环境精度。不增加无生产用途的 typed overload。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_cleanup_worker_visits_next_pages_without_user_requests_and_stops",
+      "source_sha256": "ec8a356e0cf5fda244c8062a18abcc7b07893012a08886f0b87f849751b42571",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_cleanup_worker_visits_next_pages_without_user_requests_and_stops"
+      ],
+      "assertions": [
+        "assert not worker.running",
+        "assert all((call['limit'] == 2 for call in store.calls))",
+        "assert store.visited.wait(2)",
+        "assert worker.last_result is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportCleanupTest.kt",
+          "test": "workerVisitsNextPagesWithoutUserRequestsAndStops"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_config_builds_parsed_only_store_and_cleanup_with_explicit_backend",
+      "source_sha256": "1bc01883280264eab5df722da3e264d1ea642f5e60ab565517a8abea03faf121",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_config_builds_parsed_only_store_and_cleanup_with_explicit_backend"
+      ],
+      "assertions": [
+        "assert isinstance(store, InMemoryParsedImportStore) and isinstance(cleanup, ParsedImportCleanup)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
+          "test": "backendAndLocalMemorySwitchMustBeExplicit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_config_rejects_invalid_cleanup_settings",
+      "source_sha256": "63f1ee017c813b8a076ea038ce62c442ef130b22a614742cfd9c90db5a1d725f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_config_rejects_invalid_cleanup_settings[FT_IMPORT_STAGING_SWEEP_SECONDS-nan]",
+        "tests/test_parsed_import_cleanup.py::test_config_rejects_invalid_cleanup_settings[FT_IMPORT_STAGING_SWEEP_SECONDS-61]",
+        "tests/test_parsed_import_cleanup.py::test_config_rejects_invalid_cleanup_settings[FT_IMPORT_STAGING_SWEEP_PAGE_SIZE-0]"
+      ],
+      "assertions": [
+        "with pytest.raises(StorageConfigurationError):\n    build_parsed_import_store(environ={'FT_IMPORT_STAGING_BACKEND': 'memory', 'FT_IMPORT_STAGING_ALLOW_MEMORY': '1', name: value})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
+          "test": "invalidBackendTtlAndCleanupSettingsNeverConstructRuntime"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_first_page_failure_prevents_start_without_leaking_provider_details",
+      "source_sha256": "bb5ed9bd0791b660e631f2df5a2993687240c2c054d1e502a90f5df3b80bb882",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_first_page_failure_prevents_start_without_leaking_provider_details"
+      ],
+      "assertions": [
+        "assert not worker.running and worker.healthy is False",
+        "assert 'secret' not in str(error.value)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportCleanupTest.kt",
+          "test": "initialFailurePreventsStartAndDoesNotExposeProviderDetails"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_runtime_failure_marks_unhealthy_retains_progress_and_can_recover",
+      "source_sha256": "662964e454e700fc266c444914bf3daf0cf9d9e78ee1e997f3cd76f8f9c713df",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_runtime_failure_marks_unhealthy_retains_progress_and_can_recover"
+      ],
+      "assertions": [
+        "assert worker.healthy and worker.last_result.next_cursor == 'next-page'",
+        "assert worker.sweep_once(raise_on_error=False) is False",
+        "assert not worker.healthy and worker.last_result.next_cursor == 'next-page'",
+        "assert 'secret' not in caplog.text and 'cash_import_cleanup_unavailable' in caplog.text",
+        "assert worker.sweep_once() is True and worker.healthy",
+        "assert worker.last_result.next_cursor is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportCleanupTest.kt",
+          "test": "failureRetainsCursorAndHealthCanRecoverWithoutLoggingPrivateValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_runtime_lifespan_starts_and_stops_required_cleanup",
+      "source_sha256": "e1d298b391ac80da7b08690531b3c5f170f10f6db7da0995378fcb74be53e8ed",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_runtime_lifespan_starts_and_stops_required_cleanup"
+      ],
+      "assertions": [
+        "assert not app.state.parsed_import_cleanup.running",
+        "assert app.state.parsed_import_cleanup.running",
+        "assert app.state.parsed_import_cleanup.healthy"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportLifecycleTest.kt",
+          "test": "runtimeStartsRequiredCleanupAndStopsOnShutdown"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_runtime_startup_refuses_unavailable_cleanup",
+      "source_sha256": "6980a395049b219d8c80a5ac30982068d0dda18f51f57ea196e95d65f18b0fca",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_runtime_startup_refuses_unavailable_cleanup"
+      ],
+      "assertions": [
+        "assert not cleanup.running"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportLifecycleTest.kt",
+          "test": "runtimeRefusesUnavailableCleanupAndClosesResource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_stop_during_startup_reaches_the_sweep_and_prevents_worker_creation",
+      "source_sha256": "d8297fb49fd7892477bea65d0441a31cb0ea8b1606a819c083064b4dd84e6d4a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_stop_during_startup_reaches_the_sweep_and_prevents_worker_creation"
+      ],
+      "assertions": [
+        "assert not worker.running",
+        "assert entered.wait(2)",
+        "assert stopped.wait(1), 'stop must signal an in-flight initial sweep'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportCleanupTest.kt",
+          "test": "stopDuringStartupReachesSweepAndPreventsWorkerCreation"
+        }
+      ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {

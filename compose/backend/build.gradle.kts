@@ -27,6 +27,11 @@ dependencies {
     implementation("org.apache.poi:poi-ooxml:5.4.1")
     implementation("org.apache.pdfbox:pdfbox:3.0.8")
     implementation("org.jooq:jooq:$jooqVersion")
+    implementation("software.amazon.awssdk:s3:2.57.7") {
+        exclude(group = "software.amazon.awssdk", module = "apache-client")
+        exclude(group = "software.amazon.awssdk", module = "netty-nio-client")
+    }
+    implementation("software.amazon.awssdk:url-connection-client:2.57.7")
     add(codegen.implementationConfigurationName, "org.jooq:jooq-codegen:$jooqVersion")
     add(codegen.runtimeOnlyConfigurationName, "org.postgresql:postgresql:${libs.versions.postgresJdbc.get()}")
     add(codegenTest.implementationConfigurationName, libs.kotlin.testJunit)

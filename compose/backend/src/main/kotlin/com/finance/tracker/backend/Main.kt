@@ -34,7 +34,12 @@ fun main() {
     val port = System.getenv("FT_KOTLIN_PORT")?.toIntOrNull() ?: 18240
     require(port in 1024..65535) { "invalid local preview port" }
     val origin = validateWebOrigin(System.getenv("FT_WEB_ORIGIN") ?: "http://127.0.0.1:5173")
-    embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host="127.0.0.1";this.port=port};configureFinanceHttp()}) { financeModule(database, origin) }.start(wait = true)
+    ParsedImportSettings.load(System.getenv()).build().use { parsedImports ->
+        embeddedServer(Netty,environment=applicationEnvironment {},configure={connector {host="127.0.0.1";this.port=port};configureFinanceHttp()}) {
+            installParsedImportRuntime(parsedImports)
+            financeModule(database, origin)
+        }.start(wait = true)
+    }
 }
 
 internal fun io.ktor.server.netty.NettyApplicationEngine.Configuration.configureFinanceHttp() {
