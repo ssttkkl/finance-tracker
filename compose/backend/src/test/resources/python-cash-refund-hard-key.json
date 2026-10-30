@@ -1,0 +1,343 @@
+{
+  "alipay": [
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "inv",
+      "secondary_fact_id": "invr",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.order_prefix.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.order_prefix.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "20.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "inv",
+      "open_leg": false
+    },
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "o1",
+      "secondary_fact_id": "r1",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.order_prefix.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.order_prefix.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "100.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "o1",
+      "open_leg": false
+    },
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "hold",
+      "secondary_fact_id": "free",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.auth_unfreeze.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.auth_unfreeze.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "10.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "hold",
+      "open_leg": false
+    }
+  ],
+  "remaining": [
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "inv",
+      "secondary_fact_id": "invr",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.order_prefix.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.order_prefix.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "20.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "inv",
+      "open_leg": false
+    },
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "hold",
+      "secondary_fact_id": "free",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.auth_unfreeze.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.auth_unfreeze.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "10.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "hold",
+      "open_leg": false
+    }
+  ],
+  "linked": [
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "inv",
+      "secondary_fact_id": "invr",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.order_prefix.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.order_prefix.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "20.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "inv",
+      "open_leg": false
+    },
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "hold",
+      "secondary_fact_id": "free",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.alipay.auth_unfreeze.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.alipay.auth_unfreeze.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "10.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "hold",
+      "open_leg": false
+    }
+  ],
+  "wechat": [
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "te",
+      "secondary_fact_id": "ti",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "p2p_return",
+      "status": "accepted",
+      "rule_id": "scan.wechat.transfer_return.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.wechat.transfer_return.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "40.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "te",
+      "open_leg": false
+    },
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "we",
+      "secondary_fact_id": "wi",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "scan.wechat.mer_txn.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "",
+          ""
+        ],
+        "rule_id": "scan.wechat.mer_txn.v1",
+        "candidate_count": 1,
+        "signals": [
+          "phase_a",
+          "platform_hard_key"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "phase": "A",
+          "refund_amount": "30.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "we",
+      "open_leg": false
+    }
+  ]
+}
