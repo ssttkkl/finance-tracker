@@ -86,7 +86,6 @@ class RelationAdditionInput(StrictInput):
     anchor_component_id: Identifier
     target_component_id: Identifier
     kind: Literal["payment_mirror", "refund_offset", "transfer_pair"]
-    subtype: str = Field(max_length=64)
     common_fields: dict[str, Any] | None = None
 
 
@@ -96,7 +95,8 @@ class MaintainRelationsInput(MaintenanceInput):
 
 
 class AssociationTargetPage(Output):
-    items: list["CashRecordView"]
+    kind: Literal["payment_mirror", "refund_offset", "transfer_pair"] | None
+    items: list["AssociationTargetView"]
     next_cursor: str | None
 
 
@@ -134,7 +134,6 @@ class RecordIssueView(IssueView):
 class RecordRelationView(Output):
     relation_id: str
     kind: str
-    subtype: str | None
     state: Literal["draft", "confirmed", "ignored"]
     active: bool
     row_revision: Revision
@@ -160,6 +159,16 @@ class CashRecordView(Output):
     issues: list[RecordIssueView]
     relations: list[RecordRelationView]
     projection_ref: CurrentProjectionRef | None
+
+
+class AssociationComponentChoice(Output):
+    anchor_component_id: Identifier
+    target_component_id: Identifier
+
+
+class AssociationTargetView(CashRecordView):
+    component_choices: list[AssociationComponentChoice]
+    unavailable_reason: str | None
 
 
 class DraftSaveView(Output):

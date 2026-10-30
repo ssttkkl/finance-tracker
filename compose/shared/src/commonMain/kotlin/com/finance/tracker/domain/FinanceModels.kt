@@ -47,7 +47,6 @@ data class CashCategoryDirectory(
 
 data class AcceptedRelationSummary(
     val kind: String,
-    val subtype: String = "",
     val count: Int = 0,
 )
 
@@ -70,7 +69,7 @@ data class CashProjection(
     val amount: String?,
     val currency: String?,
     val economicType: String?,
-    val transferSubtype: String? = null,
+    val businessLabel: String? = null,
     val composition: List<String> = emptyList(),
     val memberCount: Int = 1,
     val acceptedRelationSummary: List<AcceptedRelationSummary> = emptyList(),
@@ -91,7 +90,7 @@ data class CashProjection(
 
 data class CashEconomicTypeFilterOption(
     val economicType: String,
-    val transferSubtypes: List<String> = emptyList(),
+    val businessLabels: List<String> = emptyList(),
 )
 
 data class CashFilterOptions(
@@ -209,7 +208,6 @@ data class EvidenceMember(
 data class EndpointRelation(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     val primaryRecord: EvidenceRecord? = null,
     val secondaryRecord: EvidenceRecord? = null,
 )
@@ -217,7 +215,6 @@ data class EndpointRelation(
 data class AcceptedEvidenceRelation(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     val primaryRecord: EvidenceRecord? = null,
     val secondaryRecord: EvidenceRecord? = null,
     val ruleId: String = "",
@@ -228,7 +225,6 @@ data class AcceptedEvidenceRelation(
 data class InactiveRelationHint(
     val id: String,
     val kind: String,
-    val subtype: String = "",
     val primaryRecord: EvidenceRecord? = null,
     val secondaryRecord: EvidenceRecord? = null,
     val status: String,
@@ -277,7 +273,6 @@ data class CashRelation(
     val id: String,
     val kind: String,
     val label: String,
-    val subtype: String = "",
     val status: String,
     val primaryRecord: CashRecord? = null,
     val secondaryRecord: CashRecord? = null,
@@ -323,7 +318,7 @@ data class CashFilters(
     val amountMin: String? = null,
     val amountMax: String? = null,
     val economicType: String? = null,
-    val transferSubtype: String? = null,
+    val businessLabel: String? = null,
     val composition: String? = null,
     val state: String? = null,
     val confirmationStatus: String? = null,

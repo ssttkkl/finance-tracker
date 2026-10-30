@@ -25,9 +25,8 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     await installComposeApiFixtures(page);
     const current = record("record-1", "1001", "当前商户");
     const relationKind = count === 0 && width === 390 ? "transfer_pair" : "refund_offset";
-    const relationSubtype = relationKind === "transfer_pair" ? "credit_repayment" : "";
     current.fields.record_type = relationKind === "transfer_pair" ? "transfer_out" : "refund";
-    current.relations = [{ relation_id: "draft", kind: relationKind, subtype: relationSubtype, state: "draft", active: true, row_revision: 1 }];
+    current.relations = [{ relation_id: "draft", kind: relationKind, state: "draft", active: true, row_revision: 1 }];
     const targets = [record("record-2", "1002", "建议商户一"), record("record-3", "1003", "建议商户二")];
     Object.assign(targets[0].fields, { source_type: "alipay", counterparty_account: "merchant@example.test", counterparty_account_attrs: ["full"] });
     const other = record("record-4", "1004", "备选外商户");
@@ -36,7 +35,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     let searches = 0;
     await page.route(/\/api\/v1\/cash-records\/record-1\/association-targets(?:\?.*)?$/, route => {
       searches++;
-      return route.fulfill({ json: { items: [other], next_cursor: null } });
+      return route.fulfill({ json: { items: [{ ...other, component_choices: [{anchor_component_id:"1001",target_component_id:"1004"}], unavailable_reason:null }], next_cursor: null } });
     });
     let conflict = false;
     let resolved = false;
@@ -53,10 +52,10 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     } }); });
     await page.route(/\/api\/v1\/cash-mutations\/plans\/[^/]+\/items\/one$/, route => route.fulfill({ json: {
       preview_item_id: "one", members: [{ transaction_id: "record-1", planned_action: "unchanged", fields: current.fields, editable_fields: [], allowed_actions: [], row_revision: 1 }],
-      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "suggestion", kind: relationKind, subtype: relationSubtype, action: resolved ? "accept" : "defer",
+      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "suggestion", kind: relationKind, action: resolved ? "accept" : "defer",
         member_refs: [{ transaction_id: "record-1" }], allowed_actions: count > 0 ? ["accept", "ignore", "defer"] : ["ignore", "defer"],
         candidates: targets.slice(0, count).map(target => ({ candidate_id: target.transaction_id, member_refs: [{ transaction_id: "record-1" }, { transaction_id: target.transaction_id }] })),
-        relations: count === 2 ? [{ kind: "refund_offset", subtype: "", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-2" }] }, { kind: "payment_mirror", subtype: "", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-3" }] }] : [],
+        relations: count === 2 ? [{ kind: "refund_offset", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-2" }] }, { kind: "payment_mirror", member_refs: [{ transaction_id: "record-1" }, { transaction_id: "record-3" }] }] : [],
         common_fields: resolved ? { note: "" } : {}, common_field_conflicts: conflict ? { note: ["人工甲", "人工乙"] } : {} }],
     } }));
     await page.goto("/w/workspace-1/");
@@ -64,14 +63,14 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     await press(page, width < 600 ? row : row.locator('[id="ledger.open-record"]').last());
     const banner = byId(page, "cash.current.pending-relations");
     await expect(banner).toContainText("关系待确认");
-    await expect(banner).toContainText("这笔收支有已建立的关联等待确认");
+    await expect(banner).toContainText("这笔收支有等待确认的关联");
     const suggestion = byId(page, "cash.current.suggestion-suggestion");
     await expect(suggestion).toBeVisible();
     await expect(banner.getByRole("button")).toHaveCount(0);
     await expect(banner).not.toContainText("查看关系");
     await page.screenshot({ path: info.outputPath("pending-relations.png") });
 
-    if (count === 0) await expect(suggestion).toContainText("这笔流水可能有关联流水，请搜索并选择对应流水");
+    if (count === 0) await expect(suggestion).toContainText("请搜索");
     if (count === 1) {
       await expect(suggestion).toContainText("建议商户一");
       await expect(suggestion).toContainText("28.50 CNY");
@@ -110,7 +109,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
       if (count === 2) await press(page, byId(page, "cash.association.option-record-3"));
       await press(page, byId(page, "cash.association.choose-other"));
     } else {
-      await expect(dialog).toContainText("这笔流水可能有关联流水，请搜索并选择对应流水");
+      await expect(dialog).toContainText("请搜索");
       await expect(byId(page, "cash.association.back-suggestions")).toHaveCount(0);
     }
     await expect(byId(page, "cash.association.search")).toBeVisible();
@@ -125,7 +124,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     if (count === 0) {
       const added = page.waitForRequest(request => request.method() === "POST" && request.url().endsWith("/cash-mutations/plans") && request.postDataJSON()?.relation_additions?.length > 0);
       await press(page, byId(page, "cash.association.continue"));
-      expect((await added).postDataJSON().relation_additions[0]).toMatchObject({ target_transaction_id: "record-4", kind: relationKind, ...(relationSubtype ? { subtype: relationSubtype } : {}) });
+      expect((await added).postDataJSON().relation_additions[0]).toMatchObject({ target_transaction_id: "record-4", kind: relationKind });
       return;
     }
     if (count > 0) {
@@ -187,7 +186,7 @@ test("F-04 多成员原文：卡头同行标签、完整原文和仅对侧关联
   await page.setViewportSize({ width: 1440, height: 1000 });
   await installComposeApiFixtures(page, { cashProjectionOverrides: { member_count: 2, projection_version: 1 } });
   const records = [record("record-1", "1001", "当前商户"), record("record-2", "1002", "关联商户")].map(item => ({
-    ...item, relations: [{ relation_id: "relation", kind: "payment_mirror", subtype: "", state: "confirmed", active: true, row_revision: 1 }],
+    ...item, relations: [{ relation_id: "relation", kind: "payment_mirror", state: "confirmed", active: true, row_revision: 1 }],
     projection_ref: { transaction_id: item.transaction_id, projection_id: "projection-1", projection_version: 1, attention_count: 0 },
   }));
   await page.route(/\/api\/v1\/cash-records\/record-[12]$/, route => route.fulfill({ json: records.find(item => route.request().url().endsWith(item.transaction_id)) }));
@@ -227,7 +226,7 @@ for (const width of [1440, 390]) {
     const current = record("record-1", "1001", "咖啡店");
     const target = record("record-2", "1002", "备选外咖啡店");
     await page.route(/\/api\/v1\/cash-records\/record-1$/, r => r.fulfill({ json: current }));
-    await page.route(/\/api\/v1\/cash-records\/record-1\/association-targets(?:\?.*)?$/, r => r.fulfill({ json: { items: [target], next_cursor: null } }));
+    await page.route(/\/api\/v1\/cash-records\/record-1\/association-targets(?:\?.*)?$/, r => r.fulfill({ json: { items: [{ ...target, component_choices: [{anchor_component_id:"1001",target_component_id:"1002"}], unavailable_reason:null }], next_cursor: null } }));
     await page.route(/\/api\/v1\/cash-mutations\/plans$/, r => r.fulfill({ json: {
       plan_id: `mp_${"a".repeat(43)}.${"b".repeat(16)}`, edit_context_id: "a".repeat(43), plan_revision: 1, expires_at: "2099-01-01T00:00:00Z",
       summary: {}, item_counts: { all: 0, confirmed: 0, pending: 0 }, can_commit: true, items: [], pages: { items: null }, invalidated_choices: [],

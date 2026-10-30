@@ -35,10 +35,9 @@ async function press(page: Page, target: string | Locator) {
   throw new Error(`Missing visible ${target}`);
 }
 
-for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "joint", "p2p", "remove", "remove-clean", "multi-component", "unrelated-conflict", "transfer-subtype", "remove-toggle", "reject-cancel"] as const) test(`v6 relation flow: ${scenario}`, async ({ page }, info) => {
+for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "joint", "p2p", "remove", "remove-clean", "multi-component", "unrelated-conflict", "transfer-kind", "remove-toggle", "reject-cancel"] as const) test(`v6 relation flow: ${scenario}`, async ({ page }, info) => {
   const removing = scenario.startsWith("remove");
   const kind = scenario === "p2p" ? "refund_offset" : "payment_mirror";
-  const subtype = scenario === "p2p" ? "p2p_return" : "";
   await page.setViewportSize({ width: 1440, height: 900 });
   const diagnostics = captureBrowserDiagnostics(page);
   await installComposeApiFixtures(page);
@@ -57,13 +56,13 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
   const projectionRef = (id: string) => removing ? { transaction_id: id, projection_id: "relation-11", projection_version: 9, attention_count: 0 } : null;
   await page.route(/\/api\/v1\/cash-projections\/relation-11$/, route => route.fulfill({ json: { projection_version: 9, members: ["11", "21"].map(id => ({ transaction_id: id, row_revision: 3, confirmation_status: "confirmed" })) } }));
   await page.route(/\/api\/v1\/evidence\/cash-projections\/relation-11$/, route => route.fulfill({ json: { projection_version: 9, projection: { projection_id: "relation-11", transaction_id: "11", record_id: "11", ...fields("11"), economic_type: "expense", member_count: 2, projection_version: 9 }, members: ["11", "21"].map(id => ({ id, row_revision: 3, ...fields(id), account_name: "日常账户", components: [] })) } }));
-  await page.route(/\/api\/v1\/cash-records\/11\/association-targets(?:\?.*)?$/, route => route.fulfill({ json: { items: [{ transaction_id: "21", state: "posted", row_revision: 3, record_origin: "import", confirmation_status: "confirmed", fields: fields("21"), editable_fields: [], issues: [], relations: [] }], next_cursor: null } }));
+  await page.route(/\/api\/v1\/cash-records\/11\/association-targets(?:\?.*)?$/, route => route.fulfill({ json: { items: [{ transaction_id: "21", state: "posted", row_revision: 3, record_origin: "import", confirmation_status: "confirmed", fields: fields("21"), editable_fields: [], issues: [], relations: [], component_choices: (scenario === "multi-component" ? [{anchor_component_id:"1101",target_component_id:"2102"}] : [{anchor_component_id:"1101",target_component_id:"2101"}]), unavailable_reason: null }], next_cursor: null } }));
   await page.route(/\/api\/v1\/cash-records\/(11|21|22)$/, route => {
     const id = new URL(route.request().url()).pathname.split("/").at(-1)!;
     if (id === "11") reads++;
     return route.fulfill({ json: { transaction_id: id, state: "posted", row_revision: 3, record_origin: "import",
       projection_ref: projectionRef(id), confirmation_status: id === "11" && !removing ? "pending" : "confirmed", fields: fields(id), editable_fields: [], issues: [],
-      relations: id === "11" || removing ? [{ relation_id: "7", kind, subtype, state: accepted || removing ? "confirmed" : "draft", active: true, row_revision: 1 }] : [] } });
+      relations: id === "11" || removing ? [{ relation_id: "7", kind, state: accepted || removing ? "confirmed" : "draft", active: true, row_revision: 1 }] : [] } });
   });
   const previews: Record<string, unknown>[] = [];
   await page.route(/\/api\/v1\/cash-mutations\/plans$/, async route => {
@@ -80,12 +79,12 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
     const accepted = submitted?.find(choice => choice.suggestion_id === "group" && choice.action === "accept");
     return route.fulfill({ json: {
       preview_item_id: "one", members: [{ transaction_id: "11", planned_action: "unchanged", fields: fields("11"), editable_fields: [], allowed_actions: [], row_revision: 3 }],
-      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "group", kind, subtype, relation_ids: removing ? ["7"] : [],
-        relations: scenario === "joint" ? [{ kind, subtype, member_refs: [{ transaction_id: "11" }, { transaction_id: "21" }] }, { kind: "refund_offset", subtype: "", member_refs: [{ transaction_id: "21" }, { transaction_id: "22" }] }] : [{ kind, subtype, member_refs: [{ transaction_id: "11" }, { transaction_id: "21" }] }],
+      field_diffs: [], issues: [], relation_effects: [], relation_choices: [{ suggestion_id: "group", kind, relation_ids: removing ? ["7"] : [],
+        relations: scenario === "joint" ? [{ kind, member_refs: [{ transaction_id: "11" }, { transaction_id: "21" }] }, { kind: "refund_offset", member_refs: [{ transaction_id: "21" }, { transaction_id: "22" }] }] : [{ kind, member_refs: [{ transaction_id: "11" }, { transaction_id: "21" }] }],
         split_field_diffs: (scenario === "remove" || scenario === "remove-toggle") ? [{ field: "note", current: "当前人工备注", restored: "原始备注" }] : [],
         action: accepted ? "accept" : "defer", candidate_id: accepted?.candidate_id ?? null,
         member_refs: [{ transaction_id: "11" }, { transaction_id: "21" }], candidates: [{ candidate_id: "candidate", member_refs: [{ transaction_id: "21" }, { transaction_id: "22" }] }],
-        allowed_actions: removing ? ["remove"] : ["accept", "defer", "ignore"], common_fields: {}, common_field_conflicts: {} }, ...(scenario === "unrelated-conflict" ? [{suggestion_id:"unrelated",kind:"refund_offset",subtype:"",action:"defer",member_refs:[{transaction_id:"11"},{transaction_id:"22"}],candidates:[],allowed_actions:["ignore"],common_field_conflicts:{note:["unrelated one","unrelated two"]}}] : [])],
+        allowed_actions: removing ? ["remove"] : ["accept", "defer", "ignore"], common_fields: {}, common_field_conflicts: {} }, ...(scenario === "unrelated-conflict" ? [{suggestion_id:"unrelated",kind:"refund_offset",action:"defer",member_refs:[{transaction_id:"11"},{transaction_id:"22"}],candidates:[],allowed_actions:["ignore"],common_field_conflicts:{note:["unrelated one","unrelated two"]}}] : [])],
     } });
   });
   let commits = 0;
@@ -101,7 +100,7 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
   await page.goto("/w/workspace-1/");
   await press(page, "ledger.open-record");
   const suggestion = page.locator('[id="cash.current.suggestion-group"]:visible').last();
-  if (scenario === "transfer-subtype") await press(page, "cash.current.add-association");
+  if (scenario === "transfer-kind") await press(page, "cash.current.add-association");
   else if (removing) await press(page, "cash.current.remove-21");
   else {
     await expect(suggestion).toBeVisible();
@@ -109,26 +108,18 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
   }
   const dialog = page.locator('[id="cash.association.dialog"]:visible').last();
   const continueButton = dialog.locator('[id="cash.association.continue"]');
-  if (scenario === "transfer-subtype") {
+  if (scenario === "transfer-kind") {
     await press(page, "cash.association.kind-transfer_pair");
     await expect(dialog).toContainText("候选成员21");
-    const target = await page.locator('[id="ledger.record-radio-21"]:visible').last().boundingBox();
-    const confirm = await continueButton.boundingBox();
-    expect(target).not.toBeNull(); expect(confirm).not.toBeNull();
-    await press(page, "cash.association.subtype");
-    const option = await page.locator('[id="choice-option-credit_repayment"]:visible').last().boundingBox();
-    expect(option).not.toBeNull();
-    await page.mouse.click(option!.x + 50, option!.y + option!.height / 2);
-    await page.waitForTimeout(800);
-    await page.screenshot({path:info.outputPath("selected-transfer-subtype.png")});
-    // The dismissed Compose popup leaves stale semantic nodes. Use the actual
-    // row/footer geometry observed before opening it, without another Escape.
-    await page.mouse.click(target!.x + target!.width / 2, target!.y + target!.height / 2);
-    await page.waitForTimeout(350);
-    await page.mouse.click(confirm!.x + confirm!.width / 2, confirm!.y + confirm!.height / 2);
-    await expect.poll(() => (previews.at(-1) as any)?.relation_additions?.[0]?.subtype).toBe("credit_repayment");
-    expect((previews.at(-1) as any).relation_additions[0].kind).toBe("transfer_pair");expect(commits).toBe(0);return;
+    await expect(dialog.locator('[id="cash.association.subtype"]')).toHaveCount(0);
+    await press(page, "ledger.record-radio-21");
+    await page.screenshot({path:info.outputPath("selected-transfer-kind.png")});
+    await press(page, continueButton);
+    await expect.poll(() => (previews.at(-1) as any)?.relation_additions?.[0]?.kind).toBe("transfer_pair");
+    expect((previews.at(-1) as any).relation_additions[0]).not.toHaveProperty("subtype");
+    expect(commits).toBe(0);return;
   }
+
   if (scenario === "reject-cancel") {
     await expect.poll(() => (previews.at(-1) as any)?.relation_choices?.[0]?.action).toBe("ignore");
     await press(page, dialog.getByText("取消",{exact:true}));
@@ -161,7 +152,7 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
       expect(previews).toHaveLength(before); expect(commits).toBe(0);
     } else {
       await expect.poll(() => previews.length).toBe(before + 1);
-      expect((previews.at(-1) as any).relation_additions[0]).toMatchObject({ kind: "refund_offset", subtype: "p2p_return", target_transaction_id: "21" });
+      expect((previews.at(-1) as any).relation_additions[0]).toMatchObject({ kind: "refund_offset", target_transaction_id: "21" });
       expect(commits).toBe(0);
     }
     await page.screenshot({ path: info.outputPath(scenario + ".png") }); return;

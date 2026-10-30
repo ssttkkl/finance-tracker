@@ -8,10 +8,8 @@ from sqlalchemy import select
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
 from ft.application.cash_import_operations import _batches
-from ft.application.relations import _enrich_platform_refund_rows, _fact_detail_row
-from ft.domain.cash_relation_policy import CashRelationError, RelationRoleEvidence, discover_relation_roles
+from ft.domain.cash_relation_policy import CashRelationError, RelationRoleEvidence, infer_relation_roles
 from ft.domain.cash_source_matching import _digest
-from ft.domain.relations.refund.hard_key import match_phase_a_platform_refunds
 
 
 class CashCurrentRelationPlanner:
@@ -39,7 +37,6 @@ class CashCurrentRelationPlanner:
                 CashTransactionModel.workspace_id == workspace_id, CashTransactionModel.id.in_(batch))))
 
     def __call__(self, snapshot, accounts):
-        self.accounts, self.matching_facts, self.hard_keys = accounts, None, {}
         removed_parts = {str(part["component_id"]) for operation in snapshot.parent_ops.values()
             if operation.get("current", {}).get("state") == "draft" for part in operation["current"]["components"]
             if part.get("component_id") is not None and str(part["component_id"]) not in {
@@ -142,9 +139,9 @@ class CashCurrentRelationPlanner:
         def add(primary, secondary, direct=False):
             if primary is None or secondary is None or primary.transaction_id == secondary.transaction_id:
                 return
-            proof = self._current_proof(snapshot, edge, primary, secondary)
+            proof = RelationRoleEvidence()
             try:
-                roles = discover_relation_roles(edge.kind, edge.subtype, primary, secondary, evidence=proof)
+                roles = infer_relation_roles(edge.kind, primary, secondary)
             except CashRelationError:
                 return
             variants.append((replace(edge, primary_transaction_id=primary.transaction_id,
@@ -170,21 +167,3 @@ class CashCurrentRelationPlanner:
                 primary, secondary = (part, fixed) if anchor == edge.secondary_component_id else (fixed, part)
             add(primary, secondary)
         return variants
-
-    def _current_proof(self, snapshot, edge, primary, secondary):
-        first, second = snapshot.values[primary.transaction_id], snapshot.values[secondary.transaction_id]
-        hard = False
-        if edge.kind == "refund_offset" and (primary.record_type == "investment_out" or edge.subtype == "p2p_return"):
-            key = primary.component_id, secondary.component_id, edge.subtype
-            if key not in self.hard_keys:
-                if self.matching_facts is None:
-                    self.matching_facts = {fact.id: fact for fact in self.business_builder._matching_facts(snapshot, self.accounts)}
-                facts = {identifier: self.matching_facts[identifier] for identifier in key[:2]}
-                rows = _enrich_platform_refund_rows([_fact_detail_row(fact) for fact in facts.values()])
-                self.hard_keys[key] = any(proposal.primary_fact_id == primary.component_id
-                    and proposal.secondary_fact_id == secondary.component_id and proposal.subtype == edge.subtype
-                    and "platform_hard_key" in proposal.evidence.signals
-                    for proposal in match_phase_a_platform_refunds(rows, facts_by_id=facts))
-            hard = self.hard_keys[key]
-        return RelationRoleEvidence(self.business_builder._original_expense(first), self.business_builder._original_expense(second),
-            hard and primary.record_type == "investment_out", hard and edge.subtype == "p2p_return")

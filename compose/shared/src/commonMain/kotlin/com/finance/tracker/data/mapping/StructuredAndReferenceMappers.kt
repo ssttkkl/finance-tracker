@@ -128,13 +128,11 @@ fun CashCategoryDirectory.toDto(): CashCategoryDirectoryDto = CashCategoryDirect
 
 fun AcceptedRelationSummaryDto.toDomain(): AcceptedRelationSummary = AcceptedRelationSummary(
     kind = kind,
-    subtype = subtype,
     count = count,
 )
 
 fun AcceptedRelationSummary.toDto(): AcceptedRelationSummaryDto = AcceptedRelationSummaryDto(
     kind = kind,
-    subtype = subtype,
     count = count,
 )
 

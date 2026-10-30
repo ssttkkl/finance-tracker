@@ -8,6 +8,7 @@ private val maintenanceJson = Json(apiJson) { encodeDefaults = true; explicitNul
 
 suspend fun FinanceApiClient.readCashAssociationTargets(transactionId: String, search: com.finance.tracker.domain.CashAssociationSearch): CashAssociationPageDto =
     request(HttpMethod.Get, appendQuery("/api/v1/cash-records/${encodePathSegment(transactionId)}/association-targets", buildList {
+        search.kind?.takeIf(String::isNotBlank)?.let { add("kind" to it) }
         add("query" to search.query)
         add("timezone_name" to com.finance.tracker.core.getLocalTimeZoneId())
         search.accountId?.let { add("account_id" to it) }; search.amount?.let { add("amount" to it) }

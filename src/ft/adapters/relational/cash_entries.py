@@ -49,7 +49,7 @@ class CashEntryRepository:
     @staticmethod
     def snapshot_values(members, entries):
         return tuple(sorted((member.transaction_id, member.entry_id, entries[member.entry_id].revision,
-            _digest(public_values(entries[member.entry_id]), entries[member.entry_id].manual_fields,
+            _digest(public_values(entries[member.entry_id]), entries[member.entry_id].manual_fields, entries[member.entry_id].identity_transaction_id,
                 member.standalone_values, member.standalone_manual_fields)) for member in members.values()))
 
     def current(self, identifier):
@@ -136,18 +136,20 @@ class CashEntryRepository:
         old_members = {}
         for member in members.values():
             old_members.setdefault(member.entry_id, set()).add(member.transaction_id)
-        # 先保留旧根所在的结果，避免拆分时由遍历顺序抢占旧对象。
-        old_roots = {entry.root_transaction_id for entry in entries.values()}
-        projections = sorted(projections, key=lambda p: (p.primary_record.id not in old_roots, p.projection_id))
+        # 身份锚所在的拆分结果先保留旧对象；展示代表不能抢占身份。
+        anchors = {entry.identity_transaction_id for entry in entries.values()}
+        projections = sorted(projections, key=lambda p: (not anchors.intersection(p.member_ids), p.projection_id))
         used, result = set(), {}
         for projection in projections:
             group = {int(member.id) for member, _ in projection.members}
             root = int(projection.primary_record.id)
             old_ids = {members[item].entry_id for item in group if item in members}
-            root_member = members.get(root)
-            candidate = entries.get(root_member.entry_id) if root_member else None
-            if candidate and (candidate.id in used or candidate.root_transaction_id not in group and candidate.root_transaction_id in identifiers):
-                candidate = None
+            eligible = [entries[entry_id] for entry_id in old_ids if entry_id not in used
+                and (entries[entry_id].identity_transaction_id in group
+                    or entries[entry_id].identity_transaction_id not in identifiers)]
+            economic_members = set(projection.economic_root_ids or (root,))
+            eligible.sort(key=lambda entry: (entry.identity_transaction_id not in economic_members, entry.id))
+            candidate = eligible[0] if eligible else None
             values = public_values(sources[root])
             human = {}
             for entry_id in old_ids:
@@ -167,7 +169,8 @@ class CashEntryRepository:
                         raise CashRecordPolicyError('common_field_conflict', (field,))
                     human[field] = value
             if candidate is None:
-                candidate = CashEntryModel(id=str(uuid4()), workspace_id=self.workspace_id, root_transaction_id=root,
+                anchor = self._new_identity_anchor(projection)
+                candidate = CashEntryModel(id=str(uuid4()), workspace_id=self.workspace_id, root_transaction_id=root, identity_transaction_id=anchor,
                     revision=1, manual_fields=[])
                 self.session.add(candidate)
             else:
@@ -175,6 +178,8 @@ class CashEntryRepository:
                     candidate.revision += 1
                 if candidate.root_transaction_id != root:
                     candidate.root_transaction_id = root
+                if candidate.identity_transaction_id not in group:
+                    candidate.identity_transaction_id = self._new_identity_anchor(projection)
             for member_id in group:
                 source = sources[member_id]
                 member = members.get(member_id)
@@ -224,6 +229,17 @@ class CashEntryRepository:
                 CashEntryModel.id.in_(obsolete), ~select(CashEntryMemberModel.transaction_id).where(
                     CashEntryMemberModel.workspace_id == self.workspace_id, CashEntryMemberModel.entry_id == CashEntryModel.id).exists()))
         return result
+
+    @staticmethod
+    def _new_identity_anchor(projection):
+        from ft.domain.cash_projection import CashProjectionError, source_identity_key
+        facts = tuple(fact for fact, _ in projection.members)
+        if len(facts) == 1:
+            return facts[0].id
+        keys = {fact.id: source_identity_key(fact) for fact in facts}
+        if len(set(keys.values())) != len(keys):
+            raise CashProjectionError('projection.source_identity_duplicate')
+        return min(keys, key=keys.__getitem__)
 
     def choose_common(self, identifiers, values):
         """关系保存点内写入明确公共决定，保留成员独立恢复值。"""

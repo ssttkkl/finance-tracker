@@ -9,14 +9,24 @@ import com.finance.tracker.presentation.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class CashLedgerDisplayTest {
     @Test fun internalTransferIsLabeledAsTransferRatherThanItsMergeState() {
         for (subtype in listOf("ordinary_transfer", "currency_exchange", "credit_repayment")) {
             assertEquals("ledger_quick_transfer", cashProjectionEconomicTypeResourceKey(
-                projection(amount = "0", economicType = "internal_transfer", transferSubtype = subtype)))
+                projection(amount = "0", economicType = "internal_transfer", businessLabel = subtype)))
         }
     }
+    @Test
+    fun quickEconomicTypesOnlyIncludeExistingFilterOptions() {
+        val partial = listOf(CashEconomicTypeFilterOption("expense"), CashEconomicTypeFilterOption("income"))
+        assertEquals(listOf("expense", "income"), cashQuickEconomicTypes(partial))
+        assertEquals(listOf("expense", "income", "internal_transfer"),
+            cashQuickEconomicTypes(partial + CashEconomicTypeFilterOption("internal_transfer", listOf("ordinary_transfer"))))
+        assertTrue(cashQuickEconomicTypes(emptyList()).isEmpty())
+    }
+
     @Test
     fun scrollbarProgressMapsToClampedTransactionOrdinals() {
         assertEquals(0, cashLedgerOrdinalForProgress(0f, 5))
@@ -64,7 +74,7 @@ class CashLedgerDisplayTest {
         val row = projection(
             amount = "0",
             economicType = "internal_transfer",
-            transferSubtype = "bank_security_transfer",
+            businessLabel = "bank_security_transfer",
             transfer = CashTransfer(
                 fromAccount = Account(1, "银行卡", "cash"),
                 fromAmount = "-100",
@@ -128,11 +138,23 @@ class CashLedgerDisplayTest {
         assertEquals(false, isValidLocalDateTime("2026-02-29T12:00"))
     }
 
+    @Test
+    fun mergedDetailUsesRepresentativeDateInsteadOfOpenedMemberDate() {
+        val member = CashCurrentRecord(recordOrigin = "import", entry = null, transactionId = "bank",
+            state = "posted", rowRevision = 1, confirmationStatus = "confirmed",
+            fields = StructuredObject(mapOf("occurred_at" to StructuredText("2026-09-25T10:00:00Z"))),
+            editableFields = emptyList(), issues = emptyList(), relations = emptyList(), projectionRef = null)
+        val merged = projection("-100").copy(occurredAt = "2026-09-24T09:00:00Z")
+        assertEquals("2026-09-24T09:00:00Z", cashCurrentRecordOccurredAt(member, merged))
+        assertNull(cashCurrentRecordOccurredAt(member, merged.copy(occurredAt = null)))
+        assertEquals("2026-09-25T10:00:00Z", cashCurrentRecordOccurredAt(member, null))
+    }
+
     private fun projection(
         amount: String,
         category: CashCategory? = null,
         economicType: String = "expense",
-        transferSubtype: String? = null,
+        businessLabel: String? = null,
         transfer: CashTransfer? = null,
     ) = CashProjection(
         projectionId = "projection-1",
@@ -142,7 +164,7 @@ class CashLedgerDisplayTest {
         amount = amount,
         currency = "CNY",
         economicType = economicType,
-        transferSubtype = transferSubtype,
+        businessLabel = businessLabel,
         recordId = "record-1",
             transactionId = "11",
         transfer = transfer,

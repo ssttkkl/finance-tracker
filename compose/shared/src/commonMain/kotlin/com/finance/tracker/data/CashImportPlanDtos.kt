@@ -137,7 +137,7 @@ data class CashPlanFieldDiffDto(
 )
 @Serializable
 data class CashPlanRelationSummaryDto(
-    val kind: String, val subtype: String? = null,
+    val kind: String,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
 )
 @Serializable
@@ -153,7 +153,7 @@ data class CashSplitFieldDiffDto(val field: String, val current: JsonElement, va
 @Serializable
 data class CashPlanRelationChoiceDto(
     @SerialName("suggestion_id") val suggestionId: String,
-    val kind: String? = null, val subtype: String? = null, val action: String,
+    val kind: String? = null, val action: String,
     @SerialName("candidate_id") val candidateId: String? = null,
     val candidates: List<CashPlanRelationCandidateDto>,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>,
@@ -168,7 +168,7 @@ data class CashPlanRelationChoiceDto(
 @Serializable
 data class CashPlanRelationEffectDto(
     @SerialName("relation_id") val relationId: String,
-    val kind: String, val subtype: String? = null, val effect: String,
+    val kind: String, val effect: String,
     @SerialName("member_refs") val memberRefs: List<CashPlanMemberRefDto>, val code: String? = null,
 )
 @Serializable

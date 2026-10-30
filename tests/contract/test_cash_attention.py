@@ -1,3 +1,4 @@
+from tests.historical_cash_schema import historical_cash_database
 import pytest
 from dataclasses import replace
 from sqlalchemy import event, text
@@ -142,20 +143,22 @@ def test_attention_read_is_narrow_and_workspace_scoped(relation_context_runtime)
         "pending_source_payload", "pending_fields", "origin", "source_payload", "relation_candidates")) for statement in statements)
 
 
-def test_issue_id_high_water_survives_migration_round_trip(relation_context_runtime):
+def test_issue_id_high_water_survives_migration_round_trip(historical_cash_database):
     from alembic import command
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = relation_context_runtime
-    with runtime.sessions.begin() as session:
-        sources = CashSourceRepository(session, runtime.workspace_id)
-        high_water = sources.save_issue(1101, "current", code="source_update_conflict").id
-        sources.clear_issue(1101, "current")
-    with runtime.sessions.kw["bind"].connect() as connection:
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_43")
-        command.upgrade(config, "head")
-        if connection.dialect.name == "sqlite":
-            assert "AUTOINCREMENT" in connection.scalar(text("SELECT sql FROM sqlite_master WHERE name='cash_transaction_issues'"))
-            assert not connection.exec_driver_sql("PRAGMA foreign_key_check").all()
-    with runtime.sessions.begin() as session:
-        assert CashSourceRepository(session, runtime.workspace_id).save_issue(1101, "current", code="source_update_conflict").id > high_water
+    old = historical_cash_database('20261021_44')
+    connection, issue = old.connection, old.tables['cash_transaction_issues']
+    values = dict(workspace_id=old.workspace_id, transaction_id=1001, issue_key='current', code='source_update_conflict',
+        revision=1, origin={}, created_at=old.now, updated_at=old.now)
+    inserted = connection.execute(issue.insert().values(**values))
+    high_water = inserted.inserted_primary_key[0]
+    connection.execute(issue.delete())
+    connection.commit()
+    command.downgrade(old.config, '20261021_43')
+    connection.commit()
+    command.upgrade(old.config, '20261021_44')
+    connection.commit()
+    if connection.dialect.name == 'sqlite':
+        assert 'AUTOINCREMENT' in connection.scalar(text("SELECT sql FROM sqlite_master WHERE name='cash_transaction_issues'"))
+        assert not connection.exec_driver_sql('PRAGMA foreign_key_check').all()
+    inserted = connection.execute(issue.insert().values(**values))
+    assert inserted.inserted_primary_key[0] > high_water

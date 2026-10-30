@@ -24,7 +24,7 @@ def _edge(identifier, kind, primary, secondary, *, parents=None, amount=None, su
     return CashRelationGraphEdge(identifier, kind, str((parents or (primary, secondary))[0]), str((parents or (primary, secondary))[1]),
         str(primary), str(secondary), *(roles or (("expense", "expense") if kind == "payment_mirror" else
         ("outgoing", "incoming") if kind == "transfer_pair" else ("expense", "refund"))),
-        subtype=subtype, applied_amount=Decimal(amount) if amount is not None else None, **changes)
+         applied_amount=Decimal(amount) if amount is not None else None, **changes)
 
 
 def _refund_rows(amounts=("-100", "40", "60")):
@@ -67,12 +67,12 @@ def test_complete_refund_diamond_counts_only_one_logical_refund():
     assert build_cash_relation_graph(facts, components, tuple(reversed(relations))) == build
 
 
-def test_partial_diamond_keeps_allocation_when_first_edge_uses_noncanonical_source():
+def test_partial_diamond_cannot_hide_unallocated_refund_amount():
     facts, components, relations = _diamond()
     relations = (replace(relations[0], id=2, applied_amount=Decimal("40")),
         replace(relations[1], id=1, applied_amount=Decimal("40")), *relations[2:])
-    build = build_cash_relation_graph(facts, components, relations)
-    assert build.projections[0].net_amount == Decimal("-60")
+    with pytest.raises(CashRelationError, match="relation_refund_incomplete"):
+        build_cash_relation_graph(facts, components, relations)
 
 
 def test_real_component_allocations_and_mirrored_evidence_can_coexist():
@@ -149,7 +149,7 @@ def test_zero_refund_preserves_its_evidence_without_opening_zero_transfers():
     assert build.projections[0].net_amount == 0 and build.projections[0].visible and build.projections[0].hidden_reason is None
     transfer = tuple(replace(item, record_type="transfer_out" if i == 0 else "transfer_in", record_subtype=default_cash_record_subtype("transfer_out")) for i, item in enumerate(components))
     with pytest.raises(CashRelationError):
-        build_cash_relation_graph(facts, transfer, (_edge(1, "transfer_pair", 1, 2, subtype="ordinary_transfer"),))
+        build_cash_relation_graph(facts, transfer, (_edge(1, "transfer_pair", 1, 2),))
 
 
 def test_zero_parts_cannot_create_a_refund_for_nonzero_parent_totals():
@@ -179,7 +179,7 @@ def test_single_zero_endpoint_is_not_a_refund(amounts):
 def test_transfer_endpoint_is_exclusive_but_removed_edge_no_longer_occupies_it():
     facts = (_fact(1, "-10"), _fact(2, "10"), _fact(3, "10"))
     components = tuple(_component(i, i, "-10" if i == 1 else "10", "transfer_out" if i == 1 else "transfer_in") for i in range(1, 4))
-    old, new = _edge(1, "transfer_pair", 1, 2, subtype="ordinary_transfer"), _edge(2, "transfer_pair", 1, 3, subtype="ordinary_transfer")
+    old, new = _edge(1, "transfer_pair", 1, 2), _edge(2, "transfer_pair", 1, 3)
     with pytest.raises(CashRelationError, match="relation_endpoint_occupied"):
         build_cash_relation_graph(facts, components, (old, new))
     assert len(build_cash_relation_graph(facts, components, (replace(old, active=False), new)).projections) == 2
@@ -208,7 +208,7 @@ def test_large_exact_values_are_not_rounded_by_default_decimal_context():
 
 
 @pytest.mark.parametrize("changes", [{"primary_component_id": []}, {"kind": []}, {"state": []},
-    {"secondary_transaction_id": {}}, {"subtype": []}, {"applied_amount": 0.1}, {"id": True}])
+    {"secondary_transaction_id": {}}, {"primary_role": []}, {"applied_amount": 0.1}, {"id": True}])
 def test_malformed_graph_edges_return_a_stable_domain_error(changes):
     facts, components = _refund_rows(("-100", "40"))
     with pytest.raises(CashRelationError):
@@ -246,3 +246,52 @@ def test_joint_context_refuses_missing_changed_or_extra_members(current):
 def test_malformed_joint_decisions_return_a_stable_domain_error(decided):
     with pytest.raises(CashRelationError):
         validate_joint_relation_context((_member(1),), (_member(1),), decided)
+
+
+def test_mirror_cannot_collapse_two_real_parts_of_one_parent():
+    facts = (_fact(1, "-100", aggregate=True), _fact(2, "-30"))
+    parts = (_component(11, 1, "-30", "consumption"), _component(12, 1, "-30", "consumption"),
+        _component(13, 1, "-40", "consumption"), _component(2, 2, "-30", "consumption"))
+    with pytest.raises(CashRelationError, match="relation_mirror_component_duplicate"):
+        build_cash_relation_graph(facts, parts, (_edge(1, "payment_mirror", 11, 2, parents=(1, 2)),
+            _edge(2, "payment_mirror", 12, 2, parents=(1, 2))))
+
+
+def test_unallocated_aggregate_refund_part_cannot_disappear():
+    facts = (_fact(1, "-100", aggregate=True), _fact(2, "100", aggregate=True))
+    parts = (_component(11, 1, "-40", "consumption"), _component(12, 1, "-60", "consumption", account=2),
+        _component(21, 2, "40", "refund"), _component(22, 2, "60", "refund", account=2))
+    with pytest.raises(CashRelationError, match="relation_refund_incomplete"):
+        build_cash_relation_graph(facts, parts, (_edge(1, "refund_offset", 11, 21, parents=(1, 2)),))
+
+
+def test_mirror_direction_does_not_change_full_aggregate_amount():
+    facts = (_fact(1, "-30"), _fact(2, "-100", aggregate=True))
+    parts = (_component(1, 1, "-30", "consumption"), _component(21, 2, "-30", "consumption"),
+        _component(22, 2, "-70", "consumption", account=2))
+    for primary, secondary, parents in ((1, 21, (1, 2)), (21, 1, (2, 1))):
+        result = build_cash_relation_graph(facts, parts, (_edge(1, "payment_mirror", primary, secondary, parents=parents),))
+        assert result.projections[0].net_amount == Decimal("-100")
+
+
+def test_interleaved_mirrors_without_full_parent_are_rejected():
+    facts = (_fact(1, "-100", aggregate=True), _fact(2, "-50", aggregate=True))
+    parts = (_component(11, 1, "-30", "consumption"), _component(12, 1, "-70", "consumption"),
+        _component(21, 2, "-30", "consumption"), _component(22, 2, "-20", "consumption"))
+    with pytest.raises(CashRelationError, match="relation_mirror_incomplete"):
+        build_cash_relation_graph(facts, parts, (_edge(1, "payment_mirror", 11, 21, parents=(1, 2)),))
+
+
+def test_aggregate_transfer_cannot_hide_unmatched_parts():
+    facts = (_fact(1, "-100", aggregate=True), _fact(2, "30"))
+    parts = (_component(11, 1, "-30", "transfer_out"), _component(12, 1, "-70", "transfer_out", account=2),
+        _component(2, 2, "30", "transfer_in"))
+    with pytest.raises(CashRelationError, match="relation_aggregate_unsupported"):
+        build_cash_relation_graph(facts, parts, (_edge(1, "transfer_pair", 11, 2, parents=(1, 2)),))
+
+
+def test_partial_component_mirror_is_rejected():
+    facts = (_fact(1, "-100"), _fact(2, "-100"))
+    parts = tuple(_component(i, i, "-100", "consumption") for i in (1, 2))
+    with pytest.raises(CashRelationError, match="relation_amount_invalid"):
+        build_cash_relation_graph(facts, parts, (_edge(1, "payment_mirror", 1, 2, amount="40"),))

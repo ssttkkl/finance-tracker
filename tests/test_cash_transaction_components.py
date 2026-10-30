@@ -135,20 +135,54 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
         "secondary_component_id": bank_expense["components"][0]["id"],
         "kind": "payment_mirror", "status": "accepted",
     })
-    first_refund = next(item for item in service.add_relation({
+    first_values = {
         "primary_fact_id": expense["id"],
         "primary_component_id": expense["components"][0]["id"],
         "secondary_fact_id": refund["id"],
         "secondary_component_id": refund["components"][0]["id"],
         "kind": "refund_offset", "applied_amount": "30.00", "status": "accepted",
-    })["relations"] if item["kind"] == "refund_offset" and item["secondary_component_id"] == refund["components"][0]["id"])
-    second_refund = next(item for item in service.add_relation({
+    }
+    with pytest.raises(ValueError, match="该关系无法形成有效收支投影"):
+        service.add_relation(first_values)
+    with service._uow as uow:
+        assert not any(row["kind"] == "refund_offset" for row in uow.relations.list_active())
+        uow.commit()
+    second_values = {
         "primary_fact_id": expense["id"],
         "primary_component_id": expense["components"][1]["id"],
         "secondary_fact_id": refund["id"],
         "secondary_component_id": refund["components"][1]["id"],
         "kind": "refund_offset", "applied_amount": "20.00", "status": "accepted",
-    })["relations"] if item["kind"] == "refund_offset" and item["secondary_component_id"] == refund["components"][1]["id"])
+    }
+    from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+    from ft.application.cash_relation_context import CashRelationGraphService
+    from ft.application.cash_projections import CashProjectionService
+    from ft.domain.cash_relation_graph import CashRelationGraphEdge
+
+    with service._uow as uow:
+        session = uow._state().session
+        graph = CashRelationGraphService(session, uow.workspace_id)
+        context = graph.load({expense["id"], refund["id"]})
+        first_id = max(edge.id for edge in context.relations) + 1
+        additions = tuple(CashRelationGraphEdge(
+            id=first_id + index, kind="refund_offset",
+            primary_transaction_id=str(values["primary_fact_id"]),
+            secondary_transaction_id=str(values["secondary_fact_id"]),
+            primary_component_id=str(values["primary_component_id"]),
+            secondary_component_id=str(values["secondary_component_id"]),
+            primary_role="expense", secondary_role="refund",
+            applied_amount=Decimal(values["applied_amount"]),
+        ) for index, values in enumerate((first_values, second_values)))
+        graph.validate(context, additions=additions)
+        repository = CurrentCashRelationRepository(session, uow.workspace_id)
+        saved = [repository.add({key: getattr(edge, key) for key in (
+            "kind", "state", "active", "primary_transaction_id", "secondary_transaction_id",
+            "primary_component_id", "secondary_component_id", "primary_role", "secondary_role", "applied_amount",
+        )} | {"anchor_transaction_id": edge.primary_transaction_id,
+            "anchor_component_id": edge.primary_component_id, "decision_source": "manual"}) for edge in additions]
+        CashProjectionService.maintain_if_ready_in_session(session, uow.workspace_id, context.transaction_ids)
+        uow.commit()
+    first_refund, second_refund = saved
     bank_refund_mirror = next(item for item in service.add_relation({
         "primary_fact_id": refund["id"],
         "primary_component_id": refund["components"][1]["id"],
@@ -173,10 +207,8 @@ def test_aggregate_refund_components_can_offset_and_mirror_bank_refund(cash_web_
             "kind": "refund_offset", "applied_amount": "31.00", "status": "accepted",
         })
     with service._uow as uow:
-        facts, relations = RelationalCashProjectionRepository(
-            uow._state().session, uow.workspace_id,
-        ).read_sources()
-        build = build_cash_projections(facts, relations)
+        graph = CashRelationGraphService(uow._state().session, uow.workspace_id)
+        build = graph.validate(graph.load({expense["id"]})).build
         uow.commit()
     projection = next(item for item in build.projections if set(item.member_ids) >= {
         expense["id"], bank_expense["id"], refund["id"], bank_refund["id"],
@@ -412,7 +444,7 @@ def test_aggregate_projection_is_parent_row_with_component_detail_and_account_fi
         cash_web_runtime.sessions, cash_web_runtime.workspace_id,
     )
     page = query.list_cash_projections(account_id=second_account_id, limit=50)
-    item = next(item for item in page.items if item.projection_id == f"cash:{record['id']}")
+    item = next(item for item in page.items if item.transaction_id == str(record['id']))
     assert item.account is None
     assert item.amount == "-100"
     assert item.member_count == 1

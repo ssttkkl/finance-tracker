@@ -9,10 +9,11 @@ from ft.application.cash_import_choice_context import (
     CONTEXT_KEY, CashImportChoiceContextError, previous_choice_context,
     retained_choice_context, without_choice_context,
 )
+from ft.application.cash_plan_contract import CASH_PLAN_CONTRACT_VERSION
 
 
 def _context():
-    plan = {"plan_id": "old-not-executable", "operations": [
+    plan = {"contract_version": CASH_PLAN_CONTRACT_VERSION, "plan_id": "old-not-executable", "operations": [
         {"occurrence_key": "one", "values": {"record_id": "import-v1:one", "amount": "123.45", "source_payload": "private-source"}},
         {"occurrence_key": "two", "transaction_id": "t2", "values": {"record_id": "posted-existing"}}],
         "relation_groups": [{"suggestion_id": "sg_one", "source_suggestion_id": "sg_root", "choice_generation": 1,

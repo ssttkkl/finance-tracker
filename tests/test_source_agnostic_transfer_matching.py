@@ -44,7 +44,9 @@ def test_cross_currency_remittance_matches_unique_tail_target_after_days_without
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
     assert proposals[0].secondary_fact_id == "in"
-    assert proposals[0].subtype == "cross_currency_remittance"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.cross_border_remittance.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_indexed_cross_border_remittance_matches_across_three_calendar_days():
@@ -70,7 +72,9 @@ def test_indexed_cross_border_remittance_matches_across_three_calendar_days():
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
     assert proposals[0].secondary_fact_id == "in"
-    assert proposals[0].subtype == "ordinary_transfer"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.cross_border_remittance.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_internal_cross_currency_transfer_matches_same_account_by_unique_alias_without_source_rule():
@@ -95,7 +99,9 @@ def test_internal_cross_currency_transfer_matches_same_account_by_unique_alias_w
 
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
-    assert proposals[0].subtype == "currency_exchange"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.internal_account_transfer.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_unique_alias_target_uses_global_nearest_one_to_one_assignment():
@@ -131,7 +137,7 @@ def test_unique_alias_target_uses_global_nearest_one_to_one_assignment():
         ("out-1", "in-1"), ("out-2", "in-2"),
     ]
     assert all(proposal.status == RelationStatus.ACCEPTED.value for proposal in proposals)
-    assert all(proposal.subtype == "currency_exchange" for proposal in proposals)
+    assert all(proposal.kind == "transfer_pair" and proposal.rule_id == "transfer_pair.internal_account_transfer.v1" for proposal in proposals)
 
 
 def test_conflicting_tail_does_not_expand_ordinary_transfer_window():

@@ -51,8 +51,9 @@ internal fun CashCurrentRecordDto.toDomain() = CashCurrentRecord(recordOrigin,
     issues.map { issue -> CashRecordIssue(issue.issueId, issue.revision, issue.code, issue.message, issue.fieldPath, issue.blockingScope, issue.nextAction,
         issue.allowedResolutions, issue.pendingFields.toStructuredObject(), issue.pendingSourcePayload?.toStructuredObject(),
         issue.candidates.map { CashIdentityCandidate(it.transactionId, it.rowRevision, it.state, it.display.toDomain()) }, issue.afterImportAction, issue.pendingSourcePayloadPresent) },
-    relations.map { CashSavedRelation(it.relationId, it.kind, it.subtype, it.state, it.active, it.rowRevision, it.decisionGroupId) },
-    projectionRef?.let { CashCurrentProjectionRef(it.transactionId, it.projectionId, it.attentionCount, it.projectionVersion) })
+    relations.map { CashSavedRelation(it.relationId, it.kind, it.state, it.active, it.rowRevision, it.decisionGroupId) },
+    projectionRef?.let { CashCurrentProjectionRef(it.transactionId, it.projectionId, it.attentionCount, it.projectionVersion) },
+    componentChoices.map { CashAssociationComponentChoice(it.anchorComponentId, it.targetComponentId) }, unavailableReason)
 internal fun CashMaintenancePlanDto.toDomain() = CashMaintenancePlan(planId, editContextId, planRevision, expiresAt, summary, itemCounts, canCommit,
     items.map(CashPlanItemDto::toDomain), pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) },
     additionalEffects?.map { CashAdditionalEffect(it.kind, it.reference, it.field) })
@@ -62,4 +63,4 @@ internal fun CashMaintenanceRequest.toDto() = CashMaintenanceInput(intent, trans
     issueResolutions?.map { CashIssueResolutionInput(it.issueId, it.revision, it.resolution, it.targetTransactionId, it.targetRevision) },
     editContextId, previousPlanId, expectedPlanRevision,
     relationAdditions.map { CashRelationAdditionInput(it.targetTransactionId, it.expectedTargetRevision, it.anchorComponentId,
-        it.targetComponentId, it.kind, it.subtype, it.commonFields?.toJsonObject()) })
+        it.targetComponentId, it.kind, it.commonFields?.toJsonObject()) })

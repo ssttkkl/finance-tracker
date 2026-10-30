@@ -1,7 +1,7 @@
 """当前最终关系图的完整财务校验；不搜索或替换任何配对。"""
 from __future__ import annotations
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from decimal import Decimal, localcontext
 
@@ -20,7 +20,6 @@ class CashRelationGraphEdge:
     secondary_component_id: str | None
     primary_role: str | None
     secondary_role: str | None
-    subtype: str = ""
     applied_amount: Decimal | None = None
     state: str = "confirmed"
     active: bool = True
@@ -40,7 +39,7 @@ def validate_relation_graph_edge_input(relation):
     if (not isinstance(relation, CashRelationGraphEdge) or type(relation.id) is not int or relation.id <= 0
         or not isinstance(relation.kind, str) or relation.kind not in {"payment_mirror", "refund_offset", "transfer_pair"}
         or not isinstance(relation.state, str) or relation.state not in {"draft", "confirmed", "ignored"}
-        or type(relation.active) is not bool or not isinstance(relation.subtype, str)
+        or type(relation.active) is not bool
         or not isinstance(relation.primary_transaction_id, str) or not relation.primary_transaction_id
         or any(value is not None and (not isinstance(value, str) or not value) for value in (
             relation.secondary_transaction_id, relation.primary_component_id, relation.secondary_component_id,
@@ -165,6 +164,7 @@ def _build(facts, components, relations, funding):
     funding.update(part.component_id for part in components if parents[part.transaction_id].funding_relation_id is not None)
     component_mirrors, parent_mirrors = _Equivalence(by_component), _Equivalence(parents)
     prepared, identifiers, business_keys, transfer_occupied = [], set(), set(), set()
+    part_counts = Counter(part.transaction_id for part in components)
     for relation in relations:
         validate_relation_graph_edge_input(relation)
         if relation.id in identifiers:
@@ -176,9 +176,9 @@ def _build(facts, components, relations, funding):
         if (primary is None or secondary is None or primary.transaction_id != relation.primary_transaction_id
             or secondary.transaction_id != relation.secondary_transaction_id or primary.transaction_id == secondary.transaction_id):
             raise CashRelationError("relation_endpoint_incomplete")
-        validate_relation_roles(relation.kind, relation.subtype, primary, secondary, relation.primary_role, relation.secondary_role)
+        validate_relation_roles(relation.kind, primary, secondary, relation.primary_role, relation.secondary_role)
         pair = (primary.component_id, secondary.component_id)
-        key = relation.kind, relation.subtype, tuple(sorted(pair)) if relation.kind == "payment_mirror" else pair
+        key = relation.kind, tuple(sorted(pair)) if relation.kind == "payment_mirror" else pair
         if key in business_keys:
             raise CashRelationError("relation_data_invalid")
         business_keys.add(key)
@@ -200,23 +200,46 @@ def _build(facts, components, relations, funding):
             raise CashRelationError("relation_amount_invalid") from None
         if relation.kind == "payment_mirror":
             parent_mirrors.join(primary.transaction_id, secondary.transaction_id)
-            # Partial coverage alone does not prove two entire components are
-            # the same allocation; only complete mirrors grant that identity.
-            if amount == primary.amount.copy_abs() == secondary.amount.copy_abs():
-                component_mirrors.join(*pair)
+            if amount != primary.amount.copy_abs() or amount != secondary.amount.copy_abs():
+                raise CashRelationError("relation_amount_invalid")
+            component_mirrors.join(*pair)
         elif relation.kind == "refund_offset":
             if primary.amount == secondary.amount == 0 and (parents[primary.transaction_id].amount != 0 or parents[secondary.transaction_id].amount != 0):
                 raise CashRelationError("relation_endpoint_incompatible")
             if amount > primary.amount.copy_abs():
                 raise CashRelationError("relation_amount_invalid")
         else:
+            if any(part_counts[part.transaction_id] != 1 for part in (primary, secondary)):
+                raise CashRelationError("relation_aggregate_unsupported")
+            if amount != 0:
+                raise CashRelationError("relation_amount_invalid")
             if transfer_occupied.intersection(pair):
                 raise CashRelationError("relation_endpoint_occupied")
             transfer_occupied.update(pair)
             if primary.currency.upper() == secondary.currency.upper() and primary.amount.copy_abs() != secondary.amount.copy_abs():
                 raise CashRelationError("relation_amount_invalid")
         prepared.append((relation, primary, secondary, amount))
+    component_owners, parent_parts, mirror_parents = defaultdict(set), defaultdict(set), defaultdict(set)
+    for part in components:
+        root = component_mirrors.root(part.component_id)
+        if part.transaction_id in component_owners[root]:
+            raise CashRelationError("relation_mirror_component_duplicate")
+        component_owners[root].add(part.transaction_id)
+        parent_parts[part.transaction_id].add(root)
+        mirror_parents[parent_mirrors.root(part.transaction_id)].add(part.transaction_id)
+    economic_amounts = {}
+    for members in mirror_parents.values():
+        complete = set().union(*(parent_parts[parent] for parent in members))
+        covering = [parent for parent in members if parent_parts[parent] == complete]
+        if not covering:
+            raise CashRelationError("relation_mirror_incomplete")
+        amounts = {(parents[parent].amount, parents[parent].currency) for parent in covering}
+        if len(amounts) != 1:
+            raise CashRelationError("relation_mirror_incomplete")
+        amount, _currency = amounts.pop()
+        economic_amounts.update((int(parent), amount) for parent in members)
     allocations, refund_targets = {}, defaultdict(set)
+    refund_parents = set()
     for relation, primary, secondary, amount in prepared:
         if relation.kind != "refund_offset":
             continue
@@ -224,7 +247,9 @@ def _build(facts, components, relations, funding):
         previous = allocations.setdefault(key, amount)
         if previous != amount:
             raise CashRelationError("relation_amount_invalid")
-        refund_targets[key[1]].add(parent_mirrors.root(primary.transaction_id))
+        refund_parent = parent_mirrors.root(secondary.transaction_id)
+        refund_parents.add(refund_parent)
+        refund_targets[refund_parent].add(parent_mirrors.root(primary.transaction_id))
     if any(len(targets) > 1 for targets in refund_targets.values()):
         raise CashRelationError("relation_endpoint_occupied")
     spent = defaultdict(lambda: Decimal("0"))
@@ -232,14 +257,17 @@ def _build(facts, components, relations, funding):
         spent[expense] += amount
         spent[refund] += amount
     for component in components:
-        if spent[component_mirrors.root(component.component_id)] > component.amount.copy_abs():
+        used = spent[component_mirrors.root(component.component_id)]
+        if used > component.amount.copy_abs():
             raise CashRelationError("relation_refund_exceeds_remaining")
+        if parent_mirrors.root(component.transaction_id) in refund_parents and used != component.amount.copy_abs():
+            raise CashRelationError("relation_refund_incomplete")
     projection_relations = tuple(ProjectionRelation(relation.id, relation.kind, int(primary.transaction_id), int(secondary.transaction_id),
-        subtype=relation.subtype, applied_amount=amount,
+        applied_amount=amount,
         refund_allocation_key=(component_mirrors.root(primary.component_id), component_mirrors.root(secondary.component_id))
             if relation.kind == "refund_offset" else None)
         for relation, primary, secondary, amount in sorted(prepared, key=lambda item: item[0].id))
     try:
-        return build_cash_projections(facts, projection_relations)
+        return build_cash_projections(facts, projection_relations, economic_amounts=economic_amounts)
     except CashProjectionError:
         raise CashRelationError("relation_graph_invalid") from None

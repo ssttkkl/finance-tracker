@@ -1,3 +1,4 @@
+from tests.historical_cash_schema import historical_cash_database
 from dataclasses import replace
 
 import pytest
@@ -122,6 +123,31 @@ def test_occurrence_bindings_are_transactional_and_same_file_idempotent(source_r
             _repository(session, runtime).save_occurrence(1002, replace(row, position=2, provider_id="456"))
             raise RuntimeError("synthetic save failure")
         assert len(session.scalars(select(CashSourceBindingModel)).all()) == 3
+
+
+def test_file_only_provenance_is_idempotent_and_conflicts_atomically(source_runtime):
+    from ft.adapters.relational.cash_sources import SourceBindingConflict
+    from ft.adapters.relational.models import CashTransactionModel
+    runtime = source_runtime
+    values = dict(source_type="wechat", file_digest="a" * 64,
+        parser_version="statement-output-v1", table_key="parser-output", position=0)
+    with runtime.sessions.begin() as session:
+        for identifier in (1001, 1002):
+            session.get(CashTransactionModel, identifier).source_type = "wechat"
+        session.flush()
+        repo = _repository(session, runtime)
+        repo.save_file_occurrence(1001, **values)
+        repo.save_file_occurrence(1001, **values)
+        binding, = repo.bindings_for(1001)
+        assert (binding.identity_kind, binding.source_scope_kind, binding.identity_strength) == (
+            "file_occurrence", "file_local", "file_local")
+        assert binding.stable_evidence_key is None
+        assert not binding.coverage["complete"]
+        with pytest.raises(SourceBindingConflict, match="active_source_binding"):
+            repo.save_file_occurrence(1002, **values)
+        assert repo.bindings_for(1002) == []
+        repo.save_file_occurrence(1002, **dict(values, position=1))
+        assert len(repo.bindings_for(1002)) == 1
 
 
 def test_unbound_legacy_wechat_identity_is_not_automatically_adopted(source_runtime):
@@ -349,15 +375,17 @@ def test_existing_known_source_scope_cannot_be_changed_by_a_new_file_or_merge(so
         assert repo.find(row) == 1001 and repo.find(other) == 1002
 
 
-def test_source_migration_refuses_losing_current_identity_data(source_runtime):
+def test_source_migration_refuses_losing_current_identity_data(historical_cash_database):
     from alembic import command
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = source_runtime
-    with runtime.sessions.begin() as session:
-        _repository(session, runtime).save_occurrence(1001, _occurrence())
-    with runtime.sessions.kw["bind"].connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy"):
-            command.downgrade(_migration_config(connection), "20261021_38")
+    old = historical_cash_database('20261021_39')
+    connection = old.connection
+    connection.execute(old.tables['cash_source_bindings'].insert().values(workspace_id=old.workspace_id, transaction_id=1001,
+        source_type='fixture', source_scope_kind='account', source_scope_key='owner', identity_kind='provider_id',
+        identity_key='provider-record', identity_strength='provider', strategy_version='fixture.v1', coverage={},
+        created_at=old.now, updated_at=old.now))
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy'):
+        command.downgrade(old.config, '20261021_38')
 
 
 def test_runtime_rejects_missing_source_tables_even_at_current_revision(source_runtime):

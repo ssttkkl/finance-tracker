@@ -403,7 +403,7 @@ def _open_transfer(session, runtime, monkeypatch):
         rows=(replace(row, fields={**row.fields, "record_type": "transfer_out", "record_subtype": "ordinary_transfer"}),)))
     def discover(facts, **kwargs):
         anchor = next(fact for fact in facts if fact.record_type == "transfer_out")
-        return SimpleNamespace(proposals=(RelationProposal("transfer_pair", anchor.id, None, subtype="ordinary_transfer",
+        return SimpleNamespace(proposals=(RelationProposal("transfer_pair", anchor.id, None,
             evidence=RelationEvidence(open_leg=True, anchor_role="outgoing", candidate_fact_ids=("1001", "1002"))),))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
     return file
@@ -485,7 +485,7 @@ def test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_fir
         document=replace(first.document, rows=(replace(first.document.rows[0], provider_id="another-transfer",
             fields={**first.document.rows[0].fields, "source_payload": {"交易号": "another-transfer"}}),)))
     def discover(facts, **kwargs):
-        return SimpleNamespace(proposals=tuple(RelationProposal("transfer_pair", fact.id, None, subtype="ordinary_transfer",
+        return SimpleNamespace(proposals=tuple(RelationProposal("transfer_pair", fact.id, None,
             evidence=RelationEvidence(open_leg=True, anchor_role="outgoing", candidate_fact_ids=("1001", "1002")))
             for fact in facts if fact.record_type == "transfer_out"))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
@@ -495,14 +495,13 @@ def test_choices_that_compete_for_one_endpoint_fail_together_without_keeping_fir
         choices = [{"suggestion_id": group["suggestion_id"], "action": "accept",
             "candidate_id": next(candidate["candidate_id"] for candidate in group["candidates"]
                 if {"transaction_id": "1001"} in candidate["member_refs"])} for group in initial["relation_groups"]]
-        conflicted = _build(session, draft_runtime, (first, second), previous=initial, relations=choices)
-        assert all(group["action"] == "skip" for group in conflicted["relation_groups"])
-        assert all(len(item["member_refs"]) == 1 for item in conflicted["items"])
-        assert len({group["commit_group_id"] for group in conflicted["relation_groups"]}) == 1
-        assert len(conflicted["operations"]) == 2
+        from ft.domain.cash_record_policy import CashRecordPolicyError
+        with pytest.raises(CashRecordPolicyError):
+            _build(session, draft_runtime, (first, second), previous=initial, relations=choices)
+        assert session.scalar(select(func.count()).select_from(TransactionRelationModel)) == 0
 
 
-def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kept(draft_runtime, monkeypatch):
+def test_invalid_auto_candidate_is_dropped_without_attention_or_business_failure(draft_runtime, monkeypatch, caplog):
     from types import SimpleNamespace
     from ft.domain.relations import RelationProposal
     import ft.application.cash_import_business_plan as module
@@ -515,13 +514,42 @@ def test_one_invalid_relation_reports_reason_while_independent_valid_pair_is_kep
         good, bad = by_amount[Decimal("-12.5")], by_amount[Decimal("-7")]
         return SimpleNamespace(proposals=(RelationProposal("payment_mirror", good[0].id, good[1].id,
             status="accepted", confidence="strong"), RelationProposal("transfer_pair", bad[0].id, bad[1].id,
-            subtype="ordinary_transfer", status="accepted", confidence="strong")))
+            status="accepted", confidence="strong")))
     monkeypatch.setattr(module, "plan_relation_proposals", discover)
     with draft_runtime.sessions() as session:
         plan = _build(session, draft_runtime, files)
         assert len(plan["operations"]) == 4 and len(plan["items"]) == 3
-        assert plan["summary"]["relations_accepted"] == 1 and plan["summary"]["relations_failed"] == 1
-        assert len([item for item in plan["items"] if item["confirmation_status"] == "pending"]) == 2
+        assert plan["summary"]["relations_accepted"] == 1 and plan["summary"]["relations_failed"] == 0
+        assert plan["relation_failures"] == []
+        assert all(item["confirmation_status"] == "confirmed" for item in plan["items"])
+        assert "relation_candidate_discarded" in caplog.text
+        assert "原始" not in caplog.text
+
+
+@pytest.mark.parametrize("confidence", ["strong", "weak"])
+def test_partial_refund_candidate_cannot_be_saved_as_pending(draft_runtime, monkeypatch, caplog, confidence):
+    from types import SimpleNamespace
+    from ft.domain.relations import RelationEvidence, RelationProposal
+    import ft.application.cash_import_business_plan as module
+    expense = _file(amount="-100")
+    refund = _file(letter="b", amount="30", provider="refund-30")
+    row = refund.document.rows[0]
+    refund = replace(refund, document=replace(refund.document,
+        rows=(replace(row, fields={**row.fields, "record_type": "refund"}),)))
+    def discover(facts, **kwargs):
+        primary = next(fact for fact in facts if fact.amount == Decimal("-100"))
+        secondary = next(fact for fact in facts if fact.amount == Decimal("30"))
+        return SimpleNamespace(proposals=(RelationProposal("refund_offset", primary.id, secondary.id,
+            status="accepted" if confidence == "strong" else "pending_review", confidence=confidence,
+            evidence=RelationEvidence(extras={"refund_amount": "10"})),))
+    monkeypatch.setattr(module, "plan_relation_proposals", discover)
+    with draft_runtime.sessions() as session:
+        plan = _build(session, draft_runtime, (expense, refund))
+    assert plan["relation_groups"] == []
+    assert plan["relation_failures"] == []
+    assert all(item["confirmation_status"] == "confirmed" for item in plan["items"])
+    assert {Decimal(item["display"]["amount"]) for item in plan["items"]} == {Decimal("-100"), Decimal("30")}
+    assert "relation_candidate_discarded" in caplog.text
 
 
 @pytest.mark.parametrize("action", ["accept", "ignore"])

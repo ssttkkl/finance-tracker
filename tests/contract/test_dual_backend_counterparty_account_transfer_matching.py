@@ -5,6 +5,7 @@ import pytest
 from sqlalchemy import select
 
 from conftest import postgres_test_backend_params, reset_postgres_schema
+from tests.test_import_scan_refund_boundary import _add_cash
 
 
 def _backend(tmp_path, backend):
@@ -86,17 +87,17 @@ def test_ordinary_transfer_uses_workspace_scoped_account_identifier(tmp_path, ba
             session.account_aliases.add(
                 alias_type="account_identifier", alias_value="6222000000001234", account_id=target.id,
             )
-            out_id = session.cashflows.add("cash", _row(
+            out_id = _add_cash(session, _row(
                 account_name="来源账户", record_id="out", amount="-1000.00",
                 record_type="transfer_out", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-01 10:00:00", counterparty_account="6222000000001234",
             ))
-            session.cashflows.add("cash", _row(
+            _add_cash(session, _row(
                 account_name="错误候选", record_id="wrong", amount="1000.00",
                 record_type="transfer_in", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-01 10:00:01",
             ))
-            target_id = session.cashflows.add("cash", _row(
+            target_id = _add_cash(session, _row(
                 account_name="目标账户", record_id="target", amount="1000.00",
                 record_type="transfer_in", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-01 10:00:02",
@@ -117,7 +118,7 @@ def test_ordinary_transfer_uses_workspace_scoped_account_identifier(tmp_path, ba
             assert relation is not None
             assert relation.state == "confirmed" and relation.active
             assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, target_id}
-            assert relation.subtype == "ordinary_transfer"
+            assert not hasattr(relation, "subtype")
     finally:
         engine.dispose()
 
@@ -140,13 +141,13 @@ def test_masked_account_attrs_are_persisted_and_consumed_equally(tmp_path, backe
             session.account_aliases.add(
                 alias_type="account_identifier", alias_value="6222000000004321", account_id=target.id,
             )
-            out_id = session.cashflows.add("cash", _row(
+            out_id = _add_cash(session, _row(
                 account_name="来源账户", record_id="out-masked", amount="-100.00",
                 record_type="transfer_out", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-01 10:00:00", counterparty_account="6222****4321",
                 counterparty_account_attrs=["masked"],
             ))
-            in_id = session.cashflows.add("cash", _row(
+            in_id = _add_cash(session, _row(
                 account_name="目标账户", record_id="in-masked", amount="100.00",
                 record_type="transfer_in", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-04 10:00:00",
@@ -254,13 +255,13 @@ def test_cross_border_cross_currency_uses_normalized_fields_not_source(tmp_path,
             session.account_aliases.add(
                 alias_type="account_identifier", alias_value="123456780", account_id=target.id,
             )
-            out_id = session.cashflows.add("cash", _row(
+            out_id = _add_cash(session, _row(
                 account_name="境内账户", record_id="out", amount="-100.00", currency="CNY",
                 record_type="transfer_out", record_subtype="cross_border_remittance",
                 occurred_at="2026-05-24 13:47:00", counterparty_account="123456780",
                 source_type="unrelated-a",
             ))
-            in_id = session.cashflows.add("cash", _row(
+            in_id = _add_cash(session, _row(
                 account_name="境外账户", record_id="in", amount="108.00", currency="HKD",
                 record_type="transfer_in", record_subtype="ordinary_transfer",
                 occurred_at="2026-05-24 13:47:07", source_type="unrelated-b",
@@ -273,7 +274,7 @@ def test_cross_border_cross_currency_uses_normalized_fields_not_source(tmp_path,
             assert relation is not None
             assert relation.state == "confirmed" and relation.active
             assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
-            assert relation.subtype == "cross_currency_remittance"
+            assert not hasattr(relation, "subtype")
     finally:
         engine.dispose()
 
@@ -296,12 +297,12 @@ def test_cross_border_same_currency_uses_full_targeted_window(tmp_path, backend)
             session.account_aliases.add(
                 alias_type="card_tail", alias_value="4245", account_id=target.id,
             )
-            out_id = session.cashflows.add("cash", _row(
+            out_id = _add_cash(session, _row(
                 account_name="境内账户", record_id="out", amount="-4000.00", currency="USD",
                 record_type="transfer_out", record_subtype="cross_border_remittance",
                 occurred_at="2026-01-23 11:38:22", counterparty_account="123456784245",
             ))
-            in_id = session.cashflows.add("cash", _row(
+            in_id = _add_cash(session, _row(
                 account_name="境外账户", record_id="in", amount="4000.00", currency="USD",
                 record_type="transfer_in", record_subtype="ordinary_transfer",
                 occurred_at="2026-01-26 02:45:44",
@@ -314,7 +315,7 @@ def test_cross_border_same_currency_uses_full_targeted_window(tmp_path, backend)
             assert relation is not None
             assert relation.state == "confirmed" and relation.active
             assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
-            assert relation.subtype == "ordinary_transfer"
+            assert not hasattr(relation, "subtype")
     finally:
         engine.dispose()
 
@@ -336,12 +337,12 @@ def test_internal_cross_currency_transfer_allows_the_same_account(tmp_path, back
             session.account_aliases.add(
                 alias_type="account_identifier", alias_value="123456780", account_id=account.id,
             )
-            out_id = session.cashflows.add("cash", _row(
+            out_id = _add_cash(session, _row(
                 account_name="多币种账户", record_id="out", amount="-100.00", currency="CNY",
                 record_type="transfer_out", record_subtype="internal_account_transfer",
                 occurred_at="2026-05-24 13:47:00", counterparty_account="123456780",
             ))
-            in_id = session.cashflows.add("cash", _row(
+            in_id = _add_cash(session, _row(
                 account_name="多币种账户", record_id="in", amount="108.00", currency="HKD",
                 record_type="transfer_in", record_subtype="internal_account_transfer",
                 occurred_at="2026-05-24 13:47:07",
@@ -354,7 +355,7 @@ def test_internal_cross_currency_transfer_allows_the_same_account(tmp_path, back
             assert relation is not None
             assert relation.state == "confirmed" and relation.active
             assert {relation.primary_component_id, relation.secondary_component_id} == {out_id, in_id}
-            assert relation.subtype == "currency_exchange"
+            assert not hasattr(relation, "subtype")
     finally:
         engine.dispose()
 

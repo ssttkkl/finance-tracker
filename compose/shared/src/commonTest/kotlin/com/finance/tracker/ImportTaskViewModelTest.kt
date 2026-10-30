@@ -681,7 +681,7 @@ internal class TaskRepository : CashImportLifecycleRepository {
     }
     override suspend fun item(planId: String, itemId: String) = ImportItemDetail(itemId,
         listOf(ImportMemberDetail("f:r1", null, "create_draft", StructuredObject(emptyMap()), listOf("note"), listOf("apply", "defer"), null)),
-        emptyList(), emptyList(), listOf(ImportPairOption("sg_one", "refund_offset", null, "defer", null, emptyList(), emptyList(), listOf("accept", "defer", "ignore"), null)), emptyList(),
+        emptyList(), emptyList(), listOf(ImportPairOption("sg_one", "refund_offset", "defer", null, emptyList(), emptyList(), listOf("accept", "defer", "ignore"), null)), emptyList(),
         ImportEntryFields(StructuredObject(mapOf("note" to StructuredText("original"))), listOf("note"), "ie_whole"))
     override suspend fun processing(planId: String, cursor: String?, limit: Int): ImportProcessingPage = error("unused")
     override suspend fun receiptByKey(key: String): ImportReceipt = error("unused")

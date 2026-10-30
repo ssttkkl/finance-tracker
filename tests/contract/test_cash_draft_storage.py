@@ -1,4 +1,5 @@
 from tests.cash_relation_fixtures import cash_relation_fixture
+from tests.historical_cash_schema import historical_cash_database, migration_config as _migration_config
 
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -128,73 +129,41 @@ def test_component_has_enforceable_parent_identity():
     }
 
 
-def _migration_config(connection):
-    from alembic.config import Config
-    from pathlib import Path
-    root = Path(__file__).parents[2]
-    config = Config(str(root / "alembic.ini"))
-    config.set_main_option("script_location", str(root / "migrations"))
-    config.attributes["connection"] = connection
-    return config
-
-
-def test_draft_migration_round_trip_preserves_populated_ledger(draft_runtime):
+def test_draft_migration_round_trip_preserves_populated_ledger(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.adapters.relational.models import TransactionRelationModel
-    from ft.application.cash_projections import CashProjectionService
-    runtime = draft_runtime
-    with runtime.sessions.begin() as session:
-        session.add(cash_relation_fixture(session, complete_legacy_types=True,
-                        workspace_id=runtime.workspace_id,
-                        kind="refund_offset",
-                        # A lossless round trip has no pending projection state.
-                        # Pending-state downgrade refusal is tested separately.
-                        state='ignored',
-                        primary_component_id=1002,
-                        secondary_component_id=1003,
-                        anchor_component_id=1002
-                    ))
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    tables = ["cash_transactions", "cash_transaction_components", "transaction_relations",
-              "cash_projections", "cash_projection_members", "cash_projection_states",
-              "cash_projection_datasets", "accounts"]
-
-    def contents(connection):
-        return {table: sorted([
-            tuple((key, str(value)) for key, value in row._mapping.items()
-                  if not (table == "cash_transactions" and key in {"state", "row_revision"})
-                  and not (table == "cash_projections" and key == "entry_id")
-                  and not (table == "cash_projection_states" and key == "availability"))
-            for row in connection.execute(text(f"SELECT * FROM {table}"))
-        ], key=repr) for table in tables}
-
-    engine = runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        before = contents(connection)
-        connection.commit()
-        config = _migration_config(connection)
-        command.downgrade(config, "20261018_37")
-        command.upgrade(config, "head")
-        connection.commit()
-        assert contents(connection) == before
-        assert set(connection.execute(text("SELECT availability FROM cash_projection_states")).scalars()) == {"uninitialized"}
-        if connection.dialect.name == "sqlite":
-            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-            assert connection.exec_driver_sql("PRAGMA foreign_key_check").all() == []
+    old = historical_cash_database('20261018_37', projections=True)
+    connection = old.connection
+    relation = old.tables['transaction_relations']
+    connection.execute(relation.insert().values(workspace_id=old.workspace_id, kind='refund_offset',
+        primary_component_id=1002, secondary_component_id=1003, anchor_component_id=1002,
+        secondary_fact_type='cash', ordered_component_a=1002, ordered_component_b=1003, status='rejected'))
+    connection.commit()
+    names = ('cash_transactions', 'cash_transaction_components', 'transaction_relations', 'cash_projections',
+        'cash_projection_members', 'cash_projection_states', 'cash_projection_datasets', 'accounts')
+    def contents():
+        return {name: connection.execute(text(f'SELECT * FROM {name} ORDER BY 1')).all() for name in names}
+    before = contents()
+    connection.commit()
+    command.upgrade(old.config, '20261021_38')
+    assert connection.execute(text('SELECT state,row_revision FROM cash_transactions')).all() == [('posted', 1)] * 3
+    connection.commit()
+    command.downgrade(old.config, '20261018_37')
+    assert contents() == before
+    if connection.dialect.name == 'sqlite':
+        assert connection.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
+        assert connection.exec_driver_sql('PRAGMA foreign_key_check').all() == []
 
 
-def test_draft_migration_refuses_lossy_downgrade(draft_runtime):
+def test_draft_migration_refuses_lossy_downgrade(historical_cash_database):
     from alembic import command
-    from ft.adapters.relational.models import CashTransactionModel
-    with draft_runtime.sessions.begin() as session:
-        session.add(CashTransactionModel(
-            workspace_id=draft_runtime.workspace_id, state="draft", amount=None,
-            currency=None, occurred_at=None,
-        ))
-    with draft_runtime.sessions.kw["bind"].connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy"):
-            command.downgrade(_migration_config(connection), "20261018_37")
+    old = historical_cash_database('20261021_38')
+    connection = old.connection
+    connection.execute(old.tables['cash_transactions'].insert().values(workspace_id=old.workspace_id,
+        state='draft', amount=None, currency=None, occurred_at=None, created_at=old.now))
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy'):
+        command.downgrade(old.config, '20261018_37')
 
 
 def test_sqlite_migration_does_not_commit_caller_writes(cash_web_runtime):
@@ -209,22 +178,21 @@ def test_sqlite_migration_does_not_commit_caller_writes(cash_web_runtime):
         assert connection.exec_driver_sql("SELECT note FROM cash_transactions WHERE id = 1001").scalar() != "uncommitted"
 
 
-def test_sqlite_migration_failure_rolls_back_schema_and_restores_foreign_keys(cash_web_runtime):
+def test_sqlite_migration_failure_rolls_back_schema_and_restores_foreign_keys(historical_cash_database):
     from alembic import command
     from sqlalchemy import inspect
-    engine = cash_web_runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        config = _migration_config(connection)
-        command.downgrade(config, "20261018_37")
-        connection.commit()
-        driver = connection.connection.driver_connection
-        driver.execute("PRAGMA foreign_keys=OFF")
-        driver.execute("UPDATE cash_transactions SET account_id = 99999 WHERE id = 1001")
-        driver.commit()
-        driver.execute("PRAGMA foreign_keys=ON")
-        with pytest.raises(RuntimeError, match="foreign-key validation"):
-            command.upgrade(config, "head")
-        assert "state" not in {column["name"] for column in inspect(connection).get_columns("cash_transactions")}
-        assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == "20261018_37"
-        assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-        assert connection.exec_driver_sql("SELECT count(*) FROM cash_transaction_components").scalar() == 3
+    old = historical_cash_database('20261018_37')
+    connection = old.connection
+    if connection.dialect.name != 'sqlite':
+        pytest.skip('SQLite foreign-key restoration')
+    driver = connection.connection.driver_connection
+    driver.execute('PRAGMA foreign_keys=OFF')
+    driver.execute('UPDATE cash_transactions SET account_id=99999 WHERE id=1001')
+    driver.commit()
+    driver.execute('PRAGMA foreign_keys=ON')
+    with pytest.raises(RuntimeError, match='foreign-key validation'):
+        command.upgrade(old.config, '20261021_38')
+    assert 'state' not in {column['name'] for column in inspect(connection).get_columns('cash_transactions')}
+    assert connection.exec_driver_sql('SELECT version_num FROM alembic_version').scalar() == '20261018_37'
+    assert connection.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
+    assert connection.exec_driver_sql('SELECT count(*) FROM cash_transaction_components').scalar() == 3

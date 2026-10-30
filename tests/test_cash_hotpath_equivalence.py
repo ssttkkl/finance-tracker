@@ -20,7 +20,7 @@ def _fact(identifier=1, amount='-20', **changes):
 def test_single_projection_equals_general_algorithm(amount, funding, attention, monkeypatch):
     import ft.domain.cash_projection as module
     fact = _fact(amount=amount, funding_relation_id=funding, needs_attention=attention)
-    expected = module._validate_group([fact.id], {fact.id: fact}, ())
+    expected = module._validate_group([fact.id], {fact.id: fact}, (), {})
     monkeypatch.setattr(module, '_validate_group', lambda *a: pytest.fail('unnecessary singleton graph'))
     assert build_cash_projections((fact,), ()).projections == (expected,)
 

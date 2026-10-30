@@ -65,7 +65,6 @@ def _proposal_pair(
     extras: dict | None = None,
     allow_investment_out: bool = False,
     allow_transfer_reversal: bool = False,
-    subtype: str = SUBTYPE_NONE,
 ) -> RelationProposal | None:
     if not exp_id or not ref_id or exp_id == ref_id:
         return None
@@ -131,7 +130,7 @@ def _proposal_pair(
         secondary_fact_id=secondary,
         primary_fact_type=exp.fact_type if primary == exp_id else ref.fact_type,
         secondary_fact_type=ref.fact_type if secondary == ref_id else exp.fact_type,
-        subtype=subtype,
+
         status=RelationStatus.ACCEPTED.value,
         rule_id=rid,
         confidence=CONFIDENCE_STRONG,
@@ -406,11 +405,7 @@ def _match_phase_a_in_scope(
                 ref=facts_by_id.get(ref_id),
                 rule_id=rule_id,
                 allow_transfer_reversal=rule_id.endswith("transfer_return.v1"),
-                subtype=(
-                    SUBTYPE_P2P_RETURN
-                    if rule_id.endswith("transfer_return.v1")
-                    else SUBTYPE_NONE
-                ),
+
             )
             if prop is not None:
                 proposals.append(prop)

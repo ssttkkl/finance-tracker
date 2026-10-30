@@ -69,7 +69,7 @@
 
 只有一个完整备选时默认选中且不显示单选按钮；多个备选按完整方案单选，方案内的流水只读，不显示逐笔复选框。初始备选页不显示搜索框、筛选或其他流水，也不请求手动搜索。进入搜索后隐藏备选，单选一笔对侧流水；“返回建议备选”保留原方案选择并清除未提交的搜索选择，不提交任何决定。无备选时不提供返回空备选的入口。
 
-建议中的手动搜索沿用该建议的关系类型及适用子类型，只选择对应流水，不再要求选择关系类型；主动“关联流水”才提供关系类型选择。
+建议中的手动搜索沿用该建议的关系类型，只选择对应流水，不再要求选择关系类型；主动“关联流水”才提供关系类型选择。
 
 ### 0 个备选的准确业务含义
 
@@ -151,7 +151,7 @@
 
 实际存在消费镜像、退款联系、退款镜像共同成立的完整方案，不能假设“每条建议只有一个对侧流水”。“一个关系边”“一个成员”“一套完整方案”是不同对象。页面可以不按关系类型分组，但后台完整组约束仍保留。
 
-现金关系种类为 `payment_mirror`（同笔支付）、`refund_offset`（退款）及 `transfer_pair`（转账）。转账细分包括普通转账、信用账户还款、换汇、跨币种汇款；退款还可能有 `p2p_return` 专用语义。具体合法组合必须核对代码，不能根据展示名称自行放宽。
+现金关系种类为 `payment_mirror`（同笔支付）、`refund_offset`（退款）及 `transfer_pair`（转账）。[关系治理设计](../../openspec/changes/archive/2026-10-30-govern-cash-relation-model/design.md) 移除关系子类型选择；普通转账、信用还款、个人购汇、跨境汇款与转账退回作为派生业务标签保留，合法性按共同角色、账户、币种、完整金额和关系图校验。Compose 已同步治理合同并保留现有 UI，用户已确认首版演示，最终审查与 QA 尚未完成。
 
 共享 Compose 已消费证据中的实际成员及其已确认关系端点，以实际关系形成成员标签；联合方案按完整关系列表显示，不靠首条关系推断整组。
 
@@ -191,7 +191,7 @@
 |---|---|
 | [CashCurrentRecordPanel.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashCurrentRecordPanel.kt) | 当前详情、关联和原文展示 |
 | [CashRecordSummary.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordSummary.kt) | 顶部基础信息与摘要 |
-| [CashRelationTreatment.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRelationTreatment.kt) | 现有完整建议、冲突和解除选择 |
+| [CashDetailRelations.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashDetailRelations.kt) | 现有关系建议、关联弹窗、完整成员和解除入口 |
 | [CashRecordTaskViewModel.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/presentation/CashRecordTaskViewModel.kt) | 当前维护状态、预览与提交 |
 | [CashSourceDtos.kt](../../compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashSourceDtos.kt) | 证据字段的客户端读取缺口 |
 | [cash_current_relation_plan.py](../../src/ft/application/cash_current_relation_plan.py) | 现有关系／建议维护；不搜索新配对 |

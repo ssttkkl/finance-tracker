@@ -34,7 +34,6 @@ def prepare_transfer_members(planner, row, patches):
     exchange = values[0]['currency'] != values[1]['currency']
     repayment = not exchange and any(account.type == 'loan' for account in accounts)
     types = ('fx_out', 'fx_in') if exchange else ('repayment', 'repayment') if repayment else ('transfer_out', 'transfer_in')
-    subtype = 'currency_exchange' if exchange else 'credit_repayment' if repayment else 'ordinary_transfer'
     operations = []
     for member, record_type in zip(members, types):
         patch = dict(patches[str(member.id)])
@@ -42,20 +41,20 @@ def prepare_transfer_members(planner, row, patches):
         if any(field in patch and patch[field] != value for field, value in derived.items()):
             raise CashRecordPolicyError('relation_endpoint_incompatible', ('record_type', 'record_subtype'))
         operations.append(planner._prepare(member, {**patch, **derived}, allow_group_financial=True))
-    update = {'relation_id': relation['id'], 'expected_revision': relation['row_revision'], 'subtype': subtype}
+    update = {'relation_id': relation['id'], 'expected_revision': relation['row_revision']}
     return members, operations, update
 
 
 def overlay_transfer(snapshot, updates):
     for update in updates:
         edge = snapshot.edges[update['relation_id']]
-        snapshot.edges[edge.id] = replace(edge, subtype=update['subtype'])
+        snapshot.edges[edge.id] = edge
 
 
 def save_transfer_relations(session, workspace_id, updates, parents):
     from ft.application.cash_relation_context import CashRelationGraphService
     repository = CurrentCashRelationRepository(session, workspace_id)
     for update in updates:
-        repository.replace(update['relation_id'], {'subtype': update['subtype']}, expected_revision=update['expected_revision'])
+        repository.replace(update['relation_id'], {}, expected_revision=update['expected_revision'])
     service = CashRelationGraphService(session, workspace_id)
     service.validate(service.load(parents))

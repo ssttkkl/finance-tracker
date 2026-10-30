@@ -51,7 +51,7 @@ class CashCategoryDTO:
 @dataclass(frozen=True)
 class ProjectionDTO:
     projection_id: str; occurred_at: str | None; account: CashAccountSummaryDTO | None; counterparty: str; category: CashCategoryDTO | None; note: str
-    amount: str | None; currency: str | None; economic_type: str | None; transfer_subtype: str | None; composition: tuple[str, ...]
+    amount: str | None; currency: str | None; economic_type: str | None; business_label: str | None; composition: tuple[str, ...]
     member_count: int; accepted_relation_summary: tuple[dict, ...]; source_type: str | None; source_types: tuple[str, ...]; record_id: str
     visible: bool = True; hidden_reason: str | None = None; transfer: CashTransferDTO | None = None
     state: str = "posted"; statistics_eligible: bool = True; attention_count: int = 0
@@ -98,7 +98,7 @@ class CurrentProjectionRefDTO:
 @dataclass(frozen=True)
 class CashEconomicTypeFilterOptionDTO:
     economic_type: str
-    transfer_subtypes: tuple[str, ...]
+    business_labels: tuple[str, ...]
 
 @dataclass(frozen=True)
 class CashFilterOptionsDTO:
@@ -144,7 +144,7 @@ class ProjectionReadPage:
 class ProjectionFilters:
     date_from: str | None = None; date_to: str | None = None; account_id: int | None = None; counterparty: str | None = None
     category_id: str | None = None; uncategorized: bool = False; currency: str | None = None; amount_min: str | None = None; amount_max: str | None = None
-    economic_type: str | None = None; transfer_subtype: str | None = None; composition: str | None = None
+    economic_type: str | None = None; business_label: str | None = None; composition: str | None = None
     timezone: str = DEFAULT_TIMEZONE
     state: str = "all"
     confirmation_status: str | None = None
@@ -196,18 +196,18 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
     minimum, maximum = decimal("amount_min"), decimal("amount_max")
     if minimum is not None and maximum is not None and Decimal(minimum) > Decimal(maximum): raise ValueError("invalid_filter")
     economic = values.get("economic_type") or None
-    subtype = values.get("transfer_subtype") or None
+    business_label = values.get("business_label") or None
     composition = values.get("composition") or None
     if not isinstance(economic, str) and economic is not None: raise ValueError("invalid_filter")
-    if not isinstance(subtype, str) and subtype is not None: raise ValueError("invalid_filter")
-    if subtype is not None:
-        subtype = subtype.strip()
-        if not subtype or len(subtype) > 32: raise ValueError("invalid_filter")
+    if not isinstance(business_label, str) and business_label is not None: raise ValueError("invalid_filter")
+    if business_label is not None:
+        business_label = business_label.strip()
+        if not business_label or len(business_label) > 32: raise ValueError("invalid_filter")
     if economic == "bank_security_transfer":
-        if subtype not in (None, "bank_security_transfer"): raise ValueError("invalid_filter")
-        economic, subtype = "internal_transfer", "bank_security_transfer"
+        if business_label not in (None, "bank_security_transfer"): raise ValueError("invalid_filter")
+        economic, business_label = "internal_transfer", "bank_security_transfer"
     if economic not in {None, "expense", "income", "internal_transfer"} or composition not in {None, "single", "payment_mirror", "refund_offset", "combined"}: raise ValueError("invalid_filter")
-    if subtype is not None:
+    if business_label is not None:
         if economic is None: economic = "internal_transfer"
         elif economic != "internal_transfer": raise ValueError("invalid_filter")
     category_id, uncategorized = _category_filter_value(values)
@@ -224,7 +224,7 @@ def normalize_filters(**values: Any) -> ProjectionFilters:
         hide_zero_amount = hide_zero_amount.lower() == "true"
     if not isinstance(hide_zero_amount, bool):
         raise ValueError("invalid_filter")
-    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, category_id, uncategorized, currency.upper() if currency else None, minimum, maximum, economic, subtype, composition, timezone_name, state or "all", confirmation or None, hide_zero_amount)
+    return ProjectionFilters(start.isoformat() if start else None, end.isoformat() if end else None, account_id, (values.get("counterparty") or "").strip() or None, category_id, uncategorized, currency.upper() if currency else None, minimum, maximum, economic, business_label, composition, timezone_name, state or "all", confirmation or None, hide_zero_amount)
 
 def local_bounds(filters):
     zone = ZoneInfo(filters.timezone)

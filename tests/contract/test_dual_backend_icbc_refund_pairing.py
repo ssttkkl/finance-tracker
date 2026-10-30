@@ -96,8 +96,8 @@ def _rows():
 
 
 @pytest.mark.parametrize("backend", postgres_test_backend_params())
-def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
-    from ft.adapters.relational.models import CashTransactionModel, TransactionRelationModel
+def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend, monkeypatch):
+    from ft.adapters.relational.models import CashSourceBindingModel, CashTransactionModel, TransactionRelationModel
     from ft.application.relations import RelationService
     from ft.domain.imports import StatementImportCommand
     from ft.domain.relations import RelationKind, RelationStatus
@@ -127,6 +127,9 @@ def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
         with sessions() as session:
             facts = list(session.scalars(select(CashTransactionModel).order_by(CashTransactionModel.occurred_at)))
             assert [fact.source_type for fact in facts] == ["icbc_credit"] * 3
+            bindings = list(session.scalars(select(CashSourceBindingModel)))
+            assert {binding.transaction_id for binding in bindings} == {fact.id for fact in facts}
+            assert len(bindings) == 3
             refund = facts[1]
             assert refund.source_payload == {
                 "原始文本单元": ["退货", "美团支付-美团App山葵村烤肉"],
@@ -149,5 +152,25 @@ def test_icbc_refund_import_and_scan_are_backend_equivalent(tmp_path, backend):
             assert len(relations) == 1
             assert not hasattr(relations[0], "confidence")
             assert not hasattr(relations[0], "evidence_json")
+        from ft.application.cash_projections import CashProjectionService
+        projections = CashProjectionService(sessions, "icbc-refund-parity")
+        projections.rebuild()
+        maintained = []
+        maintain = CashProjectionService.maintain_if_ready_in_session
+
+        def track(session, workspace, identifiers, **kwargs):
+            maintained.append(set(identifiers))
+            return maintain(session, workspace, identifiers, **kwargs)
+
+        monkeypatch.setattr(CashProjectionService, "maintain_if_ready_in_session", staticmethod(track))
+        source.write_bytes(b"overlapping icbc fixture")
+        third = service.import_statement(StatementImportCommand(
+            source_path=str(source), source="icbc", currency="CNY",
+        ))
+        assert third.count == 0
+        assert maintained == [{fact.id for fact in facts}]
+        maintained.clear()
+        service.import_statement(StatementImportCommand(source_path=str(source), source="icbc", currency="CNY"))
+        assert maintained == []
     finally:
         engine.dispose()

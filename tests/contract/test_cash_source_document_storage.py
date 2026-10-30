@@ -1,4 +1,5 @@
 """跨会话证据含空页，且只读取当前活动来源与有界候选空间。"""
+from tests.historical_cash_schema import historical_cash_database
 from dataclasses import replace
 from datetime import datetime, timezone
 
@@ -182,25 +183,27 @@ def test_old_complete_flag_does_not_substitute_for_deleted_page_evidence(draft_r
         assert all(not coverage.complete for record in prepared.records for coverage in record.coverages)
 
 
-def test_empty_page_migration_roundtrip_preserves_sources_and_rejects_losing_evidence(draft_runtime):
+def test_empty_page_migration_roundtrip_preserves_sources_and_rejects_losing_evidence(historical_cash_database):
     from alembic import command
-    from sqlalchemy import text
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = draft_runtime
-    with runtime.sessions.kw["bind"].connect() as connection:
-        before = connection.execute(text("SELECT * FROM cash_transactions ORDER BY id")).all()
-        command.downgrade(_migration_config(connection), "20261021_46")
-        connection.commit()
-        command.upgrade(_migration_config(connection), "head")
-        connection.commit()
-        assert connection.execute(text("SELECT * FROM cash_transactions ORDER BY id")).all() == before
-    with runtime.sessions.begin() as session:
-        _documents(session, runtime).save_empty_pages((document_file(document_coverage({"1": "a" * 64})),))
-    with runtime.sessions.kw["bind"].connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy downgrade"):
-            command.downgrade(_migration_config(connection), "20261021_46")
-        connection.rollback()
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261028_51"
+    from sqlalchemy import MetaData, Table, text
+    old = historical_cash_database('20261021_46')
+    connection = old.connection
+    before = connection.execute(text('SELECT * FROM cash_transactions ORDER BY id')).all()
+    connection.commit()
+    command.upgrade(old.config, '20261021_47')
+    connection.commit()
+    command.downgrade(old.config, '20261021_46')
+    connection.commit()
+    command.upgrade(old.config, '20261021_47')
+    assert connection.execute(text('SELECT * FROM cash_transactions ORDER BY id')).all() == before
+    empty = Table('cash_source_empty_pages', MetaData(), autoload_with=connection)
+    connection.execute(empty.insert().values(workspace_id=old.workspace_id, source_type='fixture', parser_version='v1',
+        document_key='a' * 64, page_number=1, coverage={'pages': {'1': 'a' * 64}}))
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy downgrade'):
+        command.downgrade(old.config, '20261021_46')
+    connection.rollback()
+    assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_47'
 
 
 def test_draft_binding_transfer_keeps_page_conflicts_scoped_to_parser(draft_runtime):

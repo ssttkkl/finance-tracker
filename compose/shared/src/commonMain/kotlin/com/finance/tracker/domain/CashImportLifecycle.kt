@@ -88,19 +88,19 @@ data class ImportFieldDiff(
     val rowRef: String?, val transactionId: String?, val field: String, val current: StructuredValue,
     val incoming: StructuredValue, val effective: StructuredValue, val resolution: String,
 )
-data class ImportPairRelation(val kind: String, val subtype: String?, val members: List<ImportMemberRef>)
+data class ImportPairRelation(val kind: String, val members: List<ImportMemberRef>)
 data class ImportPairCandidate(val candidateId: String, val display: ImportDisplay?, val members: List<ImportMemberRef>, val code: String?,
     val relations: List<ImportPairRelation> = emptyList())
 data class ImportSplitFieldDiff(val field: String, val current: StructuredValue, val restored: StructuredValue)
 data class ImportPairOption(
-    val suggestionId: String, val kind: String?, val subtype: String?, val action: String, val candidateId: String?,
+    val suggestionId: String, val kind: String?, val action: String, val candidateId: String?,
     val candidates: List<ImportPairCandidate>, val members: List<ImportMemberRef>, val allowedActions: List<String>, val code: String?,
     val commonFieldConflicts: Map<String, List<StructuredValue>> = emptyMap(),
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
     val relationIds: List<String> = emptyList(), val splitFieldDiffs: List<ImportSplitFieldDiff> = emptyList(),
     val relations: List<ImportPairRelation> = emptyList(),
 )
-data class ImportPairEffect(val relationId: String, val kind: String, val subtype: String?, val effect: String, val members: List<ImportMemberRef>, val code: String?)
+data class ImportPairEffect(val relationId: String, val kind: String, val effect: String, val members: List<ImportMemberRef>, val code: String?)
 data class ImportEntryFields(val fields: StructuredObject, val editableFields: List<String>, val editRef: String? = null)
 data class ImportItemDetail(
     val itemId: String, val members: List<ImportMemberDetail>, val fieldDiffs: List<ImportFieldDiff>,

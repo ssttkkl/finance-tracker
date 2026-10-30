@@ -1,5 +1,6 @@
 
 from cash_entry_fixtures import create_import_record
+from tests.cash_projection_assertions import current_projection_id
 from decimal import Decimal
 from pathlib import Path
 
@@ -92,7 +93,6 @@ def test_delete_record_removes_relation_and_keeps_other_endpoint(cash_web_runtim
         "primary_fact_id": outgoing["record"]["id"],
         "secondary_fact_id": incoming["record"]["id"],
         "kind": "transfer_pair",
-        "subtype": "ordinary_transfer",
         "status": "accepted",
     })
     assert relation["relations"]
@@ -124,7 +124,7 @@ def test_cancelled_relation_blocks_auto_slot_but_manual_relink_reuses_it(cash_we
     ))
     relation = service.add_relation({
         "primary_fact_id": outgoing["record"]["id"], "secondary_fact_id": incoming["record"]["id"],
-        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "pending_review",
+        "kind": "transfer_pair", "status": "pending_review",
     })
     with service._uow as uow:
         pending_id = str(uow.relations.list_for_facts([outgoing["record"]["id"]], active_only=True)[0]["id"])
@@ -133,7 +133,7 @@ def test_cancelled_relation_blocks_auto_slot_but_manual_relink_reuses_it(cash_we
     assert cancelled["status"] == "rejected"
     relinked = service.add_relation({
         "primary_fact_id": outgoing["record"]["id"], "secondary_fact_id": incoming["record"]["id"],
-        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "pending_review",
+        "kind": "transfer_pair", "status": "pending_review",
     })
     with service._uow as uow:
         relinked_row = uow.relations.list_for_facts([outgoing["record"]["id"]], active_only=True)[0]
@@ -141,7 +141,7 @@ def test_cancelled_relation_blocks_auto_slot_but_manual_relink_reuses_it(cash_we
     assert relinked_row["status"] == "pending_review"
 
 
-def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_runtime):
+def test_pending_relation_type_rejects_incompatible_roles_without_creating_history(cash_web_runtime):
     _enable_cny(cash_web_runtime, "日常账户", "信用账户")
     service = _service(cash_web_runtime)
     first = create_import_record(service, _payload(counterparty="第一笔"))
@@ -156,18 +156,19 @@ def test_pending_relation_type_can_be_updated_without_creating_history(cash_web_
         relation_id = str(uow.relations.list_for_facts([first["record"]["id"]], active_only=True)[0]["id"])
         uow.commit()
 
-    updated = service.update_relation(relation_id, {"kind": "refund_offset"})
+    with pytest.raises(ValueError, match="relation_role_incompatible"):
+        service.update_relation(relation_id, {"kind": "refund_offset"})
 
     with service._uow as uow:
         current = uow.relations.get(relation_id)
         uow.commit()
-    assert current["kind"] == "refund_offset"
+    assert current["kind"] == "payment_mirror"
     assert current["status"] == "pending_review"
     from ft.adapters.relational.models import TransactionRelationModel
     with cash_web_runtime.sessions() as session:
         stored = session.get(TransactionRelationModel, int(relation_id))
-        assert (stored.primary_role, stored.secondary_role) == ("expense", "refund")
-        assert stored.row_revision == 2 and stored.decision_source == "manual"
+        assert (stored.primary_role, stored.secondary_role) == ("expense", "expense")
+        assert stored.row_revision == 1 and stored.decision_source == "manual"
 
 
 def test_open_relation_cannot_be_changed_to_bilateral_payment_mirror(cash_web_runtime):
@@ -306,7 +307,7 @@ def test_delete_transfer_related_record_clears_projection_relation_before_fact(c
     ))["record"]
     service.add_relation({
         "primary_fact_id": outgoing["id"], "secondary_fact_id": incoming["id"],
-        "kind": "transfer_pair", "subtype": "ordinary_transfer", "status": "accepted",
+        "kind": "transfer_pair", "status": "accepted",
     })
 
     deleted = service.delete_record(outgoing["id"], mode="delete_current_dissolve")
@@ -330,7 +331,7 @@ def test_batch_delete_reports_impact_and_removes_selected_projections_atomically
     runtime = request.getfixturevalue(runtime_name)
     service = _service(runtime)
     page = _projection_page(runtime)
-    selected = ["cash:1003", "cash:1002"]
+    selected = [current_projection_id(runtime, 1003), current_projection_id(runtime, 1002)]
 
     impact = service.preview_delete_projections(
         selected, projection_version=page.projection_version,
@@ -352,7 +353,7 @@ def test_batch_delete_reports_impact_and_removes_selected_projections_atomically
     assert set(deleted["deleted_fact_ids"]) == {"1002", "1003"}
     assert deleted["projection_version"] > page.projection_version
     remaining = _projection_page(runtime)
-    assert [item.projection_id for item in remaining.items] == ["cash:1001"]
+    assert [item.transaction_id for item in remaining.items] == ["1001"]
     with pytest.raises(ValueError, match="找不到"):
         service.get_record("1002")
 
@@ -401,7 +402,7 @@ def test_batch_delete_rejects_stale_projection_version_without_mutating_facts(ca
     with pytest.raises(ValueError, match="projection.version_conflict"):
         service.delete_projections(selected, projection_version=page.projection_version)
 
-    fact_id = page.items[0].projection_id.split(":", 1)[1]
+    fact_id = page.items[0].transaction_id
     assert service.get_record(fact_id)["record"]["id"] == int(fact_id)
 
 
@@ -414,7 +415,7 @@ def test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure(ca
 
     monkeypatch.setattr(service, "_snapshot_deltas", fail_snapshot)
     with pytest.raises(RuntimeError, match="snapshot write failed"):
-        service.delete_projections(["cash:1003"], projection_version=page.projection_version)
+        service.delete_projections([current_projection_id(cash_web_runtime, 1003)], projection_version=page.projection_version)
 
     assert service.get_record("1003")["record"]["id"] == 1003
     from ft.application.web_queries import CashLedgerQueryService
@@ -422,7 +423,7 @@ def test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure(ca
     current = CashLedgerQueryService(
         cash_web_runtime.sessions, cash_web_runtime.workspace_id,
     ).list_cash_projections(limit=50)
-    assert "cash:1003" in {item.projection_id for item in current.items}
+    assert "1003" in {item.transaction_id for item in current.items}
 
 
 def test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets(cash_web_runtime):
@@ -450,7 +451,7 @@ def test_batch_delete_routes_preview_confirmation_and_version_errors(cash_web_ru
     ))
 
     impact = client.post("/api/v1/cash-projections/delete-impact", json={
-        "projection_ids": ["cash:1003"],
+        "projection_ids": [current_projection_id(cash_web_runtime, 1003)],
         "projection_version": page.projection_version,
     })
     assert impact.status_code == 200
@@ -460,14 +461,14 @@ def test_batch_delete_routes_preview_confirmation_and_version_errors(cash_web_ru
         "relation_group_count": 0,
     }
     missing_confirmation = client.request("DELETE", "/api/v1/cash-projections", json={
-        "projection_ids": ["cash:1003"],
+        "projection_ids": [current_projection_id(cash_web_runtime, 1003)],
         "projection_version": page.projection_version,
     })
     assert missing_confirmation.status_code == 400
     assert missing_confirmation.json()["error"]["code"] == "projection.confirmation_required"
 
     deleted = client.request("DELETE", "/api/v1/cash-projections", json={
-        "projection_ids": ["cash:1003"],
+        "projection_ids": [current_projection_id(cash_web_runtime, 1003)],
         "projection_version": page.projection_version,
         "confirmed": True,
     })
@@ -476,7 +477,7 @@ def test_batch_delete_routes_preview_confirmation_and_version_errors(cash_web_ru
     assert "deleted_fact_ids" not in deleted.json()
 
     stale = client.post("/api/v1/cash-projections/delete-impact", json={
-        "projection_ids": ["cash:1002"],
+        "projection_ids": [current_projection_id(cash_web_runtime, 1002)],
         "projection_version": page.projection_version,
     })
     assert stale.status_code == 409

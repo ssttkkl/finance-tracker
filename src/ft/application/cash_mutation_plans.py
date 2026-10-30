@@ -7,6 +7,7 @@ from secrets import token_urlsafe
 from ft.adapters.relational.cash_mutations import CashMutationConflict, CashMutationRepository
 from ft.application.cash_import_plans import (_choices, _objects, _page, _public_detail,
     _reference, _resolve_detail, _validate_readable)
+from ft.application.cash_plan_contract import CASH_PLAN_CONTRACT_VERSION, current_cash_plan_contract
 from ft.application.cash_import_errors import ImportSessionExpired, ImportSessionNotFound
 from ft.application.cash_record_maintenance import (CashRecordMaintenanceError,
     CashRecordMaintenanceService, _identifier, _request_digest)
@@ -165,7 +166,7 @@ class CashMutationPlanService(CashRecordMaintenanceService):
     @staticmethod
     def _checked_plan(current, plan_id=None, *, expected_plan_revision=None):
         plan = current.plan
-        if (plan is None or plan_id is not None and plan.get("plan_id") != plan_id
+        if (not current_cash_plan_contract(plan) or plan_id is not None and plan.get("plan_id") != plan_id
             or plan.get("edit_context_id") != current.session_id
             or plan.get("context_revision") != current.revision or not _revision(plan.get("plan_revision"))
             or expected_plan_revision is not None and (not _revision(expected_plan_revision)
@@ -206,7 +207,7 @@ class CashMutationPlanService(CashRecordMaintenanceService):
                         workflow_kind="mutation", files=(), context_data={"transaction_id": data["transaction_id"], "version": 1})
                 plan = dict(deepcopy(result), plan_id=f"mp_{current.session_id}.{token_urlsafe(12)}",
                     edit_context_id=current.session_id, plan_revision=previous["plan_revision"] + 1 if previous else 1,
-                    context_revision=current.revision + 1, contract_version=1, expires_at=current.expires_at.isoformat(),
+                    context_revision=current.revision + 1, contract_version=CASH_PLAN_CONTRACT_VERSION, expires_at=current.expires_at.isoformat(),
                     item_counts={status: sum(item["confirmation_status"] == status for item in result["items"])
                         for status in ("confirmed", "pending")})
                 view = self._view(plan)

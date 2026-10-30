@@ -117,7 +117,7 @@ class CashRecordTaskViewModel(
             if (option == null || "ignore" !in option.allowedActions || cashRelationIsJoint(option)) {
                 mutableState.value = state.value.copy(errorCode = "choice_invalid"); return
             }
-            if (addition.kind != option.kind.orEmpty() || addition.subtype != option.subtype.orEmpty()) {
+            if (addition.kind != option.kind.orEmpty()) {
                 mutableState.value = state.value.copy(errorCode = "choice_invalid"); return
             }
             listOf(CashRelationDecision(id, "ignore"))

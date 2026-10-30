@@ -41,6 +41,9 @@ def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None
             "SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%' LIMIT 1"
         ))
 
+    command.upgrade(config, "20261018_37")
+    with pytest.raises(NotImplementedError, match="restore from backup"):
+        command.downgrade(config, "20260920_36")
     command.upgrade(config, "head")
     with engine.connect() as connection:
         tables = set(inspect(connection).get_table_names())
@@ -50,7 +53,7 @@ def test_wealth_source_revision_migration_round_trips_one_step(tmp_path) -> None
             "SELECT name FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'wealth_source_revision_%'"
         )))
     assert not upgraded_trigger_names
-    with pytest.raises(NotImplementedError, match="restore from backup"):
+    with pytest.raises(ValueError, match="cash_relation_model_downgrade_requires_backup"):
         command.downgrade(config, "20260917_35")
     engine.dispose()
 

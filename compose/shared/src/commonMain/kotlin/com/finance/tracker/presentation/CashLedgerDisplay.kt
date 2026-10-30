@@ -50,7 +50,7 @@ internal fun cashCategoryDisplayPath(category: CashCategory?): String =
     cashCategoryDisplayPathValue(category) ?: localizedText("copy_f11956caf6")
 
 internal fun cashProjectionEconomicTypeResourceKey(item: CashProjection): String = when {
-    item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
+    item.businessLabel == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.economicType == "expense" -> "cash_type_expense"
     item.economicType == "income" -> "cash_type_income"
     item.economicType == "internal_transfer" -> "ledger_quick_transfer"
@@ -93,7 +93,7 @@ internal fun cashAmountWithCurrencyLabel(value: String?, currency: String?): Str
 }
 
 internal fun cashProjectionSourceResourceKey(item: CashProjection): String? = when {
-    item.transferSubtype == "bank_security_transfer" -> "cash_source_bank_security_transfer"
+    item.businessLabel == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.memberCount == 1 && item.composition.isEmpty() -> null
     else -> "cash_source_merged"
 }
@@ -180,7 +180,7 @@ internal fun cashEvidenceMemberImpactLabel(member: EvidenceMember): String = loc
 @Composable
 internal fun cashEvidenceSourceLabel(evidence: Evidence): String {
     val projection = evidence.projection
-    val sources = if (projection.economicType != "internal_transfer" && projection.transferSubtype != "bank_security_transfer") {
+    val sources = if (projection.economicType != "internal_transfer" && projection.businessLabel != "bank_security_transfer") {
         listOfNotNull(evidence.rootRecord.sourceType?.takeIf(String::isNotBlank))
     } else {
         evidence.members.mapNotNull(EvidenceMember::sourceType).filter(String::isNotBlank).distinct()
@@ -200,3 +200,22 @@ internal fun cashEvidenceSourceTypeLabel(value: String): String = when (value.lo
     "icbc_credit" -> localizedText("cash_source_icbc_credit")
     else -> localizedText("cash_source_imported")
 }
+
+internal fun cashCurrentRecordOccurredAt(record: CashCurrentRecord, projection: CashProjection?): String? =
+    if (projection != null) projection.occurredAt else record.fields.fields["occurred_at"].cashText()
+
+@Composable
+internal fun cashBusinessLabel(value: String): String = when (value) {
+    "bank_security_transfer" -> localizedText("copy_c18e325ed4")
+    "cross_currency_remittance" -> localizedText("copy_bfde411775")
+    "p2p_return" -> localizedText("cash_detail_p2p_return")
+    "credit_repayment" -> localizedText("cash_detail_repayment")
+    "ordinary_transfer" -> localizedText("copy_58b0da22c2")
+    "currency_exchange" -> localizedText("copy_978624700f")
+    "balance_adjustment" -> localizedText("cash_business_balance_adjustment")
+    else -> value
+}
+
+
+internal fun cashQuickEconomicTypes(options: List<CashEconomicTypeFilterOption>): List<String> =
+    listOf("expense", "income", "internal_transfer").filter { type -> options.any { it.economicType == type } }

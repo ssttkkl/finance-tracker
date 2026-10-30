@@ -71,7 +71,7 @@
     <string name="copy_1f62e3f53f">记一笔</string>
     <string name="copy_1f9774478d">投资转入</string>
     <string name="copy_1fc1afc5c5">继续</string>
-    <string name="copy_1fcff8b8d5">流水子类型</string>
+    <string name="copy_1fcff8b8d5">业务细分</string>
     <string name="copy_204c9c54c2">未填写对方</string>
     <string name="copy_21a6f5a8d9">选择文件</string>
     <string name="copy_21f1e88275">登录</string>
@@ -415,7 +415,6 @@
     <string name="copy_e39b50c02d">转账转出</string>
     <string name="copy_e3fcffbd56">%1$s 位成员</string>
     <string name="copy_e473077a21">仅支持 CSV、XLS、XLSX 或 PDF 文件。</string>
-    <string name="copy_e490abc2fa">取消关联</string>
     <string name="copy_e4aaa144b7">个人转账</string>
     <string name="copy_e5847fcd94">其他合并</string>
     <string name="copy_e5e27271b5">账户名称已存在，请修改后重试。</string>
@@ -608,14 +607,11 @@
     <string name="workspace_delete_error_title">无法删除工作区</string>
     <string name="ledger_relation_error_title">无法更新关联流水</string>
     <string name="ledger_detail_more_actions">更多操作</string>
-    <string name="ledger_relation_unlink_title">取消关联？</string>
     <string name="ledger_relation_unlink_message">将移除这笔收支与“%1$s”的关联，原有收支记录会保留。</string>
     <string name="ledger_relation_dissolve_title">解散全部关联？</string>
     <string name="ledger_relation_dissolve_message">将移除这笔收支与其他收支之间的全部关联，原有收支记录会保留。</string>
     <string name="ledger_relation_keep">保留关联</string>
-    <string name="ledger_relation_unlink_confirm">取消关联</string>
     <string name="ledger_relation_dissolve_confirm">解散关联</string>
-    <string name="ledger_relation_unlinking">正在取消关联…</string>
     <string name="ledger_relation_dissolving">正在解散关联…</string>
     <string name="cash_pending_count">待确认 %1$s</string>
     <string name="cash_confirmation_filter">确认状态</string>
@@ -664,7 +660,6 @@
     <string name="cash_no_relation_choices">暂无可处理的关联</string>
     <string name="cash_relation_accept">确认配对</string>
     <string name="cash_relation_ignore">拒绝配对</string>
-    <string name="cash_relation_remove">解除关联</string>
     <string name="cash_clear_value">清空</string>
     <string name="cash_inherit_question">拆分后如何保留修改？</string>
     <string name="cash_inherit_changes">继承整笔修改</string>
@@ -838,7 +833,7 @@
     <string name="cash_import_pair_proposed">预计建立关联，导入后生效</string>
     <string name="cash_import_pair_unmerged">尚未合并，关系待确认</string>
     <string name="cash_import_existing_relations">已有关系</string>
-    <string name="cash_detail_pending_relations">这笔收支有已建立的关联等待确认</string>
+    <string name="cash_detail_pending_relations">这笔收支有等待确认的关联</string>
     <string name="cash_detail_suggestion">关联建议</string>
     <string name="cash_detail_accept">接受建议</string>
     <string name="cash_detail_check">核对建议</string>
@@ -848,8 +843,6 @@
     <string name="cash_detail_no_target">这笔流水可能有关联，请选择对应流水。</string>
     <string name="cash_detail_review_hint">核对对应流水后接受建议。</string>
     <string name="cash_detail_repayment">信用账户还款</string>
-    <string name="cash_detail_exchange">换汇</string>
-    <string name="cash_detail_remittance">跨币种汇款</string>
     <string name="cash_detail_common_values">选择关联后保留的信息</string>
     <string name="cash_detail_remove_effect">移除后，完整组内相关流水将各自独立显示，账单原文不受影响。</string>
     <string name="cash_detail_reject_effect">拒绝后，这条建议及其全部备选不再出现；之后仍可通过“关联流水”重新查找。</string>
@@ -864,7 +857,6 @@
     <string name="cash_detail_choose_part">选择对应的金额和账户</string>
     <string name="cash_detail_preview">核对关联结果</string>
     <string name="cash_detail_source">来源</string>
-    <string name="cash_detail_ordinary_transfer">普通转账</string>
     <string name="cash_detail_date">日期</string>
     <string name="cash_detail_alternatives">有 %1$d 套备选方案，核对后选择一套</string>
     <string name="cash_detail_find_purchase">这笔退款可能对应一笔消费，请搜索原消费流水。</string>
@@ -881,8 +873,6 @@
     <string name="cash_detail_joint_whole">完整方案 · 只能整体接受或整体拒绝</string>
     <string name="cash_detail_joint_search_blocked">这套建议涉及多条关系，改选后如何保留原关联尚未确定。可以搜索核对，暂不能提交替换。</string>
     <string name="cash_detail_locked_type">沿用建议类型：</string>
-    <string name="cash_detail_subtype">业务细分</string>
-    <string name="cash_detail_regular_refund">普通退款</string>
     <string name="cash_detail_p2p_return">转账退回</string>
     <string name="cash_detail_restored_value">拆出后原值</string>
     <string name="cash_detail_keep_split">保留到拆出的流水</string>
@@ -899,4 +889,15 @@
     <string name="cash_detail_confirm_remove">确认移除</string>
     <string name="cash_detail_confirm_reject">确认拒绝</string>
     <string name="cash_detail_counterpart">对侧流水</string>
+    <string name="cash_relation_account_mismatch">这两条流水需要属于同一账户。</string>
+    <string name="cash_relation_currency_mismatch">这两条流水的币种需要相同。</string>
+    <string name="cash_relation_amount_invalid">金额不符合所选关联，请重新选择。</string>
+    <string name="cash_relation_role_incompatible">流水类型或收支方向不符合所选关联。</string>
+    <string name="cash_relation_refund_exceeds_remaining">退款合计超过了原支出金额。</string>
+    <string name="cash_relation_refund_incomplete">这笔退款必须完整计入同一笔支出。</string>
+    <string name="cash_relation_endpoint_occupied">流水已有不能并存的关联，请先处理现有关联。</string>
+    <string name="cash_relation_aggregate_unsupported">组合支付不能作为转账的一端。</string>
+    <string name="cash_relation_endpoint_incompatible">这些流水暂不能合并，请重新选择。</string>
+    <string name="cash_business_balance_adjustment">余额调整</string>
+    <string name="cash_relation_state_invalid">当前关联数据无法核对，请刷新后重试。</string>
 </resources>

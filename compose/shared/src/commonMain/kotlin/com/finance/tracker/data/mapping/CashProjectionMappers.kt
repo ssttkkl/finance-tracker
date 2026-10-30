@@ -20,7 +20,7 @@ fun CashProjectionDto.toDomain(): CashProjection = CashProjection(
     amount = amount,
     currency = currency,
     economicType = economicType,
-    transferSubtype = transferSubtype,
+    businessLabel = businessLabel,
     composition = composition,
     memberCount = memberCount,
     acceptedRelationSummary = acceptedRelationSummary.map { it.toDomain() },
@@ -44,7 +44,7 @@ fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
     amount = amount,
     currency = currency,
     economicType = economicType,
-    transferSubtype = transferSubtype,
+    businessLabel = businessLabel,
     composition = composition,
     memberCount = memberCount,
     acceptedRelationSummary = acceptedRelationSummary.map { it.toDto() },
@@ -60,12 +60,12 @@ fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
 
 fun CashEconomicTypeFilterOptionDto.toDomain(): CashEconomicTypeFilterOption = CashEconomicTypeFilterOption(
     economicType = economicType,
-    transferSubtypes = transferSubtypes,
+    businessLabels = businessLabels,
 )
 
 fun CashEconomicTypeFilterOption.toDto(): CashEconomicTypeFilterOptionDto = CashEconomicTypeFilterOptionDto(
     economicType = economicType,
-    transferSubtypes = transferSubtypes,
+    businessLabels = businessLabels,
 )
 
 fun CashFilterOptionsDto.toDomain(): CashFilterOptions = CashFilterOptions(

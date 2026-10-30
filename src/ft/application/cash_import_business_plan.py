@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, localcontext
 from itertools import islice, product
+import logging
 
 from sqlalchemy import and_, exists, func, or_, select
 
@@ -33,6 +34,13 @@ from ft.domain.platform_refund import wechat_is_refund_origin_expense
 from ft.domain.relations import FactView, RelationProposal
 
 
+_logger = logging.getLogger(__name__)
+
+
+def _discarded_candidate(snapshot):
+    snapshot.discarded_candidates += 1
+
+
 def _virtual(kind, *values):
     return 2 ** 64 + int(_digest("cash-import-virtual-v1", kind, values)[:32], 16)
 
@@ -41,7 +49,7 @@ def _edge_key(edge):
     pair = (edge.primary_component_id, edge.secondary_component_id)
     if edge.kind == "payment_mirror" and all(pair):
         pair = tuple(sorted(pair))
-    return edge.kind, edge.subtype, pair if all(pair) else (edge.primary_transaction_id, edge.primary_component_id, None)
+    return edge.kind, pair if all(pair) else (edge.primary_transaction_id, edge.primary_component_id, None)
 
 
 def _link(edge, group=None):
@@ -67,6 +75,7 @@ class _Snapshot:
     removed_funding: set
 
     def __post_init__(self):
+        self.discarded_candidates = 0
         self.incident = defaultdict(set)
         self.funding_by_parent = defaultdict(set)
         self.register_edges(tuple(self.edges.values()))
@@ -152,6 +161,11 @@ class CashImportBusinessPlanBuilder:
         operations = list(prepared.operations)
         for operation in operations:
             source = prepared.source_plan.rows[operation["row_refs"][0]]
+            from ft.domain.cash_projection import cash_source_order_key
+            operation["stable_source_key"] = cash_source_order_key(source.source_type, "", bindings=[
+                (spec.source_type, spec.scope_kind, spec.scope_key, spec.identity_kind, spec.identity_key)
+                for update in operation["source_updates"] if update["bind"]
+                for spec in prepared.source_plan.rows[update["row_ref"]].binding_specs])
             operation["source_scope_key"] = source.account_scope_key or "file:" + source.file_scope_key
             operation["matching_record_id"] = operation["values"]["record_id"] if source.provider_id else "occurrence:" + source.occurrence_key
         rows = list(prepared.rows)
@@ -220,6 +234,8 @@ class CashImportBusinessPlanBuilder:
                         snapshot.facts[str(identifier)] = replace(snapshot.facts[str(identifier)], **{
                             field: member.standalone_values[field] for field in ("note", "counterparty", "category_id")})
         relation_failures = self._apply_groups(snapshot, groups)
+        if snapshot.discarded_candidates:
+            _logger.warning("relation_candidate_discarded", extra={"discarded_count": snapshot.discarded_candidates})
         failures.extend(relation_failures)
         unique_failures = {}
         for failure in failures:
@@ -382,11 +398,13 @@ class CashImportBusinessPlanBuilder:
             current.update((parent.id, parent) for parent in session.scalars(select(CashTransactionModel).where(
                 CashTransactionModel.workspace_id == self.workspace_id, CashTransactionModel.id.in_(batch))))
         values = {}
+        source_keys = dict(context.source_order_keys)
         for parent in current.values():
             values[str(parent.id)] = {field: _normalize(field, getattr(parent, field)) for field in MUTABLE_CASH_FIELDS | CASH_FINANCIAL_FIELDS
                 if hasattr(parent, field)} | {"source_type": parent.source_type, "record_id": parent.record_id,
                 "state": parent.state, "created_at": parent.created_at, "record_origin": parent.record_origin, "manual_transfer_id": parent.manual_transfer_id,
                 "source_explanation": extract_source_explanation(parent.relation_metadata)}
+            values[str(parent.id)]["stable_source_key"] = source_keys.get(parent.id, ())
             values[str(parent.id)]["source_scope_key"] = scopes.get((str(parent.id), parent.source_type),
                 self._fallback_scope(parent.source_type, parent.id))
             values[str(parent.id)]["matching_record_id"] = "occurrence:" + str(parent.id)
@@ -418,6 +436,14 @@ class CashImportBusinessPlanBuilder:
             value["source_explanation"] = op.get("source_explanation", values.get(identifier, {}).get("source_explanation", {}))
             value["source_scope_key"] = op["source_scope_key"]
             value["matching_record_id"] = op["matching_record_id"]
+            existing_key = snapshot.facts[identifier].stable_source_key if identifier in snapshot.facts else ()
+            incoming_key = tuple(op.get("stable_source_key") or ())
+            if len(existing_key) == len(incoming_key) == 5:
+                from ft.domain.cash_projection import cash_source_order_key
+                value["stable_source_key"] = cash_source_order_key(value.get("source_type"), "",
+                    bindings=(existing_key, incoming_key))
+            else:
+                value["stable_source_key"] = incoming_key or existing_key
             for part in value["components"]:
                 if part.get("component_id") is None:
                     part["component_id"] = str(_virtual("component", identifier, part["ordinal"]))
@@ -494,7 +520,8 @@ class CashImportBusinessPlanBuilder:
         return CashProjectionFact(int(identifier), int(value["account_id"]) if value.get("account_id") else None,
             value.get("occurred_at"), value.get("amount"), value.get("currency"), value.get("counterparty", ""),
             value.get("category_id"), value.get("note", ""), value.get("source_type"), value.get("record_id", ""),
-            cash_granularity=value["cash_granularity"], state=value["state"], created_at=value["created_at"], needs_attention=needs_attention)
+            cash_granularity=value["cash_granularity"], state=value["state"], created_at=value["created_at"], needs_attention=needs_attention, record_type=value.get("record_type"), record_subtype=value.get("record_subtype"),
+            stable_source_key=tuple(value.get("stable_source_key", ())), record_origin=value.get("record_origin", "legacy"))
 
     @staticmethod
     def _endpoint(identifier, value, part):
@@ -508,10 +535,10 @@ class CashImportBusinessPlanBuilder:
             if not edge.active or edge.state != "confirmed" or identifier not in (edge.primary_transaction_id, edge.secondary_transaction_id):
                 continue
             try:
-                validate_relation_roles(edge.kind, edge.subtype, snapshot.components[edge.primary_component_id],
+                validate_relation_roles(edge.kind, snapshot.components[edge.primary_component_id],
                     snapshot.components[edge.secondary_component_id], edge.primary_role, edge.secondary_role)
             except CashRelationError as error:
-                if error.code != "relation_endpoint_incompatible":
+                if error.code not in {"relation_endpoint_incompatible", "relation_role_incompatible"}:
                     raise
                 snapshot.edges[key] = replace(edge, active=False)
                 snapshot.removed_relations.add(key)
@@ -538,6 +565,8 @@ class CashImportBusinessPlanBuilder:
                 note=cash_source_note(value["source_type"], value.get("source_payload")), record_type=part.record_type, record_subtype=part.record_subtype,
                 bill_source=value["source_type"], source=value["source_type"], record_id=value.get("matching_record_id", value["record_id"]),
                 source_identity=value.get("source_scope_key", ""),
+                stable_source_key=snapshot.facts[part.transaction_id].stable_source_key,
+                record_origin=value.get("record_origin", "legacy"),
                 raw_payload=metadata, relation_metadata=metadata, parent_id=part.transaction_id,
                 component_ordinal=next(item["ordinal"] for item in value["components"] if item["component_id"] == part.component_id)
                     if value["cash_granularity"] == "aggregate" else None, cash_granularity=value["cash_granularity"]))
@@ -557,7 +586,7 @@ class CashImportBusinessPlanBuilder:
         from ft.domain.relations.pipeline import needs_relation_discovery
         if not seeds or not needs_relation_discovery(facts, seed_ids=seeds):
             return [], []
-        accepted = [{"id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
+        accepted = [{"id": str(edge.id), "kind": edge.kind,
             "primary_fact_id": edge.primary_component_id, "secondary_fact_id": edge.secondary_component_id,
             "status": "accepted", "applied_amount": edge.applied_amount} for edge in snapshot.edges.values()
             if edge.active and edge.state == "confirmed" and edge.primary_component_id in eligible and edge.secondary_component_id in eligible]
@@ -576,26 +605,20 @@ class CashImportBusinessPlanBuilder:
         for proposal in proposals:
             if not isinstance(proposal, RelationProposal):
                 raise CashImportPlanError("plan_build_failed")
-            key = (proposal.kind, proposal.subtype, proposal.primary_fact_id, proposal.secondary_fact_id)
+            key = (proposal.kind, proposal.primary_fact_id, proposal.secondary_fact_id)
             by_key.setdefault(key, proposal)
         return list(by_key.values()), []
 
     def _groups(self, snapshot, proposals):
         old_keys = {_edge_key(edge): edge for edge in snapshot.edges.values() if edge.active}
         converted, failures = {}, []
-        new_parents = {parent for parent, operation in snapshot.parent_ops.items()
-            if operation["planned_action"] in {"create_posted", "finalize_draft"}}
         for proposal in proposals:
-            parents = {part.transaction_id for identifier in (proposal.primary_fact_id, proposal.secondary_fact_id)
-                if isinstance(identifier, str) and (part := snapshot.components.get(identifier)) is not None}
             try:
                 member = self._proposal_member(snapshot, proposal, old_keys)
                 if member is not None:
                     converted[str(member["edge"].id)] = member
-            except CashRelationError as error:
-                if parents.intersection(new_parents):
-                    failures.append({"code": error.code if isinstance(error, CashRelationError) else "relation_discovery_failed",
-                        "parent_ids": sorted(parents)})
+            except CashRelationError:
+                _discarded_candidate(snapshot)
         links = [_link(item["edge"]) for item in converted.values()]
         groups = []
         closures = _closure_index(snapshot.context.relations)
@@ -620,7 +643,8 @@ class CashImportBusinessPlanBuilder:
                 tuple(row for row in context.relation_revisions if row[0] in relation_ids),
                 tuple(row for row in context.funding_versions if str(row[1]) in snapshot.components
                     and snapshot.components[str(row[1])].transaction_id in complete),
-                tuple(row for row in context.issue_versions if str(row[1]) in complete))
+                tuple(row for row in context.issue_versions if str(row[1]) in complete),
+                tuple(row for row in context.source_order_keys if str(row[0]) in complete))
             proof = [(item["rule_id"], item["anchor_component_id"], item["candidate_count"], item["candidates"]) for item in members]
             suggestion = "sg_" + _digest("cash-import-suggestion-v1", sorted(identifiers), fingerprint, dependency, proof)[:40]
             group = {"suggestion_id": suggestion, "action": "accept" if all(item["strong"] for item in members) else "defer",
@@ -633,6 +657,9 @@ class CashImportBusinessPlanBuilder:
                 group["candidates"] = self._candidate_choices(snapshot, group, members)
                 if group["candidates"]:
                     group["allowed_actions"] = ["accept", "defer", "ignore"]
+                elif any(item["edge"].secondary_transaction_id or item["candidates"] for item in members):
+                    _discarded_candidate(snapshot)
+                    continue
             groups.append(group)
         return groups, failures
 
@@ -646,12 +673,12 @@ class CashImportBusinessPlanBuilder:
         evidence = RelationRoleEvidence(self._original_expense(snapshot.values[primary.transaction_id]),
             self._original_expense(snapshot.values[secondary.transaction_id]) if secondary else False,
             proposal.kind == "refund_offset" and "platform_hard_key" in proposal.evidence.signals,
-            proposal.subtype == "p2p_return" and "platform_hard_key" in proposal.evidence.signals)
-        roles = discover_relation_roles(proposal.kind, proposal.subtype, primary, secondary, evidence=evidence) if secondary else (None, None)
-        edge = CashRelationGraphEdge(_virtual("relation", proposal.kind, proposal.subtype, primary.component_id,
+            primary.record_type == "transfer_reversal" and "platform_hard_key" in proposal.evidence.signals)
+        roles = discover_relation_roles(proposal.kind, primary, secondary, evidence=evidence) if secondary else (None, None)
+        edge = CashRelationGraphEdge(_virtual("relation", proposal.kind, primary.component_id,
             secondary.component_id if secondary else None), proposal.kind, primary.transaction_id,
             secondary.transaction_id if secondary else None, primary.component_id,
-            secondary.component_id if secondary else None, *roles, subtype=proposal.subtype,
+            secondary.component_id if secondary else None, *roles,
             applied_amount=proposal.refund_amount if proposal.kind == "refund_offset" else None, state="draft")
         if _edge_key(edge) in old_keys:
             return None
@@ -719,7 +746,7 @@ class CashImportBusinessPlanBuilder:
             evidence = RelationRoleEvidence(self._original_expense(snapshot.values[primary.transaction_id]),
                 self._original_expense(snapshot.values[secondary.transaction_id]))
             try:
-                roles = discover_relation_roles(edge.kind, edge.subtype, primary, secondary, evidence=evidence)
+                roles = discover_relation_roles(edge.kind, primary, secondary, evidence=evidence)
             except CashRelationError:
                 continue
             variants.append((replace(edge, primary_transaction_id=primary.transaction_id, secondary_transaction_id=secondary.transaction_id,
@@ -796,6 +823,7 @@ class CashImportBusinessPlanBuilder:
                         raise CashImportPlanError("plan_input_invalid")
                     current[identifier]["inherit_common_fields"] = choice["inherit_common_fields"]
                 current[identifier]["action"] = action
+                current[identifier]["explicit_decision"] = True
                 explicit.add(identifier)
                 if current[identifier].get("origin") == "current":
                     current[identifier]["changed"] = True
@@ -810,6 +838,7 @@ class CashImportBusinessPlanBuilder:
     @staticmethod
     def _apply_groups(snapshot, groups):
         failures = []
+        discarded = set()
         old_closures = _closure_index(snapshot.context.relations)
         edges_by_group, group_by_edge = {}, {}
         for group in groups:
@@ -885,13 +914,13 @@ class CashImportBusinessPlanBuilder:
                     group["edges"] = [asdict(snapshot.edges[edge.id]) for edge in edges_by_group[group["suggestion_id"]]]
             except CashRelationError as error:
                 snapshot.restore_edges(before)
-                if any(group.get("origin") == "manual" for group in related.values()):
+                if any(group.get("origin") in {"manual", "current"} or group.get("explicit_decision")
+                    for group in related.values()):
                     from ft.domain.cash_record_policy import CashRecordPolicyError
                     raise CashRecordPolicyError(error.code, ()) from None
-                for group in related.values():
-                    group.update(action="skip", code=error.code)
-                    failures.append({"code": error.code, "parent_ids": group["parent_ids"],
-                        "suggestion_id": group["suggestion_id"]})
+                discarded.update(related)
+                _discarded_candidate(snapshot)
+        groups[:] = [group for group in groups if group["suggestion_id"] not in discarded]
         return failures
 
     @staticmethod
@@ -962,15 +991,15 @@ class CashImportBusinessPlanBuilder:
                     detail_values[parent] = self._member_fields(value)
                 if operation:
                     diffs.extend({**diff, **self._ref(snapshot, parent)} for diff in operation.get("field_diffs", []))
-            effects = [{"relation_id": str(edge.id), "kind": edge.kind, "subtype": edge.subtype,
+            effects = [{"relation_id": str(edge.id), "kind": edge.kind,
                 "effect": "remove" if edge.id in snapshot.removed_relations or not snapshot.edges[edge.id].active else "keep",
                 "member_refs": [self._ref(snapshot, parent) for parent in (edge.primary_transaction_id, edge.secondary_transaction_id) if parent in snapshot.values]}
                 for edge in sorted({edge.id: edge for parent in parents for edge in old_edges[parent].values()}.values(),
                     key=lambda edge: old_edge_order[edge.id])]
             choices = [{key: group[key] for key in ("suggestion_id", "action", "candidate_id", "candidates", "member_refs", "allowed_actions")}
-                | {"kind": group["edges"][0]["kind"], "subtype": group["edges"][0]["subtype"]} for group in relevant]
+                | {"kind": group["edges"][0]["kind"]} for group in relevant]
             def relation_summaries(option):
-                return [{"kind": edge["kind"], "subtype": edge["subtype"],
+                return [{"kind": edge["kind"],
                     "member_refs": [self._ref(snapshot, parent) for parent in (
                         edge["primary_transaction_id"], edge["secondary_transaction_id"]) if parent in snapshot.values]}
                     for edge in option["edges"] if edge["active"]]

@@ -41,7 +41,7 @@ class CashProjectionService:
                 failure_context = repository.rebuild_failure_context()
                 sources = repository.read_validated_sources()
                 digest, facts, relations = sources.digest, sources.facts, sources.relations
-                build = build_cash_projections(facts, relations)
+                build = sources.build
                 dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
                 next_version = repository.status()["projection_version"] + 1
                 repository.replace_dataset(dataset_id, build, projection_version=next_version)
@@ -80,7 +80,7 @@ class CashProjectionService:
             return repository.status()
         sources = repository.read_validated_sources()
         digest, facts, relations = sources.digest, sources.facts, sources.relations
-        build = build_cash_projections(facts, relations)
+        build = sources.build
         dataset_id = repository.create_staging_dataset(source_digest=digest, rules_version=RULES_VERSION)
         repository.replace_dataset(dataset_id, build, projection_version=state.projection_version + 1)
         result = repository.publish_dataset(dataset_id, source_digest=digest, rules_version=RULES_VERSION,
@@ -133,8 +133,7 @@ class CashProjectionService:
                 raise RuntimeError("projection.unavailable")
             state = locked_state
         component_ids = repository.affected_transaction_closure(affected_fact_ids, state=state)
-        facts, relations = repository.read_sources_for_facts(component_ids)
-        build = build_cash_projections(facts, relations)
+        build = repository.build_sources_for_facts(component_ids)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return repository.replace_active_components(build, component_ids, state=state)
 
@@ -159,8 +158,7 @@ class CashProjectionService:
         if state is None:
             from ft.adapters.relational.cash_entries import CashEntryRepository
             component_ids = repository.confirmed_transaction_closure(affected_fact_ids)
-            facts, relations = repository.read_sources_for_facts(component_ids)
-            build = build_cash_projections(facts, relations)
+            build = repository.build_sources_for_facts(component_ids)
             entries = CashEntryRepository(session, workspace_id)
             entries.remove_members(set(affected_fact_ids) - {member.id for projection in build.projections for member, _ in projection.members})
             entries.reconcile(build.projections)
@@ -169,8 +167,7 @@ class CashProjectionService:
         if known_component_ids is not None:
             component_ids = repository.affected_transaction_closure(component_ids | repository._parent_ids_for_components(
                 {int(item) for item in known_component_ids}), state=state)
-        facts, relations = repository.read_sources_for_facts(component_ids)
-        build = build_cash_projections(facts, relations)
+        build = repository.build_sources_for_facts(component_ids)
         CashProjectionService._synchronize_component_categories(session, workspace_id, build)
         return repository.replace_active_components(
             build,

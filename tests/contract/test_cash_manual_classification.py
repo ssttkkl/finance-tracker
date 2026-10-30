@@ -17,13 +17,18 @@ from ft.application.cash_projections import CashProjectionService
 from tests.contract.test_cash_draft_storage import draft_runtime
 
 
+from tests.cash_projection_assertions import current_projection_id as _public_id
+
+
 def _mirror(runtime):
     with runtime.sessions.begin() as session:
         session.get(AccountModel, 101).currencies = ["CNY"]
         for identifier in (1002, 1003):
             parent = session.get(CashTransactionModel, identifier)
-            parent.amount, parent.record_type = Decimal("-12.50"), "consumption"
-            session.get(CashTransactionComponentModel, identifier).amount = parent.amount
+            parent.amount, parent.record_type, parent.account_id = Decimal("-12.50"), "consumption", 101
+            parent.source_type = "alipay" if identifier == 1003 else "icbc_debit"
+            part = session.get(CashTransactionComponentModel, identifier)
+            part.amount, part.account_id = parent.amount, 101
         CurrentCashRelationRepository(session, runtime.workspace_id).add(dict(kind="payment_mirror", state="confirmed",
             primary_transaction_id=1003, secondary_transaction_id=1002, primary_component_id=1003, secondary_component_id=1002,
             anchor_transaction_id=1003, anchor_component_id=1003, primary_role="expense", secondary_role="expense", applied_amount="12.50"))
@@ -41,7 +46,7 @@ def test_explicit_projection_category_protects_entry_including_same_value_and_cl
             row.manual_overrides = {"note": {"value": row.note}}
     status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-        projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id=category)
+        projection_ids=[_public_id(runtime, 1003)], projection_version=status["projection_version"], category_id=category)
     with runtime.sessions() as session:
         entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
         assert entry.category_id == category and 'category_id' in entry.manual_fields
@@ -141,7 +146,7 @@ def _pending_full_refund(runtime):
         expense = session.get(CashTransactionModel, 1003)
         expense.record_type = "consumption"
         session.add(CashTransactionModel(id=2001, workspace_id=runtime.workspace_id, account_id=101,
-            amount=Decimal("12.50"), currency="CNY", occurred_at=expense.occurred_at, record_type="refund"))
+            amount=Decimal("12.50"), currency="CNY", occurred_at=expense.occurred_at, record_type="refund", source_type="fixture", record_id="full-refund"))
         session.flush()
         session.add(CashTransactionComponentModel(id=2001, workspace_id=runtime.workspace_id, cash_transaction_id=2001,
             account_id=101, amount=Decimal("12.50"), currency="CNY", ordinal=0))
@@ -160,9 +165,9 @@ def test_full_refund_projection_can_be_classified_and_deleted(draft_runtime):
         row = session.scalar(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id == 1003))
         assert row.visible and row.attention_count == 1
     classified = CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-        projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
+        projection_ids=[_public_id(runtime, 1003)], projection_version=status["projection_version"], category_id="category-daily")
     removed = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
-        ["cash:1003"], projection_version=classified["projection_version"])
+        [_public_id(runtime, 1003)], projection_version=classified["projection_version"])
     assert set(removed["deleted_fact_ids"]) == {"1003", "2001"}
 
 
@@ -177,9 +182,9 @@ def test_other_business_hidden_pending_projection_can_be_classified_and_deleted(
         row = session.scalar(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id == 1003))
         assert not row.visible and row.hidden_reason == "balance_adjustment" and row.attention_count == 1
     classified = CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-        projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
+        projection_ids=[_public_id(runtime, 1003)], projection_version=status["projection_version"], category_id="category-daily")
     removed = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
-        ["cash:1003"], projection_version=classified["projection_version"])
+        [_public_id(runtime, 1003)], projection_version=classified["projection_version"])
     assert set(removed["deleted_fact_ids"]) == {"1003"}
 
 
@@ -192,10 +197,10 @@ def test_pending_projection_with_deleted_source_stays_outside_maintenance(draft_
     with pytest.raises(ValueError, match="projection.version_conflict"):
         if operation == "classify":
             CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-                projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
+                projection_ids=[_public_id(runtime, 1003)], projection_version=status["projection_version"], category_id="category-daily")
         else:
             CashLedgerCommandService(runtime.sessions, runtime.workspace_id).delete_projections(
-                ["cash:1003"], projection_version=status["projection_version"])
+                [_public_id(runtime, 1003)], projection_version=status["projection_version"])
 
 
 def _candidate_on(runtime, anchor):
@@ -214,7 +219,7 @@ def test_same_protected_category_does_not_advance_rows_or_invalidate_candidates(
     runtime = draft_runtime
     status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     classifications = CashClassificationService(runtime.sessions, runtime.workspace_id)
-    first = classifications.set_category(projection_ids=["cash:1003"],
+    first = classifications.set_category(projection_ids=[_public_id(runtime, 1003)],
         projection_version=status["projection_version"], category_id=category)
     with runtime.sessions.begin() as session:
         row = session.get(CashTransactionModel, 1003)
@@ -222,7 +227,7 @@ def test_same_protected_category_does_not_advance_rows_or_invalidate_candidates(
     relation = _candidate_on(runtime, 1003)
     with runtime.sessions() as session:
         revision = session.get(CashTransactionModel, 1003).row_revision
-    repeated = classifications.set_category(projection_ids=["cash:1003"],
+    repeated = classifications.set_category(projection_ids=[_public_id(runtime, 1003)],
         projection_version=first["projection_version"], category_id=category)
     assert repeated["projection_version"] == first["projection_version"]
     with runtime.sessions() as session:
@@ -307,7 +312,7 @@ def test_classification_write_failure_rolls_back_protection_candidates_and_proje
     try:
         with pytest.raises(RuntimeError, match="injected projection failure"):
             CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-                projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id="category-daily")
+                projection_ids=[_public_id(runtime, 1003)], projection_version=status["projection_version"], category_id="category-daily")
     finally:
         event.remove(engine, "before_cursor_execute", fail_projection)
     assert CashProjectionService(runtime.sessions, runtime.workspace_id).status()["projection_version"] == status["projection_version"]
@@ -354,6 +359,7 @@ def test_category_commands_lock_workspace_before_other_state(draft_runtime, oper
     status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     categories = CashCategoryService(runtime.sessions, runtime.workspace_id)
     impact = categories.deletion_impact("category-food")
+    public_id = _public_id(runtime, 1003)
     statements = []
     def capture(_connection, _cursor, statement, _parameters, _context, _executemany):
         statements.append(statement.lower())
@@ -362,7 +368,7 @@ def test_category_commands_lock_workspace_before_other_state(draft_runtime, oper
     try:
         if operation == "classify":
             CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-                projection_ids=["cash:1003"], projection_version=status["projection_version"], category_id=None)
+                projection_ids=[public_id], projection_version=status["projection_version"], category_id=None)
         elif operation == "category_create":
             categories.create(name="新分类")
         else:
@@ -389,7 +395,7 @@ def test_classification_rejects_entry_members_outside_selected_projection(draft_
         old = (entry.category_id, entry.revision)
     with pytest.raises(ValueError, match='projection.version_conflict'):
         CashClassificationService(runtime.sessions, runtime.workspace_id).set_category(
-            projection_ids=['cash:1003'], projection_version=status['projection_version'], category_id='category-daily')
+            projection_ids=[_public_id(runtime, 1003)], projection_version=status['projection_version'], category_id='category-daily')
     with runtime.sessions() as session:
         entry = CashEntryRepository(session, runtime.workspace_id).current(1003)
         assert (entry.category_id, entry.revision) == old

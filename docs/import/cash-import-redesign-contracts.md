@@ -4,7 +4,7 @@
 
 ## 1. 交付边界与现状
 
-后端接口及迁移脚本已完成，未部署或迁移真实账本；当前 Compose Web、Android、iOS 共用统一文件解析、账户选择、核对和一次确认流程。账户步骤按微信昵称和支付宝来源账号分组，账号标题仅显示脱敏信息；缺少可用身份时按文件分组。默认开启跨渠道同名合并；微信每次导入重新选择目标账户，其他渠道沿用各自已确认的来源账户映射建议。旧现金导入写入口已移除；实际客户端接入和剩余验收见 [功能地图](../feature-map.md)。
+既有导入流程已接入后端，未迁移真实账本；当前 Compose Web、Android、iOS 共用统一文件解析、账户选择、核对和一次确认流程。账户步骤按微信昵称和支付宝来源账号分组，账号标题仅显示脱敏信息；缺少可用身份时按文件分组。默认开启跨渠道同名合并；微信每次导入重新选择目标账户，其他渠道沿用各自已确认的来源账户映射建议。旧现金导入写入口已移除；实际客户端接入和剩余验收见 [功能地图](../feature-map.md)。
 
 | 内容 | 本文职责 | 权威入口 |
 |---|---|---|
@@ -14,6 +14,8 @@
 | 验证 | 示例与后续 UI 验收范围 | 第 5–6 节；实际证据见 [实施变更](../../openspec/changes/archive/2026-10-28-cash-import-lifecycle-redesign/tasks.md) |
 
 本文不重复实施顺序、审查日志或迁移操作手册。纯文档整理不改变业务规则、接口、数据或主规格。
+
+关系治理后端已完成本轮实现与验证，本文关系字段按该工作树的新合同描述；Compose 已切换新合同并通过首版演示与代表浏览器冒烟，但独立契约／设计复核和整体 QA 尚未完成。迁移步骤见 [现金关系模型迁移](../cash-ledger/cash-relation-migration.md)；本次变更的验证记录见归档 change。
 
 ## 2. 用户业务流程
 
@@ -69,7 +71,7 @@
 
 已经完整的草稿仍可“保存待确认”，不会因为一次普通保存意外进入统计。用户选择“确认保存”才转换状态。更新来源补足草稿时，导入最终确认可以同时承担这个确认，无须再打开详情操作一次。
 
-保存后仍停留于当前详情并刷新结果。关系合并／拆分会改变投影标识，客户端按稳定流水引用重新定位当前展示结果，不继续访问已失效的旧投影；草稿合并则使用响应中的保留流水引用。
+保存后仍停留于当前详情并刷新结果。展示代表改变不改变收支对象标识；关系合并／拆分时，身份锚所在结果保留原对象，其他成员可能归入另一对象。客户端按稳定流水引用重新定位当前展示结果，不继续访问已失效的旧投影；草稿合并则使用响应中的保留流水引用。
 
 ### 2.5 失败、退出与重入
 
@@ -449,13 +451,13 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 维护计划的 `summary` 仅含非负、非布尔整数计数：`update_posted`、`finalize_draft`、`update_draft`、`resolve_issue`、`merge_draft`、`create_independent`、`duplicate`、`skip`、`relations_accepted`、`relations_deferred`、`relations_ignored`、`relations_removed`、`relations_failed`；不含错误文本或流水正文。未知键或错误类型在发布前拒绝，不能替换原计划。
 
-`maintain_relations` 从相关 `transaction_id` 出发，保留服务端提供的完整建议与组决定。`accept/defer/ignore/remove` 是协议动作；界面不提供无实际影响的 `defer` 按钮，关闭弹窗不提交决定。主动新增使用 `relation_additions`，每次最多一项，显式提供 `target_transaction_id`、`expected_target_revision`、双方 `anchor_component_id/target_component_id`、`kind/subtype`；服务端读取真实导入流水、生成来源证明并校验最终关系图，不接受客户端直接构造关系边。现有建议的公共人工值冲突以 `common_field_conflicts` 返回，选择放入 `common_fields`；新增关系的选择放在对应 `relation_additions[].common_fields`。客户端提供端点已有值及明确清空选项；主动新增的服务端输入限制为端点现值或字段对应的清空值：文本为空字符串、分类为 `null`、账号属性为空数组。解除只有 `split_field_diffs` 非空时才要求布尔 `inherit_common_fields`，差异列出字段、当前值和成员原值；同值人工标记不额外询问。
+`maintain_relations` 从相关 `transaction_id` 出发，保留服务端提供的完整建议与组决定。`accept/defer/ignore/remove` 是协议动作；界面不提供无实际影响的 `defer` 按钮，关闭弹窗不提交决定。主动新增使用 `relation_additions`，每次最多一项，显式提供 `target_transaction_id`、`expected_target_revision`、双方 `anchor_component_id/target_component_id`、`kind`；服务端读取真实导入流水、推导角色并校验共同硬约束及最终关系图，人工指定不要求来源证明，不接受客户端直接构造关系边。现有建议的公共人工值冲突以 `common_field_conflicts` 返回，选择放入 `common_fields`；新增关系的选择放在对应 `relation_additions[].common_fields`。客户端提供端点已有值及明确清空选项；主动新增的服务端输入限制为端点现值或字段对应的清空值：文本为空字符串、分类为 `null`、账号属性为空数组。解除只有 `split_field_diffs` 非空时才要求布尔 `inherit_common_fields`，差异列出字段、当前值和成员原值；同值人工标记不额外询问。
 
-`GET /api/v1/cash-records/{transaction_id}/association-targets` 只读搜索同一工作区的导入流水，排除当前已确认关系连通组和手工记录。查询支持 `query`、`account_id`、精确绝对金额 `amount`、`date_from/date_to`、`timezone_name`、`cursor` 和 `limit`（默认 20、上限 100）；客户端显式发送本地时区，日期边界按该时区解释。响应为当前流水详情列表 `items` 和可空 `next_cursor`，不以自动匹配候选窗口限制搜索。只有合法正式端点才能进入新增确认，所有财务规则及当前修订在预览和提交时继续校验。
+`GET /api/v1/cash-records/{transaction_id}/association-targets` 只读搜索同一工作区的导入流水，排除当前已确认关系连通组和手工记录。查询支持 `query`、`kind`（`payment_mirror`、`refund_offset` 或 `transfer_pair`，省略时不限类型）、`account_id`、精确绝对金额 `amount`、`date_from/date_to`、`timezone_name`、`cursor` 和 `limit`（默认 20、上限 100）；客户端显式发送本地时区，日期边界按该时区解释。响应为当前流水详情列表 `items` 和可空 `next_cursor`，不以自动匹配候选窗口限制搜索。每项另返回服务端认可的 `component_choices`（`anchor_component_id`/`target_component_id`）和 `unavailable_reason`；客户端只能提交这些明确组合，不能自行推导角色或金额，并据此说明结果当前不可选的原因。搜索只提供当前可选范围，最终合法性仍以完整图预览和提交为准。只有合法正式端点才能进入新增确认，所有财务规则及当前修订在预览和提交时继续校验。
 
-关系建议及每套 `candidates` 各自返回 `relations` 摘要，包含 `kind`、`subtype` 和 `member_refs`；端点保留明确 `row_ref/transaction_id`，不公开内部证明。客户端按完整摘要显示混合方案，不能用首条关系的 `kind/subtype` 代替全部关系。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回实际额外影响，先展示确认。
+关系建议及每套 `candidates` 各自返回 `relations` 摘要，包含 `kind` 和 `member_refs`；端点保留明确 `row_ref/transaction_id`，不公开内部证明。客户端按完整摘要显示混合方案，不能用首条关系的 `kind` 代替全部关系。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回实际额外影响，先展示确认。
 
-当前关联同样先从计划取得完整 `suggestion_id` 和候选，再用完整输入重预览；不接受客户端构造的边或残缺成员集合。初次预览及未选择组保持各成员原状态，不算新确认或新延后，不刷新候选证明。当前组包含以前停用的成员供并发核对，维护不能自动复活它们；解除只停用仍活动的成员。已有候选按原证明修订、证据、端点当前状态及完整最终图校验，失效选择要求刷新，不改选其他对侧；多个关系必须共同生效时，每个 `candidate_id` 表示完整合法组合。没有组成项的草稿可继续延后、忽略或解除，仍不能确认合并。保存继续保留原关系 ID、锚点及决定组，成功后读取双方最新展示。
+当前关联同样先从计划取得完整 `suggestion_id` 和候选，再用完整输入重预览；不接受客户端构造的边或残缺成员集合。初次预览及未选择组保持各成员原状态，不算新确认或新延后，不刷新候选证明。当前组包含以前停用的成员供并发核对，维护不能自动复活它们；解除只停用仍活动的成员。已有候选按保存的当前修订、端点状态、共同硬约束及完整最终图校验，不重跑来源或时间发现证明；失效选择要求刷新，不改选其他对侧。多个关系必须共同生效时，每个 `candidate_id` 表示完整合法组合。没有组成项的草稿可继续延后、忽略或解除，仍不能确认合并。保存继续保留原关系 ID、锚点及决定组，成功后读取双方最新展示。
 
 投影响应含 `state`、`confirmation_status`、可空展示金额／时间、`attention_count`、`statistics_eligible`、`projection_version`。每项的 `projection_version` 与所在读取快照的发布号一致，不把内部行最后构建版本当作调用方的确认版本。`confirmation_status=pending` 当且仅当是草稿或有未解决问题／未确认关联，否则为 `confirmed`；它是派生显示属性，不另建人工审批状态。统计端点始终排除草稿，前端不能自行按混合列表求和。投影与成员在同一读取快照返回；分页游标携带发布序号，翻页时版本变化返回可识别的 `409 read_snapshot_changed`，客户端重载，避免新旧成员混读。
 
@@ -543,11 +545,11 @@ erDiagram
 
 ### 4.2.1 `cash_entries/cash_entry_members`
 
-`cash_entries` 保存 `id/workspace_id/root_transaction_id/revision`，以及 `category_id/note/counterparty/counterparty_account/counterparty_account_attrs` 和 `manual_fields`。修订为正整数；分类为当前工作区外键；人工字段包含明确清空。`split_inherit` 仅传递同事务拆分决定，维护完成后清空。
+`cash_entries` 保存 `id/workspace_id/root_transaction_id/identity_transaction_id/revision`，以及 `category_id/note/counterparty/counterparty_account/counterparty_account_attrs` 和 `manual_fields`。修订为正整数；分类为当前工作区外键；人工字段包含明确清空。`split_inherit` 仅传递同事务拆分决定，维护完成后清空。
 
 `cash_entry_members` 以 `(workspace_id,transaction_id)` 唯一，引用同工作区的来源父记录及收支对象；`standalone_values/standalone_manual_fields` 保存该成员的一份当前独立恢复值。它不是历史版本；未保护字段随来源刷新，明确继承时将整笔人工值写入拆出的恢复值。来源成员不接受公共属性批量回写。
 
-合并采用展示基准所在对象；拆分优先让包含原基准的结果保留对象 ID，其他结果创建对象。删除旧基准但保留其他成员时同步根引用。全量派生替换不删除稳定对象；实际流水删除时清理成员及空对象。迁移保留当前展示公共值和各成员已有不同人工值，缺证创建方式保持 `legacy`；有损降级拒绝，使用升级前备份恢复。
+展示代表 `root_transaction_id` 与持久身份锚 `identity_transaction_id` 分开。合并优先保留经济根成员的既有对象，并以稳定对象 ID 决胜；拆分让包含身份锚的结果保留原 ID，其他结果创建对象。删除身份锚但保留成员时重新确定锚；代表改变只更新根引用，不换对象 ID。全量派生替换不删除稳定对象；实际流水删除时清理成员及空对象。迁移保留当前展示公共值和各成员已有不同人工值，缺证创建方式保持 `legacy`；有损降级拒绝，使用升级前备份恢复。
 
 ### 4.3 `cash_transaction_components`
 
@@ -614,7 +616,7 @@ erDiagram
 
 | 字段 | 合同 |
 |---|---|
-| `id/workspace_id/kind/subtype` | `kind` 沿用 `payment_mirror/refund_offset/transfer_pair`，不新增财务关系种类 |
+| `id/workspace_id/kind` | `kind` 沿用 `payment_mirror/refund_offset/transfer_pair`，不新增财务关系种类 |
 | `state` | 活动决定 `draft/confirmed/ignored`；使用当前决定状态 |
 | `active` | 当前是否有效；系统解除设为非活动，不能伪装用户忽略 |
 | `anchor_transaction_id/anchor_component_id` | 父锚点必填，组成项草稿可空 |
@@ -628,33 +630,32 @@ erDiagram
 
 `state=confirmed` 要求双端、双组成项、角色完整及活动正式端点；`draft/ignored` 不占正式端点或额度。父记录及组成项都用工作区复合外键，额外确保“组成项属于所声明父记录”，不能只分别验证两个 ID 都存在。
 
-活动双边决定按工作区、关系种类、子类型及规范化端点唯一；无向镜像按组成项 ID 排序，有向关系保留方向。未确定对侧的草稿按锚点、关系种类及子类型去重。已确定的不同候选作为同一草稿的候选行，不复制多条已确认关系。索引覆盖主端、对侧、锚点、`decision_group_id` 和状态。
+活动双边决定按工作区、关系种类及规范化端点唯一；无向镜像按组成项 ID 排序，有向关系保留方向。未确定对侧的草稿按锚点及关系种类去重。已确定的不同候选作为同一草稿的候选行，不复制多条已确认关系。索引覆盖主端、对侧、锚点、`decision_group_id` 和状态。
 
-镜像端点排序仅用于业务唯一键，不改写持久主／对侧顺序；既有展示基准和投影方向必须保留。主／对侧不代表用户可见的主次关系。
+镜像端点排序仅用于业务唯一键，不改写持久主／对侧顺序；角色方向与展示代表独立。代表按角色、来源、时间和稳定来源身份选择，金额由完整关系图计算；主／对侧不代表用户可见的主次关系。
 
 `cash_relation_candidates` 保存 `workspace_id/relation_id/candidate_transaction_id/candidate_component_id/expected_row_revision/evidence/validity`；候选可因端点缺失组成项而只引用父记录。每个候选引用唯一，按端点建反向索引。联合候选合法性按整组判断，不能把依赖其他边的候选标为可独立确认。
 
 `decision_group_id` 仅保留必要的联合草稿决定，不建立全账本关系组主数据；正式配对提交组由当前已确认图和本次操作计算。组中成员删除或改动必须重验整体，不能留下可独立提交的残缺组。服务端通过组成员及修订摘要进行并发检查。
 
-关系类型角色矩阵沿用现有种类语义：消费镜像只连接兼容的消费角色，退款镜像连接退款入账角色；退款抵扣连接消费角色与退款入账角色；转账、换汇、提现、还款按既有 `transfer_pair` 子类型的两端角色和币种规则。负向 `refund` 表示原消费的既有来源情形必须作为明确角色处理，不能仅因类型名含退款判为入账。共享关系校验执行该矩阵，不能仅调用没有类型字段的投影校验器。
+关系写入不再接收或保存 `subtype`，也不增加替代枚举。流水自身的 `record_type/record_subtype` 保留来源业务语义，自动发现仍按原有细分规则执行。下表是自动和人工确认共同遵守的角色约束，来源、时间顺序、窗口及订单证明不参与人工合法性判定。
 
-| 关系 | 可确认端点角色与类型 | 新建议的额外证据 |
+| 关系 | 共同角色、类型和局部金额约束 | 自动发现保留的额外条件 |
 |---|---|---|
-| `payment_mirror` | 两端同为负向 `expense`（`consumption` 或原消费语义的 `refund`），或同为正向 `refund` | 新的负向 `refund` 必须分别有原消费证据，不能继承另一条关系的角色 |
-| 普通 `refund_offset` | 负向 `expense` → 正向 `refund`；两端账户和币种一致 | `investment_out` 作为支出端只沿用已有支付宝订单硬配对路径；普通候选不因此扩大 |
-| `refund_offset/p2p_return` | 负向、正向 `transfer_reversal` | 沿用明确原交易标识专用路径 |
-| `transfer_pair/ordinary_transfer` | `transfer_out` → `transfer_in`，或 `withdrawal_out` → `withdrawal_in`，同币种等额 | 流水子类型不必相等；跨境及内部转账沿用既有发现规则 |
-| `transfer_pair/credit_repayment` | 负向、正向 `repayment`，同币种等额 | 两端 `credit_repayment` |
-| `transfer_pair/currency_exchange` | `fx_out` → `fx_in`，或同账户的 `transfer_out` → `transfer_in`，币种不同 | 沿用明确换汇或内部账户转账路径 |
-| `transfer_pair/cross_currency_remittance` | `cross_border_remittance` 的 `transfer_out` → `transfer_in`，币种不同 | 沿用跨境汇款路径 |
+| `payment_mirror` | 负向 `consumption/refund` 的 `expense/expense`，或正向 `refund/refund`；所选现金部分同账户、同币种、同方向、完整等额，不允许 `investment_out` | 平台与银行来源互补、窗口、账户线索；负向 `refund` 的原消费证明 |
+| `refund_offset`，`expense/refund` | 负向 `consumption/refund/investment_out` → 正向 `refund`；同账户、同币种 | 订单、商户、时间窗口；现金投资出账退款的专用硬键 |
+| `refund_offset`，`p2p_out/p2p_in` | 负向、正向 `transfer_reversal`；同账户、同币种，允许部分退回 | 明确原交易标识、精确全额及时间顺序 |
+| `transfer_pair`，`outgoing/incoming` | 转出类型家族 `transfer_out/withdrawal_out/repayment/fx_out` 为负；转入家族 `transfer_in/withdrawal_in/repayment/fx_in` 为正，可跨家族搭配、可同账户；同币种精确等额，跨币种不比较面额 | 普通转账、提现、还款、换汇、跨境及内部调拨各自的来源分类、账户指向、窗口和证据 |
 
-既有关系的 `expense` 角色在普通退款关系中兼容负向 `consumption/refund/investment_out`，镜像关系中只兼容前两者；该规则不重新读取后来修改的订单或原消费提示。手工转账整笔修改时校验双端最终类型、角色及上述结构；导入正式类型固定，不迁移当前角色或寻找新候选。金额、额度、镜像折叠、互斥和最终图继续由完整财务校验负责；角色通过不能替代图校验。现金关系与现金—投资资金关系保持不同端点合同。
+`cash_relation_migration_audit` 仅保存 `relation_id/workspace_id/legacy_subtype/migration_version`，用于保留删除字段前的分类依据；不参与当前关系确认和展示，不提供业务写入入口。该记录随工作区删除，单条关系解除或删除不清除迁移依据。只读预检、核验报告与受支持升级步骤见 [现金关系模型迁移](../cash-ledger/cash-relation-migration.md)。
 
-既有普通退款的同账户、同币种且两端父流水总额均为零的 `0 → 0` 场景保留消费／退款角色及零净额证据；单边零退款、跨币种零退款和零金额转账仍不合法。不同支付组成项的真实退款分配必须累计，仅有已确认镜像证明的同一部分可去重，不能仅用父流水及金额判断重复。明确分配金额不能因原关系来自非基准来源而丢失或回退为父退款总额。
+角色通过不能替代完整图校验。确认关系要求同工作区、活动正式端点，手工记录不对外配对；手工转账只维护自身双端关系，聚合父记录不能作为转账端点。镜像须完整等额，现金部分等价映射在每个父记录内保持单射，并有一个父记录覆盖全部实际现金部分；未镜像部分仍计入。
+
+退款必须完整计入同一逻辑支出，不能将 +100 元仅冲销 40 元后隐藏剩余金额；累计退款不得超过原支出。跨来源镜像退款只计算一次，独立现金部分分别累计。一笔退款不分摊给多个独立支出。两端父流水总额均为零的既有普通退款证据链保留；单边零退款、跨币种零退款和零金额转账不合法。
 
 现金—投资关系继续使用 `cash_investment_funding_relations` 及明确的投资端点。导入正式现金类型固定；删除在本次闭包内清理失效关联并刷新资金关系影响的读取结果；不扫描或改写投资事件、不重建投资历史。
 
-关系校验拆成三个职责：发现候选时判断创建方式和当前来源证据；手工转账整笔修改时判断内部双端兼容性；关系写入时判断最终图和金额约束。类型校验输入必须带两端最终 `record_type`、`record_subtype`、方向、组成项及关系角色，不能直接复用没有类型字段的投影事实对象。类型及角色兼容矩阵见本节上表，覆盖消费／退款镜像、退款抵扣、转账／换汇／还款，不通过账号、名称再验证恢复已取消的限制。
+关系校验拆成三个职责：发现候选时判断创建方式和当前来源证据；手工转账整笔修改时应用相同出入角色约束；关系写入时共同检查端点、完整图和金额。类型校验输入必须带两端最终 `record_type`、`record_subtype`、方向、组成项及关系角色（流水子类型用于分类有效性校验，不恢复旧关系搭配限制），不能直接复用没有类型字段的投影事实对象。类型及角色兼容矩阵见本节上表，覆盖消费／退款镜像、退款抵扣、转账／换汇／还款，不通过账号、名称再验证恢复已取消的限制。
 
 `relation_metadata` 只保存当前可重算的来源解释，不保存“已经选择了哪条对侧”的决定。导入来源更新和草稿的来源行补充使用同一派生过程：受影响键替换或清空，不与旧字典盲目合并；跨行计算出的候选分组、对侧和置信信息进入关系计划或当前候选，不当作流水身份。公共备注或分类编辑不重算来源证据；导入正式类型和来源原文不向用户开放编辑。
 
@@ -662,7 +663,7 @@ erDiagram
 
 ### 4.7 投影及发布状态
 
-`cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。当前投影通过 `entry_id` 关联稳定对象，具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
+`cash_projection_states/cash_projections/cash_projection_members` 仅保存当前有效展示；不为每次局部变更复制全库数据集。旧全量构建记录不成为本流程必需依赖。当前投影通过 `entry_id` 关联稳定对象，公开 `projection_id` 为 `cash-entry:{entry.id}`；代表改变不改该 ID，合并／拆分按持久身份锚决定保留对象。`business_label` 从完整成员分类、角色及独立投资资金关系派生，替代 `transfer_subtype` 并贯通筛选、游标、月份汇总和报表。投影具有 `state`、`statistics_eligible`、`attention_count`，`confirmation_status` 由草稿及待处理项派生，不新增可独立修改的列。未知草稿 `net_amount/currency/occurred_at/economic_type` 可空。正式投影保持既定财务要求，草稿单独构建，不填伪造金额或经济类型。
 
 排序字段 `sort_at` 仅供索引及游标使用：有发生时间取发生时间，否则取父流水创建时间。它不作为账单日期展示，也不参与按发生日期统计；重建时保持相同来源，不能把重建时间当成草稿的新发生时间。
 

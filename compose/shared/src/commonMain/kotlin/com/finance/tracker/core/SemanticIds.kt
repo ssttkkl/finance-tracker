@@ -59,7 +59,7 @@ object SemanticIds {
     const val ledgerFilterDateTo = "ledger.filter.date-to"
     const val ledgerFilterAmountMinimum = "ledger.filter.amount-minimum"
     const val ledgerFilterAmountMaximum = "ledger.filter.amount-maximum"
-    const val ledgerFilterTransferSubtype = "ledger.filter.transfer-subtype"
+    const val ledgerFilterBusinessLabel = "ledger.filter.business-label"
     const val ledgerFilterComposition = "ledger.filter.composition"
     const val ledgerFilterAccount = "ledger.filter.account"
     const val ledgerFilterCategory = "ledger.filter.category"
