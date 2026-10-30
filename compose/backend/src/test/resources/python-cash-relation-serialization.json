@@ -1,0 +1,188 @@
+{
+  "cases": {
+    "rows": [
+      {
+        "id": "1",
+        "record_id": "ALI-1",
+        "amount": "-10.00",
+        "currency": "CNY",
+        "occurred_at": "",
+        "counterparty": "",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [
+          "tail"
+        ],
+        "payment_method": "",
+        "note": "",
+        "record_type": "transfer_out",
+        "record_subtype": "ordinary_transfer",
+        "account_id": "",
+        "account_name": "",
+        "account_type": "cash",
+        "bill_source": "alipay",
+        "source_type": "alipay",
+        "source": "alipay",
+        "fact_type": "cash",
+        "raw_payload": {
+          "订单号": "A1"
+        },
+        "relation_metadata": null,
+        "parent_id": null
+      },
+      {
+        "id": "2",
+        "record_id": "",
+        "amount": "5.00",
+        "currency": "CNY",
+        "occurred_at": "",
+        "counterparty": "",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "payment_method": "",
+        "note": "",
+        "record_type": "other",
+        "record_subtype": "not_applicable",
+        "account_id": "现金",
+        "account_name": "现金",
+        "account_type": "cash",
+        "bill_source": "wechat",
+        "source_type": "wechat",
+        "source": "wechat",
+        "fact_type": "cash",
+        "raw_payload": {
+          "交易单号": "W1"
+        },
+        "relation_metadata": null,
+        "parent_id": null
+      },
+      {
+        "id": "3",
+        "record_id": "",
+        "amount": "1.00",
+        "currency": "CNY",
+        "occurred_at": "",
+        "counterparty": "",
+        "counterparty_account": "",
+        "counterparty_account_attrs": [],
+        "payment_method": "",
+        "note": "",
+        "record_type": "other",
+        "record_subtype": "not_applicable",
+        "account_id": "",
+        "account_name": "",
+        "account_type": "cash",
+        "bill_source": "",
+        "source_type": "",
+        "source": "",
+        "fact_type": "investment",
+        "raw_payload": null,
+        "relation_metadata": null,
+        "parent_id": null
+      }
+    ],
+    "human": [
+      true,
+      false,
+      true
+    ],
+    "refs": [
+      "alipay:ALI-1",
+      "9",
+      "missing"
+    ],
+    "keys": [
+      "proposal:81e0d2ba2a3f58422bbb306cb085f765",
+      "proposal:12c4b381e9f5a5ba38e16bf91c47c7e3"
+    ],
+    "remaining": {
+      "1": "6.50",
+      "7": "10.00"
+    },
+    "serialized": {
+      "version": 1,
+      "plan_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "external_context_digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "proposals": [
+        {
+          "proposal_key": "proposal:12c4b381e9f5a5ba38e16bf91c47c7e3",
+          "kind": "transfer_pair",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.rule2",
+          "confidence": "weak",
+          "primary_ref": "7",
+          "secondary_ref": "",
+          "anchor_ref": "7",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": true,
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 0,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [],
+            "open_leg": true,
+            "anchor_role": "out",
+            "candidate_refs": [
+              "alipay:ALI-1"
+            ],
+            "extras": {}
+          }
+        },
+        {
+          "proposal_key": "proposal:81e0d2ba2a3f58422bbb306cb085f765",
+          "kind": "refund_offset",
+          "subtype": "",
+          "status": "pending_review",
+          "rule_id": "scan.rule",
+          "confidence": "weak",
+          "primary_ref": "alipay:ALI-1",
+          "secondary_ref": "2",
+          "anchor_ref": "alipay:ALI-1",
+          "primary_fact_type": "cash",
+          "secondary_fact_type": "cash",
+          "created_by": "system",
+          "open_leg": false,
+          "evidence": {
+            "amount_delta": "0",
+            "time_delta_seconds": 5,
+            "same_currency": true,
+            "counterparty_similarity": "",
+            "source_pair": [
+              "",
+              ""
+            ],
+            "rule_id": "",
+            "candidate_count": 1,
+            "signals": [
+              "refund"
+            ],
+            "open_leg": false,
+            "anchor_role": "",
+            "candidate_refs": [
+              "2",
+              "9"
+            ],
+            "extras": {
+              "amount": "1.20",
+              "when": "2026-10-01T00:00:00+00:00",
+              "items": [
+                1,
+                2
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "error": "import_relation_reconfirmation_required"
+  }
+}
