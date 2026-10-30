@@ -1,0 +1,892 @@
+{
+  "plan": {
+    "plan_id": "ip_sssssssssssssssssssssssssssssssssssssssssss.pppppppppppppppp",
+    "session_id": "sssssssssssssssssssssssssssssssssssssssssss",
+    "session_revision": 3,
+    "expires_at": "2026-10-01T09:30:00+00:00",
+    "contract_version": 1,
+    "summary": {
+      "total_count": 2,
+      "confirmed_count": 1,
+      "pending_count": 1
+    },
+    "item_counts": {
+      "confirmed": 1,
+      "pending": 1
+    },
+    "can_commit": true,
+    "items": [
+      {
+        "preview_item_id": "it_1",
+        "confirmation_status": "confirmed",
+        "anticipated_state": "posted",
+        "display": {
+          "occurred_at": "2026-10-01T10:00:00+00:00",
+          "amount": "12.30",
+          "currency": "CNY",
+          "counterparty": "商户",
+          "note": "",
+          "accounts": [
+            "合成账户"
+          ],
+          "category_id": null,
+          "counterparty_account": "",
+          "counterparty_account_attrs": []
+        },
+        "statistics_eligible": true,
+        "member_refs": [
+          {
+            "row_ref": "f_1:r1"
+          }
+        ],
+        "attention_reasons": [
+          {
+            "code": "amount_unreadable",
+            "blocking_scope": "row"
+          }
+        ],
+        "detail_available": true
+      },
+      {
+        "preview_item_id": "it_2",
+        "confirmation_status": "pending",
+        "anticipated_state": "draft",
+        "display": {
+          "occurred_at": null,
+          "amount": null,
+          "currency": null,
+          "counterparty": "",
+          "note": "",
+          "accounts": [],
+          "category_id": null,
+          "counterparty_account": "",
+          "counterparty_account_attrs": []
+        },
+        "statistics_eligible": false,
+        "member_refs": [
+          {
+            "transaction_id": "7"
+          }
+        ],
+        "attention_reasons": [],
+        "detail_available": true
+      }
+    ],
+    "item_details": {
+      "it_1": {
+        "entry": {
+          "fields": {
+            "note": "条目备注",
+            "amount": "999.00"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "e1"
+        },
+        "members": [
+          {
+            "row_ref": "f_1:r1",
+            "fields_ref": {
+              "operation_ref": "op_1"
+            },
+            "planned_action": "create",
+            "editable_fields": [
+              "note"
+            ],
+            "allowed_actions": [
+              "edit"
+            ],
+            "row_revision": null
+          }
+        ],
+        "relation_members": [
+          {
+            "transaction_id": "8",
+            "fields_ref": {
+              "transaction_id": "8"
+            },
+            "planned_action": "keep"
+          }
+        ],
+        "field_diffs": [
+          {
+            "field": "note",
+            "current": "",
+            "incoming": "新备注",
+            "effective": "新备注",
+            "resolution": "apply",
+            "row_ref": "f_1:r1"
+          }
+        ],
+        "issues": [
+          {
+            "code": "amount_unreadable",
+            "field_path": "amount",
+            "blocking_scope": "row",
+            "next_action": "edit"
+          }
+        ],
+        "relation_choices": [
+          {
+            "suggestion_id": "sg_1",
+            "kind": "transfer_pair",
+            "subtype": "ordinary_transfer",
+            "action": "accept",
+            "candidate_id": null,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "display": {
+                  "occurred_at": null,
+                  "amount": "1",
+                  "currency": "CNY",
+                  "counterparty": "",
+                  "note": "",
+                  "accounts": [],
+                  "category_id": null,
+                  "counterparty_account": "",
+                  "counterparty_account_attrs": []
+                },
+                "member_refs": [
+                  {
+                    "transaction_id": "9"
+                  }
+                ],
+                "relations": [
+                  {
+                    "kind": "transfer_pair",
+                    "subtype": "ordinary_transfer",
+                    "member_refs": [
+                      {
+                        "transaction_id": "9"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "relations": [
+              {
+                "kind": "transfer_pair",
+                "subtype": "ordinary_transfer",
+                "member_refs": [
+                  {
+                    "transaction_id": "9"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "relation_effects": [
+          {
+            "relation_id": "1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "effect": "create",
+            "member_refs": [
+              {
+                "transaction_id": "9"
+              }
+            ],
+            "code": null
+          }
+        ]
+      },
+      "it_2": {
+        "entry": {
+          "fields": {},
+          "editable_fields": [],
+          "edit_ref": null
+        },
+        "members": [
+          {
+            "transaction_id": "7",
+            "fields_ref": {
+              "transaction_id": "7"
+            },
+            "planned_action": "keep"
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": []
+      }
+    },
+    "operations": [
+      {
+        "operation_ref": "op_1",
+        "transaction_id": null,
+        "row_refs": [
+          "f_1:r1"
+        ],
+        "values": {
+          "state": "draft",
+          "amount": "12.30",
+          "currency": "CNY",
+          "account_id": "9101",
+          "note": "",
+          "components": [
+            {
+              "component_id": "9001",
+              "account_id": "9101",
+              "amount": "12.30",
+              "currency": "CNY",
+              "ordinal": 0
+            }
+          ]
+        }
+      }
+    ],
+    "detail_values": {
+      "7": {
+        "state": "posted",
+        "amount": "9.00",
+        "currency": "CNY",
+        "account_id": "9101",
+        "note": "",
+        "components": [
+          {
+            "component_id": "9223372036854775808",
+            "account_id": "9101"
+          }
+        ]
+      },
+      "8": {
+        "state": "posted",
+        "amount": "1.00",
+        "currency": "CNY",
+        "account_id": "9101",
+        "note": "",
+        "components": [
+          {
+            "component_id": "9002",
+            "account_id": "9101"
+          }
+        ]
+      }
+    },
+    "processing_details": [
+      {
+        "row_ref": "f_2:r1",
+        "file_ref": "f_2",
+        "planned_action": "skip",
+        "code": "amount_unreadable"
+      },
+      {
+        "row_ref": "f_2:r2",
+        "planned_action": "defer",
+        "code": null
+      }
+    ],
+    "file_results": [
+      {
+        "file_ref": "f_1",
+        "display_name": "a.csv",
+        "status": "ready",
+        "recognized_row_count": 1,
+        "issues": [],
+        "can_retry": false
+      }
+    ],
+    "invalidated_choices": [
+      {
+        "kind": "row",
+        "reference": "f_1:r1",
+        "code": "row_changed"
+      }
+    ]
+  },
+  "cases": {
+    "view": {
+      "ok": true,
+      "result": {
+        "plan_id": "ip_sssssssssssssssssssssssssssssssssssssssssss.pppppppppppppppp",
+        "session_id": "sssssssssssssssssssssssssssssssssssssssssss",
+        "session_revision": 3,
+        "expires_at": "2026-10-01T09:30:00+00:00",
+        "summary": {
+          "total_count": 2,
+          "confirmed_count": 1,
+          "pending_count": 1
+        },
+        "item_counts": {
+          "confirmed": 1,
+          "pending": 1
+        },
+        "can_commit": true,
+        "items": [
+          {
+            "preview_item_id": "it_1",
+            "confirmation_status": "confirmed",
+            "anticipated_state": "posted",
+            "display": {
+              "occurred_at": "2026-10-01T10:00:00+00:00",
+              "amount": "12.30",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "",
+              "accounts": [
+                "合成账户"
+              ],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": true,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "attention_reasons": [
+              {
+                "code": "amount_unreadable",
+                "message": "金额无法识别",
+                "field_path": null,
+                "blocking_scope": "row",
+                "next_action": "edit"
+              }
+            ],
+            "detail_available": true
+          },
+          {
+            "preview_item_id": "it_2",
+            "confirmation_status": "pending",
+            "anticipated_state": "draft",
+            "display": {
+              "occurred_at": null,
+              "amount": null,
+              "currency": null,
+              "counterparty": "",
+              "note": "",
+              "accounts": [],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": false,
+            "member_refs": [
+              {
+                "transaction_id": "7"
+              }
+            ],
+            "attention_reasons": [],
+            "detail_available": true
+          }
+        ],
+        "file_results": [
+          {
+            "file_ref": "f_1",
+            "display_name": "a.csv",
+            "status": "ready",
+            "recognized_row_count": 1,
+            "issues": [],
+            "can_retry": false
+          }
+        ],
+        "pages": {
+          "items": null,
+          "processing_details": null
+        },
+        "invalidated_choices": [
+          {
+            "kind": "row",
+            "reference": "f_1:r1",
+            "code": "row_changed"
+          }
+        ]
+      }
+    },
+    "items": {
+      "ok": true,
+      "result": {
+        "items": [
+          {
+            "preview_item_id": "it_1",
+            "confirmation_status": "confirmed",
+            "anticipated_state": "posted",
+            "display": {
+              "occurred_at": "2026-10-01T10:00:00+00:00",
+              "amount": "12.30",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "",
+              "accounts": [
+                "合成账户"
+              ],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": true,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "attention_reasons": [
+              {
+                "code": "amount_unreadable",
+                "message": "金额无法识别",
+                "field_path": null,
+                "blocking_scope": "row",
+                "next_action": "edit"
+              }
+            ],
+            "detail_available": true
+          },
+          {
+            "preview_item_id": "it_2",
+            "confirmation_status": "pending",
+            "anticipated_state": "draft",
+            "display": {
+              "occurred_at": null,
+              "amount": null,
+              "currency": null,
+              "counterparty": "",
+              "note": "",
+              "accounts": [],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": false,
+            "member_refs": [
+              {
+                "transaction_id": "7"
+              }
+            ],
+            "attention_reasons": [],
+            "detail_available": true
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    "confirmed": {
+      "ok": true,
+      "result": {
+        "items": [
+          {
+            "preview_item_id": "it_1",
+            "confirmation_status": "confirmed",
+            "anticipated_state": "posted",
+            "display": {
+              "occurred_at": "2026-10-01T10:00:00+00:00",
+              "amount": "12.30",
+              "currency": "CNY",
+              "counterparty": "商户",
+              "note": "",
+              "accounts": [
+                "合成账户"
+              ],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": true,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "attention_reasons": [
+              {
+                "code": "amount_unreadable",
+                "message": "金额无法识别",
+                "field_path": null,
+                "blocking_scope": "row",
+                "next_action": "edit"
+              }
+            ],
+            "detail_available": true
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    "indexed": {
+      "ok": true,
+      "result": {
+        "items": [
+          {
+            "preview_item_id": "it_2",
+            "confirmation_status": "pending",
+            "anticipated_state": "draft",
+            "display": {
+              "occurred_at": null,
+              "amount": null,
+              "currency": null,
+              "counterparty": "",
+              "note": "",
+              "accounts": [],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": false,
+            "member_refs": [
+              {
+                "transaction_id": "7"
+              }
+            ],
+            "attention_reasons": [],
+            "detail_available": true
+          }
+        ],
+        "next_cursor": null,
+        "start_index": 1,
+        "total_count": 2
+      }
+    },
+    "processing": {
+      "ok": true,
+      "result": {
+        "items": [
+          {
+            "row_ref": "f_2:r1",
+            "file_ref": "f_2",
+            "planned_action": "skip",
+            "code": "amount_unreadable",
+            "message": "金额无法识别",
+            "field_path": null,
+            "blocking_scope": "row",
+            "next_action": "edit"
+          }
+        ],
+        "next_cursor": "WyJpcF9zc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NzLnBwcHBwcHBwcHBwcHBwcHAiLCJwcm9jZXNzaW5nX2RldGFpbHMiLCJhbGwiLDFd"
+      }
+    },
+    "cursor": {
+      "ok": true,
+      "result": {
+        "items": [
+          {
+            "preview_item_id": "it_2",
+            "confirmation_status": "pending",
+            "anticipated_state": "draft",
+            "display": {
+              "occurred_at": null,
+              "amount": null,
+              "currency": null,
+              "counterparty": "",
+              "note": "",
+              "accounts": [],
+              "category_id": null,
+              "counterparty_account": "",
+              "counterparty_account_attrs": []
+            },
+            "statistics_eligible": false,
+            "member_refs": [
+              {
+                "transaction_id": "7"
+              }
+            ],
+            "attention_reasons": [],
+            "detail_available": true
+          }
+        ],
+        "next_cursor": null
+      }
+    },
+    "cursor_input": "WyJpcF9zc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3Nzc3NzLnBwcHBwcHBwcHBwcHBwcHAiLCJpdGVtcyIsImFsbCIsMV0",
+    "detail_1": {
+      "ok": true,
+      "result": {
+        "entry": {
+          "fields": {
+            "note": "条目备注"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "e1"
+        },
+        "members": [
+          {
+            "row_ref": "f_1:r1",
+            "planned_action": "create",
+            "editable_fields": [
+              "note"
+            ],
+            "allowed_actions": [
+              "edit"
+            ],
+            "row_revision": null,
+            "fields": {
+              "state": "draft",
+              "amount": "12.30",
+              "currency": "CNY",
+              "account_id": "9101",
+              "note": "",
+              "components": [
+                {
+                  "component_id": "9001",
+                  "account_id": "9101",
+                  "amount": "12.30",
+                  "currency": "CNY",
+                  "ordinal": 0
+                }
+              ]
+            }
+          }
+        ],
+        "relation_members": [
+          {
+            "transaction_id": "8",
+            "planned_action": "keep",
+            "fields": {
+              "state": "posted",
+              "amount": "1.00",
+              "currency": "CNY",
+              "account_id": "9101",
+              "note": "",
+              "components": [
+                {
+                  "component_id": "9002",
+                  "account_id": "9101"
+                }
+              ]
+            }
+          }
+        ],
+        "field_diffs": [
+          {
+            "field": "note",
+            "current": "",
+            "incoming": "新备注",
+            "effective": "新备注",
+            "resolution": "apply",
+            "row_ref": "f_1:r1"
+          }
+        ],
+        "issues": [
+          {
+            "code": "amount_unreadable",
+            "message": "金额无法识别",
+            "field_path": "amount",
+            "blocking_scope": "row",
+            "next_action": "edit"
+          }
+        ],
+        "relation_choices": [
+          {
+            "suggestion_id": "sg_1",
+            "kind": "transfer_pair",
+            "subtype": "ordinary_transfer",
+            "action": "accept",
+            "candidate_id": null,
+            "member_refs": [
+              {
+                "row_ref": "f_1:r1"
+              }
+            ],
+            "candidates": [
+              {
+                "candidate_id": "c1",
+                "display": {
+                  "occurred_at": null,
+                  "amount": "1",
+                  "currency": "CNY",
+                  "counterparty": "",
+                  "note": "",
+                  "accounts": [],
+                  "category_id": null,
+                  "counterparty_account": "",
+                  "counterparty_account_attrs": []
+                },
+                "member_refs": [
+                  {
+                    "transaction_id": "9"
+                  }
+                ],
+                "relations": [
+                  {
+                    "kind": "transfer_pair",
+                    "subtype": "ordinary_transfer",
+                    "member_refs": [
+                      {
+                        "transaction_id": "9"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "relations": [
+              {
+                "kind": "transfer_pair",
+                "subtype": "ordinary_transfer",
+                "member_refs": [
+                  {
+                    "transaction_id": "9"
+                  }
+                ]
+              }
+            ]
+          }
+        ],
+        "relation_effects": [
+          {
+            "relation_id": "1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "effect": "create",
+            "member_refs": [
+              {
+                "transaction_id": "9"
+              }
+            ],
+            "code": null
+          }
+        ],
+        "preview_item_id": "it_1"
+      }
+    },
+    "detail_2": {
+      "ok": true,
+      "result": {
+        "entry": {
+          "fields": {},
+          "editable_fields": [],
+          "edit_ref": null
+        },
+        "members": [
+          {
+            "transaction_id": "7",
+            "planned_action": "keep",
+            "fields": {
+              "state": "posted",
+              "amount": "9.00",
+              "currency": "CNY",
+              "account_id": "9101",
+              "note": "",
+              "components": [
+                {
+                  "account_id": "9101"
+                }
+              ]
+            }
+          }
+        ],
+        "relation_members": [],
+        "field_diffs": [],
+        "issues": [],
+        "relation_choices": [],
+        "relation_effects": [],
+        "preview_item_id": "it_2"
+      }
+    },
+    "errors": {
+      "limit_zero": {
+        "ok": false,
+        "code": "plan_page_invalid"
+      },
+      "limit_large": {
+        "ok": false,
+        "code": "plan_page_invalid"
+      },
+      "cursor_garbage": {
+        "ok": false,
+        "code": "plan_cursor_invalid"
+      },
+      "cursor_plan": {
+        "ok": false,
+        "code": "plan_cursor_invalid"
+      },
+      "start_index": {
+        "ok": false,
+        "code": "plan_page_invalid"
+      },
+      "confirmation": {
+        "ok": false,
+        "code": "plan_page_invalid"
+      },
+      "session_id": {
+        "ok": false,
+        "code": "plan_not_found"
+      }
+    },
+    "preview": {
+      "valid": {
+        "ok": true,
+        "result": {
+          "entry_choices": [
+            {
+              "edit_ref": "e1",
+              "patch": {
+                "note": "y"
+              }
+            }
+          ],
+          "account_selections": [
+            {
+              "source_account_ref": "ref",
+              "account_id": "9101",
+              "expected_account_revision": 1
+            }
+          ],
+          "row_choices": [
+            {
+              "row_ref": "f:r1",
+              "action": "apply",
+              "patch": {
+                "note": "x"
+              }
+            }
+          ],
+          "relation_choices": [
+            {
+              "suggestion_id": "sg",
+              "action": "accept",
+              "candidate_id": "c1",
+              "common_fields": {
+                "note": "x"
+              },
+              "inherit_common_fields": true
+            }
+          ]
+        }
+      },
+      "bad_action": {
+        "ok": false,
+        "code": "plan_input_invalid"
+      },
+      "duplicate": {
+        "ok": false,
+        "code": "plan_input_invalid"
+      },
+      "bad_common": {
+        "ok": false,
+        "code": "plan_input_invalid"
+      },
+      "bad_account": {
+        "ok": false,
+        "code": "plan_input_invalid"
+      },
+      "entry_patch": {
+        "ok": false,
+        "code": "plan_input_invalid"
+      }
+    },
+    "validate": {
+      "valid": {
+        "ok": true,
+        "result": null
+      },
+      "missing_detail": {
+        "ok": false,
+        "code": "plan_build_failed"
+      }
+    }
+  }
+}
