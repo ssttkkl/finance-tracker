@@ -1,0 +1,167 @@
+{
+  "texts": [
+    {
+      "text": "退款-商品",
+      "signal": true,
+      "p2p": false,
+      "p2p_refund": false,
+      "excluded": false,
+      "subtype": "",
+      "stripped": "商品"
+    },
+    {
+      "text": "消费退货 商品",
+      "signal": true,
+      "p2p": false,
+      "p2p_refund": false,
+      "excluded": false,
+      "subtype": "",
+      "stripped": "消费退货 商品"
+    },
+    {
+      "text": "微信红包-退款",
+      "signal": true,
+      "p2p": true,
+      "p2p_refund": true,
+      "excluded": false,
+      "subtype": "redpacket",
+      "stripped": "微信红包-退款"
+    },
+    {
+      "text": "微信红包",
+      "signal": false,
+      "p2p": true,
+      "p2p_refund": false,
+      "excluded": true,
+      "subtype": "redpacket",
+      "stripped": "微信红包"
+    },
+    {
+      "text": "转账备注",
+      "signal": false,
+      "p2p": true,
+      "p2p_refund": false,
+      "excluded": true,
+      "subtype": "transfer",
+      "stripped": "转账备注"
+    },
+    {
+      "text": "群收款",
+      "signal": false,
+      "p2p": true,
+      "p2p_refund": false,
+      "excluded": true,
+      "subtype": "receipt",
+      "stripped": "群收款"
+    },
+    {
+      "text": "提现",
+      "signal": false,
+      "p2p": true,
+      "p2p_refund": false,
+      "excluded": true,
+      "subtype": "withdraw",
+      "stripped": "提现"
+    },
+    {
+      "text": "refund item",
+      "signal": true,
+      "p2p": false,
+      "p2p_refund": false,
+      "excluded": false,
+      "subtype": "",
+      "stripped": "refund item"
+    },
+    {
+      "text": "普通消费",
+      "signal": false,
+      "p2p": false,
+      "p2p_refund": false,
+      "excluded": false,
+      "subtype": "",
+      "stripped": "普通消费"
+    },
+    {
+      "text": "",
+      "signal": false,
+      "p2p": false,
+      "p2p_refund": false,
+      "excluded": false,
+      "subtype": "",
+      "stripped": ""
+    }
+  ],
+  "facts": [
+    {
+      "id": "bank_pay",
+      "platform": false,
+      "refund_signal": false
+    },
+    {
+      "id": "bank_ref",
+      "platform": false,
+      "refund_signal": true
+    },
+    {
+      "id": "plat_pay",
+      "platform": true,
+      "refund_signal": false
+    },
+    {
+      "id": "plat_ref",
+      "platform": true,
+      "refund_signal": true
+    },
+    {
+      "id": "other",
+      "platform": false,
+      "refund_signal": false
+    }
+  ],
+  "title": [
+    true,
+    true,
+    false,
+    false
+  ],
+  "diamond": [
+    {
+      "kind": "refund_offset",
+      "primary_fact_id": "bank_pay",
+      "secondary_fact_id": "bank_ref",
+      "primary_fact_type": "cash",
+      "secondary_fact_type": "cash",
+      "subtype": "",
+      "status": "accepted",
+      "rule_id": "refund_offset.diamond_via_platform.v1",
+      "confidence": "strong",
+      "evidence": {
+        "amount_delta": "0",
+        "time_delta_seconds": 0,
+        "same_currency": true,
+        "counterparty_similarity": "",
+        "source_pair": [
+          "icbc_debit",
+          "icbc_debit"
+        ],
+        "rule_id": "refund_offset.diamond_via_platform.v1",
+        "candidate_count": 1,
+        "signals": [
+          "diamond",
+          "platform_chain",
+          "exact_or_residual"
+        ],
+        "open_leg": false,
+        "anchor_role": "",
+        "candidate_fact_ids": [],
+        "extras": {
+          "via": "platform_refund_mirror",
+          "refund_amount": "100.00"
+        }
+      },
+      "created_by": "system",
+      "anchor_fact_id": "bank_pay",
+      "open_leg": false
+    }
+  ]
+}
