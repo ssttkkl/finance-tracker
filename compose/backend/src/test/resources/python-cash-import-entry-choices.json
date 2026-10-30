@@ -1,0 +1,531 @@
+{
+  "target": {
+    "id": "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab",
+    "value": {
+      "parent_ids": [
+        "1001",
+        "1002"
+      ],
+      "members": [
+        {
+          "row_refs": [
+            "f:r1",
+            "f:r2"
+          ]
+        },
+        {
+          "transaction_id": "1002"
+        }
+      ],
+      "rows": [
+        [
+          1001,
+          {
+            "state": "draft",
+            "amount": "1.00"
+          }
+        ],
+        [
+          1002,
+          {
+            "state": "posted",
+            "amount": "-1.00"
+          }
+        ]
+      ],
+      "entries": [],
+      "relations": [],
+      "relation_dependencies": [
+        {
+          "suggestion_id": "sg1",
+          "action": "accept"
+        },
+        {
+          "suggestion_id": "sg2",
+          "action": "defer"
+        },
+        {
+          "suggestion_id": "sg3",
+          "action": "ignore"
+        }
+      ],
+      "final_edges": [
+        {
+          "id": "e1",
+          "kind": "payment_mirror",
+          "subtype": "not_applicable",
+          "primary_transaction_id": 1001,
+          "secondary_transaction_id": 1002
+        }
+      ]
+    }
+  },
+  "single": {
+    "id": "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d",
+    "value": {
+      "parent_ids": [
+        "1002"
+      ],
+      "members": [
+        {
+          "transaction_id": "1002"
+        }
+      ],
+      "rows": [
+        [
+          1002,
+          {
+            "state": "posted",
+            "amount": "-1.00"
+          }
+        ]
+      ],
+      "entries": [],
+      "relations": [],
+      "relation_dependencies": [
+        {
+          "suggestion_id": "sg1",
+          "action": "accept"
+        },
+        {
+          "suggestion_id": "sg2",
+          "action": "defer"
+        }
+      ],
+      "final_edges": [
+        {
+          "id": "e1",
+          "kind": "payment_mirror",
+          "subtype": "not_applicable",
+          "primary_transaction_id": 1001,
+          "secondary_transaction_id": 1002
+        }
+      ]
+    }
+  },
+  "plan": {
+    "items": [
+      {
+        "preview_item_id": "it_1",
+        "display": {
+          "note": "旧",
+          "counterparty": "商户"
+        }
+      },
+      {
+        "preview_item_id": "it_2",
+        "display": {
+          "note": "旧二"
+        }
+      }
+    ],
+    "item_details": {
+      "it_1": {
+        "entry": {
+          "fields": {
+            "note": "旧"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab"
+        }
+      },
+      "it_2": {
+        "entry": {
+          "fields": {
+            "note": "旧二"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d"
+        }
+      }
+    },
+    "entry_targets": {
+      "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab": {
+        "parent_ids": [
+          "1001",
+          "1002"
+        ],
+        "members": [
+          {
+            "row_refs": [
+              "f:r1",
+              "f:r2"
+            ]
+          },
+          {
+            "transaction_id": "1002"
+          }
+        ],
+        "rows": [
+          [
+            1001,
+            {
+              "state": "draft",
+              "amount": "1.00"
+            }
+          ],
+          [
+            1002,
+            {
+              "state": "posted",
+              "amount": "-1.00"
+            }
+          ]
+        ],
+        "entries": [],
+        "relations": [],
+        "relation_dependencies": [
+          {
+            "suggestion_id": "sg1",
+            "action": "accept"
+          },
+          {
+            "suggestion_id": "sg2",
+            "action": "defer"
+          },
+          {
+            "suggestion_id": "sg3",
+            "action": "ignore"
+          }
+        ],
+        "final_edges": [
+          {
+            "id": "e1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "primary_transaction_id": 1001,
+            "secondary_transaction_id": 1002
+          }
+        ]
+      },
+      "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d": {
+        "parent_ids": [
+          "1002"
+        ],
+        "members": [
+          {
+            "transaction_id": "1002"
+          }
+        ],
+        "rows": [
+          [
+            1002,
+            {
+              "state": "posted",
+              "amount": "-1.00"
+            }
+          ]
+        ],
+        "entries": [],
+        "relations": [],
+        "relation_dependencies": [
+          {
+            "suggestion_id": "sg1",
+            "action": "accept"
+          },
+          {
+            "suggestion_id": "sg2",
+            "action": "defer"
+          }
+        ],
+        "final_edges": [
+          {
+            "id": "e1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "primary_transaction_id": 1001,
+            "secondary_transaction_id": 1002
+          }
+        ]
+      }
+    }
+  },
+  "choices": [
+    {
+      "edit_ref": "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab",
+      "patch": {
+        "note": "新"
+      }
+    },
+    {
+      "edit_ref": "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d",
+      "patch": {
+        "note": "新二",
+        "category_id": "cat"
+      }
+    }
+  ],
+  "applied": {
+    "items": [
+      {
+        "preview_item_id": "it_1",
+        "display": {
+          "note": "新",
+          "counterparty": "商户"
+        }
+      },
+      {
+        "preview_item_id": "it_2",
+        "display": {
+          "note": "新二"
+        }
+      }
+    ],
+    "item_details": {
+      "it_1": {
+        "entry": {
+          "fields": {
+            "note": "新"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab"
+        }
+      },
+      "it_2": {
+        "entry": {
+          "fields": {
+            "note": "新二",
+            "category_id": "cat"
+          },
+          "editable_fields": [
+            "note"
+          ],
+          "edit_ref": "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d"
+        }
+      }
+    },
+    "entry_targets": {
+      "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab": {
+        "parent_ids": [
+          "1001",
+          "1002"
+        ],
+        "members": [
+          {
+            "row_refs": [
+              "f:r1",
+              "f:r2"
+            ]
+          },
+          {
+            "transaction_id": "1002"
+          }
+        ],
+        "rows": [
+          [
+            1001,
+            {
+              "state": "draft",
+              "amount": "1.00"
+            }
+          ],
+          [
+            1002,
+            {
+              "state": "posted",
+              "amount": "-1.00"
+            }
+          ]
+        ],
+        "entries": [],
+        "relations": [],
+        "relation_dependencies": [
+          {
+            "suggestion_id": "sg1",
+            "action": "accept"
+          },
+          {
+            "suggestion_id": "sg2",
+            "action": "defer"
+          },
+          {
+            "suggestion_id": "sg3",
+            "action": "ignore"
+          }
+        ],
+        "final_edges": [
+          {
+            "id": "e1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "primary_transaction_id": 1001,
+            "secondary_transaction_id": 1002
+          }
+        ]
+      },
+      "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d": {
+        "parent_ids": [
+          "1002"
+        ],
+        "members": [
+          {
+            "transaction_id": "1002"
+          }
+        ],
+        "rows": [
+          [
+            1002,
+            {
+              "state": "posted",
+              "amount": "-1.00"
+            }
+          ]
+        ],
+        "entries": [],
+        "relations": [],
+        "relation_dependencies": [
+          {
+            "suggestion_id": "sg1",
+            "action": "accept"
+          },
+          {
+            "suggestion_id": "sg2",
+            "action": "defer"
+          }
+        ],
+        "final_edges": [
+          {
+            "id": "e1",
+            "kind": "payment_mirror",
+            "subtype": "not_applicable",
+            "primary_transaction_id": 1001,
+            "secondary_transaction_id": 1002
+          }
+        ]
+      }
+    },
+    "entry_edits": [
+      {
+        "edit_ref": "ie_c9949dc2f9a3693f0eda71cbfcae4dc6a3aca0de096b4b986f154c836f48adab",
+        "target": {
+          "parent_ids": [
+            "1001",
+            "1002"
+          ],
+          "members": [
+            {
+              "row_refs": [
+                "f:r1",
+                "f:r2"
+              ]
+            },
+            {
+              "transaction_id": "1002"
+            }
+          ],
+          "rows": [
+            [
+              1001,
+              {
+                "state": "draft",
+                "amount": "1.00"
+              }
+            ],
+            [
+              1002,
+              {
+                "state": "posted",
+                "amount": "-1.00"
+              }
+            ]
+          ],
+          "entries": [],
+          "relations": [],
+          "relation_dependencies": [
+            {
+              "suggestion_id": "sg1",
+              "action": "accept"
+            },
+            {
+              "suggestion_id": "sg2",
+              "action": "defer"
+            },
+            {
+              "suggestion_id": "sg3",
+              "action": "ignore"
+            }
+          ],
+          "final_edges": [
+            {
+              "id": "e1",
+              "kind": "payment_mirror",
+              "subtype": "not_applicable",
+              "primary_transaction_id": 1001,
+              "secondary_transaction_id": 1002
+            }
+          ]
+        },
+        "patch": {
+          "note": "新"
+        }
+      },
+      {
+        "edit_ref": "ie_94a3db38e74ca04fa09d2a1c1ccbe3088d242ff5e803acff0a9276621cdbab8d",
+        "target": {
+          "parent_ids": [
+            "1002"
+          ],
+          "members": [
+            {
+              "transaction_id": "1002"
+            }
+          ],
+          "rows": [
+            [
+              1002,
+              {
+                "state": "posted",
+                "amount": "-1.00"
+              }
+            ]
+          ],
+          "entries": [],
+          "relations": [],
+          "relation_dependencies": [
+            {
+              "suggestion_id": "sg1",
+              "action": "accept"
+            },
+            {
+              "suggestion_id": "sg2",
+              "action": "defer"
+            }
+          ],
+          "final_edges": [
+            {
+              "id": "e1",
+              "kind": "payment_mirror",
+              "subtype": "not_applicable",
+              "primary_transaction_id": 1001,
+              "secondary_transaction_id": 1002
+            }
+          ]
+        },
+        "patch": {
+          "note": "新二",
+          "category_id": "cat"
+        }
+      }
+    ]
+  },
+  "cases": {
+    "changed": {
+      "ok": false,
+      "code": "plan_changed"
+    },
+    "category": {
+      "ok": false,
+      "code": "category_unavailable"
+    },
+    "invalid_field": {
+      "ok": false,
+      "code": "plan_input_invalid"
+    }
+  }
+}
