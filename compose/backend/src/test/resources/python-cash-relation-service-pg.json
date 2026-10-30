@@ -2039,6 +2039,109 @@
           94001
         ]
       ]
+    },
+    "reconciliation": {
+      "obsolete_automatic": [
+        [
+          94001,
+          94008
+        ],
+        [
+          {
+            "id": "auto",
+            "kind": "payment_mirror",
+            "subtype": "",
+            "primary_component_id": 94001,
+            "secondary_component_id": 94008,
+            "state": "confirmed",
+            "active": false,
+            "row_revision": 3,
+            "decision_source": "rule",
+            "rule_id": "mirror.rule",
+            "created_by": "system",
+            "decided_by": "system",
+            "decision_reason": "superseded_by_canonical_payment_mirror"
+          }
+        ]
+      ],
+      "human_protected": [
+        [
+          94001,
+          94008
+        ],
+        [
+          {
+            "id": "auto",
+            "kind": "payment_mirror",
+            "subtype": "",
+            "primary_component_id": 94001,
+            "secondary_component_id": 94008,
+            "state": "confirmed",
+            "active": false,
+            "row_revision": 3,
+            "decision_source": "rule",
+            "rule_id": "mirror.rule",
+            "created_by": "system",
+            "decided_by": "system",
+            "decision_reason": "superseded_by_human_payment_mirror"
+          },
+          {
+            "id": "human",
+            "kind": "payment_mirror",
+            "subtype": "",
+            "primary_component_id": 94005,
+            "secondary_component_id": 94008,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "decision_source": "manual",
+            "rule_id": "mirror.rule",
+            "created_by": "user",
+            "decided_by": "user",
+            "decision_reason": ""
+          }
+        ]
+      ],
+      "human_only": [
+        [],
+        [
+          {
+            "id": "human",
+            "kind": "payment_mirror",
+            "subtype": "",
+            "primary_component_id": 94001,
+            "secondary_component_id": 94008,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "decision_source": "manual",
+            "rule_id": "mirror.rule",
+            "created_by": "user",
+            "decided_by": "user",
+            "decision_reason": ""
+          }
+        ]
+      ],
+      "blocked_pair": [
+        [],
+        [
+          {
+            "id": "human_rejected",
+            "kind": "payment_mirror",
+            "subtype": "",
+            "primary_component_id": 94001,
+            "secondary_component_id": 94008,
+            "state": "ignored",
+            "active": true,
+            "row_revision": 1,
+            "decision_source": "manual",
+            "rule_id": "mirror.rule",
+            "created_by": "user",
+            "decided_by": "user",
+            "decision_reason": ""
+          }
+        ]
+      ]
     }
   }
 }

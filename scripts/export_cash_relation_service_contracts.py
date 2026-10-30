@@ -302,6 +302,51 @@ def persistence_cases(sessions):
     return cases
 
 
+def reconciliation_cases(sessions):
+    cases = {}
+
+    def reset(seeds):
+        labels = {}
+        with sessions.begin() as session:
+            session.execute(delete(CashRelationCandidateModel).where(
+                CashRelationCandidateModel.workspace_id == WORKSPACE))
+            session.execute(delete(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == WORKSPACE))
+            repo = RelationalRelationRepository(session, WORKSPACE)
+            for label, payload in seeds:
+                labels[repo.add(payload)] = label
+        with sessions() as session:
+            uow = RealUoW(session)
+            service = RelationService(TransactionalUoW(sessions))
+            facts = service._list_active_cash_facts(uow)
+            affected = service._reconcile_system_payment_mirrors(uow, facts,
+                protected_fact_ids=seeder.get("protected"), blocked_pairs=seeder.get("blocked"))
+            rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
+            snapshot = sorted([norm({key: getattr(row, key) for key in (
+                "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+                "row_revision", "decision_source", "rule_id", "created_by", "decided_by", "decision_reason")},
+                labels) for row in rows], key=lambda row: str(row["id"]))
+            return sorted(affected), snapshot
+
+    mirror = lambda label, primary, secondary, created_by="system", status="accepted", decided_by="": (
+        label, {"kind": "payment_mirror", "primary_fact_id": primary, "secondary_fact_id": secondary,
+            "primary_component_id": primary, "secondary_component_id": secondary,
+            "anchor_fact_id": primary, "anchor_component_id": primary, "status": status,
+            "rule_id": "mirror.rule", "applied_amount": "0", "created_by": created_by,
+            "decided_by": decided_by})
+    seeder = {}
+    cases["obsolete_automatic"] = reset([mirror("auto", 94001, 94008)])
+    seeder = {"protected": {94005, 94008}}
+    cases["human_protected"] = reset([mirror("auto", 94001, 94008), mirror("human", 94005, 94008,
+        created_by="user", decided_by="user")])
+    seeder = {}
+    cases["human_only"] = reset([mirror("human", 94001, 94008, created_by="user", decided_by="user")])
+    seeder = {"blocked": {frozenset(("94001", "94008"))}}
+    cases["blocked_pair"] = reset([mirror("human_rejected", 94001, 94008, created_by="user",
+        status="rejected", decided_by="user")])
+    return cases
+
+
 def export(database_url: str, output: Path) -> None:
     engine, sessions, jdbc = connect(database_url)
     cases = {}
@@ -332,6 +377,7 @@ def export(database_url: str, output: Path) -> None:
                 "external_digest": external, "validation": results}
             cases["decisions"] = decision_cases(sessions)
             cases["persistence"] = persistence_cases(sessions)
+            cases["reconciliation"] = reconciliation_cases(sessions)
         output.mkdir(parents=True, exist_ok=True)
         (output / "expected.json").write_text(json.dumps({"cases": cases}, ensure_ascii=False,
             indent=2, default=str) + "\n")

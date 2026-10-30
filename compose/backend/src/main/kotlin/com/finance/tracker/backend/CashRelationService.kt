@@ -556,6 +556,80 @@ internal class CashRelationService(private val context: CashSqlContext) {
         return relations.get(id)
     }
 
+    /** 整批自动替换在写入前校验；非法时旧边保持不动。 */
+    fun validateAutomaticReplacementBatch(facts: List<RelationFact>, acceptedRelations: List<Map<String, Any?>>,
+        replacements: List<RelationProposal>,
+        validationContext: ProjectionValidationContext? = null): Boolean {
+        val batch = replacements.filter { it.createdBy == "system" && it.status == "accepted" &&
+            !it.secondaryFactId.isNullOrEmpty() && !it.isOpenLeg }
+        val context = validationContext ?: CashRelationPlanning.buildValidationContext(facts)
+        if (batch.isEmpty()) return true
+        return CashRelationPlanning.validationReason(facts, acceptedRelations, batch.first(), batch,
+            context) == null
+    }
+
+    /** 把系统支付镜像收敛到完整的规范匹配；人工决定保持不变。 */
+    fun reconcileSystemPaymentMirrors(facts: List<RelationFact>, protectedFactIds: Set<String> = emptySet(),
+        blockedPairs: Set<Pair<String, String>> = emptySet()): Set<Long> {
+        val affected = linkedSetOf<Long>()
+        fun mark(vararg identifiers: String?) {
+            for (identifier in identifiers) identifier?.toLongOrNull()?.let { affected += it }
+        }
+        val allActive = relations.listActive().filter { it["status"] != "superseded" }
+        val active = allActive.filter { it["status"] == "accepted" }
+        val protectedIds = protectedFactIds.toMutableSet()
+        for (relation in active) {
+            if (relation["kind"] == "payment_mirror" && CashRelationSerialization.isHumanDecision(relation))
+                listOf(relation["primary_fact_id"], relation["secondary_fact_id"])
+                    .map { text(it) }.filter { it.isNotEmpty() }.forEach { protectedIds += it }
+        }
+        val blocked = blockedPairs.toMutableSet()
+        for (relation in allActive) {
+            if (relation["kind"] == "payment_mirror" && relation["status"] == "rejected" &&
+                CashRelationSerialization.isHumanDecision(relation) &&
+                text(relation["primary_fact_id"]).isNotEmpty() && text(relation["secondary_fact_id"]).isNotEmpty())
+                blocked += text(relation["primary_fact_id"]) to text(relation["secondary_fact_id"])
+        }
+        val (tails, identifiers) = aliasIndexes()
+        val canonical = CashRelationPipeline.matchCanonicalPaymentMirrors(facts, tails, identifiers,
+            protectedIds, blocked)
+        val canonicalPairs = canonical.filter { it.primaryFactId.isNotEmpty() && !it.secondaryFactId.isNullOrEmpty() }
+            .map { setOf(it.primaryFactId, it.secondaryFactId!!) }.toSet()
+        val automaticMirrors = allActive.filter { relation ->
+            relation["kind"] == "payment_mirror" && relation["created_by"] == "system" &&
+                !CashRelationSerialization.isHumanDecision(relation) &&
+                relation["status"] in setOf("accepted", "pending_review")
+        }
+        val obsoleteIds = automaticMirrors.filter { relation ->
+            text(relation["primary_fact_id"]).isNotEmpty() && text(relation["secondary_fact_id"]).isNotEmpty() &&
+                setOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"])) !in canonicalPairs
+        }.map { text(it["id"]) }.toSet()
+        val replacementBase = active.filter { text(it["id"]) !in obsoleteIds }
+        val replacements = canonical.filter { it.status == "accepted" }
+        val validationContext = CashRelationPlanning.buildValidationContext(facts)
+        if (!validateAutomaticReplacementBatch(facts, replacementBase, replacements, validationContext))
+            return affected
+        for (relation in automaticMirrors) {
+            val pair = setOf(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+            if (pair.all { it.isEmpty() } || pair in canonicalPairs) continue
+            val human = pair.any { it in protectedIds }
+            relations.updateStatus(relation["id"], status = "superseded", decidedBy = "system",
+                decisionReason = if (human) "superseded_by_human_payment_mirror"
+                else "superseded_by_canonical_payment_mirror")
+            mark(text(relation["primary_fact_id"]), text(relation["secondary_fact_id"]))
+        }
+        val accepted = relations.listActive().filter { it["status"] == "accepted" }.toMutableList()
+        for (proposal in canonical) {
+            if (proposal.status != "accepted") continue
+            val outcome = persistProposal(proposal, emptyMap(), accepted) ?: continue
+            if (outcome["status"] == "accepted") {
+                accepted += outcome
+                mark(text(outcome["primary_fact_id"]), text(outcome["secondary_fact_id"]))
+            }
+        }
+        return affected
+    }
+
     /** 导入拒绝的自动提案：人工决定保持，系统结果更新为 rejected，否则新建 rejected 记录。 */
     fun persistRejectedProposal(proposal: RelationProposal): Map<String, Any?> {
         val subtype = proposal.subtype.ifEmpty { "" }

@@ -369,4 +369,63 @@ class CashRelationServiceTest {
         }
         assertEquals(golden(database).getValue("persistence"), sourceJson(cases))
     }
+
+    @Test fun relationReconciliationMatchesPython() {
+        val database = database()
+        RelationContractFixture.seed(database, jdbcUrl)
+        fun sqliteContext(connection: java.sql.Connection) = CashSqlContext(connection, workspace, database.sqlite)
+        fun run(seed: List<Pair<String, Map<String, Any?>>>, protected: Set<String> = emptySet(),
+            blocked: Set<Pair<String, String>> = emptySet()): Pair<List<Long>, List<Map<String, Any?>>> {
+            val localLabels = linkedMapOf<Long, String>()
+            database.write { connection ->
+                val sql = connection.jooq(database.sqlite)
+                sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
+                sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+                val repository = CashRelationRepository(sqliteContext(connection))
+                for ((label, payload) in seed) localLabels[repository.add(payload)] = label
+            }
+            labels.putAll(localLabels)
+            val affected = database.write { connection ->
+                val service = CashRelationService(sqliteContext(connection))
+                service.reconcileSystemPaymentMirrors(service.activeCashFacts(), protected, blocked).sorted()
+            }
+            val rows = database.read { connection ->
+                connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
+                    .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
+                    .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
+                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                            "primary_component_id" to row.primaryComponentId,
+                            "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
+                            "active" to row.active, "row_revision" to row.rowRevision,
+                            "decision_source" to row.decisionSource, "rule_id" to row.ruleId,
+                            "created_by" to row.createdBy, "decided_by" to row.decidedBy,
+                            "decision_reason" to row.decisionReason)
+                    }
+            }
+            @Suppress("UNCHECKED_CAST")
+            val normalized = (normDecision(rows) as List<Map<String, Any?>>)
+                .sortedBy { it["id"].toString() }
+            return affected to normalized
+        }
+        fun mirror(label: String, primary: Int, secondary: Int, createdBy: String = "system",
+            status: String = "accepted", decidedBy: String = "") = label to mapOf<String, Any?>(
+            "kind" to "payment_mirror", "primary_fact_id" to primary, "secondary_fact_id" to secondary,
+            "primary_component_id" to primary, "secondary_component_id" to secondary,
+            "anchor_fact_id" to primary, "anchor_component_id" to primary, "status" to status,
+            "rule_id" to "mirror.rule", "applied_amount" to "0", "created_by" to createdBy,
+            "decided_by" to decidedBy)
+        val cases = linkedMapOf<String, Any?>()
+        val obsolete = run(listOf(mirror("auto", 94001, 94008)))
+        cases["obsolete_automatic"] = listOf(obsolete.first, obsolete.second)
+        val protected = run(listOf(mirror("auto", 94001, 94008),
+            mirror("human", 94005, 94008, createdBy = "user", decidedBy = "user")),
+            protected = setOf("94005", "94008"))
+        cases["human_protected"] = listOf(protected.first, protected.second)
+        val humanOnly = run(listOf(mirror("human", 94001, 94008, createdBy = "user", decidedBy = "user")))
+        cases["human_only"] = listOf(humanOnly.first, humanOnly.second)
+        val blocked = run(listOf(mirror("human_rejected", 94001, 94008, createdBy = "user",
+            status = "rejected", decidedBy = "user")), blocked = setOf("94001" to "94008"))
+        cases["blocked_pair"] = listOf(blocked.first, blocked.second)
+        assertEquals(golden(database).getValue("reconciliation"), sourceJson(cases))
+    }
 }
