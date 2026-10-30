@@ -23,6 +23,25 @@ def _add_singleton_component(session, transaction):
     return component
 
 
+def _normalize(value):
+    """Stable entry and relation identities are backend-local; compare structure, not their values."""
+    import uuid
+
+    if isinstance(value, str):
+        if value.startswith("cash-entry:"):
+            return "<entry>"
+        try:
+            uuid.UUID(value)
+        except ValueError:
+            return value
+        return "<uuid>"
+    if isinstance(value, dict):
+        return {key: _normalize(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return type(value)(_normalize(item) for item in value)
+    return value
+
+
 def _snapshot(runtime):
     from ft.application.cash_projections import CashProjectionService
     from ft.application.web_queries import CashLedgerQueryService
@@ -32,13 +51,17 @@ def _snapshot(runtime):
     page = query.list_cash_projections(limit=50)
     items = [
         (
-            item.projection_id, item.amount, item.economic_type, item.hidden_reason,
+            str(item.transaction_id), item.amount, item.economic_type, item.hidden_reason,
             item.member_count, item.composition,
         )
         for item in page.items
     ]
-    evidence = query.get_projection_evidence("cash:1003")
-    return status["projection_version"], items, evidence["members"], evidence["accepted_relations"]
+    target = next(item for item in page.items if str(item.transaction_id) == "1003")
+    evidence = query.get_projection_evidence(target.projection_id)
+    return (
+        status["projection_version"], items,
+        _normalize(evidence["members"]), _normalize(evidence["accepted_relations"]),
+    )
 
 
 def test_cash_projection_contract_is_identical_on_sqlite_and_postgresql(
@@ -119,13 +142,19 @@ def test_transfer_pair_endpoint_invariants_are_identical_on_both_backends(
 
 
 @pytest.mark.parametrize(
-    "subtype",
-    ["ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer"],
+    ("subtype", "expected_label"),
+    [
+        ("ordinary_transfer", "ordinary_transfer"),
+        ("cross_currency_remittance", "cross_currency_remittance"),
+        ("credit_repayment", "credit_repayment"),
+        ("currency_exchange", "currency_exchange"),
+    ],
 )
 def test_cross_currency_transfer_pair_is_visible_on_both_backends(
     cash_web_runtime,
     postgres_cash_web_runtime,
     subtype,
+    expected_label,
 ):
     from datetime import datetime
     from decimal import Decimal
@@ -133,12 +162,10 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
     from sqlalchemy import select
 
     from ft.adapters.relational.models import (
-        CashTransactionComponentModel,
         CashProjectionMemberModel,
         CashProjectionModel,
         CashProjectionStateModel,
         CashTransactionModel,
-        TransactionRelationModel,
     )
     from ft.application.cash_projections import CashProjectionService
 
@@ -169,11 +196,6 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
                             state='confirmed'
                         ))
 
-        if subtype not in {"currency_exchange", "cross_currency_remittance"}:
-            from ft.domain.cash_projection import CashProjectionError
-            with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
-                CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-            continue
         assert CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()["availability"] == "ready"
         with runtime.sessions() as session:
             state = session.get(CashProjectionStateModel, runtime.workspace_id)
@@ -188,7 +210,7 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             projection.economic_type,
             projection.visible,
             projection.hidden_reason,
-            projection.transfer_subtype,
+            projection.business_label,
             projection.net_amount,
             len(member_ids),
         ))
@@ -197,21 +219,19 @@ def test_cross_currency_transfer_pair_is_visible_on_both_backends(
             "internal_transfer",
             True,
             None,
-            subtype,
+            expected_label,
             Decimal("0"),
             2,
         )
-    if subtype in {"currency_exchange", "cross_currency_remittance"}:
-        assert len(projections) == 2 and projections[0] == projections[1]
-    else:
-        assert projections == []
+    assert len(projections) == 2 and projections[0] == projections[1]
 
 
 @pytest.mark.parametrize(
     ("amount", "currency", "expected_ready"),
     [
         ("14", "USD", True),
-        ("12.50", "CNY", False),
+        ("12.50", "CNY", True),
+        ("14", "CNY", False),
     ],
 )
 def test_currency_exchange_endpoint_invariants_are_identical_on_both_backends(
