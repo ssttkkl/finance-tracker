@@ -42,13 +42,14 @@ internal data class RelationProposal(
     val openLeg: Boolean = false,
 ) {
     val isOpenLeg: Boolean get() = openLeg || secondaryFactId.isNullOrEmpty()
-    val anchor: String get() = anchorFactId.ifEmpty { primaryFactId }
+    /** Python 模型在 open_leg 提案上把锚点归一为主流水；键和序列化都使用归一值。 */
+    val effectiveAnchorFactId: String get() = anchorFactId.ifEmpty { if (isOpenLeg) primaryFactId else "" }
     fun json(): Map<String, Any?> = linkedMapOf(
         "kind" to kind, "primary_fact_id" to primaryFactId,
         "secondary_fact_id" to secondaryFactId, "primary_fact_type" to primaryFactType,
         "secondary_fact_type" to secondaryFactType, "subtype" to subtype, "status" to status,
         "rule_id" to ruleId, "confidence" to confidence, "evidence" to evidence.json(),
-        "created_by" to createdBy, "anchor_fact_id" to anchorFactId, "open_leg" to isOpenLeg)
+        "created_by" to createdBy, "anchor_fact_id" to effectiveAnchorFactId, "open_leg" to isOpenLeg)
 }
 
 /** 退款文本门与标题匹配；分类只读取正式 record_type，不从文本推断一级类型。 */

@@ -90,7 +90,7 @@ internal object CashRelationSerialization {
             "kind" to proposal.kind, "subtype" to proposal.subtype,
             "primary" to stableFactRef(proposal.primaryFactId, byId),
             "secondary" to stableFactRef(proposal.secondaryFactId, byId),
-            "anchor" to stableFactRef(proposal.anchorFactId, byId),
+            "anchor" to stableFactRef(proposal.effectiveAnchorFactId, byId),
             "rule_id" to proposal.ruleId,
             "candidates" to proposal.evidence.candidateFactIds.map { stableFactRef(it, byId) }.sortedWith(cashRelationStringOrder))
         val encoded = sourceJson(payload).toString()
@@ -123,7 +123,7 @@ internal object CashRelationSerialization {
         }
         return remaining
     }
-    private fun cacheJsonValue(value: Any?): Any? = when (value) {
+    fun cacheJsonValue(value: Any?): Any? = when (value) {
         null, is String, is Boolean, is Int, is Long, is BigInteger -> value
         is BigDecimal -> value.toPlainString()
         is Double -> value
@@ -149,7 +149,7 @@ internal object CashRelationSerialization {
                 "proposal_key" to proposalKey(proposal, plan.facts), "kind" to proposal.kind,
                 "subtype" to proposal.subtype, "status" to proposal.status, "rule_id" to proposal.ruleId,
                 "confidence" to proposal.confidence, "primary_ref" to ref(proposal.primaryFactId),
-                "secondary_ref" to ref(proposal.secondaryFactId), "anchor_ref" to ref(proposal.anchorFactId),
+                "secondary_ref" to ref(proposal.secondaryFactId), "anchor_ref" to ref(proposal.effectiveAnchorFactId),
                 "primary_fact_type" to proposal.primaryFactType, "secondary_fact_type" to proposal.secondaryFactType,
                 "created_by" to proposal.createdBy, "open_leg" to proposal.isOpenLeg,
                 "evidence" to linkedMapOf<String, Any?>(

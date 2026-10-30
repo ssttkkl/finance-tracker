@@ -259,7 +259,7 @@ internal object CashPlatformRefund {
             return expensePay.isNotEmpty() && incomePay.isNotEmpty() && expensePay == incomePay
         }
         fun dateKey(index: Int): String = listOf(value(rows[index], "date", "occurred_at"),
-            value(rows[index], "txn_id", "txn"), value(rows[index], "id")).joinToString(" ")
+            value(rows[index], "txn_id", "txn"), value(rows[index], "id")).joinToString("\u0000")
         val used = mutableSetOf<Int>(); val pairs = mutableListOf<Triple<Int, Int, String>>()
         for (incomeIndex in incomes.sortedBy(::dateKey)) {
             val income = rows[incomeIndex]
