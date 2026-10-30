@@ -111,7 +111,7 @@ class CashRecordMaintenanceService:
                     | ({"candidates": candidates.get(str(issue.id), [])} if issue.code == "source_identity_ambiguous" else {})
                     for issue in issues],
                 "relations": [{"relation_id": str(relation["id"]), **{key: relation[key] for key in
-                    ("kind", "subtype", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],
+                    ("kind", "state", "active", "row_revision", "decision_group_id")}} for relation in relations],
                 "projection_ref": {**location, "projection_version": state.projection_version} if location else None}
 
     def _prepare_draft(self, session, row, patch):

@@ -132,7 +132,7 @@ def performance_runtime(request, tmp_path):
 
 def _fixture_digest(*, scenario: str | None = None) -> str:
     payload = {
-        "seed": "cash-projection-performance-v1",
+        "seed": "cash-projection-performance-v2",
         "facts": FACT_COUNT,
         "single_facts": SINGLE_FACT_COUNT,
         "payment_mirrors": PAYMENT_MIRROR_COUNT,
@@ -210,11 +210,10 @@ def _seed_cash_projection_workload(sessions) -> None:
             "ordinal": 0,
         })
 
-    def add_relation(kind: str, primary_fact_id: int, secondary_fact_id: int, subtype: str = "") -> None:
+    def add_relation(kind: str, primary_fact_id: int, secondary_fact_id: int) -> None:
         relations.append({
             "workspace_id": WORKSPACE,
             "kind": kind,
-            "subtype": subtype,
             "primary_component_id": primary_fact_id,
             "secondary_component_id": secondary_fact_id,
             "primary_transaction_id": primary_fact_id,
@@ -241,7 +240,7 @@ def _seed_cash_projection_workload(sessions) -> None:
     for _ in range(PAYMENT_MIRROR_COUNT):
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
         add_transaction(primary_fact_id, 1, Decimal("-20.00"), "同笔支付", "consumption")
-        add_transaction(secondary_fact_id, 2, Decimal("-20.00"), "同笔支付", "consumption")
+        add_transaction(secondary_fact_id, 1, Decimal("-20.00"), "同笔支付", "consumption")
         add_relation("payment_mirror", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
@@ -256,7 +255,7 @@ def _seed_cash_projection_workload(sessions) -> None:
         primary_fact_id, secondary_fact_id = next_identifier, next_identifier + 1
         add_transaction(primary_fact_id, 1, Decimal("-50.00"), "内部转账", "transfer_out", "ordinary_transfer")
         add_transaction(secondary_fact_id, 2, Decimal("50.00"), "内部转账", "transfer_in", "ordinary_transfer")
-        add_relation("transfer_pair", primary_fact_id, secondary_fact_id, "ordinary_transfer")
+        add_relation("transfer_pair", primary_fact_id, secondary_fact_id)
         next_identifier += 2
 
     assert next_identifier - 1 == FACT_COUNT
@@ -388,19 +387,20 @@ def test_fixed_10k_cash_record_edit_meets_100ms_budget(performance_runtime) -> N
 
 @pytest.mark.performance
 def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime) -> None:
-    """关联流水的新增、修改、取消和解散都只维护受影响的小组。"""
+    """关联新增、待确认转正式、取消和解散都只维护受影响的小组。"""
     from ft.adapters.relational.uow import RelationalUnitOfWork
     from ft.application.cash_ledger import CashLedgerCommandService
     from ft.application.cash_projections import CashProjectionService
     from ft.application.relations import RelationService
-    from ft.adapters.relational.models import AccountModel, CashTransactionComponentModel, CashTransactionModel
+    from ft.adapters.relational.models import (AccountModel, CashTransactionComponentModel,
+        CashTransactionModel, CashProjectionMemberModel, CashProjectionStateModel, TransactionRelationModel)
     from sqlalchemy import update
 
     backend, sessions = performance_runtime
     _seed_cash_projection_workload(sessions)
-    # Declare legal cross-currency endpoints before timing. Both relation
-    # subtypes below accept these same fixed financial facts and roles.
-    indices = (*range(2 * RELATION_WARMUPS), *range(100, 100 + 2 * RELATION_SAMPLES))
+    # Fix endpoint facts before timing; confirmation performs a real state
+    # transition now that the former subtype-only edit no longer exists.
+    indices = (*range(3 * RELATION_WARMUPS), *range(100, 100 + 3 * RELATION_SAMPLES))
     outgoing_ids = tuple(1 + index * 2 for index in indices)
     incoming_ids = tuple(identifier + 1 for identifier in outgoing_ids)
     with sessions.begin() as session:
@@ -422,30 +422,43 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
         primary = 1 + index * 2
         return str(primary), str(primary + 1)
 
-    def add_payload(index: int) -> dict:
+    def add_payload(index: int, *, status: str = "accepted") -> dict:
         primary, secondary = pair(index)
         return {
             "primary_fact_id": primary,
             "secondary_fact_id": secondary,
             "kind": "transfer_pair",
-            "subtype": "currency_exchange",
-            "status": "accepted",
+            "status": status,
         }
 
     def relation_id(detail: dict) -> str:
         return str(detail["relations"][0]["id"])
 
-    for warmup in range(RELATION_WARMUPS):
-        detail = service.add_relation(add_payload(warmup * 2))
-        current_relation_id = relation_id(detail)
-        service.update_relation(current_relation_id, {"kind": "transfer_pair", "subtype": "cross_currency_remittance"})
-        service.cancel_relation(current_relation_id)
-        service.add_relation(add_payload(warmup * 2 + 1))
-        service.dissolve_relations(pair(warmup * 2 + 1)[0])
+    def prepare_pending(index):
+        service.add_relation(add_payload(index, status="pending_review"))
+        with sessions() as session:
+            row = session.scalar(select(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == WORKSPACE,
+                TransactionRelationModel.primary_transaction_id == int(pair(index)[0]),
+                TransactionRelationModel.state == "draft",
+            ))
+            assert row is not None
+            return str(row.id)
 
-    samples: dict[str, list[int]] = {"add": [], "update": [], "cancel": [], "dissolve": []}
+    confirmations = RelationService(RelationalUnitOfWork(sessions, WORKSPACE))
+    for warmup in range(RELATION_WARMUPS):
+        base = warmup * 3
+        detail = service.add_relation(add_payload(base))
+        service.cancel_relation(relation_id(detail))
+        pending_id = prepare_pending(base + 1)
+        confirmations.accept(pending_id, actor="performance")
+        service.cancel_relation(pending_id)
+        service.add_relation(add_payload(base + 2))
+        service.dissolve_relations(pair(base + 2)[0])
+
+    samples: dict[str, list[int]] = {"add": [], "confirm": [], "cancel": [], "dissolve": []}
     for sample in range(RELATION_SAMPLES):
-        base = 100 + sample * 2
+        base = 100 + sample * 3
 
         started = time.perf_counter_ns()
         detail = service.add_relation(add_payload(base))
@@ -453,28 +466,46 @@ def test_fixed_10k_cash_relation_mutations_meet_100ms_budget(performance_runtime
         current_relation_id = relation_id(detail)
 
         started = time.perf_counter_ns()
-        updated = service.update_relation(current_relation_id, {
-            "kind": "transfer_pair",
-            "subtype": "cross_currency_remittance",
-        })
-        samples["update"].append(time.perf_counter_ns() - started)
-        assert updated["relations"][0]["subtype"] == "cross_currency_remittance"
-
-        started = time.perf_counter_ns()
         service.cancel_relation(current_relation_id)
         samples["cancel"].append(time.perf_counter_ns() - started)
 
-        dissolve_detail = service.add_relation(add_payload(base + 1))
-        dissolve_relation_id = relation_id(dissolve_detail)
-        assert dissolve_relation_id
+        pending_id = prepare_pending(base + 1)
+        with sessions() as session:
+            old = session.get(TransactionRelationModel, int(pending_id))
+            old_values = (old.primary_component_id, old.secondary_component_id, old.applied_amount)
+            old_revision = old.row_revision
+            old_version = session.get(CashProjectionStateModel, WORKSPACE).projection_version
+            old_rows = session.scalars(select(CashProjectionMemberModel.projection_row_id).where(
+                CashProjectionMemberModel.workspace_id == WORKSPACE,
+                CashProjectionMemberModel.cash_transaction_id.in_(tuple(map(int, pair(base + 1)))),
+            )).all()
+            assert len(old_rows) == 2 and len(set(old_rows)) == 2
         started = time.perf_counter_ns()
-        service.dissolve_relations(pair(base + 1)[0])
+        confirmed = confirmations.accept(pending_id, actor="performance")
+        samples["confirm"].append(time.perf_counter_ns() - started)
+        assert confirmed.ok and confirmed.details["status"] == "accepted"
+        with sessions() as session:
+            stored = session.get(TransactionRelationModel, int(pending_id))
+            assert stored.state == "confirmed" and stored.row_revision > old_revision
+            assert (stored.primary_component_id, stored.secondary_component_id, stored.applied_amount) == old_values
+            assert session.get(CashProjectionStateModel, WORKSPACE).projection_version > old_version
+            member_rows = session.scalars(select(CashProjectionMemberModel.projection_row_id).where(
+                CashProjectionMemberModel.workspace_id == WORKSPACE,
+                CashProjectionMemberModel.cash_transaction_id.in_(tuple(map(int, pair(base + 1)))),
+            )).all()
+            assert len(member_rows) == 2 and len(set(member_rows)) == 1
+        service.cancel_relation(pending_id)
+
+        dissolve_detail = service.add_relation(add_payload(base + 2))
+        assert relation_id(dissolve_detail)
+        started = time.perf_counter_ns()
+        service.dissolve_relations(pair(base + 2)[0])
         samples["dissolve"].append(time.perf_counter_ns() - started)
 
     p95 = {operation: _p95(values) for operation, values in samples.items()}
     print({
         "backend": backend,
-        "fixture_digest": _fixture_digest(scenario="legal-currency-exchange-pairs-v1"),
+        "fixture_digest": _fixture_digest(scenario="cross-currency-confirmation-v2"),
         "warmups": RELATION_WARMUPS,
         "samples": RELATION_SAMPLES,
         "relation_samples_ns": samples,
@@ -600,7 +631,6 @@ def test_fixed_10k_cash_related_delete_modes_meet_100ms_budget(performance_runti
             "primary_fact_id": outgoing["record"]["id"],
             "secondary_fact_id": incoming["record"]["id"],
             "kind": "transfer_pair",
-            "subtype": "ordinary_transfer",
             "status": "accepted",
         })
         return outgoing["record"]["id"], incoming["record"]["id"]
@@ -659,7 +689,7 @@ def test_fixed_10k_cash_read_paths_meet_100ms_budget(performance_runtime) -> Non
 
     first = query.list_cash_projections(limit=50)
     assert first.next_cursor
-    indexed_filter = {"counterparty": "去标识化交易对方"}
+    indexed_filter = {"counterparty": "去标识化交易对方", "hide_zero_amount": False}
     indexed_first = query.list_cash_projections(
         limit=50,
         start_index=0,
@@ -915,7 +945,6 @@ def test_cash_relation_group_mutations_scale_with_affected_group_size(performanc
             relation_rows.extend({
                 "workspace_id": WORKSPACE,
                 "kind": "payment_mirror",
-                "subtype": "",
                 "primary_component_id": base + offset,
                 "secondary_component_id": base + offset + 1,
                 "primary_transaction_id": base + offset,

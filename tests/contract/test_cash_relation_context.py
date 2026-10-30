@@ -46,6 +46,46 @@ def _joint(session, workspace):
     return (_add(repo, 1101, 1102, group="joint"), _add(repo, 1103, 1104, group="joint"))
 
 
+@pytest.mark.parametrize('state', ['draft', 'posted'])
+def test_source_binding_change_invalidates_graph_and_rebuild_snapshot(relation_context_runtime, state):
+    from ft.adapters.relational.models import CashSourceBindingModel
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        session.get(CashTransactionModel, 1101).state = state
+        service = CashRelationGraphService(session, runtime.workspace_id)
+        projections = RelationalCashProjectionRepository(session, runtime.workspace_id)
+        before, digest = service.load({1101}), projections.source_digest()
+        session.add(CashSourceBindingModel(workspace_id=runtime.workspace_id, transaction_id=1101,
+            source_type='context-fixture', source_scope_kind='account', source_scope_key='synthetic-account',
+            identity_kind='provider_id', identity_key='payment-1101', identity_strength='provider',
+            strategy_version='source-key-test'))
+        session.flush()
+        after = service.load({1101})
+        assert after.token != before.token
+        assert projections.source_digest() != digest
+        with pytest.raises(CashRelationError, match='relation_context_changed'):
+            service.validate(before)
+
+
+def test_relation_service_loads_proven_parent_source_keys(relation_context_runtime):
+    from ft.adapters.relational.models import CashSourceBindingModel
+    from ft.adapters.relational.uow import RelationalUnitOfWork
+    from ft.application.relations import RelationService
+    runtime = relation_context_runtime
+    with runtime.sessions.begin() as session:
+        parent = session.get(CashTransactionModel, 1101)
+        parent.record_origin, parent.record_id = 'import', 'import-v1:synthetic'
+        session.add(CashSourceBindingModel(workspace_id=runtime.workspace_id, transaction_id=1101,
+            source_type='context-fixture', source_scope_kind='account', source_scope_key='synthetic-account',
+            identity_kind='provider_id', identity_key='payment-1101', identity_strength='provider',
+            strategy_version='source-key-test'))
+    with RelationalUnitOfWork(runtime.sessions, runtime.workspace_id) as uow:
+        facts = RelationService(uow)._list_active_cash_facts(uow)
+        fact = next(item for item in facts if item.parent_id == '1101')
+        assert fact.stable_source_key == ('context-fixture', 'account', 'synthetic-account', 'provider_id', 'payment-1101')
+
+
 def test_context_expands_only_confirmed_edges_and_explicit_full_groups(relation_context_runtime):
     runtime = relation_context_runtime
     with runtime.sessions.begin() as session:
@@ -124,7 +164,7 @@ def test_new_confirmed_neighbour_is_detected_before_applying_old_context(relatio
             service.validate(context)
 
 
-def test_pending_roles_are_not_source_proof_but_existing_confirmed_roles_are_retained(relation_context_runtime):
+def test_pending_and_confirmed_roles_use_same_hard_constraints(relation_context_runtime):
     runtime = relation_context_runtime
     with runtime.sessions.begin() as session:
         session.get(CashTransactionModel, 1101).record_type = "refund"
@@ -133,8 +173,7 @@ def test_pending_roles_are_not_source_proof_but_existing_confirmed_roles_are_ret
         service = CashRelationGraphService(session, runtime.workspace_id)
         context = service.load({1101, 1102})
         edge = replace(context.relations[0], state="confirmed")
-        with pytest.raises(CashRelationError, match="relation_role_unproven"):
-            service.validate(context, updates=(edge,))
+        assert len(service.validate(context, updates=(edge,)).build.projections) == 1
         prepared = service.validate(context, updates=(edge,), evidence_by_relation={edge.id: RelationRoleEvidence(primary_original_expense=True)})
         assert len(prepared.build.projections) == 1
         repo.replace(draft["id"], {"state": "confirmed"}, expected_revision=1)

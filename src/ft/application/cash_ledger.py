@@ -268,10 +268,9 @@ class CashLedgerCommandService:
         from ft.domain.cash_projection import CashProjectionError, build_cash_projections
 
         try:
-            facts, relations = RelationalCashProjectionRepository(
+            RelationalCashProjectionRepository(
                 uow._state().session, uow.workspace_id,
-            ).read_sources_for_facts(fact_ids)
-            build_cash_projections(facts, relations)
+            ).build_sources_for_facts(fact_ids)
         except CashProjectionError as exc:
             raise RelationImpactRequired(
                 "这次修改会影响已关联的流水，请确认后保存并拆开。",
@@ -895,7 +894,7 @@ class CashLedgerCommandService:
                 "id": str(relation["id"]),
                 "kind": relation["kind"],
                 "label": RELATION_LABELS.get(relation["kind"], relation["kind"]),
-                "subtype": relation.get("subtype") or "",
+
                 "status": relation["status"],
                 "primary_record": endpoints[0],
                 "secondary_record": endpoints[1],
@@ -990,18 +989,17 @@ class CashLedgerCommandService:
             return result
 
     def add_relation(self, payload: dict) -> dict:
+        if "subtype" in payload:
+            raise ValueError("relation_data_invalid")
         primary = str(payload.get("primary_fact_id") or "")
         secondary = str(payload.get("secondary_fact_id") or "")
         primary_component = payload.get("primary_component_id")
         secondary_component = payload.get("secondary_component_id")
         kind = str(payload.get("kind") or "")
-        subtype = str(payload.get("subtype") or "")
         if kind not in RELATION_LABELS:
             raise ValueError("请选择关联类型")
         if not primary or not secondary or primary == secondary:
             raise ValueError("请选择两条不同的流水记录")
-        if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
-            subtype = "ordinary_transfer"
         with self._uow as uow:
             records_by_id = uow.cashflows.get_many([int(primary), int(secondary)])
             first = records_by_id.get(int(primary))
@@ -1029,7 +1027,6 @@ class CashLedgerCommandService:
                 (
                     item for item in endpoint_relations
                     if item.get("kind") == kind
-                    and (item.get("subtype") or "") == subtype
                     and {
                         int(item.get("primary_fact_id")) if item.get("primary_fact_id") not in (None, "") else None,
                         int(item.get("secondary_fact_id")) if item.get("secondary_fact_id") not in (None, "") else None,
@@ -1058,7 +1055,7 @@ class CashLedgerCommandService:
             else:
                 relation_id = uow.relations.add({
                     "kind": kind,
-                    "subtype": subtype,
+
                     "primary_fact_id": int(primary),
                     "secondary_fact_id": int(secondary),
                     "primary_component_id": primary_component,
@@ -1146,6 +1143,8 @@ class CashLedgerCommandService:
 
     def update_relation(self, relation_id: str, payload: dict) -> dict:
         """Change the current user-facing relation type without creating history."""
+        if "subtype" in payload:
+            raise ValueError("relation_data_invalid")
         kind = str(payload.get("kind") or "")
         if kind not in RELATION_LABELS:
             raise ValueError("请选择关联类型")
@@ -1156,9 +1155,6 @@ class CashLedgerCommandService:
                 raise ValueError("找不到这条关联记录")
             if relation.get("status") == RelationStatus.SUPERSEDED.value:
                 raise ValueError("这条关联记录已失效")
-            subtype = str(payload.get("subtype") or relation.get("subtype") or "")
-            if kind == RelationKind.TRANSFER_PAIR.value and not subtype:
-                subtype = "ordinary_transfer"
             primary_component = int(relation["primary_component_id"] or relation["primary_fact_id"])
             primary = int(relation.get("primary_record_id") or relation["primary_fact_id"])
             secondary_component_value = relation.get("secondary_component_id") or relation.get("secondary_fact_id")
@@ -1176,7 +1172,6 @@ class CashLedgerCommandService:
                     item for item in endpoint_relations
                     if str(item.get("id")) != str(relation_id)
                     and item.get("kind") == kind
-                    and (item.get("subtype") or "") == subtype
                     and {
                         int(item.get("primary_fact_id"))
                         if item.get("primary_fact_id") not in (None, "") else None,
@@ -1189,7 +1184,7 @@ class CashLedgerCommandService:
             )
             if conflict is not None:
                 raise ValueError("这两条流水已经存在同类型关联")
-            relation = uow.relations.update_kind(relation_id, kind=kind, subtype=subtype,
+            relation = uow.relations.update_kind(relation_id, kind=kind,
                 actor="web", reason="user_updated")
             if relation.get("status") == RelationStatus.ACCEPTED.value:
                 if self._relation_service is not None:
@@ -1210,12 +1205,12 @@ class CashLedgerCommandService:
                     raise ValueError("该关系无法形成有效收支投影") from exc
                 if projection_status is None and self._relation_service is not None:
                     self._relation_service._validate_projection_acceptance(
-                        uow, {**relation, "kind": kind, "subtype": subtype}, other_fact_id=None,
+                        uow, {**relation, "kind": kind}, other_fact_id=None,
                     )
             result = self._record_detail_in_uow(
                 uow,
                 str(primary),
-                prefetched_relations=[{**relation, "kind": kind, "subtype": subtype}],
+                prefetched_relations=[{**relation, "kind": kind}],
             )
             uow.commit()
             return result

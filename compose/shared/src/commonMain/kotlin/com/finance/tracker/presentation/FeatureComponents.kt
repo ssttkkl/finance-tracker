@@ -541,6 +541,18 @@ internal fun userErrorResourceKey(cause: Throwable): String {
         "network_unavailable" -> "copy_e0a1c9fd69"
         "conflict", "projection_version_conflict", "revision_conflict", "record_changed", "entry_changed", "plan_changed", "plan_expired", "issue_changed", "relation_context_changed", "choice_invalid" -> "copy_e6bcabc334"
         "invalid_record", "invalid_category", "invalid_workspace_name" -> "copy_245533bbc7"
+        "relation_account_mismatch" -> "cash_relation_account_mismatch"
+        "relation_currency_mismatch" -> "cash_relation_currency_mismatch"
+        "relation_amount_invalid" -> "cash_relation_amount_invalid"
+        "relation_role_incompatible" -> "cash_relation_role_incompatible"
+        "relation_refund_exceeds_remaining" -> "cash_relation_refund_exceeds_remaining"
+        "relation_refund_incomplete" -> "cash_relation_refund_incomplete"
+        "relation_endpoint_occupied" -> "cash_relation_endpoint_occupied"
+        "relation_aggregate_unsupported" -> "cash_relation_aggregate_unsupported"
+        "relation_endpoint_incompatible" -> "cash_relation_endpoint_incompatible"
+        "relation_mirror_incomplete", "relation_graph_invalid", "relation_endpoint_incomplete",
+        "relation_group_incomplete", "relation_group_changed", "relation_data_invalid",
+        "relation_mirror_component_duplicate" -> "cash_relation_state_invalid"
         "relation_impact_required" -> "copy_158b593262"
         "invalid_filter" -> "copy_a3181b5117"
         "invalid_cursor" -> "copy_c70b07dcbf"

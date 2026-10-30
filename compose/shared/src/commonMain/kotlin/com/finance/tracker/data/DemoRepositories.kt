@@ -355,7 +355,7 @@ class DemoFinanceRepository : FinanceRepository {
         val incoming = recordFromWrite("demo-record-${nextRecordNumber++}", CashRecordWrite(time, toAmount.removePrefix("+"), toCurrency,
             from.name, note = text("note"), accountName = to.name, recordType = if (exchange) "fx_in" else "transfer_in", recordSubtype = subtype))
         records.addAll(0, listOf(outgoing, incoming)); manualTransfers[outgoing.id] = listOf(outgoing.id, incoming.id)
-        relations += CashRelation("demo-relation-${nextRelationNumber++}", "transfer_pair", "", subtype = subtype, status = "accepted", primaryRecord = outgoing, secondaryRecord = incoming)
+        relations += CashRelation("demo-relation-${nextRelationNumber++}", "transfer_pair", "", status = "accepted", primaryRecord = outgoing, secondaryRecord = incoming)
         projectionVersion++
     }
 
@@ -387,7 +387,7 @@ class DemoFinanceRepository : FinanceRepository {
         val changed = next.filter { it != findRecord(it.id) }.map { it.id }
         next.forEach { row -> records[records.indexOfFirst { it.id == row.id }] = row }
         relations.indices.filter { relations[it].primaryRecord?.id == next[0].id && relations[it].secondaryRecord?.id == next[1].id }.forEach { index ->
-            relations[index] = relations[index].copy(primaryRecord = next[0], secondaryRecord = next[1], subtype = next[0].recordSubtype)
+            relations[index] = relations[index].copy(primaryRecord = next[0], secondaryRecord = next[1])
         }
         projectionVersion++
         return changed
@@ -558,7 +558,7 @@ class DemoFinanceRepository : FinanceRepository {
         amount = text("amount", record.amount),
         currency = text("currency", record.currency),
         economicType = if (transfer != null) "internal_transfer" else if (record.recordType == "transfer") "transfer" else if (record.recordType == "income") "income" else "expense",
-        transferSubtype = record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
+        businessLabel = record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
         transfer = transfer,
         memberCount = pair.size.takeIf { it > 0 } ?: 1,
         state = importedStates[record.id] ?: "posted",
@@ -655,7 +655,7 @@ class DemoFinanceRepository : FinanceRepository {
             (filters.dateFrom == null || record.occurredAt >= filters.dateFrom) &&
             (filters.dateTo == null || record.occurredAt <= filters.dateTo) &&
             (filters.economicType == null || projected.economicType == filters.economicType) &&
-            (filters.transferSubtype == null || projected.transferSubtype == filters.transferSubtype) &&
+            (filters.businessLabel == null || projected.businessLabel == filters.businessLabel) &&
             (when (filters.composition) {
                 null -> true
                 "single" -> projected.composition.isEmpty()

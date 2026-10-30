@@ -84,7 +84,8 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     client=_client(cash_web_runtime)
     page=client.get("/api/v1/cash-projections?limit=2"); accounts=client.get("/api/v1/accounts?view=cash")
     assert page.status_code==200 and page.json()["projection_version"]==1
-    assert page.json()["items"][0]["projection_id"]=="cash:1003" and isinstance(page.json()["items"][0]["amount"],str)
+    assert page.json()["items"][0]["projection_id"].startswith("cash-entry:")
+    assert page.json()["items"][0]["transaction_id"] == "1003" and isinstance(page.json()["items"][0]["amount"],str)
     assert page.json()["items"][0]["source_types"] == ["fixture"]
     assert page.json()["filter_options"] == {
         "categories": [
@@ -95,8 +96,8 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
         ],
         "currencies": ["CNY"],
         "economic_types": [
-            {"economic_type": "expense", "transfer_subtypes": []},
-            {"economic_type": "income", "transfer_subtypes": []},
+            {"economic_type": "expense", "business_labels": []},
+            {"economic_type": "income", "business_labels": []},
         ],
     }
     assert page.json()["monthly_summaries"] == [{"month": "2026-07", "currencies": [{"currency": "CNY", "income": "2000", "expense": "-112.5"}]}]
@@ -128,7 +129,6 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
         session.add(cash_relation_fixture(session, complete_legacy_types=True,
                         workspace_id=runtime.workspace_id,
                         kind="refund_offset",
-                        subtype="",
                         primary_component_id=1003,
                         secondary_component_id=1004,
                         anchor_component_id=1004,
@@ -136,7 +136,7 @@ def test_projection_api_returns_member_sources_in_member_order_without_duplicate
                     ))
 
     payload = _client(runtime).get("/api/v1/cash-projections", params={"limit": 50}).json()
-    projection = next(item for item in payload["items"] if item["projection_id"] == "cash:1003")
+    projection = next(item for item in payload["items"] if item["transaction_id"] == "1003")
 
     assert projection["source_type"] == "fixture"
     assert projection["source_types"] == ["fixture", "bank"]
@@ -223,7 +223,7 @@ def test_projection_api_supports_versioned_index_reads(cash_web_runtime):
     assert first["items_after"] == 2
     assert first["month_positions"] == [{"month": "2026-07", "start_index": 0, "end_index": 3}]
     assert last_response.status_code == 200
-    assert [item["projection_id"] for item in last["items"]] == ["cash:1001"]
+    assert [item["transaction_id"] for item in last["items"]] == ["1001"]
     assert last["items_before"] == 2
     assert last["items_after"] == 0
     assert last["month_positions"] == []
@@ -243,7 +243,7 @@ def test_projection_evidence_api_returns_the_projection_envelope(cash_web_runtim
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["projection"]["projection_id"] == "cash:1003"
+    assert payload["projection"]["projection_id"].startswith("cash-entry:")
     assert payload["root_record"]["id"] == "1003"
     assert payload["root_record"]["counterparty"] == "咖啡店"
     assert "record_id" not in payload["root_record"]
@@ -324,8 +324,8 @@ def test_projection_api_binds_all_filters_and_paginates_three_pages_without_gaps
         cursor = page.json()["next_cursor"]
         page = client.get("/api/v1/cash-projections", params={**params, "cursor": cursor})
 
-    assert [item["projection_id"] for item in pages] == [
-        "cash:1102", "cash:1101", "cash:1100",
+    assert [item["transaction_id"] for item in pages] == [
+        "1102", "1101", "1100",
     ]
     assert len({item["projection_id"] for item in pages}) == 3
     assert all(isinstance(item["amount"], str) for item in pages)
@@ -392,10 +392,10 @@ def test_projection_api_uses_utc_day_boundaries_and_rejects_old_cursor(request, 
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     stale = client.get("/api/v1/cash-projections", params={"limit": "1", "cursor": old_cursor})
 
-    assert [item["projection_id"] for item in day.json()["items"]] == ["cash:1201", "cash:1001", "cash:1200"]
+    assert [item["transaction_id"] for item in day.json()["items"]] == ["1201", "1001", "1200"]
     assert {
-        item["projection_id"]: item["amount"] for item in day.json()["items"]
-    } == {"cash:1201": "-1.3", "cash:1001": "2000", "cash:1200": "-1.2"}
+        item["transaction_id"]: item["amount"] for item in day.json()["items"]
+    } == {"1201": "-1.3", "1001": "2000", "1200": "-1.2"}
     assert stale.status_code == 409
     assert stale.json() == {"error": {"code": "read_snapshot_changed", "message": "账本已更新，请刷新列表。"}}
 
@@ -486,3 +486,13 @@ def test_projection_api_invalid_parameters_never_expose_fastapi_validation_paylo
             "message": "筛选条件或分页位置无效，请返回第一页重试。",
         },
     }
+
+
+@pytest.mark.parametrize('filters', [
+    {'transfer_subtype': 'credit_repayment'},
+    {'transfer_subtype': 'credit_repayment', 'business_label': 'ordinary_transfer'},
+])
+def test_removed_transfer_subtype_filter_is_rejected(cash_web_runtime, filters):
+    response = _client(cash_web_runtime).get('/api/v1/cash-projections', params=filters)
+    assert response.status_code == 400
+    assert response.json()['error']['code'] == 'invalid_filter'

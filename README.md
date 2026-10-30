@@ -4,6 +4,8 @@
 
 项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
 
+关系治理变更已完成并归档（`openspec/changes/archive/2026-10-30-govern-cash-relation-model/`）；当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准。Compose 已接入共同硬约束、派生业务标签和稳定收支引用，用户已确认首版演示；后端验证以及 Compose 共享测试、编译、E2E 和真实浏览器冒烟已完成。视觉 Hallmark 复核与既有界面问题登记在 [UI 审查修复](openspec/changes/fix-cash-ui-audit-findings/proposal.md)，整体 QA 尚未完成，本工作树不能作为已验收版本发布。
+
 ## 运行边界
 
 运行时通过 `FT_DATABASE_URL` 显式选择一个事实源——PostgreSQL 或文件型 SQLite。二者共享 Application Service、财务语义与 Alembic schema；不得自动回退（no fallback）、不得双写（dual-write）、不得隐式迁移（implicit migration）。CSV、XLS、PDF 只作导入输入或预览，不是账本。

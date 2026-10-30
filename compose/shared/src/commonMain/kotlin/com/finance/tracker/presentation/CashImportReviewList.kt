@@ -98,7 +98,7 @@ internal fun CashImportReviewList(
                                         member.fields.fields["account_name"].cashText(),
                                         member.fields.fields["counterparty"].cashText(),
                                     ).distinct().joinToString(" · ").ifEmpty { localizedText("display_not_provided") }
-                                }?.joinToString(" ↔ ").orEmpty()
+                                }?.joinToString(" 与 ").orEmpty()
                                 listOf(kind, sources).filter(String::isNotBlank).joinToString(" · ")
                             } }.orEmpty()
                         val relationshipSummary = pairLabels.distinct().joinToString("；")

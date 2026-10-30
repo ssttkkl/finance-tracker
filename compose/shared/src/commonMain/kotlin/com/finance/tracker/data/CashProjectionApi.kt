@@ -32,7 +32,7 @@ suspend fun FinanceApiClient.fetchCashPage(
         "amount_min" to filters.amountMin,
         "amount_max" to filters.amountMax,
         "economic_type" to filters.economicType,
-        "transfer_subtype" to filters.transferSubtype,
+        "business_label" to filters.businessLabel,
         "composition" to filters.composition,
         "timezone" to getLocalTimeZoneId(),
         "cursor" to cursor,

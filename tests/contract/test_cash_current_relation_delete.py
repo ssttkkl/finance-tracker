@@ -1,3 +1,4 @@
+from tests.cash_projection_assertions import current_projection_id
 """删除按父端点和当前候选清理，不破坏其余合法关系。"""
 from copy import deepcopy
 from decimal import Decimal
@@ -221,7 +222,7 @@ def test_parent_only_relation_is_counted_in_projection_delete_preview(context_ru
         CurrentCashRelationRepository(session, runtime.workspace_id).add({"kind": "payment_mirror",
             "primary_transaction_id": 1101, "anchor_transaction_id": 1101})
     status = CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    impact = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).preview_delete_projections(["cash:1101"],
+    impact = CashLedgerCommandService(runtime.sessions, runtime.workspace_id).preview_delete_projections([current_projection_id(runtime, 1101)],
         projection_version=status["projection_version"])
     assert impact == {"projection_count": 1, "transaction_count": 1, "relation_group_count": 1}
 

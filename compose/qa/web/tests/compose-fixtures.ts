@@ -19,7 +19,7 @@ type FixtureOptions = {
   cashPageDelayMs?: number;
   cashCrossMonthBoundary?: boolean;
   cashAppendFailures?: number;
-  cashTransferSubtypes?: string[];
+  cashBusinessLabels?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
 };
 
@@ -468,9 +468,9 @@ export async function installComposeApiFixtures(
             categories: state.categoryItems,
             currencies: ["CNY"],
             economic_types: [
-              { economic_type: "expense", transfer_subtypes: [] },
-              { economic_type: "income", transfer_subtypes: [] },
-              { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
+              { economic_type: "expense", business_labels: [] },
+              { economic_type: "income", business_labels: [] },
+              { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
             ],
           },
           monthly_summaries: options.cashPageEmpty
@@ -504,8 +504,8 @@ export async function installComposeApiFixtures(
           categories: state.categoryItems,
           currencies: ["CNY"],
           economic_types: [
-            { economic_type: "expense", transfer_subtypes: [] },
-            { economic_type: "internal_transfer", transfer_subtypes: options.cashTransferSubtypes ?? [] },
+            { economic_type: "expense", business_labels: [] },
+            { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
           ],
         },
         monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: [{ currency: "CNY", income: "0", expense: "28.50" }] }],

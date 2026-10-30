@@ -52,6 +52,7 @@ def test_postgresql_rebuild_rejects_source_display_change_before_publish(
     field,
     value,
 ):
+    from ft.adapters.relational import projections as relational_projections
     from ft.adapters.relational.models import CashTransactionModel
     from ft.application import cash_projections
     from ft.application.cash_projections import CashProjectionService
@@ -69,6 +70,7 @@ def test_postgresql_rebuild_rejects_source_display_change_before_publish(
         return original(facts, relations)
 
     monkeypatch.setattr(cash_projections, "build_cash_projections", build_after_concurrent_source_change)
+    monkeypatch.setattr(relational_projections, "build_cash_projections", build_after_concurrent_source_change)
 
     with pytest.raises(RuntimeError, match="projection.concurrent_update"):
         CashProjectionService(

@@ -191,13 +191,8 @@ class TransferService:
             from_fact_id = _stage_transfer_event(uow, from_acct, from_row)
             to_fact_id = _stage_transfer_event(uow, to_acct, to_row)
             if from_fact_id is not None and to_fact_id is not None:
-                subtype = (
-                    "currency_exchange" if from_currency != to_currency
-                    else "credit_repayment" if "loan" in {from_acct.type, to_acct.type}
-                    else "ordinary_transfer"
-                )
                 uow.relations.add({
-                    "kind": "transfer_pair", "subtype": subtype,
+                    "kind": "transfer_pair",
                     "primary_fact_id": from_fact_id, "secondary_fact_id": to_fact_id,
                     "primary_fact_type": "cash", "secondary_fact_type": "cash",
                     "anchor_fact_id": from_fact_id, "status": "accepted",

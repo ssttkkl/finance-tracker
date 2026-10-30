@@ -33,7 +33,9 @@ def test_cross_border_same_currency_is_ordinary_transfer():
 
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
-    assert proposals[0].subtype == "ordinary_transfer"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.cross_border_remittance.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_cross_border_unique_target_chooses_nearest_arrival_once():
@@ -58,7 +60,9 @@ def test_cross_border_unique_target_chooses_nearest_arrival_once():
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
     assert proposals[0].secondary_fact_id == "first"
-    assert proposals[0].subtype == "cross_currency_remittance"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.cross_border_remittance.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_internal_same_account_cross_currency_is_currency_exchange():
@@ -78,7 +82,9 @@ def test_internal_same_account_cross_currency_is_currency_exchange():
 
     assert len(proposals) == 1
     assert proposals[0].status == RelationStatus.ACCEPTED.value
-    assert proposals[0].subtype == "currency_exchange"
+    assert proposals[0].kind == "transfer_pair"
+    assert proposals[0].rule_id == "transfer_pair.internal_account_transfer.v1"
+    assert not hasattr(proposals[0], "subtype")
 
 
 def test_phase_c_only_scans_selected_seed_but_allows_its_counterpart():

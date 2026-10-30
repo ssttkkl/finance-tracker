@@ -155,7 +155,7 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(
     )
     evidence = service.get_projection_evidence("cash:1003")
 
-    assert evidence["projection"].transfer_subtype == "bank_security_transfer"
+    assert evidence["projection"].business_label == "bank_security_transfer"
     assert evidence["projection"].transfer is not None
     assert (
         evidence["projection"].transfer.from_account.name,
@@ -181,7 +181,8 @@ def test_evidence_exposes_only_whitelisted_funding_relation_fields(
         },
     }
     page = service.list_cash_projections(economic_type="bank_security_transfer", hide_zero_amount=False)
-    assert [item.projection_id for item in page.items] == ["cash:1003"]
+    assert [item.projection_id for item in page.items] == [evidence["projection"].projection_id]
+    assert page.items[0].transaction_id == '1003'
     assert page.items[0].transfer == evidence["projection"].transfer
 
     response = TestClient(create_app(service)).get(

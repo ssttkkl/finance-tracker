@@ -52,15 +52,15 @@ def test_projection_builder_passes_only_component_relations_to_each_group(monkey
         fact(5, "-30"), fact(6, "5"),
     )
     relations = (
-        cash_projection.ProjectionRelation(1, "transfer_pair", 1, 2, subtype="ordinary_transfer"),
-        cash_projection.ProjectionRelation(2, "transfer_pair", 3, 4, subtype="ordinary_transfer"),
+        cash_projection.ProjectionRelation(1, "transfer_pair", 1, 2),
+        cash_projection.ProjectionRelation(2, "transfer_pair", 3, 4),
     )
     original = cash_projection._validate_group
     received_relations = []
 
-    def capture(group, fact_by_id, component_relations):
+    def capture(group, fact_by_id, component_relations, economic_amounts):
         received_relations.append((tuple(group), tuple(item.id for item in component_relations)))
-        return original(group, fact_by_id, component_relations)
+        return original(group, fact_by_id, component_relations, economic_amounts)
 
     monkeypatch.setattr(cash_projection, "_validate_group", capture)
 
@@ -83,21 +83,43 @@ def test_payment_mirror_uses_primary_record_once_and_is_deterministic():
     assert first == second
 
 
-@pytest.mark.parametrize("subtype", ["ordinary_transfer", "cross_currency_remittance", "credit_repayment", "currency_exchange", "bank_security_transfer"])
-def test_transfer_pair_is_visible_internal_transfer(subtype):
+@pytest.mark.parametrize(("outgoing_type", "incoming_type", "record_subtype", "label"), [
+    ("transfer_out", "transfer_in", "ordinary_transfer", "ordinary_transfer"),
+    ("transfer_out", "transfer_in", "cross_border_remittance", "cross_currency_remittance"),
+    ("repayment", "repayment", "", "credit_repayment"),
+    ("fx_out", "fx_in", "", "currency_exchange"),
+    ("withdrawal_out", "repayment", "", "credit_repayment"),
+])
+def test_transfer_pair_is_visible_internal_transfer(outgoing_type, incoming_type, record_subtype, label):
     from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
 
     scenario = projection_scenarios()["transfer"]
     facts = tuple(CashProjectionFact(**item.__dict__) for item in scenario.facts)
-    facts = (facts[0], CashProjectionFact(**(facts[1].__dict__ | {
-        "amount": Decimal("14"), "currency": "USD",
-    })))
-    relation = ProjectionRelation(**replace(scenario.relations[0], subtype=subtype).__dict__)
+    facts = (
+        replace(facts[0], record_type=outgoing_type, record_subtype=record_subtype),
+        replace(facts[1], record_type=incoming_type, record_subtype=record_subtype,
+            amount=Decimal("14"), currency="USD"),
+    )
+    relation = ProjectionRelation(**scenario.relations[0].__dict__)
     item = build_cash_projections(facts, (relation,)).projections[0]
     assert item.economic_type.value == "internal_transfer"
-    assert item.transfer_subtype == subtype
+    assert item.business_label == label
     assert item.net_amount == Decimal("0")
     assert item.visible and item.hidden_reason is None
+
+
+def test_bank_security_label_comes_from_independent_funding_relation():
+    from ft.domain.cash_projection import CashProjectionFact, build_cash_projections
+
+    source = projection_scenarios()["transfer"].facts[0]
+    fact = replace(CashProjectionFact(**source.__dict__), funding_relation_id=7)
+    item = build_cash_projections((fact,), ()).projections[0]
+
+    assert item.business_label == "bank_security_transfer"
+    assert item.economic_type.value == "internal_transfer"
+    assert item.net_amount == Decimal("0")
+    assert item.funding_relation_id == 7
+    assert item.relations == ()
 
 
 def test_refunds_reduce_expense_without_moving_its_date_or_creating_income():
@@ -272,15 +294,12 @@ def test_transfer_pair_rejects_zero_amount_endpoint(zero_fact_index):
         build_cash_projections(tuple(facts), (ProjectionRelation(**scenario.relations[0].__dict__),))
 
 
-def test_currency_exchange_requires_distinct_currencies():
-    from ft.domain.cash_projection import CashProjectionError, CashProjectionFact, ProjectionRelation, build_cash_projections
-
+def test_transfer_business_label_comes_from_records():
+    from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
     scenario = projection_scenarios()["transfer"]
-    facts = tuple(CashProjectionFact(**item.__dict__) for item in scenario.facts)
-    relation = ProjectionRelation(**(scenario.relations[0].__dict__ | {"subtype": "currency_exchange"}))
-
-    with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
-        build_cash_projections(facts, (relation,))
+    facts = tuple(replace(CashProjectionFact(**item.__dict__), record_type="repayment") for item in scenario.facts)
+    relation = ProjectionRelation(**scenario.relations[0].__dict__)
+    assert build_cash_projections(facts, (relation,)).projections[0].business_label == "credit_repayment"
 
 
 def test_multiple_roots_and_cycles_fail_closed():
@@ -294,3 +313,37 @@ def test_multiple_roots_and_cycles_fail_closed():
     )
     with pytest.raises(CashProjectionError, match="projection.invalid_relation"):
         build_cash_projections(facts, root_conflict)
+
+
+def test_platform_representative_beats_earlier_bank_and_ignores_mirror_direction():
+    from datetime import timedelta
+    from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
+    example = projection_scenarios()["payment_mirror"]
+    bank, platform = (CashProjectionFact(**item.__dict__) for item in example.facts)
+    bank = replace(bank, source_type="bank")
+    platform = replace(platform, source_type="wechat", occurred_at=bank.occurred_at + timedelta(days=1))
+    for first, second in ((bank, platform), (platform, bank)):
+        result = build_cash_projections((bank, platform), (ProjectionRelation(1, "payment_mirror", first.id, second.id),))
+        assert result.projections[0].primary_record.id == platform.id
+        assert result.projections[0].net_amount == Decimal("-100")
+
+
+def test_representative_uses_source_binding_identity_instead_of_random_record_id():
+    from ft.domain.cash_projection import CashProjectionFact, ProjectionRelation, build_cash_projections
+    example = projection_scenarios()["payment_mirror"]
+    first, second = (CashProjectionFact(**item.__dict__) for item in example.facts)
+    first = replace(first, source_type="wechat", stable_source_key=("wechat", "account", "scope", "provider_id", "a"))
+    second = replace(second, source_type="wechat", occurred_at=first.occurred_at,
+        stable_source_key=("wechat", "account", "scope", "provider_id", "b"))
+    for left, right in (("import-v1:z", "import-v1:a"), ("import-v1:a", "import-v1:z")):
+        result = build_cash_projections((replace(first, record_id=left), replace(second, record_id=right)),
+            (ProjectionRelation(1, "payment_mirror", first.id, second.id),))
+        assert result.projections[0].primary_record.id == first.id
+
+
+def test_imported_representative_requires_proven_source_identity():
+    from ft.domain.cash_projection import CashProjectionFact, CashProjectionError, source_identity_key
+    first = CashProjectionFact(**projection_scenarios()['payment_mirror'].facts[0].__dict__)
+    imported = replace(first, record_id='unproven-provider-looking-text', record_origin='import')
+    with pytest.raises(CashProjectionError, match='projection.source_identity_missing'):
+        source_identity_key(imported)

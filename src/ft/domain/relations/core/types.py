@@ -417,7 +417,6 @@ class RelationProposal:
     secondary_fact_id: str | None
     primary_fact_type: str = FactType.CASH.value
     secondary_fact_type: str | None = FactType.CASH.value
-    subtype: str = SUBTYPE_NONE
     status: str = RelationStatus.PENDING_REVIEW.value
     rule_id: str = ""
     confidence: str = CONFIDENCE_WEAK
@@ -469,6 +468,8 @@ class FactView:
     parent_id: str | None = None
     component_ordinal: int | None = None
     cash_granularity: str = "atomic"
+    stable_source_key: tuple[str, ...] = ()
+    record_origin: str = "legacy"
 
     def __post_init__(self) -> None:
         attrs = self.counterparty_account_attrs
@@ -503,7 +504,6 @@ class RelationEdge:
     fact_a_id: str
     fact_b_id: str
     kind: str = ""
-    subtype: str = ""
 
 
 @dataclass

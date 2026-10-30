@@ -888,11 +888,10 @@ private fun CashFilterPanel(
     val detailedFiltersLabel = localizedText("copy_dcce9a144a")
     val filterSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val selectedType = when {
-        value.economicType == "bank_security_transfer" -> "internal_transfer"
-        value.economicType.isNullOrEmpty() && !value.transferSubtype.isNullOrEmpty() -> "internal_transfer"
+        value.economicType.isNullOrEmpty() && !value.businessLabel.isNullOrEmpty() -> "internal_transfer"
         else -> value.economicType.orEmpty()
     }
-    val orderedTypes = listOf("expense", "income", "internal_transfer")
+    val orderedTypes = cashQuickEconomicTypes(typeOptions)
     val closeDetailedFilters: () -> Unit = { detailedVisible = false }
 
     Column(
@@ -941,7 +940,7 @@ private fun CashFilterPanel(
                         )
                         FilterChip(
                             selected = selectedType.isEmpty(),
-                            onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
+                            onClick = { onChange(value.copy(economicType = null, businessLabel = null)) },
                             label = { Text(localizedText("ledger_quick_all")) },
                             modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
                         )
@@ -949,7 +948,7 @@ private fun CashFilterPanel(
                 } else {
                     FilterChip(
                         selected = selectedType.isEmpty(),
-                        onClick = { onChange(value.copy(economicType = null, transferSubtype = null)) },
+                        onClick = { onChange(value.copy(economicType = null, businessLabel = null)) },
                         label = { Text(localizedText("ledger_quick_all")) },
                         modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-all"),
                     )
@@ -957,7 +956,7 @@ private fun CashFilterPanel(
                 orderedTypes.forEach { economicType ->
                     FilterChip(
                         selected = selectedType == economicType,
-                        onClick = { onChange(value.copy(economicType = economicType, transferSubtype = null)) },
+                        onClick = { onChange(value.copy(economicType = economicType, businessLabel = null)) },
                         label = { Text(cashEconomicTypeQuickFilterLabel(economicType)) },
                         modifier = Modifier.testTag("${SemanticIds.ledgerQuickType}-$economicType"),
                     )
@@ -1126,16 +1125,16 @@ private fun CashDetailedFilters(
     val currencyFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         ChoicePicker(localizedText("copy_a81ab5e100"), value.currency.orEmpty(), listOf("" to localizedText("copy_7f566e2869")) + currenciesWithCurrent.map { it to it }, { onChange(value.copy(currency = it.ifEmpty { null })) }, modifier = fieldModifier, semanticId = SemanticIds.ledgerFilterCurrency)
     }
-    val normalizedEconomicType = if (value.economicType == "bank_security_transfer") "internal_transfer" else value.economicType
-    val transferSubtypes = typeOptions.firstOrNull { it.economicType == normalizedEconomicType }?.transferSubtypes.orEmpty()
-    val transferSubtypeFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
+    val normalizedEconomicType = value.economicType
+    val businessLabels = typeOptions.firstOrNull { it.economicType == normalizedEconomicType }?.businessLabels.orEmpty()
+    val businessLabelFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
         ChoicePicker(
             localizedText("copy_82fa0e654c"),
-            value.transferSubtype.orEmpty(),
-            listOf("" to localizedText("copy_778fc8f994")) + transferSubtypes.map { it to transferSubtypeLabel(it) },
-            { onChange(value.copy(transferSubtype = it.ifEmpty { null })) },
+            value.businessLabel.orEmpty(),
+            listOf("" to localizedText("copy_778fc8f994")) + businessLabels.map { it to cashBusinessLabel(it) },
+            { onChange(value.copy(businessLabel = it.ifEmpty { null })) },
             modifier = fieldModifier,
-            semanticId = SemanticIds.ledgerFilterTransferSubtype,
+            semanticId = SemanticIds.ledgerFilterBusinessLabel,
         )
     }
     val compositionFilter: @Composable (Modifier) -> Unit = { fieldModifier ->
@@ -1286,13 +1285,13 @@ private fun CashDetailedFilters(
                 title = localizedText("ledger_filter_group_other"),
                 semanticId = SemanticIds.ledgerFilterGroupOther,
             ) {
-                if (!compact && transferSubtypes.isNotEmpty()) {
+                if (!compact && businessLabels.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                        transferSubtypeFilter(Modifier.weight(1f))
+                        businessLabelFilter(Modifier.weight(1f))
                         compositionFilter(Modifier.weight(1f))
                     }
                 } else {
-                    if (transferSubtypes.isNotEmpty()) transferSubtypeFilter(Modifier.fillMaxWidth())
+                    if (businessLabels.isNotEmpty()) businessLabelFilter(Modifier.fillMaxWidth())
                     compositionFilter(Modifier.fillMaxWidth())
                 }
             }

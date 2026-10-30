@@ -236,13 +236,4 @@ internal fun economicTypeLabel(value: String): String = when (value) {
     else -> value
 }
 
-@Composable
-internal fun transferSubtypeLabel(value: String): String = when (value) {
-    "bank_security_transfer" -> localizedText("copy_c18e325ed4")
-    "cross_currency_remittance" -> localizedText("copy_bfde411775")
-    "ordinary_transfer" -> localizedText("copy_58b0da22c2")
-    "currency_exchange" -> localizedText("copy_978624700f")
-    else -> value
-}
-
 internal fun localDateTimeForInput(): String = "${getLocalDateForInput()}T12:00"

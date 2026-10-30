@@ -3,9 +3,7 @@
 ## Purpose
 
 定义现金流水在导入边界生成标准记录类型和标准记录子类型时使用的正式语义、来源证据和失败边界，避免关系扫描重新分类或根据自由文本猜测业务含义，并让历史更正保持可审计。
-
 ## Requirements
-
 ### Requirement: 每条导入现金流水都有标准记录类型
 
 每条正式现金流水 MUST 具有合法 record_type/record_subtype，草稿缺类型时可以为空且排除统计，不能为通过非空校验而伪造类型。来源原生结构化业务语义决定初始类型，不能只凭金额方向或自由文本关键词分类。新导入收支分类为空，用户已有分类受保护，类型更新不隐式改分类。
@@ -100,12 +98,12 @@
 - **THEN** 后续新导入 MUST 使用更新后的映射；已有导入及历史缺证正式流水的类型／子类型 MUST 保持不变，不得自动重建或迁移
 
 ### Requirement: 转账退回分类与退款冲销关系可以并存
-导入器 MUST 继续把个人转账、红包或群收款退回保存为 `transfer_reversal`，关系扫描 MUST NOT 将其改写为 `refund`；当来源同时提供唯一原交易标识、账户、币种、精确金额和有效时间顺序时，关系层可以用 `refund_offset` 的 `p2p_return` 子类型抵扣其对应出账。
+导入器 MUST 继续把个人转账、红包或群收款退回保存为 `transfer_reversal`，关系扫描 MUST NOT 将其改写为 `refund`；当来源同时提供唯一原交易标识、账户、币种、精确金额和有效时间顺序时，自动发现可生成 `refund_offset`，通过共同硬约束后以 `p2p_out/p2p_in` 角色抵扣其对应出账；人工确认不要求这些发现条件，合法性由 [交易关系](../transaction-relations/spec.md) 统一定义。
 
 #### Scenario: 微信红包退回被冲销
 - **WHEN** 微信红包退回和对应红包出账均为 `transfer_reversal`，并且两条流水的来源交易标识、账户、币种、金额和时间顺序一致
-- **THEN** 两条流水 MUST 保持 `transfer_reversal`，同时可以建立 `refund_offset`（`subtype=p2p_return`），不得把退回显示为消费退款记录类型
+- **THEN** 两条流水 MUST 保持 `transfer_reversal`，同时可以建立 带 `p2p_out/p2p_in` 角色的 `refund_offset`，不得把退回显示为消费退款记录类型
 
 #### Scenario: 缺少原交易标识的转账退回
 - **WHEN** 转账退回只有自由文本或金额方向证据，缺少唯一原交易标识
-- **THEN** 系统 MUST 保持 `transfer_reversal` 且不得自动建立 `p2p_return`
+- **THEN** 系统 MUST 保持 `transfer_reversal` 且不得通过平台原生退回发现规则自动建立关系；不限制通过共同硬约束的人工确认

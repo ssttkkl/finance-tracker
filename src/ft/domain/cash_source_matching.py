@@ -30,6 +30,22 @@ def provider_identity_key(provider_id: str) -> str:
     return _digest(provider_id)
 
 
+def _file_source_prefix(source_type, file_digest, parser_version, table_key, position, source_account_key=None):
+    required = ((source_type, 64), (file_digest, 64), (parser_version, 64), (table_key, 255))
+    if (any(not isinstance(value, str) or not value or len(value) > maximum for value, maximum in required)
+        or type(position) is not int or position < 0
+        or source_account_key is not None and (
+            not isinstance(source_account_key, str) or not source_account_key or len(source_account_key) > 256)):
+        raise ValueError("invalid_source_locator")
+    scope = (source_type, source_account_key) if source_type == "wechat" and source_account_key else (source_type,)
+    return (*scope, file_digest, parser_version)
+
+
+def file_source_keys(source_type, file_digest, parser_version, table_key, position, source_account_key=None):
+    prefix = _file_source_prefix(source_type, file_digest, parser_version, table_key, position, source_account_key)
+    return _digest(*prefix), _digest(*prefix, table_key, position)
+
+
 def _time(value: Any) -> datetime:
     result = value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
     if result.tzinfo is None or result.utcoffset() is None:
@@ -160,15 +176,14 @@ class SourceOccurrence:
 
     @cached_property
     def occurrence_key(self) -> str:
-        if self.source_type == "wechat" and self.source_account_key:
-            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version, self.table_key, self.position)
-        return _digest(self.source_type, self.file_digest, self.parser_version, self.table_key, self.position)
+        prefix = _file_source_prefix(self.source_type, self.file_digest, self.parser_version,
+            self.table_key, self.position, self.source_account_key)
+        return _digest(*prefix, self.table_key, self.position)
 
     @cached_property
     def file_scope_key(self) -> str:
-        if self.source_type == "wechat" and self.source_account_key:
-            return _digest(self.source_type, self.source_account_key, self.file_digest, self.parser_version)
-        return _digest(self.source_type, self.file_digest, self.parser_version)
+        return _digest(*_file_source_prefix(self.source_type, self.file_digest, self.parser_version,
+            self.table_key, self.position, self.source_account_key))
 
     @property
     def account_scope_key(self) -> str | None:

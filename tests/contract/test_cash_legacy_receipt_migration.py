@@ -7,12 +7,41 @@ from sqlalchemy import MetaData, Table, event, inspect, select, text
 
 from ft.adapters.relational.models import CashMutationReceiptModel
 from tests.contract.test_cash_draft_storage import _migration_config
-from tests.contract.test_cash_mutation_receipts import mutation_runtime, _save, _repo
+from tests.contract.test_cash_mutation_receipts import _repo
+from tests.historical_cash_schema import historical_cash_database
+from ft.adapters.relational import create_session_factory
 
 
 OLD = "20261021_48"
 NEW = "20261023_49"
 WHEN = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+
+
+@pytest.fixture
+def mutation_runtime(historical_cash_database):
+    runtime = historical_cash_database(OLD)
+    runtime.sessions = create_session_factory(runtime.engine)
+    return runtime
+
+
+def _save_old(session, runtime, **changes):
+    from uuid import uuid4
+    metadata = MetaData()
+    receipts = Table('cash_mutation_receipts', metadata, autoload_with=session.connection())
+    results = Table('cash_mutation_results', metadata, autoload_with=session.connection())
+    values = dict(id=str(uuid4()), workspace_id=runtime.workspace_id, user_id='fixture-user',
+        idempotency_key='request-1', request_digest='a' * 64, operation_kind='import', plan_id='plan-1',
+        session_digest='b' * 64, edit_context_digest=None, created_at=WHEN,
+        result_summary={'status': 'completed', 'summary': {'created_posted': 1}, 'needs_attention_count': 0})
+    items = changes.pop('results', [{'result_kind': 'row', 'item_ref': 'f1:r1', 'outcome': 'created_posted',
+        'transaction_id': '1001', 'operation_ref': 'op-1'}])
+    values.update(changes)
+    session.execute(receipts.insert().values(**values))
+    for item in items:
+        session.execute(results.insert().values(workspace_id=values['workspace_id'], receipt_id=values['id'], **item))
+    return dict(receipt_id=values['id'], plan_id=values['plan_id'], operation_kind=values['operation_kind'],
+        committed=True, request_digest=values['request_digest'], session_digest=values['session_digest'],
+        edit_context_digest=values['edit_context_digest'], created_at=WHEN.isoformat(), **values['result_summary'])
 
 
 def _engine(runtime):
@@ -26,7 +55,6 @@ def _revision(runtime, target, *, downgrade=False):
 
 
 def _old(runtime, rows):
-    _revision(runtime, OLD, downgrade=True)
     with _engine(runtime).begin() as connection:
         table = Table("cash_import_commits", MetaData(), autoload_with=connection)
         connection.execute(table.insert(), [{"id": "legacy-one", "workspace_id": runtime.workspace_id,
@@ -76,7 +104,7 @@ def test_upgrade_preserves_existing_current_receipt_and_does_not_consume_old_fil
     runtime = mutation_runtime
     _old(runtime, [{"session_digest": "b" * 64}])
     with runtime.sessions.begin() as session:
-        current = _save(_repo(session, runtime))
+        current = _save_old(session, runtime)
     _revision(runtime, "head")
     with runtime.sessions() as session:
         repo = _repo(session, runtime)
@@ -90,9 +118,10 @@ def test_target_collision_refuses_entire_upgrade_without_rekeying(mutation_runti
     runtime = mutation_runtime
     _old(runtime, [{}])
     with runtime.sessions.begin() as session:
-        current = _save(_repo(session, runtime), idempotency_key="legacy-key" if collision == "key" else "current-key", results=[])
+        current = _save_old(session, runtime, idempotency_key="legacy-key" if collision == "key" else "current-key", results=[])
         if collision == "id":
-            session.get(CashMutationReceiptModel, current["receipt_id"]).id = "legacy-one"
+            table = Table("cash_mutation_receipts", MetaData(), autoload_with=session.connection())
+            session.execute(table.update().where(table.c.id == current["receipt_id"]).values(id="legacy-one"))
     with pytest.raises(ValueError, match="legacy_receipt"):
         _revision(runtime, "head")
     with _engine(runtime).connect() as connection:
@@ -157,21 +186,25 @@ def test_failure_after_actual_drop_rolls_back_receipts_schema_and_version(mutati
 def test_downgrade_with_migrated_legacy_result_refuses_before_any_schema_change(mutation_runtime):
     runtime = mutation_runtime
     _old(runtime, [{}])
-    _revision(runtime, "head")
+    _revision(runtime, NEW)
     with runtime.sessions() as session:
         head = session.scalar(text('SELECT version_num FROM alembic_version'))
     with pytest.raises(ValueError, match="refusing a lossy"):
         _revision(runtime, OLD, downgrade=True)
     assert "cash_import_commits" not in inspect(_engine(runtime)).get_table_names()
+    with _engine(runtime).connect() as connection:
+        assert connection.scalar(text("SELECT count(*) FROM cash_mutation_receipts WHERE id='legacy-one'")) == 1
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == head
+    _revision(runtime, "head")
     with runtime.sessions() as session:
         assert _repo(session, runtime).get("fixture-user", "legacy-one") is not None
-        assert session.scalar(text("SELECT version_num FROM alembic_version")) == head
 
 
 def test_empty_legacy_downgrade_restores_only_empty_old_table_and_keeps_current_receipts(mutation_runtime):
     runtime = mutation_runtime
     with runtime.sessions.begin() as session:
-        current = _save(_repo(session, runtime))
+        current = _save_old(session, runtime)
+    _revision(runtime, NEW)
     _revision(runtime, OLD, downgrade=True)
     with _engine(runtime).connect() as connection:
         assert connection.scalar(text("SELECT count(*) FROM cash_import_commits")) == 0
@@ -196,7 +229,7 @@ def test_other_user_may_reuse_same_key_without_colliding_with_old_owner(mutation
     runtime = mutation_runtime
     _old(runtime, [{}])
     with runtime.sessions.begin() as session:
-        current = _save(_repo(session, runtime), user_id="other-user", idempotency_key="legacy-key")
+        current = _save_old(session, runtime, user_id="other-user", idempotency_key="legacy-key")
     _revision(runtime, "head")
     with runtime.sessions() as session:
         repo = _repo(session, runtime)
@@ -210,10 +243,11 @@ def test_id_collision_in_another_workspace_still_refuses_upgrade(mutation_runtim
     runtime = mutation_runtime
     _old(runtime, [{}])
     with runtime.sessions.begin() as session:
-        session.add(WorkspaceModel(id="legacy-other-workspace", name="Other"))
-        session.flush()
-        current = _save(CashMutationRepository(session, "legacy-other-workspace"), results=[])
-        session.get(CashMutationReceiptModel, current["receipt_id"]).id = "legacy-one"
+        workspaces = Table("workspaces", MetaData(), autoload_with=session.connection())
+        session.execute(workspaces.insert().values(id="legacy-other-workspace", name="Other", created_at=WHEN))
+        current = _save_old(session, runtime, workspace_id="legacy-other-workspace", results=[])
+        table = Table("cash_mutation_receipts", MetaData(), autoload_with=session.connection())
+        session.execute(table.update().where(table.c.id == current["receipt_id"]).values(id="legacy-one"))
     with pytest.raises(ValueError, match="^legacy_receipt_collision$"):
         _revision(runtime, "head")
     with _engine(runtime).connect() as connection:
@@ -228,10 +262,10 @@ def test_workspace_deletion_removes_migrated_and_current_results_only_in_that_wo
     runtime = mutation_runtime
     _old(runtime, [{}])
     with runtime.sessions.begin() as session:
-        current = _save(_repo(session, runtime))
-        session.add(WorkspaceModel(id="legacy-unrelated", name="Unrelated"))
-        session.flush()
-        unrelated = _save(CashMutationRepository(session, "legacy-unrelated"), results=[])
+        current = _save_old(session, runtime)
+        workspaces = Table("workspaces", MetaData(), autoload_with=session.connection())
+        session.execute(workspaces.insert().values(id="legacy-unrelated", name="Unrelated", created_at=WHEN))
+        unrelated = _save_old(session, runtime, workspace_id="legacy-unrelated", results=[])
     _revision(runtime, "head")
     client = _app(runtime)
     assert _register(client, "legacy-delete-admin@example.test").status_code == 200
@@ -250,8 +284,10 @@ def test_workspace_deletion_removes_migrated_and_current_results_only_in_that_wo
 
 
 @pytest.mark.parametrize("column, value", [("result_json", "private malformed JSON"), ("created_at", "private malformed time")])
-def test_sqlite_malformed_stored_values_fail_with_safe_migration_reason(cash_web_runtime, column, value):
-    runtime = cash_web_runtime
+def test_sqlite_malformed_stored_values_fail_with_safe_migration_reason(mutation_runtime, column, value):
+    runtime = mutation_runtime
+    if _engine(runtime).dialect.name != "sqlite":
+        pytest.skip("SQLite malformed storage injection")
     _old(runtime, [{}])
     with _engine(runtime).begin() as connection:
         connection.execute(text(f"UPDATE cash_import_commits SET {column}=:value"), {"value": value})

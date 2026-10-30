@@ -14,12 +14,12 @@ def _endpoint(ref, record_type="consumption", amount="-100", **changes):
 
 def _roles(kind, primary, secondary, subtype="", **evidence):
     from ft.domain.cash_relation_policy import discover_relation_roles, RelationRoleEvidence
-    return discover_relation_roles(kind, subtype, primary, secondary, evidence=RelationRoleEvidence(**evidence))
+    return discover_relation_roles(kind, primary, secondary, evidence=RelationRoleEvidence(**evidence))
 
 
 def _validate(kind, primary, secondary, roles, subtype=""):
     from ft.domain.cash_relation_policy import validate_relation_roles
-    validate_relation_roles(kind, subtype, primary, secondary, *roles)
+    validate_relation_roles(kind, primary, secondary, *roles)
 
 
 def test_existing_expense_role_survives_source_hint_removal_and_type_changes():
@@ -112,7 +112,7 @@ def test_role_check_does_not_replace_financial_final_graph_check():
     expense, refund = _endpoint("expense"), _endpoint("refund", "refund", "101")
     # 角色本身合法；退款总额、镜像折叠和占用仍由完整图校验。
     _validate("refund_offset", expense, refund, ("expense", "refund"))
-    with pytest.raises(CashRelationError, match="relation_endpoint_incompatible"):
+    with pytest.raises(CashRelationError, match="relation_account_mismatch"):
         _validate("refund_offset", expense, replace(refund, account_id="other"), ("expense", "refund"))
 
 
@@ -203,10 +203,83 @@ def test_candidate_type_prefilter_contains_every_valid_role_pair():
                 'cross_border_remittance' if cross_border and first == 'transfer_out' else default_cash_record_subtype(first))
             b = RelationEndpoint('2', '2', Decimal(amount_b), currency_b, account_b, second, default_cash_record_subtype(second))
             try:
-                validate_relation_roles(kind, subtype, a, b, role_a, role_b)
+                validate_relation_roles(kind, a, b, role_a, role_b)
             except CashRelationError:
                 continue
             accepted += 1
             assert second in cash_relation_candidate_types({first})
             assert first in cash_relation_candidate_types({second})
     assert accepted > 0
+
+
+@pytest.mark.parametrize("record_type", ["consumption", "refund", "investment_out"])
+def test_manual_refund_roles_need_no_discovery_proof(record_type):
+    from ft.domain.cash_relation_policy import infer_relation_roles
+    assert infer_relation_roles("refund_offset", _endpoint("out", record_type), _endpoint("in", "refund", "30")) == ("expense", "refund")
+
+
+def test_manual_partial_p2p_return_needs_no_discovery_proof():
+    from ft.domain.cash_relation_policy import infer_relation_roles
+    assert infer_relation_roles("refund_offset", _endpoint("out", "transfer_reversal"),
+        _endpoint("in", "transfer_reversal", "30")) == ("p2p_out", "p2p_in")
+
+
+@pytest.mark.parametrize("out_type", ["transfer_out", "withdrawal_out", "repayment", "fx_out"])
+@pytest.mark.parametrize("in_type", ["transfer_in", "withdrawal_in", "repayment", "fx_in"])
+@pytest.mark.parametrize("cross_currency", [False, True])
+def test_manual_transfer_uses_role_families_and_currency_not_old_subtypes(out_type, in_type, cross_currency):
+    from ft.domain.cash_relation_policy import infer_relation_roles, cash_relation_candidate_types
+    outgoing = _endpoint("out", out_type)
+    incoming = _endpoint("in", in_type, "14" if cross_currency else "100")
+    if cross_currency:
+        incoming = replace(incoming, currency="USD")
+    assert infer_relation_roles("transfer_pair", outgoing, incoming) == ("outgoing", "incoming")
+    assert in_type in cash_relation_candidate_types({out_type})
+    assert out_type in cash_relation_candidate_types({in_type})
+
+
+@pytest.mark.parametrize("kind,changes", [
+    ("payment_mirror", {"account_id": "other"}),
+    ("payment_mirror", {"currency": "USD"}),
+    ("payment_mirror", {"amount": Decimal("-99")}),
+    ("payment_mirror", {"transaction_id": "t-out"}),
+    ("transfer_pair", {"amount": Decimal("99.999999999999999999")}),
+])
+def test_hard_constraints_reject_financial_mismatch_without_discovery(kind, changes):
+    from ft.domain.cash_relation_policy import infer_relation_roles
+    primary = _endpoint("out", "consumption" if kind == "payment_mirror" else "transfer_out")
+    secondary = _endpoint("in", "consumption" if kind == "payment_mirror" else "transfer_in", "-100" if kind == "payment_mirror" else "100")
+    from ft.domain.cash_relation_policy import CashRelationError
+    with pytest.raises(CashRelationError):
+        infer_relation_roles(kind, primary, replace(secondary, **changes))
+
+
+@pytest.mark.parametrize("changes,code", [
+    ({"account_id": "other"}, "relation_account_mismatch"),
+    ({"currency": "USD"}, "relation_currency_mismatch"),
+    ({"amount": Decimal("-99")}, "relation_amount_invalid"),
+    ({"record_type": "income"}, "relation_role_incompatible"),
+])
+def test_confirm_rejects_with_the_specific_hard_constraint_reason(changes, code):
+    from ft.domain.cash_relation_policy import CashRelationError, infer_relation_roles
+    with pytest.raises(CashRelationError, match=code):
+        infer_relation_roles("payment_mirror", _endpoint("out"), replace(_endpoint("in"), **changes))
+
+
+@pytest.mark.parametrize("code", [
+    "relation_account_mismatch", "relation_currency_mismatch", "relation_amount_invalid",
+    "relation_role_incompatible", "relation_refund_exceeds_remaining", "relation_refund_incomplete",
+    "relation_endpoint_occupied", "relation_aggregate_unsupported",
+])
+def test_relation_http_reason_is_specific_and_does_not_suggest_unchanged_retry(code):
+    import json
+    from ft.application.cash_import_issues import cash_import_issue
+    from ft.domain.cash_record_policy import CashRecordPolicyError
+    from ft.web.cash_plan_routes import _plan_failure
+    issue = cash_import_issue(code)
+    assert issue["next_action"] == "review_relation"
+    assert "稍后重试" not in issue["message"]
+    response = _plan_failure(CashRecordPolicyError(code, ()))
+    error = json.loads(response.body)["error"]
+    assert response.status_code == 422 and error["code"] == code
+    assert error["message"] == issue["message"]

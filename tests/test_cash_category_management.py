@@ -268,12 +268,12 @@ def test_relation_maintenance_keeps_source_categories_and_uses_one_public_catego
             session.add(AccountModel(id=2001, workspace_id="category-workspace", name="关系账户", type="cash"))
             session.add_all((
                 CashTransactionModel(
-                    id=2101, workspace_id="category-workspace", account_id=2001,
+                    id=2101, workspace_id="category-workspace", account_id=2001, source_type="alipay", record_id="category-2101",
                     occurred_at=now, amount=Decimal("-10"), currency="CNY", counterparty="商家",
                     category_id=base["id"], record_type="consumption", record_subtype="not_applicable",
                 ),
                 CashTransactionModel(
-                    id=2102, workspace_id="category-workspace", account_id=2001,
+                    id=2102, workspace_id="category-workspace", account_id=2001, source_type="icbc_debit", record_id="category-2102",
                     occurred_at=now, amount=Decimal("-10"), currency="CNY", counterparty="商家",
                     category_id=other["id"], record_type="consumption", record_subtype="not_applicable",
                 ),

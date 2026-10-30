@@ -174,7 +174,6 @@ class FieldDiffView(MemberRef):
 
 class RelationSummaryView(Output):
     kind: str
-    subtype: str | None = None
     member_refs: list[MemberRef]
 
 
@@ -195,7 +194,6 @@ class RelationChoiceView(Output):
     inherit_common_fields: bool | None = None
     suggestion_id: str
     kind: str | None = None
-    subtype: str | None = None
     action: str
     candidate_id: str | None = None
     candidates: list[RelationCandidateView]
@@ -207,7 +205,6 @@ class RelationChoiceView(Output):
 class RelationEffectView(Output):
     relation_id: str
     kind: str
-    subtype: str | None = None
     effect: str
     member_refs: list[MemberRef]
     code: str | None = None

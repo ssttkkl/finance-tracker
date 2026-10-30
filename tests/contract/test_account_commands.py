@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import pytest
 from sqlalchemy import select
+from tests.historical_cash_schema import historical_cash_database
 
 
 USER = "00000000-0000-4000-8000-000000000001"
@@ -269,55 +270,52 @@ def _migration_config(connection):
     return config
 
 
-def test_account_revision_migration_preserves_populated_accounts_and_references(account_runtime):
+def test_account_revision_migration_preserves_populated_accounts_and_references(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    engine = account_runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_40")
-        connection.commit()
-        tables = ("accounts", "cash_transactions", "cash_transaction_components", "transaction_relations", "cash_projections", "ledger_snapshots")
-        before = {table: connection.execute(text(f"SELECT * FROM {table} ORDER BY 1")).mappings().all() for table in tables}
-        connection.commit()
-        command.upgrade(config, "head")
-        for table in tables:
-            after = connection.execute(text(f"SELECT * FROM {table} ORDER BY 1")).mappings().all()
-            normalized = [{key: value for key, value in row.items() if key in (before[table][0].keys() if before[table] else ()) and not (table == "accounts" and key == "revision")} for row in after]
-            assert normalized == [dict(row) for row in before[table]]
-        assert all(row[0] == 1 for row in connection.execute(text("SELECT revision FROM accounts")))
+    old = historical_cash_database('20261021_40', projections=True)
+    connection = old.connection
+    tables = ('accounts', 'cash_transactions', 'cash_transaction_components', 'transaction_relations', 'cash_projections', 'ledger_snapshots')
+    before = {table: connection.execute(text(f'SELECT * FROM {table} ORDER BY 1')).mappings().all() for table in tables}
+    connection.commit()
+    command.upgrade(old.config, '20261021_41')
+    for table in tables:
+        after = connection.execute(text(f'SELECT * FROM {table} ORDER BY 1')).mappings().all()
+        normalized = [{key: value for key, value in row.items() if not (table == 'accounts' and key == 'revision')} for row in after]
+        assert normalized == [dict(row) for row in before[table]]
+    assert all(row[0] == 1 for row in connection.execute(text('SELECT revision FROM accounts')))
 
 
-def test_account_revision_migration_refuses_to_drop_used_concurrency_tokens(account_runtime):
+def test_account_revision_migration_refuses_to_drop_used_concurrency_tokens(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.adapters.relational.models import AccountModel
-    with account_runtime.sessions.begin() as session:
-        session.get(AccountModel, 101).name = "已推进修订"
-    with account_runtime.sessions.kw["bind"].connect() as connection:
-        with pytest.raises(ValueError, match="account revisions"):
-            command.downgrade(_migration_config(connection), "20261021_40")
-        connection.rollback()
-        assert connection.scalar(text("SELECT revision FROM accounts WHERE id=101")) == 2
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261028_51"
+    old = historical_cash_database('20261021_41')
+    connection = old.connection
+    connection.execute(text('UPDATE accounts SET revision=2 WHERE id=101'))
+    connection.commit()
+    with pytest.raises(ValueError, match='account revisions'):
+        command.downgrade(old.config, '20261021_40')
+    connection.rollback()
+    assert connection.scalar(text('SELECT revision FROM accounts WHERE id=101')) == 2
+    assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_41'
 
 
-def test_sqlite_account_migration_keeps_deleted_id_high_watermark(cash_web_runtime):
+def test_sqlite_account_migration_keeps_deleted_id_high_watermark(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.adapters.relational.models import AccountModel
-    engine = cash_web_runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_40"); connection.commit()
-        connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, currencies, metadata_json, created_at, updated_at) "
-            "VALUES (999999, :workspace, 'high-water', 'cash', 0, '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"), {"workspace": cash_web_runtime.workspace_id})
-        connection.execute(text("DELETE FROM accounts WHERE id=999999")); connection.commit()
-        command.upgrade(config, "head"); connection.commit()
-    with cash_web_runtime.sessions.begin() as session:
-        row = AccountModel(workspace_id=cash_web_runtime.workspace_id, name="new-identity", type="cash")
-        session.add(row); session.flush()
-        assert row.id > 999999
+    old = historical_cash_database('20261021_40')
+    connection = old.connection
+    if connection.dialect.name != 'sqlite':
+        pytest.skip('SQLite table rebuild high-water behavior')
+    connection.execute(text("INSERT INTO accounts (id, workspace_id, name, type, active, currencies, metadata_json, created_at, updated_at) "
+        "VALUES (999999, :workspace, 'high-water', 'cash', 0, '[]', '{}', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"), {'workspace': old.workspace_id})
+    connection.execute(text('DELETE FROM accounts WHERE id=999999'))
+    connection.commit()
+    command.upgrade(old.config, '20261021_41')
+    connection.commit()
+    connection.execute(text("INSERT INTO accounts (workspace_id,name,type,active,currencies,metadata_json,created_at,updated_at) "
+        "VALUES (:workspace,'new-identity','cash',1,'[]','{}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"), {'workspace': old.workspace_id})
+    assert connection.scalar(text("SELECT id FROM accounts WHERE name='new-identity'")) > 999999
 
 
 def test_sqlite_empty_account_table_keeps_its_previous_identity_sequence(tmp_path):
@@ -329,7 +327,7 @@ def test_sqlite_empty_account_table_keeps_its_previous_identity_sequence(tmp_pat
     config = Config(str(root / "alembic.ini"))
     config.set_main_option("script_location", str(root / "migrations"))
     config.set_main_option("sqlalchemy.url", f"sqlite+pysqlite:///{tmp_path / 'empty-accounts.db'}")
-    command.upgrade(config, "head")
+    command.upgrade(config, "20261021_41")
     engine = create_engine(config.get_main_option("sqlalchemy.url"))
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO workspaces (id,name,created_at) VALUES ('empty','Empty',CURRENT_TIMESTAMP)"))
@@ -337,7 +335,7 @@ def test_sqlite_empty_account_table_keeps_its_previous_identity_sequence(tmp_pat
             "VALUES (999999,'empty','deleted','cash',0,'[]','{}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))
         connection.execute(text("DELETE FROM accounts"))
     command.downgrade(config, "20261021_40")
-    command.upgrade(config, "head")
+    command.upgrade(config, "20261021_41")
     with engine.begin() as connection:
         connection.execute(text("INSERT INTO accounts (workspace_id,name,type,active,currencies,metadata_json,created_at,updated_at) "
             "VALUES ('empty','new-identity','cash',1,'[]','{}',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)"))

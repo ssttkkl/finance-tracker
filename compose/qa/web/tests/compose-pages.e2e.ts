@@ -1747,7 +1747,7 @@ test("F-03 各尺寸账单行按交易对方、备注顺序显示", async ({ pag
 });
 
 test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ page }) => {
-  const api = await installComposeApiFixtures(page, { cashTransferSubtypes: ["ordinary_transfer"] });
+  const api = await installComposeApiFixtures(page, { cashBusinessLabels: ["ordinary_transfer"] });
   const sizes = [
     { name: "compact-320", width: 320, height: 800, compact: true, capture: false },
     { name: "compact-375", width: 375, height: 812, compact: true, capture: false },
@@ -1824,7 +1824,7 @@ test("F-03 详细筛选按字段语义分组并适配窗口宽度", async ({ pag
     }
     await expect(groups[2].locator('[id="ledger.filter.category"]')).toBeAttached();
     await expect(groups[3].locator('[id="ledger.filter.account"]')).toBeAttached();
-    await expect(groups[4].locator('[id="ledger.filter.transfer-subtype"]')).toBeAttached();
+    await expect(groups[4].locator('[id="ledger.filter.business-label"]')).toBeAttached();
     await expect(groups[4].locator('[id="ledger.filter.composition"]')).toBeAttached();
     const startDate = await page.getByRole("textbox", { name: "开始日期" }).boundingBox();
     const endDate = await page.getByRole("textbox", { name: "结束日期" }).boundingBox();

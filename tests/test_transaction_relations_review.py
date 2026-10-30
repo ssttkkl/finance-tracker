@@ -54,7 +54,6 @@ def test_review_accept_and_reject(relation_runtime):
         primary, secondary = ids2[0], ids2[1]
         uow.relations.add({
             "kind": "payment_mirror",
-            "subtype": "",
             "primary_fact_id": primary,
             "secondary_fact_id": secondary,
             "primary_fact_type": "cash",
@@ -80,7 +79,6 @@ def test_review_accept_and_reject(relation_runtime):
             fact_b=pending2[0]["secondary_record_id"],
             component_a=pending2[0]["primary_component_id"],
             component_b=pending2[0]["secondary_component_id"],
-            subtype=pending2[0].get("subtype") or "",
         )
     assert active is not None
     assert active["status"] == "rejected"
@@ -110,7 +108,7 @@ def test_supersede_preserves_history(relation_runtime):
     old_id = rels[0]["id"]
     replacement = {
         **{k: rels[0][k] for k in (
-            "kind", "subtype", "primary_fact_id", "secondary_fact_id",
+            "kind", "primary_fact_id", "secondary_fact_id",
             "primary_component_id", "secondary_component_id",
             "anchor_fact_id", "anchor_component_id",
             "primary_fact_type", "secondary_fact_type",

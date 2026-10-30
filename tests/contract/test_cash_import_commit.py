@@ -494,6 +494,46 @@ def test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrit
         assert session.get(LedgerSnapshotModel, context_runtime.workspace_id).version == before
 
 
+def test_duplicate_new_file_binding_republishes_once_without_changing_money(context_runtime, monkeypatch):
+    from ft.adapters.relational.models import CashProjectionStateModel, LedgerSnapshotModel
+    from ft.application.cash_projections import CashProjectionService
+
+    service, plan = _plan(context_runtime)
+    first = _commit(service, plan)
+    identifier = int(_results(service, first, "row")[0]["transaction_id"])
+    with context_runtime.sessions() as session:
+        previous_version = session.get(CashProjectionStateModel, context_runtime.workspace_id).projection_version
+        snapshot = session.get(LedgerSnapshotModel, context_runtime.workspace_id)
+        previous_balance = (snapshot.version, snapshot.payload)
+        previous_binding_count = session.scalar(select(func.count()).select_from(CashSourceBindingModel))
+        previous_amount = session.get(CashTransactionModel, identifier).amount
+    calls = []
+    original = CashProjectionService.maintain_in_session
+    def maintain(session, workspace_id, affected, **kwargs):
+        calls.append(set(affected))
+        return original(session, workspace_id, affected, **kwargs)
+    monkeypatch.setattr(CashProjectionService, "maintain_in_session", staticmethod(maintain))
+
+    file = _file(letter="b")
+    service, plan = _plan(context_runtime, (file,))
+    receipt = _commit(service, plan, "new-file-binding")
+    assert receipt["summary"]["duplicate"] == 1 and receipt["status"] == "no_changes"
+    assert calls == [{identifier}]
+    with context_runtime.sessions() as session:
+        current_version = session.get(CashProjectionStateModel, context_runtime.workspace_id).projection_version
+        assert current_version > previous_version
+        assert session.scalar(select(func.count()).select_from(CashSourceBindingModel)) > previous_binding_count
+        snapshot = session.get(LedgerSnapshotModel, context_runtime.workspace_id)
+        assert (snapshot.version, snapshot.payload) == previous_balance
+        assert session.get(CashTransactionModel, identifier).amount == previous_amount
+
+    service, plan = _plan(context_runtime, (file,))
+    _commit(service, plan, "same-file-binding")
+    assert calls == [{identifier}]
+    with context_runtime.sessions() as session:
+        assert session.get(CashProjectionStateModel, context_runtime.workspace_id).projection_version == current_version
+
+
 def test_reimport_preserves_historical_relation_failure_without_creating_retry_body(context_runtime):
     from ft.adapters.relational.cash_sources import CashSourceRepository
     from ft.application.cash_projections import CashProjectionService
@@ -651,7 +691,7 @@ def test_success_clears_body_and_failed_commit_keeps_original_session_only(conte
         assert staged.cancelled and not staged.files and staged.plan is None
 
 
-def test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_decision(context_runtime):
+def test_incomplete_refund_allocation_rolls_back_before_another_import(context_runtime):
     from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
     from ft.application.cash_projections import CashProjectionService
     a, _b, c, _d = _refund_bundle()
@@ -659,11 +699,14 @@ def test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_deci
     second, stale = _plan(context_runtime, (a, c))
     receipt = _commit(first, old, "first-allocation")
     identifiers = {int(item["transaction_id"]) for item in _results(first, receipt, "row")}
-    with context_runtime.sessions.begin() as session:
-        repository = CurrentCashRelationRepository(session, context_runtime.workspace_id)
-        row = session.scalar(select(TransactionRelationModel))
-        repository.replace(row.id, {"applied_amount": "5"}, expected_revision=row.row_revision)
-        CashProjectionService.maintain_in_session(session, context_runtime.workspace_id, identifiers)
+    from ft.domain.cash_projection import CashProjectionError
+    def change_allocation():
+        with context_runtime.sessions.begin() as session:
+            repository = CurrentCashRelationRepository(session, context_runtime.workspace_id)
+            row = session.scalar(select(TransactionRelationModel))
+            repository.replace(row.id, {"applied_amount": "5"}, expected_revision=row.row_revision)
+            CashProjectionService.maintain_in_session(session, context_runtime.workspace_id, identifiers)
+    _assert_atomic_failure(context_runtime, change_allocation, CashProjectionError, code="projection.invalid_relation")
     from ft.application.cash_import_plans import CashImportPlanError
     _assert_atomic_failure(context_runtime, lambda: _commit(second, stale, "second-allocation"),
         CashImportPlanError, code="plan_changed")

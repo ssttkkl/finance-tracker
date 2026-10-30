@@ -262,7 +262,7 @@ def test_manual_transfer_finances_change_both_sides_atomically(context_runtime, 
     if exchange:
         with runtime.sessions() as session:
             relation = session.get(TransactionRelationModel, relation.id)
-            assert relation.subtype == 'currency_exchange' and relation.active
+        assert relation.kind == 'transfer_pair' and relation.active
         assert records(runtime).read(str(ids[0]))['fields']['record_type'] == 'fx_out'
         assert records(runtime).read(str(ids[1]))['fields']['record_type'] == 'fx_in'
     after_balances = _snapshot(runtime)
@@ -504,3 +504,104 @@ def test_cash_investment_manual_transfer_has_entry_but_no_single_side_financial_
     assert current['entry'] is not None and not current['entry']['supports_transfer_edit']
     with pytest.raises(ValueError):
         _preview(commands(runtime), runtime, identifier, patch={'amount': '-70'})
+
+
+def test_display_representative_change_preserves_entry_identity_and_split_anchor(context_runtime):
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    from ft.domain.cash_projection import CashProjectionBuild
+    from dataclasses import replace
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _existing_mirror(session, runtime)
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions.begin() as session:
+        from ft.adapters.relational.projections import RelationalCashProjectionRepository
+        repo = CashEntryRepository(session, runtime.workspace_id)
+        projections = RelationalCashProjectionRepository(session, runtime.workspace_id)
+        before = repo.current(1001)
+        identity, anchor = before.id, before.identity_transaction_id
+        repo.patch(1001, {'note': ''}, expected_revision=before.revision)
+        from ft.application.cash_relation_context import CashRelationGraphService
+        service = CashRelationGraphService(session, runtime.workspace_id)
+        build = service.validate(service.load({1001})).build
+        merged, = build.projections
+        opposite = next(fact for fact, _ in merged.members if fact.id != merged.primary_record.id)
+        changed = replace(merged, primary_record=opposite, projection_id=f'cash:{opposite.id}')
+        repo.reconcile((changed,))
+        assert repo.current(1001).id == identity
+        assert repo.current(1001).identity_transaction_id == anchor
+        assert repo.current(1001).note == ''
+        repo.prepare_split({1001, 1003}, True)
+        from ft.domain.cash_projection import build_cash_projections
+        singles = build_cash_projections(tuple(fact for fact, _ in merged.members), ()).projections
+        repo.reconcile(tuple(reversed(singles)))
+        assert repo.current(anchor).id == identity
+        assert repo.current(opposite.id if opposite.id != anchor else merged.primary_record.id).id != identity
+
+
+def test_current_projection_reference_survives_representative_change(context_runtime):
+    from dataclasses import replace
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    from ft.adapters.relational.web_queries import RelationalCashLedgerQueryRepository
+    from ft.domain.cash_projection import CashProjectionBuild
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _existing_mirror(session, runtime)
+    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions.begin() as session:
+        repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
+        build = repository.build_sources_for_facts({1001, 1003})
+        merged, = build.projections
+        entry = CashEntryRepository(session, runtime.workspace_id).current(1001)
+        identity = entry.id
+        opposite = next(fact for fact, _ in merged.members if fact.id != merged.primary_record.id)
+        changed = replace(merged, primary_record=opposite, projection_id=f'cash:{opposite.id}')
+        repository.replace_active_components(CashProjectionBuild((changed,)), {1001, 1003})
+    queries = RelationalCashLedgerQueryRepository(runtime.sessions, runtime.workspace_id)
+    reference = queries.get_current_projection_reference(1001)
+    assert reference.projection_id == f'cash-entry:{identity}'
+    current = queries.get_current_projection(reference.projection_id)
+    assert current.projection.transaction_id == str(opposite.id)
+    assert queries.get_current_projection('cash:1001').projection.projection_id == reference.projection_id
+    assert queries.get_current_projection('cash:1003').projection.projection_id == reference.projection_id
+    assert queries.get_evidence('cash:1001') == queries.get_evidence(reference.projection_id)
+    with pytest.raises(LookupError):
+        queries.get_current_projection('cash:9223372036854775808')
+    unrelated = RelationalCashLedgerQueryRepository(runtime.sessions, 'unrelated-workspace')
+    from ft.application.web_queries import ProjectionUnavailableError
+    with pytest.raises(ProjectionUnavailableError):
+        unrelated.get_current_projection(reference.projection_id)
+    with runtime.sessions.begin() as session:
+        from datetime import datetime, timezone
+        session.get(CashTransactionModel, 1001).deleted_at = datetime.now(timezone.utc)
+    with pytest.raises(LookupError):
+        queries.get_current_projection('cash:1001')
+    with pytest.raises(LookupError):
+        queries.get_evidence('cash:1001')
+
+
+def test_new_entry_anchor_uses_source_identity_independently_of_display(context_runtime):
+    from dataclasses import replace
+    from sqlalchemy import delete
+    from ft.adapters.relational.models import CashEntryMemberModel, CashEntryModel
+    from ft.adapters.relational.cash_entries import CashEntryRepository
+    from ft.adapters.relational.projections import RelationalCashProjectionRepository
+    runtime = context_runtime
+    with runtime.sessions.begin() as session:
+        _existing_mirror(session, runtime)
+        session.execute(delete(CashEntryMemberModel).where(CashEntryMemberModel.workspace_id == runtime.workspace_id))
+        session.execute(delete(CashEntryModel).where(CashEntryModel.workspace_id == runtime.workspace_id))
+        repository = RelationalCashProjectionRepository(session, runtime.workspace_id)
+        merged, = repository.build_sources_for_facts({1001, 1003}).projections
+        platform = next(fact for fact, _ in merged.members if fact.id == 1003)
+        bank = next(fact for fact, _ in merged.members if fact.id == 1001)
+        platform = replace(platform, stable_source_key=('wechat', 'account', 'wallet', 'provider_id', 'payment'))
+        bank = replace(bank, stable_source_key=('icbc_debit', 'account', 'card', 'provider_id', 'payment'))
+        changed = replace(merged, primary_record=platform,
+            members=tuple((platform if fact.id == platform.id else bank, roles) for fact, roles in merged.members))
+        entries = CashEntryRepository(session, runtime.workspace_id)
+        entries.reconcile((changed,))
+        entry = entries.current(1001)
+        assert entry.root_transaction_id == 1003
+        assert entry.identity_transaction_id == 1001

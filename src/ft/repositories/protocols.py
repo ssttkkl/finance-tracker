@@ -94,7 +94,7 @@ class RelationRepository(Protocol):
         ...
 
     def find_by_business_key(
-        self, *, kind: str, fact_a: str, fact_b: str | None, subtype: str = "",
+        self, *, kind: str, fact_a: str, fact_b: str | None,
         component_a: str | None = None, component_b: str | None = None,
     ) -> dict | None:
         ...
@@ -106,7 +106,7 @@ class RelationRepository(Protocol):
         ...
 
     def find_open_leg(
-        self, *, kind: str, anchor_fact_id: str, subtype: str = "",
+        self, *, kind: str, anchor_fact_id: str,
         anchor_component_id: str | None = None,
     ) -> dict | None:
         ...

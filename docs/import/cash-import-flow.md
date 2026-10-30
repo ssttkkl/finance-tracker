@@ -4,7 +4,7 @@
 
 本文面向需要理解、维护或接入该模块的开发者，覆盖解析会话、来源对应、资金归属、关系配对、统一核对、提交、结果核实和失败恢复。关系配对决定不同来源如何合成一笔收支、退款如何抵扣及统计是否重复，是确认导入前的核心环节。数据库章节列出这些链路直接维护的业务表字段、类型和关键约束。账户、分类、现金账本查询及投资资金关联只说明衔接边界，账本阅读入口见 [现金流水](../cash-ledger/cash-ledger.md)。
 
-本文描述当前后端实现和 ORM 模型。界面用语统一见[领域词表](../../DOMAIN_GLOSSARY.md#用户界面用语)；内部模型名用于解释实现，不直接复制到页面。Compose Web、Android、iOS 已共用当前会话、统一预览与结果摘要入口；Web 已验证上传、草稿提交、公共编辑及账户退出，消费／退款及重复账单差异已有代表 Web 冒烟，演示确认仍待完成，完整页面覆盖见 [功能地图](../feature-map.md)。`cash_entries`、`cash_entry_members` 及创建方式字段通过 Alembic 迁移发布，实际环境的升级状态以运行数据库为准。
+本文描述当前后端实现和 ORM 模型。界面用语统一见[领域词表](../../DOMAIN_GLOSSARY.md#用户界面用语)；内部模型名用于解释实现，不直接复制到页面。Compose Web、Android、iOS 已共用当前会话、统一预览与结果摘要入口；Web 已验证上传、草稿提交、公共编辑及账户退出，消费／退款及重复账单差异已有代表 Web 冒烟，用户已确认首版演示，完整页面覆盖见 [功能地图](../feature-map.md)。`cash_entries`、`cash_entry_members` 及创建方式字段通过 Alembic 迁移发布，实际环境的升级状态以运行数据库为准。
 
 阅读导航：[业务对象](#business-model) · [模块架构](#architecture) · [导入流程](#execution-flow) · [关系配对](#relation-matching) · [API](#api) · [失败恢复](#recovery) · [完整数据库字段](#database)
 
@@ -655,7 +655,8 @@ erDiagram
 |---|---|---|---|
 | `id` | `String(64)` | 主键 | 稳定收支对象标识 |
 | `workspace_id` | `String(64)` | 非空 | 所属工作区 |
-| `root_transaction_id` | `ID` | 非空 | 当前根流水标识 |
+| `root_transaction_id` | `ID` | 非空 | 当前展示代表流水 |
+| `identity_transaction_id` | `ID` | 非空 | 决定合并／拆分时保留对象的持久身份锚，不随展示代表改变 |
 | `revision` | `BigInteger` | 默认 `1` | 当前对象修订号 |
 | `category_id` | `String(64)` | 可空 | 现金分类 |
 | `note` | `Text` | 默认 `''` | 备注 |
@@ -685,7 +686,7 @@ erDiagram
 
 ### 6.11 `transaction_relations`：当前现金流水关系
 
-导入可创建、确认、延后或忽略关系。关系连接父记录及其具体支付组成项；未完成候选选择时允许只有一个端点。
+导入可创建、确认、延后或忽略关系。关系连接父记录及其具体支付组成项；未完成候选选择时允许只有一个端点。当前治理工作树已移除关系 `subtype`，来源分类保留在流水，业务标签由读模型派生；双后端迁移及性能复验已通过，Compose 已切换新合同并完成首版演示确认，真实数据未迁移；迁移步骤见 [现金关系模型迁移](../cash-ledger/cash-relation-migration.md)。
 
 模型：[`TransactionRelationModel`](../../src/ft/adapters/relational/models.py#L904)。
 
@@ -694,7 +695,6 @@ erDiagram
 | `id` | `ID` | 主键；自增 | 内部标识 |
 | `workspace_id` | `String(64)` | 非空 | 所属工作区 |
 | `kind` | `String(32)` | 非空 | 关系类别：`payment_mirror`、`transfer_pair`、`refund_offset` |
-| `subtype` | `String(64)` | 默认 `''` | 该关系类别下的业务子类型 |
 | `primary_transaction_id` | `ID` | 非空 | 主端流水 |
 | `secondary_transaction_id` | `ID` | 可空 | 另一端流水，开放关系可为空 |
 | `primary_component_id` | `ID` | 可空 | 主端支付组成项 |
@@ -721,9 +721,9 @@ erDiagram
 
 数据库检查关系类别、状态及角色枚举。角色允许 `expense`、`refund`、`p2p_out`、`p2p_in`、`outgoing`、`incoming`。两个父记录端点不能相同；第二端为空时其组成项和角色也必须为空。锚点父记录必须来自端点，非空锚点组成项必须来自端点组成项。`confirmed` 要求第二端、三个组成项引用和两端角色均非空。
 
-有效双端关系以工作区、类别、子类型和规范化后的无序端点／组成项组合建立部分唯一索引，交换两端不能重复创建。有效单端关系以工作区、类别、子类型、锚点及 `coalesce(anchor_component_id, 0)` 建立部分唯一索引。其他索引覆盖状态、端点、锚点和决策组。`active`、`row_revision`、`applied_amount` 有服务端默认值；SQLite 主键启用 `AUTOINCREMENT`。
+有效双端关系以工作区、类别和规范端点／组成项建立部分唯一索引；镜像按无序端点规范化，退款与转账保留角色方向。有效单端关系以工作区、类别、锚点及 `coalesce(anchor_component_id, 0)` 建立部分唯一索引。其他索引覆盖状态、端点、锚点和决策组。`active`、`row_revision`、`applied_amount` 有服务端默认值；SQLite 主键启用 `AUTOINCREMENT`。
 
-这些约束只保证基本结构；关系角色兼容、金额应用、候选资格、组件占用及最终图是否合法仍由领域规则校验。关系失败须按完整关联组回滚，不能依赖单个外键代替业务校验。
+这些约束只保证基本结构；关系角色、完整金额、端点资格、组成项占用及最终图由共同领域规则校验。来源分类、证据、时间窗口和细分账户指向仅影响自动发现；人工确认不重跑发现证明。退款完整计入、镜像去重及转账币种约束见 [关系合同](cash-import-redesign-contracts.md#46-transaction_relations-与候选)。关系失败须按完整关联组回滚，不能依赖单个外键代替业务校验。
 
 ### 6.12 `cash_relation_candidates`：关系候选
 

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -128,10 +128,10 @@ def test_default_page_keeps_unknown_drafts_but_all_summaries_exclude_them(relati
     with runtime.sessions.begin() as session:
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1201, 1202})
     page = service.list_cash_projections()
-    drafts = {item.projection_id: item for item in page.items if item.state == "draft"}
-    assert set(drafts) == {"cash:1201", "cash:1202"}
-    assert drafts["cash:1201"].occurred_at is None and drafts["cash:1201"].amount is None
-    assert drafts["cash:1201"].currency is None and drafts["cash:1201"].economic_type is None
+    drafts = {item.transaction_id: item for item in page.items if item.state == "draft"}
+    assert set(drafts) == {"1201", "1202"}
+    assert drafts["1201"].occurred_at is None and drafts["1201"].amount is None
+    assert drafts["1201"].currency is None and drafts["1201"].economic_type is None
     assert all(item.confirmation_status == "pending" and item.attention_count == 1 and not item.statistics_eligible for item in drafts.values())
     assert page.pending_item_count == 2 and page.monthly_summaries == before.monthly_summaries
     assert service.list_cash_projections(state="draft").monthly_summaries == ()
@@ -144,19 +144,27 @@ def test_default_page_keeps_unknown_drafts_but_all_summaries_exclude_them(relati
     assert evidence["projection"].projection_version == evidence["projection_version"] == page.projection_version
 
 
-def test_unknown_dates_paginate_by_stable_created_position(relation_context_runtime):
+@pytest.mark.parametrize("same_created_at", [False, True])
+def test_unknown_dates_paginate_by_stable_created_position(relation_context_runtime, same_created_at):
     runtime = relation_context_runtime
     _drafts(runtime)
+    if not same_created_at:
+        with runtime.sessions.begin() as session:
+            session.get(CashTransactionModel, 1202).created_at = CREATED + timedelta(seconds=1)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
+    with runtime.sessions() as session:
+        drafts = [_current(session, runtime.workspace_id, identifier) for identifier in (1201, 1202)]
+        expected = [str(row.root_cash_transaction_id) for row in sorted(
+            drafts, key=lambda row: row.projection_id, reverse=True)] if same_created_at else ["1202", "1201"]
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
     items, cursor = [], None
     while True:
         page = service.list_cash_projections(limit=1, cursor=cursor)
-        items.extend(item.projection_id for item in page.items)
+        items.extend(item.transaction_id for item in page.items)
         cursor = page.next_cursor
         if cursor is None:
             break
-    assert items[:2] == ["cash:1202", "cash:1201"]
+    assert items[:2] == expected
     assert len(items) == len(set(items)) == 10
     first = service.list_cash_projections(limit=1)
     with pytest.raises(ValueError, match="invalid_cursor"):
@@ -166,11 +174,11 @@ def test_unknown_dates_paginate_by_stable_created_position(relation_context_runt
 
 
 @pytest.mark.parametrize("filters, expected", [
-    ({"amount_min": "-1000", "amount_max": "-998"}, {"cash:1202"}),
+    ({"amount_min": "-1000", "amount_max": "-998"}, {"1202"}),
     ({"amount_min": "0"}, set()),
     ({"date_from": "2026-01-01"}, set()),
     ({"date_to": "2027-01-01"}, set()),
-    ({"currency": "CNY"}, {"cash:1202"}),
+    ({"currency": "CNY"}, {"1202"}),
     ({"account_id": 101}, set()),
 ])
 def test_explicit_filters_do_not_guess_unknown_draft_values(relation_context_runtime, filters, expected):
@@ -178,7 +186,7 @@ def test_explicit_filters_do_not_guess_unknown_draft_values(relation_context_run
     _drafts(runtime)
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     page = CashLedgerQueryService(runtime.sessions, runtime.workspace_id).list_cash_projections(state="draft", **filters)
-    assert {item.projection_id for item in page.items} == expected
+    assert {item.transaction_id for item in page.items} == expected
     assert page.pending_item_count == len(expected) and not page.monthly_summaries
 
 
@@ -188,8 +196,8 @@ def test_full_refund_stays_visible_without_overriding_explicit_filters_or_deleti
         _add(CurrentCashRelationRepository(session, runtime.workspace_id), 1101, 1103, kind="refund_offset", state="confirmed")
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
-    assert "cash:1101" not in {item.projection_id for item in service.list_cash_projections().items}
-    confirmed = next(item for item in service.list_cash_projections(hide_zero_amount=False).items if item.projection_id == "cash:1101")
+    assert "1101" not in {item.transaction_id for item in service.list_cash_projections().items}
+    confirmed = next(item for item in service.list_cash_projections(hide_zero_amount=False).items if item.transaction_id == "1101")
     assert confirmed.amount == "0" and confirmed.confirmation_status == "confirmed" and confirmed.statistics_eligible
     with runtime.sessions.begin() as session:
         sources = CashSourceRepository(session, runtime.workspace_id)
@@ -228,13 +236,13 @@ def test_hide_zero_amount_keeps_unknown_drafts_and_updates_counts(relation_conte
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1201, 1202, 1203})
     service = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
     hidden = service.list_cash_projections(state="draft", start_index=0, limit=20)
-    assert {item.projection_id for item in hidden.items} == {"cash:1201", "cash:1202"}
+    assert {item.transaction_id for item in hidden.items} == {"1201", "1202"}
     assert hidden.total_count == hidden.pending_item_count == 2
-    assert next(item for item in hidden.items if item.projection_id == "cash:1201").amount is None
+    assert next(item for item in hidden.items if item.transaction_id == "1201").amount is None
     shown = service.list_cash_projections(state="draft", hide_zero_amount=False, start_index=0, limit=20)
-    assert {item.projection_id for item in shown.items} == {"cash:1201", "cash:1202", "cash:1203"}
+    assert {item.transaction_id for item in shown.items} == {"1201", "1202", "1203"}
     assert shown.total_count == shown.pending_item_count == 3
-    assert next(item for item in shown.items if item.projection_id == "cash:1203").amount == "0"
+    assert next(item for item in shown.items if item.transaction_id == "1203").amount == "0"
 
 
 def test_clearing_last_issue_keeps_full_refund_visible_and_confirmed(relation_context_runtime):
@@ -251,9 +259,9 @@ def test_clearing_last_issue_keeps_full_refund_visible_and_confirmed(relation_co
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1101})
     page = service.list_cash_projections(hide_zero_amount=False)
     assert page.pending_item_count == 0
-    item = next(item for item in page.items if item.projection_id == "cash:1101")
+    item = next(item for item in page.items if item.transaction_id == "1101")
     assert item.amount == "0" and item.confirmation_status == "confirmed" and item.attention_count == 0
-    assert "cash:1101" not in {item.projection_id for item in service.list_cash_projections().items}
+    assert "1101" not in {item.transaction_id for item in service.list_cash_projections().items}
 
 
 def test_other_hidden_zero_records_still_require_attention_to_be_visible(relation_context_runtime):
@@ -264,17 +272,17 @@ def test_other_hidden_zero_records_still_require_attention_to_be_visible(relatio
         session.get(CashTransactionComponentModel, 6105).amount = Decimal("0")
     CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
     query = CashLedgerQueryService(runtime.sessions, runtime.workspace_id)
-    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
+    assert "1105" not in {item.transaction_id for item in query.list_cash_projections().items}
     with runtime.sessions.begin() as session:
         CashSourceRepository(session, runtime.workspace_id).save_issue(1105, "pending", code="source_update_conflict")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
-    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections().items}
-    item = next(item for item in query.list_cash_projections(hide_zero_amount=False).items if item.projection_id == "cash:1105")
+    assert "1105" not in {item.transaction_id for item in query.list_cash_projections().items}
+    item = next(item for item in query.list_cash_projections(hide_zero_amount=False).items if item.transaction_id == "1105")
     assert item.amount == "0" and item.confirmation_status == "pending"
     with runtime.sessions.begin() as session:
         CashSourceRepository(session, runtime.workspace_id).clear_issue(1105, "pending")
         CashProjectionService.maintain_in_session(session, runtime.workspace_id, {1105})
-    assert "cash:1105" not in {item.projection_id for item in query.list_cash_projections(hide_zero_amount=False).items}
+    assert "1105" not in {item.transaction_id for item in query.list_cash_projections(hide_zero_amount=False).items}
 
 
 def test_list_metadata_and_month_summaries_share_the_page_snapshot(relation_context_runtime):
@@ -322,7 +330,7 @@ def test_http_lists_nullable_drafts_and_forwards_lifecycle_filters(relation_cont
     assert drafts.status_code == 200
     body = drafts.json()
     assert body["pending_item_count"] == 2 and len(body["items"]) == 2 and not body["monthly_summaries"]
-    unknown = next(item for item in body["items"] if item["projection_id"] == "cash:1201")
+    unknown = next(item for item in body["items"] if item["transaction_id"] == "1201")
     assert unknown["amount"] is None and unknown["occurred_at"] is None and not unknown["statistics_eligible"]
     assert unknown["confirmation_status"] == "pending" and unknown["state"] == "draft"
     assert client.get("/api/v1/cash-projections", params={"state": "bad"}).status_code == 400
@@ -338,6 +346,6 @@ def test_http_zero_amount_filter_defaults_on_and_can_show_full_refund(relation_c
     hidden = client.get("/api/v1/cash-projections")
     shown = client.get("/api/v1/cash-projections", params={"hide_zero_amount": "false"})
     assert hidden.status_code == shown.status_code == 200
-    assert "cash:1101" not in {item["projection_id"] for item in hidden.json()["items"]}
-    refund = next(item for item in shown.json()["items"] if item["projection_id"] == "cash:1101")
+    assert "1101" not in {item["transaction_id"] for item in hidden.json()["items"]}
+    refund = next(item for item in shown.json()["items"] if item["transaction_id"] == "1101")
     assert refund["amount"] == "0"

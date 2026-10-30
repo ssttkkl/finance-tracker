@@ -12,13 +12,13 @@ from ft.domain.decimal import exact_decimal
 from .models import CashRelationCandidateModel, CashTransactionComponentModel, CashTransactionModel, TransactionRelationModel
 
 
-_FIELDS = frozenset({"kind", "subtype", "state", "active", "primary_transaction_id", "secondary_transaction_id",
+_FIELDS = frozenset({"kind", "state", "active", "primary_transaction_id", "secondary_transaction_id",
     "primary_component_id", "secondary_component_id", "anchor_transaction_id", "anchor_component_id",
     "primary_role", "secondary_role", "applied_amount", "decision_group_id", "decision_source", "evidence",
     "rule_id", "created_by", "decided_by", "decided_at", "decision_reason"})
 _IDS = frozenset({"primary_transaction_id", "secondary_transaction_id", "primary_component_id",
     "secondary_component_id", "anchor_transaction_id", "anchor_component_id"})
-_GRAPH_FIELDS = ("id", "kind", "subtype", "primary_transaction_id", "secondary_transaction_id",
+_GRAPH_FIELDS = ("id", "kind", "primary_transaction_id", "secondary_transaction_id",
     "primary_component_id", "secondary_component_id", "primary_role", "secondary_role", "applied_amount",
     "state", "active", "decision_group_id", "row_revision")
 
@@ -102,16 +102,6 @@ def _id(value):
     if type(value) is int and 0 < value < 2 ** 63:
         return value
     raise CashRelationError("relation_data_invalid")
-
-
-def legacy_relation_roles(kind, subtype, amount):
-    """只迁接旧服务已经形成的决定；新建议必须使用来源证据发现角色。"""
-    if kind == "payment_mirror":
-        role = "refund" if amount > 0 else "expense"
-        return role, role
-    if kind == "refund_offset":
-        return ("p2p_out", "p2p_in") if subtype == "p2p_return" else ("expense", "refund")
-    return "outgoing", "incoming"
 
 
 def _evidence(value):
@@ -249,7 +239,7 @@ class CurrentCashRelationRepository:
     def _values(self, values):
         if not isinstance(values, dict) or values.keys() - _FIELDS:
             raise CashRelationError("relation_data_invalid")
-        result = {"subtype": "", "state": "draft", "active": True, "secondary_transaction_id": None,
+        result = {"state": "draft", "active": True, "secondary_transaction_id": None,
             "primary_component_id": None, "secondary_component_id": None, "anchor_component_id": None,
             "primary_role": None, "secondary_role": None, "decision_group_id": None,
             "decision_source": "rule", "evidence": {}, "applied_amount": "0", "rule_id": "",
@@ -261,7 +251,7 @@ class CurrentCashRelationRepository:
             result[key] = _id(result[key]) if result.get(key) is not None else None
         if result["primary_transaction_id"] is None or result["anchor_transaction_id"] is None:
             raise CashRelationError("relation_endpoint_incomplete")
-        for key, maximum in (("subtype", 64), ("decision_source", 32), ("rule_id", 128), ("created_by", 128), ("decided_by", 128), ("decision_reason", 4096)):
+        for key, maximum in (("decision_source", 32), ("rule_id", 128), ("created_by", 128), ("decided_by", 128), ("decision_reason", 4096)):
             if not isinstance(result[key], str) or len(result[key]) > maximum:
                 raise CashRelationError("relation_data_invalid")
         for key, allowed in (("primary_role", {"expense", "refund", "p2p_out", "p2p_in", "outgoing", "incoming"}),
@@ -308,7 +298,7 @@ class CurrentCashRelationRepository:
                 endpoints.append(RelationEndpoint(str(component.id), str(parent.id), component.amount, component.currency,
                     str(component.account_id) if component.account_id is not None else None,
                     parent.record_type, parent.record_subtype, parent.state, parent.deleted_at is None))
-            validate_relation_roles(result["kind"], result["subtype"], *endpoints, result["primary_role"], result["secondary_role"])
+            validate_relation_roles(result["kind"], *endpoints, result["primary_role"], result["secondary_role"])
         return result
 
     def add(self, values):

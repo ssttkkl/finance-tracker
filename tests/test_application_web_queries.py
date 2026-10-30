@@ -67,9 +67,9 @@ def test_monthly_summaries_keep_full_money_precision_under_a_small_caller_contex
 
 def test_projection_page_filters_and_stable_cursor(cash_web_runtime):
     service=_service(cash_web_runtime); first=service.list_cash_projections(limit=2); second=service.list_cash_projections(limit=2,cursor=first.next_cursor)
-    assert [x.projection_id for x in first.items+second.items]==["cash:1003","cash:1002","cash:1001"]
-    assert [x.projection_id for x in service.list_cash_projections(category_id="category-food").items]==["cash:1003"]
-    assert [x.projection_id for x in service.list_cash_projections(economic_type="income").items]==["cash:1001"]
+    assert [x.transaction_id for x in first.items+second.items]==["1003","1002","1001"]
+    assert [x.transaction_id for x in service.list_cash_projections(category_id="category-food").items]==["1003"]
+    assert [x.transaction_id for x in service.list_cash_projections(economic_type="income").items]==["1001"]
     with pytest.raises(ValueError,match="invalid_cursor"):service.list_cash_projections(cursor=first.next_cursor,category_id="category-food")
     with pytest.raises(ValueError,match="invalid_cursor"):service.list_cash_projections(cursor=first.next_cursor,timezone="Asia/Tokyo")
 
@@ -99,15 +99,15 @@ def test_projection_page_supports_absolute_index_and_filtered_total(cash_web_run
         counterparty="不存在的交易对方",
     )
 
-    assert [first.items[0].projection_id, middle.items[0].projection_id, last.items[0].projection_id] == [
-        "cash:1003", "cash:1002", "cash:1001",
+    assert [first.items[0].transaction_id, middle.items[0].transaction_id, last.items[0].transaction_id] == [
+        "1003", "1002", "1001",
     ]
     assert (first.total_count, middle.total_count, last.total_count) == (3, 3, 3)
     assert (first.start_index, middle.start_index, last.start_index) == (0, 1, 2)
     assert (first.items_before, first.items_after) == (0, 2)
     assert (middle.items_before, middle.items_after) == (1, 1)
     assert (last.items_before, last.items_after) == (2, 0)
-    assert [item.projection_id for item in food.items] == ["cash:1003"]
+    assert [item.transaction_id for item in food.items] == ["1003"]
     assert food.total_count == 1
     assert empty.items == ()
     assert empty.total_count == 0
@@ -124,14 +124,14 @@ def test_indexed_page_returns_month_positions_once_for_the_snapshot(cash_web_run
         session.add_all((
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-income",
-                root_cash_transaction_id=1001, economic_type="income", transfer_subtype=None, net_amount=Decimal("10"), currency="USD",
+                root_cash_transaction_id=1001, economic_type="income", business_label=None, net_amount=Decimal("10"), currency="USD",
                 occurred_at=datetime(2026, 6, 30, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月收入",
                 category_id="category-income", category_path="/category-income/", note="", source_type="fixture", record_id="month-june-income", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-expense",
-                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="USD",
+                root_cash_transaction_id=1001, economic_type="expense", business_label=None, net_amount=Decimal("-3"), currency="USD",
                 occurred_at=datetime(2026, 6, 29, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月支出",
                 category_id="category-daily", category_path="/category-daily/", note="", source_type="fixture", record_id="month-june-expense", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
@@ -215,7 +215,7 @@ def test_projection_index_rejects_cursor_combination_and_invalid_values(cash_web
     cursor = service.list_cash_projections(limit=1).next_cursor
 
     initial_seek = service.list_cash_projections(limit=1, start_index=1)
-    assert initial_seek.items[0].projection_id == "cash:1002"
+    assert initial_seek.items[0].transaction_id == "1002"
     assert initial_seek.projection_version > 0
     with pytest.raises(ValueError, match="invalid_cursor"):
         service.list_cash_projections(limit=1, start_index=0, cursor=cursor)
@@ -248,14 +248,14 @@ def test_projection_page_returns_monthly_summaries_for_all_filtered_rows(cash_we
         session.add_all((
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-income",
-                root_cash_transaction_id=1001, economic_type="income", transfer_subtype=None, net_amount=Decimal("10"), currency="USD",
+                root_cash_transaction_id=1001, economic_type="income", business_label=None, net_amount=Decimal("10"), currency="USD",
                 occurred_at=datetime(2026, 6, 30, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月收入",
                 category_id="category-income", category_path="/category-income/", note="", source_type="fixture", record_id="month-june-income", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:month-june-expense",
-                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="USD",
+                root_cash_transaction_id=1001, economic_type="expense", business_label=None, net_amount=Decimal("-3"), currency="USD",
                 occurred_at=datetime(2026, 6, 29, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="六月支出",
                 category_id="category-daily", category_path="/category-daily/", note="", source_type="fixture", record_id="month-june-expense", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
@@ -282,14 +282,14 @@ def test_projection_filter_matches_counterparty_or_note(cash_web_runtime):
         session.add_all((
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:counterparty-match",
-                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-2"), currency="CNY",
+                root_cash_transaction_id=1001, economic_type="expense", business_label=None, net_amount=Decimal("-2"), currency="CNY",
                 occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="星巴克",
                 category_id="category-food", category_path="/category-food/", note="下午消费", source_type="fixture", record_id="counterparty-match", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:note-match",
-                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None, net_amount=Decimal("-3"), currency="CNY",
+                root_cash_transaction_id=1001, economic_type="expense", business_label=None, net_amount=Decimal("-3"), currency="CNY",
                 occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")), account_id=101, counterparty="便利店",
                 category_id="category-daily", category_path="/category-daily/", note="星巴克豆采购", source_type="fixture", record_id="note-match", visible=True,
                 hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
@@ -322,14 +322,14 @@ def test_projection_filter_options_exclude_hidden_and_blank_values(cash_web_runt
         session.add_all((
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:hidden-option",
-                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="ordinary_transfer",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", business_label="ordinary_transfer",
                 net_amount=Decimal("0"), currency="JPY", occurred_at=datetime(2026, 7, 1, 9, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="", category_id=None, category_path=None, note="", source_type=None, record_id="hidden-option",
                 visible=False, hidden_reason="internal_transfer", member_count=1, accepted_relation_count=0, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:blank-option",
-                root_cash_transaction_id=1001, economic_type="expense", transfer_subtype=None,
+                root_cash_transaction_id=1001, economic_type="expense", business_label=None,
                 net_amount=Decimal("-1"), currency="USD", occurred_at=datetime(2026, 7, 1, 10, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="", category_id=None, category_path=None, note="", source_type=None, record_id="blank-option",
                 visible=True, hidden_reason=None, member_count=1, accepted_relation_count=0, built_projection_version=1,
@@ -343,7 +343,7 @@ def test_projection_filter_options_exclude_hidden_and_blank_values(cash_web_runt
 
 
 @pytest.mark.parametrize("runtime_name", ["cash_web_runtime", "postgres_cash_web_runtime"])
-def test_projection_filter_options_and_subtype_filter_follow_active_visible_data(request, runtime_name):
+def test_projection_filter_options_and_business_label_filter_follow_active_visible_data(request, runtime_name):
     from ft.adapters.relational.models import CashProjectionModel, CashProjectionStateModel
     from sqlalchemy import select
 
@@ -354,47 +354,54 @@ def test_projection_filter_options_and_subtype_filter_follow_active_visible_data
         session.add_all((
             CashProjectionModel(
                 workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:ordinary-transfer",
-                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="ordinary_transfer",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", business_label="ordinary_transfer",
                 net_amount=Decimal("0"), currency="CNY", occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="本人账户", category_id="category-transfer", category_path="/category-transfer/", note="", source_type="fixture", record_id="ordinary-transfer",
                 visible=True, hidden_reason=None, member_count=2, accepted_relation_count=1, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:bank-security-new",
-                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="bank_security_transfer",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", business_label="bank_security_transfer",
                 net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 6, 9, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="券商", category_id="category-transfer", category_path="/category-transfer/", note="", source_type="fixture", record_id="bank-security-new",
                 visible=True, hidden_reason=None, member_count=1, accepted_relation_count=1, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:bank-security-old",
-                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="bank_security_transfer",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", business_label="bank_security_transfer",
                 net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="券商", category_id="category-transfer", category_path="/category-transfer/", note="", source_type="fixture", record_id="bank-security-old",
                 visible=True, hidden_reason=None, member_count=1, accepted_relation_count=1, built_projection_version=1,
             ),
             CashProjectionModel(
                 workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:hidden-adjustment",
-                root_cash_transaction_id=1001, economic_type="internal_transfer", transfer_subtype="balance_adjustment",
+                root_cash_transaction_id=1001, economic_type="internal_transfer", business_label="balance_adjustment",
                 net_amount=Decimal("0"), currency="USD", occurred_at=datetime(2026, 7, 3, 9, tzinfo=ZoneInfo("UTC")),
                 account_id=101, counterparty="", category_id=None, category_path=None, note="", source_type="fixture", record_id="hidden-adjustment",
                 visible=False, hidden_reason="balance_adjustment", member_count=1, accepted_relation_count=0, built_projection_version=1,
             ),
+            CashProjectionModel(
+                workspace_id=runtime.workspace_id, dataset_id=state.active_dataset_id, projection_id="cash:p2p-return",
+                root_cash_transaction_id=1001, economic_type="expense", business_label="p2p_return",
+                net_amount=Decimal("-30"), currency="CNY", occurred_at=datetime(2026, 7, 5, 9, tzinfo=ZoneInfo("UTC")),
+                account_id=101, counterparty="朋友", category_id=None, note="", source_type="fixture", record_id="p2p-return",
+                visible=True, hidden_reason=None, member_count=2, accepted_relation_count=1, built_projection_version=1,
+            ),
         ))
 
     page = service.list_cash_projections(limit=1)
-    selected = service.list_cash_projections(transfer_subtype="bank_security_transfer", limit=1, hide_zero_amount=False)
+    selected = service.list_cash_projections(business_label="bank_security_transfer", limit=1, hide_zero_amount=False)
 
-    assert [(item.economic_type, item.transfer_subtypes) for item in page.filter_options.economic_types] == [
+    assert [(item.economic_type, item.business_labels) for item in page.filter_options.economic_types] == [
         ("expense", ()), ("income", ()), ("internal_transfer", ("bank_security_transfer", "ordinary_transfer")),
     ]
     assert [item.projection_id for item in selected.items] == ["cash:bank-security-new"]
     assert selected.filters["economic_type"] == "internal_transfer"
-    assert selected.filters["transfer_subtype"] == "bank_security_transfer"
+    assert selected.filters["business_label"] == "bank_security_transfer"
     with pytest.raises(ValueError, match="invalid_filter"):
-        service.list_cash_projections(economic_type="expense", transfer_subtype="bank_security_transfer")
+        service.list_cash_projections(economic_type="expense", business_label="bank_security_transfer")
     with pytest.raises(ValueError, match="invalid_cursor"):
-        service.list_cash_projections(transfer_subtype="ordinary_transfer", cursor=selected.next_cursor)
+        service.list_cash_projections(business_label="ordinary_transfer", cursor=selected.next_cursor)
 
 
 def test_projection_page_includes_visible_internal_transfer_and_filter_option(cash_web_runtime):
@@ -407,7 +414,7 @@ def test_projection_page_includes_visible_internal_transfer_and_filter_option(ca
         session.add(CashProjectionModel(
             workspace_id=cash_web_runtime.workspace_id, dataset_id=state.active_dataset_id,
             projection_id="cash:visible-transfer", root_cash_transaction_id=1001,
-            economic_type="internal_transfer", transfer_subtype="ordinary_transfer", net_amount=Decimal("0"),
+            economic_type="internal_transfer", business_label="ordinary_transfer", net_amount=Decimal("0"),
             currency="HKD", occurred_at=datetime(2026, 7, 4, 9, tzinfo=ZoneInfo("UTC")),
             account_id=101, counterparty="个人账户", category_id="category-transfer", category_path="/category-transfer/", note="账户间转移",
             source_type="fixture", record_id="visible-transfer", visible=True, hidden_reason=None,
@@ -542,7 +549,6 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
             session.add(cash_relation_fixture(session, complete_legacy_types=True,
                             workspace_id=runtime.workspace_id,
                             kind="refund_offset",
-                            subtype="",
                             primary_component_id=1003,
                             secondary_component_id=1004,
                             anchor_component_id=1004,
@@ -566,11 +572,11 @@ def test_projection_page_keeps_version_and_dataset_in_one_read_snapshot(request,
     assert rebuilt is True
     assert page.projection_version == baseline_version
     assert [
-        (item.projection_id, item.amount, item.composition, item.accepted_relation_summary)
+        (item.transaction_id, item.amount, item.composition, item.accepted_relation_summary)
         for item in page.items
     ] == [
-        ("cash:1003", "-12.5", (), ()),
-        ("cash:1002", "-100", (), ()),
+        ("1003", "-12.5", (), ()),
+        ("1002", "-100", (), ()),
     ]
     assert len(state_statements) == 1
     assert "WITH active_state AS" in state_statements[0]
@@ -589,12 +595,12 @@ def test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics
     runtime = request.getfixturevalue(runtime_name)
     service = _service(runtime)
     with runtime.sessions.begin() as session:
-        rows = {row.projection_id: row for row in session.scalars(select(CashProjectionModel).where(
+        rows = {row.root_cash_transaction_id: row for row in session.scalars(select(CashProjectionModel).where(
             CashProjectionModel.workspace_id == runtime.workspace_id)).all()}
-        for key, day in [("cash:1003", 31), ("cash:1002", 30), ("cash:1001", 29)]:
+        for key, day in [(1003, 31), (1002, 30), (1001, 29)]:
             rows[key].sort_at = datetime(2026, 10, day, tzinfo=ZoneInfo("UTC"))
             rows[key].occurred_at = rows[key].sort_at
-        draft = rows["cash:1002"]
+        draft = rows[1002]
         draft.state = "draft"
         draft.occurred_at = None
         draft.statistics_eligible = False

@@ -71,7 +71,7 @@
     <string name="copy_1f62e3f53f">Add transaction</string>
     <string name="copy_1f9774478d">Investment funding</string>
     <string name="copy_1fc1afc5c5">Continue</string>
-    <string name="copy_1fcff8b8d5">Transaction subtype</string>
+    <string name="copy_1fcff8b8d5">Business subtype</string>
     <string name="copy_204c9c54c2">No counterparty entered</string>
     <string name="copy_21a6f5a8d9">Choose files</string>
     <string name="copy_21f1e88275">Sign in</string>
@@ -415,7 +415,6 @@
     <string name="copy_e39b50c02d">Transfer sent</string>
     <string name="copy_e3fcffbd56">%1$s members</string>
     <string name="copy_e473077a21">Only CSV, XLS, XLSX, or PDF files are supported.</string>
-    <string name="copy_e490abc2fa">Unlink</string>
     <string name="copy_e4aaa144b7">Transfer between my accounts</string>
     <string name="copy_e5847fcd94">Other merged entries</string>
     <string name="copy_e5e27271b5">An account with this name already exists. Change the name and try again.</string>
@@ -608,14 +607,11 @@
     <string name="workspace_delete_error_title">Couldn't delete workspace</string>
     <string name="ledger_relation_error_title">Couldn't update linked transactions</string>
     <string name="ledger_detail_more_actions">More actions</string>
-    <string name="ledger_relation_unlink_title">Unlink this transaction?</string>
     <string name="ledger_relation_unlink_message">This transaction will be unlinked from “%1$s”. Both transaction records will remain.</string>
     <string name="ledger_relation_dissolve_title">Dissolve all links?</string>
     <string name="ledger_relation_dissolve_message">All links between this transaction and related transactions will be removed. The transaction records will remain.</string>
     <string name="ledger_relation_keep">Keep links</string>
-    <string name="ledger_relation_unlink_confirm">Unlink</string>
     <string name="ledger_relation_dissolve_confirm">Dissolve links</string>
-    <string name="ledger_relation_unlinking">Unlinking…</string>
     <string name="ledger_relation_dissolving">Dissolving links…</string>
     <string name="cash_pending_count">Needs review %1$s</string>
     <string name="cash_confirmation_filter">Review status</string>
@@ -664,7 +660,6 @@
     <string name="cash_no_relation_choices">No links available to review</string>
     <string name="cash_relation_accept">Confirm match</string>
     <string name="cash_relation_ignore">Reject match</string>
-    <string name="cash_relation_remove">Remove link</string>
     <string name="cash_clear_value">Clear</string>
     <string name="cash_inherit_question">Keep changes after splitting?</string>
     <string name="cash_inherit_changes">Inherit combined changes</string>
@@ -838,7 +833,7 @@
     <string name="cash_import_pair_proposed">Proposed; effective after import</string>
     <string name="cash_import_pair_unmerged">Not merged; relationship pending</string>
     <string name="cash_import_existing_relations">Existing relationships</string>
-    <string name="cash_detail_pending_relations">This entry has existing associations awaiting confirmation</string>
+    <string name="cash_detail_pending_relations">This entry has associations awaiting confirmation</string>
     <string name="cash_detail_suggestion">Association suggestion</string>
     <string name="cash_detail_accept">Accept suggestion</string>
     <string name="cash_detail_check">Review suggestion</string>
@@ -848,8 +843,6 @@
     <string name="cash_detail_no_target">This transaction may be related. Select its counterpart.</string>
     <string name="cash_detail_review_hint">Review matching transactions.</string>
     <string name="cash_detail_repayment">Credit repayment</string>
-    <string name="cash_detail_exchange">Currency exchange</string>
-    <string name="cash_detail_remittance">Cross-currency remittance</string>
     <string name="cash_detail_common_values">Choose shared information</string>
     <string name="cash_detail_remove_effect">Removing this complete relation group separates its records. Statement originals are unchanged.</string>
     <string name="cash_detail_reject_effect">Rejecting dismisses this suggestion and all alternatives. You can still find records through Link records.</string>
@@ -864,7 +857,6 @@
     <string name="cash_detail_choose_part">Select amount and account</string>
     <string name="cash_detail_preview">Review association result</string>
     <string name="cash_detail_source">Source</string>
-    <string name="cash_detail_ordinary_transfer">Transfer</string>
     <string name="cash_detail_date">Date</string>
     <string name="cash_detail_alternatives">%1$d alternative plans; review and choose one</string>
     <string name="cash_detail_find_purchase">This refund may match a purchase. Search for the original transaction.</string>
@@ -881,8 +873,6 @@
     <string name="cash_detail_joint_whole">Complete plan · Accept or reject as a whole</string>
     <string name="cash_detail_joint_search_blocked">This suggestion involves multiple relations. Replacement rules are not defined. Search is available; replacement cannot be submitted yet.</string>
     <string name="cash_detail_locked_type">Suggestion type: </string>
-    <string name="cash_detail_subtype">Subtype</string>
-    <string name="cash_detail_regular_refund">Regular refund</string>
     <string name="cash_detail_p2p_return">Transfer return</string>
     <string name="cash_detail_restored_value">Original after split</string>
     <string name="cash_detail_keep_split">Keep changes on separated records</string>
@@ -899,4 +889,15 @@
     <string name="cash_detail_confirm_remove">Confirm removal</string>
     <string name="cash_detail_confirm_reject">Confirm rejection</string>
     <string name="cash_detail_counterpart">Counterpart record</string>
+    <string name="cash_relation_account_mismatch">These transactions must use the same account.</string>
+    <string name="cash_relation_currency_mismatch">These transactions must use the same currency.</string>
+    <string name="cash_relation_amount_invalid">The amounts do not match this relationship. Choose again.</string>
+    <string name="cash_relation_role_incompatible">The transaction types or directions do not match this relationship.</string>
+    <string name="cash_relation_refund_exceeds_remaining">Total refunds exceed the original expense.</string>
+    <string name="cash_relation_refund_incomplete">Include the entire refund in one expense.</string>
+    <string name="cash_relation_endpoint_occupied">Resolve the existing relationship before adding this one.</string>
+    <string name="cash_relation_aggregate_unsupported">A split payment cannot be one side of a transfer.</string>
+    <string name="cash_relation_endpoint_incompatible">These transactions cannot be combined. Choose again.</string>
+    <string name="cash_business_balance_adjustment">Balance adjustment</string>
+    <string name="cash_relation_state_invalid">This relationship cannot be verified. Refresh and try again.</string>
 </resources>

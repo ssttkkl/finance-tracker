@@ -62,6 +62,8 @@ def test_repository_has_clean_linear_revisions():
                 "20261023_49_unify_cash_import_receipts.py",
                 "20261023_50_cash_entries.py",
                 "20261028_51_cash_entry_category_index.py",
+                "20261030_52_cash_entry_identity.py",
+                "20261030_53_cash_relation_model.py",
             ]
 
 
@@ -109,8 +111,8 @@ def test_initial_alembic_revision_upgrades_and_downgrades(tmp_path):
     assert {"state", "primary_transaction_id", "anchor_transaction_id", "row_revision"} <= relation_columns
     assert "candidate_fact_ids" not in relation_columns
 
-    # Revision 37 deletes wealth-source snapshots and is intentionally irreversible.
-    with pytest.raises(NotImplementedError, match="restore from backup"):
+    # The current relation model requires backup recovery rather than a lossy downgrade.
+    with pytest.raises(ValueError, match="cash_relation_model_downgrade_requires_backup"):
         command.downgrade(config, "base")
 
 
@@ -335,7 +337,7 @@ def test_counterparty_account_attrs_migration_backfills_only_proven_source_value
                     "account": account,
                 })
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260804_21")
         with engine.connect() as connection:
             stored = {
                 record_id: (account, json.loads(attrs) if isinstance(attrs, str) else attrs)
@@ -506,7 +508,7 @@ def test_cash_record_subtype_migration_backfills_only_deterministic_type_mapping
                     "(workspace_id, account_id, record_id, occurred_at, amount, currency, counterparty, note, category, record_type, created_at) "
                     "VALUES ('w', 1, :record_id, CURRENT_TIMESTAMP, '1.00', 'CNY', '', '', '', :record_type, CURRENT_TIMESTAMP)"
                 ), {"record_id": record_id, "record_type": record_type})
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260804_19")
         with engine.connect() as connection:
             values = dict(connection.execute(text(
                 "SELECT record_id, record_subtype FROM cash_transactions"
@@ -545,7 +547,7 @@ def test_cash_record_subtype_migration_keeps_active_identity_partial_index(tmp_p
         engine.dispose()
 
 
-def test_icbc_asia_source_type_migration_and_head_downgrade_boundary(tmp_path):
+def test_icbc_asia_source_type_migration_round_trip(tmp_path):
     from alembic import command
     from alembic.config import Config
     from sqlalchemy import create_engine, text
@@ -572,18 +574,21 @@ def test_icbc_asia_source_type_migration_and_head_downgrade_boundary(tmp_path):
                 "VALUES ('w', 1, 'icbc_asia_current_account', 'icbc_asia_current_account_abc', CURRENT_TIMESTAMP, '1.00', 'HKD', '', '', '', 'transfer_in', 'ordinary_transfer', CURRENT_TIMESTAMP)"
             ))
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260804_20")
         with engine.connect() as connection:
             values = connection.execute(text(
                 "SELECT source_type, record_id FROM cash_transactions"
             )).one()
         assert values == ("icbc_asia", "icbc_asia_abc")
 
-        with pytest.raises(
-            NotImplementedError,
-            match="wealth-attribution retirement deletes source snapshots and results",
-        ):
-            command.downgrade(config, "20260804_19")
+        command.downgrade(config, "20260804_19")
+        with engine.connect() as connection:
+            assert connection.execute(text('SELECT source_type, record_id FROM cash_transactions')).one() == (
+                'icbc_asia_current_account', 'icbc_asia_current_account_abc')
+        command.upgrade(config, '20260804_20')
+        with engine.connect() as connection:
+            assert connection.execute(text('SELECT source_type, record_id FROM cash_transactions')).one() == values
+
     finally:
         engine.dispose()
 
@@ -782,8 +787,8 @@ def test_initial_revision_upgrades_dedicated_postgresql():
             # The current head removes wealth-attribution source snapshots and results.
             # Downgrading across it must require a backup restore.
             with pytest.raises(
-                NotImplementedError,
-                match="wealth-attribution retirement deletes source snapshots and results",
+                ValueError,
+                match="cash_relation_model_downgrade_requires_backup",
             ):
                 command.downgrade(config, "20260722_06")
             # Reset and re-upgrade proves head is re-applicable on a clean schema.

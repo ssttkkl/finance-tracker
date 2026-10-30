@@ -6,7 +6,7 @@ from hashlib import sha256
 import json
 
 from ft.domain.cash_relation_graph import build_cash_relation_graph, validate_joint_relation_context, validate_relation_graph_edge_input
-from ft.domain.cash_relation_policy import CashRelationError, RelationRoleEvidence, discover_relation_roles
+from ft.domain.cash_relation_policy import CashRelationError, RelationRoleEvidence, infer_relation_roles
 
 
 @dataclass(frozen=True)
@@ -27,10 +27,11 @@ class CurrentCashRelationContext:
     funding_component_ids: frozenset[str]
     issue_versions: tuple = ()
     entry_versions: tuple = ()
+    source_order_keys: tuple = ()
 
     @property
     def token(self):
-        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions, self.issue_versions, self.entry_versions,
+        payload = (self.transaction_revisions, self.component_versions, self.relation_revisions, self.relation_groups, self.funding_versions, self.issue_versions, self.entry_versions, self.source_order_keys,
             tuple((member.id, member.decision_group_id, member.row_revision, member.state, member.active) for member in self.joint_members))
         return sha256(json.dumps(payload, separators=(",", ":")).encode()).hexdigest()
 
@@ -127,7 +128,7 @@ class CashRelationGraphService:
             raise CashRelationError("relation_data_invalid")
         by_component = {part.component_id: part for part in current.components}
         def structure(edge):
-            return (edge.kind, edge.subtype, edge.primary_transaction_id, edge.secondary_transaction_id,
+            return (edge.kind, edge.primary_transaction_id, edge.secondary_transaction_id,
                 edge.primary_component_id, edge.secondary_component_id, edge.primary_role, edge.secondary_role)
         for edge in changes:
             old = previous.get(edge.id)
@@ -135,8 +136,7 @@ class CashRelationGraphService:
                 primary, secondary = by_component.get(edge.primary_component_id), by_component.get(edge.secondary_component_id)
                 if primary is None or secondary is None:
                     raise CashRelationError("relation_endpoint_incomplete")
-                roles = discover_relation_roles(edge.kind, edge.subtype, primary, secondary,
-                    evidence=evidence_by_relation.get(edge.id, RelationRoleEvidence()))
+                roles = infer_relation_roles(edge.kind, primary, secondary)
                 if roles != (edge.primary_role, edge.secondary_role):
                     raise CashRelationError("relation_role_unproven")
         final = dict(previous)

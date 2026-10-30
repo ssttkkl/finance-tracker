@@ -11,7 +11,7 @@ from sqlalchemy import Text, and_, cast, delete, or_, select, tuple_, union_all
 from ft.domain.cash_record_policy import CashRecordPolicyError, prepare_cash_record_update
 from ft.domain.cash_source_matching import (
     SourceBindingKey, SourceCoverage, SourceDocumentEvidence, SourceOccurrence, SourceRecord,
-    _digest, conflicting_source_document_pages,
+    _digest, conflicting_source_document_pages, file_source_keys,
 )
 from .models import (
     CashIssueCandidateModel, CashSourceBindingModel, CashSourceEmptyPageModel,
@@ -26,6 +26,24 @@ class SourceBindingConflict(ValueError):
     def __init__(self, code):
         self.code = code
         super().__init__(code)
+
+
+def cash_source_order_keys(session, workspace_id, parents):
+    from ft.domain.cash_projection import cash_source_order_key
+    parents = tuple(parents)
+    def field(parent, name):
+        return parent.get(name) if isinstance(parent, dict) else getattr(parent, name)
+    identifiers = sorted({field(parent, 'id') for parent in parents})
+    keys = defaultdict(list)
+    for offset in range(0, len(identifiers), 400):
+        for binding in session.scalars(select(CashSourceBindingModel).where(
+            CashSourceBindingModel.workspace_id == workspace_id,
+            CashSourceBindingModel.transaction_id.in_(identifiers[offset:offset + 400]))):
+            keys[binding.transaction_id].append((binding.source_type, binding.source_scope_kind,
+                binding.source_scope_key, binding.identity_kind, binding.identity_key))
+    return {field(parent, 'id'): cash_source_order_key(field(parent, 'source_type'), field(parent, 'record_id'),
+        bindings=keys[field(parent, 'id')], record_origin=field(parent, 'record_origin'),
+        manual_transfer_id=field(parent, 'manual_transfer_id'), amount=field(parent, 'amount')) for parent in parents}
 
 
 def _json_object(value):
@@ -304,18 +322,6 @@ class CashSourceRepository:
             ).limit(1))
             if conflict is not None:
                 raise SourceBindingConflict("source_document_conflict")
-        # 对应问题不否定本次出现已验证的外部身份；未知范围本身不会生成账户键。
-        specs = row.binding_specs
-        existing = {
-            (binding.source_type, binding.source_scope_kind, binding.source_scope_key, binding.identity_kind, binding.identity_key): binding
-            for binding in self._for_occurrence(row)
-        }
-        # 在修改任何一个别名之前校验全部现有活动归属。
-        for binding in existing.values():
-            if binding.transaction_id != target.id:
-                previous = self.session.get(CashTransactionModel, binding.transaction_id)
-                if previous is not None and previous.deleted_at is None:
-                    raise SourceBindingConflict("active_source_binding")
         try:
             row_coverage = row.coverage
             if row.document_page:
@@ -324,28 +330,56 @@ class CashSourceRepository:
             coverage = _json_object(asdict(row_coverage))
         except (CashRecordPolicyError, TypeError, ValueError):
             raise SourceBindingConflict("invalid_source_coverage") from None
+        return self._save_bindings(target, row.binding_specs, parser_version=row.parser_version,
+            coverage=coverage, stable_evidence_key=row.stable_evidence_binding_key)
+
+    def save_file_occurrence(self, transaction_id, *, source_type, file_digest, parser_version, table_key, position):
+        scope, occurrence = file_source_keys(source_type, file_digest, parser_version, table_key, position)
+        target = self._target(transaction_id)
+        if target.source_type != source_type:
+            raise SourceBindingConflict("source_target_incompatible")
+        self._identity_snapshot(target.id)
+        spec = SourceBindingKey(source_type, "file_local", scope, "file_occurrence", occurrence)
+        return self._save_bindings(target, (spec,), parser_version=parser_version,
+            coverage=_json_object(asdict(SourceCoverage())), stable_evidence_key=None)
+
+    def _save_bindings(self, target, specs, *, parser_version, coverage, stable_evidence_key):
+        keys = [(spec.source_type, spec.scope_kind, spec.scope_key, spec.identity_kind, spec.identity_key) for spec in specs]
+        existing = {
+            (binding.source_type, binding.source_scope_kind, binding.source_scope_key, binding.identity_kind, binding.identity_key): binding
+            for binding in self._for_keys(keys, [stable_evidence_key] if stable_evidence_key else [])
+        }
+        for binding in existing.values():
+            if binding.transaction_id != target.id:
+                previous = self.session.get(CashTransactionModel, binding.transaction_id)
+                if previous is not None and previous.deleted_at is None:
+                    raise SourceBindingConflict("active_source_binding")
+        changed = False
         for spec in specs:
             key = (spec.source_type, spec.scope_kind, spec.scope_key, spec.identity_kind, spec.identity_key)
             binding = existing.get(key)
             strength = "file_local" if spec.scope_kind == "file_local" else "provider" if spec.identity_kind == "provider_id" else "validated"
             if binding is None:
+                changed = True
                 binding = CashSourceBindingModel(
                     workspace_id=self.workspace_id, transaction_id=target.id,
                     source_type=spec.source_type, source_scope_kind=spec.scope_kind,
                     source_scope_key=spec.scope_key, identity_kind=spec.identity_kind,
                     identity_key=spec.identity_key, identity_strength=strength,
-                    strategy_version=row.parser_version, coverage=coverage,
-                    stable_evidence_key=row.stable_evidence_binding_key if spec.scope_kind == "account" else None,
+                    strategy_version=parser_version, coverage=coverage,
+                    stable_evidence_key=stable_evidence_key if spec.scope_kind == "account" else None,
                 )
                 self.session.add(binding)
             else:
+                changed |= binding.transaction_id != target.id
                 binding.transaction_id = target.id
                 binding.identity_strength = strength
-                binding.strategy_version = row.parser_version
+                binding.strategy_version = parser_version
                 binding.coverage = coverage
-                if spec.scope_kind == "account" and row.stable_evidence_binding_key:
-                    binding.stable_evidence_key = row.stable_evidence_binding_key
+                if spec.scope_kind == "account" and stable_evidence_key:
+                    binding.stable_evidence_key = stable_evidence_key
         self.session.flush()
+        return changed
 
     def issues_for(self, transaction_id):
         transaction_id = _identifier(transaction_id)

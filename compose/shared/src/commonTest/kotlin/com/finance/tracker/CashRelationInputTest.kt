@@ -54,7 +54,7 @@ class CashRelationInputTest {
         assertFailsWith<DomainFailure> { cashRelationRequest(record(), listOf(choice.copy(commonFields = StructuredObject(choice.commonFields!!.fields + ("counterparty" to StructuredText("invented"))))), listOf(current)) }
     }
     private fun record() = CashCurrentRecord("import", null, "11", "posted", 3, "pending", StructuredObject(emptyMap()), emptyList(), emptyList(), emptyList(), null)
-    private fun option() = ImportPairOption("group", "payment_mirror", null, "defer", null,
+    private fun option() = ImportPairOption("group", "payment_mirror", "defer", null,
         listOf(ImportPairCandidate("candidate", null, listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), null)),
         listOf(ImportMemberRef(null, "11"), ImportMemberRef(null, "12")), listOf("accept", "defer", "ignore", "remove"), null,
         commonFieldConflicts = mapOf("note" to listOf(StructuredText(""), StructuredText("已有备注"))))

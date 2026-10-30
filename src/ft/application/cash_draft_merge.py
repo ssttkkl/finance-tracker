@@ -239,13 +239,13 @@ class CashDraftMergePlanner:
                 raise CashRelationError("relation_endpoint_incompatible")
             if row["active"]:
                 if row["secondary_transaction_id"] is None:
-                    key = (row["kind"], row["subtype"], row["anchor_transaction_id"], row["anchor_component_id"])
+                    key = (row["kind"], row["anchor_transaction_id"], row["anchor_component_id"])
                 else:
                     ends = tuple(sorted(((row["primary_transaction_id"], row["primary_component_id"] or 0),
                         (row["secondary_transaction_id"], row["secondary_component_id"] or 0)))) if row["kind"] == "payment_mirror" else (
                             (row["primary_transaction_id"], row["primary_component_id"] or 0),
                             (row["secondary_transaction_id"], row["secondary_component_id"] or 0))
-                    key = (row["kind"], row["subtype"], ends)
+                    key = (row["kind"], ends)
                 if key in keys:
                     raise CashRelationError("relation_context_changed")
                 keys.add(key)
@@ -259,6 +259,13 @@ class CashDraftMergePlanner:
             if not merge:
                 continue
             source, target = merge["source_transaction_id"], merge["target_transaction_id"]
+            from ft.domain.cash_projection import cash_source_order_key
+            source_key = snapshot.facts[source].stable_source_key
+            target_key = snapshot.facts[target].stable_source_key
+            bindings = tuple(key for key in (source_key, target_key) if len(key) == 5)
+            merged_key = cash_source_order_key(None, "", bindings=bindings) if bindings else target_key
+            snapshot.facts[target] = replace(snapshot.facts[target], stable_source_key=merged_key)
+            snapshot.values[target]["stable_source_key"] = merged_key
             snapshot.facts.pop(source, None)
             snapshot.values.pop(source, None)
             snapshot.components = {key: part for key, part in snapshot.components.items() if part.transaction_id != source}

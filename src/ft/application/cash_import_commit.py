@@ -310,7 +310,8 @@ class CashImportCommandService(CashPlanWriteOperations, CashImportPlanService):
                 if error.code != "retry_already_processed":
                     raise
                 return {"status": "not_committed"}
-            if current.cancelled or current.plan is None or current.plan.get("plan_id") != plan_id:
+            from ft.application.cash_import_plans import current_cash_plan_contract
+            if current.cancelled or not current_cash_plan_contract(current.plan) or current.plan.get("plan_id") != plan_id:
                 return {"status": "not_committed"}
             return {"status": "retry_original"}
 

@@ -13,7 +13,7 @@ data class CashRecordIssue(
     val pendingSourcePayloadPresent: Boolean? = null,
 )
 data class CashSavedRelation(
-    val relationId: String, val kind: String, val subtype: String?, val state: String,
+    val relationId: String, val kind: String, val state: String,
     val active: Boolean, val rowRevision: Long, val decisionGroupId: String?,
 )
 data class CashCurrentProjectionRef(val transactionId: String, val projectionId: String, val attentionCount: Long, val projectionVersion: Long)
@@ -22,6 +22,7 @@ data class CashCurrentRecord(
     val state: String, val rowRevision: Long, val confirmationStatus: String,
     val fields: StructuredObject, val editableFields: List<String>, val issues: List<CashRecordIssue>,
     val relations: List<CashSavedRelation>, val projectionRef: CashCurrentProjectionRef?,
+    val componentChoices: List<CashAssociationComponentChoice> = emptyList(), val unavailableReason: String? = null,
 )
 data class CashMemberPatch(val transactionId: String, val patch: StructuredObject)
 data class CashIssueResolution(
@@ -33,10 +34,11 @@ data class CashRelationDecision(
     val commonFields: StructuredObject? = null, val inheritCommonFields: Boolean? = null,
 )
 data class CashRelationAddition(val targetTransactionId: String, val expectedTargetRevision: Long,
-    val anchorComponentId: String, val targetComponentId: String, val kind: String, val subtype: String,
+    val anchorComponentId: String, val targetComponentId: String, val kind: String,
     val commonFields: StructuredObject? = null)
+data class CashAssociationComponentChoice(val anchorComponentId: String, val targetComponentId: String)
 data class CashAssociationSearch(val query: String = "", val accountId: String? = null, val amount: String? = null,
-    val dateFrom: String? = null, val dateTo: String? = null, val cursor: String? = null)
+    val dateFrom: String? = null, val dateTo: String? = null, val cursor: String? = null, val kind: String? = null)
 data class CashAssociationPage(val items: List<CashCurrentRecord>, val nextCursor: String?)
 data class CashMaintenanceRequest(
     val intent: String, val transactionId: String, val expectedRevision: Long,

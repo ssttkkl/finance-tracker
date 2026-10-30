@@ -161,11 +161,14 @@ def cash_plan_router(services):
         return await invoke(lambda: services.cash_record_maintenance().read(transaction_id))
 
     @router.get("/cash-records/{transaction_id}/association-targets", response_model=AssociationTargetPage)
-    async def association_targets(transaction_id: str, query: str = "", account_id: str | None = None,
+    async def association_targets(transaction_id: str, request: Request, query: str = "", kind: str | None = None, account_id: str | None = None,
             amount: str | None = None, date_from: str | None = None, date_to: str | None = None,
             timezone_name: str = "UTC", cursor: str | None = None, limit: int = 20):
+        allowed = {'query', 'kind', 'account_id', 'amount', 'date_from', 'date_to', 'timezone_name', 'cursor', 'limit'}
+        if set(request.query_params) - allowed or any(len(request.query_params.getlist(key)) != 1 for key in request.query_params):
+            return plan_failure(CashRecordMaintenanceError('record_input_invalid'))
         return await invoke(lambda: services.cash_record_maintenance().association_targets(transaction_id,
-            query=query, account_id=account_id, amount=amount, date_from=date_from, date_to=date_to,
+            kind=kind, query=query, account_id=account_id, amount=amount, date_from=date_from, date_to=date_to,
             timezone_name=timezone_name, cursor=cursor, limit=limit))
 
     @router.patch("/cash-records/{transaction_id}/draft", response_model=DraftSaveView,

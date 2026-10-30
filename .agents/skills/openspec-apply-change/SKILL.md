@@ -202,6 +202,8 @@ This skill supports the "actions on a change" model:
 
 ## 本仓库现金 Compose 接线参考
 
+现金关系治理中的后端合同见 `openspec/changes/govern-cash-relation-model/`：关系只保存 kind、端点和角色，不接收已删除的 subtype，也不增加替代 variant。发现读取流水分类及来源证据，所有确认入口共用硬约束；人工添加不调用发现证明。业务标签由完整成员派生，公开收支引用由稳定 entry ID 提供，不能从代表流水 ID 拼装。迁移测试从实际历史 schema 构造旧字段，异常存量必须保持原数据并阻断。该 change 的用户已明确授权保留现有 Compose UI、仅按治理范围微调，Kimi 原型仅作局部交互参考；具体保留项与变更项见 design 第 9 节，后端测试通过不代表客户端已切换。
+
 当前维护协议适配位于 `compose/shared/src/commonMain/kotlin/com/finance/tracker/data/CashMaintenanceApi.kt`，领域接口位于同根 `domain/CashMaintenanceModels.kt`。账本维护与记账编辑的实现记录见 `openspec/changes/archive/2026-10-28-compose-cash-ledger-maintenance/` 和 `openspec/changes/archive/2026-10-28-compose-cash-entry-editor/`；现金导入页面的实现及验证记录见 `openspec/changes/archive/2026-10-28-compose-cash-import-workflow/`。导入选择编码必须区分必填 `previous_plan_id:null`、字段补丁中的明确清空，以及未使用时应省略的 `common_fields`／`inherit_common_fields`；相应 HTTP 回归位于 `CashImportPlanApiTest.kt`。
 
 现金导入收据的 `status` 保留既有兼容语义；新页面用 `commit_outcome` 区分预览已知问题与提交新增异常，并用 `has_business_writes` 判断实际保存事实。旧收据缺省时不补算，接口细节见 `docs/import/cash-import-redesign-contracts.md`。

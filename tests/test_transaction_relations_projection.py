@@ -59,7 +59,7 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
         relations = uow.relations.list_active(kind="transfer_pair")
     assert len(relations) == 1
     assert relations[0]["status"] == "accepted"
-    assert relations[0]["subtype"] == "currency_exchange"
+    assert 'subtype' not in relations[0]
 
     service = CashLedgerQueryService(relation_runtime.sessions, "relations-workspace")
     assert not any(item.economic_type == "internal_transfer" for item in service.list_cash_projections(limit=50).items)
@@ -72,6 +72,7 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
     assert len(matched) == 1
     projection = matched[0]
     assert projection.economic_type == "internal_transfer"
+    assert projection.business_label == 'currency_exchange'
     assert projection.amount == "0"
     assert projection.transfer is not None
     assert projection.transfer.from_amount == "-47952.1"
@@ -90,8 +91,9 @@ def test_personal_fx_relation_check_replaces_income_and_expense_projections(rela
     out_parent_id = parent_by_component[str(out_id)]
     in_parent_id = parent_by_component[str(in_id)]
     assert {member["id"] for member in evidence["members"]} == {out_parent_id, in_parent_id}
-    assert projection.projection_id == f"cash:{out_parent_id}"
-    assert f"cash:{in_parent_id}" not in {item.projection_id for item in page.items}
+    assert projection.projection_id.startswith('cash-entry:')
+    assert projection.transaction_id == out_parent_id
+    assert in_parent_id not in {item.transaction_id for item in page.items}
 
 
 def test_relation_check_hides_internal_error_and_does_not_open_a_second_unit_of_work():
@@ -136,6 +138,7 @@ def test_auto_scan_filters_indirect_relation_kind_conflict_without_persisting_it
         counterparty="原消费",
         source="alipay",
         record_id="conflict-expense",
+        record_type="consumption",
     )
     refund_id = add_cash_fact(
         services,
@@ -145,6 +148,7 @@ def test_auto_scan_filters_indirect_relation_kind_conflict_without_persisting_it
         counterparty="退款",
         source="alipay",
         record_id="conflict-refund",
+        record_type="refund",
     )
     mirrored_refund_id = add_cash_fact(
         services,
@@ -154,6 +158,7 @@ def test_auto_scan_filters_indirect_relation_kind_conflict_without_persisting_it
         counterparty="退款",
         source="icbc",
         record_id="conflict-refund-bank",
+        record_type="refund",
     )
     transfer_id = add_cash_fact(
         services,
@@ -163,6 +168,7 @@ def test_auto_scan_filters_indirect_relation_kind_conflict_without_persisting_it
         counterparty="转出",
         source="icbc",
         record_id="conflict-transfer",
+        record_type="transfer_out",
     )
     with services.uow as uow:
         uow.relations.add({

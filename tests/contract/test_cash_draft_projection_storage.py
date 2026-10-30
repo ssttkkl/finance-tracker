@@ -1,3 +1,4 @@
+from tests.historical_cash_schema import historical_cash_database
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -77,46 +78,36 @@ def test_posted_projection_financial_values_remain_required(draft_runtime, missi
         session.add(CashProjectionModel(**values))
 
 
-def test_projection_migration_preserves_formal_values_and_member_references(draft_runtime):
+def test_projection_migration_preserves_formal_values_and_member_references(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.application.cash_projections import CashProjectionService
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = draft_runtime
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    columns = "id, workspace_id, dataset_id, projection_id, root_cash_transaction_id, economic_type, net_amount, currency, occurred_at, account_id, category_id, visible, member_count"
-    engine = runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        before = connection.execute(text(f"SELECT {columns} FROM cash_projections ORDER BY id")).all()
-        members = connection.execute(text("SELECT * FROM cash_projection_members ORDER BY id")).all()
-        sources = connection.execute(text("SELECT * FROM cash_transactions ORDER BY id")).all()
-        connection.commit()
-        config = _migration_config(connection)
-        command.downgrade(config, "20261021_42")
-        command.upgrade(config, "head")
-        assert connection.execute(text(f"SELECT {columns} FROM cash_projections ORDER BY id")).all() == before
-        assert connection.execute(text("SELECT * FROM cash_projection_members ORDER BY id")).all() == members
-        assert connection.execute(text("SELECT * FROM cash_transactions ORDER BY id")).all() == sources
-        assert connection.execute(text("SELECT state, statistics_eligible, attention_count FROM cash_projections")).all()
-        assert not connection.execute(text("SELECT 1 FROM cash_projections WHERE state <> 'posted' OR NOT statistics_eligible OR attention_count <> 0 OR sort_at <> occurred_at")).first()
-        assert connection.scalar(text("SELECT availability FROM cash_projection_states WHERE workspace_id = :workspace"), {"workspace": runtime.workspace_id}) == "uninitialized"
-        if connection.dialect.name == "sqlite":
-            assert connection.exec_driver_sql("PRAGMA foreign_keys").scalar() == 1
-            assert not connection.exec_driver_sql("PRAGMA foreign_key_check").all()
+    old = historical_cash_database('20261021_42', projections=True)
+    connection = old.connection
+    columns = 'id,workspace_id,dataset_id,projection_id,root_cash_transaction_id,economic_type,net_amount,currency,occurred_at,account_id,category_id,visible,member_count'
+    before = connection.execute(text(f'SELECT {columns} FROM cash_projections ORDER BY id')).all()
+    members = connection.execute(text('SELECT * FROM cash_projection_members ORDER BY id')).all()
+    sources = connection.execute(text('SELECT * FROM cash_transactions ORDER BY id')).all()
+    connection.commit()
+    command.upgrade(old.config, '20261021_43')
+    assert connection.execute(text(f'SELECT {columns} FROM cash_projections ORDER BY id')).all() == before
+    assert connection.execute(text('SELECT * FROM cash_projection_members ORDER BY id')).all() == members
+    assert connection.execute(text('SELECT * FROM cash_transactions ORDER BY id')).all() == sources
+    assert connection.execute(text('SELECT state,statistics_eligible,attention_count FROM cash_projections')).all()
+    assert not connection.execute(text("SELECT 1 FROM cash_projections WHERE state <> 'posted' OR NOT statistics_eligible OR attention_count <> 0 OR sort_at <> occurred_at")).first()
+    assert connection.scalar(text('SELECT availability FROM cash_projection_states')) == 'uninitialized'
+    if connection.dialect.name == 'sqlite':
+        assert connection.exec_driver_sql('PRAGMA foreign_keys').scalar() == 1
+        assert not connection.exec_driver_sql('PRAGMA foreign_key_check').all()
 
 
-def test_projection_migration_refuses_loss_of_pending_state(draft_runtime):
+def test_projection_migration_refuses_loss_of_pending_state(historical_cash_database):
     from alembic import command
     from sqlalchemy import text
-    from ft.application.cash_projections import CashProjectionService
-    from tests.contract.test_cash_draft_storage import _migration_config
-    runtime = draft_runtime
-    CashProjectionService(runtime.sessions, runtime.workspace_id).rebuild()
-    with runtime.sessions.begin() as session:
-        row = session.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id == runtime.workspace_id))
-        row.attention_count = 1
-    engine = runtime.sessions.kw["bind"]
-    with engine.connect() as connection:
-        with pytest.raises(ValueError, match="refusing a lossy"):
-            command.downgrade(_migration_config(connection), "20261021_42")
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "20261028_51"
+    old = historical_cash_database('20261021_43', projections=True)
+    connection = old.connection
+    connection.execute(text('UPDATE cash_projections SET attention_count=1 WHERE id=1001'))
+    connection.commit()
+    with pytest.raises(ValueError, match='refusing a lossy'):
+        command.downgrade(old.config, '20261021_42')
+    connection.rollback()
+    assert connection.scalar(text('SELECT version_num FROM alembic_version')) == '20261021_43'
