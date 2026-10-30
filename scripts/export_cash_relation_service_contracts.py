@@ -15,7 +15,10 @@ from alembic.config import Config
 from sqlalchemy import delete, inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
-from ft.adapters.relational.models import CashRelationCandidateModel, TransactionRelationModel
+from ft.adapters.relational.models import (
+    CashRelationCandidateModel, CashTransactionComponentModel, CashTransactionModel,
+    TransactionRelationModel,
+)
 from ft.adapters.relational.repositories import (
     RelationalAccountAliasRepository, RelationalCashflowRepository, RelationalFactDeletionRepository,
     RelationalRelationRepository,
@@ -347,6 +350,78 @@ def reconciliation_cases(sessions):
     return cases
 
 
+def _ensure_bank_refund(sessions):
+    with sessions.begin() as session:
+        session.execute(delete(CashRelationCandidateModel).where(
+            CashRelationCandidateModel.workspace_id == WORKSPACE))
+        session.execute(delete(TransactionRelationModel).where(
+            TransactionRelationModel.workspace_id == WORKSPACE))
+        session.execute(delete(CashTransactionComponentModel).where(
+            CashTransactionComponentModel.workspace_id == WORKSPACE,
+            CashTransactionComponentModel.id == 94009))
+        session.execute(delete(CashTransactionModel).where(
+            CashTransactionModel.workspace_id == WORKSPACE, CashTransactionModel.id == 93008))
+        session.add(CashTransactionModel(id=93008, workspace_id=WORKSPACE, account_id=9302, state="posted",
+            record_origin="import", cash_granularity="atomic", source_type="icbc_debit", record_id="REL-8",
+            source_payload={}, occurred_at=NOW, amount="30.00", currency="CNY", counterparty="商户",
+            counterparty_account="", counterparty_account_attrs=[], note="", record_type="refund",
+            record_subtype="not_applicable", row_revision=1, created_at=NOW))
+        session.flush()
+        session.add(CashTransactionComponentModel(id=94009, workspace_id=WORKSPACE, cash_transaction_id=93008,
+            account_id=9302, amount="30.00", currency="CNY", ordinal=0, label="", source_key="",
+            metadata_json={}, created_at=NOW))
+    return sessions
+
+
+def refund_reconciliation_cases(sessions):
+    sessions = _ensure_bank_refund(sessions)
+    cases = {}
+
+    def reset(seeds):
+        labels = {}
+        with sessions.begin() as session:
+            session.execute(delete(CashRelationCandidateModel).where(
+                CashRelationCandidateModel.workspace_id == WORKSPACE))
+            session.execute(delete(TransactionRelationModel).where(
+                TransactionRelationModel.workspace_id == WORKSPACE))
+            repo = RelationalRelationRepository(session, WORKSPACE)
+            for label, payload in seeds:
+                labels[repo.add(payload)] = label
+        with sessions() as session:
+            uow = RealUoW(session)
+            service = RelationService(TransactionalUoW(sessions))
+            facts = service._list_active_cash_facts(uow)
+            affected, superseded = service._reconcile_system_refund_offsets(uow, facts,
+                skip_refund_ids=seeder.get("skip"))
+            rows = session.scalars(select(TransactionRelationModel).order_by(TransactionRelationModel.id)).all()
+            counter = 0
+            for row in rows:
+                if row.id not in labels:
+                    counter += 1
+                    labels[row.id] = f"new_{counter}"
+            snapshot = sorted([norm({key: getattr(row, key) for key in (
+                "id", "kind", "subtype", "primary_component_id", "secondary_component_id", "state", "active",
+                "row_revision", "applied_amount", "rule_id", "created_by", "decided_by", "decision_reason")},
+                labels) for row in rows], key=lambda row: str(row["id"]))
+            return sorted(affected), sorted(superseded), snapshot
+
+    refund = lambda label, created_by="system", status="accepted", decided_by="": (
+        label, {"kind": "refund_offset", "primary_fact_id": "93007", "secondary_fact_id": "93008",
+            "primary_component_id": 94008, "secondary_component_id": 94009,
+            "anchor_fact_id": "93007", "anchor_component_id": 94008, "status": status,
+            "rule_id": "refund.bank.v1", "applied_amount": "30.00", "created_by": created_by,
+            "decided_by": decided_by})
+    seeder = {}
+    cases["new_bank_refund"] = reset([])
+    seeder = {}
+    cases["existing_auto_kept"] = reset([refund("auto")])
+    seeder = {"skip": {"94009"}}
+    cases["existing_skipped"] = reset([refund("auto")])
+    seeder = {}
+    cases["human_kept"] = reset([refund("human", created_by="user", decided_by="user")])
+    return cases
+
+
 def export(database_url: str, output: Path) -> None:
     engine, sessions, jdbc = connect(database_url)
     cases = {}
@@ -378,6 +453,7 @@ def export(database_url: str, output: Path) -> None:
             cases["decisions"] = decision_cases(sessions)
             cases["persistence"] = persistence_cases(sessions)
             cases["reconciliation"] = reconciliation_cases(sessions)
+            cases["refund_reconciliation"] = refund_reconciliation_cases(sessions)
         output.mkdir(parents=True, exist_ok=True)
         (output / "expected.json").write_text(json.dumps({"cases": cases}, ensure_ascii=False,
             indent=2, default=str) + "\n")

@@ -2142,6 +2142,95 @@
           }
         ]
       ]
+    },
+    "refund_reconciliation": {
+      "new_bank_refund": [
+        [
+          94008,
+          94009
+        ],
+        [],
+        [
+          {
+            "id": "new_1",
+            "kind": "refund_offset",
+            "subtype": "",
+            "primary_component_id": 94008,
+            "secondary_component_id": 94009,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "applied_amount": "30",
+            "rule_id": "refund_offset.merchant_or_order.v1",
+            "created_by": "system",
+            "decided_by": "",
+            "decision_reason": ""
+          }
+        ]
+      ],
+      "existing_auto_kept": [
+        [],
+        [],
+        [
+          {
+            "id": "auto",
+            "kind": "refund_offset",
+            "subtype": "",
+            "primary_component_id": 94008,
+            "secondary_component_id": 94009,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "applied_amount": "30",
+            "rule_id": "refund.bank.v1",
+            "created_by": "system",
+            "decided_by": "",
+            "decision_reason": ""
+          }
+        ]
+      ],
+      "existing_skipped": [
+        [],
+        [],
+        [
+          {
+            "id": "auto",
+            "kind": "refund_offset",
+            "subtype": "",
+            "primary_component_id": 94008,
+            "secondary_component_id": 94009,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "applied_amount": "30",
+            "rule_id": "refund.bank.v1",
+            "created_by": "system",
+            "decided_by": "",
+            "decision_reason": ""
+          }
+        ]
+      ],
+      "human_kept": [
+        [],
+        [],
+        [
+          {
+            "id": "human",
+            "kind": "refund_offset",
+            "subtype": "",
+            "primary_component_id": 94008,
+            "secondary_component_id": 94009,
+            "state": "confirmed",
+            "active": true,
+            "row_revision": 1,
+            "applied_amount": "30",
+            "rule_id": "refund.bank.v1",
+            "created_by": "user",
+            "decided_by": "user",
+            "decision_reason": ""
+          }
+        ]
+      ]
     }
   }
 }

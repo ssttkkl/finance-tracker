@@ -428,4 +428,96 @@ class CashRelationServiceTest {
         cases["blocked_pair"] = listOf(blocked.first, blocked.second)
         assertEquals(golden(database).getValue("reconciliation"), sourceJson(cases))
     }
+
+    @Test fun refundReconciliationMatchesPython() {
+        val database = database()
+        RelationContractFixture.seed(database, jdbcUrl)
+        fun sqliteContext(connection: java.sql.Connection) = CashSqlContext(connection, workspace, database.sqlite)
+        database.write { connection ->
+            val sql = connection.jooq(database.sqlite)
+            sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(CASH_TRANSACTION_COMPONENTS).where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace),
+                CASH_TRANSACTION_COMPONENTS.ID.eq(94009L)).execute()
+            sql.deleteFrom(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace),
+                CASH_TRANSACTIONS.ID.eq(93008L)).execute()
+            sql.insertInto(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ID, 93008L)
+                .set(CASH_TRANSACTIONS.WORKSPACE_ID, workspace).set(CASH_TRANSACTIONS.ACCOUNT_ID, 9302L)
+                .set(CASH_TRANSACTIONS.STATE, "posted").set(CASH_TRANSACTIONS.RECORD_ORIGIN, "import")
+                .set(CASH_TRANSACTIONS.ROW_REVISION, 1L).set(CASH_TRANSACTIONS.CASH_GRANULARITY, "atomic")
+                .set(CASH_TRANSACTIONS.SOURCE_TYPE, "icbc_debit").set(CASH_TRANSACTIONS.RECORD_ID, "REL-8")
+                .set(CASH_TRANSACTIONS.SOURCE_PAYLOAD, JsonObject(emptyMap()))
+                .set(CASH_TRANSACTIONS.OCCURRED_AT, RelationContractFixture.now)
+                .set(CASH_TRANSACTIONS.AMOUNT, CashStoredDecimal("30.00")).set(CASH_TRANSACTIONS.CURRENCY, "CNY")
+                .set(CASH_TRANSACTIONS.COUNTERPARTY, "商户").set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT, "")
+                .set(CASH_TRANSACTIONS.COUNTERPARTY_ACCOUNT_ATTRS, JsonArray(emptyList()))
+                .set(CASH_TRANSACTIONS.NOTE, "").setNull(CASH_TRANSACTIONS.CATEGORY_ID)
+                .set(CASH_TRANSACTIONS.RECORD_TYPE, "refund")
+                .set(CASH_TRANSACTIONS.RECORD_SUBTYPE, "not_applicable")
+                .set(CASH_TRANSACTIONS.CREATED_AT, RelationContractFixture.now).execute()
+            sql.insertInto(CASH_TRANSACTION_COMPONENTS).set(CASH_TRANSACTION_COMPONENTS.ID, 94009L)
+                .set(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID, workspace)
+                .set(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID, 93008L)
+                .set(CASH_TRANSACTION_COMPONENTS.ACCOUNT_ID, 9302L)
+                .set(CASH_TRANSACTION_COMPONENTS.AMOUNT, CashStoredDecimal("30.00"))
+                .set(CASH_TRANSACTION_COMPONENTS.CURRENCY, "CNY").set(CASH_TRANSACTION_COMPONENTS.ORDINAL, 0L)
+                .set(CASH_TRANSACTION_COMPONENTS.LABEL, "").set(CASH_TRANSACTION_COMPONENTS.SOURCE_KEY, "")
+                .set(CASH_TRANSACTION_COMPONENTS.METADATA_JSON, JsonObject(emptyMap()))
+                .set(CASH_TRANSACTION_COMPONENTS.CREATED_AT, RelationContractFixture.now).execute()
+        }
+        fun run(seeds: List<Pair<String, Map<String, Any?>>>, skip: Set<String> = emptySet()): List<Any?> {
+            val local = linkedMapOf<Long, String>()
+            database.write { connection ->
+                val sql = connection.jooq(database.sqlite)
+                sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
+                sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+                val repository = CashRelationRepository(sqliteContext(connection))
+                for ((label, payload) in seeds) local[repository.add(payload)] = label
+            }
+            labels.putAll(local)
+            val result = database.write { connection ->
+                val service = CashRelationService(sqliteContext(connection))
+                service.reconcileSystemRefundOffsets(service.activeCashFacts(), skip)
+            }
+            val rows = database.read { connection ->
+                connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
+                    .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
+                    .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
+                        linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                            "primary_component_id" to row.primaryComponentId,
+                            "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
+                            "active" to row.active, "row_revision" to row.rowRevision,
+                            "applied_amount" to row.appliedAmount?.let { java.math.BigDecimal(fixedCashDecimal(it)) },
+                            "rule_id" to row.ruleId, "created_by" to row.createdBy,
+                            "decided_by" to row.decidedBy, "decision_reason" to row.decisionReason)
+                    }
+            }
+            var counter = 0
+            for (row in rows) {
+                val identifier = (row["id"] as Number).toLong()
+                if (identifier !in labels) {
+                    counter += 1
+                    labels[identifier] = "new_$counter"
+                }
+            }
+            @Suppress("UNCHECKED_CAST")
+            val normalized = (normDecision(rows) as List<Map<String, Any?>>)
+                .sortedBy { it["id"].toString() }
+            return listOf(result.first.sorted(), result.second.map { listOf(it.first, it.second) }
+                .sortedWith(compareBy({ it[0] }, { it[1] })), normalized)
+        }
+        fun refund(label: String, createdBy: String = "system", status: String = "accepted",
+            decidedBy: String = "") = label to mapOf<String, Any?>(
+            "kind" to "refund_offset", "primary_fact_id" to "93007", "secondary_fact_id" to "93008",
+            "primary_component_id" to 94008, "secondary_component_id" to 94009,
+            "anchor_fact_id" to "93007", "anchor_component_id" to 94008, "status" to status,
+            "rule_id" to "refund.bank.v1", "applied_amount" to "30.00", "created_by" to createdBy,
+            "decided_by" to decidedBy)
+        val cases = linkedMapOf<String, Any?>()
+        cases["new_bank_refund"] = run(emptyList())
+        cases["existing_auto_kept"] = run(listOf(refund("auto")))
+        cases["existing_skipped"] = run(listOf(refund("auto")), skip = setOf("94009"))
+        cases["human_kept"] = run(listOf(refund("human", createdBy = "user", decidedBy = "user")))
+        assertEquals(golden(database).getValue("refund_reconciliation"), sourceJson(cases))
+    }
 }
