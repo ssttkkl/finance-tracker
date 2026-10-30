@@ -90,6 +90,8 @@
 - [x] 4.10.3 迁移来源账户扫描纯规则：支付宝支付组件/分摊草稿、微信零钱身份、各来源账户身份/掩码/币种、composite 问题行、legacy 键、稳定 group_id 与分组顺序；先以 Python 匿名行组合黄金对照，不查询账户或保存映射。
 - [x] 4.10.4 迁移来源对应解析纯规则：当前索引/兼容/位置冲突、收据绑定证明、单文件一对一消耗、批内重复、守恒与 pending/conflict/new、稳定新增 ID；先以 Python 匿名 occurrences/records 黄金对照，不写账本。
 - [x] 4.10.5 迁移多文件来源批次规划：重复出现、最大次数、可靠身份快照选择、证据传递、共同结果组、冲突隔离及输入顺序；迁移原功能断言并对照完整 Python 结果，保留空页证据。纯规则不写数据库，不计新增 HTTP；性能按已确认范围排除。
+- [ ] 4.10.6 迁移解析会话存储及清扫：完整文件编解码与预算、用户/工作区隔离、原 TTL、条件写入/修订、取消清空、计划快照和公共页缓存、内存与 R2 适配；分别验证原功能断言与错误不泄露，接线后再计运行时完成。
+- [x] 4.10.6.1 先完成解析文件及会话 JSON 编解码、原字段校验和深度/字节预算；保留旧缺省字段、空字符串来源解释、拒绝非法嵌套输入，不保存原始文件或密码。
 - [ ] 4.10 来源身份/差异/完整证据/去重/映射、InMemory/R2 暂存与清扫生命周期。
 - [ ] 4.11 完整导入准备/选择/规划/预览分页详情/processing details/原子提交/收据，与当前 frontend 合同对照。
 - [ ] 4.12 镜像/退款/转账纯算法及权威候选/决定/完整关系图、entry/投影更新、现金—投资资金调拨。
@@ -134,6 +136,7 @@ SQLite 使用 `oracle-sqlite`、`matrix-sqlite/<能力>`、`legacy-sqlite-v2`、
 
 Gradle 经缓存根 `run_gradle.py <sqlite|postgres> <证据名> <任务>` 从 `compose/` 执行，固定任务 JDK、Android SDK、缓存和完整能力变量；公共参数为 `--daemon --no-configuration-cache --max-workers=1 --project-cache-dir <缓存根>/gradle-project -Dorg.gradle.jvmargs=-Xmx2048m -Pkotlin.compiler.execution.strategy=in-process`。每次结果 JSON 保存实际命令、变量、HEAD、UTC 起点及耗时，JUnit XML 复制到同名目录。只把实际执行的任务计入本轮结果；UP-TO-DATE 不算重跑。
 
+| 解析会话编解码与存储端口 | 2026-10-30 02:30 UTC，HEAD `224d961` 的工作树；比较基线 `224d961`。阶段 1–3 已对照 Python staging、原测试和现有来源模型并回写 design/tasks；阶段 4 由缺入口的失败测试驱动，见 `/tmp/ft-parsed-codec-red.log`、`/tmp/ft-parsed-store-red.log`。阶段 5 独立 `batch_review` 覆盖范围/工程/安全/源映射，任意精度整数、必填 nullable 字段、快照可变字节、缓存键嵌套类型等发现均已修复重审；无剩余阻断。阶段 6 在 `compose/` 执行 `./gradlew :backend:test --tests '*ParsedImport*' --tests '*CashSource*' --tests '*CashTime*' :backend:installDist :backend:ktlintCheck :backend:detektMain :backend:detektTest -PbackendFunctionalOnly=true --console=plain`：91 项、零 failure/error/skip，构建和静态检查通过，日志 `/tmp/ft-parsed-final.log`；根目录 `PYTHONPATH=src:tests .venv/bin/python -m pytest -q tests/test_parsed_import_staging.py -p no:cacheprovider` 为 165 passed；导出器 `--output compose/backend/src/test/resources/python-parsed-import-codec.json --check`、OpenSpec strict、diff check 通过。18 个原定义及完整参数映射，37 个仍 pending，见 `/tmp/ft-parsed-migration.json`。阶段 7 已核对 README、inventory、功能地图、词表和技能；本片无 SQL/HTTP/UI 变动，双数据库及 Web/Native 验证不适用，性能按用户要求未运行；真实 R2/运行时/上传接线后须补对应验证。回滚为撤销未接线存储实现，无数据迁移。阶段 8 将不可变快照、逐次存储核实与原参数断言要求沉淀入技能；codec 正常输出兼容，损坏对象解析及 filters 类型边界见 design。未声明全存储任务或全重构完成。 |
 | 验证范围 | 当前实际命令、结果与证据 |
 |---|---|
 | 来源正文功能回归 | `:backend:test :backend:installDist -PbackendFunctionalOnly=true`：SQLite `source-effects-final-sqlite.json` 为 445 项、0 failure/error/skip，构建成功；PostgreSQL 18.6 `source-effects-final-pg18-retry.json` 同为 445 项、0 failure/error/skip，installDist 为 UP-TO-DATE。首次 PG 运行 `source-effects-final-pg18.json` 因专用实例未运行发生 282 项失败，恢复原匿名实例并确认 `20261028_51` 后重跑通过；失败记录保留，不计通过。没有改测试预算或启动原 PG16 实例 |

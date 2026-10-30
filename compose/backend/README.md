@@ -16,7 +16,9 @@
 
 来源事项选择的纯规则已实现，覆盖正文缺省／明确清空、固定字段、现金部分归属、多个来源冲突及当前事项修订。`scripts/export_cash_source_resolution_goldens.py --check` 校验 708 组匿名输入、完整结果和正文摘要。来源正文派生已覆盖微信、支付宝、建行、工行信用卡／借记卡和工银亚洲；保留原文备注、支付渠道与退款线索，账户身份只取可信解释，人工备注优先。`scripts/export_cash_source_effects_goldens.py --check` 校验完整结果及输入不变。单条流水详情及维护事务尚未接入这些规则，不能据此增加已验收 HTTP 数或关闭来源处理流程。
 
-账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；账户映射持久化、暂存、上传接口和真实账单样本仍未迁移，不能据此宣称导入流程可用。
+账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；账户映射持久化、暂存运行时接线、上传接口和真实账单样本仍未迁移，不能据此宣称导入流程可用。
+
+解析会话已实现私有 JSON 编解码、独立文件/整体预算、用户与工作区隔离、原到期时间、条件替换、取消清空、不可变计划快照与有界公开页缓存。内存存储和 R2 条件对象端口使用同一生命周期测试；R2 端口保留未知结果、关闭读取流并按元数据分页清扫。真实 S3/R2 HTTP 客户端、后台清扫器和运行时接线尚未迁移，当前不提供可用的 Kotlin 上传会话。匿名格式对照由 `scripts/export_parsed_import_codec_goldens.py --output compose/backend/src/test/resources/python-parsed-import-codec.json --check` 验证。
 
 稳定收支对象仓库已有双库原生测试，覆盖公共人工值、成员恢复值、合并冲突、拆分继承和事务内对象身份。该仓库已接入全量重建、新工作区初始化和内部增量维护；手工收支新建和转账创建已使用该仓库，其余公开现金写入仍待迁移。投影维护须在同一事务共用仓库上下文并完成 flush，不能跨事务复用缓存。保存点创建前保存既有脏值，回滚后恢复收支、成员和当前状态缓存。分类独立 move 服务已在同事务维护使用中的投影；update 按 Python 现状保留调用边界。
 

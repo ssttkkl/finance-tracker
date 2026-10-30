@@ -1,0 +1,1222 @@
+{
+  "sessions": [
+    {
+      "name": "plain",
+      "body": "{\"workspace_id\":\"workspace-a\",\"user_id\":\"user-a\",\"created_at\":\"2026-10-21T12:00:00+00:00\",\"expires_at\":\"2026-10-21T12:01:00+00:00\",\"revision\":1,\"preview_input\":{},\"plan\":null,\"cancelled\":false,\"workflow_kind\":\"import\",\"context_data\":{},\"session_digest\":\"ecfa7eb5cf455f7f9cc7c491c3f9a563e3c50cd9b3fcb00d6fe0bbaa175104d8\",\"files\":[{\"file_ref\":\"f1\",\"client_file_ref\":\"client-f1\",\"filename\":\"synthetic.csv\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"size\":100,\"source_type\":\"alipay\",\"status\":\"parsed\",\"document\":{\"source_type\":\"alipay\",\"table_key\":\"csv:0\",\"parser_version\":\"native-v1\",\"rows\":[{\"position\":8,\"fields\":{\"amount\":\"-20.00\",\"note\":\"原始说明\",\"source_payload\":{\"金额\":\"20.00\"}},\"payment_method\":\"fixture-bank\",\"provider_id\":\"001\",\"issue_codes\":[],\"error_code\":null,\"disposition\":\"candidate\",\"source_account_identifier\":null,\"document_position\":null,\"source_explanation\":{}}],\"source_account_identifier\":\"fixture-owner\",\"source_account_label\":\"fixture-owner\",\"coverage\":{\"start\":null,\"end\":null,\"complete\":false,\"evidence\":\"\",\"filters\":{},\"start_inclusive\":true,\"end_inclusive\":false,\"time_precision\":\"second\",\"strategy_version\":\"source-coverage-v1\",\"document_key\":null,\"page_total\":null,\"page_fingerprints\":{}},\"declared_count\":1,\"observed_count\":1},\"error_code\":null,\"source_scope_label\":null,\"is_subset\":false,\"last_modified_at_ms\":null,\"diagnostic\":null}]}"
+    },
+    {
+      "name": "values",
+      "body": "{\"workspace_id\":\"workspace-a\",\"user_id\":\"user-a\",\"created_at\":\"2026-10-21T12:00:00+00:00\",\"expires_at\":\"2026-10-21T12:01:00+00:00\",\"revision\":1,\"preview_input\":{},\"plan\":{\"values\":[true,false,null,0.95,-0.0,1000000000000000000000000000000,\"\\u0000\\n\\\"\\\\\",\"😀\"]},\"cancelled\":false,\"workflow_kind\":\"import\",\"context_data\":{},\"session_digest\":\"ecfa7eb5cf455f7f9cc7c491c3f9a563e3c50cd9b3fcb00d6fe0bbaa175104d8\",\"files\":[{\"file_ref\":\"f1\",\"client_file_ref\":\"client-f1\",\"filename\":\"synthetic.csv\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"size\":100,\"source_type\":\"alipay\",\"status\":\"parsed\",\"document\":{\"source_type\":\"alipay\",\"table_key\":\"csv:0\",\"parser_version\":\"native-v1\",\"rows\":[{\"position\":8,\"fields\":{\"amount\":\"-20.00\",\"note\":\"原始说明\",\"source_payload\":{\"金额\":\"20.00\"}},\"payment_method\":\"fixture-bank\",\"provider_id\":\"001\",\"issue_codes\":[],\"error_code\":null,\"disposition\":\"candidate\",\"source_account_identifier\":null,\"document_position\":null,\"source_explanation\":{}}],\"source_account_identifier\":\"fixture-owner\",\"source_account_label\":\"fixture-owner\",\"coverage\":{\"start\":null,\"end\":null,\"complete\":false,\"evidence\":\"\",\"filters\":{},\"start_inclusive\":true,\"end_inclusive\":false,\"time_precision\":\"second\",\"strategy_version\":\"source-coverage-v1\",\"document_key\":null,\"page_total\":null,\"page_fingerprints\":{}},\"declared_count\":1,\"observed_count\":1},\"error_code\":null,\"source_scope_label\":null,\"is_subset\":false,\"last_modified_at_ms\":null,\"diagnostic\":null}]}"
+    },
+    {
+      "name": "micros",
+      "body": "{\"workspace_id\":\"workspace-a\",\"user_id\":\"user-a\",\"created_at\":\"2026-10-21T12:00:00.123000+00:00\",\"expires_at\":\"2026-10-21T12:01:00.123000+00:00\",\"revision\":1,\"preview_input\":{},\"plan\":null,\"cancelled\":false,\"workflow_kind\":\"import\",\"context_data\":{},\"session_digest\":\"ecfa7eb5cf455f7f9cc7c491c3f9a563e3c50cd9b3fcb00d6fe0bbaa175104d8\",\"files\":[{\"file_ref\":\"f1\",\"client_file_ref\":\"client-f1\",\"filename\":\"synthetic.csv\",\"digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"size\":100,\"source_type\":\"alipay\",\"status\":\"parsed\",\"document\":{\"source_type\":\"alipay\",\"table_key\":\"csv:0\",\"parser_version\":\"native-v1\",\"rows\":[{\"position\":8,\"fields\":{\"amount\":\"-20.00\",\"note\":\"原始说明\",\"source_payload\":{\"金额\":\"20.00\"}},\"payment_method\":\"fixture-bank\",\"provider_id\":\"001\",\"issue_codes\":[],\"error_code\":null,\"disposition\":\"candidate\",\"source_account_identifier\":null,\"document_position\":null,\"source_explanation\":{}}],\"source_account_identifier\":\"fixture-owner\",\"source_account_label\":\"fixture-owner\",\"coverage\":{\"start\":null,\"end\":null,\"complete\":false,\"evidence\":\"\",\"filters\":{},\"start_inclusive\":true,\"end_inclusive\":false,\"time_precision\":\"second\",\"strategy_version\":\"source-coverage-v1\",\"document_key\":null,\"page_total\":null,\"page_fingerprints\":{}},\"declared_count\":1,\"observed_count\":1},\"error_code\":null,\"source_scope_label\":null,\"is_subset\":false,\"last_modified_at_ms\":null,\"diagnostic\":null}]}"
+    },
+    {
+      "name": "mutation",
+      "body": "{\"workspace_id\":\"workspace-a\",\"user_id\":\"user-a\",\"created_at\":\"2026-10-21T12:00:00+00:00\",\"expires_at\":\"2026-10-21T12:01:00+00:00\",\"revision\":1,\"preview_input\":{},\"plan\":null,\"cancelled\":false,\"workflow_kind\":\"mutation\",\"context_data\":{\"transaction_id\":\"1\"},\"session_digest\":\"ecfa7eb5cf455f7f9cc7c491c3f9a563e3c50cd9b3fcb00d6fe0bbaa175104d8\",\"files\":[]}"
+    }
+  ],
+  "budgets": [
+    {
+      "value": {},
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {},
+      "depth": 0,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 0,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 0,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {},
+      "depth": 63,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 63,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 63,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {},
+      "depth": 64,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 64,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": {},
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {},
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {},
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {},
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {},
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [],
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [],
+      "depth": 0,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 0,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 0,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [],
+      "depth": 63,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 63,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 63,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [],
+      "depth": 64,
+      "maximum": 2,
+      "remaining": 0,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 64,
+      "maximum": 5,
+      "remaining": 3,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 18,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 98,
+      "error": null
+    },
+    {
+      "value": [],
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [],
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [],
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [],
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [],
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -11,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 0,
+      "maximum": 2,
+      "remaining": -10,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 0,
+      "maximum": 5,
+      "remaining": -7,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 0,
+      "maximum": 20,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 40,
+      "error": null
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -11,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 63,
+      "maximum": 2,
+      "remaining": -10,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 63,
+      "maximum": 5,
+      "remaining": -7,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 63,
+      "maximum": 20,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 40,
+      "error": null
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -7,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 64,
+      "maximum": 2,
+      "remaining": -6,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 64,
+      "maximum": 5,
+      "remaining": -3,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 12,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 92,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        null,
+        true,
+        false,
+        "😀",
+        1000000000000000000000000000000,
+        0.95
+      ],
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -4,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 0,
+      "maximum": 2,
+      "remaining": -3,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 0,
+      "maximum": 5,
+      "remaining": -9,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 0,
+      "maximum": 20,
+      "remaining": -3,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 77,
+      "error": null
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -4,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 63,
+      "maximum": 2,
+      "remaining": -3,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 63,
+      "maximum": 5,
+      "remaining": -5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 63,
+      "maximum": 20,
+      "remaining": 10,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 90,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -4,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 64,
+      "maximum": 2,
+      "remaining": -3,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 64,
+      "maximum": 5,
+      "remaining": 0,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 15,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 95,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "a": [
+          null,
+          true,
+          false
+        ]
+      },
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -5,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 0,
+      "maximum": 2,
+      "remaining": -4,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 0,
+      "maximum": 5,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 0,
+      "maximum": 20,
+      "remaining": 12,
+      "error": null
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 92,
+      "error": null
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -5,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 63,
+      "maximum": 2,
+      "remaining": -4,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 63,
+      "maximum": 5,
+      "remaining": -1,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 63,
+      "maximum": 20,
+      "remaining": 12,
+      "error": null
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 92,
+      "error": null
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -3,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 64,
+      "maximum": 2,
+      "remaining": -2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 64,
+      "maximum": 5,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 16,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 96,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": [
+        [],
+        {}
+      ],
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 0,
+      "maximum": 1,
+      "remaining": -9,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 0,
+      "maximum": 2,
+      "remaining": -8,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 0,
+      "maximum": 5,
+      "remaining": -5,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 0,
+      "maximum": 20,
+      "remaining": 8,
+      "error": null
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 0,
+      "maximum": 100,
+      "remaining": 88,
+      "error": null
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 63,
+      "maximum": 1,
+      "remaining": -9,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 63,
+      "maximum": 2,
+      "remaining": -8,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 63,
+      "maximum": 5,
+      "remaining": -5,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 63,
+      "maximum": 20,
+      "remaining": 8,
+      "error": null
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 63,
+      "maximum": 100,
+      "remaining": 88,
+      "error": null
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 64,
+      "maximum": 1,
+      "remaining": -9,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 64,
+      "maximum": 2,
+      "remaining": -8,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 64,
+      "maximum": 5,
+      "remaining": -5,
+      "error": "import_session_draft_too_large"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 64,
+      "maximum": 20,
+      "remaining": 10,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 64,
+      "maximum": 100,
+      "remaining": 90,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 65,
+      "maximum": 1,
+      "remaining": 1,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 65,
+      "maximum": 2,
+      "remaining": 2,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 65,
+      "maximum": 5,
+      "remaining": 5,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 65,
+      "maximum": 20,
+      "remaining": 20,
+      "error": "import_session_json_invalid"
+    },
+    {
+      "value": {
+        "说明": "\"\n"
+      },
+      "depth": 65,
+      "maximum": 100,
+      "remaining": 100,
+      "error": "import_session_json_invalid"
+    }
+  ]
+}

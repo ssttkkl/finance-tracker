@@ -24,8 +24,8 @@ internal data class ParsedCashDocument(
     val sourceAccountIdentifier: String?,
     val sourceAccountLabel: String?,
     val coverage: CashSourceCoverage,
-    val declaredCount: Long?,
-    val observedCount: Int,
+    val declaredCount: Number?,
+    val observedCount: Number,
 )
 
 /** 平台账单行归一；复用来源正文、分类和对方账号规则，不执行跨行配对。 */

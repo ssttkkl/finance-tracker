@@ -9,6 +9,12 @@ internal data class ParsedImportFile(
     val sourceScopeLabel: String? = null,
     val isSubset: Boolean = false,
     val lastModifiedAtMs: Long? = null,
+    val clientFileRef: String = fileRef,
+    val filename: String = "statement",
+    val size: Long = 0,
+    val sourceType: String? = document?.sourceType,
+    val errorCode: String? = null,
+    val diagnostic: Map<String, Any?>? = null,
 )
 
 internal class SourceBatchRows(

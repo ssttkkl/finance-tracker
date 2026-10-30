@@ -5736,6 +5736,370 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_parsed_import_staging.py::test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot",
+      "source_sha256": "ecd9effb5224b00b02e9d2a91aae2634d06715b70a0f5e6bfcb82eda34388fc8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot[memory]",
+        "tests/test_parsed_import_staging.py::test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, original).cancelled and _get(store, original).files == ()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "snapshotsRetainOriginalBytesAndCannotReopenCancelledOrExpiredSessions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_foreign_user_cannot_delete_expired_body",
+      "source_sha256": "733a145eff40181633f345b53e9097a82515926b47b74f77a8d0cba63a5671bb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_foreign_user_cannot_delete_expired_body[memory]",
+        "tests/test_parsed_import_staging.py::test_foreign_user_cannot_delete_expired_body[r2]"
+      ],
+      "assertions": [
+        "with pytest.raises(ImportSessionForbidden):\n    _get(store, first, user_id='user-b')",
+        "with pytest.raises(ImportSessionExpired):\n    _get(store, first)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "ownerRevisionCancellationAndOriginalLifetimeArePreserved"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_late_old_page_fill_cannot_replace_a_new_revision_response",
+      "source_sha256": "ac3b73c14b726b08d10be605cdde4db67d7600cc533c6b092cf6f70e15f2d9fe",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_late_old_page_fill_cannot_replace_a_new_revision_response[memory]",
+        "tests/test_parsed_import_staging.py::test_late_old_page_fill_cannot_replace_a_new_revision_response[r2]"
+      ],
+      "assertions": [
+        "assert read() == {'revision': 3}",
+        "assert old.result() == {'revision': 2}",
+        "assert release.wait(5)",
+        "assert entered.wait(5)",
+        "assert read() == {'revision': 3}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "lateOldPageFillNeverReplacesCurrentRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_memory_session_capacity_is_reclaimed_after_expiry",
+      "source_sha256": "fc7c480e132e0fc016b8b9ecc154124899897ec2108da9ebade91f774dc84fb0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_memory_session_capacity_is_reclaimed_after_expiry"
+      ],
+      "assertions": [
+        "assert _create(store).revision == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "capacityAndBoundedSweepReclaimOnlyExpiredSessions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_mutation_context_cannot_gain_files_or_allow_empty_import",
+      "source_sha256": "d05fd420a81ee2312a9103afbcd68d5645b595a0209ae41fd853e65f415b3952",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_mutation_context_cannot_gain_files_or_allow_empty_import[memory]",
+        "tests/test_parsed_import_staging.py::test_mutation_context_cannot_gain_files_or_allow_empty_import[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, current) == current"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "mutationContextCannotGainFilesAndInheritsBoundedLifetime"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_only_one_concurrent_replacement_can_publish",
+      "source_sha256": "61f49fbe6d6ec936d19362f0ebb7877bddc89504ddf9872b4701513365700ace",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_only_one_concurrent_replacement_can_publish[memory]",
+        "tests/test_parsed_import_staging.py::test_only_one_concurrent_replacement_can_publish[r2]"
+      ],
+      "assertions": [
+        "assert outcomes.count(2) == 1",
+        "assert outcomes.count('conflict') == 7",
+        "assert _get(store, first).revision == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "oneConcurrentReplacementWinsAndFailedPayloadKeepsPreviousState"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_parsed_content_budget_is_independent_of_complete_plan_budget",
+      "source_sha256": "642298d6121654e9caffc91e2af02fb7abf896eac66c1458157b40a16bcaefb2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_parsed_content_budget_is_independent_of_complete_plan_budget[memory]",
+        "tests/test_parsed_import_staging.py::test_parsed_content_budget_is_independent_of_complete_plan_budget[r2]"
+      ],
+      "assertions": [
+        "assert updated.plan == plan",
+        "assert _get(store, session).revision == 2 and _get(store, session).plan == plan",
+        "assert _get(store, session).revision == 2 and _get(store, session).plan == plan",
+        "assert _get(store, session).revision == 2 and _get(store, session).plan == plan"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "parsedAndCompleteBudgetsProtectPreviouslyPublishedPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_parsed_session_is_bound_to_workspace_and_user",
+      "source_sha256": "bf6eac263ef6bb7c9f1d6006cdd2f16b8f474572eadad8ce36fd900bcdfac635",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_parsed_session_is_bound_to_workspace_and_user[memory-changes0]",
+        "tests/test_parsed_import_staging.py::test_parsed_session_is_bound_to_workspace_and_user[memory-changes1]",
+        "tests/test_parsed_import_staging.py::test_parsed_session_is_bound_to_workspace_and_user[r2-changes0]",
+        "tests/test_parsed_import_staging.py::test_parsed_session_is_bound_to_workspace_and_user[r2-changes1]"
+      ],
+      "assertions": [
+        "with pytest.raises(ImportSessionForbidden):\n    _get(store, session, **changes)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "ownerRevisionCancellationAndOriginalLifetimeArePreserved"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_checks_owner_and_expiry",
+      "source_sha256": "dcb3b6f9b62b9346783e184c2db9c64d376ed8e17763c8ee3c61671834fb6ff0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_checks_owner_and_expiry[memory]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_checks_owner_and_expiry[r2]"
+      ],
+      "assertions": [
+        "with pytest.raises(ImportSessionForbidden):\n    store._replace_plan(snapshot, **args | {'user_id': 'user-b'})",
+        "with pytest.raises(ImportSessionExpired):\n    store._replace_plan(snapshot, **args)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "snapshotsRetainOriginalBytesAndCannotReopenCancelledOrExpiredSessions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_still_observes_expiry_replacement_and_cancellation",
+      "source_sha256": "4c71681509a71c1da4e981ba1a33d0ee1dd6ace5628eeb5daf2757e07ecc078c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_still_observes_expiry_replacement_and_cancellation[memory]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_still_observes_expiry_replacement_and_cancellation[r2]"
+      ],
+      "assertions": [
+        "assert snapshot.plan == {'plan_id': 'two'}",
+        "assert snapshot.cancelled and snapshot.plan is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "planOnlyReadsRemainDetachedAndObserveReplacementCancellationAndExpiry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_publish_that_crosses_expiry_never_returns_a_successful_expired_session",
+      "source_sha256": "95ef6122abcdb46bc9627be2bf84c445c032ec4baec5dae0fd388926e9f69109",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_publish_that_crosses_expiry_never_returns_a_successful_expired_session[memory]",
+        "tests/test_parsed_import_staging.py::test_publish_that_crosses_expiry_never_returns_a_successful_expired_session[r2]"
+      ],
+      "assertions": [
+        "with pytest.raises(ImportSessionExpired):\n    _replace(store, first)",
+        "with pytest.raises(ImportSessionNotFound):\n    _get(store, first)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "replacementCrossingExpiryDeletesBodyWithoutReturningSuccess"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_publish_without_echo_cannot_save_files_that_fail_readback_validation",
+      "source_sha256": "59eb5b77f90a07e3e998b46ab73caadf0d4439f5c50ed885effca3c16da559a8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_cannot_save_files_that_fail_readback_validation[memory-file_depth]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_cannot_save_files_that_fail_readback_validation[memory-page_proof]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_cannot_save_files_that_fail_readback_validation[r2-file_depth]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_cannot_save_files_that_fail_readback_validation[r2-page_proof]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "publicationWithoutEchoValidatesDeepFilesProofsAndJsonBeforeReplacing"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_publish_without_echo_keeps_roundtrip_isolation_and_cas",
+      "source_sha256": "7528b3bc847a163186e1e51a376bfc8380df4f5c441cfc3fc1d63fda96652fec",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_keeps_roundtrip_isolation_and_cas[memory]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_keeps_roundtrip_isolation_and_cas[r2]"
+      ],
+      "assertions": [
+        "assert result is None",
+        "assert saved.revision == first.revision + 1 and saved.plan['details'][0]['note'] == '来源说明'",
+        "assert _get(store, first) == saved"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "oneConcurrentReplacementWinsAndFailedPayloadKeepsPreviousState"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing",
+      "source_sha256": "26841627f5370440d2de21abda31edc31a672414abfe41da4f8d387b792596b1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[memory-nan]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[memory-invalid1]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[memory-invalid2]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[r2-nan]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[r2-invalid1]",
+        "tests/test_parsed_import_staging.py::test_publish_without_echo_rejects_invalid_json_without_replacing[r2-invalid2]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStoreTest.kt",
+          "test": "publicationWithoutEchoValidatesDeepFilesProofsAndJsonBeforeReplacing"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_r2_body_close_failure_is_still_a_safe_storage_error",
+      "source_sha256": "5c9e877b6dd5150a1fc269e903c4c529ff246dcb4ca2c25a711e02a5e837a734",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_r2_body_close_failure_is_still_a_safe_storage_error"
+      ],
+      "assertions": [
+        "assert 'provider secret' not in str(error.value)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/R2ParsedImportStoreTest.kt",
+          "test": "corruptedOversizedAndCloseFailuresNeverReturnPartialState"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects",
+      "source_sha256": "bd159d28a3d2c232b21cc357b6ef60cdc2923d70bed2e9f981349aab9e7dea05",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects[memory]",
+        "tests/test_parsed_import_staging.py::test_r2_cleanup_failure_is_safe_and_does_not_delete_live_objects[r2]"
+      ],
+      "assertions": [
+        "assert 'credentials' not in str(error.value) and len(client.objects) == 1",
+        "assert _get(store, live) == live"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/R2ParsedImportStoreTest.kt",
+          "test": "failedCleanupDoesNotExposeProviderDetailsOrDeleteLiveObjects"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_r2_corrupt_or_oversized_response_never_returns_partial_state",
+      "source_sha256": "5f2ee9e4b10cb248a0a187ead9e6c30f87bfd3c1ed14f557ed5fe5f4ff4a76c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_r2_corrupt_or_oversized_response_never_returns_partial_state"
+      ],
+      "assertions": [
+        "assert client.bodies[-1].closed"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/R2ParsedImportStoreTest.kt",
+          "test": "corruptedOversizedAndCloseFailuresNeverReturnPartialState"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_r2_uncertain_write_is_never_retried_as_unconditional_put",
+      "source_sha256": "edbcb2c9c02a8c38e15a2e5b2f11b5d2587ddd57ffa293f98145f2e9ae344453",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_r2_uncertain_write_is_never_retried_as_unconditional_put"
+      ],
+      "assertions": [
+        "assert 'provider' not in str(error.value)",
+        "assert _get(store, first).revision == 2",
+        "assert len(client.writes) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/R2ParsedImportStoreTest.kt",
+          "test": "conditionalPublicationKeepsUnknownResultsAndOriginalKey"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values",
       "source_sha256": "fa081b1442fe391a4bcf8fad0751418efa4c055fa46241243d12d53a37dfa55c",
       "status": "migrated",

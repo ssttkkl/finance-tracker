@@ -12,7 +12,8 @@ internal fun manualCashTimestamp(value:String,rawSurrogates:Set<Int> = emptySet(
         catch(_:InvalidCashValue) {throw IllegalArgumentException("invalid transaction date: $text")}
 }
 
-internal fun pythonCashTimestamp(value: Any,allowNaive:Boolean=false,separateSurrogates:Set<Int> = emptySet()): Instant {
+internal fun pythonCashTimestamp(value: Any,allowNaive:Boolean=false,separateSurrogates:Set<Int> = emptySet(),
+    preserveZSeparator:Boolean=false): Instant {
     fun invalid(): Nothing=throw InvalidCashValue()
     fun checked(instant: Instant): Instant {
         if(instant.atOffset(ZoneOffset.UTC).year !in 1..9999) {
@@ -28,7 +29,7 @@ internal fun pythonCashTimestamp(value: Any,allowNaive:Boolean=false,separateSur
             is ZonedDateTime ->return checked(value.toInstant())
         }
         if(value !is String) invalid()
-        val input=if(allowNaive) value else value.replace("Z","+00:00")
+        val input=if(allowNaive || preserveZSeparator) value else value.replace("Z","+00:00")
         if(input.length<(if(allowNaive) 7 else 8)) invalid()
         val separator=when {
             input[4]=='-' && input[5]=='W' -> {
@@ -84,7 +85,7 @@ internal fun pythonCashTimestamp(value: Any,allowNaive:Boolean=false,separateSur
         val parts=if(':' in main) main.split(':') else main.chunked(2)
         if(parts[0].toInt()>23 || (parts.getOrNull(1)?.toInt() ?: 0)>59 || (parts.getOrNull(2)?.toInt() ?: 0)>59) invalid()
         val offset=if(offsetIndex<0) "Z" else rest.substring(offsetIndex)
-        val (offsetSeconds,offsetMicros)=if(allowNaive && offset=="Z") 0L to 0 else clock(offset.substring(1))
+        val (offsetSeconds,offsetMicros)=if((allowNaive || preserveZSeparator) && offset=="Z") 0L to 0 else clock(offset.substring(1))
         if(offsetSeconds>=86400L) invalid()
         val direction=if(offset.startsWith('-')) -1 else 1
         val instant=date.atStartOfDay().plusSeconds(seconds).plusNanos(micros*1000L).toInstant(ZoneOffset.UTC)

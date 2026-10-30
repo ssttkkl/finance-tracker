@@ -11,6 +11,10 @@ private val sourceTextKeys = setOf(
 private val sourceBooleanKeys = setOf("_is_refund", "_is_reversal", "_icbc_refund_merchant_trusted")
 private val sourceIdentityKeys = setOf("_source_account_identifier", "file_account_key", "card_number", "source_display_name")
 
+internal fun validCashSourceExplanation(value: Map<String, Any?>): Boolean = value.all { (key, item) ->
+    key in sourceTextKeys && item is String || key in sourceBooleanKeys && item is Boolean
+}
+
 internal fun extractCashSourceExplanation(value: Any?): Map<String, Any?> =
     (value as? Map<*, *>)?.entries?.mapNotNull { (key, item) ->
         if (key is String && (key in sourceTextKeys && item is String && item.isNotEmpty() ||
