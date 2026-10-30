@@ -74,7 +74,7 @@ internal class CashImportContextService(
     private val sourceHint = Regex("[a-z][a-z0-9_-]{0,63}")
     private val fileErrors = CashImportContext.fileErrors
 
-    private fun validateUploads(uploads: List<CashImportUpload>) {
+    internal fun validateUploads(uploads: List<CashImportUpload>) {
         if (uploads.size !in 1..20) throw CashImportInputError()
         val references = mutableSetOf<String>()
         for (upload in uploads) {
@@ -142,7 +142,7 @@ internal class CashImportContextService(
         return current
     }
 
-    private fun fit(files: MutableList<ParsedImportFile>, newRefs: Set<String>,
+    internal fun fit(files: MutableList<ParsedImportFile>, newRefs: Set<String>,
         write: (List<ParsedImportFile>) -> ParsedImportSession): ParsedImportSession {
         while (true) {
             try {

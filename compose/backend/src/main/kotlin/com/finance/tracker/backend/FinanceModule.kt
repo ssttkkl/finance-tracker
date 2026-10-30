@@ -27,7 +27,7 @@ private val requestPrincipalKey=io.ktor.util.AttributeKey<Principal>("finance.re
 @Serializable private data class ErrorDetail(val code: String, val message: String)
 @Serializable private data class ErrorBody(val error: ErrorDetail)
 
-fun Application.financeModule(database: Database, allowedOrigin: String = "http://127.0.0.1:5173",
+internal fun Application.financeModule(database: Database, allowedOrigin: String = "http://127.0.0.1:5173",
     clock: () -> java.time.Instant = java.time.Instant::now,
     authentication: AuthenticationService = AuthenticationService(database, now = clock), workspaces: WorkspaceService = WorkspaceService(database, now = clock),
     categories: CategoryService = CategoryService(database, now = clock),
@@ -42,7 +42,8 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
-    mutationPlans: MutationPlanService = MutationPlanService(database,now = clock)) {
+    mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
+    cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
@@ -130,8 +131,9 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
             })
         }
         exception<ReceiptConflict> { call, failure ->
+            val import = call.request.path().startsWith("/api/v1/cash-import")
             val (code, message) = if (failure.code in setOf("edit_context_committed", "session_committed"))
-                failure.code to "本次修改已提交，请查看结果。"
+                failure.code to (if (import) "本次导入已提交，请查看结果。" else "本次修改已提交，请查看结果。")
             else "idempotency_conflict" to "这次操作与上次不同，请核实后重试。"
             call.respond(HttpStatusCode.Conflict, kotlinx.serialization.json.buildJsonObject {
                 put("error", kotlinx.serialization.json.buildJsonObject {
@@ -170,6 +172,49 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 })
             })
         }
+        exception<CashImportProtocolError> { call, failure ->
+            val status = if (failure.code == "upload_too_large") HttpStatusCode.PayloadTooLarge else HttpStatusCode.UnprocessableEntity
+            val code = if (failure.code == "upload_too_large") "upload_too_large" else "import_payload_invalid"
+            val message = if (failure.code == "upload_too_large") "上传内容过多，请减少文件后重试。" else "导入信息有误，请检查后重试。"
+            call.respond(status, buildJsonObject { put("error", buildJsonObject {
+                put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) }) })
+        }
+        exception<CashImportInputError> { call, failure ->
+            if (failure.code == "import_file_not_found") call.respond(HttpStatusCode.NotFound, buildJsonObject {
+                put("error", buildJsonObject { put("code", JsonPrimitive("file_not_found")); put("message", JsonPrimitive("未找到这份账单。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+            }) else call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+                put("error", buildJsonObject { put("code", JsonPrimitive("import_payload_invalid")); put("message", JsonPrimitive("导入信息有误，请检查后重试。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+            })
+        }
+        exception<CashSourceScopeError> { call, _ ->
+            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+                put("error", buildJsonObject { put("code", JsonPrimitive("source_scope_invalid")); put("message", JsonPrimitive("来源名称不可用，请重新填写。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+            })
+        }
+        exception<ParsedImportNotFound> { call, _ -> call.respond(HttpStatusCode.NotFound, buildJsonObject {
+            put("error", buildJsonObject { put("code", JsonPrimitive("session_not_found")); put("message", JsonPrimitive("未找到本次导入。"))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+        }) }
+        exception<ParsedImportForbidden> { call, _ -> call.respond(HttpStatusCode.NotFound, buildJsonObject {
+            put("error", buildJsonObject { put("code", JsonPrimitive("session_not_found")); put("message", JsonPrimitive("未找到本次导入。"))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+        }) }
+        exception<ParsedImportExpired> { call, _ -> call.respond(HttpStatusCode.Gone, buildJsonObject {
+            put("error", buildJsonObject { put("code", JsonPrimitive("session_expired")); put("message", JsonPrimitive("本次导入已过期，请重新选择文件。"))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+        }) }
+        exception<ParsedImportRevisionConflict> { call, _ -> call.respond(HttpStatusCode.Conflict, buildJsonObject {
+            put("error", buildJsonObject { put("code", JsonPrimitive("session_changed")); put("message", JsonPrimitive("本次导入已变化，请刷新后重试。"))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+        }) }
+        exception<ParsedImportClosed> { call, _ -> call.respond(HttpStatusCode.Conflict, buildJsonObject {
+            put("error", buildJsonObject { put("code", JsonPrimitive("session_closed")); put("message", JsonPrimitive("本次导入已结束，请重新选择文件。"))
+                put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) })
+        }) }
         exception<MutationPlanStore.RevisionConflict> { call, _ -> planStoreChanged(call) }
         exception<MutationPlanStore.Closed> { call, _ -> planStoreChanged(call) }
         exception<CashRecordReadUnavailable> { call, failure ->
@@ -281,15 +326,27 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         exception<AccessFailure> { call, failure ->
             val auth = call.request.path().startsWith("/api/v1/auth")
             val code = if (failure.forbidden) "workspace_forbidden" else "authentication_required"
-            val message = if (auth) "请求未获授权或无效。" else if (failure.forbidden) "当前用户无权访问该工作区。" else "请先登录。"
+            val message = if (auth) "请求未获授权或无效。" else if (failure.forbidden) {
+                if (call.request.path().startsWith("/api/v1/cash-import")) "当前用户无权进行这次导入。" else "当前用户无权访问该工作区。"
+            } else "请先登录。"
             val status=if(failure.forbidden) HttpStatusCode.Forbidden else HttpStatusCode.Unauthorized
-            if(call.request.path().startsWith("/api/v1/cash-mutations") || call.request.path().startsWith("/api/v1/cash-projections/") || call.request.path().startsWith("/api/v1/cash-records/")) call.respond(status,kotlinx.serialization.json.buildJsonObject {
+            if(call.request.path().startsWith("/api/v1/cash-import") || call.request.path().startsWith("/api/v1/cash-mutations") || call.request.path().startsWith("/api/v1/cash-projections/") || call.request.path().startsWith("/api/v1/cash-records/")) call.respond(status,kotlinx.serialization.json.buildJsonObject {
                 put("error",kotlinx.serialization.json.buildJsonObject {
                     put("code",JsonPrimitive(code));put("message",JsonPrimitive(message));put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(false))
                 })
             }) else call.respond(status,ErrorBody(ErrorDetail(code,message)))
         }
         exception<StorageFailure> { call, failure ->
+            if (call.request.path().startsWith("/api/v1/cash-import")) {
+                val diagnostic=com.finance.tracker.business.contracts.CashDiagnosticDto(java.util.UUID.randomUUID().toString().replace("-",""),"request","request",emptyList(),0)
+                call.respond(HttpStatusCode.ServiceUnavailable,kotlinx.serialization.json.buildJsonObject {
+                    put("error",kotlinx.serialization.json.buildJsonObject {
+                        put("code",JsonPrimitive("import_unavailable"));put("message",JsonPrimitive("暂时无法处理账单，请稍后重试。"))
+                        put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(true));put("diagnostic",Json.encodeToJsonElement(diagnostic))
+                    })
+                })
+                return@exception
+            }
             val message = when (failure.code) {
                 "storage.busy" -> "账本正被其他操作占用，请稍后重试。"
                 "storage.schema" -> "账本结构不可用，请检查本机 API 配置后重试。"
@@ -348,6 +405,50 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
         }
     }
     routing {
+        if (cashImports != null) {
+            suspend fun uploadView(action: () -> Map<String, Any?>): Map<String, Any?> = withContext(Dispatchers.IO) { action() }
+            post("/api/v1/cash-import/sessions") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val (_, uploads) = CashImportProtocol.receive(call, add = false)
+                val view = uploadView { cashImports.create(token, uploads) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json, HttpStatusCode.Created)
+            }
+            post("/api/v1/cash-import/sessions/{session_id}/files") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val sessionId = call.parameters["session_id"]!!
+                val (metadata, uploads) = CashImportProtocol.receive(call, add = true)
+                val revision = metadata.expectedSessionRevision!!
+                val view = uploadView {
+                    if (metadata.fileRef == null) cashImports.addFiles(token, sessionId, uploads, revision)
+                    else cashImports.replaceFile(token, sessionId, metadata.fileRef, uploads.single(), revision)
+                }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            get("/api/v1/cash-import/sessions/{session_id}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val view = uploadView { cashImports.view(token, call.parameters["session_id"]!!) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            patch("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val (revision, label) = CashImportProtocol.scopeInput(CashImportProtocol.boundedText(call))
+                val view = uploadView { cashImports.setFileSourceScope(token, call.parameters["session_id"]!!,
+                    call.parameters["file_ref"]!!, label, revision) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            delete("/api/v1/cash-import/sessions/{session_id}/files/{file_ref}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val revision = CashImportProtocol.ifMatch(call.request.headers[HttpHeaders.IfMatch])
+                val view = uploadView { cashImports.removeFile(token, call.parameters["session_id"]!!,
+                    call.parameters["file_ref"]!!, revision) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            delete("/api/v1/cash-import/sessions/{session_id}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val view = uploadView { cashImports.cancel(token, call.parameters["session_id"]!!) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+        }
         get("/api/v1/evidence/cash-projections/{projection_id}") {
             val result = withContext(Dispatchers.IO) {
                 currentProjections.evidence(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
