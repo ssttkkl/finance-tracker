@@ -24,6 +24,25 @@ import kotlinx.serialization.json.buildJsonObject
 
 private val requestPrincipalKey=io.ktor.util.AttributeKey<Principal>("finance.request.principal")
 
+private data class ImportPlanPageQuery(val cursor: String?, val startIndex: Int?, val limit: Int,
+    val confirmationStatus: String?)
+
+private fun importPlanPageQuery(parameters: Parameters, processing: Boolean = false): ImportPlanPageQuery {
+    val allowed = if (processing) setOf("cursor", "limit") else setOf("cursor", "start_index", "limit", "confirmation_status")
+    if (parameters.names().any { it !in allowed || parameters.getAll(it)?.size != 1 } ||
+        parameters.contains("cursor") && parameters.contains("start_index")) throw CashImportProtocolError()
+    fun number(name: String, default: String): Long {
+        val raw = parameters[name] ?: default
+        if (!raw.matches(Regex("0|[1-9][0-9]{0,18}"))) throw CashImportProtocolError()
+        return raw.toLongOrNull() ?: throw CashImportProtocolError()
+    }
+    val limit = number("limit", "50")
+    if (limit !in 1..200) throw CashImportProtocolError()
+    val index = if (processing || !parameters.contains("start_index")) null else number("start_index", "0")
+    if (index != null && index > Int.MAX_VALUE) throw CashImportPlanError("plan_page_invalid")
+    return ImportPlanPageQuery(parameters["cursor"], index?.toInt(), limit.toInt(), parameters["confirmation_status"])
+}
+
 @Serializable private data class ErrorDetail(val code: String, val message: String)
 @Serializable private data class ErrorBody(val error: ErrorDetail)
 
@@ -150,6 +169,27 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 put("error", buildJsonObject {
                     put("code", JsonPrimitive("session_not_found")); put("message", JsonPrimitive("未找到本次导入。"))
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
+                })
+            })
+        }
+        exception<CashImportPlanError> { call, failure ->
+            val (status, message) = when (failure.code) {
+                "plan_not_found" -> 404 to "未找到这次核对内容。"
+                "plan_item_not_found" -> 404 to "未找到这条记录。"
+                "plan_changed" -> 409 to "核对内容已变化，请刷新后重试。"
+                "plan_expired" -> 410 to "本次核对已过期，请重新打开。"
+                "plan_page_invalid" -> 422 to "列表页码无效，请刷新后重试。"
+                "plan_cursor_invalid" -> 422 to "列表位置已失效，请刷新后重试。"
+                "plan_build_failed" -> 503 to "暂时无法准备核对内容，请稍后重试。"
+                else -> 422 to "核对选择有误，请重新核对。"
+            }
+            call.respond(HttpStatusCode.fromValue(status), buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
+                    if (status == 503) put("diagnostic", Json.encodeToJsonElement(
+                        com.finance.tracker.business.contracts.CashDiagnosticDto(
+                            java.util.UUID.randomUUID().toString().replace("-", ""), "request", "request", emptyList(), 0)))
                 })
             })
         }
@@ -446,6 +486,29 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             delete("/api/v1/cash-import/sessions/{session_id}") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val view = uploadView { cashImports.cancel(token, call.parameters["session_id"]!!) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            get("/api/v1/cash-import/plans/{plan_id}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val view = uploadView { cashImports.plan(token, call.parameters["plan_id"]) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            get("/api/v1/cash-import/plans/{plan_id}/items") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val query = importPlanPageQuery(call.request.queryParameters)
+                val view = uploadView { cashImports.planItems(token, call.parameters["plan_id"], query.cursor,
+                    query.startIndex, query.limit, query.confirmationStatus) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            get("/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val view = uploadView { cashImports.planItem(token, call.parameters["plan_id"], call.parameters["preview_item_id"]) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
+            get("/api/v1/cash-import/plans/{plan_id}/processing-details") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val query = importPlanPageQuery(call.request.queryParameters, processing = true)
+                val view = uploadView { cashImports.planProcessing(token, call.parameters["plan_id"], query.cursor, query.limit) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
         }

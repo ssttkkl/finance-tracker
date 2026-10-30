@@ -159,6 +159,48 @@ internal class CashImportHttpService(private val database: Database, private val
             CashImportSessionView.view(current, scan.groups, suggestions)
         }
 
+    private fun readPlan(token: String?, planId: String?, projectionKey: List<Any?>? = null,
+        project: (Map<String, Any?>) -> Map<String, Any?>): Map<String, Any?> {
+        val currentPlanId = planId ?: throw CashImportPlanError("plan_not_found")
+        val id = CashImportPlanViews.sessionId(currentPlanId)
+        return locked(token, false) { principal, connection ->
+            receipt(connection, principal, id)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+            val render: (ParsedImportSession) -> Map<String, Any?> = { current ->
+                if (current.workflowKind != "import") throw CashImportPlanError("plan_expired")
+                if (current.cancelled || current.plan == null || current.plan["plan_id"] != currentPlanId)
+                    throw CashImportPlanError("plan_changed")
+                project(current.plan)
+            }
+            try {
+                if (projectionKey == null) render(staging.getPlanSnapshot(id, principal.workspaceId!!, principal.userId))
+                else staging.readPlanProjection(id, principal.workspaceId!!, principal.userId,
+                    listOf(currentPlanId) + projectionKey, render)
+            } catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
+            catch (_: ParsedImportExpired) { throw CashImportPlanError("plan_expired") }
+        }
+    }
+
+    fun plan(token: String?, planId: String?): Map<String, Any?> =
+        readPlan(token, planId, listOf("plan")) { CashImportPlanViews.view(it) }
+
+    fun planItems(token: String?, planId: String?, cursor: String?, startIndex: Int?, limit: Int,
+        confirmationStatus: String?): Map<String, Any?> = readPlan(token, planId,
+        listOf("items", cursor, startIndex, limit, confirmationStatus)) {
+        CashImportPlanViews.page(it, "items", cursor, startIndex, limit, confirmationStatus, indexed = true)
+    }
+
+    fun planItem(token: String?, planId: String?, previewItemId: String?): Map<String, Any?> = readPlan(token, planId) { plan ->
+        val details = plan["item_details"] as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
+        val detail = details[previewItemId] ?: throw CashImportPlanError("plan_item_not_found")
+        CashImportPlanViews.publicDetail(CashImportPlanViews.resolveDetail(plan, detail)) +
+            ("preview_item_id" to previewItemId)
+    }
+
+    fun planProcessing(token: String?, planId: String?, cursor: String?, limit: Int): Map<String, Any?> =
+        readPlan(token, planId, listOf("processing", cursor, limit)) {
+            CashImportPlanViews.page(it, "processing_details", cursor, limit = limit)
+        }
+
     private fun parserService(): CashImportContextService {
         // 解析只依赖文件自身，不读取会话；发布始终在锁内用当前成员重建。
         return CashImportContextService(staging, "", "", parser)
