@@ -14,8 +14,8 @@ from sqlalchemy import inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
-    AccountModel, CashRelationCandidateModel, CashTransactionComponentModel, CashTransactionModel,
-    TransactionRelationModel, WorkspaceModel,
+    AccountAliasModel, AccountModel, CashRelationCandidateModel, CashTransactionComponentModel,
+    CashTransactionModel, TransactionRelationModel, WorkspaceModel,
 )
 from ft.adapters.relational.repositories import RelationalRelationRepository
 
@@ -70,7 +70,8 @@ def seed(sessions):
             session.add(CashTransactionModel(id=transaction_id, workspace_id=WORKSPACE,
                 account_id=None if granularity == "aggregate" else account,
                 state="posted", record_origin="import", cash_granularity=granularity, source_type=source,
-                record_id=record, source_payload={}, occurred_at=NOW, amount=amount, currency="CNY",
+                record_id=record, source_payload=({"订单号": "REL-1", "交易状态": "交易成功", "交易单号": "TXN-1"}
+                    if transaction_id == 93001 else {}), occurred_at=NOW, amount=amount, currency="CNY",
                 counterparty="商户", counterparty_account="", counterparty_account_attrs=[], note="",
                 record_type=record_type, row_revision=1, created_at=NOW,
                 record_subtype="ordinary_transfer" if record_type.startswith("transfer_") else "not_applicable"))
@@ -89,6 +90,12 @@ def seed(sessions):
             rule_id="mirror.seed.v1", created_by="system", created_at=NOW, decided_by="",
             decided_at=None, decision_reason=""))
         session.flush()
+        session.add_all([
+            AccountAliasModel(workspace_id=WORKSPACE, alias_type="card_tail", alias_value="1234",
+                account_id=9301, created_at=NOW, updated_at=NOW),
+            AccountAliasModel(workspace_id=WORKSPACE, alias_type="account_identifier",
+                alias_value="622202123456", account_id=9302, created_at=NOW, updated_at=NOW),
+        ])
         session.add(CashRelationCandidateModel(workspace_id=WORKSPACE, relation_id=9001,
             candidate_transaction_id=93007, candidate_component_id=94008, expected_row_revision=1,
             evidence={}, validity="valid"))
