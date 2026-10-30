@@ -2231,6 +2231,666 @@
           }
         ]
       ]
+    },
+    "refund_candidates": {
+      "tied": {
+        "kind": "refund_offset",
+        "primary_fact_id": "refund-probe",
+        "secondary_fact_id": null,
+        "primary_fact_type": "cash",
+        "secondary_fact_type": null,
+        "subtype": "",
+        "status": "pending_review",
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "confidence": "weak",
+        "evidence": {
+          "amount_delta": "80.00",
+          "time_delta_seconds": 0,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "icbc_debit",
+            "alipay"
+          ],
+          "rule_id": "refund_offset.merchant_or_order.v1",
+          "candidate_count": 2,
+          "signals": [
+            "refund",
+            "merchant",
+            "same_account"
+          ],
+          "open_leg": true,
+          "anchor_role": "refund",
+          "candidate_fact_ids": [
+            "94001",
+            "94005"
+          ],
+          "extras": {
+            "refund_amount": "20.00",
+            "expense_amount": "100",
+            "remaining_before": "100",
+            "days": "0",
+            "within_auto": "true",
+            "priority": "2"
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "refund-probe",
+        "open_leg": true
+      },
+      "deleted": {
+        "kind": "refund_offset",
+        "primary_fact_id": "94001",
+        "secondary_fact_id": "refund-probe",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "accepted",
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "80.00",
+          "time_delta_seconds": 0,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "icbc_debit",
+            "alipay"
+          ],
+          "rule_id": "refund_offset.merchant_or_order.v1",
+          "candidate_count": 1,
+          "signals": [
+            "refund",
+            "merchant",
+            "same_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "94001"
+          ],
+          "extras": {
+            "refund_amount": "20.00",
+            "expense_amount": "100",
+            "remaining_before": "100",
+            "days": "0",
+            "within_auto": "true",
+            "priority": "2"
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "refund-probe",
+        "open_leg": false
+      },
+      "strong": {
+        "kind": "refund_offset",
+        "primary_fact_id": "94001",
+        "secondary_fact_id": "refund-probe",
+        "primary_fact_type": "cash",
+        "secondary_fact_type": "cash",
+        "subtype": "",
+        "status": "accepted",
+        "rule_id": "refund_offset.merchant_or_order.v1",
+        "confidence": "strong",
+        "evidence": {
+          "amount_delta": "80.00",
+          "time_delta_seconds": 0,
+          "same_currency": true,
+          "counterparty_similarity": "商户",
+          "source_pair": [
+            "icbc_debit",
+            "alipay"
+          ],
+          "rule_id": "refund_offset.merchant_or_order.v1",
+          "candidate_count": 2,
+          "signals": [
+            "refund",
+            "merchant",
+            "same_account"
+          ],
+          "open_leg": false,
+          "anchor_role": "",
+          "candidate_fact_ids": [
+            "94001",
+            "94005"
+          ],
+          "extras": {
+            "refund_amount": "20.00",
+            "expense_amount": "100",
+            "remaining_before": "100",
+            "days": "0",
+            "within_auto": "true",
+            "priority": "2"
+          }
+        },
+        "created_by": "system",
+        "anchor_fact_id": "refund-probe",
+        "open_leg": false
+      }
+    },
+    "redundant_refunds": {
+      "unique": {
+        "superseded": [
+          [
+            "94001",
+            "94009"
+          ]
+        ],
+        "old_status": "superseded",
+        "accepted_pairs": [
+          [
+            "94001",
+            "94002"
+          ]
+        ]
+      },
+      "mixed_scale": {
+        "superseded": [
+          [
+            "94001",
+            "94009"
+          ]
+        ],
+        "old_status": "superseded",
+        "accepted_pairs": [
+          [
+            "94001",
+            "94002"
+          ]
+        ]
+      },
+      "pending": {
+        "superseded": [],
+        "old_status": "accepted",
+        "accepted_pairs": [
+          [
+            "94001",
+            "94009"
+          ]
+        ]
+      },
+      "skipped": {
+        "superseded": [],
+        "old_status": "accepted",
+        "accepted_pairs": [
+          [
+            "94001",
+            "94009"
+          ]
+        ]
+      },
+      "human": {
+        "superseded": [],
+        "old_status": "accepted",
+        "accepted_pairs": [
+          [
+            "94001",
+            "94009"
+          ]
+        ]
+      },
+      "ambiguous": {
+        "superseded": [],
+        "bank_statuses": [
+          "accepted",
+          "accepted"
+        ],
+        "accepted_pairs": [
+          [
+            "94001",
+            "94002"
+          ],
+          [
+            "94001",
+            "94009"
+          ],
+          [
+            "94001",
+            "94010"
+          ]
+        ]
+      },
+      "cached_without_pair": {
+        "superseded": [],
+        "statuses": [
+          "accepted",
+          "accepted"
+        ]
+      },
+      "mirrored_closure": {
+        "superseded": [
+          [
+            "94008",
+            "94009"
+          ]
+        ],
+        "accepted_pairs": [
+          [
+            "94001",
+            "94002"
+          ]
+        ]
+      }
+    },
+    "check": {
+      "parent_seed": {
+        "count": 0,
+        "stats": {
+          "pending": 0,
+          "accepted": 0,
+          "skipped": 0,
+          "supersessions": 0,
+          "phase_a_platform_refunds": 0,
+          "phase_c_transfers": 0,
+          "phase_d_diamond": 0
+        },
+        "relations": []
+      },
+      "component_seed": {
+        "count": 1,
+        "stats": {
+          "pending": 0,
+          "accepted": 1,
+          "skipped": 0,
+          "supersessions": 0,
+          "phase_a_platform_refunds": 0,
+          "phase_c_transfers": 0,
+          "phase_d_diamond": 0
+        },
+        "relations": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ]
+      },
+      "full_workspace": {
+        "count": 2,
+        "stats": {
+          "pending": 0,
+          "accepted": 2,
+          "skipped": 0,
+          "supersessions": 0,
+          "phase_a_platform_refunds": 0,
+          "phase_c_transfers": 1,
+          "phase_d_diamond": 0
+        },
+        "relations": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          },
+          {
+            "kind": "transfer_pair",
+            "status": "accepted",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1"
+          }
+        ]
+      }
+    },
+    "import_application": {
+      "automatic": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "error": null
+      },
+      "rejected": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "rejected",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "rejected",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "error": null
+      },
+      "accepted_later": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "error": null
+      },
+      "skipped": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "error": null
+      },
+      "stale_digest": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "error": "import_relation_preview_stale"
+      },
+      "invalid_secondary": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "error": "import_relation_candidate_invalid"
+      },
+      "workspace": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          },
+          {
+            "kind": "transfer_pair",
+            "status": "accepted",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002,
+          94003,
+          94004
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          },
+          {
+            "kind": "transfer_pair",
+            "status": "accepted",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1"
+          }
+        ],
+        "error": null
+      }
+    },
+    "cached_application": {
+      "automatic": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "accepted_later": [],
+        "error": null
+      },
+      "rejected": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "rejected",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "rejected",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "accepted_later": [],
+        "error": null
+      },
+      "accepted_later": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "accepted_later": [
+          "accepted"
+        ],
+        "error": null
+      },
+      "skipped": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          }
+        ],
+        "accepted_later": [],
+        "error": null
+      },
+      "stale_digest": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "accepted_later": [],
+        "error": "import_relation_reconfirmation_required"
+      },
+      "corrupt_key": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "accepted_later": [],
+        "error": "import_relation_reconfirmation_required"
+      },
+      "invalid_secondary": {
+        "created": [],
+        "affected": [],
+        "active": [],
+        "accepted_later": [],
+        "error": "import_relation_candidate_invalid"
+      },
+      "workspace": {
+        "created": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          },
+          {
+            "kind": "transfer_pair",
+            "status": "accepted",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1"
+          }
+        ],
+        "affected": [
+          94001,
+          94002,
+          94003,
+          94004
+        ],
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "rule_id": "refund_offset.merchant_or_order.v1"
+          },
+          {
+            "kind": "transfer_pair",
+            "status": "accepted",
+            "primary_fact_id": "94003",
+            "secondary_fact_id": "94004",
+            "rule_id": "transfer_pair.normalized.same_currency.time10.v1"
+          }
+        ],
+        "accepted_later": [],
+        "error": null
+      }
+    },
+    "import_manual_decisions": {
+      "accepted": {
+        "accepted_count": 1,
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "created_by": "web",
+            "decided_by": "web"
+          }
+        ],
+        "error": null
+      },
+      "rejected": {
+        "accepted_count": 0,
+        "active": [],
+        "error": null
+      },
+      "skipped": {
+        "accepted_count": 0,
+        "active": [],
+        "error": null
+      },
+      "missing": {
+        "accepted_count": 0,
+        "active": [],
+        "error": "导入关系引用的流水不存在"
+      },
+      "same": {
+        "accepted_count": 0,
+        "active": [],
+        "error": "导入关系不能关联同一条流水"
+      },
+      "invalid_kind": {
+        "accepted_count": 0,
+        "active": [],
+        "error": "导入关系类型无效"
+      },
+      "preexisting_only": {
+        "accepted_count": 0,
+        "active": [],
+        "error": null
+      },
+      "source_ref": {
+        "accepted_count": 1,
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "created_by": "web",
+            "decided_by": "web"
+          }
+        ],
+        "error": null
+      },
+      "preview_ref": {
+        "accepted_count": 1,
+        "active": [
+          {
+            "kind": "refund_offset",
+            "status": "accepted",
+            "primary_fact_id": "94001",
+            "secondary_fact_id": "94002",
+            "created_by": "web",
+            "decided_by": "web"
+          }
+        ],
+        "error": null
+      }
     }
   }
 }

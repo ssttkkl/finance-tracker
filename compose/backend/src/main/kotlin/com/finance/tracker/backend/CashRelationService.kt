@@ -4,6 +4,12 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.math.BigDecimal
 import kotlinx.serialization.json.*
 
+internal data class CashRelationCheckResult(val relations: List<Map<String, Any?>>,
+    val stats: Map<String, Int>, val affectedComponentIds: Set<Long>)
+internal data class CashRelationApplyResult(val created: List<Map<String, Any?>>, val affected: Set<Long>)
+internal data class CashCachedRelationApplyResult(val created: List<Map<String, Any?>>, val affected: Set<Long>,
+    val acceptedDecisions: List<Map<String, Any?>>)
+
 /** 关系规划/上下文的应用服务；持有工作区 SQL 上下文，按 Python 行形状暴露事实。 */
 internal class CashRelationService(private val context: CashSqlContext) {
     private val relations = CashRelationRepository(context)
@@ -204,6 +210,321 @@ internal class CashRelationService(private val context: CashSqlContext) {
         CashRelationPlanCache.refundRemaining(facts,
             relations.listActive(kind = "refund_offset", status = "accepted"))
 
+    /** 在调用方写事务内完成一次检查；任何内部故障交由事务边界回滚。 */
+    fun check(seedFactIds: List<String>? = null, @Suppress("UNUSED_PARAMETER") seedBatchId: String? = null,
+        trigger: String = "import_batch"): CashRelationCheckResult {
+        context.requireActive()
+        val activeFacts = activeCashFacts()
+        val seeds = CashRelationPlanCache.resolveSeeds(activeFacts, seedFactIds)
+        val remaining = refundRemaining(activeFacts).toMutableMap()
+        val plan = plan(seedIds = seeds)
+        val byId = plan.facts.associateBy { it.id }
+        val created = mutableListOf<Map<String, Any?>>()
+        val reconciled = linkedSetOf<Long>()
+        val stats = linkedMapOf("pending" to 0, "accepted" to 0, "skipped" to 0,
+            "supersessions" to 0, "phase_a_platform_refunds" to 0,
+            "phase_c_transfers" to 0, "phase_d_diamond" to 0)
+        var supersededBankRefunds: Set<Pair<String, String>> = emptySet()
+        if (trigger == "import_batch") {
+            reconciled += reconcileSystemPaymentMirrors(plan.facts)
+            val (refundAffected, refundSuperseded) = reconcileSystemRefundOffsets(plan.facts)
+            reconciled += refundAffected
+            supersededBankRefunds = refundSuperseded + supersedeRedundantBankRefunds(plan.facts, plan.proposals,
+                relations.listActive(status = "accepted"))
+        }
+        for ((primary, secondary) in supersededBankRefunds)
+            listOf(primary, secondary).mapNotNullTo(reconciled, String::toLongOrNull)
+        val accepted = relations.listActive(status = "accepted").toMutableList()
+        for (proposal in plan.proposals) {
+            if (proposal.kind == "refund_offset" &&
+                (proposal.primaryFactId to proposal.secondaryFactId.orEmpty()) in supersededBankRefunds) continue
+            if (proposal.ruleId.startsWith("scan."))
+                stats["phase_a_platform_refunds"] = stats.getValue("phase_a_platform_refunds") + 1
+            if (proposal.kind == "transfer_pair")
+                stats["phase_c_transfers"] = stats.getValue("phase_c_transfers") + 1
+            if ("diamond" in proposal.ruleId)
+                stats["phase_d_diamond"] = stats.getValue("phase_d_diamond") + 1
+            val outcome = persistAutomaticProposal(proposal, remaining, plan.facts, accepted, plan.proposals)
+            if (outcome == null) {
+                stats["skipped"] = stats.getValue("skipped") + 1
+                continue
+            }
+            created += outcome
+            when (outcome["status"]) {
+                "accepted" -> {
+                    if (accepted.none { it["id"] == outcome["id"] }) accepted += outcome
+                    stats["accepted"] = stats.getValue("accepted") + 1
+                    if (outcome["kind"] == "refund_offset") {
+                        val expenseId = text(outcome["primary_fact_id"])
+                        val refund = byId[text(outcome["secondary_fact_id"])]
+                        val expense = byId[expenseId]
+                        if (expense != null && refund != null)
+                            remaining[expenseId] = (remaining[expenseId] ?: expense.signedAmount.abs()) -
+                                refund.signedAmount.abs()
+                    }
+                }
+                "pending_review" -> stats["pending"] = stats.getValue("pending") + 1
+            }
+        }
+        val affected = linkedSetOf<Long>()
+        affected += reconciled
+        for (relation in created) if (relation["status"] == "accepted")
+            listOf(relation["primary_fact_id"], relation["secondary_fact_id"])
+                .mapNotNullTo(affected) { text(it).toLongOrNull() }
+        if (affected.isNotEmpty())
+            CashProjectionService.maintainIfReadyInSession(context, affected, knownComponentIds = affected)
+        return CashRelationCheckResult(created, stats, affected)
+    }
+
+    /** 在导入调用方事务内应用即时计划；人工接受决定由导入服务稍后写入。 */
+    fun applyImportPlan(seedIds: List<String>, relationDecisions: List<Map<String, Any?>>? = null,
+        expectedDigest: String? = null): CashRelationApplyResult {
+        context.requireActive()
+        val plan = plan(seedIds = seedIds)
+        if (!expectedDigest.isNullOrEmpty() && expectedDigest != plan.contextDigest)
+            throw IllegalArgumentException("import_relation_preview_stale")
+        val decisions = relationDecisions.orEmpty()
+        val created = mutableListOf<Map<String, Any?>>()
+        val affected = linkedSetOf<Long>()
+        val blockedRefundIds = linkedSetOf<String>()
+        val rejected = linkedSetOf<RelationProposal>()
+        val protectedMirrors = linkedSetOf<String>()
+        fun decisionFor(proposal: RelationProposal): Map<String, Any?>? = decisions.firstOrNull {
+            CashRelationPlanCache.decisionPrimaryMatches(proposal, it, plan.facts) }
+        for (proposal in plan.proposals) {
+            val matched = decisionFor(proposal) ?: continue
+            val status = text(matched["status"]).ifEmpty { "accepted" }
+            if (status == "rejected") {
+                created += persistRejectedProposal(proposal)
+                rejected += proposal
+                if (proposal.kind == "refund_offset" && !proposal.secondaryFactId.isNullOrEmpty())
+                    blockedRefundIds += proposal.secondaryFactId
+                continue
+            }
+            if (status == "accepted") {
+                if (!CashRelationPlanCache.decisionMatches(proposal, matched, plan.facts))
+                    throw IllegalArgumentException("import_relation_candidate_invalid")
+                CashRelationPlanCache.decisionMirrorEndpoints(proposal, matched, plan.facts)?.let { endpoints ->
+                    protectedMirrors += endpoints.first
+                    protectedMirrors += endpoints.second
+                }
+            }
+        }
+        affected += reconcileSystemPaymentMirrors(plan.facts, protectedMirrors)
+        val (refundAffected, refundSuperseded) = reconcileSystemRefundOffsets(plan.facts, blockedRefundIds)
+        affected += refundAffected
+        val superseded = refundSuperseded + supersedeRedundantBankRefunds(plan.facts, plan.proposals,
+            relations.listActive(status = "accepted"), blockedRefundIds)
+        for ((primary, secondary) in superseded)
+            listOf(primary, secondary).mapNotNullTo(affected, String::toLongOrNull)
+        val remaining = refundRemaining(plan.facts).toMutableMap()
+        val accepted = relations.listActive(status = "accepted").toMutableList()
+        val byId = plan.facts.associateBy { it.id }
+        for (proposal in plan.proposals) {
+            if (proposal.kind == "refund_offset" &&
+                (proposal.primaryFactId to proposal.secondaryFactId.orEmpty()) in superseded) continue
+            val matched = decisionFor(proposal)
+            if (matched != null) {
+                val status = text(matched["status"]).ifEmpty { "accepted" }
+                if (status == "accepted" && !CashRelationPlanCache.decisionMatches(proposal, matched, plan.facts))
+                    throw IllegalArgumentException("import_relation_candidate_invalid")
+                if (status == "rejected") {
+                    if (proposal !in rejected) created += persistRejectedProposal(proposal)
+                    continue
+                }
+                if (status == "accepted") continue
+            }
+            val outcome = persistAutomaticProposal(proposal, remaining, plan.facts, accepted, plan.proposals) ?: continue
+            created += outcome
+            if (outcome["status"] == "accepted") {
+                accepted += outcome
+                listOf(outcome["primary_fact_id"], outcome["secondary_fact_id"])
+                    .mapNotNullTo(affected) { text(it).toLongOrNull() }
+                if (outcome["kind"] == "refund_offset") {
+                    val expenseId = text(outcome["primary_fact_id"])
+                    val refund = byId[text(outcome["secondary_fact_id"])]
+                    if (expenseId.isNotEmpty() && refund != null)
+                        remaining[expenseId] = (remaining[expenseId] ?: BigDecimal.ZERO) - refund.signedAmount.abs()
+                }
+            }
+        }
+        affected += reconcileSystemPaymentMirrors(plan.facts, protectedMirrors)
+        return CashRelationApplyResult(created, affected)
+    }
+
+    /** 只消费服务器冻结的关系提案，不重新扫描未缓存的账本事实。 */
+    fun applyCachedImportPlan(cachedPlan: Map<String, Any?>,
+        relationDecisions: List<Map<String, Any?>>? = null,
+        expectedDigest: String? = null): CashCachedRelationApplyResult {
+        context.requireActive()
+        val planDigest = text(cachedPlan["plan_digest"])
+        if (planDigest.isEmpty() || expectedDigest != null && planDigest != expectedDigest)
+            throw IllegalArgumentException("import_relation_reconfirmation_required")
+        val facts = activeCashFacts()
+        val proposals = CashRelationPlanCache.decodeCachedProposals(facts, cachedPlan)
+        val validationContext = CashRelationPlanning.buildValidationContext(facts)
+        CashRelationPlanCache.validateCachedPlanLegality(facts, relations.listActive(status = "accepted"),
+            proposals, validationContext)
+        val decisionsByKey = linkedMapOf<String, Map<String, Any?>>()
+        val proposalByKey = proposals.associateBy { CashRelationSerialization.proposalKey(it, facts) }
+        for (decision in relationDecisions.orEmpty()) {
+            val key = text(decision["proposal_key"])
+            val proposal = proposalByKey[key]
+            if (proposal == null || key in decisionsByKey)
+                throw IllegalArgumentException("import_relation_candidate_invalid")
+            val status = text(decision["status"]).ifEmpty { "accepted" }
+            if (status !in setOf("accepted", "rejected", "skipped", "ignored") ||
+                !CashRelationPlanCache.decisionPrimaryMatches(proposal, decision, facts) ||
+                status != "rejected" && !CashRelationPlanCache.decisionMatches(proposal, decision, facts))
+                throw IllegalArgumentException("import_relation_candidate_invalid")
+            decisionsByKey[key] = decision
+        }
+        val blockedRefundIds = proposals.filter { proposal ->
+            proposal.kind == "refund_offset" && !proposal.secondaryFactId.isNullOrEmpty() &&
+                decisionsByKey[CashRelationSerialization.proposalKey(proposal, facts)]?.get("status") == "rejected"
+        }.mapNotNull { it.secondaryFactId }.toSet()
+        val created = mutableListOf<Map<String, Any?>>()
+        val affected = linkedSetOf<Long>()
+        val acceptedDecisions = mutableListOf<Map<String, Any?>>()
+        val prePersisted = linkedSetOf<String>()
+        for (proposal in proposals) {
+            val key = CashRelationSerialization.proposalKey(proposal, facts)
+            val decision = decisionsByKey[key] ?: continue
+            if (text(decision["status"]).ifEmpty { "accepted" } == "rejected") {
+                created += persistRejectedProposal(proposal)
+                prePersisted += key
+            }
+        }
+        val superseded = supersedeRedundantBankRefunds(facts, proposals,
+            relations.listActive(status = "accepted"), blockedRefundIds, proposedPairsOnly = true)
+        for ((primary, secondary) in superseded)
+            listOf(primary, secondary).mapNotNullTo(affected, String::toLongOrNull)
+        val remaining = refundRemaining(facts).toMutableMap()
+        val accepted = relations.listActive(status = "accepted").toMutableList()
+        val sharedProposal = proposals.firstOrNull { !it.secondaryFactId.isNullOrEmpty() && !it.isOpenLeg }
+        val sharedReason = sharedProposal?.let {
+            CashRelationPlanning.validationReason(facts, accepted, it, proposals, validationContext) }
+        val byId = facts.associateBy { it.id }
+        for (proposal in proposals) {
+            if (proposal.kind == "refund_offset" &&
+                (proposal.primaryFactId to proposal.secondaryFactId.orEmpty()) in superseded) continue
+            val key = CashRelationSerialization.proposalKey(proposal, facts)
+            val decision = decisionsByKey[key]
+            if (decision != null) {
+                when (text(decision["status"]).ifEmpty { "accepted" }) {
+                    "rejected" -> {
+                        if (key !in prePersisted) created += persistRejectedProposal(proposal)
+                        continue
+                    }
+                    "accepted" -> {
+                        acceptedDecisions += decision
+                        continue
+                    }
+                }
+            }
+            val outcome = if (!proposal.secondaryFactId.isNullOrEmpty() && !proposal.isOpenLeg &&
+                sharedReason != null) null else persistProposal(proposal, remaining, accepted)
+            if (outcome == null) continue
+            created += outcome
+            if (outcome["status"] == "accepted") {
+                accepted += outcome
+                listOf(outcome["primary_fact_id"], outcome["secondary_fact_id"])
+                    .mapNotNullTo(affected) { text(it).toLongOrNull() }
+                if (outcome["kind"] == "refund_offset") {
+                    val expenseId = text(outcome["primary_fact_id"])
+                    val refund = byId[text(outcome["secondary_fact_id"])]
+                    if (expenseId.isNotEmpty() && refund != null)
+                        remaining[expenseId] = (remaining[expenseId] ?: BigDecimal.ZERO) - refund.signedAmount.abs()
+                }
+            }
+        }
+        return CashCachedRelationApplyResult(created, affected, acceptedDecisions)
+    }
+
+    fun applyImportDecisions(decisions: List<Map<String, Any?>>?,
+        factIdByRecordId: Map<String, Long>, factIdBySourceRecordRef: Map<String, Long>? = null,
+        newFactIds: Set<Long>? = null): List<String> {
+        context.requireActive()
+        if (decisions.isNullOrEmpty()) return emptyList()
+        val acceptedIds = mutableListOf<String>()
+        val projectionReady = ProjectionStateRepository(context.connection, context.workspace, context.sqlite)
+            .readyState() != null
+        fun resolve(value: Any?, required: Boolean = true): Long? {
+            if (value == null || value == "") {
+                if (required) throw IllegalArgumentException("导入关系缺少流水记录")
+                return null
+            }
+            val raw = text(value)
+            factIdBySourceRecordRef?.get(raw)?.let { return it }
+            val unwrapped = raw.removePrefix("preview:")
+            factIdByRecordId[unwrapped]?.let { return it }
+            return unwrapped.toLongOrNull() ?: throw IllegalArgumentException("导入关系引用的流水不存在")
+        }
+        fun component(recordId: Long): String {
+            val ids = context.sql.select(CASH_TRANSACTION_COMPONENTS.ID).from(CASH_TRANSACTION_COMPONENTS)
+                .where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(context.workspace))
+                .and(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID.eq(recordId))
+                .orderBy(CASH_TRANSACTION_COMPONENTS.ORDINAL).fetch().map { it.value1()!! }
+            if (ids.size != 1) throw IllegalArgumentException("组合支付关系必须指定组成项")
+            return ids.single().toString()
+        }
+        for (decision in decisions) {
+            val status = text(decision["status"]).ifEmpty { "accepted" }
+            if (status in setOf("skipped", "ignored")) continue
+            val kind = text(decision["kind"])
+            if (kind !in setOf("payment_mirror", "transfer_pair", "refund_offset"))
+                throw IllegalArgumentException("导入关系类型无效")
+            val primary = resolve(listOf("primary_fact_id", "primary_record_ref", "primary_relation_ref",
+                "primary_record_id").firstNotNullOfOrNull { decision[it]?.takeIf { value -> value != "" } })!!
+            val secondary = resolve(listOf("secondary_fact_id", "secondary_record_ref", "secondary_relation_ref",
+                "secondary_record_id").firstNotNullOfOrNull { decision[it]?.takeIf { value -> value != "" } },
+                required = status != "rejected")
+            if (primary == secondary) throw IllegalArgumentException("导入关系不能关联同一条流水")
+            val recordIds = listOfNotNull(primary, secondary)
+            val records = context.sql.select(CASH_TRANSACTIONS.ID, CASH_TRANSACTIONS.DELETED_AT)
+                .from(CASH_TRANSACTIONS).where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace))
+                .and(CASH_TRANSACTIONS.ID.`in`(recordIds)).fetch().associate { it.value1()!! to it.value2() }
+            if (recordIds.any { it !in records || records[it] != null })
+                throw IllegalArgumentException("导入关系引用的流水不存在")
+            if (newFactIds != null && recordIds.none { it in newFactIds }) continue
+            if (status == "rejected") continue
+            if (status != "accepted") throw IllegalArgumentException("导入关系状态无效")
+            val subtype = text(decision["subtype"]).ifEmpty {
+                if (kind == "transfer_pair") "ordinary_transfer" else "" }
+            val left = minOf(primary, secondary!!)
+            val right = maxOf(primary, secondary)
+            val existing = relations.findByBusinessKey(kind, left, right, subtype)
+            val endpointIds = listOf(component(primary), component(secondary))
+            if (kind == "payment_mirror")
+                supersedeSystemPaymentMirrorConflicts(endpointIds, existing?.get("id"))
+            val relation: Map<String, Any?>
+            val relationId: Any?
+            if (existing != null) {
+                if (existing["status"] == "accepted" &&
+                    !(existing["created_by"] == "system" && text(existing["decided_by"]) in setOf("", "system"))) {
+                    acceptedIds += text(existing["id"])
+                    continue
+                }
+                relationId = existing["id"]
+                relation = relations.updateStatus(relationId, status = "accepted", decidedBy = "web",
+                    decisionReason = "import_confirmed")
+            } else {
+                relationId = relations.add(mapOf("kind" to kind, "subtype" to subtype,
+                    "primary_fact_id" to primary, "secondary_fact_id" to secondary,
+                    "primary_fact_type" to "cash", "secondary_fact_type" to "cash",
+                    "anchor_fact_id" to primary, "status" to "accepted",
+                    "rule_id" to text(decision["rule_id"]).ifEmpty { "manual.import.v1" },
+                    "created_by" to "web", "decided_by" to "web", "decision_reason" to "import_confirmed"))
+                relation = relations.get(relationId)!!
+            }
+            val endpointRelations = relations.listForComponents(endpointIds, activeOnly = true)
+            validateTransferEndpointAvailability(endpointIds, relationId, endpointRelations)
+            if (!projectionReady) validateProjectionAcceptance(relation, null)
+            acceptedIds += text(relationId)
+        }
+        return acceptedIds
+    }
+
     fun listPending(kind: String? = null): List<Map<String, Any?>> =
         relations.listActive(kind = kind, status = "pending_review")
 
@@ -317,7 +638,7 @@ internal class CashRelationService(private val context: CashSqlContext) {
     private fun supersedeSystemPaymentMirrorConflicts(factIds: List<String>, replacementRelationId: Any?) {
         val endpoints = factIds.filter { it.isNotEmpty() }.toSet()
         if (endpoints.isEmpty()) return
-        for (relation in relations.listForFacts(endpoints.toList(), activeOnly = true)) {
+        for (relation in relations.listForComponents(endpoints.toList(), activeOnly = true)) {
             if (relation["kind"] != "payment_mirror") continue
             if (relation["status"] != "accepted") continue
             if (replacementRelationId != null && text(relation["id"]) == text(replacementRelationId)) continue
@@ -710,6 +1031,138 @@ internal class CashRelationService(private val context: CashSqlContext) {
             mark(text(created["primary_fact_id"]), text(created["secondary_fact_id"]))
         }
         return affected to supersededPairs
+    }
+
+    /** 银行先到、平台后到时，只用一对一的确定证据取代系统银行退款。调用方持有写事务。 */
+    fun supersedeRedundantBankRefunds(facts: List<RelationFact>, proposals: List<RelationProposal>,
+        acceptedRelations: List<Map<String, Any?>>, skipRefundIds: Set<String> = emptySet(),
+        proposedPairsOnly: Boolean = false): Set<Pair<String, String>> {
+        val byId = facts.associateBy { it.id }
+        val accepted = acceptedRelations.map { LinkedHashMap(it) as Map<String, Any?> }.toMutableList()
+        fun pair(relation: Map<String, Any?>) = text(relation["primary_fact_id"]) to text(relation["secondary_fact_id"])
+        val mirrors = accepted.filter { it["kind"] == "payment_mirror" && it["status"] == "accepted" }
+            .map(::pair) + proposals.filter { it.kind == "payment_mirror" && it.status == "accepted" }
+            .map { it.primaryFactId to it.secondaryFactId.orEmpty() }
+        val components = linkedMapOf<String, Set<String>>()
+        for (component in CashRelationGeometry.buildMirrorComponents(byId.keys, mirrors))
+            for (id in component) components[id] = component
+        fun component(id: String): Set<String> = components[id] ?: emptySet()
+        val platformPairs = linkedMapOf<Pair<String, String>, Pair<RelationFact, RelationFact>>()
+        fun addPair(firstId: String, secondId: String) {
+            val first = byId[firstId] ?: return
+            val second = byId[secondId] ?: return
+            val expense = if (first.signedAmount.signum() < 0 && second.signedAmount.signum() > 0) first
+                else if (second.signedAmount.signum() < 0 && first.signedAmount.signum() > 0) second else return
+            val refund = if (expense === first) second else first
+            if (CashRelationCore.sourceGroup(expense) == "platform" &&
+                CashRelationCore.sourceGroup(refund) == "platform")
+                platformPairs[expense.id to refund.id] = expense to refund
+        }
+        if (!proposedPairsOnly) accepted.filter { it["kind"] == "refund_offset" && it["status"] == "accepted" }
+            .forEach { addPair(text(it["primary_fact_id"]), text(it["secondary_fact_id"])) }
+        proposals.filter { it.kind == "refund_offset" && it.status == "accepted" &&
+            it.ruleId.startsWith("scan.") && it.secondaryFactId !in skipRefundIds }
+            .forEach { addPair(it.primaryFactId, it.secondaryFactId.orEmpty()) }
+        fun direct(relation: Map<String, Any?>, key: Pair<String, String>, refund: RelationFact): Boolean {
+            val bankId = text(relation["secondary_fact_id"])
+            val bank = byId[bankId] ?: return false
+            return relation["kind"] == "refund_offset" && relation["status"] == "accepted" &&
+                relation["created_by"] == "system" && !CashRelationSerialization.isHumanDecision(relation) &&
+                text(relation["primary_fact_id"]) == key.first &&
+                CashRelationCore.sourceGroup(bank) == "bank" && bank.signedAmount.signum() > 0 &&
+                (bankId in component(key.second) || bank.signedAmount.compareTo(refund.signedAmount.abs()) == 0)
+        }
+        val eligible = platformPairs.filter { (key, pairFacts) ->
+            val bankExpense = component(key.first).any { id -> byId[id]?.let {
+                CashRelationCore.sourceGroup(it) == "bank" && it.signedAmount.signum() < 0 } == true }
+            val bankRefund = component(key.second).any { id -> byId[id]?.let {
+                CashRelationCore.sourceGroup(it) == "bank" && it.signedAmount.signum() > 0 } == true }
+            bankExpense && bankRefund || accepted.any { direct(it, key, pairFacts.second) }
+        }
+        if (eligible.isEmpty()) return emptySet()
+        val replacementPairsById = linkedMapOf<String, MutableSet<Pair<String, String>>>()
+        val replacementCandidates = linkedMapOf<Pair<String, String>, MutableList<Map<String, Any?>>>()
+        for ((key, pairFacts) in eligible) {
+            val expenseComponent = component(key.first)
+            val refundComponent = component(key.second)
+            for (relation in accepted) {
+                val primaryId = text(relation["primary_fact_id"])
+                val secondaryId = text(relation["secondary_fact_id"])
+                val primary = byId[primaryId]
+                val secondary = byId[secondaryId]
+                val candidate = direct(relation, key, pairFacts.second) ||
+                    (relation["kind"] == "refund_offset" && relation["status"] == "accepted" &&
+                        relation["created_by"] == "system" && !CashRelationSerialization.isHumanDecision(relation) &&
+                        primary != null && primary.signedAmount.signum() < 0 && primaryId in expenseComponent &&
+                        secondary != null && CashRelationCore.sourceGroup(secondary) == "bank" &&
+                        secondary.signedAmount.signum() > 0 && secondaryId in refundComponent)
+                val id = text(relation["id"])
+                if (!candidate || id.isEmpty() || secondaryId.isEmpty()) continue
+                replacementPairsById.getOrPut(id) { linkedSetOf() } += key
+                replacementCandidates.getOrPut(key) { mutableListOf() } += relation
+            }
+        }
+        val superseded = linkedSetOf<Pair<String, String>>()
+        val replaceableIds = linkedSetOf<String>()
+        val platformRelationIds = linkedMapOf<Pair<String, String>, String>()
+        for ((key, _) in eligible) {
+            val candidates = replacementCandidates[key].orEmpty()
+            val old = candidates.singleOrNull()?.takeIf {
+                replacementPairsById[text(it["id"])]?.size == 1 }
+            if (old != null) replaceableIds += text(old["id"])
+            val existing = accepted.firstOrNull { it["kind"] == "refund_offset" && pair(it) == key }
+            if (existing != null) {
+                platformRelationIds[key] = text(existing["id"])
+                continue
+            }
+            val proposal = proposals.firstOrNull { it.kind == "refund_offset" && it.status == "accepted" &&
+                it.ruleId.startsWith("scan.") && it.secondaryFactId !in skipRefundIds &&
+                it.primaryFactId == key.first && it.secondaryFactId == key.second } ?: continue
+            if (old != null) {
+                relations.updateStatus(old["id"], "superseded", decidedBy = "system")
+                accepted.removeAll { it["id"] == old["id"] }
+            }
+            val remaining = refundRemaining(facts)
+            val created = persistAutomaticProposal(proposal, remaining, facts, accepted, proposals)
+            if (created != null && created["status"] == "accepted") {
+                if (old != null) {
+                    relations.updateStatus(old["id"], "superseded", decidedBy = "system",
+                        decisionReason = "superseded_by_cross_source_refund", supersededById = created["id"])
+                    superseded += pair(old)
+                }
+                accepted += created
+                platformRelationIds[key] = text(created["id"])
+            } else if (old != null) {
+                relations.updateStatus(old["id"], "accepted", decidedBy = "system")
+                accepted += old
+            }
+        }
+        val bankToPlatform = linkedMapOf<String, MutableSet<String>>()
+        for ((key, pairFacts) in eligible) {
+            val platformId = platformRelationIds[key] ?: continue
+            val bankExpenses = component(key.first).any { id -> byId[id]?.let {
+                CashRelationCore.sourceGroup(it) == "bank" && it.signedAmount.signum() < 0 } == true }
+            val bankRefunds = component(key.second).filter { id -> byId[id]?.let {
+                CashRelationCore.sourceGroup(it) == "bank" && it.signedAmount.signum() > 0 } == true }
+            if (bankExpenses && bankRefunds.isNotEmpty())
+                bankRefunds.forEach { bankToPlatform.getOrPut(it) { linkedSetOf() } += platformId }
+            for (relation in accepted) if (direct(relation, key, pairFacts.second))
+                bankToPlatform.getOrPut(text(relation["secondary_fact_id"])) { linkedSetOf() } += platformId
+        }
+        for (relation in accepted) {
+            val id = text(relation["id"])
+            val secondary = text(relation["secondary_fact_id"])
+            val primary = byId[text(relation["primary_fact_id"])]
+            val replacements = bankToPlatform[secondary].orEmpty()
+            if (id !in replaceableIds || relation["kind"] != "refund_offset" ||
+                relation["status"] != "accepted" || relation["created_by"] != "system" ||
+                CashRelationSerialization.isHumanDecision(relation) || primary == null ||
+                primary.signedAmount.signum() >= 0 || replacements.size != 1) continue
+            relations.updateStatus(relation["id"], "superseded", decidedBy = "system",
+                decisionReason = "superseded_by_cross_source_refund", supersededById = replacements.single())
+            superseded += pair(relation)
+        }
+        return superseded
     }
 
     /** 导入拒绝的自动提案：人工决定保持，系统结果更新为 rejected，否则新建 rejected 记录。 */

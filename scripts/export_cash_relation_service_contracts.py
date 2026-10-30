@@ -16,7 +16,8 @@ from sqlalchemy import delete, inspect, select
 
 from ft.adapters.relational import create_relational_engine, create_session_factory
 from ft.adapters.relational.models import (
-    CashRelationCandidateModel, CashTransactionComponentModel, CashTransactionModel,
+    Base, CashProjectionDatasetModel, CashProjectionStateModel, CashRelationCandidateModel,
+    CashTransactionComponentModel, CashTransactionModel,
     TransactionRelationModel,
 )
 from ft.adapters.relational.repositories import (
@@ -25,6 +26,7 @@ from ft.adapters.relational.repositories import (
 )
 from ft.application.cash_import_operations import _wire
 from ft.application.relations import RelationService, relation_proposal_key, serialize_import_relation_plan
+from ft.application.statement_import import StatementImportService
 from ft.domain.relations.core.types import RelationEvidence, RelationProposal
 from scripts.export_cash_relation_repository_contracts import NOW, WORKSPACE, connect, norm, seed
 
@@ -36,10 +38,14 @@ FACT_KEYS = ("id", "amount", "currency", "account_id", "account_name", "account_
 
 class RealUoW:
     def __init__(self, session):
+        self._session = session
         self.workspace_id = WORKSPACE
         self.cashflows = RelationalCashflowRepository(session, WORKSPACE)
         self.relations = RelationalRelationRepository(session, WORKSPACE)
         self.account_aliases = RelationalAccountAliasRepository(session, WORKSPACE)
+
+    def _state(self):
+        return SimpleNamespace(session=self._session)
 
 
 class TransactionalUoW:
@@ -422,6 +428,334 @@ def refund_reconciliation_cases(sessions):
     return cases
 
 
+def reset_service_baseline(sessions):
+    # connect() only accepts a new isolated test database; no other workspaces exist.
+    with sessions.begin() as session:
+        for table in reversed(Base.metadata.sorted_tables):
+            session.execute(delete(table))
+    seed(sessions)
+    with sessions.begin() as session:
+        session.execute(delete(CashRelationCandidateModel))
+        session.execute(delete(TransactionRelationModel))
+
+
+def refund_candidate_cases(sessions):
+    with sessions() as session:
+        service = RelationService(RealUoW(session))
+        facts = service._list_active_cash_facts(service._uow)
+        by_id = {str(fact.id): fact for fact in facts}
+        # The unmodified baseline must include both same-account expenses.
+        assert "94005" in by_id, "refund group inherited a deleted expense from the decision group"
+        refund = replace(by_id["94002"], id="refund-probe", amount=Decimal("20.00"),
+            record_type="refund", bill_source="icbc_debit", source="icbc_debit")
+        expenses = [replace(by_id[key], id=key) for key in ("94001", "94005")]
+        from ft.domain.relations.refund.match import evaluate_refund_offset
+        result = {}
+        for name, candidates in (
+            ("tied", expenses),
+            ("deleted", [expenses[0], replace(expenses[1], deleted=True)]),
+            ("strong", [expenses[0], replace(expenses[1], counterparty="其他")]),
+        ):
+            proposal = evaluate_refund_offset(refund, candidates)
+            assert proposal is not None
+            result[name] = _wire(asdict(proposal))
+        assert result["tied"]["status"] == "pending_review"
+        assert result["tied"]["open_leg"] is True
+        assert result["tied"]["evidence"]["candidate_count"] == 2
+        assert result["deleted"]["status"] == "accepted"
+        assert result["strong"]["status"] == "accepted"
+        return result
+
+
+def redundant_refund_cases(sessions):
+    _ensure_bank_refund(sessions)
+    cases = {}
+    proposal = RelationProposal(kind="refund_offset", primary_fact_id="94001",
+        secondary_fact_id="94002", status="accepted", rule_id="scan.test.platform_refund",
+        evidence=RelationEvidence(rule_id="scan.test.platform_refund",
+            extras={"refund_amount": "30.00"}))
+
+    for name, old_creator, old_decider, proposed_status, skipped in (
+        ("unique", "system", "", "accepted", False),
+        ("mixed_scale", "system", "", "accepted", False),
+        ("pending", "system", "", "pending_review", False),
+        ("skipped", "system", "", "accepted", True),
+        ("human", "user", "user", "accepted", False),
+    ):
+        with sessions.begin() as session:
+            session.execute(delete(CashRelationCandidateModel))
+            session.execute(delete(TransactionRelationModel))
+            repo = RelationalRelationRepository(session, WORKSPACE)
+            old_id = repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
+                "secondary_fact_id": "94009", "primary_component_id": 94001,
+                "secondary_component_id": 94009, "anchor_fact_id": "94001",
+                "anchor_component_id": 94001, "status": "accepted", "rule_id": "refund.bank.v1",
+                "applied_amount": "30.00", "created_by": old_creator, "decided_by": old_decider})
+        with sessions.begin() as session:
+            uow = RealUoW(session)
+            service = RelationService(TransactionalUoW(sessions))
+            facts = service._list_active_cash_facts(uow)
+            if name == "mixed_scale":
+                facts = [replace(fact, amount=Decimal("30")) if str(fact.id) == "94009"
+                    else fact for fact in facts]
+            accepted = [dict(row) for row in uow.relations.list_active(status="accepted")]
+            actual = replace(proposal, status=proposed_status)
+            superseded = service._supersede_redundant_bank_refunds(uow, facts, [actual], accepted,
+                skip_refund_ids={"94002"} if skipped else set(), proposed_pairs_only=True)
+            rows = uow.relations.list_active()
+            old = uow.relations.get(old_id)
+            cases[name] = {"superseded": sorted(superseded), "old_status": old["status"],
+                "accepted_pairs": sorted((str(row.get("primary_fact_id") or ""),
+                    str(row.get("secondary_fact_id") or "")) for row in rows
+                    if row["kind"] == "refund_offset" and row["status"] == "accepted")}
+    with sessions.begin() as session:
+        session.execute(delete(CashRelationCandidateModel))
+        session.execute(delete(TransactionRelationModel))
+        session.add(CashTransactionModel(id=93009, workspace_id=WORKSPACE, account_id=9302,
+            state="posted", record_origin="import", cash_granularity="atomic",
+            source_type="icbc_debit", record_id="REL-9", source_payload={}, occurred_at=NOW,
+            amount="30.00", currency="CNY", counterparty="商户", counterparty_account="",
+            counterparty_account_attrs=[], note="", record_type="refund",
+            record_subtype="not_applicable", row_revision=1, created_at=NOW))
+        session.flush()
+        session.add(CashTransactionComponentModel(id=94010, workspace_id=WORKSPACE,
+            cash_transaction_id=93009, account_id=9302, amount="30.00", currency="CNY",
+            ordinal=0, label="", source_key="", metadata_json={}, created_at=NOW))
+        repo = RelationalRelationRepository(session, WORKSPACE)
+        for bank_id in (94009, 94010):
+            repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
+                "secondary_fact_id": str(bank_id), "primary_component_id": 94001,
+                "secondary_component_id": bank_id, "anchor_fact_id": "94001",
+                "anchor_component_id": 94001, "status": "accepted", "rule_id": "refund.bank.v1",
+                "applied_amount": "30.00", "created_by": "system"})
+    with sessions.begin() as session:
+        uow = RealUoW(session)
+        service = RelationService(TransactionalUoW(sessions))
+        affected = service._supersede_redundant_bank_refunds(uow,
+            service._list_active_cash_facts(uow), [proposal],
+            [dict(row) for row in uow.relations.list_active(status="accepted")],
+            proposed_pairs_only=True)
+        rows = uow.relations.list_active()
+        cases["ambiguous"] = {"superseded": sorted(affected),
+            "bank_statuses": sorted(row["status"] for row in rows
+                if str(row.get("secondary_fact_id") or "") in {"94009", "94010"}),
+            "accepted_pairs": sorted((str(row.get("primary_fact_id") or ""),
+                str(row.get("secondary_fact_id") or "")) for row in rows
+                if row["kind"] == "refund_offset" and row["status"] == "accepted")}
+    with sessions.begin() as session:
+        session.execute(delete(CashRelationCandidateModel))
+        session.execute(delete(TransactionRelationModel))
+        repo = RelationalRelationRepository(session, WORKSPACE)
+        relation_ids = []
+        for refund_id in (94009, 94002):
+            relation_ids.append(repo.add({"kind": "refund_offset", "primary_fact_id": "94001",
+                "secondary_fact_id": str(refund_id), "primary_component_id": 94001,
+                "secondary_component_id": refund_id, "anchor_fact_id": "94001",
+                "anchor_component_id": 94001, "status": "accepted", "rule_id": "refund.seed.v1",
+                "applied_amount": "30.00", "created_by": "system"}))
+    with sessions.begin() as session:
+        uow = RealUoW(session)
+        service = RelationService(TransactionalUoW(sessions))
+        affected = service._supersede_redundant_bank_refunds(uow,
+            service._list_active_cash_facts(uow), [],
+            [dict(row) for row in uow.relations.list_active(status="accepted")],
+            proposed_pairs_only=True)
+        cases["cached_without_pair"] = {"superseded": sorted(affected),
+            "statuses": [uow.relations.get(identifier)["status"] for identifier in relation_ids]}
+    with sessions.begin() as session:
+        session.execute(delete(CashRelationCandidateModel))
+        session.execute(delete(TransactionRelationModel))
+        session.get(CashTransactionModel, 93001).amount = Decimal("-30.00")
+        session.get(CashTransactionComponentModel, 94001).amount = Decimal("-30.00")
+        repo = RelationalRelationRepository(session, WORKSPACE)
+        for kind, primary, secondary, amount in (
+            ("payment_mirror", 94001, 94008, "0"),
+            ("payment_mirror", 94002, 94009, "0"),
+            ("refund_offset", 94008, 94009, "30.00"),
+        ):
+            repo.add({"kind": kind, "primary_fact_id": str(primary),
+                "secondary_fact_id": str(secondary), "primary_component_id": primary,
+                "secondary_component_id": secondary, "anchor_fact_id": str(primary),
+                "anchor_component_id": primary, "status": "accepted", "rule_id": "mirror.seed.v1",
+                "applied_amount": amount, "created_by": "system"})
+    with sessions.begin() as session:
+        uow = RealUoW(session)
+        service = RelationService(TransactionalUoW(sessions))
+        affected = service._supersede_redundant_bank_refunds(uow,
+            service._list_active_cash_facts(uow), [proposal],
+            [dict(row) for row in uow.relations.list_active(status="accepted")],
+            proposed_pairs_only=True)
+        rows = uow.relations.list_active()
+        cases["mirrored_closure"] = {"superseded": sorted(affected),
+            "accepted_pairs": sorted((str(row.get("primary_fact_id") or ""),
+                str(row.get("secondary_fact_id") or "")) for row in rows
+                if row["kind"] == "refund_offset" and row["status"] == "accepted")}
+    return cases
+
+
+def check_cases(sessions):
+    cases = {}
+    for name, seeds, trigger in (("parent_seed", ["93001"], "import_batch"),
+            ("component_seed", ["94002"], "manual"),
+            ("full_workspace", None, "import_batch")):
+        reset_service_baseline(sessions)
+        result = RelationService(TransactionalUoW(sessions)).check(
+            seed_fact_ids=seeds, seed_batch_id="retired-batch" if name == "full_workspace" else None,
+            trigger=trigger)
+        assert result.ok
+        cases[name] = {"count": result.count, "stats": result.details["stats"],
+            "relations": sorted([{"kind": row["kind"], "status": row["status"],
+                "primary_fact_id": str(row.get("primary_fact_id") or ""),
+                "secondary_fact_id": str(row.get("secondary_fact_id") or ""),
+                "rule_id": row["rule_id"]} for row in result.details["relations"]],
+                key=lambda row: (row["kind"], row["primary_fact_id"], row["secondary_fact_id"]))}
+    return cases
+
+
+def import_application_cases(sessions):
+    cases = {}
+
+    def summary(rows):
+        return sorted(({"kind": row["kind"], "status": row["status"],
+            "primary_fact_id": str(row.get("primary_fact_id") or ""),
+            "secondary_fact_id": str(row.get("secondary_fact_id") or ""),
+            "rule_id": row["rule_id"]} for row in rows),
+            key=lambda row: (row["kind"], row["primary_fact_id"], row["secondary_fact_id"]))
+
+    for name in ("automatic", "rejected", "accepted_later", "skipped", "stale_digest",
+            "invalid_secondary", "workspace"):
+        reset_service_baseline(sessions)
+        try:
+            with sessions.begin() as session:
+                uow = RealUoW(session)
+                service = RelationService(TransactionalUoW(sessions))
+                seeds = ["94002"] if name != "workspace" else [str(f.id)
+                    for f in service._list_active_cash_facts(uow)]
+                plan = service.plan_in_uow(uow, seed_ids=seeds)
+                decisions = None
+                if name in {"rejected", "accepted_later", "skipped", "invalid_secondary"}:
+                    proposal = next(item for item in plan.proposals if item.kind == "refund_offset")
+                    decision = {"proposal_key": relation_proposal_key(proposal, plan.facts),
+                        "primary_fact_id": "94001", "secondary_fact_id": "94002",
+                        "status": {"rejected": "rejected", "accepted_later": "accepted",
+                            "skipped": "skipped", "invalid_secondary": "accepted"}[name]}
+                    if name == "invalid_secondary":
+                        decision["secondary_fact_id"] = "94008"
+                    decisions = [decision]
+                created, affected = service.apply_import_plan_in_uow(uow, seed_ids=seeds,
+                    relation_decisions=decisions,
+                    expected_digest="0" * 64 if name == "stale_digest" else plan.context_digest)
+                cases[name] = {"created": summary(created), "affected": sorted(affected),
+                    "active": summary(uow.relations.list_active()), "error": None}
+        except ValueError as error:
+            with sessions() as session:
+                uow = RealUoW(session)
+                cases[name] = {"created": [], "affected": [],
+                    "active": summary(uow.relations.list_active()), "error": str(error)}
+    return cases
+
+
+def cached_application_cases(sessions):
+    cases = {}
+
+    def summary(rows):
+        return sorted(({"kind": row["kind"], "status": row["status"],
+            "primary_fact_id": str(row.get("primary_fact_id") or ""),
+            "secondary_fact_id": str(row.get("secondary_fact_id") or ""),
+            "rule_id": row["rule_id"]} for row in rows),
+            key=lambda row: (row["kind"], row["primary_fact_id"], row["secondary_fact_id"]))
+
+    for name in ("automatic", "rejected", "accepted_later", "skipped", "stale_digest",
+            "corrupt_key", "invalid_secondary", "workspace"):
+        reset_service_baseline(sessions)
+        try:
+            with sessions.begin() as session:
+                uow = RealUoW(session)
+                service = RelationService(TransactionalUoW(sessions))
+                seeds = ["94002"] if name != "workspace" else [str(f.id)
+                    for f in service._list_active_cash_facts(uow)]
+                plan = service.plan_in_uow(uow, seed_ids=seeds)
+                cached = serialize_import_relation_plan(plan)
+                decisions = None
+                if name in {"rejected", "accepted_later", "skipped", "invalid_secondary"}:
+                    proposal = next(item for item in plan.proposals if item.kind == "refund_offset")
+                    decisions = [{"proposal_key": relation_proposal_key(proposal, plan.facts),
+                        "primary_fact_id": "94001",
+                        "secondary_fact_id": "94008" if name == "invalid_secondary" else "94002",
+                        "status": {"rejected": "rejected", "accepted_later": "accepted",
+                            "skipped": "skipped", "invalid_secondary": "accepted"}[name]}]
+                if name == "corrupt_key":
+                    cached["proposals"][0]["proposal_key"] = "0" * 64
+                created, affected, accepted = service.apply_cached_import_plan_in_uow(uow,
+                    cached_plan=cached, relation_decisions=decisions,
+                    expected_digest="0" * 64 if name == "stale_digest" else cached["plan_digest"])
+                cases[name] = {"created": summary(created), "affected": sorted(affected),
+                    "active": summary(uow.relations.list_active()),
+                    "accepted_later": [item["status"] for item in accepted], "error": None}
+        except ValueError as error:
+            with sessions() as session:
+                uow = RealUoW(session)
+                cases[name] = {"created": [], "affected": [],
+                    "active": summary(uow.relations.list_active()), "accepted_later": [],
+                    "error": str(error)}
+    return cases
+
+
+def import_manual_decision_cases(sessions):
+    cases = {}
+
+    def summary(rows):
+        return sorted(({"kind": row["kind"], "status": row["status"],
+            "primary_fact_id": str(row.get("primary_fact_id") or ""),
+            "secondary_fact_id": str(row.get("secondary_fact_id") or ""),
+            "created_by": row["created_by"], "decided_by": row.get("decided_by") or ""}
+            for row in rows), key=lambda row: (row["kind"], row["primary_fact_id"], row["secondary_fact_id"]))
+
+    for name in ("accepted", "rejected", "skipped", "missing", "same", "invalid_kind",
+            "preexisting_only", "source_ref", "preview_ref"):
+        reset_service_baseline(sessions)
+        try:
+            with sessions.begin() as session:
+                session.execute(delete(CashProjectionStateModel).where(
+                    CashProjectionStateModel.workspace_id == WORKSPACE))
+                session.execute(delete(CashProjectionDatasetModel).where(
+                    CashProjectionDatasetModel.workspace_id == WORKSPACE))
+                session.add(CashProjectionDatasetModel(id="manual-ready", workspace_id=WORKSPACE,
+                    state="active", source_revision=0, source_digest="0" * 64,
+                    rules_version="projection-v1", created_at=NOW, published_at=NOW))
+                session.add(CashProjectionStateModel(workspace_id=WORKSPACE,
+                    active_dataset_id="manual-ready", projection_version=1, source_revision=0,
+                    rules_version="projection-v1", availability="ready", last_build_status="succeeded",
+                    projection_count=0, member_count=0, updated_at=NOW))
+                session.flush()
+                uow = RealUoW(session)
+                relation_service = RelationService(TransactionalUoW(sessions))
+                service = StatementImportService(None, None, relation_service)
+                decision = {"kind": "refund_offset", "primary_fact_id": "93001",
+                    "secondary_fact_id": "93002", "status": "accepted"}
+                if name == "rejected": decision["status"] = "rejected"
+                if name == "skipped": decision["status"] = "skipped"
+                if name == "missing": decision["secondary_fact_id"] = "999999"
+                if name == "same": decision["secondary_fact_id"] = "93001"
+                if name == "invalid_kind": decision["kind"] = "invalid"
+                if name == "source_ref":
+                    decision.pop("secondary_fact_id")
+                    decision["secondary_record_ref"] = "wechat:REL-2"
+                if name == "preview_ref": decision["secondary_fact_id"] = "preview:REL-2"
+                accepted = service._apply_relation_decisions(uow, [decision],
+                    fact_id_by_record_id={"REL-2": 93002},
+                    fact_id_by_source_record_ref={"wechat:REL-2": 93002},
+                    new_fact_ids=set() if name == "preexisting_only" else {93002})
+                cases[name] = {"accepted_count": len(accepted),
+                    "active": summary(uow.relations.list_active()), "error": None}
+        except ValueError as error:
+            with sessions() as session:
+                uow = RealUoW(session)
+                cases[name] = {"accepted_count": 0,
+                    "active": summary(uow.relations.list_active()), "error": str(error)}
+    return cases
+
+
 def export(database_url: str, output: Path) -> None:
     engine, sessions, jdbc = connect(database_url)
     cases = {}
@@ -450,10 +784,18 @@ def export(database_url: str, output: Path) -> None:
                     results.append(str(error))
             cases = {"plan": plan_case(plan), "preview": plan_case(preview),
                 "external_digest": external, "validation": results}
-            cases["decisions"] = decision_cases(sessions)
-            cases["persistence"] = persistence_cases(sessions)
-            cases["reconciliation"] = reconciliation_cases(sessions)
-            cases["refund_reconciliation"] = refund_reconciliation_cases(sessions)
+        for name, build in (
+            ("decisions", decision_cases), ("persistence", persistence_cases),
+            ("reconciliation", reconciliation_cases), ("refund_reconciliation", refund_reconciliation_cases),
+            ("refund_candidates", refund_candidate_cases),
+            ("redundant_refunds", redundant_refund_cases),
+            ("check", check_cases),
+            ("import_application", import_application_cases),
+            ("cached_application", cached_application_cases),
+            ("import_manual_decisions", import_manual_decision_cases),
+        ):
+            reset_service_baseline(sessions)
+            cases[name] = build(sessions)
         output.mkdir(parents=True, exist_ok=True)
         (output / "expected.json").write_text(json.dumps({"cases": cases}, ensure_ascii=False,
             indent=2, default=str) + "\n")
