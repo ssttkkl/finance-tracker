@@ -162,7 +162,10 @@ def export(database_url: str, output: Path) -> None:
                     identifier = item["preview_item_id"]
                     items[identifier] = _public_detail(_resolve_detail(plan, plan["item_details"][identifier])) | {
                         "preview_item_id": identifier}
-                cases.append({**case, "ok": True, "view": view, "items": items})
+                dependency_fields = ("entry_snapshot", "expected_accounts", "expected_issues", "retained_issue_ids")
+                cases.append({**case, "ok": True, "view": view, "items": items,
+                    "operation_dependencies": [{key: operation[key] for key in dependency_fields}
+                        for operation in result["operations"]]})
             except ValueError as error:
                 cases.append({**case, "ok": False, "error": getattr(error, "code", "record_input_invalid")})
     output.mkdir(parents=True, exist_ok=True)

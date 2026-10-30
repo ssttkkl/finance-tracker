@@ -43,6 +43,10 @@ class MutationPlanBuildContractTest {
                 continue
             }
             val plan = wrap(result.getOrElse { throw AssertionError("case $index ${case}", it) })
+            val dependencyFields = setOf("entry_snapshot", "expected_accounts", "expected_issues", "retained_issue_ids")
+            assertEquals(case.getValue("operation_dependencies"), JsonArray(plan.getValue("operations").jsonArray.map {
+                JsonObject(it.jsonObject.filterKeys { field -> field in dependencyFields })
+            }), "case $index private dependencies")
             assertEquals(case.getValue("view"), MutationPlanView.view(plan), "case $index $patch")
             val items = case.getValue("items").jsonObject
             for ((identifier, expected) in items) {

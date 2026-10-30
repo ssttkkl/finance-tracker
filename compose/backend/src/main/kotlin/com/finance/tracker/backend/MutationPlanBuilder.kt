@@ -49,6 +49,11 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             val issue = operation.getValue("issues").jsonArray.firstOrNull()
             if (issue != null) throw CashPolicyError(issue.jsonObject.getValue("code").jsonPrimitive.content,
                 listOfNotNull(issue.jsonObject["field_path"]?.takeIf { it != JsonNull }?.jsonPrimitive?.contentOrNull))
+            val retained = operation.getValue("retained_issue_ids").jsonArray.toSet()
+            operation.getValue("expected_issues").jsonArray.firstOrNull {
+                it.jsonObject["issue_id"] in retained && it.jsonObject.getValue("code").jsonPrimitive.content in
+                    setOf("source_identity_ambiguous", "source_update_pending")
+            }?.let { throw CashPolicyError(it.jsonObject.getValue("code").jsonPrimitive.content, emptyList()) }
             operation = JsonObject(operation + mapOf(
                 "values" to JsonObject(operation.getValue("values").jsonObject + ("state" to JsonPrimitive("posted"))),
                 "planned_action" to JsonPrimitive("finalize_draft"),
@@ -144,6 +149,12 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             put("can_commit", true)
             put("invalidated_choices", JsonArray(emptyList()))
             put("operations", JsonArray(listOf(operationJson)))
+            put("dependencies", buildJsonObject {
+                put("seed_ids", JsonArray(contextRows.seedIds.sorted().map(::JsonPrimitive)))
+                put("token", contextRows.token())
+                put("candidate_ids", JsonArray(emptyList()))
+                put("discovery_seeds", JsonArray(emptyList()))
+            })
             put("rows", JsonArray(listOf(buildJsonObject {
                 put("transaction_id", transactionId.toString()); put("operation_ref", "op_1")
                 put("planned_action", operation.getValue("planned_action"))
@@ -290,16 +301,35 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         val issues = mutableListOf<JsonObject>()
         val resolvedIds = resolutions.map { it.choice.issueId }.toSet()
         val remainingIssues = existingIssues.filter { it.id.toString() !in resolvedIds }
-        val displayRetained = remainingIssues.map { issue ->
-            issueJson(cashImportIssue(issue.code, fieldPath = issue.fieldPath, afterImportAction = "open_home_item"))
-        }
         val validatesAccounts = record.state == "draft" ||
-            record.origin in setOf("manual", "manual_transfer") && patch.keys.any { it in setOf("amount", "currency", "account_id", "components", "cash_granularity") }
+            record.origin in setOf("manual", "manual_transfer") && patch.keys.any { it in financialFields }
+        var retainedIssues = remainingIssues
+        var accountDependencies = emptyList<JsonObject>()
         if (validatesAccounts) {
-            issues += draftAccounts(values, accounts())
+            if (patch.keys.any { it in financialFields }) CashRecordPolicy.validateConsistency(values)
+            val (accountIssues, dependencies) = draftAccounts(values, accounts())
+            issues += accountIssues
+            accountDependencies = dependencies
+            @Suppress("UNCHECKED_CAST")
+            val explicitAccounts = listOfNotNull(patch["account_id"] as? String) +
+                (patch["components"] as? List<Map<String, Any?>> ?: emptyList()).mapNotNull { it["account_id"] as? String }
+            if (dependencies.any { dependency ->
+                    (dependency.getValue("account_id").jsonPrimitive.content in explicitAccounts || "currency" in patch) &&
+                        (!dependency.getValue("exists").jsonPrimitive.boolean || !dependency.getValue("active").jsonPrimitive.boolean ||
+                            dependency["type"]?.jsonPrimitive?.contentOrNull !in setOf("cash", "loan", "lend") ||
+                            dependency.getValue("currency_support").jsonObject.values.any { !it.jsonPrimitive.boolean })
+                }) throw CashPolicyError("account_unavailable", listOf("account_id"))
             try { CashRecordPolicy.validateForPosting(values) } catch (failure: CashPolicyError) {
                 issues += issueJson(cashImportIssue(failure.code, fieldPath = failure.fields.firstOrNull()))
             }
+            retainedIssues = remainingIssues.filter { it.code !in recomputedIssues + parsedIssues || it.issueKey.startsWith("relation:") }
+            val manualValues = sourcePatch + patch
+            issues += remainingIssues.filter { it.code in parsedIssues && it !in retainedIssues }
+                .filter { remainsParsedIssue(it.code, values, manualValues) }
+                .map { issueJson(cashImportIssue(it.code, fieldPath = it.fieldPath)) }
+        }
+        val displayRetained = retainedIssues.map { issue ->
+            issueJson(cashImportIssue(issue.code, fieldPath = issue.fieldPath, afterImportAction = "open_home_item"))
         }
         if (record.state == "posted" && issues.isNotEmpty()) {
             val issue = issues.first()
@@ -318,11 +348,19 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             put("field_diffs", JsonArray(diffs))
             put("issues", JsonArray(issues))
             put("display_retained_issues", JsonArray(displayRetained))
-            put("expected_issues", JsonArray(emptyList()))
-            put("retained_issue_ids", JsonArray(emptyList()))
-            put("expected_accounts", JsonArray(emptyList()))
+            put("expected_issues", JsonArray(existingIssues.map { issue -> buildJsonObject {
+                put("issue_id", issue.id.toString()); put("revision", issue.revision); put("code", issue.code)
+                put("field_path", issue.fieldPath?.let(::JsonPrimitive) ?: JsonNull); put("issue_key", issue.issueKey)
+            } }))
+            put("retained_issue_ids", JsonArray(retainedIssues.map { JsonPrimitive(it.id.toString()) }))
+            put("expected_accounts", JsonArray(accountDependencies))
+            put("entry_snapshot", JsonArray(context.entries.snapshot(listOf(record.id)).map {
+                JsonArray(listOf(JsonPrimitive(it.transactionId), JsonPrimitive(it.entryId),
+                    JsonPrimitive(it.revision), JsonPrimitive(it.digest)))
+            }))
             put("preview_components", JsonArray((values["components"] as? List<Map<String, Any?>> ?: emptyList()).map {
-                buildJsonObject { put("ordinal", (it["ordinal"] as? Int) ?: 0); put("component_id", "new_${it["ordinal"]}") }
+                buildJsonObject { put("ordinal", (it["ordinal"] as? Int) ?: 0)
+                    put("component_id", (it["component_id"] as? String) ?: "new_${it["ordinal"]}") }
             }))
             put("source_updates", JsonArray(emptyList())); put("pending_fields", JsonObject(emptyMap()))
             put("candidate_ids", JsonArray(emptyList()))
@@ -363,7 +401,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         else -> JsonNull
     }
 
-    private fun draftAccounts(values: MutableMap<String, Any?>, accounts: Map<String, AccountRow>): List<JsonObject> {
+    private fun draftAccounts(values: MutableMap<String, Any?>, accounts: Map<String, AccountRow>): Pair<List<JsonObject>, List<JsonObject>> {
         val required = linkedMapOf<Long?, MutableSet<String>>()
         @Suppress("UNCHECKED_CAST")
         val parts = values["components"] as? List<Map<String, Any?>> ?: emptyList()
@@ -377,11 +415,18 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             (values["currency"] as? String)?.let { currencies += it }
         }
         val issues = mutableListOf<JsonObject>()
+        val dependencies = mutableListOf<JsonObject>()
         if (null in required || required.isEmpty())
             issues += issueJson(cashImportIssue("account_missing", afterImportAction = "open_home_item"))
         val unavailable = mutableSetOf<Long?>()
         for (identifier in required.keys.filterNotNull().sorted()) {
             val account = accounts[identifier.toString()]
+            dependencies += buildJsonObject {
+                put("account_id", identifier.toString()); put("exists", account != null)
+                put("active", account?.active ?: false); put("type", account?.type?.let(::JsonPrimitive) ?: JsonNull)
+                put("currency_support", JsonObject(required.getValue(identifier).sortedWith(cashRelationStringOrder)
+                    .associateWith { JsonPrimitive(account != null && it in account.currencies) }))
+            }
             if (account == null || !account.active || account.type !in setOf("cash", "loan", "lend")) {
                 issues += issueJson(cashImportIssue("account_unavailable", afterImportAction = "open_home_item"))
                 if (account == null) unavailable += identifier
@@ -394,7 +439,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         values["components"] = parts.map { part ->
             if ((part["account_id"] as? String)?.toLongOrNull() in unavailable) part + ("account_id" to null) else part
         }
-        return issues
+        return issues to dependencies
     }
 
     private fun fieldDiffs(current: MutableMap<String, Any?>, values: MutableMap<String, Any?>,
@@ -440,6 +485,26 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
     }
 
     private val commonCashFields = setOf("category_id", "counterparty", "counterparty_account", "counterparty_account_attrs", "note")
+    private val financialFields = setOf("amount", "currency", "occurred_at", "account_id", "account_name", "components", "cash_granularity")
+    private val recomputedIssues = setOf("account_missing", "account_unavailable", "account_changed", "account_currency_missing",
+        "posting_incomplete", "incomplete_record", "component_total_mismatch", "component_account_mismatch",
+        "component_currency_mismatch", "component_direction_mismatch", "duplicate_component_ordinal")
+    private val parsedIssues = setOf("allocation_missing", "amount_unreadable", "time_unreadable", "currency_unrecognized",
+        "direction_unrecognized", "funding_unrecognized", "allocation_amount_invalid")
+    private fun remainsParsedIssue(code: String, values: Map<String, Any?>, manual: Map<String, Any?>): Boolean {
+        @Suppress("UNCHECKED_CAST")
+        val parts = values["components"] as? List<Map<String, Any?>> ?: emptyList()
+        return when (code) {
+            "allocation_missing" -> !parts.all { it["amount"] != null }
+            "funding_unrecognized" -> parts.isEmpty() || !parts.all { it["account_id"] != null }
+            "allocation_amount_invalid" -> "components" !in manual
+            "amount_unreadable" -> values["amount"] == null
+            "time_unreadable" -> values["occurred_at"] == null
+            "currency_unrecognized" -> values["currency"] == null
+            "direction_unrecognized" -> manual.keys.none { it in setOf("amount", "record_type", "record_subtype") }
+            else -> true
+        }
+    }
 
     private fun protectedFields(record: PlanRecord): Set<String> {
         val overrides = record.manualOverrides as? JsonObject ?: return emptySet()

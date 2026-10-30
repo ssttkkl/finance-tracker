@@ -90,6 +90,7 @@ fun Application.financeModule(database: Database, allowedOrigin: String = "http:
                 "plan_item_not_found" -> 404 to "未找到这条记录。"
                 "plan_changed", "record_changed" -> 409 to "流水已变化，请刷新后重试。"
                 "issue_changed" -> 409 to "待处理内容已变化，请刷新后重试。"
+                "relation_context_changed" -> 409 to "相关流水已变化，请刷新后重试。"
                 "plan_expired" -> 410 to "本次核对已过期，请重新打开。"
                 "plan_page_invalid" -> 422 to "列表页码无效，请刷新后重试。"
                 "plan_cursor_invalid" -> 422 to "列表位置已失效，请刷新后重试。"

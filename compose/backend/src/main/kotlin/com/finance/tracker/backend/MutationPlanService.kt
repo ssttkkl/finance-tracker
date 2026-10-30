@@ -11,6 +11,8 @@ class MutationPlanService internal constructor(
     private val now: () -> Instant = Instant::now,
     private val staging: ParsedImportStore = InMemoryParsedImportStore(
         ttlSeconds = MutationPlanStore.ttlFromEnvironment(System.getenv("FT_IMPORT_STAGING_TTL_SECONDS")), clock = now),
+    private val beforeCommitWrite: () -> Unit = {},
+    private val beforeCommitWorkspaceLock: () -> Unit = {},
 ) {
     private val reads = ReadServices(database, now)
     private val store = MutationPlanStore(staging = staging)
@@ -108,10 +110,14 @@ class MutationPlanService internal constructor(
         val principal = reads.currentContext(token)
         if (requestPrincipal != null) sameContext(requestPrincipal, principal)
         var cleanup: MutationPlanStore.Context? = null
+        beforeCommitWrite()
         val receipt = database.write { connection ->
-            val current = planContext(connection, token, write = true)
+            val workspace = principal.workspaceId ?: throw AccessFailure(true)
+            beforeCommitWorkspaceLock()
+            if (!connection.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
+            val current = reads.lockedContext(connection, token, workspace, write = true)
+            sameContext(principal, current)
             if (requestPrincipal != null) sameContext(requestPrincipal, current)
-            val workspace = current.workspaceId ?: throw AccessFailure(true)
             val repository = ReceiptRepository(connection, workspace, database.sqlite, now)
             val digest = cashSourceDigest(JsonPrimitive("cash-mutation-commit-v1"), JsonPrimitive(planId),
                 JsonPrimitive(expectedPlanRevision))
@@ -125,14 +131,18 @@ class MutationPlanService internal constructor(
             val plan = checkedPlan(stored, planId, expectedPlanRevision)
             if (plan["can_commit"]?.jsonPrimitive?.booleanOrNull != true) throw MutationPlanFailure("plan_input_invalid")
             val input = stored.previewInput ?: throw MutationPlanFailure("plan_changed")
-            val transaction = input.getValue("transaction_id").jsonPrimitive.content.toLong()
-            val expectedRevision = input.getValue("expected_revision").jsonPrimitive.long
+            val request = MutationPlanRequest.fromStored(input)
+            val transaction = request.transactionId.toLong()
+            val expectedRevision = request.expectedRevision
             val sql = connection.jooq(database.sqlite)
             val rowRevision = sql.select(CASH_TRANSACTIONS.ROW_REVISION).from(CASH_TRANSACTIONS)
                 .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.eq(transaction))
                 .and(CASH_TRANSACTIONS.DELETED_AT.isNull).fetchOne(CASH_TRANSACTIONS.ROW_REVISION)
                 ?: throw MutationPlanFailure("record_not_found")
             if (rowRevision != expectedRevision) throw MutationPlanFailure("record_changed")
+            val fresh = MutationPlanBuilder(CashSqlContext(connection, workspace, database.sqlite, now))
+                .build(transaction, request)
+            MutationPlanRevalidation.validate(plan, fresh)
             val operation = plan.getValue("operations").jsonArray.single().jsonObject
             val action = operation.getValue("planned_action").jsonPrimitive.content
             val outcome = when (action) {
@@ -142,6 +152,7 @@ class MutationPlanService internal constructor(
                     val patch = entryEdit.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) }
                     CashEntryRepository(connection, workspace, database.sqlite).patch(transaction, patch,
                         entryEdit.getValue("revision").jsonPrimitive.long)
+                    saveIssues(connection, workspace, transaction, operation)
                     "updated_posted"
                 }
                 "finalize_draft" -> {
@@ -189,6 +200,7 @@ class MutationPlanService internal constructor(
             }))
             val created = repository.create(current.userId, key, digest, "mutation", resultSummary, results,
                 planId = planId, editContextDigest = contextDigest)
+            reads.lockedContext(connection, token, workspace, write = true)
             cleanup = stored
             created
         }
@@ -204,7 +216,7 @@ class MutationPlanService internal constructor(
     private fun saveIssues(connection: java.sql.Connection, workspace: String, transaction: Long, operation: JsonObject) {
         val sql = connection.jooq(database.sqlite)
         val issue = CASH_TRANSACTION_ISSUES
-        val existing = sql.select(issue.ID, issue.ISSUE_KEY, issue.CODE, issue.FIELD_PATH).from(issue)
+        val existing = sql.select(issue.ID, issue.ISSUE_KEY, issue.CODE, issue.FIELD_PATH, issue.REVISION).from(issue)
             .where(issue.WORKSPACE_ID.eq(workspace)).and(issue.TRANSACTION_ID.eq(transaction)).fetch()
         val retained = (operation["retained_issue_ids"]?.jsonArray ?: JsonArray(emptyList()))
             .map { it.jsonPrimitive.content }.toMutableSet()
@@ -273,6 +285,10 @@ class MutationPlanService internal constructor(
             .set(CASH_TRANSACTIONS.MANUAL_OVERRIDES, JsonObject(overrides))
             .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(workspace)).and(CASH_TRANSACTIONS.ID.eq(transaction)).execute()
         check(updated == 1)
+        operation["entry_edit"]?.jsonObject?.let { edit ->
+            context.entries.patch(transaction, edit.getValue("patch").jsonObject.mapValues { cashSourceValue(it.value) },
+                edit.getValue("revision").jsonPrimitive.long)
+        }
         val existing = sql.select(CASH_TRANSACTION_COMPONENTS.ID, CASH_TRANSACTION_COMPONENTS.ORDINAL)
             .from(CASH_TRANSACTION_COMPONENTS).where(CASH_TRANSACTION_COMPONENTS.WORKSPACE_ID.eq(workspace))
             .and(CASH_TRANSACTION_COMPONENTS.CASH_TRANSACTION_ID.eq(transaction)).fetch()

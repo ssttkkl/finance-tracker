@@ -30,6 +30,14 @@ internal data class MutationPlanRequest(
         private val commonCashFields = setOf("category_id", "note", "counterparty", "counterparty_account",
             "counterparty_account_attrs")
 
+        fun fromStored(input: JsonObject): MutationPlanRequest {
+            val normalized = if (input["intent"] != JsonPrimitive("maintain_relations") && "relation_additions" in input) {
+                if (input["relation_additions"] != JsonArray(emptyList())) invalid()
+                JsonObject(input - "relation_additions")
+            } else input
+            return parse(normalized)
+        }
+
         fun parse(value: JsonElement?): MutationPlanRequest {
             val input = value as? JsonObject ?: invalid()
             if ((input.keys - commonKeys - metaKeys).isNotEmpty()) invalid()
