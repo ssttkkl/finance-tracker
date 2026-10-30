@@ -2,6 +2,7 @@ package com.finance.tracker.backend
 
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
+import java.math.BigInteger
 import java.nio.file.Path
 import java.sql.Connection
 import java.sql.PreparedStatement
@@ -61,6 +62,22 @@ class CashProjectionDatasetMigrationTest {
             c.prepareStatement("SELECT * FROM $table WHERE workspace_id=?").use {it.setString(1,workspace);it.executeQuery().use {r ->
                 val columns=r.metaData.columnCount;buildList {while(r.next()) add(JsonArray((1..columns).map {index ->r.getString(index)?.let(::JsonPrimitive) ?: JsonNull}).toString())}.sorted()
             }}
+        }
+    }
+    @Test fun virtualProjectionIdentityIsRejectedBeforeDatasetWrites()=inWorkspace {db,workspace,account ->
+        db.write {c ->
+            seed(c,db,workspace,account,1)
+            val repository=CashProjectionRepository(CashSqlContext(c,workspace,db.sqlite),now={deletionTime})
+            val proof=repository.readValidatedSources()
+            val dataset=repository.createStagingDataset(proof.digest,CASH_PROJECTION_RULES_VERSION)
+            val virtual=CashProjectionFact.create(BigInteger("24197857200151252747416209503149608431"),account,
+                deletionTime,"-100","CNY","",null,"","fixture","virtual")
+            val before=count(c,"cash_projections",workspace,dataset) to count(c,"cash_projection_members",workspace,dataset)
+            val error=assertFailsWith<CashProjectionDomainFailure> {
+                repository.replaceDataset(dataset,buildCashProjections(listOf(virtual),emptyList()),1L)
+            }
+            assertEquals("projection.invalid_fact",error.code)
+            assertEquals(before,count(c,"cash_projections",workspace,dataset) to count(c,"cash_projection_members",workspace,dataset))
         }
     }
     @Test fun emptyAndRepeatedPublicationReplaceOnlyTheActiveDatasetAndPreserveStableEntryIdentity()=inWorkspace {db,workspace,account ->
@@ -170,7 +187,7 @@ class CashProjectionDatasetMigrationTest {
             c.prepareStatement("SELECT id,entry_id,note,category_id,category_path,built_projection_version FROM cash_projections WHERE workspace_id=? AND dataset_id=? AND projection_id=?").use {s ->s.setString(1,workspace);s.setString(2,dataset);s.setString(3,projection.projectionId);s.executeQuery().use {r ->
                 assertTrue(r.next());val parent=r.getLong(1);assertEquals("existing-public-$workspace",r.getString(2));assertEquals("保留备注",r.getString(3));assertEquals(category,r.getString(4));assertEquals("/$category/",r.getString(5));assertEquals(7L,r.getLong(6));assertFalse(r.next())
                 c.prepareStatement("SELECT cash_transaction_id,roles_json,ordinal FROM cash_projection_members WHERE workspace_id=? AND dataset_id=? AND projection_row_id=? ORDER BY ordinal").use {m ->m.setString(1,workspace);m.setString(2,dataset);m.setLong(3,parent);m.executeQuery().use {members ->
-                    for((ordinal,pair) in projection.members.withIndex()) {assertTrue(members.next());assertEquals(pair.first.id,members.getLong(1));assertEquals(JsonArray(pair.second.map(::JsonPrimitive)),Json.parseToJsonElement(members.getString(2)));assertEquals(ordinal,members.getInt(3))};assertFalse(members.next())
+                    for((ordinal,pair) in projection.members.withIndex()) {assertTrue(members.next());assertEquals(pair.first.id.storedCashId(),members.getLong(1));assertEquals(JsonArray(pair.second.map(::JsonPrimitive)),Json.parseToJsonElement(members.getString(2)));assertEquals(ordinal,members.getInt(3))};assertFalse(members.next())
                 }}
                 c.prepareStatement("SELECT transaction_relation_id,kind,subtype,ordinal FROM cash_projection_relations WHERE workspace_id=? AND dataset_id=? AND projection_row_id=? ORDER BY ordinal").use {rel ->rel.setString(1,workspace);rel.setString(2,dataset);rel.setLong(3,parent);rel.executeQuery().use {relations ->
                     for((ordinal,expected) in projection.relations.withIndex()) {assertTrue(relations.next());assertEquals(expected.id.longValueExact(),relations.getLong(1));assertEquals(expected.kind,relations.getString(2));assertEquals(expected.subtype,relations.getString(3));assertEquals(ordinal,relations.getInt(4))};assertFalse(relations.next())

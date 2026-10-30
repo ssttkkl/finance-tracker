@@ -195,10 +195,10 @@ internal class CashEntryRepository(private val connection:Connection,private val
         };flush()
     }
     fun splitFieldDiffs(projections:List<CashProjection>):List<CashSplitFieldDiff> {
-        val ids=projections.flatMap {it.memberIds}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
+        val ids=projections.flatMap {it.storedMemberIds()}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
         val old=ms.values.groupBy {it.entryId}.mapValues {(_,rows) ->rows.map {it.transactionId}.toSet()};val result=mutableListOf<CashSplitFieldDiff>()
         for(p in projections) {
-            val group=p.memberIds.toSet();val root=p.primaryRecord.id;val restored=source.getValue(root).values.toMutableMap()
+            val group=p.storedMemberIds().toSet();val root=p.primaryRecord.id.storedCashId();val restored=source.getValue(root).values.toMutableMap()
             ms[root]?.let {m ->m.standaloneManualFields.forEach {restored[it]=m.standaloneValues.getValue(it)}}
             for(id in group.mapNotNull {ms[it]?.entryId}.toSet()) {
                 if(old.getValue(id).all {it in group}) continue
@@ -256,13 +256,13 @@ internal class CashEntryRepository(private val connection:Connection,private val
         if (count == 1) { entries.remove(id); savedEntries.remove(id) }
     }
     fun reconcile(projections:List<CashProjection>):Map<String,CashEntry> {
-        val ids=projections.flatMap {it.memberIds}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
+        val ids=projections.flatMap {it.storedMemberIds()}.toSet();val (ms,es)=forTransactions(ids);val source=sources(ids)
         val oldMembers=ms.values.groupBy {it.entryId}.mapValues {(_,values) ->values.map {it.transactionId}.toSet()}
         val oldRoots=es.values.map {it.rootTransactionId}.toSet();val used=mutableSetOf<String>();val result=linkedMapOf<String,CashEntry>()
-        val ordered=projections.sortedWith(compareBy<CashProjection> {it.primaryRecord.id !in oldRoots}.thenComparator {a,b ->cashRelationStringOrder.compare(a.projectionId,b.projectionId)})
+        val ordered=projections.sortedWith(compareBy<CashProjection> {it.primaryRecord.id.storedCashId() !in oldRoots}.thenComparator {a,b ->cashRelationStringOrder.compare(a.projectionId,b.projectionId)})
         val fresh=mutableListOf<CashEntry>();val freshMembers=mutableListOf<CashEntryMember>()
         for(p in ordered) {
-            val group=p.memberIds.toSet();val root=p.primaryRecord.id;val oldIds=group.mapNotNull {ms[it]?.entryId}.toSet()
+            val group=p.storedMemberIds().toSet();val root=p.primaryRecord.id.storedCashId();val oldIds=group.mapNotNull {ms[it]?.entryId}.toSet()
             var candidate=ms[root]?.let {es[it.entryId]}
             if(candidate!=null && (candidate.id in used || candidate.rootTransactionId !in group && candidate.rootTransactionId in ids)) candidate=null
             val human=linkedMapOf<String,JsonElement>()

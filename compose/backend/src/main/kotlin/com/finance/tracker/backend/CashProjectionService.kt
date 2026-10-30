@@ -70,7 +70,7 @@ internal class CashProjectionService(private val database:Database,private val w
             val repository=CashProjectionRepository(context);val state=repository.readyStateLockOrNone()
             if(state==null) {
                 val ids=repository.sources.confirmedTransactionClosure(affectedFactIds);val sources=repository.sources.readSourcesForFacts(ids);val build=buildCashProjections(sources.facts,sources.relations)
-                context.entries.removeMembers(affectedFactIds-build.projections.flatMap {p ->p.members.map {it.first.id}}.toSet());context.entries.reconcile(build.projections);return null
+                context.entries.removeMembers(affectedFactIds-build.projections.flatMap {p ->p.storedMemberIds()}.toSet());context.entries.reconcile(build.projections);return null
             }
             var ids=repository.sources.affectedTransactionClosure(affectedFactIds,state.datasetId)
             if(knownComponentIds!=null) ids=repository.sources.affectedTransactionClosure(ids+repository.sources.parentIdsForComponents(knownComponentIds),state.datasetId)

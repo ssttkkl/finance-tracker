@@ -77,7 +77,7 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
     for(raw in factList) {
         val fact=raw as? CashProjectionFact ?: relationFailure("relation_endpoint_incomplete")
         val id=fact.id.toString()
-        if(fact.state!="posted" || fact.id<=0 || id in parents) relationFailure("relation_endpoint_incomplete")
+        if(fact.state!="posted" || fact.id.signum()<=0 || id in parents) relationFailure("relation_endpoint_incomplete")
         parents[id]=fact
     }
     val rawByComponent=linkedMapOf<String,Any?>()
@@ -151,7 +151,7 @@ internal fun buildCashRelationGraph(facts: Any?,components: Any?,relations: Any?
     for(part in byComponent.values) if((spent[componentMirrors.root(part.componentId)] ?: BigDecimal.ZERO)>part.number.abs()) relationFailure("relation_refund_exceeds_remaining")
     val projectionEdges=prepared.sortedBy {it.edge.id}.map {item ->
         val a=item.primary;val b=item.secondary
-        CashProjectionRelation.create(item.edge.id,item.edge.kind,a.transactionId.toLong(),b.transactionId.toLong(),subtype=item.edge.subtype,
+        CashProjectionRelation.create(item.edge.id,item.edge.kind,a.transactionId.toBigInteger(),b.transactionId.toBigInteger(),subtype=item.edge.subtype,
             appliedAmount=item.amount.toString(),refundAllocationKey=if(item.edge.kind=="refund_offset") componentMirrors.root(a.componentId) to componentMirrors.root(b.componentId) else null)
     }
     return project(projectionEdges)

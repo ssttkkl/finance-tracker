@@ -17,13 +17,20 @@ private fun invalidProjectionRelation(): Nothing=throw CashProjectionDomainFailu
 private val projectionArithmetic=MathContext(80,RoundingMode.HALF_EVEN)
 private fun CashAmount.number()=arithmeticValue()
 private fun projectionAmount(value: BigDecimal): CashAmount=CashAmount.parseOrNull(value.toString()) ?: invalidProjectionRelation()
+internal fun BigInteger.storedCashId(): Long = try {
+    longValueExact().also { if (it <= 0) invalidProjectionFact() }
+} catch (_: ArithmeticException) { invalidProjectionFact() }
+internal fun BigInteger.storedRelationId(): Long = try {
+    longValueExact().also { if (it <= 0) invalidProjectionRelation() }
+} catch (_: ArithmeticException) { invalidProjectionRelation() }
+internal fun CashProjection.storedMemberIds(): List<Long> = memberIds.map { it.storedCashId() }
 
 @ConsistentCopyVisibility
-internal data class CashProjectionFact private constructor(val id: Long,val accountId: Long?,val occurredAt: Instant?,val amount: CashAmount?,
+internal data class CashProjectionFact private constructor(val id: BigInteger,val accountId: Long?,val occurredAt: Instant?,val amount: CashAmount?,
     val currency: String?,val counterparty: String,val categoryId: String?,val note: String,val sourceType: String?,val recordId: String,
     val fundingRelationId: Long?,val cashGranularity: String,val state: String,val createdAt: Instant?,val needsAttention: Boolean) {
     init {
-        if(id<=0 || accountId!=null && accountId<=0 || state !in setOf("draft","posted") || cashGranularity !in setOf("atomic","aggregate") ||
+        if(id.signum()<=0 || accountId!=null && accountId<=0 || state !in setOf("draft","posted") || cashGranularity !in setOf("atomic","aggregate") ||
             state=="posted" && (amount==null || currency==null || occurredAt==null) ||
             state=="draft" && (occurredAt==null && createdAt==null || fundingRelationId!=null) ||
             currency!=null && !currency.matches(Regex("[A-Z]{3}"))) invalidProjectionFact()
@@ -32,6 +39,10 @@ internal data class CashProjectionFact private constructor(val id: Long,val acco
     fun withAttention(value:Boolean):CashProjectionFact=if(value==needsAttention) this else copy(needsAttention=value)
     companion object {
         fun create(id: Long,accountId: Long?,occurredAt: Instant?,amount: String?,currency: String?,counterparty: String,categoryId: String?,
+            note: String,sourceType: String?,recordId: String,fundingRelationId: Long?=null,cashGranularity: String="atomic",state: String="posted",
+            createdAt: Instant?=null,needsAttention: Boolean=false): CashProjectionFact = create(BigInteger.valueOf(id),accountId,occurredAt,
+            amount,currency,counterparty,categoryId,note,sourceType,recordId,fundingRelationId,cashGranularity,state,createdAt,needsAttention)
+        fun create(id: BigInteger,accountId: Long?,occurredAt: Instant?,amount: String?,currency: String?,counterparty: String,categoryId: String?,
             note: String,sourceType: String?,recordId: String,fundingRelationId: Long?=null,cashGranularity: String="atomic",state: String="posted",
             createdAt: Instant?=null,needsAttention: Boolean=false): CashProjectionFact {
             val parsed=amount?.let {CashAmount.parseOrNull(it) ?: invalidProjectionFact()}
@@ -43,23 +54,26 @@ internal data class CashProjectionFact private constructor(val id: Long,val acco
 }
 
 @ConsistentCopyVisibility
-internal data class CashProjectionRelation private constructor(val id: BigInteger,val kind: String,val primaryFactId: Long,val secondaryFactId: Long,
+internal data class CashProjectionRelation private constructor(val id: BigInteger,val kind: String,val primaryFactId: BigInteger,val secondaryFactId: BigInteger,
     val status: String,val subtype: String,val appliedAmount: CashAmount?,val refundAllocationKey: Pair<String,String>?) {
     init {
-        if(kind !in setOf("payment_mirror","refund_offset","transfer_pair") || id.signum()<=0 || primaryFactId<=0 || secondaryFactId<=0 ||
+        if(kind !in setOf("payment_mirror","refund_offset","transfer_pair") || id.signum()<=0 || primaryFactId.signum()<=0 || secondaryFactId.signum()<=0 ||
             kind=="transfer_pair" && subtype !in setOf("","ordinary_transfer","cross_currency_remittance","credit_repayment","currency_exchange","bank_security_transfer","balance_adjustment") ||
             refundAllocationKey!=null && (kind!="refund_offset" || refundAllocationKey.first.isEmpty() || refundAllocationKey.second.isEmpty()) ||
             appliedAmount!=null && appliedAmount.number().signum()<0) invalidProjectionRelation()
     }
     companion object {
         fun create(id: Any?,kind: String,primaryFactId: Long,secondaryFactId: Long,status: String="accepted",subtype: String="",
+            appliedAmount: String?=null,refundAllocationKey: Pair<String,String>?=null)=create(id,kind,BigInteger.valueOf(primaryFactId),
+            BigInteger.valueOf(secondaryFactId),status,subtype,appliedAmount,refundAllocationKey)
+        fun create(id: Any?,kind: String,primaryFactId: BigInteger,secondaryFactId: BigInteger,status: String="accepted",subtype: String="",
             appliedAmount: String?=null,refundAllocationKey: Pair<String,String>?=null)=CashProjectionRelation(strictCashInteger(id) ?: invalidProjectionRelation(),kind,primaryFactId,secondaryFactId,
             status,subtype,appliedAmount?.let {CashAmount.parseOrNull(it) ?: invalidProjectionRelation()},refundAllocationKey)
     }
 }
 
 internal data class CashProjection(val projectionId: String,val primaryRecord: CashProjectionFact,val netAmount: CashAmount?,
-    val economicType: CashEconomicType?,val visible: Boolean,val hiddenReason: String?,val transferSubtype: String?,val memberIds: List<Long>,
+    val economicType: CashEconomicType?,val visible: Boolean,val hiddenReason: String?,val transferSubtype: String?,val memberIds: List<BigInteger>,
     val members: List<Pair<CashProjectionFact,List<String>>>,val relations: List<CashProjectionRelation>,val compositions: List<String>,
     val fundingRelationId: Long?=null,val state: String="posted",val statisticsEligible: Boolean=true,val attentionCount: Int=0) {
     val occurredAt: Instant? get()=primaryRecord.occurredAt
@@ -67,31 +81,31 @@ internal data class CashProjection(val projectionId: String,val primaryRecord: C
     val confirmationStatus: String get()=if(state=="draft" || attentionCount>0) "pending" else "confirmed"
 }
 internal data class CashProjectionBuild(val projections: List<CashProjection>,val rulesVersion: String=CASH_PROJECTION_RULES_VERSION) {
-    val memberIds: Set<Long> get()=java.util.Set.copyOf(projections.flatMap {it.memberIds})
+    val memberIds: Set<BigInteger> get()=java.util.Set.copyOf(projections.flatMap {it.memberIds})
 }
-private class ProjectionComponents(ids: Collection<Long>) {
+private class ProjectionComponents(ids: Collection<BigInteger>) {
     private val parents=ids.associateWith {it}.toMutableMap()
-    fun find(id: Long): Long {
+    fun find(id: BigInteger): BigInteger {
         var current=id
         while(parents.getValue(current)!=current) {
             parents[current]=parents.getValue(parents.getValue(current));current=parents.getValue(current)
         }
         return current
     }
-    fun union(left: Long,right: Long) {
+    fun union(left: BigInteger,right: BigInteger) {
         val a=find(left);val b=find(right)
         if(a!=b) parents[maxOf(a,b)]=minOf(a,b)
     }
-    fun groups(): List<List<Long>> = parents.keys.sorted().groupBy(::find).values.toList()
+    fun groups(): List<List<BigInteger>> = parents.keys.sorted().groupBy(::find).values.toList()
 }
-private data class LogicalProjectionRelation(val relation: CashProjectionRelation,val primary: Long,val secondary: Long)
-private data class ProjectionEdge(val kind: String,val primary: Long,val secondary: Long,val subtype: String)
-private fun rootedProjectionTree(nodes: List<Long>,edges: List<Pair<Long,Long>>): Long {
-    val incoming=nodes.associateWith {0}.toMutableMap();val adjacency=nodes.associateWith {mutableListOf<Long>()}
+private data class LogicalProjectionRelation(val relation: CashProjectionRelation,val primary: BigInteger,val secondary: BigInteger)
+private data class ProjectionEdge(val kind: String,val primary: BigInteger,val secondary: BigInteger,val subtype: String)
+private fun rootedProjectionTree(nodes: List<BigInteger>,edges: List<Pair<BigInteger,BigInteger>>): BigInteger {
+    val incoming=nodes.associateWith {0}.toMutableMap();val adjacency=nodes.associateWith {mutableListOf<BigInteger>()}
     for((left,right) in edges) {incoming[right]=incoming.getValue(right)+1;adjacency.getValue(left).add(right)}
     val roots=nodes.filter {incoming[it]==0}
     if(roots.size!=1) invalidProjectionRelation()
-    val reached=mutableSetOf<Long>();val stack=mutableListOf(roots.single())
+    val reached=mutableSetOf<BigInteger>();val stack=mutableListOf(roots.single())
     while(stack.isNotEmpty()) {
         val item=stack.removeAt(stack.lastIndex)
         if(!reached.add(item)) invalidProjectionRelation()
@@ -100,7 +114,7 @@ private fun rootedProjectionTree(nodes: List<Long>,edges: List<Pair<Long,Long>>)
     if(reached!=nodes.toSet()) invalidProjectionRelation()
     return roots.single()
 }
-internal fun validateProjectionGroup(group: List<Long>,facts: Map<Long,CashProjectionFact>,relations: List<CashProjectionRelation>): CashProjection {
+internal fun validateProjectionGroup(group: List<BigInteger>,facts: Map<BigInteger,CashProjectionFact>,relations: List<CashProjectionRelation>): CashProjection {
     val contained=relations.filter {it.primaryFactId in group && it.secondaryFactId in group}.sortedBy {it.id}
     val mirrors=contained.filter {it.kind=="payment_mirror"}
     for(relation in mirrors) {
@@ -119,7 +133,7 @@ internal fun validateProjectionGroup(group: List<Long>,facts: Map<Long,CashProje
     }
     val mirrorComponents=ProjectionComponents(group)
     mirrors.forEach {mirrorComponents.union(it.primaryFactId,it.secondaryFactId)}
-    val canonical=mutableMapOf<Long,Long>()
+    val canonical=mutableMapOf<BigInteger,BigInteger>()
     for(members in mirrorComponents.groups()) {
         val root=rootedProjectionTree(members,mirrors.filter {it.primaryFactId in members && it.secondaryFactId in members}
             .map {it.primaryFactId to it.secondaryFactId}.distinct())
@@ -184,7 +198,7 @@ internal fun validateProjectionGroup(group: List<Long>,facts: Map<Long,CashProje
         }
         else -> {amount=base.netAmount!!;type=base.economicType!!;visible=base.visible;hidden=base.hiddenReason;subtype=base.transferSubtype}
     }
-    val members=group.sortedWith(compareBy<Long> {if(it==rootId) 0 else 1}.thenBy {facts.getValue(it).occurredAt}.thenBy {it})
+    val members=group.sortedWith(compareBy<BigInteger> {if(it==rootId) 0 else 1}.thenBy {facts.getValue(it).occurredAt}.thenBy {it})
         .map {facts.getValue(it) to copyOf(roles.getValue(it).sorted())}
     return CashProjection("cash:$rootId",root,amount,type,visible,hidden,subtype,copyOf(members.map {it.first.id}),copyOf(members),copyOf(contained),
         copyOf(listOf("payment_mirror","transfer_pair","refund_offset").filter {kind ->contained.any {it.kind==kind}}),root.fundingRelationId,
@@ -199,7 +213,7 @@ private fun singleProjection(fact: CashProjectionFact): CashProjection {
         listOf(fact.id),listOf(fact to listOf("root")),emptyList(),emptyList(),fact.fundingRelationId,attentionCount=if(fact.needsAttention) 1 else 0)
 }
 internal fun buildCashProjections(facts: List<CashProjectionFact>,relations: List<CashProjectionRelation>,
-    observeGroup: ((List<Long>,List<CashProjectionRelation>)->Unit)?=null): CashProjectionBuild {
+    observeGroup: ((List<BigInteger>,List<CashProjectionRelation>)->Unit)?=null): CashProjectionBuild {
     val factById=facts.associateBy {it.id}
     if(factById.size!=facts.size) invalidProjectionFact()
     val accepted=relations.filter {it.status=="accepted"}

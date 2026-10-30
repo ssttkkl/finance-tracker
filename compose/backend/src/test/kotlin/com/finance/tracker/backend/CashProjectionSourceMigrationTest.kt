@@ -46,7 +46,7 @@ class CashProjectionSourceMigrationTest {
             val context=CashRelationReadRepository(CashSqlContext(c,workspace,db.sqlite)).readContext(data.ids.toSet())
             assertEquals(data.ids.toSet(),context.transactionIds);assertEquals(data.ids,context.transactionRevisions.map {it.first})
             assertEquals(setOf(data.ids[0],data.ids[2]),context.activeTransactionIds)
-            assertEquals(listOf(data.ids[0]),context.facts.map {it.id});assertEquals(listOf(data.parts.getValue(data.ids[0]).toString()),context.components.map {it.componentId})
+            assertEquals(listOf(data.ids[0]),context.facts.map {it.id.storedCashId()});assertEquals(listOf(data.parts.getValue(data.ids[0]).toString()),context.components.map {it.componentId})
             assertEquals(data.parts.values.toSet(),context.componentVersions.map {it.id}.toSet());assertEquals(funding,context.fundingVersions.map {it.id})
             assertTrue(context.fundingComponentIds.isEmpty())
             assertEquals(1,buildCashRelationGraph(context.facts,context.components,context.relations,context.fundingComponentIds).projections.size)
@@ -82,11 +82,11 @@ class CashProjectionSourceMigrationTest {
         db.write {c ->val data=seed(c,db,workspace,account);val accepted=mirror(c,db,workspace,data)
             val draft=deletionRelation(c,db,workspace,data.ids[1],data.ids[2]);deletionCandidate(c,db,workspace,accepted,data.ids[2])
             val repo=CashProjectionSourceRepository(CashSqlContext(c,workspace,db.sqlite));val source=repo.readSources()
-            assertEquals(data.ids,source.facts.map {it.id});assertEquals(listOf(false,true,true),source.facts.map {it.needsAttention});assertEquals(listOf(accepted.toBigInteger()),source.relations.map {it.id})
+            assertEquals(data.ids,source.facts.map {it.id.storedCashId()});assertEquals(listOf(false,true,true),source.facts.map {it.needsAttention});assertEquals(listOf(accepted.toBigInteger()),source.relations.map {it.id})
             assertEquals(data.ids.take(2).toSet(),repo.confirmedTransactionClosure(setOf(data.ids[0])));assertEquals(setOf(data.ids[2]),repo.confirmedTransactionClosure(setOf(data.ids[2])))
             val context=repo.relationContext(data.ids.take(2).toSet())
             assertEquals(setOf(accepted,draft),context.relationRevisions.map {it.first}.toSet());assertEquals(data.ids.take(2).toSet(),context.transactionIds)
-            val build=buildCashProjections(source.facts,source.relations);assertEquals(2,build.projections.size);assertEquals(data.ids.toSet(),build.memberIds)
+            val build=buildCashProjections(source.facts,source.relations);assertEquals(2,build.projections.size);assertEquals(data.ids.toSet(),build.memberIds.map {it.storedCashId()}.toSet())
         }
     }
     @Test fun deletedConfirmedCounterpartAndPartialReadsRejectIncompleteGraph()=inWorkspace {db,workspace,account,_ ->
@@ -103,7 +103,7 @@ class CashProjectionSourceMigrationTest {
             val firstPart=data.parts.getValue(data.ids[0]);assertTrue(firstPart !in data.ids)
             assertEquals(data.ids.take(2).toSet(),repo.confirmedTransactionClosure(setOf(firstPart),inputIsComponents=true))
             assertTrue(repo.confirmedTransactionClosure(setOf(firstPart)).isEmpty())
-            val source=repo.readSourcesForFacts(data.ids.take(2).map {data.parts.getValue(it)}.toSet(),inputIsComponents=true);assertEquals(data.ids.take(2),source.facts.map {it.id})
+            val source=repo.readSourcesForFacts(data.ids.take(2).map {data.parts.getValue(it)}.toSet(),inputIsComponents=true);assertEquals(data.ids.take(2),source.facts.map {it.id.storedCashId()})
             val dataset=ProjectionStateRepository(c,workspace,db.sqlite).ready()!!.first
             val row=deletionProjection(c,db,workspace,dataset,data.ids[1],account,category,1)
             c.prepareStatement("UPDATE cash_projections SET member_count=2 WHERE id=?").use {it.setLong(1,row);it.executeUpdate()}

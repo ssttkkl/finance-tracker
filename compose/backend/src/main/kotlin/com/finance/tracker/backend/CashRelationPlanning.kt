@@ -104,8 +104,8 @@ internal object CashRelationPlanning {
         val affected = (connected(candidatePrimary) + connected(candidateSecondary)).toSet()
         val localRelations = relationRows.filter { it.second in affected && it.third in affected }.map { it.first }
         val localCompanions = proposalEdges.filter { it.second in affected && it.third in affected }.map { it.first }
-        val localFacts = context.projectionFacts.filter { it.id in affected }
-        if (localFacts.map { it.id }.toSet() != affected) return null
+        val localFacts = context.projectionFacts.filter { it.id.storedCashId() in affected }
+        if (localFacts.map { it.id.storedCashId() }.toSet() != affected) return null
         return Triple(localRelations, localCompanions, context.copy(projectionFacts = localFacts))
     }
 

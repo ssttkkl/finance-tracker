@@ -15,7 +15,7 @@ class CashDraftProjectionMigrationTest {
     @Test fun unknownDraftIsSingletonWithoutFakeFinancialValues() {
         val item=build(draft())
         assertEquals("draft",item.state);assertFalse(item.statisticsEligible);assertNull(item.netAmount);assertNull(item.economicType)
-        assertNull(item.occurredAt);assertNull(item.primaryRecord.currency);assertEquals(listOf(1L),item.memberIds);assertEquals(emptyList(),item.relations)
+        assertNull(item.occurredAt);assertNull(item.primaryRecord.currency);assertEquals(listOf(1L),item.storedMemberIds());assertEquals(emptyList(),item.relations)
         assertEquals(1,item.attentionCount);assertEquals("pending",item.confirmationStatus);assertEquals(created,item.sortAt);assertTrue(item.visible)
     }
     @Test fun knownDraftAmountRetainsValueWithoutStatisticsOrGuessedType() {
@@ -46,7 +46,9 @@ class CashDraftProjectionMigrationTest {
     @Test fun draftKeepsValueValidationAndTypedTimeAndBooleanBoundary() {
         for(action in listOf<()->Unit>({draft(amount="NaN")},{draft(currency="INVALID")},{draft(creation=null)},{draft(state="pending")}))
             assertEquals("projection.invalid_fact",assertFailsWith<CashProjectionFailure>(block=action).code)
-        val factory=CashProjectionFact.Companion.javaClass.methods.single {it.name=="create"}
+        val factory=CashProjectionFact.Companion.javaClass.methods.single {
+            it.name=="create" && it.parameterTypes.first()==Long::class.javaPrimitiveType
+        }
         assertEquals(Instant::class.java,factory.parameterTypes[2]);assertEquals(Instant::class.java,factory.parameterTypes[13])
         assertFalse(factory.parameterTypes[2].isAssignableFrom(LocalDateTime::class.java))
         assertFalse(factory.parameterTypes[13].isAssignableFrom(LocalDateTime::class.java))

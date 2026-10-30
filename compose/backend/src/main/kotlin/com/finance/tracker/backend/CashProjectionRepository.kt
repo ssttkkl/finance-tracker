@@ -33,6 +33,13 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
     private val states = CASH_PROJECTION_STATES
     private val datasets = CASH_PROJECTION_DATASETS
     private data class State(val dataset:String?,val version:Long,val sourceRevision:Long,val projectionCount:Long,val memberCount:Long)
+    private fun requireStoredIds(build:CashProjectionBuild) {
+        build.projections.forEach { projection ->
+            projection.primaryRecord.id.storedCashId()
+            projection.storedMemberIds()
+            projection.relations.forEach { it.id.storedRelationId() }
+        }
+    }
     fun status():JsonObject {context.requireActive();return ProjectionStateRepository(c,workspace,context.sqlite).status()}
     fun readValidatedSources()=sources.readValidatedSources()
     private fun state(create:Boolean=false):State? {
@@ -79,7 +86,7 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         val path = category?.takeIf { it.isNotEmpty() }?.let { id -> sql.select(CASH_CATEGORIES.CATEGORY_PATH).from(CASH_CATEGORIES)
             .where(CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)).and(CASH_CATEGORIES.ID.eq(id)).fetchOne(CASH_CATEGORIES.CATEGORY_PATH) }
         return CashProjectionsRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionId = p.projectionId; entryId = entry.id; rootCashTransactionId = p.primaryRecord.id
+            workspaceId = workspace; datasetId = dataset; projectionId = p.projectionId; entryId = entry.id; rootCashTransactionId = p.primaryRecord.id.storedCashId()
             fundingRelationId = p.fundingRelationId; state = p.state; statisticsEligible = p.statisticsEligible; attentionCount = p.attentionCount.toLong(); sortAt = p.sortAt
             createdAt = p.primaryRecord.createdAt ?: now(); updatedAt = now(); economicType = p.economicType?.value; transferSubtype = p.transferSubtype
             netAmount = p.netAmount?.let { CashStoredDecimal(it.toString()) }; currency = p.primaryRecord.currency; occurredAt = p.primaryRecord.occurredAt
@@ -90,8 +97,9 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         }
     }
     fun replaceDataset(dataset:String,build:CashProjectionBuild,projectionVersion:Long) {
+        requireStoredIds(build)
         staging(dataset)
-        val live=build.projections.flatMap {it.members.map {member ->member.first.id}}.toSet()
+        val live=build.projections.flatMap {it.storedMemberIds()}.toSet()
         val existing = sql.select(membersCashEntry.TRANSACTION_ID).from(membersCashEntry).where(membersCashEntry.WORKSPACE_ID.eq(workspace))
             .fetch(membersCashEntry.TRANSACTION_ID).filterNotNull().toSet()
         context.entries.removeMembers(existing - live)
@@ -121,11 +129,11 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
         }
         if (ids.size != projections.size || ids.keys != identifiers) throw CashProjectionFailure("projection.incomplete")
         val memberRows = projections.flatMap { p -> p.members.mapIndexed { ordinal, (fact, roles) -> CashProjectionMembersRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); cashTransactionId = fact.id
+            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); cashTransactionId = fact.id.storedCashId()
             rolesJson = JsonArray(roles.map(::JsonPrimitive)); this.ordinal = ordinal.toLong()
         } } }
         val relationRows = projections.flatMap { p -> p.relations.mapIndexed { ordinal, relation -> CashProjectionRelationsRecord().apply {
-            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); transactionRelationId = relation.id.longValueExact()
+            workspaceId = workspace; datasetId = dataset; projectionRowId = ids.getValue(p.projectionId); transactionRelationId = relation.id.storedRelationId()
             kind = relation.kind; subtype = relation.subtype; this.ordinal = ordinal.toLong()
         } } }
         for (batch in memberRows.chunked(writeBatchSize)) sql.batchInsert(batch).execute()
@@ -218,25 +226,26 @@ internal class CashProjectionRepository(private val context:CashSqlContext,priva
                 .fetch().forEach { row -> relations.getValue(row[relation.PROJECTION_ROW_ID]!!) += Triple(row[relation.TRANSACTION_RELATION_ID]!!, row[relation.KIND]!!, row[relation.SUBTYPE]!!) }
         }
         return replacement.all {p ->val id=byProjection.getValue(p.projectionId).id
-            members.getValue(id)==p.members.map {it.first.id to it.second} && relations.getValue(id)==p.relations.map {Triple(it.id.longValueExact(),it.kind,it.subtype)}
+            members.getValue(id)==p.members.map {it.first.id.storedCashId() to it.second} && relations.getValue(id)==p.relations.map {Triple(it.id.storedRelationId(),it.kind,it.subtype)}
         }
     }
     fun replaceActiveComponents(build:CashProjectionBuild,affectedFactIds:Set<Long>,lockedState:CashLockedProjectionState?=null,knownNewFactIds:Set<Long> = emptySet()):JsonObject {
+        requireStoredIds(build)
         val state=lockedState ?: requireReadyStateLock();state.requireFor(context)
-        val visible=build.projections.flatMap {it.members.map {m ->m.first.id}}.toSet();context.entries.removeMembers(affectedFactIds-visible)
+        val visible=build.projections.flatMap {it.storedMemberIds()}.toSet();context.entries.removeMembers(affectedFactIds-visible)
         val entries=context.entries.reconcile(build.projections);val dataset=state.datasetId;val lookup=affectedFactIds-knownNewFactIds
         val roots=currentRows(dataset,lookup,true);val old=(roots+currentRows(dataset,lookup-roots.map {it.root}.toSet(),false)).distinctBy {it.id}
         val oldIds=old.map {it.id}.toSet();val next=Math.addExact(state.projectionVersion,1)
-        val replacement=build.projections.filter {p ->p.memberIds.any {it in affectedFactIds}}
+        val replacement=build.projections.filter {p ->p.storedMemberIds().any {it in affectedFactIds}}
         fun update() {val byProjection=old.associateBy {it.projectionId};updateRows(dataset,replacement.map {p ->byProjection.getValue(p.projectionId) to mapping(dataset,p,next,entries.getValue(p.projectionId))})}
         if(old.isNotEmpty() && old.size==lookup.size && replacement.size==old.size && old.all {it.memberCount==1L} && replacement.all {it.relations.isEmpty()} &&
-            old.all {row ->replacement.singleOrNull {it.projectionId==row.projectionId}?.memberIds==listOf(row.root)}) {update();return advance(state)}
+            old.all {row ->replacement.singleOrNull {it.projectionId==row.projectionId}?.storedMemberIds()==listOf(row.root)}) {update();return advance(state)}
         val oldMemberIds=oldMembers(dataset,oldIds)
         if(old.size==1 && replacement.size==1 && old.single().memberCount==1L && replacement.single().members.size==1 && replacement.single().relations.isEmpty() &&
-            replacement.single().projectionId==old.single().projectionId && replacement.single().memberIds.toSet()==oldMemberIds) {update();return advance(state)}
+            replacement.single().projectionId==old.single().projectionId && replacement.single().storedMemberIds().toSet()==oldMemberIds) {update();return advance(state)}
         if(sameStructure(dataset,old,replacement)) {update();return advance(state)}
         deleteRows(dataset,oldIds);insertProjections(dataset,replacement,next,entries)
-        val members=replacement.flatMap {p ->p.members.map {it.first.id}}
+        val members=replacement.flatMap {p ->p.storedMemberIds()}
         if(members.toSet().size!=members.size) throw CashProjectionFailure("projection.incomplete")
         return advance(state,Math.addExact(Math.subtractExact(state.projectionCount,old.size.toLong()),replacement.size.toLong()),Math.addExact(Math.subtractExact(state.memberCount,oldMemberIds.size.toLong()),members.size.toLong()))
     }
