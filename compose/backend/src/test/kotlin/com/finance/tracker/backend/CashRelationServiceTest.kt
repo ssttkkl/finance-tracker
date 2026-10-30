@@ -229,4 +229,144 @@ class CashRelationServiceTest {
         cases["final_candidates"] = finalCandidates
         assertEquals(golden(database).getValue("decisions"), sourceJson(cases))
     }
+
+    private fun relationProposal(kind: String = "refund_offset", primary: String, secondary: String? = null,
+        subtype: String = "", status: String = "accepted", ruleId: String = "rule.refund.v1",
+        anchor: String = primary, amount: String = "30.00", candidates: List<String> = emptyList(),
+        refundExtras: Boolean = true) =
+        RelationProposal(kind = kind, primaryFactId = primary, secondaryFactId = secondary, subtype = subtype,
+            status = status, ruleId = ruleId, anchorFactId = anchor,
+            evidence = RelationEvidence(extras = if (kind == "refund_offset" && refundExtras)
+                linkedMapOf("refund_amount" to amount) else emptyMap(), candidateFactIds = candidates))
+    private fun proposalBody(proposal: RelationProposal): Map<String, Any?> = linkedMapOf(
+        "key" to CashRelationSerialization.proposalKey(proposal),
+        "body" to linkedMapOf<String, Any?>("kind" to proposal.kind,
+            "primary_fact_id" to proposal.primaryFactId, "secondary_fact_id" to proposal.secondaryFactId,
+            "primary_fact_type" to proposal.primaryFactType,
+            "secondary_fact_type" to proposal.secondaryFactType, "subtype" to proposal.subtype,
+            "status" to proposal.status, "rule_id" to proposal.ruleId,
+            "confidence" to proposal.confidence, "evidence" to evidenceJson(proposal.evidence),
+            "created_by" to proposal.createdBy, "anchor_fact_id" to proposal.effectiveAnchorFactId,
+            "open_leg" to proposal.isOpenLeg))
+
+    @Test fun relationPersistenceMatchesPython() {
+        val database = database()
+        RelationContractFixture.seed(database, jdbcUrl)
+        fun sqliteContext(connection: java.sql.Connection) = CashSqlContext(connection, workspace, database.sqlite)
+        fun clearRelations() = database.write { connection ->
+            val sql = connection.jooq(database.sqlite)
+            sql.deleteFrom(CASH_RELATION_CANDIDATES).where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).execute()
+            sql.deleteFrom(TRANSACTION_RELATIONS).where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace)).execute()
+        }
+        val remaining = mapOf("94001" to java.math.BigDecimal("100.00"),
+            "94005" to java.math.BigDecimal("5.00"), "94008" to java.math.BigDecimal("5.00"))
+        fun call(proposal: RelationProposal, automatic: Boolean = false,
+            label: String? = null): Map<String, Any?>? {
+            val result = database.write { connection ->
+                val service = CashRelationService(sqliteContext(connection))
+                if (automatic) service.persistAutomaticProposal(proposal, remaining, service.activeCashFacts())
+                else service.persistProposal(proposal, remaining)
+            }
+            if (result != null && label != null) {
+                val identifier = (result["id"] as Number).toLong()
+                if (identifier !in labels) labels[identifier] = label
+            }
+            @Suppress("UNCHECKED_CAST")
+            return normDecision(result) as? Map<String, Any?>
+        }
+
+        clearRelations()
+        val cases = linkedMapOf<String, Any?>()
+        val invalid = relationProposal(primary = "94001", secondary = "94002", amount = "130.00")
+        cases["automatic_invalid"] = call(invalid, automatic = true)
+        val accepted = relationProposal(primary = "94001", secondary = "94002", amount = "10.00")
+        cases["new_accepted"] = call(accepted, automatic = true, label = "new_accepted")
+        cases["repeat_accepted"] = call(accepted)
+        val openProposal = relationProposal(kind = "transfer_pair", primary = "94003", subtype = "ordinary_transfer",
+            status = "pending_review", ruleId = "open.rule", anchor = "94003", candidates = listOf("94004"))
+        cases["new_open"] = call(openProposal, label = "new_open")
+        val openUpdated = openProposal.copy(evidence = RelationEvidence(candidateFactIds = listOf("94001", "94004")))
+        cases["update_candidates"] = call(openUpdated)
+        val bindProposal = relationProposal(kind = "transfer_pair", primary = "94003", secondary = "94004",
+            subtype = "ordinary_transfer", ruleId = "bind.rule", anchor = "94003")
+        cases["bind_open"] = call(bindProposal)
+        val pendingProposal = relationProposal(primary = "94005", secondary = "94002", subtype = "pending",
+            status = "pending_review", amount = "5.00")
+        cases["new_pending"] = call(pendingProposal, label = "new_pending")
+        cases["auto_upgrade"] = call(pendingProposal.copy(status = "accepted"))
+        val conflictProposal = relationProposal(primary = "94003", secondary = "94002", subtype = "conflict",
+            amount = "10.00")
+        cases["kind_conflict"] = call(conflictProposal, label = "new_conflict")
+        database.write { connection ->
+            val repository = CashRelationRepository(sqliteContext(connection))
+            val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94005",
+                "secondary_fact_id" to "94002", "primary_component_id" to 94005,
+                "secondary_component_id" to 94002, "anchor_fact_id" to "94005", "anchor_component_id" to 94005,
+                "subtype" to "human", "status" to "accepted", "rule_id" to "human.rule",
+                "created_by" to "user", "decided_by" to "user", "applied_amount" to "5.00"))
+            labels[identifier] = "seed_human"
+        }
+        cases["human_preserved"] = call(relationProposal(primary = "94005", secondary = "94002",
+            subtype = "human", amount = "5.00"))
+        cases["over_remaining"] = call(relationProposal(primary = "94008", secondary = "94002",
+            subtype = "over", amount = "10.00"), label = "new_over")
+        database.write { connection ->
+            val repository = CashRelationRepository(sqliteContext(connection))
+            val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94002",
+                "status" to "rejected", "primary_component_id" to 94002, "anchor_component_id" to 94002,
+                "subtype" to "occ", "rule_id" to "occ.rule", "anchor_fact_id" to "94002",
+                "candidate_fact_ids" to listOf(94001)))
+            labels[identifier] = "seed_occ"
+        }
+        cases["rejected_occupancy"] = call(relationProposal(primary = "94002", subtype = "occ",
+            status = "pending_review", ruleId = "occ.rule2", anchor = "94002", candidates = listOf("94004"),
+            refundExtras = false))
+        database.write { connection ->
+            val repository = CashRelationRepository(sqliteContext(connection))
+            val identifier = repository.add(mapOf("kind" to "refund_offset", "primary_fact_id" to "94002",
+                "status" to "pending_review", "primary_component_id" to 94002, "anchor_component_id" to 94002,
+                "subtype" to "humanopen", "rule_id" to "human.open", "anchor_fact_id" to "94002",
+                "created_by" to "user", "decided_by" to "user", "candidate_fact_ids" to listOf(94001)))
+            labels[identifier] = "seed_humanopen"
+        }
+        cases["human_open_preserved"] = call(relationProposal(primary = "94002", subtype = "humanopen",
+            status = "pending_review", ruleId = "human.open2", anchor = "94002", candidates = listOf("94004"),
+            refundExtras = false))
+        cases["proposals"] = linkedMapOf("accepted" to proposalBody(accepted), "open" to proposalBody(openUpdated),
+            "bind" to proposalBody(bindProposal), "pending" to proposalBody(pendingProposal),
+            "conflict" to proposalBody(conflictProposal),
+            "human" to proposalBody(relationProposal(primary = "94005", secondary = "94002", subtype = "human",
+                amount = "5.00")),
+            "over" to proposalBody(relationProposal(primary = "94008", secondary = "94002", subtype = "over",
+                amount = "10.00")),
+            "occupancy" to proposalBody(relationProposal(primary = "94002", subtype = "occ",
+                status = "pending_review", ruleId = "occ.rule2", anchor = "94002", candidates = listOf("94004"),
+                refundExtras = false)),
+            "human_open" to proposalBody(relationProposal(primary = "94002", subtype = "humanopen",
+                status = "pending_review", ruleId = "human.open2", anchor = "94002", candidates = listOf("94004"),
+                refundExtras = false)))
+        val finalRows = database.read { connection ->
+            connection.jooq(database.sqlite).selectFrom(TRANSACTION_RELATIONS)
+                .where(TRANSACTION_RELATIONS.WORKSPACE_ID.eq(workspace))
+                .orderBy(TRANSACTION_RELATIONS.ID).fetch().map { row ->
+                    linkedMapOf<String, Any?>("id" to row.id, "kind" to row.kind, "subtype" to row.subtype,
+                        "primary_component_id" to row.primaryComponentId,
+                        "secondary_component_id" to row.secondaryComponentId, "state" to row.state,
+                        "active" to row.active, "row_revision" to row.rowRevision,
+                        "applied_amount" to row.appliedAmount?.let { java.math.BigDecimal(fixedCashDecimal(it)) },
+                        "rule_id" to row.ruleId, "created_by" to row.createdBy, "decided_by" to row.decidedBy,
+                        "decision_reason" to row.decisionReason)
+                }
+        }
+        @Suppress("UNCHECKED_CAST")
+        cases["final_rows"] = (normDecision(finalRows) as List<Map<String, Any?>>).sortedBy { it["id"].toString() }
+        cases["final_candidates"] = database.read { connection ->
+            connection.jooq(database.sqlite).select(CASH_RELATION_CANDIDATES.RELATION_ID,
+                CASH_RELATION_CANDIDATES.CANDIDATE_COMPONENT_ID).from(CASH_RELATION_CANDIDATES)
+                .where(CASH_RELATION_CANDIDATES.WORKSPACE_ID.eq(workspace)).fetch()
+                .map { listOf<Any?>(labels[it.value1()] ?: it.value1(), it.value2()) }
+                .sortedWith(compareBy({ it[0].toString() }, { it[1].toString().toLong() }))
+        }
+        assertEquals(golden(database).getValue("persistence"), sourceJson(cases))
+    }
 }

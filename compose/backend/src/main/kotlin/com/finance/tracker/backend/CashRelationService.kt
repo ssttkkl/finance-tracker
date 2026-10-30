@@ -425,6 +425,137 @@ internal class CashRelationService(private val context: CashSqlContext) {
                 "delete_reason" to trimmed, "event_id" to null))
     }
 
+    private fun refundAmount(proposal: RelationProposal): BigDecimal =
+        proposal.evidence.extras["refund_amount"]?.let { BigDecimal(it.toString()) }?.abs() ?: BigDecimal.ZERO
+
+    /** 候选加入完整已确认连通组后，退款与内部转账不得共存。 */
+    fun candidateCreatesKindConflict(proposal: RelationProposal,
+        acceptedRelations: List<Map<String, Any?>>? = null): Boolean {
+        if (proposal.secondaryFactId.isNullOrEmpty()) return false
+        val relations = acceptedRelations ?: relations.listActive(status = "accepted")
+        val adjacency = linkedMapOf<String, MutableSet<String>>()
+        val kindsByEdge = mutableListOf<Triple<String, String, String>>()
+        for (relation in relations) {
+            val primary = text(relation["primary_fact_id"])
+            val secondary = text(relation["secondary_fact_id"])
+            if (primary.isEmpty() || secondary.isEmpty()) continue
+            adjacency.getOrPut(primary) { linkedSetOf() } += secondary
+            adjacency.getOrPut(secondary) { linkedSetOf() } += primary
+            kindsByEdge += Triple(primary, secondary, text(relation["kind"]))
+        }
+        val primary = proposal.primaryFactId
+        val secondary = proposal.secondaryFactId.orEmpty()
+        adjacency.getOrPut(primary) { linkedSetOf() } += secondary
+        adjacency.getOrPut(secondary) { linkedSetOf() } += primary
+        kindsByEdge += Triple(primary, secondary, proposal.kind)
+        val component = linkedSetOf<String>()
+        val stack = mutableListOf(primary)
+        while (stack.isNotEmpty()) {
+            val current = stack.removeAt(stack.size - 1)
+            if (!component.add(current)) continue
+            stack += adjacency[current].orEmpty() - component
+        }
+        val kinds = kindsByEdge.filter { it.first in component && it.second in component }.map { it.third }.toSet()
+        return setOf("refund_offset", "transfer_pair").all { it in kinds }
+    }
+
+    /** 系统自动结果在写入前必须通过完整投影校验。 */
+    fun persistAutomaticProposal(proposal: RelationProposal, remaining: Map<String, BigDecimal>,
+        facts: List<RelationFact>, acceptedRelations: List<Map<String, Any?>>? = null,
+        validationProposals: List<RelationProposal> = emptyList()): Map<String, Any?>? {
+        val reason = CashRelationPlanning.validationReason(facts, acceptedRelations.orEmpty(), proposal,
+            validationProposals)
+        if (reason != null) return null
+        return persistProposal(proposal, remaining, acceptedRelations)
+    }
+
+    fun persistProposal(proposal: RelationProposal, remaining: Map<String, BigDecimal>,
+        acceptedRelations: List<Map<String, Any?>>? = null): Map<String, Any?>? {
+        val openLeg = proposal.isOpenLeg
+        val subtype = proposal.subtype.ifEmpty { "" }
+        val anchorId = proposal.effectiveAnchorFactId.ifEmpty { proposal.primaryFactId }
+        fun bind(existing: Map<String, Any?>, reason: String): Map<String, Any?> {
+            val other = if (proposal.kind == "refund_offset") proposal.primaryFactId
+            else proposal.secondaryFactId.orEmpty()
+            return relations.bindOtherLeg(existing["id"], other, otherComponentId = other,
+                primaryFactId = if (proposal.kind == "refund_offset") proposal.primaryFactId else null,
+                primaryComponentId = if (proposal.kind == "refund_offset") proposal.primaryFactId else null,
+                status = "accepted", decidedBy = "", decisionReason = reason)
+        }
+        var existing = if (openLeg) {
+            relations.findOpenLeg(proposal.kind, anchorId, subtype, anchorComponentId = anchorId)
+                ?: relations.findByBusinessKey(proposal.kind, anchorId, null, subtype = subtype,
+                    componentA = anchorId)
+        } else {
+            var found = relations.findByBusinessKey(proposal.kind, proposal.primaryFactId,
+                proposal.secondaryFactId, subtype = subtype, componentA = proposal.primaryFactId,
+                componentB = proposal.secondaryFactId)
+            if (found == null && !proposal.secondaryFactId.isNullOrEmpty()) {
+                val openExisting = relations.findOpenLeg(proposal.kind, anchorId, subtype,
+                    anchorComponentId = anchorId)
+                if (openExisting != null && openExisting["status"] == "pending_review" &&
+                    openExisting["created_by"] == "system" &&
+                    !CashRelationSerialization.isHumanDecision(openExisting) && proposal.status == "accepted") {
+                    if (candidateCreatesKindConflict(proposal, acceptedRelations)) return openExisting
+                    return bind(openExisting, "fx_rate_score_auto")
+                }
+            }
+            found
+        }
+        if (existing != null) {
+            if (openLeg && existing["status"] == "pending_review" && existing["created_by"] == "system" &&
+                !CashRelationSerialization.isHumanDecision(existing))
+                return relations.updateOpenLegCandidates(existing["id"], proposal.evidence.candidateFactIds)
+            if (existing["created_by"] != "system" || CashRelationSerialization.isHumanDecision(existing)) {
+                if (existing["status"] in setOf("accepted", "rejected", "pending_review")) return null
+            }
+            if (existing["status"] == "pending_review" && existing["created_by"] == "system" &&
+                !CashRelationSerialization.isHumanDecision(existing) &&
+                CashRelationCore.isOpenLegRelation(existing) && !proposal.secondaryFactId.isNullOrEmpty() &&
+                proposal.status == "accepted" && !openLeg) {
+                if (candidateCreatesKindConflict(proposal, acceptedRelations)) return existing
+                return bind(existing, "fx_rate_score_auto")
+            }
+            if (existing["status"] in setOf("accepted", "rejected", "pending_review")) {
+                if (existing["status"] == "pending_review" && existing["created_by"] == "system" &&
+                    !CashRelationSerialization.isHumanDecision(existing) &&
+                    !CashRelationCore.isOpenLegRelation(existing) && proposal.status == "accepted" &&
+                    !openLeg && !proposal.secondaryFactId.isNullOrEmpty()) {
+                    if (candidateCreatesKindConflict(proposal, acceptedRelations)) return existing
+                    return relations.updateStatus(existing["id"], status = "accepted", decidedBy = "",
+                        decisionReason = "auto_upgrade:${proposal.ruleId}")
+                }
+                return existing
+            }
+            return null
+        }
+        var status = proposal.status
+        if (openLeg) status = "pending_review"
+        if (status == "accepted" && candidateCreatesKindConflict(proposal, acceptedRelations))
+            status = "pending_review"
+        if (status == "accepted" && proposal.kind == "refund_offset") {
+            val expenseId = proposal.primaryFactId
+            val amount = refundAmount(proposal)
+            if (expenseId in remaining && amount > remaining.getValue(expenseId))
+                status = "pending_review"
+        }
+        val id = relations.add(linkedMapOf(
+            "kind" to proposal.kind, "subtype" to subtype,
+            "primary_fact_id" to proposal.primaryFactId,
+            "secondary_fact_id" to if (openLeg) null else proposal.secondaryFactId,
+            "primary_component_id" to proposal.primaryFactId,
+            "secondary_component_id" to if (openLeg) null else proposal.secondaryFactId,
+            "primary_fact_type" to proposal.primaryFactType,
+            "secondary_fact_type" to if (openLeg) null else proposal.secondaryFactType,
+            "anchor_fact_id" to anchorId, "anchor_component_id" to anchorId,
+            "status" to status, "rule_id" to proposal.ruleId,
+            "candidate_fact_ids" to if (openLeg) proposal.evidence.candidateFactIds else emptyList<String>(),
+            "created_by" to proposal.createdBy,
+            "applied_amount" to if (proposal.kind == "refund_offset" &&
+                !proposal.secondaryFactId.isNullOrEmpty()) refundAmount(proposal).toPlainString() else "0"))
+        return relations.get(id)
+    }
+
     /** 导入拒绝的自动提案：人工决定保持，系统结果更新为 rejected，否则新建 rejected 记录。 */
     fun persistRejectedProposal(proposal: RelationProposal): Map<String, Any?> {
         val subtype = proposal.subtype.ifEmpty { "" }
