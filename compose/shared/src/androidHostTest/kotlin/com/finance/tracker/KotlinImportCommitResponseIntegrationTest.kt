@@ -14,6 +14,30 @@ import kotlinx.serialization.json.*
 import org.junit.Assume.assumeTrue
 
 class KotlinImportCommitResponseIntegrationTest {
+    @Test fun actualSessionViewPreservesFileStateAndUnknownCountsWithoutRetry() = runTest {
+        val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
+        assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)
+        val source = Json.parseToJsonElement(Files.readString(Path.of(requireNotNull(root), "cash-import-session-view.json"))).jsonObject
+        assertTrue(source.getValue("backend").jsonPrimitive.content in setOf("sqlite", "postgresql"))
+        val body = source.getValue("body").jsonObject
+        val id = body.getValue("session_id").jsonPrimitive.content
+        var calls = 0
+        val engine = MockEngine { request ->
+            calls++; assertEquals(HttpMethod.Get, request.method)
+            assertEquals("/api/v1/cash-import/sessions/$id", request.url.encodedPath)
+            respond(body.toString(), HttpStatusCode.fromValue(source.getValue("status").jsonPrimitive.int), headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+        try {
+            val context = KtorCashImportLifecycleRepository(client).context(id)
+            assertEquals(id, context.sessionId); assertEquals(1L, context.revision); assertTrue(context.canPreview)
+            assertEquals(listOf("ready", "failed"), context.files.map { it.status })
+            assertEquals(listOf(1, null), context.files.map { it.recognizedRowCount })
+            assertEquals("statement_unreadable", context.files[1].issues.single().code)
+            assertEquals(1, calls)
+        } finally { client.close() }
+    }
+
     @Test fun actualViewerDenialUsesExistingPreviewConsumerWithoutRetry() = runTest {
         val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
         assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)

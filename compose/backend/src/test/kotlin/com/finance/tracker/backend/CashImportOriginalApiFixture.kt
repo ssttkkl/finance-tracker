@@ -25,8 +25,8 @@ internal fun JsonObject.apiNumber(key: String) = getValue(key).jsonPrimitive.int
 internal fun JsonObject.apiArray(key: String) = getValue(key).jsonArray
 internal fun JsonObject.apiError() = getValue("error").jsonObject.apiText("code")
 
-internal class CashImportOriginalApiFixture(name: String) {
-    private val directory = Path.of(requireNotNull(System.getenv("FT_KOTLIN_IMPORT_PLAN_API_CONTRACT_DIR"))).resolve(name)
+internal class CashImportOriginalApiFixture(name: String, rootVariable: String = "FT_KOTLIN_IMPORT_PLAN_API_CONTRACT_DIR") {
+    private val directory = Path.of(requireNotNull(System.getenv(rootVariable))).resolve(name)
     private val config = Json.parseToJsonElement(directory.resolve("database.json").readText()).jsonObject
     private val inputs = Json.parseToJsonElement(directory.resolve("api-input.json").readText()).jsonObject
     val workspace = config.apiText("workspace")
@@ -43,6 +43,7 @@ internal class CashImportOriginalApiFixture(name: String) {
         private val values = linkedMapOf<String, ParsedImportObject>()
         var poisonDocuments = false
         @Synchronized fun clear() = values.clear()
+        @Synchronized fun raw(id: String) = values.getValue(id).content.copyOf()
         @Synchronized override fun readRaw(id: String): ParsedImportObject {
             val value = values[id] ?: throw ParsedImportNotFound()
             if (!poisonDocuments) return value
@@ -140,9 +141,12 @@ internal class CashImportOriginalApiFixture(name: String) {
             if (method.name in setOf("execute", "executeUpdate", "executeLargeUpdate", "executeQuery", "executeBatch", "executeLargeBatch")) {
                 val sql = (prepared ?: args?.firstOrNull() as? String).orEmpty().replace("\"", "").replace("`", "").lowercase()
                 val replay = Thread.currentThread().stackTrace.any { it.className == "com.finance.tracker.backend.ReceiptRepository" && it.methodName == "replay" }
+                val sessionRead = mode == "session_read" && Thread.currentThread().stackTrace.any {
+                    it.className == "com.finance.tracker.backend.CashImportHttpService" && it.methodName == "view"
+                }
                 if (replay) replaySeen = true
                 val table = mapOf("source" to "cash_source_bindings", "relation" to "transaction_relations", "receipt" to "cash_mutation_receipts")[mode]
-                if (table != null && Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql) || mode == "replay_query" && replay ||
+                if (sessionRead || table != null && Regex("\\binsert\\s+into\\s+(?:\\w+\\.)?$table\\b").containsMatchIn(sql) || mode == "replay_query" && replay ||
                     sql == "commit" && (mode == "commit_after" || mode == "replay_exit" && replaySeen)) {
                     faultCount++; throw SQLException("private database SQL failure")
                 }

@@ -118,7 +118,8 @@ internal object CashImportProtocol {
 
     /** 严格解析元数据 JSON：未知键、重复客户端引用和越界修订都整体拒绝。 */
     fun metadata(text: String, add: Boolean): CashImportUploadMetadata {
-        val root = try { Json.parseToJsonElement(text) } catch (_: Exception) { fail() } as? JsonObject ?: fail()
+        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
+            catch (_: CategoryFailure) { fail() }
         val allowed = if (add) setOf("files", "expected_session_revision", "file_ref") else setOf("files")
         if (root.keys.any { it !in allowed } || "files" !in root) fail()
         val files = root.getValue("files") as? JsonArray ?: fail()

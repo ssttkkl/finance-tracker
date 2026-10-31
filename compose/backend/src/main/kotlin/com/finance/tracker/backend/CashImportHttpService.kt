@@ -15,6 +15,12 @@ internal class CashImportHttpService(private val database: Database, private val
     private val parser: (CashImportUpload, ByteArray) -> ParsedCashDocument = { upload, content ->
         CashStatementRowNormalization.parseCashStatement(content, upload.sourceHint, upload.password)
     }) {
+    private var maxUploadBytes = CashImportContext.MAX_UPLOAD_BYTES
+    internal constructor(database: Database, staging: ParsedImportStore, maximumUploadBytes: Int,
+        parser: (CashImportUpload, ByteArray) -> ParsedCashDocument) : this(database, staging, parser) {
+        require(maximumUploadBytes in 1..CashImportContext.MAX_UPLOAD_BYTES)
+        maxUploadBytes = maximumUploadBytes
+    }
     private var builder = CashImportPlanBuilder { context, files, input, previous ->
         CashImportBusinessPlanBuilder(context).build(files, input, previous)
     }
@@ -41,7 +47,7 @@ internal class CashImportHttpService(private val database: Database, private val
         }
 
     private fun context(principal: Principal) =
-        CashImportContextService(staging, principal.workspaceId!!, principal.userId, parser)
+        CashImportContextService(staging, principal.workspaceId!!, principal.userId, parser, maxUploadBytes)
 
     private fun digest(id: String) = ParsedImportStore.digest(id.toByteArray(StandardCharsets.UTF_8))
 
@@ -270,6 +276,6 @@ internal class CashImportHttpService(private val database: Database, private val
 
     private fun parserService(): CashImportContextService {
         // 解析只依赖文件自身，不读取会话；发布始终在锁内用当前成员重建。
-        return CashImportContextService(staging, "", "", parser)
+        return CashImportContextService(staging, "", "", parser, maxUploadBytes)
     }
 }

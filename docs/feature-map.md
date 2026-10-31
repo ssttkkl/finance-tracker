@@ -16,6 +16,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 导入计划发布的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPublicationTest.kt) 已覆盖原 121 条合成条目的分页／筛选、修订／有效期、不可变性、消费优先级、权限和敏感字段过滤；畸形构建先拒绝再保留旧计划。原发布文件 18 个定义／54 参数已逐项映射，验证状态见实施证据；原计划 API 的 [真实 HTTP 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt) 另覆盖 25 个定义／84 参数，包含回滚／未知结果、永久恢复、权限、严格协议和热缓存；只读拒绝的完整错误对象由 [现有 Compose 预览消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinImportCommitResponseIntegrationTest.kt) 验证。[准备图寿命回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanLifetimeTest.kt) 核对准备与快照在后续阶段前可回收、冻结集合保持列表，其他原组合仍待迁移。Web／Native 共用现有导入合同，页面数及 F-05 的两端 TODO 不变。
 
+导入会话的 [真实 HTTP 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt) 覆盖原 14 个定义／54 参数：上传资源释放、元数据、密码、范围、有效期、建议／选择、用户隔离、永久恢复及安全失败。合法值的重复元数据键在发布前拒绝；会话实际回包由现有 Compose context 消费者读取文件状态和未知数量。Web／Native 协议和页面数不变，解析上下文等其他原测试仍待迁移，F-05 TODO 保留。
+
 本轮页面数仍为 10，F-01 认证、F-04 编辑分摊与 F-07 分类任务的入口、跨端覆盖和既有验收 TODO 不变。共享模块与新运行时的验证状态以本轮实施证据为准，不能把模块存在写成全部后端或所有平台已验收。其余 Kotlin HTTP、格式适配、完整导入/维护/投影/关系/投资和后台任务均未完成；原 Python 功能保留。
 
 稳定收支对象仓库的公共人工值、拆分恢复和事务缓存，以及投影源读取、局部关系上下文、完整组校验和摘要已有双库内部验证，已接入全量重建/原子发布与新工作区初始化，管理员重建 HTTP 已通过真实双库对照，内部增量维护已通过双库；手工收支新建与转账创建已接入，转账编辑和完整维护仍待迁移，导入已接入联合确认；没有新增 Web 或 Native 入口，F-03/F-04 的迁移 TODO 保留。 转账创建迁移证据为 [`CashTransferService.kt`](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashTransferService.kt) 与 [`Compose 实际回包消费`](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinTransferResponseIntegrationTest.kt)；Web/Native 共用现有创建消费者，不增加页面。

@@ -2866,6 +2866,355 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files",
+      "source_sha256": "3f5430f72c0e393e47e626eb66aa15136b8bba613f7432a6977cfa2def73edac",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[],\"files\":[]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"password\":123}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"workspace_id\":\"private-workspace\"}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"expected_session_revision\":1.0}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"expected_session_revision\":true}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"anything\":NaN}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-[]]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-not json]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":-1}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":1.0}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":true}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[],\"files\":[]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"password\":123}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"workspace_id\":\"private-workspace\"}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"expected_session_revision\":1.0}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"expected_session_revision\":true}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\"}],\"anything\":NaN}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-[]]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-not json]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":-1}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":1.0}]}]",
+        "tests/contract/test_cash_import_session_api.py::test_bad_upload_protocol_is_safe_and_closes_files[postgres_cash_web_runtime-{\"files\":[{\"client_file_ref\":\"client-a\",\"last_modified_at_ms\":true}]}]"
+      ],
+      "assertions": [
+        "assert result.status_code == 422 and result.json()['error']['code'] == 'import_payload_invalid'",
+        "assert 'private-workspace' not in result.text and 'synthetic-original' not in result.text",
+        "assert all((file.closed for file in opened))",
+        "Starlette spools are replaced by actual Ktor receive-pipeline file parts: count delivered parts and observe forwarded dispose calls; viewer denial must not deliver any part."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "badUploadProtocolIsSafeAndDisposesEveryDeliveredFilePart"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_current_suggestion_is_distinct_from_saved_user_selection",
+      "source_sha256": "b830392e63e5bb8974fd2bf612199a8e01f466a403fbff40f067f261a13ffd5f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_current_suggestion_is_distinct_from_saved_user_selection[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_current_suggestion_is_distinct_from_saved_user_selection[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert group['selection'] is None and group['suggestion']['account_id'] is None",
+        "assert response.status_code == 200",
+        "assert account['suggestion']['account_id'] == '101'",
+        "assert account['selection'] == {'account_id': '102', 'expected_account_revision': 1}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "currentSuggestionIsDistinctFromSavedUserSelection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_expired_session_uses_durable_receipt_before_temporary_storage",
+      "source_sha256": "4d8f4c8fa7c9e45c60ec9383c3c24e9586327b2d802e5e24fe33832e1962ea61",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_expired_session_uses_durable_receipt_before_temporary_storage[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_session_api.py::test_expired_session_uses_durable_receipt_before_temporary_storage[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_session_api.py::test_expired_session_uses_durable_receipt_before_temporary_storage[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_session_api.py::test_expired_session_uses_durable_receipt_before_temporary_storage[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert response.status_code == 410",
+        "assert response.status_code == 200",
+        "assert recovered['state'] == 'committed' and recovered['receipt_id'] == receipt['receipt_id']",
+        "assert recovered['session_revision'] is None and recovered['expires_at'] is None",
+        "assert recovered['files'] == [] and recovered['source_accounts'] == [] and (recovered['can_preview'] is False)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "expiredUnconsumedSessionReturnsGone"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "consumedSessionIsRecoveredBeforeExpiredTemporaryStorage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_explicit_null_scope_on_reupload_returns_to_default",
+      "source_sha256": "12c92560c25aebd93e35c749d505305fce8c48a369eac043f50e93bdfa94ef96",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_explicit_null_scope_on_reupload_returns_to_default[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_explicit_null_scope_on_reupload_returns_to_default[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert result.status_code == 200 and result.json()['files'][0]['source_scope_label'] is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "explicitNullScopeOnReplacementReturnsToDefault"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data",
+      "source_sha256": "b53c4b53a64b4065c67c78d70e038c122aa01a0b5f152587487aad79a06ea7e5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_file_modification_time_is_staged_for_ordering_but_not_exposed_as_business_data[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201",
+        "assert 'last_modified_at_ms' not in view['files'][0]",
+        "assert staged.files[0].last_modified_at_ms == 1725000000123"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "fileModificationTimeIsStagedButNotPublicBusinessData"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_file_scope_and_remove_use_session_cas_and_keep_ttl",
+      "source_sha256": "bb46065f1ebef852eab1032f2b48efaf9932ba5080f83ece603e3b8a5c9d53b5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_file_scope_and_remove_use_session_cas_and_keep_ttl[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_file_scope_and_remove_use_session_cas_and_keep_ttl[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert changed.status_code == 200 and changed.json()['session_revision'] == 2",
+        "assert changed.json()['expires_at'] == view['expires_at'] and calls == [1]",
+        "assert changed.json()['files'][0]['source_scope_label'] == '另一来源'",
+        "assert client.delete(file_path, headers={'If-Match': '1'}).status_code == 409",
+        "assert client.delete(file_path, headers={'If-Match': '\"2\"'}).status_code == 200",
+        "assert empty['files'] == [] and empty['source_accounts'] == [] and (empty['can_preview'] is False)",
+        "assert client.delete(path).status_code == 200",
+        "assert client.get(path).json()['state'] == 'cancelled'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "fileScopeAndRemovalUseSessionCasAndPreserveTtl"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action",
+      "source_sha256": "f7da92f9ef8e5722e336288b82f2ccbbc7ad123c0a10d0b14a59cb4ee97ca65f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[cash_web_runtime-statement_header_not_found]",
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[cash_web_runtime-statement_header_invalid]",
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[cash_web_runtime-statement_encoding_unsupported]",
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[postgres_cash_web_runtime-statement_header_not_found]",
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[postgres_cash_web_runtime-statement_header_invalid]",
+        "tests/contract/test_cash_import_session_api.py::test_known_file_format_failure_provides_safe_reselect_action[postgres_cash_web_runtime-statement_encoding_unsupported]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201",
+        "assert issue['code'] == code and issue['next_action'] == 'reselect_file'",
+        "assert '重新导出' in issue['message'] and '表头' not in issue['message'] and ('编码' not in issue['message'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "knownFileFormatFailuresOfferSafeReselectAction"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_missing_alipay_funding_exposes_wallet_fallback_group",
+      "source_sha256": "134e3e6bffeb2c6387aed1189deeddaf5a2441ffb8dd11bac02cdb3daa94f115",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_missing_alipay_funding_exposes_wallet_fallback_group[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_missing_alipay_funding_exposes_wallet_fallback_group[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['can_preview'] is True",
+        "assert account['display_name'] == '支付宝余额'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "missingAlipayFundingExposesWalletFallback"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_other_operator_cannot_read_or_modify_session",
+      "source_sha256": "a6ba1a71692a2afad72445c2ffe70dfd46886ef6a6e84af62ce4b40b632a5088",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_other_operator_cannot_read_or_modify_session[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_other_operator_cannot_read_or_modify_session[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert outsider.get(path).status_code == 404",
+        "assert outsider.delete(path).status_code == 404",
+        "assert client.get(path).status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "otherOperatorCannotReadOrModifySession"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_oversize_file_skips_only_that_file_and_keeps_other_file",
+      "source_sha256": "25ba3e1044f02777de0c2e623019fb945eea5757ef946e0b7ee71cfac60ee1a5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_oversize_file_skips_only_that_file_and_keeps_other_file[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_oversize_file_skips_only_that_file_and_keeps_other_file[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 201",
+        "assert [file['status'] for file in files] == ['failed', 'ready']",
+        "assert files[0]['issues'][0]['code'] == 'statement_file_too_large' and calls == ['client-b']",
+        "assert response.json()['can_preview'] is True and all((file.closed for file in opened))",
+        "Starlette spools are replaced by actual Ktor receive-pipeline file parts: count delivered parts and observe forwarded dispose calls; viewer denial must not deliver any part.",
+        "Inject the original eight-byte context budget through an internal constructor; production stays 100 MiB and no request/config parameter is added."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "oversizedFileSkipsOnlyThatFileAndDisposesAllParts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_password_retry_parses_only_replaced_file_and_keeps_client_slot",
+      "source_sha256": "32b67cbf8280c5722e960d7061667189c0ff26bf855fb260f32242e3c0bccf2a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_password_retry_parses_only_replaced_file_and_keeps_client_slot[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_password_retry_parses_only_replaced_file_and_keeps_client_slot[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['files'][0]['status'] == 'password_required'",
+        "assert response.status_code == 200",
+        "assert calls == ['client-a', 'client-b', 'client-a']",
+        "assert updated['session_revision'] == 2",
+        "assert updated['files'][0]['client_file_ref'] == 'client-a'",
+        "assert updated['files'][0]['file_ref'] != view['files'][0]['file_ref']",
+        "assert updated['files'][1] == view['files'][1]",
+        "assert _upload(client, metadata=body, path=path, files=[('file:new-picker-ref', ('synthetic.pdf', b'encrypted'))]).status_code == 409",
+        "assert calls == ['client-a', 'client-b', 'client-a']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "passwordRetryOnlyParsesReplacementAndKeepsClientSlot"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_session_api_read_failure_and_cors_are_safe",
+      "source_sha256": "877974ed0ad1cb7c10ad693779dad1cc39a35a4f390f1271fcc273b26ce75de3",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_session_api_read_failure_and_cors_are_safe[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_session_api_read_failure_and_cors_are_safe[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 503",
+        "assert 'SQL' not in response.text and 'provider' not in response.text",
+        "assert cors.status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "readFailuresAndCorsAreSafe"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_upload_isolates_bad_file_and_exposes_only_safe_session_view",
+      "source_sha256": "e5e448b3a4837c5d4c87496a96558540d9822ea7b7f644e9a62fd7c6e32ff7f2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_upload_isolates_bad_file_and_exposes_only_safe_session_view[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_upload_isolates_bad_file_and_exposes_only_safe_session_view[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert result.status_code == 201",
+        "assert view['session_revision'] == 1 and view['state'] == 'open' and (view['can_preview'] is True)",
+        "assert calls == ['client-a', 'client-b']",
+        "assert [file['status'] for file in view['files']] == ['ready', 'failed']",
+        "assert [file['recognized_row_count'] for file in view['files']] == [1, None]",
+        "assert view['files'][1]['issues'][0]['code'] == 'statement_unreadable'",
+        "assert len(opened) == 2 and all((file.closed for file in opened))",
+        "assert read.status_code == 200 and read.json() == view and (calls == ['client-a', 'client-b'])",
+        "assert b'private-password' not in raw and b'synthetic-original' not in raw",
+        "assert type(upload.content) is bytes",
+        "assert secret not in read.text",
+        "Starlette spools are replaced by actual Ktor receive-pipeline file parts: count delivered parts and observe forwarded dispose calls; viewer denial must not deliver any part.",
+        "Raw content is a JVM ByteArray by type and compared byte-for-byte. Use a known StatementDocumentFailure for unreadable data; arbitrary internal programming errors still stop the operation per AGENTS.md."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "uploadIsolatesUnreadableFileAndOnlyExposesSafeSessionView"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_session_api.py::test_viewer_is_rejected_before_upload_files_are_opened",
+      "source_sha256": "b4aa4ab383eda29cf80ade64738153a897e7ffa8ea667b421557910fdcbcbbb2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_session_api.py::test_viewer_is_rejected_before_upload_files_are_opened[cash_web_runtime]",
+        "tests/contract/test_cash_import_session_api.py::test_viewer_is_rejected_before_upload_files_are_opened[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _upload(client).status_code == 403",
+        "assert calls == [] and opened == []",
+        "Starlette spools are replaced by actual Ktor receive-pipeline file parts: count delivered parts and observe forwarded dispose calls; viewer denial must not deliver any part."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt",
+          "test": "viewerIsRejectedBeforeAnyFilePartOrParserIsOpened"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key",
       "source_sha256": "a402b89a0cef375fe73ce98d52c2112d35684a69ef3139f11d6439a24cdd1aa3",
       "status": "migrated",
