@@ -40,6 +40,8 @@ Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收�
 
 导入确认的[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt)直接覆盖批次失败整体回滚、混合分摊/来源别名/公共人工值/精确余额、草稿、重放、核实、当前权限及收据用户隔离，并验证镜像/退款共同落账、零净额可见、当前结果定位、并发一次消费、旧计划拒绝及草稿组成项身份；不以命令黄金代替源断言。已补关系发现内部错误停止预览和重验转换保留行级诊断，实际 409 回包由既有消费者验证。没有新增页面或平台入口，F-05 的其他原组合测试与真实环境 TODO 保留。
 
+Kotlin 操作规划的 [原断言测试](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 已覆盖原 14 个定义／40 参数：新建与草稿决定、支付宝余额分组、跨文件重复、坏行、非法修改／分类／类型、多决定、显式分摊矛盾、无身份重复、账户改名、现金部分身份和输入不变性；所有规划保持只读。原文件其余 22 定义仍待迁移。Web、Native 和共享生产合同不变，页面数仍为 10，F-05 两端 TODO 保留。
+
 ## 现金导入后端与客户端边界
 
 流水模型、展示与维护流程见 [现金流水](cash-ledger.md)，账单入库过程见 [现金账单导入](cash-import-flow.md)。现金导入后端已完成开发及验收，旧公开写入口已关闭；Compose 已接入 F-03 当前状态列表、F-04 当前详情、草稿维护、公共整笔编辑、普通记账／转账创建和完整转账编辑；F-05 已切换当前会话与统一核对入口；来源／身份问题已有真实 API 最终冒烟；密码重传等分支未逐项 Web 穷举，演示确认仍待完成。共享入口由 Web、Android、iOS 共用；直接转账响应已修复列表中的精确金额序列化。默认验证按 AGENTS.md 执行 Web 冒烟及相称原生编译／单元测试，不将未执行的设备 QA 记为通过。页面数没有增加。现金详情／表单和导入准备页已按修改前的视觉基线恢复信息层级，全部可编辑字段按业务分组展开，编辑操作固定在底部，浅深主题交互蓝配对已通过对比度回归；当前演示尚待用户确认。业务规则见 [规则与设计取舍](cash-import-redesign.md)，协议见 [接口与数据契约](cash-import-redesign-contracts.md)；开发、迁移、双后端及真实账单验收集中在 [实施记录](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。

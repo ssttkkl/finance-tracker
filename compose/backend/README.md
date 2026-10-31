@@ -102,6 +102,9 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_PREPARATION_CONTRACT_DIR` | `scripts/export_cash_import_commit_preparation_contracts.py` |
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
+| `FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR` | `scripts/export_cash_import_original_operation_contracts.py`（原操作规划的匿名输入） |
+
+操作规划的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 使用表中生成器，以 `--database-url`、共同根目录 `--output` 和 `--scenario base`／`--scenario rename` 分别准备两个独立空测试库；在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalOperationTest' -PbackendFunctionalOnly=true`。`base` 场景由只读用例共用，`rename` 预先保存账户改名，所有测试比较完整业务表快照。生成器只保存原输入；原生测试直接核对新建／草稿、重复、非法修改、六组分摊矛盾及 typed／wire 完整操作一致性。其余已有流水更新、草稿完成等原定义仍待迁移。
 
 解析上下文的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt) 使用 `scripts/export_cash_import_context_contracts.py` 逐场景准备独立空库，参数同下方会话生成器；设置共同根目录 `FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalContextTest' -PbackendFunctionalOnly=true`。它核对解析在工作区锁外、解析后权限／消费、私有工作流及真实银行字节和加密 PDF；角色／收据用例必须重新准备后重跑。工银亚洲 TSV 以严格逻辑记录读取，备注内引号、制表符及换行保留，非法引号返回文件不可读；私有编辑上下文的导入核实在无收据时返回 `not_committed`，不能用于导入。
 
