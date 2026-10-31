@@ -92,6 +92,9 @@ data class CashProjectionDto(
     @SerialName("projection_version") val projectionVersion: Long? = null,
     @SerialName("entry_id") val entryId: String? = null,
     @SerialName("transaction_id") val transactionId: String,
+    @SerialName("record_type") val recordType: String? = null,
+    @SerialName("record_subtype") val recordSubtype: String? = null,
+    @SerialName("attention_codes") val attentionCodes: List<String> = emptyList(),
 )
 
 @Serializable

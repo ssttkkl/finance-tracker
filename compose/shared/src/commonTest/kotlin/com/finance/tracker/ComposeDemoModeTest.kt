@@ -49,7 +49,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoCashRecordsSupportCreateUpdateAndDeleteInMemory() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
+        val repository = DemoFinanceRepository()
         val write = CashRecordWrite(
             occurredAt = "2026-10-12T10:00:00Z",
             amount = "-12.50",
@@ -73,7 +73,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoLedgerAppliesExactSignedAmountFiltersAndRejectsInvalidAmounts() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository as DemoFinanceRepository
+        val repository = DemoFinanceRepository()
 
         val betweenNegativeBounds = repository.fetchCashPage(CashFilters(amountMin = "-20", amountMax = "-10"))
         val minimumOnly = repository.fetchCashPage(CashFilters(amountMin = "10000.01"))
@@ -86,7 +86,7 @@ class ComposeDemoModeTest {
 
     @Test
     fun demoIndexedLedgerReturnsMonthPositionsOnlyWithTheInitialPage() = runTest {
-        val repository = createDemoFinanceTrackerGraph().financeRepository
+        val repository = DemoFinanceRepository()
 
         val first = repository.fetchCashPage(CashFilters(), startIndex = 0, limit = 2)
         val next = repository.fetchCashPage(

@@ -6,7 +6,7 @@ import com.finance.tracker.domain.*
 class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) : CashMaintenanceRepository {
     override suspend fun currentGroup(projectionId: String): CashCurrentGroup {
         val evidence = finance.fetchEvidence(projectionId)
-        return CashCurrentGroup(evidence.projectionVersion, evidence.members.map { CashCurrentMember(it.id, revisions[it.id] ?: 1, if (finance.importedStates[it.id] == "draft") "pending" else "confirmed") })
+        return CashCurrentGroup(evidence.projectionVersion, evidence.members.map { CashCurrentMember(it.id, revisions[it.id] ?: 1, record(it.id).confirmationStatus) })
     }
     private val revisions = mutableMapOf<String, Long>()
     private val entryRevisions = mutableMapOf<String, Long>()
@@ -18,10 +18,12 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
     private var counter = 0
     override suspend fun sources(projectionId: String): CashSourceEvidence {
         val evidence = finance.fetchEvidence(projectionId)
+        val current = evidence.members.associate { it.id to record(it.id) }
         return CashSourceEvidence(evidence.projectionVersion, evidence.projection, evidence.members.map { member ->
-            CashSourceMember(member.id, member.occurredAt, member.amount, member.currency, member.counterparty, member.note, member.counterpartyAccount,
+            fun value(key: String) = (current.getValue(member.id).fields.fields[key] as? StructuredText)?.value
+            CashSourceMember(member.id, value("occurred_at"), value("amount"), value("currency"), member.counterparty, member.note, member.counterpartyAccount,
                 member.account?.name ?: member.accountName, member.components.orEmpty().map { part -> CashSourceComponent(part.id, part.amount, part.currency, part.account?.name ?: part.accountName, "") },
-                finance.importedFields[member.id]?.fields?.get("source_payload") as? StructuredObject)
+                finance.importedFields[member.id]?.fields?.get("source_payload") as? StructuredObject, current.getValue(member.id).fields, current.getValue(member.id).relations)
         })
     }
     override suspend fun record(transactionId: String): CashCurrentRecord {
@@ -29,16 +31,17 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         finance.importedFields[transactionId]?.let { source ->
             val fields = source
             val state = finance.importedStates[transactionId] ?: "posted"
-            val pending = state == "draft"
-            val editable = if (pending) listOf("occurred_at", "amount", "currency", "account_id", "record_type", "record_subtype") + common else common.toList()
+            val draft = state == "draft"
+            val pending = draft || finance.pendingRelations(transactionId)
+            val editable = if (draft) listOf("occurred_at", "amount", "currency", "account_id", "record_type", "record_subtype") + common else common.toList()
             val revision = revisions[transactionId] ?: 1
             val version = finance.fetchCashPage(CashFilters()).projectionVersion
-            val issues = if (!pending) emptyList() else listOf(CashRecordIssue("demo-account-$transactionId", revision, "posting_incomplete",
+            val issues = if (!draft) emptyList() else listOf(CashRecordIssue("demo-account-$transactionId", revision, "posting_incomplete",
                 if (fields.fields["account_id"] is StructuredText) "请核对后转为正式收支。" else "请选择对应账户。", "account_id", "row", "edit", emptyList(), StructuredObject(emptyMap()), null, emptyList())) // i18n-allow: demo-fixture
             return CashCurrentRecord("import", CashPublicEntry("demo-entry-$transactionId", entryRevisions[transactionId] ?: 1,
                 StructuredObject(fields.fields.filterKeys { it in common } + finance.currentCommonFields(transactionId)), finance.currentCommonFields(transactionId).keys.toList(), common.toList(), false), transactionId,
-                state, revision, if (pending) "pending" else "confirmed", fields, editable, issues, emptyList(),
-                CashCurrentProjectionRef(transactionId, "projection-$transactionId", if (pending) 1 else 0, version))
+                state, revision, if (pending) "pending" else "confirmed", fields, editable, issues, finance.savedRelations(transactionId),
+                CashCurrentProjectionRef(transactionId, "projection-${finance.transferRoot(transactionId)}", if (pending) 1 else 0, version))
         }
 
         fun text(value: String) = StructuredText(value)
@@ -60,6 +63,7 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
     }
     override suspend fun preview(input: CashMaintenanceRequest): CashMaintenancePlan {
         val current = record(input.transactionId)
+        if (input.intent == "maintain_relations") return previewRelations(input, current)
         if (current.rowRevision != input.expectedRevision) failure("record_changed", 409)
         val draft = input.intent in setOf("save_draft", "finalize_draft")
         if (draft && current.state != "draft") failure("draft_required", 409)
@@ -96,6 +100,7 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
     override suspend fun items(planId: String, cursor: String?, confirmationStatus: String) = ImportItemPage(plan(planId).items.filter { confirmationStatus == "all" || it.confirmationStatus == confirmationStatus }, null)
     override suspend fun item(planId: String, itemId: String): ImportItemDetail {
         val input = requests[planId] ?: failure("plan_not_found", 404)
+        if (input.intent == "maintain_relations") return relationDetails.getValue(planId)
         val current = record(input.transactionId)
         val prepared = if (input.memberPatches.isEmpty()) listOf(current) else finance.prepareTransferMembers(input.transactionId, input.memberPatches).map { row ->
             val source = record(row.id)
@@ -115,6 +120,9 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         val current = record(input.transactionId)
         if (current.rowRevision != input.expectedRevision) failure("record_changed", 409)
         if (input.intent == "edit_entry" && (input.entryId != current.entry!!.entryId || input.expectedEntryRevision != current.entry!!.revision)) failure("entry_changed", 409)
+        if (input.intent == "maintain_relations") {
+            return commitRelations(command, plan, input, current)
+        }
         if (input.intent in setOf("save_draft", "finalize_draft")) {
             if (current.state != "draft") failure("draft_required", 409)
             val fields = StructuredObject(current.fields.fields + input.patch.fields)
@@ -151,6 +159,126 @@ class DemoCashMaintenanceRepository(private val finance: DemoFinanceRepository) 
         }
         if (receipt.retainedTransactionId != transactionId) failure("idempotency_conflict", 409)
         return CashDraftSaveResult(receipt, "available", record(transactionId))
+    }
+    private val relationDetails = mutableMapOf<String, ImportItemDetail>()
+    override suspend fun associationTargets(transactionId: String, search: CashAssociationSearch): CashAssociationPage {
+        val anchor = record(transactionId)
+        if (anchor.recordOrigin != "import" || anchor.state != "posted") failure("choice_invalid", 422)
+        if (search.amount != null && !isExactDecimalString(search.amount)) failure("invalid_filter", 400)
+        val filtered = finance.auditRecords().filter { it.id != transactionId }.map { record(it.id) }.filter { target ->
+            fun text(key: String) = (target.fields.fields[key] as? StructuredText)?.value
+            (search.query.isBlank() || listOf("counterparty", "note", "account_name").any { text(it)?.contains(search.query, true) == true }) &&
+                (search.accountId == null || text("account_id") == search.accountId) &&
+                (search.amount == null || text("amount")?.let { compareDemoDecimals(it, search.amount) == 0 } == true) &&
+                (search.dateFrom == null || text("occurred_at")?.let { com.finance.tracker.core.getLocalDateForInstant(it) >= search.dateFrom } == true) &&
+                (search.dateTo == null || text("occurred_at")?.let { com.finance.tracker.core.getLocalDateForInstant(it) <= search.dateTo } == true)
+        }.mapNotNull { target ->
+            val reason = associationReason(anchor, target, search.kind ?: "payment_mirror")
+            if (reason != null) null else target.copy(unavailableReason = null, componentChoices = listOf(
+                CashAssociationComponentChoice("part-$transactionId", "part-${target.transactionId}")))
+        }
+        val offset = search.cursor?.toIntOrNull() ?: 0
+        return CashAssociationPage(filtered.drop(offset).take(20), (offset + 20).takeIf { it < filtered.size }?.toString())
+    }
+    private fun associationReason(anchor: CashCurrentRecord, target: CashCurrentRecord, kind: String): String? {
+        fun text(row: CashCurrentRecord, key: String) = (row.fields.fields[key] as? StructuredText)?.value
+        val a = text(anchor, "amount"); val b = text(target, "amount")
+        return when {
+            kind !in setOf("payment_mirror", "refund_offset", "transfer_pair") -> "relation_role_incompatible"
+            target.state != "posted" || a == null || b == null || text(target, "account_id") == null -> "relation_endpoint_incomplete"
+            target.recordOrigin != "import" || finance.projectionMembers(target.transactionId).size > 1 -> "relation_endpoint_occupied"
+            text(anchor, "currency") != text(target, "currency") -> "relation_currency_mismatch"
+            kind == "payment_mirror" && text(anchor, "account_id") != text(target, "account_id") -> "relation_account_mismatch"
+            kind == "refund_offset" && text(anchor, "account_id") != text(target, "account_id") -> "relation_account_mismatch"
+            kind == "payment_mirror" && compareDemoDecimals(a, b) != 0 -> "relation_amount_invalid"
+            kind in setOf("refund_offset", "transfer_pair") && (a.startsWith('-') == b.startsWith('-') || compareDemoDecimals(a.removePrefix("-"), b.removePrefix("-")) != 0) -> "relation_amount_invalid"
+            else -> null
+        }
+    }
+    private suspend fun previewRelations(input: CashMaintenanceRequest, current: CashCurrentRecord): CashMaintenancePlan {
+        if (current.rowRevision != input.expectedRevision) failure("record_changed", 409)
+        if (current.recordOrigin != "import" || current.state != "posted" || input.patch.fields.isNotEmpty() || input.memberPatches.isNotEmpty()) failure("choice_invalid", 422)
+        val suggestion = finance.auditSuggestions[input.transactionId]
+        val existing = finance.auditRelations.filter { it.active && it.state == "confirmed" && input.transactionId in it.members }
+        val groups = listOfNotNull(suggestion) + existing.map { relation ->
+            ImportPairOption(relation.id, relation.kind, "keep", null, emptyList(), relation.members.map { ImportMemberRef(null, it) },
+                listOf("remove"), null, relationIds = listOf(relation.id), relations = listOf(ImportPairRelation(relation.kind, relation.members.map { ImportMemberRef(null, it) })))
+        }
+        if (input.relationChoices.map { it.suggestionId }.distinct().size != input.relationChoices.size) failure("choice_invalid", 422)
+        val selected = input.relationChoices.map { decision ->
+            val group = groups.singleOrNull { it.suggestionId == decision.suggestionId } ?: failure("choice_invalid", 422)
+            if (decision.action !in group.allowedActions || decision.commonFields != null) failure("choice_invalid", 422)
+            if (decision.action != "accept" && decision.candidateId != null) failure("choice_invalid", 422)
+            val candidate = if (decision.action == "accept") group.candidates.singleOrNull { it.candidateId == decision.candidateId }
+                ?: failure("choice_invalid", 422) else null
+            candidate?.relations.orEmpty()
+        }.flatten()
+        input.relationAdditions.forEach { addition ->
+            val target = record(addition.targetTransactionId)
+            if (target.rowRevision != addition.expectedTargetRevision) failure("record_changed", 409)
+            associationReason(current, target, addition.kind)?.let { failure(it, 422) }
+            if (addition.anchorComponentId != "part-${input.transactionId}" || addition.targetComponentId != "part-${addition.targetTransactionId}" || addition.commonFields != null) failure("choice_invalid", 422)
+        }
+        val proposedRelations = selected + input.relationAdditions.map { ImportPairRelation(it.kind,
+            listOf(ImportMemberRef(null, input.transactionId), ImportMemberRef(null, it.targetTransactionId))) }
+        proposedRelations.forEach { relation ->
+            val first = record(relation.members.first().transactionId!!)
+            val second = record(relation.members.last().transactionId!!)
+            associationReason(first, second, relation.kind)?.let { failure(it, 422) }
+        }
+        val members = (finance.projectionMembers(input.transactionId) + proposedRelations.flatMap { it.members.mapNotNull { ref -> ref.transactionId } }).distinct()
+        val pending = suggestion != null && input.relationChoices.none { it.suggestionId == suggestion.suggestionId }
+        val old = input.previousPlanId?.let { plan(it) }
+        if (old != null && (old.revision != input.expectedPlanRevision || old.editContextId != input.editContextId)) failure("plan_changed", 409)
+        val context = old?.editContextId ?: "demo-relations-${++counter}".padEnd(43, 'x')
+        val id = "mp_$context." + (++counter).toString().padEnd(16, 'x')
+        fun value(key: String) = (current.fields.fields[key] as? StructuredText)?.value
+        val proposedRefunds = proposedRelations.filter { it.kind == "refund_offset" && it.members.first().transactionId == input.transactionId }
+        val previewAmount = if (proposedRefunds.isNotEmpty()) {
+            val remainder = allocationBalance(value("amount")!!, proposedRefunds.map { relation ->
+                (record(relation.members.last().transactionId!!).fields.fields["amount"] as StructuredText).value.removePrefix("-") } + "0").difference
+            if (compareDemoDecimals(remainder, "0") == 0) "0.00" else "-$remainder"
+        } else value("amount")
+        val item = ImportProjectedItem("demo-item", if (pending) "pending" else "confirmed", "posted",
+            ImportDisplay(value("occurred_at"), previewAmount, value("currency"), value("counterparty"), value("note"), listOfNotNull(value("account_name"))),
+            true, members.map { ImportMemberRef(null, it) }, emptyList(), true)
+        val result = CashMaintenancePlan(id, context, (old?.revision ?: 0) + 1, "2099-01-01T00:00:00Z", mapOf("maintain_relations" to 1L),
+            mapOf("all" to 1L, "pending" to if (pending) 1L else 0L, "confirmed" to if (pending) 0L else 1L),
+            input.relationChoices.isNotEmpty() || input.relationAdditions.isNotEmpty(), listOf(item), null, emptyList(), emptyList())
+        val details = members.map { memberId -> record(memberId).let { ImportMemberDetail(null, it.transactionId, "keep_existing", it.fields, emptyList(), emptyList(), it.rowRevision) } }
+        relationDetails[id] = ImportItemDetail(item.itemId, details, emptyList(), emptyList(), groups.map { group ->
+            input.relationChoices.firstOrNull { it.suggestionId == group.suggestionId }?.let { group.copy(action = it.action, candidateId = it.candidateId) } ?: group
+        }, proposedRelations.mapIndexed { index, relation -> ImportPairEffect("proposed-$index", relation.kind, "confirm", relation.members, null) },
+            ImportEntryFields(current.entry!!.fields, emptyList()))
+        plans[id] = result; requests[id] = input
+        return result
+    }
+    private suspend fun commitRelations(command: ImportFrozenCommand, plan: CashMaintenancePlan, input: CashMaintenanceRequest, current: CashCurrentRecord): ImportReceipt {
+        if (!plan.canCommit) failure("choice_invalid", 422)
+        // Revalidate every referenced revision before any process-local mutation.
+        relationDetails.getValue(command.planId).members.forEach { if (record(it.transactionId!!).rowRevision != it.rowRevision) failure("record_changed", 409) }
+        input.relationAdditions.forEach { associationReason(current, record(it.targetTransactionId), it.kind)?.let { failure(it, 422) } }
+        input.relationChoices.forEach { decision ->
+            if (decision.action == "remove") {
+                finance.auditRelations.filter { it.id == decision.suggestionId && it.active }.forEach { it.active = false; it.revision++ }
+            } else {
+                val suggestion = finance.auditSuggestions.getValue(input.transactionId)
+                finance.auditRelations.filter { it.suggestionId == decision.suggestionId }.forEach { it.active = false; it.revision++ }
+                if (decision.action == "accept") suggestion.candidates.single { it.candidateId == decision.candidateId }.relations.forEachIndexed { index, relation ->
+                    finance.auditRelations += DemoAuditRelation("accepted-${++counter}-$index", relation.kind, relation.members.map { it.transactionId!! }, null, "confirmed")
+                }
+                finance.auditSuggestions.remove(input.transactionId)
+            }
+        }
+        input.relationAdditions.forEach { addition -> finance.auditRelations += DemoAuditRelation("added-${++counter}", addition.kind,
+            listOf(input.transactionId, addition.targetTransactionId), null, "confirmed") }
+        relationDetails.getValue(command.planId).members.forEach { revisions[it.transactionId!!] = it.rowRevision!! + 1 }
+        finance.auditRelationsChanged()
+        val receipt = ImportReceipt("demo-receipt-${++counter}", command.planId, "mutation", true, "2026-10-30T00:00:00Z", "completed",
+            mapOf("updated_posted" to 1L), emptyMap(), 0, 0, finance.fetchCashPage(CashFilters()).projectionVersion, input.transactionId, null, null, null)
+        receipts[command.idempotencyKey] = receipt
+        plans.remove(command.planId); requests.remove(command.planId); relationDetails.remove(command.planId)
+        return receipt
     }
     private fun validateFinalDraft(fields: StructuredObject) {
         if (!demoCashPostingComplete(fields, finance.demoAccounts())) failure("posting_incomplete", 422)

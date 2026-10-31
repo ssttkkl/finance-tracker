@@ -53,6 +53,7 @@ data class ImportDisplay(
     val occurredAt: String?, val amount: String?, val currency: String?, val counterparty: String?,
     val note: String?, val accounts: List<String>,
     val categoryId: String? = null, val counterpartyAccount: String? = null, val counterpartyAccountAttrs: List<String>? = null,
+    val recordType: String? = null, val recordSubtype: String? = null,
 )
 data class ImportProjectedItem(
     val itemId: String, val confirmationStatus: String, val anticipatedState: String, val display: ImportDisplay,
@@ -69,6 +70,7 @@ data class ImportPlan(
     val summary: Map<String, Long>, val itemCounts: Map<String, Long>, val canCommit: Boolean,
     val items: List<ImportProjectedItem>, val files: List<ImportPlanFile>, val nextCursor: String?,
     val invalidatedChoices: List<ImportInvalidatedChoice>,
+    val monthlySummaries: Map<String, List<CashMonthlySummary>> = emptyMap(),
 )
 data class ImportItemPage(
     val items: List<ImportProjectedItem>, val nextCursor: String?,

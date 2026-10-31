@@ -8,14 +8,14 @@ private const val DEMO_USER_EMAIL = "demo@example.test"
 private const val DEMO_STATEMENT_NAME = "演示银行账单.csv" // i18n-allow: demo-fixture
 
 /** An in-memory statement fixture. Its bytes are synthetic and never come from the platform file system. */
-class DemoStatementFileSource : BoundedFileSource {
+class DemoStatementFileSource(internal val auditScenarios: Boolean = false) : BoundedFileSource {
     override val name: String = DEMO_STATEMENT_NAME
     override val mediaType: String = "text/csv"
-    private val bytes = (
-        "日期,账户,对方,金额,币种,备注\n" + // i18n-allow: demo-fixture
-            "2026-10-09,日常账户,山海咖啡,-28.00,CNY,午后咖啡\n" + // i18n-allow: demo-fixture
-            "2026-10-10,日常账户,示例公司,12000.00,CNY,月度收入\n" // i18n-allow: demo-fixture
-        ).encodeToByteArray()
+    internal val rows = if (auditScenarios) demoAuditImportRows() else demoBasicImportRows()
+    private val bytes = ("日期,账户,对方,金额,币种,备注\n" + rows.joinToString("\n") { row -> // i18n-allow: demo-fixture
+        listOf(row.values["occurred_at"].orEmpty(), row.accountName, row.values["counterparty"].orEmpty(),
+            row.values["amount"].orEmpty(), row.currency.orEmpty(), row.values["note"].orEmpty()).joinToString(",")
+    }).encodeToByteArray()
     override val size: Long = bytes.size.toLong()
     override suspend fun read(): ByteArray = bytes.copyOf()
     override suspend fun readBounded(maxBytes: Int): ByteArray {
@@ -156,7 +156,33 @@ class DemoFinanceRepository : FinanceRepository {
     private val relations = mutableListOf<CashRelation>()
     private val manualTransfers = mutableMapOf<String, List<String>>()
     internal fun transferMembers(id: String): List<String> = manualTransfers.values.firstOrNull { id in it }.orEmpty()
-    internal fun transferRoot(id: String): String = transferMembers(id).firstOrNull() ?: id
+    internal val auditRelations = mutableListOf<DemoAuditRelation>()
+    internal val auditSuggestions = mutableMapOf<String, ImportPairOption>()
+    internal val auditLabels = mutableMapOf<String, String>()
+    internal fun auditMembers(id: String): List<String> {
+        val connected = mutableSetOf(id)
+        do {
+            val oldSize = connected.size
+            auditRelations.filter { it.active && it.state == "confirmed" && it.members.any(connected::contains) }
+                .forEach { connected.addAll(it.members) }
+        } while (connected.size != oldSize)
+        return records.filter { it.id in connected }.map { it.id }
+    }
+    internal fun transferRoot(id: String): String = transferMembers(id).firstOrNull()
+        ?: auditMembers(id).firstOrNull() ?: id
+    internal fun projectionMembers(id: String): List<String> = transferMembers(id).ifEmpty { auditMembers(id) }
+    internal fun pendingRelations(id: String) = auditRelations.any { it.active && it.state == "draft" && id in it.members }
+    internal fun savedRelations(id: String) = auditRelations.filter { id in it.members }.map {
+        CashSavedRelation(it.id, it.kind, it.state, it.active, it.revision, it.suggestionId)
+    }
+    internal fun auditRecords() = records.toList()
+    internal fun seedAuditRecord(id: String, fields: StructuredObject, state: String, label: String? = null) {
+        writeImported(id, fields, state, create = true)
+        val row = records.removeAt(0); records.add(row)
+        label?.let { auditLabels[id] = it }
+    }
+    internal fun auditRelationsChanged() { projectionVersion++ }
+
     internal val importedFields = mutableMapOf<String, StructuredObject>()
     internal val importedStates = mutableMapOf<String, String>()
     internal fun demoAccounts() = accounts.toList()
@@ -180,7 +206,7 @@ class DemoFinanceRepository : FinanceRepository {
         fun text(key: String) = (fields.fields[key] as? StructuredText)?.value.orEmpty()
         val accountName = accounts.firstOrNull { it.id.toString() == text("account_id") }?.name.orEmpty()
         val row = recordFromWrite(id, CashRecordWrite(text("occurred_at"), text("amount"), text("currency"), text("counterparty"),
-            text("counterparty_account"), text("note"), accountName, text("record_type"), text("record_subtype"), text("category_id").ifEmpty { null }), "statement_import")
+            text("counterparty_account"), text("note"), accountName, text("record_type"), text("record_subtype"), text("category_id").ifEmpty { null }), text("source_type").ifEmpty { "statement_import" })
         if (create) records.add(0, row) else records[records.indexOfFirst { it.id == id }] = row
         importedFields[id] = fields; importedStates[id] = state
         projectionVersion++
@@ -214,7 +240,7 @@ class DemoFinanceRepository : FinanceRepository {
         val filtered = records.filter { transferRoot(it.id) == it.id }.filter { row ->
             val displayedAmount = projection(row).amount
             val amountVisible = !filters.hideZeroAmount || displayedAmount == null || compareDemoDecimals(displayedAmount, "0") != 0
-            amountVisible && (transferMembers(row.id).ifEmpty { listOf(row.id) }).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
+            amountVisible && projectionMembers(row.id).any { recordMatches(effectiveRecord(findRecord(it)), filters) }
         }.sortedWith(compareByDescending<CashRecord> { it.occurredAt }.thenByDescending { it.id })
         if (projectionVersion != null && projectionVersion != this.projectionVersion) {
             throw demoFailure("read_snapshot_changed", 409)
@@ -241,11 +267,13 @@ class DemoFinanceRepository : FinanceRepository {
             filters = mapOf("currency" to filters.currency, "category_id" to filters.categoryId, "hide_zero_amount" to filters.hideZeroAmount.toString()),
             filterOptions = CashFilterOptions(
                 categories = categories.toList(),
-                currencies = listOf("CNY", "USD"),
-                economicTypes = listOf(CashEconomicTypeFilterOption("income"), CashEconomicTypeFilterOption("expense")),
+                currencies = records.mapNotNull { projection(it).currency }.distinct().sorted(),
+                economicTypes = records.map(::projection).groupBy { it.economicType }.mapNotNull { (type, rows) ->
+                    type?.let { CashEconomicTypeFilterOption(it, rows.mapNotNull { it.businessLabel }.distinct()) }
+                },
             ),
             monthlySummaries = if (startIndex == null || projectionVersion == null) {
-                listOf(CashMonthlySummary("2026-10", listOf(CashMonthlyCurrencySummary("CNY", "12000.00", "44.00"))))
+                demoMonthlySummaries(filtered.map(::projection))
             } else {
                 emptyList()
             },
@@ -262,7 +290,7 @@ class DemoFinanceRepository : FinanceRepository {
 
     override suspend fun fetchEvidence(id: String): Evidence {
         val record = findRecord(transferRoot(id.removePrefix("projection-")))
-        val members = transferMembers(record.id).ifEmpty { listOf(record.id) }.map(::findRecord)
+        val members = projectionMembers(record.id).map(::findRecord)
         val item = projection(record)
         val evidence = evidenceRecord(record)
         return Evidence(
@@ -272,6 +300,8 @@ class DemoFinanceRepository : FinanceRepository {
             members = members.map(::evidenceMember),
             acceptedRelations = relations.filter { it.kind == "transfer_pair" && it.primaryRecord?.id == record.id }.map {
                 AcceptedEvidenceRelation(it.id, it.kind, primaryRecord = it.primaryRecord?.let(::evidenceRecord), secondaryRecord = it.secondaryRecord?.let(::evidenceRecord))
+            } + auditRelations.filter { it.active && it.state == "confirmed" && it.members.any { id -> members.any { it.id == id } } }.map {
+                AcceptedEvidenceRelation(it.id, it.kind, primaryRecord = evidenceRecord(findRecord(it.members[0])), secondaryRecord = evidenceRecord(findRecord(it.members[1])))
             },
             inactiveRelationHints = emptyList(),
         )
@@ -544,8 +574,16 @@ class DemoFinanceRepository : FinanceRepository {
     private fun projection(source: CashRecord): CashProjection {
         val record = effectiveRecord(findRecord(transferRoot(source.id)))
         val pair = transferMembers(record.id).map(::findRecord)
+        val allMembers = projectionMembers(record.id)
+        val accepted = auditRelations.filter { it.active && it.state == "confirmed" && it.members.any(allMembers::contains) }
+        val pending = allMembers.any { importedStates[it] == "draft" || pendingRelations(it) }
         val transfer = if (pair.size == 2) CashTransfer(accountById(pair[0].accountId)!!, pair[0].amount, pair[0].currency,
             accountById(pair[1].accountId)!!, pair[1].amount, pair[1].currency) else null
+        val refunds = accepted.filter { it.kind == "refund_offset" && it.members.first() == record.id }
+        val netAmount = if (refunds.isNotEmpty() && record.amount.startsWith('-')) {
+            val remaining = allocationBalance(record.amount, refunds.map { findRecord(it.members.last()).amount.removePrefix("-") } + "0").difference
+            if (compareDemoDecimals(remaining, "0") == 0) "0.00" else "-" + remaining
+        } else null
         val imported = importedFields[record.id]
         fun text(key: String, fallback: String): String? = if (imported == null) fallback else (imported.fields[key] as? StructuredText)?.value
         return CashProjection(
@@ -555,21 +593,24 @@ class DemoFinanceRepository : FinanceRepository {
         counterparty = record.counterparty,
         category = categoryById(record.categoryId),
         note = record.note,
-        amount = text("amount", record.amount),
+        amount = netAmount ?: text("amount", record.amount),
         currency = text("currency", record.currency),
         economicType = if (transfer != null) "internal_transfer" else if (record.recordType == "transfer") "transfer" else if (record.recordType == "income") "income" else "expense",
-        businessLabel = record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
+        businessLabel = auditLabels[record.id] ?: record.recordSubtype.takeIf { transfer != null || record.recordType == "transfer" },
         transfer = transfer,
-        memberCount = pair.size.takeIf { it > 0 } ?: 1,
+        memberCount = allMembers.size,
         state = importedStates[record.id] ?: "posted",
-        confirmationStatus = if (importedStates[record.id] == "draft") "pending" else "confirmed",
-        attentionCount = if (importedStates[record.id] == "draft") 1 else 0,
-        statisticsEligible = importedStates[record.id] != "draft",
-        composition = if (transfer != null) listOf("transfer_pair") else emptyList(),
+        confirmationStatus = if (pending) "pending" else "confirmed",
+        attentionCount = if (pending) 1 else 0,
+        statisticsEligible = importedStates[record.id] != "draft" && record.recordType != "refund",
+        composition = (if (transfer != null) listOf("transfer_pair") else accepted.map { it.kind }).distinct(),
         recordId = record.id,
         transactionId = record.id,
         sourceType = record.sourceType,
-        sourceTypes = listOfNotNull(record.sourceType),
+        sourceTypes = allMembers.mapNotNull { findRecord(it).sourceType }.distinct(),
+        recordType = text("record_type", record.recordType),
+        recordSubtype = text("record_subtype", record.recordSubtype),
+        attentionCodes = if (allMembers.any(::pendingRelations)) listOf("relation_pending") else emptyList(),
     )
 
     }
@@ -644,16 +685,16 @@ class DemoFinanceRepository : FinanceRepository {
 
     private fun recordMatches(record: CashRecord, filters: CashFilters): Boolean {
         val projected = projection(record)
-        val minimum = filters.amountMin?.let { compareDemoDecimals(record.amount, it) >= 0 } ?: true
-        val maximum = filters.amountMax?.let { compareDemoDecimals(record.amount, it) <= 0 } ?: true
+        val minimum = filters.amountMin?.let { projected.amount?.let { amount -> compareDemoDecimals(amount, it) >= 0 } ?: false } ?: true
+        val maximum = filters.amountMax?.let { projected.amount?.let { amount -> compareDemoDecimals(amount, it) <= 0 } ?: false } ?: true
         return minimum && maximum &&
             (filters.accountId == null || record.accountId?.toString() == filters.accountId) &&
             (filters.counterparty.isNullOrBlank() || record.counterparty.contains(filters.counterparty, true)) &&
             (filters.categoryId == null || record.categoryId == filters.categoryId) &&
             (filters.uncategorized != "true" || record.categoryId == null) &&
             (filters.currency == null || record.currency == filters.currency) &&
-            (filters.dateFrom == null || record.occurredAt >= filters.dateFrom) &&
-            (filters.dateTo == null || record.occurredAt <= filters.dateTo) &&
+            (filters.dateFrom == null || projected.occurredAt?.let { getLocalDateForInstant(it) >= filters.dateFrom } == true) &&
+            (filters.dateTo == null || projected.occurredAt?.let { getLocalDateForInstant(it) <= filters.dateTo } == true) &&
             (filters.economicType == null || projected.economicType == filters.economicType) &&
             (filters.businessLabel == null || projected.businessLabel == filters.businessLabel) &&
             (when (filters.composition) {
@@ -762,7 +803,7 @@ private fun demoFailure(code: String, status: Int) = DomainFailure(code, status,
 
 private data class DemoDecimalParts(val sign: Int, val whole: String, val fraction: String)
 
-private fun compareDemoDecimals(first: String, second: String): Int {
+internal fun compareDemoDecimals(first: String, second: String): Int {
     val a = parseDemoDecimal(first)
     val b = parseDemoDecimal(second)
     if (a.sign != b.sign) return a.sign.compareTo(b.sign)

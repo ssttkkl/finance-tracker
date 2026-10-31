@@ -14,7 +14,8 @@ suspend fun FinanceApiClient.previewCashImport(sessionId: String, input: CashImp
     return request(HttpMethod.Post, "/api/v1/cash-import/sessions/${encodePathSegment(sessionId)}/plans", cashChoiceJson.encodeToJsonElement(input))
 }
 
-suspend fun FinanceApiClient.readCashImportPlan(planId: String): CashImportPlanDto = request(HttpMethod.Get, importPlanPath(planId))
+suspend fun FinanceApiClient.readCashImportPlan(planId: String): CashImportPlanDto = request(HttpMethod.Get,
+    appendQuery(importPlanPath(planId), listOf("timezone_name" to com.finance.tracker.core.getLocalTimeZoneId())))
 
 suspend fun FinanceApiClient.readCashImportItems(
     planId: String, cursor: String? = null, limit: Int = 50, confirmationStatus: String = "all", startIndex: Int? = null,

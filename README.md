@@ -4,7 +4,7 @@
 
 项目现在由 Python/FastAPI 后端和 Compose Multiplatform 客户端组成。后端是金额、余额、权限、来源、关系和审计的唯一事实源；Compose 的 Web、Android、iOS 目标通过同一套 HTTP API 访问它。
 
-关系治理变更已完成并归档（`openspec/changes/archive/2026-10-30-govern-cash-relation-model/`）；当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准。Compose 已接入共同硬约束、派生业务标签和稳定收支引用，用户已确认首版演示；后端验证以及 Compose 共享测试、编译、E2E 和真实浏览器冒烟已完成。视觉 Hallmark 复核与既有界面问题登记在 [UI 审查修复](openspec/changes/fix-cash-ui-audit-findings/proposal.md)，整体 QA 尚未完成，本工作树不能作为已验收版本发布。
+现金收支的关系约束、派生业务标签和稳定收支引用已接入后端与 Compose。当前行为以 [交易关系规格](openspec/specs/cash-ledger/transaction-relations/spec.md) 和 [功能地图](docs/feature-map.md) 为准；本工作树的界面修复范围与验证见 [UI 审查修复](openspec/changes/archive/2026-10-31-fix-cash-ui-audit-findings/tasks.md)。
 
 ## 运行边界
 
@@ -97,7 +97,7 @@ curl -X POST "$API_ORIGIN/api/v1/cashflow/add" \
 
 ## 账单导入
 
-现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。本轮功能仍在浏览器演示验收中，Android 仅完成共享编译与主机单测，iOS 未验证。流程从 [现金账单导入](docs/import/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import/import-flow.md)。
+现金导入流程是“文件与账户准备 → 同一流水列表核对并一次确认 → 结果及后续补处理”。Compose 共享界面已接入文件与账户准备、待确认优先的连续分页列表、只读详情、确认收据和错误诊断；币种不足的已选账户会在进入预览前补齐。该入口的代表 Web 流程已做真实浏览器检查，Android／iOS 已完成相称编译和共享单测；设备交互 QA 未执行。流程从 [现金账单导入](docs/import/cash-import-flow.md) 阅读，入库后的模型、展示与操作见 [现金流水](docs/cash-ledger/cash-ledger.md)。投资账单及连接器同步使用各自领域模型，边界见 [导入总览](docs/import/import-flow.md)。
 
 支持的来源包括：`alipay`、`wechat`、`icbc`、`icbc-debit`、`ccb-debit`、`icbc-asia`、`dfzq`、`ibkr`、`schwab`、`usmart-hk` / `usmart_hk`。交易所和 Polymarket 使用受控后端同步，不由客户端接触密钥。
 

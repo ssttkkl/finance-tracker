@@ -14,10 +14,11 @@ from tests.contract.test_parsed_cash_import_context import USER, _document, _upl
 
 def _build(*, session, files, preview_input, previous_plan, plan_id):
     items = [{"preview_item_id": f"item_{i}", "confirmation_status": "pending" if i % 2 else "confirmed",
-        "anticipated_state": "draft" if i % 2 else "posted", "display": {"amount": None if i % 2 else "-20.00"},
+        "anticipated_state": "draft" if i % 2 else "posted", "display": {"amount": None if i % 2 else "-20.00",
+            "record_type": "consumption", "record_subtype": "not_applicable"},
         "statistics_eligible": not i % 2, "member_refs": [{"row_ref": f"f:r{i}"}], "attention_reasons": [],
         "detail_available": True} for i in range(121)]
-    return {"items": items, "summary": {"create_posted": 61, "create_draft": 60},
+    return {"items": items, "monthly_source": [], "summary": {"create_posted": 61, "create_draft": 60},
         "file_results": [], "can_commit": True,
         "processing_details": [{"row_ref": "skipped:r1", "planned_action": "skip", "code": "row_unreadable"}],
         "item_details": {item["preview_item_id"]: {"members": item["member_refs"], "field_diffs": [],

@@ -967,6 +967,7 @@ class CashImportBusinessPlanBuilder:
                 "anticipated_state": projection.state, "statistics_eligible": projection.statistics_eligible,
                 "display": {"occurred_at": projection.occurred_at, "amount": projection.net_amount, "currency": projection.primary_record.currency,
                     "counterparty": projection.primary_record.counterparty, "note": projection.primary_record.note,
+                    "record_type": projection.primary_record.record_type, "record_subtype": projection.primary_record.record_subtype,
                     "category_id": projection.primary_record.category_id,
                     **{field: copy_value(snapshot.entry_public.get(str(projection.primary_record.id), {}).get('values', {}).get(field))
                         for field in ('counterparty_account', 'counterparty_account_attrs')},
@@ -1045,7 +1046,11 @@ class CashImportBusinessPlanBuilder:
         from ft.application.cash_import_session_view import cash_import_file_view
         file_results = [{key: value for key, value in cash_import_file_view(file).items()
             if key in {"file_ref", "display_name", "status", "recognized_row_count", "issues", "can_retry", "diagnostic"}} for file in files]
-        return {"items": items, "item_details": details, "detail_values": detail_values, "entry_targets": entry_targets, "processing_details": processing,
+        monthly_source = [{"occurred_at": item["display"]["occurred_at"], "amount": item["display"]["amount"],
+            "currency": item["display"]["currency"], "economic_type": projection.economic_type.value if projection.economic_type else None,
+            "statistics_eligible": item["statistics_eligible"], "confirmation_status": item["confirmation_status"]}
+            for item, projection in zip(items, projections)]
+        return {"items": items, "monthly_source": monthly_source, "item_details": details, "detail_values": detail_values, "entry_targets": entry_targets, "processing_details": processing,
             "file_results": file_results, "summary": counts, "can_commit": any(file.status == "parsed" for file in files)}
 
     @staticmethod

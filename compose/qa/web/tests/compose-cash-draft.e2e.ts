@@ -10,6 +10,14 @@ async function press(page: Page, id: string) {
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
 }
 
+async function pressDraftAction(page: Page) {
+  const target = page.getByRole("button", { name: "核对信息" }).last();
+  await expect(target).toBeVisible();
+  const box = await target.boundingBox();
+  if (!box) throw new Error("Missing draft action");
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+}
+
 const contextId = "a".repeat(43);
 const planId = `mp_${contextId}.${"b".repeat(16)}`;
 
@@ -53,12 +61,12 @@ for (const width of [390, 768, 1440]) {
       await route.fulfill({ json: { status: "not_committed" } });
     });
     await page.goto("/w/workspace-1/");
-    await press(page, width === 390 ? "ledger.record-draft-11" : "ledger.open-record");
-    await press(page, "cash.current.process-draft");
+    await press(page, "ledger.record-draft-11");
+    await pressDraftAction(page);
     await expect(page.locator('[id="cash.draft.editor"]:visible').last()).toBeVisible();
     await typeIntoComposeInput(page, '[id="cash.draft.note"]', "本次备注", { replace: true });
     // Reopening the same warning must preserve the form, rather than unmount it.
-    await press(page, "cash.current.process-draft");
+    await pressDraftAction(page);
     await press(page, "cash.draft.save");
     await expect.poll(() => commits).toBe(1);
     await expect(page.locator('[id="cash.current.error"]:visible').last()).toContainText("重试");
@@ -122,10 +130,10 @@ test("draft contradictions stay in the form without a save request", async ({ pa
     if (request.method() !== "GET" && /\/api\/v1\/cash-(mutations|records)/.test(new URL(request.url()).pathname)) writes++;
   });
   await page.goto("/w/workspace-1/");
-  await press(page, "ledger.open-record");
+  await press(page, "ledger.record-draft-11");
   await expect(page.locator('[id="cash.current.detail"]:visible').last()).toBeVisible();
   await page.waitForTimeout(400);
-  await press(page, "cash.current.process-draft");
+  await pressDraftAction(page);
   await expect(page.locator('[id="cash.draft.editor"]:visible').last()).toBeVisible();
   await typeIntoComposeInput(page, '[id="cash.draft.amount"]', "-13", { replace: true });
   await page.mouse.move(1200, 650);

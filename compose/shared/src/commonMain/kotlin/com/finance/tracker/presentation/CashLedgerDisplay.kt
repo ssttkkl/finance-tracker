@@ -49,6 +49,16 @@ internal fun cashCategoryDisplayPathValue(category: CashCategory?): String? =
 internal fun cashCategoryDisplayPath(category: CashCategory?): String =
     cashCategoryDisplayPathValue(category) ?: localizedText("copy_f11956caf6")
 
+@Composable
+internal fun cashRecordTypeAndSubtypeLabel(recordType: String?, recordSubtype: String?, options: LedgerOptions): String? {
+    val type = recordType?.takeIf(String::isNotBlank) ?: return null
+    val typeLabel = cashRecordTypeLabel(type, options)
+    val subtypeLabel = recordSubtype?.takeUnless { it.isBlank() || it == "not_applicable" }
+        ?.let { subtype -> options.recordTypes.firstOrNull { it.value == type }?.subtypes
+            ?.firstOrNull { it.value == subtype }?.label }
+    return listOfNotNull(typeLabel, subtypeLabel).joinToString("－")
+}
+
 internal fun cashProjectionEconomicTypeResourceKey(item: CashProjection): String = when {
     item.businessLabel == "bank_security_transfer" -> "cash_source_bank_security_transfer"
     item.economicType == "expense" -> "cash_type_expense"

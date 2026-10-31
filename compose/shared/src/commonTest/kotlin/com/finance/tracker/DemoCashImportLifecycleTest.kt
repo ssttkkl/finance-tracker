@@ -2,12 +2,28 @@ package com.finance.tracker
 
 import com.finance.tracker.app.createDemoFinanceTrackerGraph
 import com.finance.tracker.domain.*
+import com.finance.tracker.data.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class DemoCashImportLifecycleTest {
-    @Test fun currentImportEntryEditsAndOriginalSubmissionAreVisibleInTheSameDemoLedger() = runTest {
+    private fun minimalImportGraph(): com.finance.tracker.app.FinanceTrackerGraph {
+        val finance = DemoFinanceRepository()
+        return createDemoFinanceTrackerGraph().copy(financeRepository = finance,
+            cashMaintenanceRepository = DemoCashMaintenanceRepository(finance), cashCreationRepository = DemoCashCreationRepository(finance),
+            cashImportRepository = DemoCashImportLifecycleRepository(finance), demoStatement = DemoStatementFileSource())
+    }
+    @Test fun previewItemsKeepNewestTransactionsFirst() = runTest {
         val graph = createDemoFinanceTrackerGraph()
+        val repo = graph.cashImportRepository
+        val context = repo.upload(listOf(ImportUpload("demo-file", graph.demoStatement!!))).context!!
+        val plan = repo.preview(context.sessionId, context.revision!!, null, context.lastChoices ?: ImportChoiceSet())
+        val dates = plan.items.map { it.display.occurredAt.orEmpty() }
+        assertEquals(dates.sortedDescending(), dates)
+        assertEquals(plan.items.map { it.itemId }, repo.items(plan.planId, null, 200, "all", 0).items.map { it.itemId })
+    }
+    @Test fun currentImportEntryEditsAndOriginalSubmissionAreVisibleInTheSameDemoLedger() = runTest {
+        val graph = minimalImportGraph()
         val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("demo-file", graph.demoStatement!!))).context!!
         val first = repo.preview(context.sessionId, context.revision!!, null, context.lastChoices ?: ImportChoiceSet())
@@ -28,7 +44,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun unmappedImportRemainsPendingDraftAndDoesNotEnterStatistics() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("demo-file", graph.demoStatement!!))).context!!
         val choices = ImportChoiceSet(accountSelections = context.sourceAccounts.map { ImportAccountSelection(it.sourceAccountRef, ImportAccountTarget(null, null)) })
         val plan = repo.preview(context.sessionId, context.revision!!, null, choices)
@@ -41,7 +57,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun accountCommandsAreIndependentAndRejectStaleRevisions() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val created = repo.createAccount("Independent account", "cash", listOf("CNY"), "account-create")
         assertEquals(created, repo.createAccount("Independent account", "cash", listOf("CNY"), "account-create"))
         val updated = repo.updateAccount(created.accountId, created.revision, StructuredObject(mapOf("name" to StructuredText("Renamed account"))), "account-update")
@@ -50,7 +66,7 @@ class DemoCashImportLifecycleTest {
         assertTrue(graph.financeRepository.fetchCashAccounts().any { it.name == "Renamed account" })
     }
     @Test fun importedDraftKeepsItsIdentityDuringOrdinarySaveAndExplicitFinalization() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val importer = graph.cashImportRepository
+        val graph = minimalImportGraph(); val importer = graph.cashImportRepository
         val context = importer.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val plan = importer.preview(context.sessionId, context.revision!!, null, ImportChoiceSet())
         importer.confirm(plan.planId, plan.sessionRevision, "draft-seed")
@@ -74,7 +90,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun importedPublicEditingDoesNotChangeSourceFieldsInTheDemo() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val importer = graph.cashImportRepository
+        val graph = minimalImportGraph(); val importer = graph.cashImportRepository
         val context = importer.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val plan = importer.preview(context.sessionId, context.revision!!, null, context.lastChoices!!)
         importer.confirm(plan.planId, plan.sessionRevision, "posted-seed")
@@ -89,7 +105,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun clearingAnImportAmountNeverCreatesACompleteDemoRecord() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val initial = repo.preview(context.sessionId, context.revision!!, null, ImportChoiceSet())
         val row = initial.items.first().members.single().rowRef!!
@@ -103,7 +119,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun anImportAccountThatCannotHoldTheCurrencyDoesNotPostInTheDemo() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val initial = repo.preview(context.sessionId, context.revision!!, null, context.lastChoices!!)
         val row = initial.items.first().members.single().rowRef!!
@@ -115,7 +131,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun unknownImportedFieldsRemainNullInTheDemoLedger() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val initial = repo.preview(context.sessionId, context.revision!!, null, ImportChoiceSet())
         val row = initial.items.first().members.single().rowRef!!
@@ -128,7 +144,7 @@ class DemoCashImportLifecycleTest {
     }
 
     @Test fun anInvestmentAccountCannotPostOrFinalizeACashImportInTheDemo() = runTest {
-        val graph = createDemoFinanceTrackerGraph(); val repo = graph.cashImportRepository
+        val graph = minimalImportGraph(); val repo = graph.cashImportRepository
         val context = repo.upload(listOf(ImportUpload("file", graph.demoStatement!!))).context!!
         val initial = repo.preview(context.sessionId, context.revision!!, null, ImportChoiceSet())
         val row = initial.items.first().members.single().rowRef!!

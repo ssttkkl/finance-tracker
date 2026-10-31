@@ -61,6 +61,7 @@ internal fun CashCurrentRecordPanel(
     var entryDirty by remember(state.transactionId, state.savedRevision) { mutableStateOf(false) }
     var discardAction by remember(state.transactionId) { mutableStateOf<(() -> Unit)?>(null) }
     val record = state.record
+    val canEditEntry = record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null
     val requestClose = {
         if (!state.unresolved && !(state.busy && record != null)) {
             if (draftDirty || entryDirty) discardAction = onClose else onClose()
@@ -74,9 +75,10 @@ internal fun CashCurrentRecordPanel(
     }
     CashRecordModalPanel(sizeClass, localizedText(if (entryEditing) "cash_edit_entry" else "copy_8cb72a44a5"), compactFullScreen = true,
         semanticStateKey = "current-record-${state.transactionId}", onDismiss = requestClose, onBack = if (entryEditing) requestCancelEntry else requestClose,
-        footer = if (record != null && cashEntryEditableFields(record).isNotEmpty() && onSaveEntry != null && !entryEditing && !state.unresolved && state.plan == null) ({
+        footer = if (canEditEntry && !entryEditing && !state.unresolved && state.plan == null) ({
             Row(Modifier.fillMaxWidth(), horizontalArrangement = if (sizeClass == WindowSizeClass.COMPACT) Arrangement.End else Arrangement.Start) {
-                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy && state.plan == null, modifier = Modifier.testTag("cash.current.edit")) {
+                Button(onClick = { entryEditing = true; onEdit?.invoke() }, enabled = !state.busy,
+                    modifier = Modifier.testTag("cash.current.edit")) {
                     Icon(painterResource(Res.drawable.ic_edit), contentDescription = null, modifier = Modifier.size(ButtonDefaults.IconSize))
                     Spacer(Modifier.width(ButtonDefaults.IconSpacing))
                     Text(localizedText("copy_a7f814c0a4"))

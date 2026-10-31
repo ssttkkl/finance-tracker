@@ -58,6 +58,9 @@ class ProjectionDTO:
     confirmation_status: str = "confirmed"; projection_version: int = 0
     entry_id: str | None = None
     transaction_id: str = field(kw_only=True)
+    record_type: str | None = field(default=None, kw_only=True)
+    record_subtype: str | None = field(default=None, kw_only=True)
+    attention_codes: tuple[str, ...] = field(default=(), kw_only=True)
 
 
 @dataclass(frozen=True)

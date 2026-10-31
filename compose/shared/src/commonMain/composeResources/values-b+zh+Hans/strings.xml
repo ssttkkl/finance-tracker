@@ -815,6 +815,11 @@
     <string name="cash_import_aftercare">待确认收支可在账本详情中处理</string>
     <string name="cash_import_expected_items">预计收支</string>
     <string name="cash_import_draft">草稿</string>
+    <string name="cash_draft_needs_details">草稿待补充</string>
+    <string name="cash_pair_suggestion">配对建议</string>
+    <string name="cash_source_update_needs_review">账单更新待核对</string>
+    <string name="cash_source_identity_needs_review">疑似重复待核对</string>
+    <string name="cash_information_needs_review">信息待核对</string>
     <string name="cash_import_draft_tag">草稿</string>
     <string name="cash_import_relation_pending">关系待确认</string>
     <string name="cash_import_relationship_summary">关联：%1$s</string>
@@ -839,7 +844,7 @@
     <string name="cash_detail_check">核对建议</string>
     <string name="cash_detail_reject">拒绝建议</string>
     <string name="cash_detail_remove">移除关联</string>
-    <string name="cash_detail_add">添加关联</string>
+    <string name="cash_detail_add">查找流水并关联</string>
     <string name="cash_detail_no_target">这笔流水可能有关联，请选择对应流水。</string>
     <string name="cash_detail_review_hint">核对对应流水后接受建议。</string>
     <string name="cash_detail_repayment">信用账户还款</string>

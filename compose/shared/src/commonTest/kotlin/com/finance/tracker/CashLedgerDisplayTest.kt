@@ -39,6 +39,20 @@ class CashLedgerDisplayTest {
     }
 
     @Test
+    fun scrollbarKeepsFractionalPositionWithinVisibleRow() {
+        assertEquals(0, cashLedgerPixelOffsetForPosition(2.0, 100))
+        assertEquals(20, cashLedgerPixelOffsetForPosition(2.2, 100))
+        assertEquals(80, cashLedgerPixelOffsetForPosition(2.8, 100))
+        assertEquals(0, cashLedgerPixelOffsetForPosition(3.4, 0))
+    }
+
+    @Test
+    fun ambiguousSourceIdentityHasSpecificAttentionReason() {
+        assertEquals(listOf(CashLedgerRowStatusTag.SOURCE_IDENTITY),
+            cashAttentionTags("posted", "pending", listOf("source_identity_ambiguous")))
+    }
+
+    @Test
     fun scrollbarOrdinalMapsToCachedMonthRangesWithoutLoadedRows() {
         val positions = listOf(
             CashMonthPosition("2026-07", 0, 3),

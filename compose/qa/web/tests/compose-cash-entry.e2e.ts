@@ -45,7 +45,7 @@ test("imported entry edits only common fields and saves once in the current deta
       retained_transaction_id: "11", pages: { items: null, source_issues: null, account_results: null } } });
   });
   await page.goto("/w/workspace-1/");
-  await press(page, "ledger.open-record"); await press(page, "cash.current.edit");
+  await press(page, "ledger.record-entry-11"); await press(page, "cash.current.edit");
   await expect(page.locator('[id="cash.entry.editor"]:visible')).toHaveCount(1);
   for (const field of ["amount", "currency", "account_id", "occurred_at", "components", "record_type"]) {
     await expect(page.locator(`[id="cash.entry.${field}"]:visible`)).toHaveCount(0);

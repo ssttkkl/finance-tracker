@@ -288,7 +288,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
             onReturn = { requestExit(onBack) }, enabled = !busy) }
         else {
             val step = if (state.phase == ImportTaskPhase.REVIEW) 2 else if (mappingStep) 1 else 0
-            CashImportTaskSteps(step)
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { CashImportTaskSteps(step, Modifier.then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth()) }
             if (step == 2) Text(
                 localizedText("cash_import_step_review_description"),
                 style = MaterialTheme.typography.bodyMedium,
@@ -329,7 +329,7 @@ private fun CashImportTaskContent(repository: CashImportLifecycleRepository, fin
                     }, onResolveAccounts = account::resolvePending, mappingStep = mappingStep, modifier = Modifier.fillMaxSize())
             }
             HorizontalDivider()
-            Row(Modifier.fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Row(Modifier.align(Alignment.CenterHorizontally).then(if (step < 2) Modifier.widthIn(max = 720.dp) else Modifier).fillMaxWidth().height(56.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 if (state.phase == ImportTaskPhase.REVIEW) TextButton(onClick = { mappingStep = true; task.showPreparation() }, enabled = !busy && state.canEdit,
                     modifier = Modifier.testTag("cash.import.back-accounts")) {
@@ -485,13 +485,13 @@ private fun CashImportTaskResult(state: ImportTaskUiState, sizeClass: WindowSize
 }
 
 @Composable
-private fun CashImportTaskSteps(current: Int) {
-    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf("cash_import_step_files", "cash_import_step_accounts", "cash_import_step_review").forEachIndexed { index, label ->
+private fun CashImportTaskSteps(current: Int, modifier: Modifier = Modifier) {
+    Row(modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf("cash_import_step_file", "cash_import_step_account", "cash_import_step_review").forEachIndexed { index, label ->
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("${index + 1}  ${localizedText(label)}", style = MaterialTheme.typography.labelLarge,
-                    color = if (index == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                HorizontalDivider(color = if (index == current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
+                Text("${if (index < current) "✓" else (index + 1).toString()}  ${localizedText(label)}", style = MaterialTheme.typography.labelLarge,
+                    color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                HorizontalDivider(color = if (index <= current) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant)
             }
         }
     }

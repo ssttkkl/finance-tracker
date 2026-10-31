@@ -86,6 +86,9 @@ data class CashProjection(
     val projectionVersion: Long? = null,
     val entryId: String? = null,
     val transactionId: String,
+    val recordType: String? = null,
+    val recordSubtype: String? = null,
+    val attentionCodes: List<String> = emptyList(),
 )
 
 data class CashEconomicTypeFilterOption(

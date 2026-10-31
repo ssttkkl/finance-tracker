@@ -60,7 +60,7 @@ for (const { count, width } of [{ count: 0, width: 1440 }, { count: 0, width: 39
     } }));
     await page.goto("/w/workspace-1/");
     const row = byId(page, "ledger.record-projection-1");
-    await press(page, width < 600 ? row : row.locator('[id="ledger.open-record"]').last());
+    await press(page, row);
     const banner = byId(page, "cash.current.pending-relations");
     await expect(banner).toContainText("关系待确认");
     await expect(banner).toContainText("这笔收支有等待确认的关联");
@@ -197,7 +197,7 @@ test("F-04 多成员原文：卡头同行标签、完整原文和仅对侧关联
     members: records.map(item => ({ id: item.transaction_id, row_revision: 1, ...item.fields, components: [] })),
   } }));
   await page.goto("/w/workspace-1/");
-  await press(page, byId(page, "ledger.record-projection-1").locator('[id="ledger.open-record"]').last());
+  await press(page, byId(page, "ledger.record-projection-1"));
   const body = byId(page, "cash.current.source-body-record-1");
   await expect(body).toBeVisible();
   await expect(byId(page, "cash.current.pending-relations")).toHaveCount(0);
@@ -208,7 +208,7 @@ test("F-04 多成员原文：卡头同行标签、完整原文和仅对侧关联
   const tag = await body.getByText("当前流水", { exact: true }).boundingBox();
   expect(Math.abs(name!.y - tag!.y)).toBeLessThan(12);
   await expect(body).toContainText("fixture-order");
-  await expect(byId(page, "cash.current.source-body-record-2")).toContainText("同笔支付");
+  await expect(byId(page, "cash.current.detail")).toContainText(/关联商户\s*同笔支付/);
   await page.screenshot({ path: info.outputPath("source-headers.png") });
 });
 function record(id: string, component: string, counterparty: string) {
@@ -236,14 +236,14 @@ for (const width of [1440, 390]) {
     await page.goto("/w/workspace-1/");
     const row = byId(page, "ledger.record-projection-1");
     await expect(row).toBeVisible();
-    await press(page, width < 600 ? row : row.locator('[id="ledger.open-record"]').last());
+    await press(page, row);
     await expect(byId(page, "cash.current.pending-relations")).toHaveCount(0);
     const detail = byId(page, "cash.current.detail");
     await expect(detail).toContainText("账单原文");
     await expect(detail).toContainText("fixture-order");
     await expect(page.locator('[id="cash.current.sources-toggle"]')).toHaveCount(0);
     await expect(page.locator('[id="cash.current.associations-toggle"]')).toHaveCount(0);
-    await expect(byId(page, "cash.current.add-association")).toContainText("关联流水");
+    await expect(byId(page, "cash.current.add-association")).toContainText("查找流水并关联");
     const reopen = await byId(page, "cash.current.add-association").boundingBox();
     await press(page, byId(page, "cash.current.add-association"));
     const dialog = byId(page, "cash.association.dialog");
@@ -266,8 +266,7 @@ for (const width of [1440, 390]) {
       expect(bounds!.width).toBeGreaterThan(900);
       const filters = await Promise.all(["account", "amount", "date"].map(key => byId(page, `cash.association.filter-${key}`).boundingBox()));
       expect(Math.max(...filters.map(box => box!.y)) - Math.min(...filters.map(box => box!.y))).toBeLessThan(2);
-      const amount = await byId(page, "ledger.table-row-content-record-2").getByText("-28.50 CNY", { exact: true }).boundingBox();
-      expect(amount!.height).toBeLessThan(32);
+      await expect(byId(page, "ledger.record-record-2")).toContainText("-28.50 CNY");
     } else {
       await expect(dialog.locator('[id="ledger.table-header"]')).toHaveCount(0);
       expect(bounds!.y).toBeLessThanOrEqual(1);

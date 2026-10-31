@@ -98,7 +98,7 @@ for (const scenario of ["accept", "reject", "missing", "stale", "unknown", "join
   const resolutions: any[] = [];
   await page.route(/\/api\/v1\/cash-mutations\/resolve$/, route => { resolutions.push(route.request().postDataJSON()); return route.fulfill({ json: { status: "pending", receipt: null } }); });
   await page.goto("/w/workspace-1/");
-  await press(page, "ledger.open-record");
+  await press(page, "ledger.record-relation-11");
   const suggestion = page.locator('[id="cash.current.suggestion-group"]:visible').last();
   if (scenario === "transfer-kind") await press(page, "cash.current.add-association");
   else if (removing) await press(page, "cash.current.remove-21");

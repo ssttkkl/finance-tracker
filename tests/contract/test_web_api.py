@@ -87,6 +87,9 @@ def test_projection_api_contract_and_old_routes_are_absent(cash_web_runtime):
     assert page.json()["items"][0]["projection_id"].startswith("cash-entry:")
     assert page.json()["items"][0]["transaction_id"] == "1003" and isinstance(page.json()["items"][0]["amount"],str)
     assert page.json()["items"][0]["source_types"] == ["fixture"]
+    assert page.json()["items"][0]["record_type"]
+    assert "record_subtype" in page.json()["items"][0]
+    assert page.json()["items"][0]["attention_codes"] == []
     assert page.json()["filter_options"] == {
         "categories": [
             {"id": "category-daily", "name": "日用", "path": [{"id": "category-daily", "name": "日用"}]},

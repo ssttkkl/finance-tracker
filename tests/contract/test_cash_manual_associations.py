@@ -53,6 +53,35 @@ def test_search_excludes_manual_and_current_and_supports_pagination(context_runt
     assert len(ids) == len(set(ids)) and "1101" not in ids and "1105" not in ids
 
 
+def test_search_paginates_only_eligible_targets(context_runtime):
+    from ft.adapters.relational.models import CashTransactionComponentModel
+    runtime = context_runtime
+    setup_records(runtime)
+    with runtime.sessions.begin() as session:
+        session.get(CashTransactionComponentModel, 6103).currency = "USD"
+        last = session.get(CashTransactionModel, 1105)
+        last.amount, last.record_type = Decimal("100"), "refund"
+        session.get(CashTransactionComponentModel, 6105).amount = Decimal("100")
+    first = records(runtime).association_targets("1101", kind="refund_offset", limit=1)
+    assert [row["transaction_id"] for row in first["items"]] == ["1104"]
+    assert first["next_cursor"] == "1104"
+    second = records(runtime).association_targets("1101", kind="refund_offset", limit=1, cursor=first["next_cursor"])
+    assert [row["transaction_id"] for row in second["items"]] == ["1105"]
+    assert second["next_cursor"] is None
+
+
+def test_search_returns_empty_page_when_every_candidate_is_ineligible(context_runtime):
+    from ft.adapters.relational.models import CashTransactionComponentModel
+    runtime = context_runtime
+    setup_records(runtime)
+    with runtime.sessions.begin() as session:
+        session.get(CashTransactionComponentModel, 6103).currency = "USD"
+        session.get(CashTransactionComponentModel, 6104).currency = "USD"
+    page = records(runtime).association_targets("1101", kind="refund_offset")
+    assert page["items"] == []
+    assert page["next_cursor"] is None
+
+
 def test_manual_association_previews_and_commits_outside_candidates_without_changing_sources(context_runtime):
     runtime = context_runtime
     setup_records(runtime)
@@ -199,9 +228,7 @@ def test_search_does_not_offer_funding_occupied_members(context_runtime, funded_
         session.add(CashInvestmentFundingRelationModel(workspace_id=runtime.workspace_id, cash_transaction_component_id=funded_id + 5000,
             investment_event_id=investment.id, direction='cash_to_investment' if funded_id == 1101 else 'investment_to_cash',
             status='accepted', active_slot='active', rule_id='fixture'))
-    target, = records(runtime).association_targets('1101', kind='transfer_pair', query='自由搜索')['items']
-    assert target['component_choices'] == []
-    assert target['unavailable_reason'] == 'relation_endpoint_occupied'
+    assert records(runtime).association_targets('1101', kind='transfer_pair', query='自由搜索')['items'] == []
 
 
 @pytest.mark.parametrize('params', [{'subtype': 'ordinary_transfer'}, {'knd': 'refund_offset'}, [('kind', 'payment_mirror'), ('kind', 'refund_offset')]])
