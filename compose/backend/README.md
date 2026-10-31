@@ -14,7 +14,7 @@
 
 现金字段、转正式、投影构建、关系角色及最终图的纯规则已迁入 JVM，并保留原生单测及 Python 匿名差分；投影和完整关系图已由内部全量重建与发布消费；手工收支新建和转账创建已接入同事务写入，其余现金写入仍待迁移。时间、投影与完整关系图差分分别由 `scripts/export_cash_time_goldens.py`、`scripts/export_projection_goldens.py` 和 `scripts/export_cash_relation_goldens.py` 生成，支持 `--check`，不读取数据库或真实账单。
 
-当前角色关系写入仓库已实现严格端点与创建方式校验、按修订替换及候选整体替换；非法候选保留原状态，已确认关系按已记录角色校验。调用方仍须联合校验完整图并管理事务，关系组和导入确认尚未接线。
+当前角色关系写入仓库已实现严格端点与创建方式校验、按修订替换及候选整体替换；非法候选保留原状态，已确认关系按已记录角色校验。共用关系组保存层已联合校验完整图和角色证明，保留虚拟端点映射、完整重复识别、共同公共值、候选及发现失败记录；外层负责授权、投影和提交。导入确认尚未接线。
 
 来源事项选择的纯规则已实现，覆盖正文缺省／明确清空、固定字段、现金部分归属、多个来源冲突及当前事项修订。`scripts/export_cash_source_resolution_goldens.py --check` 校验 708 组匿名输入、完整结果和正文摘要。来源正文派生已覆盖微信、支付宝、建行、工行信用卡／借记卡和工银亚洲；保留原文备注、支付渠道与退款线索，账户身份只取可信解释，人工备注优先。`scripts/export_cash_source_effects_goldens.py --check` 校验完整结果及输入不变。单条流水详情及维护事务尚未接入这些规则，不能据此增加已验收 HTTP 数或关闭来源处理流程。
 
@@ -93,6 +93,7 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_SOURCE_WRITE_CONTRACT_DIR` | `scripts/export_cash_source_write_contracts.py` |
 | `FT_KOTLIN_RECORD_WRITER_CONTRACT_DIR` | `scripts/export_cash_record_writer_contracts.py` |
 | `FT_KOTLIN_CURRENT_RELATION_CONTRACT_DIR` | `scripts/export_current_cash_relation_contracts.py` |
+| `FT_KOTLIN_PLAN_RELATION_WRITE_CONTRACT_DIR` | `scripts/export_cash_plan_relation_write_contracts.py` |
 
 PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：
 
