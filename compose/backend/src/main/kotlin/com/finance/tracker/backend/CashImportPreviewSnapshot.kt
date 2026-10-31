@@ -26,9 +26,13 @@ internal data class CashImportPreviewSnapshot(
         fact.state, fact.createdAt, fact.needsAttention,
     )
 
-    fun build(parentIds: Set<String>? = null): CashProjectionBuild {
+    fun build(parentIds: Set<String>? = null, additions: List<CashRelationGraphEdge> = emptyList()): CashProjectionBuild {
         val parents = parentIds ?: facts.keys
-        val selectedEdges = edges.values.filter { it.primaryTransactionId in parents || it.secondaryTransactionId in parents }
+        val selectedEdges = (if (parentIds == null) edges.values.toList() else edges.values.filter {
+            it.primaryTransactionId in parents || it.secondaryTransactionId in parents
+        }).associateByTo(linkedMapOf()) { strictCashInteger(it.id)!! }.apply {
+            additions.forEach { put(strictCashInteger(it.id)!!, it) }
+        }.values.toList()
         val pending = selectedEdges.filter { it.active == true && it.state == "draft" }
             .flatMap { listOfNotNull(it.primaryTransactionId?.toString(), it.secondaryTransactionId?.toString()) }.toSet()
         val fundingRows = funding.values.filter { row ->
@@ -45,8 +49,9 @@ internal data class CashImportPreviewSnapshot(
             @Suppress("UNCHECKED_CAST") val listed = values[id]?.get("components") as? List<Map<String, Any?>>
             listed.orEmpty().mapNotNull { components[it["component_id"].toString()] }
         }
+        val componentIds = parts.map { it.componentId }.toSet()
         val complete = buildCashRelationGraph(formal, parts, selectedEdges,
-            fundingRows.map { it.componentId.toString() }.filter { it in parts.map { part -> part.componentId } })
+            fundingRows.map { it.componentId.toString() }.filter { it in componentIds })
         val drafts = buildCashProjections(parents.mapNotNull { facts[it]?.takeIf { fact -> fact.state == "draft" } }, emptyList())
         return CashProjectionBuild(complete.projections + drafts.projections)
     }

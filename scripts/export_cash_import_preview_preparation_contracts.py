@@ -108,6 +108,7 @@ def export(database_url: str, output: Path) -> None:
         draft_choices = [{"row_ref": choice["row_ref"], "action": "defer"} for choice in choices]
         builder = CashImportBusinessPlanBuilder(WORKSPACE, clock=lambda: NOW)
         cases = []
+        group_cases = []
         for name, previous, entry_choices, extra in (
             ("normal", None, [], []),
             ("retained_target", {"entry_targets": {"ie-good": {"parent_ids": ["7501"]}}},
@@ -177,6 +178,30 @@ def export(database_url: str, output: Path) -> None:
                 cases[-1].update(matching_facts=[_wire(asdict(fact)) for fact in builder._matching_facts(snapshot, accounts)],
                     discovery_seeds=sorted(discovery_seeds), proposals=[_wire(asdict(proposal)) for proposal in proposals],
                     discovery_failures=failures)
+                groups, group_failures = builder._groups(snapshot, proposals)
+                group_cases.append({"name": name, "snapshot_case": name,
+                    "proposals": [_wire(asdict(proposal)) for proposal in proposals],
+                    "groups": _wire(groups), "failures": _wire(group_failures)})
+                if name == "normal":
+                    proposal = proposals[0]
+                    weak = replace(proposal, status="pending_review", confidence="weak",
+                        evidence=replace(proposal.evidence, candidate_fact_ids=("9508", "9505", "missing"), candidate_count=3))
+                    variants = {
+                        "weak_closed": weak,
+                        "open_leg": replace(weak, secondary_fact_id=None, open_leg=True,
+                            anchor_fact_id=weak.primary_fact_id),
+                        "existing_business_key": replace(proposal, primary_fact_id="9501", secondary_fact_id="9503"),
+                        "missing_endpoint": replace(proposal, secondary_fact_id="missing"),
+                        "same_parent": replace(proposal, secondary_fact_id=proposal.primary_fact_id),
+                        "invalid_anchor": replace(proposal, anchor_fact_id="missing"),
+                        "incompatible_roles": replace(proposal, kind="transfer_pair", subtype="ordinary_transfer"),
+                        "existing_only": replace(proposal, primary_fact_id="9503", secondary_fact_id="9508"),
+                    }
+                    for variant_name, variant in variants.items():
+                        groups, group_failures = builder._groups(snapshot, [variant])
+                        group_cases.append({"name": variant_name, "snapshot_case": name,
+                            "proposals": [_wire(asdict(variant))], "groups": _wire(groups),
+                            "failures": _wire(group_failures)})
                 cases[-1]["snapshot"] = {
                     "values": _wire(snapshot.values),
                     "facts": {key: _wire(asdict(value)) for key, value in snapshot.facts.items()},
@@ -206,6 +231,7 @@ def export(database_url: str, output: Path) -> None:
         (output / "preparation-cases.json").write_text(json.dumps(
             [case for case in cases if not case["name"].startswith("type_change_")], ensure_ascii=False, indent=2) + "\n")
         (output / "snapshot-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
+        (output / "relation-group-cases.json").write_text(json.dumps(group_cases, ensure_ascii=False, indent=2) + "\n")
         (output / "invalid-target.json").write_text(json.dumps({"code": invalid_target_error}) + "\n")
     finally:
         engine.dispose()

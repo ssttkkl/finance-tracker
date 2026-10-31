@@ -10,6 +10,7 @@ import kotlin.io.path.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlinx.serialization.json.*
@@ -81,9 +82,13 @@ class CashImportPreviewSnapshotContractTest {
 
     private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot = snapshot(db, case) { _, _, value -> value }
 
-    private fun <T> snapshot(db: Database, case: JsonObject,
+    private fun <T> snapshot(db: Database, case: JsonObject, normalizedOperations: Boolean = false,
         use: (CashSqlContext, PreparedCashImportPreview, CashImportPreviewSnapshot) -> T): T {
         @Suppress("UNCHECKED_CAST") val operations = cashSourceValue(case.getValue("operations")) as List<Map<String, Any?>>
+        if (normalizedOperations) for (operation in operations) {
+            @Suppress("UNCHECKED_CAST") val values = operation["values"] as MutableMap<String, Any?>
+            for (field in financialCashFields) if (field in values) values[field] = CashRecordPolicy.normalize(field, values[field])
+        }
         @Suppress("UNCHECKED_CAST") val rows = cashSourceValue(case.getValue("rows")) as List<Map<String, Any?>>
         val sourceRows = case.getValue("source_rows").jsonObject.mapValues { (_, value) ->
             val row = value.jsonObject
@@ -104,6 +109,130 @@ class CashImportPreviewSnapshotContractTest {
         }
         assertEquals(case.getValue("operations"), wire(operations))
         return actual
+    }
+
+    @Test fun completeGraphRejectsConfirmedOrphanEdges() {
+        val db = database()
+        val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
+        snapshot(db, normal) { _, _, value ->
+            value.edges[BigInteger.valueOf(999)] = CashRelationGraphEdge(999L, "payment_mirror",
+                "missing-parent-a", "missing-parent-b", "missing-part-a", "missing-part-b", "expense", "expense")
+            assertEquals("relation_endpoint_incomplete", assertFailsWith<CashRelationFailure> { value.build() }.code)
+        }
+    }
+
+    private fun proposal(row: JsonObject): RelationProposal {
+        val evidence = row.getValue("evidence").jsonObject
+        fun list(key: String) = evidence.getValue(key).jsonArray.map { it.jsonPrimitive.content }
+        @Suppress("UNCHECKED_CAST") val extras = cashSourceValue(evidence.getValue("extras")) as Map<String, Any?>
+        val pair = list("source_pair")
+        return RelationProposal(row.getValue("kind").jsonPrimitive.content,
+            row.getValue("primary_fact_id").jsonPrimitive.content, text(row, "secondary_fact_id"),
+            row.getValue("primary_fact_type").jsonPrimitive.content, text(row, "secondary_fact_type"),
+            row.getValue("subtype").jsonPrimitive.content, row.getValue("status").jsonPrimitive.content,
+            row.getValue("rule_id").jsonPrimitive.content, row.getValue("confidence").jsonPrimitive.content,
+            RelationEvidence(evidence.getValue("amount_delta").jsonPrimitive.content,
+                text(evidence, "time_delta_seconds")?.toInt(), evidence.getValue("same_currency").jsonPrimitive.boolean,
+                evidence.getValue("counterparty_similarity").jsonPrimitive.content, pair[0] to pair[1],
+                evidence.getValue("rule_id").jsonPrimitive.content, evidence.getValue("candidate_count").jsonPrimitive.int,
+                list("signals"), evidence.getValue("open_leg").jsonPrimitive.boolean,
+                evidence.getValue("anchor_role").jsonPrimitive.content, list("candidate_fact_ids"), extras),
+            row.getValue("created_by").jsonPrimitive.content, row.getValue("anchor_fact_id").jsonPrimitive.content,
+            row.getValue("open_leg").jsonPrimitive.boolean)
+    }
+
+    @Test fun relationGroupsAndCandidatesMatchPythonWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val snapshots = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val groups = Json.parseToJsonElement(root().resolve("relation-group-cases.json").readText()).jsonArray
+        for (item in groups) {
+            val case = item.jsonObject
+            snapshot(db, snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { _, _, value ->
+                val unchanged = summary(value)
+                val result = CashImportRelationGroups.build(value, case.getValue("proposals").jsonArray.map { proposal(it.jsonObject) })
+                assertEquals(case.getValue("groups"), wire(result.groups), case.getValue("name").jsonPrimitive.content)
+                assertEquals(case.getValue("failures"), wire(result.failures), case.getValue("name").jsonPrimitive.content)
+                assertEquals(unchanged, summary(value))
+                if (case.getValue("name").jsonPrimitive.content in setOf("weak_closed", "open_leg")) {
+                    val group = result.groups.single()
+                    assertEquals("defer", group["action"])
+                    assertEquals(listOf("accept", "defer", "ignore"), group["allowed_actions"])
+                    assertEquals(1, (group["candidates"] as List<*>).size)
+                }
+            }
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
+    @Test fun relationGroupDigestsKeepPythonDecimalAndDatetimeStrings() {
+        for ((input, expected) in listOf("-5.00" to "-5.00", "0E+2147483648" to "0E+2147483648",
+            "-0.0000000" to "-0E-7", "0.000001" to "0.000001", "0.0000001" to "1E-7", "123E2" to "1.23E+4"))
+            assertEquals(sourceDigest(expected), cashImportDigest(CashAmount.parse(input)))
+        assertEquals(sourceDigest("2026-10-02 10:00:00+00:00"), cashImportDigest(Instant.parse("2026-10-02T10:00:00Z")))
+    }
+
+    private fun candidateLimitGroup(value: CashImportPreviewSnapshot, allValid: Boolean): MutableMap<String, Any?> {
+        val parent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
+        val root = value.values.getValue(parent)
+        value.components.entries.removeIf { it.value.transactionId == parent }
+        val parts = (0..1).map { ordinal ->
+            linkedMapOf<String, Any?>("component_id" to cashImportVirtual("limit-part", ordinal).toString(),
+                "account_id" to "9201", "amount" to CashAmount.parse("-5"), "currency" to "CNY", "ordinal" to ordinal)
+        }
+        root["components"] = parts
+        root["amount"] = CashAmount.parse("-10")
+        root["account_id"] = null
+        root["cash_granularity"] = "aggregate"
+        val fact = value.facts.getValue(parent)
+        value.facts[parent] = CashProjectionFact.create(fact.id, null, fact.occurredAt, "-10", "CNY", fact.counterparty,
+            fact.categoryId, fact.note, fact.sourceType, fact.recordId, cashGranularity = "aggregate", createdAt = fact.createdAt)
+        val proposals = parts.mapIndexed { index, part ->
+            val component = part.getValue("component_id") as String
+            value.components[component] = CashRelationEndpoint(component, parent, part["amount"], "CNY", "9201", "consumption", "not_applicable")
+            val candidates = (0 until 45).map { offset ->
+                val identifier = (10000 + index * 100 + offset).toString()
+                val componentId = (20000 + index * 100 + offset).toString()
+                val amount = if (allValid || offset == 44) "5" else "1"
+                val candidate = root.toMutableMap().apply {
+                    put("amount", CashAmount.parse(amount)); put("account_id", "9201"); put("cash_granularity", "atomic")
+                    put("record_type", "refund"); put("components", listOf(mapOf("component_id" to componentId)))
+                }
+                value.values[identifier] = candidate
+                value.facts[identifier] = CashProjectionFact.create(identifier.toLong(), 9201, fact.occurredAt, amount, "CNY",
+                    "候选退款", null, "", "fixture", identifier, createdAt = fact.createdAt)
+                value.components[componentId] = CashRelationEndpoint(componentId, identifier, CashAmount.parse(amount),
+                    "CNY", "9201", "refund", "not_applicable")
+                componentId
+            }
+            RelationProposal("refund_offset", component, null, status = "pending_review",
+                evidence = RelationEvidence(candidateCount = 45, candidateFactIds = candidates,
+                    extras = mapOf("refund_amount" to "5")), anchorFactId = component)
+        }
+        return CashImportRelationGroups.build(value, proposals).groups.single()
+    }
+
+    @Test fun relationCandidatesStopAfterTwoThousandCombinationsAndTwentyValidChoices() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
+        snapshot(db, normal) { _, _, value ->
+            val group = candidateLimitGroup(value, false)
+            assertTrue((group["candidates"] as List<*>).isEmpty())
+            assertEquals(listOf("defer", "ignore"), group["allowed_actions"])
+            val parent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
+            @Suppress("UNCHECKED_CAST") val parts = value.values.getValue(parent)["components"] as List<Map<String, Any?>>
+            val edges = parts.mapIndexed { index, part -> CashRelationGraphEdge((30000 + index).toLong(), "refund_offset",
+                parent, (10044 + index * 100).toString(), part["component_id"], (20044 + index * 100).toString(),
+                "expense", "refund", appliedAmount = CashDecimalLiteral("5")) }
+            assertEquals(3, value.build(setOf(parent, "10044", "10144"), additions = edges).projections.single().memberIds.size)
+        }
+        snapshot(db, normal) { _, _, value ->
+            val group = candidateLimitGroup(value, true)
+            assertEquals(20, (group["candidates"] as List<*>).size)
+            assertEquals(listOf("accept", "defer", "ignore"), group["allowed_actions"])
+        }
+        assertEquals(before, detailDatabaseState(db))
     }
 
     private fun matchingFact(fact: RelationFact): Map<String, Any?> = linkedMapOf(
