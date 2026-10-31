@@ -22,6 +22,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 当前账本的 [列表读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashProjectionListService.kt) 已接入 Kotlin 本机预览，保留既有筛选、游标／序号分页、修订围栏、全局选项与筛选后月份位置／精确汇总；未知草稿占位置且不参加统计。实际回包由 [现有 Compose 列表调用及领域映射](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinProjectionListResponseIntegrationTest.kt) 验证。Web／Native 共用现有页面与协议，页面数仍为 10；F-03／F-04 的删除、完整维护及其他两端验收 TODO 仍保留，不代表账本全流程已迁移。
 
+列表查询的 [原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt) 与现有列表测试已覆盖原查询文件全部 23 定义／40 参数，包含月份时区／精度、一次月份计算、跨工作区计数、全局选项、原退款与真实重建交错的快照／版本。内部 [月汇总累加器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashProjectionMonthly.kt) 仍由后端流式读取调用；没有新增 Web／Native 页面、DTO 或交互，F-03／F-04 的其余 TODO 保留。
+
 本轮页面数仍为 10，F-01 认证、F-04 编辑分摊与 F-07 分类任务的入口、跨端覆盖和既有验收 TODO 不变。共享模块与新运行时的验证状态以本轮实施证据为准，不能把模块存在写成全部后端或所有平台已验收。其余 Kotlin HTTP、格式适配、完整导入/维护/投影/关系/投资和后台任务均未完成；原 Python 功能保留。
 
 稳定收支对象仓库的公共人工值、拆分恢复和事务缓存，以及投影源读取、局部关系上下文、完整组校验和摘要已有双库内部验证，已接入全量重建/原子发布与新工作区初始化，管理员重建 HTTP 已通过真实双库对照，内部增量维护已通过双库；手工收支新建与转账创建已接入，转账编辑和完整维护仍待迁移，导入已接入联合确认；没有新增 Web 或 Native 入口，F-03/F-04 的迁移 TODO 保留。 转账创建迁移证据为 [`CashTransferService.kt`](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashTransferService.kt) 与 [`Compose 实际回包消费`](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinTransferResponseIntegrationTest.kt)；Web/Native 共用现有创建消费者，不增加页面。

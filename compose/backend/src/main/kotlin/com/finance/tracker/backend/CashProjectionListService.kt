@@ -1,7 +1,6 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
-import java.math.BigDecimal
 import java.math.BigInteger
 import java.sql.Connection
 import java.time.Instant
@@ -128,34 +127,14 @@ internal class CashProjectionListRepository(connection: Connection, private val 
             put("month_positions", if (indexed) monthly?.positions ?: JsonArray(emptyList()) else JsonArray(emptyList()))
         }
     }
-    private data class Monthly(val summaries: JsonArray, val positions: JsonArray, val total: Long, val pending: Long)
-    private fun monthly(filter: Condition, zone: ZoneId): Monthly {
-        val months = sortedSetOf<String>(reverseOrder()); val totals = sortedMapOf<Pair<String, String>, Pair<BigDecimal, BigDecimal>>(compareBy({ it.first }, { it.second }))
-        val positions = mutableListOf<Triple<String, Long, Long>>(); var count = 0L; var pending = 0L
+    private fun monthly(filter: Condition, zone: ZoneId): CashProjectionMonthlyData {
+        val accumulator = CashProjectionMonthlyAccumulator(zone)
         sql.select(p.OCCURRED_AT, p.ECONOMIC_TYPE, p.NET_AMOUNT, p.CURRENCY, p.STATISTICS_ELIGIBLE, p.ATTENTION_COUNT).from(p).where(filter)
             .orderBy(p.SORT_AT.desc(), p.PROJECTION_ID.desc()).fetchLazy().use { cursor -> cursor.forEach { row ->
-                val occurred = row[p.OCCURRED_AT]
-                val month = occurred?.atZone(zone)?.let { "%04d-%02d".format(Locale.ROOT, it.year, it.monthValue) } ?: "unknown"
-                if (positions.lastOrNull()?.first == month) positions[positions.lastIndex] = positions.last().copy(third = count + 1)
-                else positions += Triple(month, count, count + 1)
-                count++; if (row[p.ATTENTION_COUNT]!! > 0) pending++
-                if (row[p.STATISTICS_ELIGIBLE] == true && occurred != null) {
-                    months += month
-                    val economic = row[p.ECONOMIC_TYPE]; val currency = row[p.CURRENCY]
-                    if (economic in setOf("income", "expense") && !currency.isNullOrEmpty()) {
-                        val key = month to currency.trim { it.code in pythonWhitespace }.uppercase(Locale.ROOT)
-                        val (income, expense) = totals[key] ?: (BigDecimal.ZERO to BigDecimal.ZERO)
-                        val amount = row[p.NET_AMOUNT]!!.text.toBigDecimal()
-                        totals[key] = if (economic == "income") income + amount to expense else income to expense + amount
-                    }
-                }
+                accumulator.add(row[p.OCCURRED_AT], row[p.ECONOMIC_TYPE], row[p.NET_AMOUNT]?.text?.toBigDecimal(), row[p.CURRENCY],
+                    row[p.STATISTICS_ELIGIBLE] == true, row[p.ATTENTION_COUNT]!!)
             } }
-        fun money(value: BigDecimal) = if (value.signum() == 0) "0" else value.stripTrailingZeros().toPlainString()
-        return Monthly(JsonArray(months.map { month -> buildJsonObject {
-            put("month", month); put("currencies", JsonArray(totals.filterKeys { it.first == month }.map { (key, values) -> buildJsonObject {
-                put("currency", key.second); put("income", money(values.first)); put("expense", money(values.second))
-            } }))
-        } }), JsonArray(positions.map { (month, first, end) -> buildJsonObject { put("month", month); put("start_index", first); put("end_index", end) } }), count, pending)
+        return accumulator.result()
     }
     private fun options(dataset: String): JsonObject {
         val categories = renderer.listCategories()

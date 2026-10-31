@@ -106,6 +106,9 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR` | `scripts/export_cash_import_original_business_contracts.py`（原业务计划的匿名输入／当前状态） |
 | `FT_KOTLIN_ASSOCIATION_CONTRACT_DIR` | `scripts/export_cash_association_contracts.py`（当前流水关联候选 HTTP 与原只读断言） |
 | `FT_KOTLIN_PROJECTION_LIST_CONTRACT_DIR` | `scripts/export_cash_projection_list_contracts.py`（当前账本列表、筛选与分页） |
+| `FT_KOTLIN_PROJECTION_ORIGINAL_QUERY_CONTRACT_DIR` | `scripts/export_cash_projection_original_query_contracts.py`（原查询断言的真实预置状态） |
+
+查询原断言的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt) 使用表中生成器，为 `--help` 列出的 10 个场景分别准备独立空测试库，传入 `--database-url`、共同 `--output` 根目录和 `--scenario`，运行环境为 `PYTHONPATH=.:src:tests`；设置表中环境变量后，在 `compose/` 运行 `./gradlew :backend:test --tests '*CashProjectionOriginalQueryTest' -PbackendFunctionalOnly=true`。生成器执行原测试到首次查询前，只保存实际状态；退款输入来自原关系工厂，不保存预期查询结果。`index_version`、`cursor_version`、`snapshot` 会执行真实重建，复跑须准备新库。新增 13 个方法与现有列表测试共同对应原查询文件全部 23 定义／40 参数；月汇总直接调用生产流式累加器，SQL 观测验证版本页不重复计算月份信息，以及重建交错仍属于同一快照。
 
 当前账本列表的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt) 使用表中生成器，为 `--help` 列出的 9 个场景分别准备独立目标与参考空测试库，传入 `--database-url`、不同的 `--oracle-database-url`、共同 `--output` 根目录和 `--scenario`；运行环境为 `PYTHONPATH=.:src:tests`。在 `compose/` 执行 `./gradlew :backend:test --tests '*CashProjectionListContractTest' -PbackendFunctionalOnly=true`。测试覆盖原完整 HTTP、游标与序号分页、筛选后的统计与月份位置、全局选项、精确金额、草稿、已删除成员、版本及安全失败；`snapshot`／`revoke` 会修改事实，复跑须重新准备。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，实际回包可供 `:shared:testAndroidHostTest --tests '*KotlinProjectionListResponseIntegrationTest'` 验证现有 Compose 列表调用及领域映射。带版本的后续序号页省略月份数据并在 SQL 计数；分类树在同次读取内仅加载一次。
 
