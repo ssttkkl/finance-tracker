@@ -34,7 +34,7 @@ Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收�
 
 [联合导入确认](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportCommandService.kt)已接既有确认和结果核实 HTTP，在工作区写锁后重建冻结计划，并将来源、流水、关系、账户对应、余额、公共值、投影和永久收据原子保存。同键重放优先于临时正文；提交结果未知按原键核实，清理失败不改变已提交结果。[现有 Compose 消费验证](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinImportCommitResponseIntegrationTest.kt)覆盖收据、逐行结果、诊断及不自动重试。页面数仍为 10，Web、Native 和共享生产合同未变；真实 R2、真实账单和原组合测试未齐，F-05 两端完整导入 TODO 保留。
 
-导入确认的[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt)直接覆盖批次失败整体回滚、混合分摊/来源别名/公共人工值/精确余额、草稿、重放、核实、当前权限及收据用户隔离，并验证镜像/退款共同落账、零净额可见、当前结果定位、并发一次消费、旧计划拒绝及草稿组成项身份；不以命令黄金代替源断言。没有新增页面或平台入口，F-05 的剩余原组合测试与真实环境 TODO 保留。
+导入确认的[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt)直接覆盖批次失败整体回滚、混合分摊/来源别名/公共人工值/精确余额、草稿、重放、核实、当前权限及收据用户隔离，并验证镜像/退款共同落账、零净额可见、当前结果定位、并发一次消费、旧计划拒绝及草稿组成项身份；不以命令黄金代替源断言。已补关系发现内部错误停止预览和重验转换保留行级诊断，实际 409 回包由既有消费者验证。没有新增页面或平台入口，F-05 的其他原组合测试与真实环境 TODO 保留。
 
 ## 现金导入后端与客户端边界
 

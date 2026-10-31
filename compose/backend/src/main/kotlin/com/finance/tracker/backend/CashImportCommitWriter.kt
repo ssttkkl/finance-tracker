@@ -17,7 +17,7 @@ internal class CashImportCommitWriter(private val context: CashSqlContext, priva
         boundary.rows("submit_revalidation", operations)
         val sources = CashImportSourcePlanner(context).prepare(current.files)
         val fresh = try { CashImportBusinessPlanBuilder(context).build(current.files, current.previewInput, plan, sources) }
-            catch (failure: CashImportPlanError) { if (failure.code == "plan_input_invalid") throw CashImportPlanError("plan_changed") else throw failure }
+            catch (failure: CashImportPlanError) { if (failure.code == "plan_input_invalid") throw CashImportPlanError("plan_changed", diagnostic = failure.diagnostic) else throw failure }
         val freshOperations = maps(fresh["operations"])
         if (operations.size != freshOperations.size || operations.zip(freshOperations).any { fingerprint(it.first) != fingerprint(it.second) } ||
             listOf("entry_edits", "relation_groups", "relation_failures", "row_decisions").any { sourceDigest(plan.getOrDefault(it, emptyList<Any?>())) != sourceDigest(fresh.getOrDefault(it, emptyList<Any?>())) })

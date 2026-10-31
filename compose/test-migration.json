@@ -964,7 +964,7 @@
     {
       "source": "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview",
       "source_sha256": "42bc3a1b76cf8ba5fb66789262119c94e7cf97756ec18a75661b4bb1b1584e70",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview[cash_web_runtime]",
         "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview[postgres_cash_web_runtime]"
@@ -972,8 +972,14 @@
       "assertions": [
         "_assert_atomic_failure(context_runtime, lambda: _plan(context_runtime, _mirror_files()), RuntimeError)"
       ],
-      "targets": [],
-      "reason": "Needs an independently exercised exception path inside actual relation discovery; not covered by outer command failure hooks."
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalInternalDiscoveryProgrammingErrorStopsPreviewWithoutFinancialWrites"
+        }
+      ],
+      "compatibility": "A JDBC read failure is injected only while the actual discovery/build frame is active, preserving the original internal exception path without replacing production stages. Full business tables remain unchanged. The inner row_planning diagnostic passes through code conversion, file enrichment and an actual 409 HTTP response; the existing Compose consumer decodes it without retry.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_commit.py::test_draft_can_replace_component_at_same_ordinal_before_finalization",
@@ -1699,7 +1705,7 @@
     {
       "source": "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context",
       "source_sha256": "895eb7aeef37a416bd74be3c9a42fd5ef704c9ca3709f9e2314a1e03cb85c3fa",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context[cash_web_runtime]",
         "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context[postgres_cash_web_runtime]"
@@ -1711,8 +1717,14 @@
         "assert diagnostic[\"locations\"][0][\"display_name\"]",
         "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code=\"plan_changed\")"
       ],
-      "targets": [],
-      "reason": "Needs failing coverage and preservation of existing row_planning diagnostic through plan_input_invalid to plan_changed conversion and actual 409 HTTP output."
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalRevalidationConversionPreservesInnerRowDiagnosticInActualHttpResponse"
+        }
+      ],
+      "compatibility": "A JDBC read failure is injected only while the actual discovery/build frame is active, preserving the original internal exception path without replacing production stages. Full business tables remain unchanged. The inner row_planning diagnostic passes through code conversion, file enrichment and an actual 409 HTTP response; the existing Compose consumer decodes it without retry.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only",

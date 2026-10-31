@@ -24,7 +24,7 @@
 
 账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；来源账户扫描与选择、上传文件准备纯层（严格文件命令、脱敏、范围继承、选择失效与关系证明）已实现；来源规划只读仓库和导入会话视图也已实现并按双库匿名种子对照；上传 HTTP 已接入会话创建、追加、替换、范围、删除、取消和读取，解析在锁外、发布与永久收据核实同锁。导入计划公开视图、分页与冻结详情纯层已实现并按 15 组 Python 结果对照；导入逐流水操作规划纯层已实现并按双库 Python 结果对照；条目目标/公共条目编辑与关系核心、几何/镜像图、余额/损益投影与退款文本/菱形匹配与平台退款配对纯层已实现并按 Python 结果对照；来源绑定、当前问题/候选及认证空页的事务内写入仓库已实现；共用流水写入覆盖现金部分身份/序号、草稿端点拆除、公共编辑和来源问题，类型变化沿完整旧组校验后解除不兼容关系/资金关联并使候选失效。它们保留调用方事务回滚，并由联合确认消费。完整导入业务计划、预计列表/详情及预览 HTTP 已接共享解析暂存，发布核对当前修订、上一计划、原有效期、权限与永久收据，并使用对象版本条件替换；失败保留原计划。联合导入确认已在同一写锁/事务内重验并保存来源、流水、关系、成功使用证明的账户对应、余额、公共值、投影和永久收据。原键重放先查永久收据，提交调用前后故障均保留未知状态并按原键核实；暂存清理失败不改变已提交结果。真实 R2 连通性、真实账单样本及原组合测试仍未完成，不能据此宣称完整导入已验收。
 
-导入预览的实际 Ktor 回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinImportPreviewResponseIntegrationTest`，验证现有 Compose 预览请求、计划/冻结详情解码、领域映射和业务错误消费，且不重复请求。确认实际回包可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinImportCommitResponseIntegrationTest`，核对收据/结果、原键核实、确定未提交/未知状态和诊断消费，且不自动重试。这些消费者测试不代替完整原测试或 UI 验收。
+导入预览的实际 Ktor 回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinImportPreviewResponseIntegrationTest`，验证现有 Compose 预览请求、计划/冻结详情解码、领域映射和业务错误消费，且不重复请求。确认实际回包可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinImportCommitResponseIntegrationTest`，核对收据/结果、原键核实、确定未提交/未知状态和诊断消费，且不自动重试。这些消费者测试还验证实际 409 重验响应的原行级诊断及不自动重试；不代替完整原测试或 UI 验收。
 
 来源账户对应的内部仓库和只读建议已实现：按完整来源组查询已确认对应、窄范围旧对应和完整账户别名，重新核对当前账户资格；发布在调用方事务内执行，同值不改变修订。[导入资金组扫描及账户选择准备](src/main/kotlin/com/finance/tracker/backend/CashImportFunding.kt) 已实现，按完整身份区分来源，保留明确分摊、优惠排除和当前账户资格；115 组 Python 完整结果及原生边界回归通过。上传及实际成功证明的提交已接入联合导入流程。
 
@@ -103,7 +103,7 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 
-原确认断言夹具需为生成器 `--help` 中的每个 `--scenario` 准备独立空测试库，以 `--output <仓库外根目录>/<scenario>` 输出；设置 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` 为该根目录。生成器复用原匿名账本、editor、现金/贷款账户和已解析文件，运行时环境为 `PYTHONPATH=.:src:tests`。Kotlin 自行预览、提交并直接断言，不消费 Python 预期结果；批量故障在实际 JDBC 来源写入后触发。场景还包括镜像与全额退款整组、收据随当前拆分/删除定位、并发一次消费、旧计划拒绝、来源更新及草稿组成项替换/序号交换；关系/认证空页故障在实际写入后验证整体回滚。编程错误和精确诊断上下文未齐的原定义仍在迁移表保留 pending。数据库和夹具会被消费，重新执行写入测试须重新准备，不能复用旧收据状态。
+原确认断言夹具需为生成器 `--help` 中的每个 `--scenario` 准备独立空测试库，以 `--output <仓库外根目录>/<scenario>` 输出；设置 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` 为该根目录。生成器复用原匿名账本、editor、现金/贷款账户和已解析文件，运行时环境为 `PYTHONPATH=.:src:tests`。Kotlin 自行预览、提交并直接断言，不消费 Python 预期结果；批量故障在实际 JDBC 来源写入后触发。场景还包括镜像与全额退款整组、收据随当前拆分/删除定位、并发一次消费、旧计划拒绝、来源更新及草稿组成项替换/序号交换；关系/认证空页故障在实际写入后验证整体回滚。确认原测试文件的 44 个定义已逐项对应；关系发现内部编程错误停止预览，重验错误码转换保留更精确的原诊断，并补齐文件位置。其他原测试和完整迁移仍待完成。数据库和夹具会被消费，重新执行写入测试须重新准备，不能复用旧收据状态。
 
 PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：
 

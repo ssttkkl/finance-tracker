@@ -27,7 +27,7 @@ SCENARIOS = ("formal", "draft", "replay", "permission", "resolve", "receipt_scop
     "source_update", "deferred_update", "stale_issue", "mirror", "receipt_locations", "receipt_evolution", "relation_failure",
     "refund_accept", "refund_defer", "refund_failure", "required_failure", "integrity_failure", "history", "identity_draft",
     "partial_draft", "cleanup_success", "cleanup_failure", "allocation", "replace_component", "swap_components", "type_conflict",
-    "empty_page", "connection_failure", "namespace_empty", "namespace_rows")
+    "empty_page", "connection_failure", "namespace_empty", "namespace_rows", "discovery_error", "revalidation_context")
 NOW = datetime(2026, 10, 1, 9, tzinfo=timezone.utc)
 
 
@@ -67,7 +67,7 @@ def inputs(name):
     elif name == "normal_skip":
         row = replace(file.document.rows[0], fields=None, disposition="skipped", error_code="account_opening")
         files = (_file(rows=(row,)),)
-    elif name in {"stale_mirror", "mirror", "receipt_locations", "receipt_evolution", "relation_failure", "history", "type_conflict"}:
+    elif name in {"stale_mirror", "mirror", "receipt_locations", "receipt_evolution", "relation_failure", "history", "type_conflict", "discovery_error"}:
         files = _mirror_files()
     elif name in {"refund_accept", "refund_defer", "refund_failure"}:
         files = _refund_bundle()

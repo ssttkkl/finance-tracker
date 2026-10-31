@@ -14,6 +14,35 @@ import kotlinx.serialization.json.*
 import org.junit.Assume.assumeTrue
 
 class KotlinImportCommitResponseIntegrationTest {
+    @Test fun actualRevalidationConflictPreservesExactRowDiagnosticWithoutAutomaticRetry() = runTest {
+        val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
+        assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)
+        val source = Json.parseToJsonElement(Files.readString(Path.of(requireNotNull(root), "cash-import-revalidation-error.json"))).jsonObject
+        assertTrue(source.getValue("backend").jsonPrimitive.content in setOf("sqlite", "postgresql"))
+        val plan = source.getValue("plan_id").jsonPrimitive.content
+        val revision = source.getValue("revision").jsonPrimitive.long
+        var calls = 0
+        val engine = MockEngine { request ->
+            calls++
+            assertEquals(HttpMethod.Post, request.method)
+            assertEquals("/api/v1/cash-import/plans/$plan/commit", request.url.encodedPath)
+            assertEquals("synthetic-confirm", request.headers["Idempotency-Key"])
+            assertEquals(buildJsonObject { put("expected_session_revision", revision) }, Json.parseToJsonElement((request.body as TextContent).text))
+            respond(source.getValue("body").toString(), HttpStatusCode.fromValue(source.getValue("status").jsonPrimitive.int), headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+        try {
+            val failure = assertFailsWith<DomainFailure> { KtorCashImportLifecycleRepository(client).confirm(plan, revision, "synthetic-confirm") }
+            assertEquals(409, failure.status); assertEquals("plan_changed", failure.code); assertEquals("not_committed", failure.commitState)
+            val diagnostic = assertNotNull(failure.diagnostic)
+            assertEquals("row_planning", diagnostic.stage); assertEquals("row", diagnostic.scope)
+            val location = diagnostic.locations.single()
+            assertEquals("file_a:r1", location.rowRef); assertEquals("file_a", location.fileRef); assertEquals(1, location.rowNumber)
+            assertTrue(!location.displayName.isNullOrEmpty())
+            assertEquals(1, calls)
+        } finally { client.close() }
+    }
+
     private fun captures(): JsonArray {
         val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
         assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)

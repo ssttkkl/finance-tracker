@@ -2,10 +2,17 @@ package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.DefaultSchema
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.business.contracts.CashDiagnosticDto
+import com.finance.tracker.business.contracts.CashDiagnosticLocationDto
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.server.testing.testApplication
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
 import java.math.BigDecimal
 import java.nio.file.Path
+import java.nio.file.Files
 import java.sql.Connection
 import java.sql.PreparedStatement
 import java.sql.SQLException
@@ -134,6 +141,33 @@ class CashImportOriginalCommitTest {
                     relationWrites += writes.count { it == "transaction_relations" }
                     if ("transaction_relations" in writes && failRelationAt > 0 && relationWrites >= failRelationAt) error("synthetic failure after persisted relation")
                     if (failEmptyPages && "cash_source_empty_pages" in writes) error("synthetic failure after persisted empty page")
+                }
+                result
+            } as Statement
+        }
+    }
+
+    private class ReadFault(private val discovery: Boolean) {
+        @Volatile var armed = false
+        @Volatile var count = 0
+        val errorId = "a".repeat(32)
+        private fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? =
+            try { method.invoke(target, *(args ?: emptyArray())) } catch (error: InvocationTargetException) { throw error.targetException }
+        fun decorate(connection: Connection): Connection = Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
+            val result = invoke(connection, method, args)
+            if (result is Statement && method.name in setOf("prepareStatement", "createStatement")) statement(result) else result
+        } as Connection
+        private fun statement(statement: Statement): Statement {
+            val type = if (statement is PreparedStatement) PreparedStatement::class.java else Statement::class.java
+            return Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(type)) { _, method, args ->
+                val result = invoke(statement, method, args)
+                if (armed && method.name in setOf("executeQuery", "execute") && Thread.currentThread().stackTrace.any {
+                    it.className == "com.finance.tracker.backend." + if (discovery) "CashImportRelationDiscovery" else "CashImportBusinessPlanBuilder"
+                }) {
+                    count++
+                    if (discovery) error("private bill body")
+                    throw CashImportPlanError("plan_input_invalid", diagnostic = CashDiagnosticDto(errorId, "row_planning", "row",
+                        listOf(CashDiagnosticLocationDto(rowRef = "file_a:r1")), 1))
                 }
                 result
             } as Statement
@@ -708,6 +742,48 @@ class CashImportOriginalCommitTest {
             val receipt = fixture.commit(plan)
             assertEquals(1, summary(receipt, "created_posted")); assertEquals(if (empty) 0 else 2, summary(receipt, "skipped"))
             assertEquals(JsonPrimitive(false), receipt.getValue("commit_outcome").jsonObject["has_new_failures"])
+        }
+    }
+
+    @Test fun originalInternalDiscoveryProgrammingErrorStopsPreviewWithoutFinancialWrites() {
+        val fault = ReadFault(discovery = true); val fixture = Fixture("discovery_error", fault::decorate)
+        val before = fixture.snapshot(); fault.armed = true
+        assertFailsWith<IllegalStateException> { fixture.plan() }
+        fault.armed = false
+        assertEquals(1, fault.count); assertEquals(before, fixture.snapshot())
+        val staged = fixture.store.get(fixture.store.entries.keys.single(), fixture.workspace, fixture.user)
+        assertEquals(1.toBigInteger(), staged.revision); assertNull(staged.plan)
+    }
+
+    @Test fun originalRevalidationConversionPreservesInnerRowDiagnosticInActualHttpResponse() = testApplication {
+        val fault = ReadFault(discovery = false); val fixture = Fixture("revalidation_context", fault::decorate)
+        val plan = fixture.plan(); val before = fixture.snapshot(); val staged = fixture.session!!
+        application { financeModule(fixture.database, cashImports = CashImportHttpService(fixture.database, fixture.store, fixture.commands)) }
+        fault.armed = true
+        val response = client.post("/api/v1/cash-import/plans/${plan.getValue("plan_id")}/commit") {
+            header(HttpHeaders.Authorization, "Bearer ${fixture.token}"); header("Idempotency-Key", "synthetic-confirm")
+            contentType(ContentType.Application.Json); setBody(buildJsonObject { put("expected_session_revision", staged.revision.toLong()) }.toString())
+        }
+        fault.armed = false
+        val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+        assertEquals(1, fault.count); assertEquals(before, fixture.snapshot())
+        assertEquals(409, response.status.value, body.toString())
+        val error = body.getValue("error").jsonObject
+        assertEquals(JsonPrimitive("plan_changed"), error["code"]); assertEquals(JsonPrimitive(false), error["retryable"])
+        assertEquals(JsonPrimitive("not_committed"), body["commit_state"])
+        val diagnostic = error.getValue("diagnostic").jsonObject
+        assertEquals(JsonPrimitive("row_planning"), diagnostic["stage"]); assertEquals(JsonPrimitive("row"), diagnostic["scope"])
+        assertEquals(JsonPrimitive(fault.errorId), diagnostic["error_id"])
+        val location = diagnostic.getValue("locations").jsonArray.single().jsonObject
+        assertEquals(JsonPrimitive("file_a:r1"), location["row_ref"]); assertTrue(location.getValue("display_name").jsonPrimitive.content.isNotEmpty())
+        assertEquals(JsonPrimitive("file_a"), location["file_ref"]); assertEquals(JsonPrimitive(1), location["row_number"])
+        assertEquals(staged.plan, fixture.store.get(staged.sessionId, fixture.workspace, fixture.user).plan)
+        System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { root ->
+            val path = Path.of(root); Files.createDirectories(path)
+            Files.writeString(path.resolve("cash-import-revalidation-error.json"), buildJsonObject {
+                put("backend", if (fixture.database.sqlite) "sqlite" else "postgresql"); put("status", response.status.value)
+                put("plan_id", plan.getValue("plan_id") as String); put("revision", staged.revision.toLong()); put("body", body)
+            }.toString())
         }
     }
 }
