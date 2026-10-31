@@ -826,6 +826,200 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once",
+      "source_sha256": "333203d28aa09056c09d813a01a5e24f9ce3cc6162927f280897111be128b6db",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_concurrent_confirmations_consume_the_session_once[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert first[\"receipt_id\"] == second[\"receipt_id\"]",
+        "assert first == second",
+        "assert sum(value.get(\"code\") == \"session_committed\" for value in (first, second)) == 1",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(\n            CashTransactionModel.source_type == \"alipay\")) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalConcurrentConfirmationsConsumeSessionOnceForSameAndDifferentKeys"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_concurrent_equivalent_duplicate_rejects_stale_plan_without_changing_record",
+      "source_sha256": "9f0ceef76cca8b5b736f2aaf2b8ed8cb7bb12bbb9710bfdbb4cdc848f062c82c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_concurrent_equivalent_duplicate_rejects_stale_plan_without_changing_record[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_concurrent_equivalent_duplicate_rejects_stale_plan_without_changing_record[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(second, b, \"other-file\"), CashImportPlanError, code=\"plan_changed\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalEquivalentAliasPreviewRejectsAfterOtherFileCommitsWithoutChangingRecord"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_confirmed_relation_and_rows_are_saved_together",
+      "source_sha256": "27ac41b7cd34829e55869ee39aed49c6e5aee277115e53bacba28ae9841860a3",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_confirmed_relation_and_rows_are_saved_together[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_confirmed_relation_and_rows_are_saved_together[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan[\"item_counts\"][\"confirmed\"] == 1",
+        "assert receipt[\"summary\"][\"relations_confirmed\"] == 1",
+        "assert receipt[\"summary\"][\"created_posted\"] == 2",
+        "assert receipt[\"pending_item_count\"] == 0",
+        "assert relation.primary_transaction_id != relation.secondary_transaction_id",
+        "assert relation.primary_component_id is not None and relation.secondary_component_id is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalMirrorAndRowsCommitTogetherWithActualDistinctEndpoints"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_connection_failure_aborts_outer_transaction_instead_of_becoming_a_row_skip",
+      "source_sha256": "70d06b7742cf27ddde459719d263e2f5a2e1aee533d2ff5739a8316a60be8072",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_connection_failure_aborts_outer_transaction_instead_of_becoming_a_row_skip[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_connection_failure_aborts_outer_transaction_instead_of_becoming_a_row_skip[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert failure.value.commit_state == \"not_committed\"",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel).where(\n            CashTransactionModel.source_type == \"alipay\")) == 0",
+        "pytest.raises(CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalConnectionFailureAfterSecondRowStopsOuterTransactionInsteadOfSkippingRow"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_current_row_conflict_only_skips_that_operation_and_preserves_manual_change",
+      "source_sha256": "5a9076ca37e7e66caa71f468634bf15206e01f941daa3be013273419629830ef",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_current_row_conflict_only_skips_that_operation_and_preserves_manual_change[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_current_row_conflict_only_skips_that_operation_and_preserves_manual_change[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code='plan_changed')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalManualChangeAfterPreviewRejectsEntireCommandAndPreservesManualValue"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_deferred_source_update_preserves_current_description_and_stores_the_new_explanation",
+      "source_sha256": "3d0453e3a7815b6006474aecf9628ff1fb60801f1bcf02569acf2f8dff007324",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_deferred_source_update_preserves_current_description_and_stores_the_new_explanation[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_deferred_source_update_preserves_current_description_and_stores_the_new_explanation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"updated_posted\"] == 1",
+        "assert parent.note == first.document.rows[0].fields[\"note\"]",
+        "assert parent.relation_metadata == {\"status\": \"原来源状态\"}",
+        "assert issue.pending_fields[\"note\"] == \"新的原文\"",
+        "assert issue.pending_fields[\"_source_explanation\"] == {\"status\": \"新来源状态\"}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalDeferredSourceUpdatePreservesCurrentDescriptionAndKeepsPendingExplanation"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview",
+      "source_sha256": "42bc3a1b76cf8ba5fb66789262119c94e7cf97756ec18a75661b4bb1b1584e70",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_discovery_programming_error_stops_import_preview[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _plan(context_runtime, _mirror_files()), RuntimeError)"
+      ],
+      "targets": [],
+      "reason": "Needs an independently exercised exception path inside actual relation discovery; not covered by outer command failure hooks."
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_draft_can_replace_component_at_same_ordinal_before_finalization",
+      "source_sha256": "0c09fb9c098232049cdd55a4ad1e832bee98459cb16f1cf534c8e778e736f8ef",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_draft_can_replace_component_at_same_ordinal_before_finalization[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_draft_can_replace_component_at_same_ordinal_before_finalization[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan[\"summary\"][\"finalize_draft\"] == 1",
+        "assert receipt[\"summary\"][\"finalized_draft\"] == 1",
+        "assert part.id != old and part.ordinal == 0",
+        "assert session.get(CashTransactionModel, identifier).state == \"posted\""
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalDraftFinalizationCanReplaceComponentAtSameOrdinalWithNewIdentity"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_draft_can_swap_component_ordinals_without_changing_component_identities",
+      "source_sha256": "df1cce46c55cf8d054e4b9bd0a20b6d79a20a0cbeecb7021099868c7bb40db64",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_draft_can_swap_component_ordinals_without_changing_component_identities[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_draft_can_swap_component_ordinals_without_changing_component_identities[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"saved_draft\"] == 1",
+        "assert current == {(part, account, 1 - ordinal) for part, account, ordinal in original}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalDraftSwapsOrdinalsWithoutReplacingComponentIdentities"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_commit.py::test_draft_is_saved_in_same_tables_without_entering_statistics_or_balances",
       "source_sha256": "fb5081eac8b82e46b01bb4eb2292172a34d349e306bc10e414b2cd491f555011",
       "status": "migrated",
@@ -850,6 +1044,26 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_empty_page_failure_rolls_back_entire_command",
+      "source_sha256": "eb64ac99dc65e40f7bc4f56d54c966e5492d6c2f4efdf5431f3fbd09424fe390",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_empty_page_failure_rolls_back_entire_command[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_empty_page_failure_rolls_back_entire_command[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalEmptyPageFailureRollsBackEntireCommandAfterActualWrite"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_commit.py::test_execution_failure_rolls_back_entire_import_without_retry_capsule",
       "source_sha256": "797e6b656a05de49f160c617b3ece7c0c6cc5f28aa50f07a37c4fb7684991935",
       "status": "migrated",
@@ -871,6 +1085,66 @@
         }
       ],
       "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_decision",
+      "source_sha256": "38691238e664f0cd4f7f6859234079dc91c57d8c60d398004f0ba16551d8676c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_decision[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_existing_relation_with_changed_allocation_is_not_mistaken_for_same_decision[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(second, stale, \"second-allocation\"),\n        CashImportPlanError, code=\"plan_changed\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalChangedRelationAllocationIsNotMistakenForSameDecision"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_failed_required_row_prevents_group_from_using_old_record_as_substitute",
+      "source_sha256": "4cf2930f2f6ba932b23d6c62047bf7ac7ecb057f45bca1a4ea523af131903895",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_failed_required_row_prevents_group_from_using_old_record_as_substitute[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_failed_required_row_prevents_group_from_using_old_record_as_substitute[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalRequiredExistingRowFailureCannotSubstituteOldFactForRelationGroup"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_entire_command",
+      "source_sha256": "22ee3dbdc9644903770aa3bbabb6710f67f2d2b54e49b327c66321fb8d1bd672",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_entire_command[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_failure_after_one_joint_edge_rolls_back_whole_bundle_and_entire_command[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalFailureOnSecondJointEdgeRollsBackWholeRefundBundleAndOtherGroup"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
@@ -923,6 +1197,101 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_after_commit",
+      "source_sha256": "830bf0ae4dd155beec5164e401081c8ea0fe8d90aed80f9d979cb6f284dc263b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_after_commit[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_after_commit[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_after_commit[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_full_refund_bundle_is_joint_and_zero_amount_remains_visible_before_and_after_commit[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert len(plan[\"items\"]) == 1 and Decimal(plan[\"items\"][0][\"display\"][\"amount\"]) == 0",
+        "assert receipt[\"summary\"][\"created_posted\"] == 4",
+        "assert receipt[\"summary\"][\"relations_deferred\" if defer else \"relations_confirmed\"] == 1",
+        "assert len(plan[\"items\"]) == 4 and all(item[\"confirmation_status\"] == \"pending\" for item in plan[\"items\"])",
+        "assert len(relations) >= 3 and len({row.decision_group_id for row in relations}) == 1",
+        "assert {row.state for row in relations} == ({\"draft\"} if defer else {\"confirmed\"})",
+        "assert len(projections) == (4 if defer else 1) and all(row.visible for row in projections)",
+        "assert projections[0].net_amount == 0 and projections[0].hidden_reason is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalFullRefundBundleStaysJointAndZeroNetRemainsVisibleOrDefersAllMembers"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_imported_type_conflict_preserves_members_and_existing_projection",
+      "source_sha256": "3e70a92223eb1b679af9f4f791d7b4bed40e7d856853522eb64fd8808a26c360",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_imported_type_conflict_preserves_members_and_existing_projection[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_imported_type_conflict_preserves_members_and_existing_projection[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['items'] == [] and plan['summary']['skip'] == 1",
+        "assert receipt[\"summary\"][\"updated_posted\"] == 0 and calls == []",
+        "assert receipt['summary']['skipped'] == 1",
+        "assert relation.active is True",
+        "assert len(session.scalars(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id.in_(ids))).all()) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalImportedTypeConflictKeepsMembersAndDoesNotRepublishProjection"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan. Projection replacement always advances cash_projection_states on every success path; observing zero writes to projection rows/members/state therefore preserves the original no-replacement-call assertion.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_integrity_failure_uses_business_reason_and_does_not_leak_driver_code",
+      "source_sha256": "e7194e74d675364ae42edd2fa9e578977ff27cd74097f453fe6a0a2d780fff23",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_integrity_failure_uses_business_reason_and_does_not_leak_driver_code[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_integrity_failure_uses_business_reason_and_does_not_leak_driver_code[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalConstraintFailureAfterRowWriteRejectsEntireCommandWithoutPartialRows"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_known_partial_draft_component_is_saved_but_invalid_structure_rejects_plan",
+      "source_sha256": "b2667f7422ceedb95153f22642eae18d04dabe54052799bab21ce3a7ad47583f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_known_partial_draft_component_is_saved_but_invalid_structure_rejects_plan[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_known_partial_draft_component_is_saved_but_invalid_structure_rejects_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"saved_draft\"] == 1 and receipt[\"summary\"][\"created_posted\"] == 1",
+        "assert component.account_id == 101 and component.amount is None and component.currency is None",
+        "pytest.raises(CashImportPlanError, match=\"plan_input_invalid\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalPartialDraftKeepsKnownAccountButInvalidComponentStructureRejectsPreview"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_commit.py::test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback",
       "source_sha256": "419eaa14f96a63b78f96a203fb4dade1fe91f32fac2e06c7aea5459d5b25a41f",
       "status": "migrated",
@@ -967,6 +1336,30 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_old_receipt_pages_follow_current_split_and_deletion_without_rewriting_summary",
+      "source_sha256": "651c2f98e1b72bfd03c948de9662a93751822c866c684d81dea6bef20da9e7a7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_old_receipt_pages_follow_current_split_and_deletion_without_rewriting_summary[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_old_receipt_pages_follow_current_split_and_deletion_without_rewriting_summary[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len({item[\"projection_id\"] for item in page[\"projection_refs\"]}) == 1",
+        "assert len({item[\"projection_id\"] for item in split[\"projection_refs\"]}) == 2",
+        "assert {int(item[\"transaction_id\"]) for item in remaining[\"projection_refs\"]} == identifiers - {removed}",
+        "assert remaining[\"projection_version\"] > receipt[\"projection_version\"]",
+        "assert service.receipt(receipt[\"receipt_id\"]) == receipt"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalOldReceiptPageTracksCurrentSplitAndDeletionWithoutChangingSummary"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_commit.py::test_permission_is_rechecked_even_when_replaying_a_receipt",
       "source_sha256": "89f4a959093b8ba699b3f11da7340cc006a4508ee9df8fc264d6c333433638cf",
       "status": "migrated",
@@ -984,6 +1377,30 @@
         }
       ],
       "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_preview_rejected_document_namespace_does_not_block_other_legal_rows",
+      "source_sha256": "5ea1df381815d431ed596059c6e5f0f9728f3fa1683b390de521eef8076b0874",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_preview_rejected_document_namespace_does_not_block_other_legal_rows[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_preview_rejected_document_namespace_does_not_block_other_legal_rows[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_preview_rejected_document_namespace_does_not_block_other_legal_rows[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_preview_rejected_document_namespace_does_not_block_other_legal_rows[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert plan[\"summary\"][\"create_posted\"] == 1 and plan[\"summary\"].get(\"skip\", 0) == (0 if empty else 2)",
+        "assert receipt[\"summary\"][\"created_posted\"] == 1 and receipt[\"summary\"].get(\"skipped\", 0) == (0 if empty else 2)",
+        "assert receipt[\"commit_outcome\"][\"has_new_failures\"] is False"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalRejectedDocumentNamespaceDoesNotBlockOtherLegalRowsOrEmptyPages"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
@@ -1011,6 +1428,30 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_receipt_counts_pending_items_after_merge_and_pages_current_locations",
+      "source_sha256": "eb42b5c8babc89aa49d9bd040cccab084b1f66f32232067f03122ad6e30f5964",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_receipt_counts_pending_items_after_merge_and_pages_current_locations[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_receipt_counts_pending_items_after_merge_and_pages_current_locations[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"needs_attention_count\"] == 2 and receipt[\"pending_item_count\"] == 1",
+        "assert \"affected_transaction_ids\" not in receipt and \"projection_refs\" not in receipt",
+        "assert len(page[\"projection_refs\"]) == 2",
+        "assert len({item[\"projection_id\"] for item in page[\"projection_refs\"]}) == 1",
+        "assert page[\"projection_version\"] == receipt[\"projection_version\"]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalMergedAttentionCountsParentsButPagesUseOneCurrentProjection"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_commit.py::test_receipt_reads_are_user_scoped_and_only_contain_safe_results",
       "source_sha256": "5f6d65894cbece0084bb94f4b0e8fcdd9cc132bb7b8d084ad204a32f1ed09ec1",
       "status": "migrated",
@@ -1030,6 +1471,72 @@
         }
       ],
       "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_reimport_of_identity_draft_preserves_its_unresolved_candidate_set",
+      "source_sha256": "dd5d6bddcc5400de61fe728d04c3bbb0539555efbac7573334b59474b1ff8055",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_reimport_of_identity_draft_preserves_its_unresolved_candidate_set[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_reimport_of_identity_draft_preserves_its_unresolved_candidate_set[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"saved_draft\"] == 1",
+        "assert session.scalar(select(func.count()).select_from(CashIssueCandidateModel)) == 1",
+        "assert session.scalar(select(func.count()).select_from(CashIssueCandidateModel)) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalIdentityDraftReimportRetainsItsUnresolvedCandidateSet"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_reimport_preserves_historical_relation_failure_without_creating_retry_body",
+      "source_sha256": "461a74ce03033a3645495ba90b4d297fcd2852f9762c909a402da2df6a18734b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_reimport_preserves_historical_relation_failure_without_creating_retry_body[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_reimport_preserves_historical_relation_failure_without_creating_retry_body[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert second[\"summary\"][\"duplicate\"] == 2",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionIssueModel)) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalReimportPreservesHistoricalRelationFailureWithoutNewIssues"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_relation_save_failure_rolls_back_records_relations_and_attention",
+      "source_sha256": "a7f862a4dc6d39cbeb03f6cb569109e31bbb79f702a15ed056615ede3702b73a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_relation_save_failure_rolls_back_records_relations_and_attention[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_relation_save_failure_rolls_back_records_relations_and_attention[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert diagnostic[\"stage\"] == \"relation_save\" and diagnostic[\"scope\"] == \"related\"",
+        "assert diagnostic[\"total_locations\"] == 2",
+        "assert all(item.get(\"display_name\") and item.get(\"row_number\") for item in diagnostic[\"locations\"])",
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalRelationInsertFailureRollsBackRowsRelationsAndAttentionWithBothLocations"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
@@ -1123,6 +1630,114 @@
         }
       ],
       "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_second_already_previewed_session_rejects_stale_plan_after_first_commit",
+      "source_sha256": "74cc34071e297e797a718512523003f80f6017a38f963f0b699b5a8cf281db0f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_second_already_previewed_session_rejects_stale_plan_after_first_commit[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_second_already_previewed_session_rejects_stale_plan_after_first_commit[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_second_already_previewed_session_rejects_stale_plan_after_first_commit[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_second_already_previewed_session_rejects_stale_plan_after_first_commit[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "_assert_atomic_failure(context_runtime, lambda: _commit(second, stale, \"second-session\"), CashImportPlanError, code=\"plan_changed\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalAlreadyPreviewedIndependentSessionRejectsNewlyCommittedFactsAndMirrors"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_source_text_update_does_not_rewrite_balance_snapshot",
+      "source_sha256": "8bff7de3af43b62746895fe3efa9bfda05547a1d4bd5196bcdd69914f056a7ed",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_source_text_update_does_not_rewrite_balance_snapshot[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_source_text_update_does_not_rewrite_balance_snapshot[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"summary\"][\"updated_posted\"] == 1",
+        "assert (snapshot.payload, snapshot.version) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalSourceDescriptionUpdateDoesNotRewriteBalancePayloadOrVersion"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_stale_existing_counterpart_issue_only_defers_original_group_not_independent_rows",
+      "source_sha256": "77df1bf0661d80f5a36a74b81af9dbc6d4ef3e684e9bbb31db2ea8d0edf00c3f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_stale_existing_counterpart_issue_only_defers_original_group_not_independent_rows[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_stale_existing_counterpart_issue_only_defers_original_group_not_independent_rows[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan[\"summary\"][\"relations_accepted\"] == 1",
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code='plan_changed')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalNewCounterpartIssueRejectsOldRelationPlanAndIndependentRowsTogether"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context",
+      "source_sha256": "895eb7aeef37a416bd74be3c9a42fd5ef704c9ca3709f9e2314a1e03cb85c3fa",
+      "status": "pending",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_submit_revalidation_code_conversion_preserves_exact_row_context[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 409",
+        "assert diagnostic[\"stage\"] == \"row_planning\" and diagnostic[\"scope\"] == \"row\"",
+        "assert diagnostic[\"locations\"][0][\"row_ref\"] == \"file_a:r1\"",
+        "assert diagnostic[\"locations\"][0][\"display_name\"]",
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan), CashImportPlanError, code=\"plan_changed\")"
+      ],
+      "targets": [],
+      "reason": "Needs failing coverage and preservation of existing row_planning diagnostic through plan_input_invalid to plan_changed conversion and actual 409 HTTP output."
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only",
+      "source_sha256": "166bc6573159d8d58a7b02014138165aac008f66dc927ed5dde443bff0116b8f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_success_clears_body_and_failed_commit_keeps_original_session_only[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert not staged.cancelled and staged.files and staged.plan is not None",
+        "assert len(service._staging._entries) == 1",
+        "assert not any(key.startswith(\"retry_context\") for key in receipt)",
+        "assert staged.cancelled and not staged.files and staged.plan is None",
+        "_assert_atomic_failure(context_runtime, lambda: _commit(service, plan))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalSuccessClearsSessionBodyAndFailureKeepsOnlyOriginalSession"
+        }
+      ],
+      "compatibility": "Original anonymous cash/loan/editor fixture and mirror/refund/document factories are reused. Each parameter runs against an independent SQLite/PostgreSQL seed. JVM assertions cover actual preview/commit/state, current projection references and full rollback; JDBC observes persisted relation/empty-page failures, component IDs and projection writes. Source function names are preserved even when the current body rejects the entire stale plan.",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {

@@ -424,3 +424,5 @@ Phase A 硬键退款按来源身份分组后再配；支付宝订单前缀/商�
 完整确认差分固定两端内部收支 UUID 生成器并比较分配次序，不删除冻结依赖身份。账户仅修订变化且资格不变可以提交；预览后停用必须拒绝且整笔无写入。故障诊断分别核对阶段、范围、位置及总数，收据写入失败沿 request 阶段，不新增客户端未知阶段；409 计划变化可携诊断，但不能因此标可自动重试。核实请求的缺键/未知字段沿 Python 严格协议返回 import_payload_invalid，不能沿用不一致的 Kotlin 旧断言。
 
 原确认回归复用原匿名行与 editor 身份，每场景独立测试库；生成器只提供输入，Kotlin 必须重建预览并直接核对原断言。完整回滚快照覆盖全部生成表并区分 SQL null 与文本 null；原生批次路径须观测父项先于现金部分、来源实际写入后故障以及未逐行回退。快照仓库 load 返回当前账户名称，原始存储使用稳定 ID，余额断言按真实仓库接口取键。非锁存储错误须注入到核实的独立写事务，不能只让最初的用户查询失败而漏测 pending 分支。
+
+Concurrency tests must wait for both independent command workers before releasing their start gate. Port current assertion bodies even when historical test names suggest partial skips: stale plans reject the whole command. Refund bundles preserve a single decision group and visible zero net amounts; result pages follow current split/deletion while durable receipt summaries remain unchanged. Observe persisted relation and empty-page inserts before fault injection, and compare all business tables after rollback. A zero-write projection assertion must include state advancement, which every successful active-component replacement performs.

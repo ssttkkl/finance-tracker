@@ -49,7 +49,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 ## 测试与黄金合同
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 329 个定义/763 个展开参数，6 个基础设施定义按理由保留，其余 2,278 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线/当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 355 个定义/825 个展开参数，6 个基础设施定义按理由保留，其余 2,252 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线/当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - Python oracle：`test_exact_decimal.py`、`test_cash_record_policy.py`、`test_cash_category_management.py`、`test_cash_statement_rows.py`、`test_bank_statement_rows.py`、`test_cash_statement_document.py`、`test_icbc_pdf_statement.py`、`test_cash_source_matching.py`、`test_cash_import_readable_equivalence.py`。
 - 完整 `tests/contract` 与 `tests/integration`：HTTP/错误、来源/关系/投影、暂存生命周期、收据/未知结果、修订/权限/回滚、同步/券商及双库矩阵。
