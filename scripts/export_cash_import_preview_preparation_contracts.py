@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from copy import deepcopy
 from dataclasses import asdict, replace
 from datetime import timedelta
 from decimal import Decimal
@@ -116,6 +117,7 @@ def export(database_url: str, output: Path) -> None:
         cases = []
         group_cases = []
         choices_cases, application_cases = [], []
+        presentation_cases = []
         for name, previous, entry_choices, extra in (
             ("normal", None, [], []),
             ("retained_target", {"entry_targets": {"ie-good": {"parent_ids": ["7501"]}}},
@@ -231,6 +233,30 @@ def export(database_url: str, output: Path) -> None:
                         "state": item.state, "attention_count": item.attention_count}
                         for item in snapshot.build().projections],
                 }
+                modes = ("default", "include_unchanged", "defer", "ignore", "failure")
+                if name == "normal":
+                    modes += ("weak_closed", "open_leg")
+                for mode in modes:
+                    presented = deepcopy(snapshot)
+                    selected_groups, selected_failures = builder._groups(presented,
+                        [variants[mode]] if mode in {"weak_closed", "open_leg"} else proposals)
+                    if mode in {"defer", "ignore"}:
+                        for group in selected_groups:
+                            group["action"] = mode
+                    input_groups = deepcopy(selected_groups)
+                    selected_failures.extend(builder._apply_groups(presented, selected_groups))
+                    if mode == "failure":
+                        selected_failures.append({"code": "relation_endpoint_incompatible", "parent_ids": ["7501", "7503"]})
+                    for failure in selected_failures:
+                        for parent in failure["parent_ids"]:
+                            if parent in presented.facts:
+                                presented.facts[parent] = replace(presented.facts[parent], needs_attention=True)
+                    presentation_cases.append({"name": name + ":" + mode, "snapshot_case": name,
+                        "groups": _wire(input_groups), "failures": _wire(selected_failures),
+                        "include_unchanged": mode == "include_unchanged", "entry_parent_ids": sorted(retained),
+                        "expected": _wire(builder._present((), operations, rows, presented,
+                            presented.build(), selected_groups, selected_failures, accounts,
+                            include_unchanged=mode == "include_unchanged", entry_parent_ids=retained))})
         try:
             builder._entry_parents([{"edit_ref": "missing"}], {"entry_targets": {}})
             raise AssertionError("missing entry target unexpectedly accepted")
@@ -244,6 +270,7 @@ def export(database_url: str, output: Path) -> None:
         (output / "relation-group-cases.json").write_text(json.dumps(group_cases, ensure_ascii=False, indent=2) + "\n")
         (output / "relation-choice-cases.json").write_text(json.dumps(_wire(choices_cases), ensure_ascii=False, indent=2) + "\n")
         (output / "relation-application-cases.json").write_text(json.dumps(_wire(application_cases), ensure_ascii=False, indent=2) + "\n")
+        (output / "presentation-cases.json").write_text(json.dumps(presentation_cases, ensure_ascii=False, indent=2) + "\n")
         (output / "invalid-target.json").write_text(json.dumps({"code": invalid_target_error}) + "\n")
     finally:
         engine.dispose()

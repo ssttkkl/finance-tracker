@@ -336,6 +336,63 @@ class CashImportPreviewSnapshotContractTest {
         "parent_id" to fact.parentId, "component_ordinal" to fact.componentOrdinal, "cash_granularity" to fact.cashGranularity,
     )
 
+    @Test fun finalPreviewPresentationMatchesPythonWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val inputs = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val presentations = Json.parseToJsonElement(root().resolve("presentation-cases.json").readText()).jsonArray
+        for (raw in presentations) {
+            val case = raw.jsonObject
+            snapshot(db, inputs.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { _, prepared, value ->
+                @Suppress("UNCHECKED_CAST") val groups = cashSourceValue(case.getValue("groups")) as List<MutableMap<String, Any?>>
+                CashImportRelationDecisions.applyGroups(value, groups)
+                @Suppress("UNCHECKED_CAST") val failures = cashSourceValue(case.getValue("failures")) as List<Map<String, Any?>>
+                for (failure in failures) for (parent in failure["parent_ids"] as List<*>) {
+                    value.facts[parent]?.let { value.facts[parent.toString()] = it.withAttention(true) }
+                }
+                val snapshotBefore = summary(value)
+                val actual = CashImportPreviewPresentation.present(emptyList(), value, value.build(), groups, failures,
+                    prepared.accounts, case.getValue("include_unchanged").jsonPrimitive.boolean,
+                    case.getValue("entry_parent_ids").jsonArray.map { it.jsonPrimitive.content }.toSet())
+                assertEquals(case.getValue("expected"), wire(actual), case.getValue("name").jsonPrimitive.content)
+                assertEquals(snapshotBefore, summary(value))
+            }
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
+    @Test fun presentationKeepsFrozenMemberBoundariesAndFileResults() {
+        val db = database()
+        val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
+        snapshot(db, normal, true) { _, prepared, value ->
+            val newParent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
+            value.parentOps.remove(newParent)
+            value.values.getValue(newParent)["record_origin"] = "manual"
+            val files = listOf(ParsedImportFile("f_ready", "a".repeat(64), "parsed", filename = "账单.csv"),
+                ParsedImportFile("f_password", "b".repeat(64), "needs_password", errorCode = "password_required"))
+            val before = summary(value)
+            val result = CashImportPreviewPresentation.present(files, value, value.build(), emptyList(), emptyList(),
+                prepared.accounts, entryParentIds = setOf(newParent))
+            val json = wire(result).jsonObject
+            val fields = json.getValue("detail_values").jsonObject.getValue(newParent).jsonObject
+            assertFalse("source_scope_key" in fields)
+            assertTrue(fields.getValue("components").jsonArray.all { "component_id" !in it.jsonObject })
+            val member = json.getValue("item_details").jsonObject.values.map { it.jsonObject }
+                .flatMap { it.getValue("members").jsonArray }.map { it.jsonObject }
+                .single { it["transaction_id"] == JsonPrimitive(newParent) }
+            assertTrue("amount" in member.getValue("editable_fields").jsonArray.map { it.jsonPrimitive.content })
+            assertFalse("source_payload" in member.getValue("editable_fields").jsonArray.map { it.jsonPrimitive.content })
+            assertEquals(JsonArray(emptyList()), member.getValue("allowed_actions"))
+            assertTrue(json.getValue("can_commit").jsonPrimitive.boolean)
+            assertEquals(listOf("ready", "password_required"), json.getValue("file_results").jsonArray
+                .map { it.jsonObject.getValue("status").jsonPrimitive.content })
+            assertTrue(json.getValue("file_results").jsonArray.all {
+                "client_file_ref" !in it.jsonObject && "source_type" !in it.jsonObject
+            })
+            assertEquals(before, summary(value))
+        }
+    }
+
     @Test fun matchingFactsAndDiscoveryMatchPythonWithoutWrites() {
         val db = database()
         val before = detailDatabaseState(db)

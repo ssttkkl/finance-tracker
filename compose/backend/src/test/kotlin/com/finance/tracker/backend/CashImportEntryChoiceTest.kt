@@ -63,4 +63,22 @@ class CashImportEntryChoiceTest {
                 cashSourceValue(golden.getValue("plan")) as Map<String, Any?>) { true }
         }.code)
     }
+
+    @Test fun numericEdgesSortBeforeHashingAndComputedAmountsMatchFrozenTargets() {
+        val first = mapOf<String, Any?>("id" to 2, "applied_amount" to CashAmount.parse("10.00"))
+        val second = mapOf<String, Any?>("id" to 10, "applied_amount" to CashAmount.parse("1E+1"))
+        val snapshot = EntryTargetSnapshot(EntryTargetContext(emptyList(), emptyList(), emptyList(), emptyList()),
+            emptyMap(), mapOf("10" to second, "2" to first), mapOf("1" to setOf("10", "2")))
+        val (reference, target) = CashImportEntryChoices.target(snapshot, listOf("1"), CashImportEntryChoices.index(snapshot, emptyList()))
+        val frozen = target + ("final_edges" to listOf(first + ("applied_amount" to "10.00"), second + ("applied_amount" to "1E+1")))
+        assertEquals(listOf(first, second), target["final_edges"])
+        assertEquals("ie_" + sourceDigest("cash-import-entry-v1", frozen), reference)
+        val detail = linkedMapOf<String, Any?>("entry" to linkedMapOf("edit_ref" to reference, "fields" to linkedMapOf<String, Any?>()))
+        val result = linkedMapOf<String, Any?>("entry_targets" to mapOf(reference to target),
+            "items" to listOf(mapOf("preview_item_id" to "pi_1", "display" to linkedMapOf<String, Any?>("note" to ""))),
+            "item_details" to linkedMapOf("pi_1" to detail))
+        CashImportEntryChoices.apply(result, listOf(mapOf("edit_ref" to reference, "patch" to mapOf("note" to "已核对"))),
+            mapOf("entry_targets" to mapOf(reference to frozen))) { true }
+        assertEquals("已核对", map(map(detail["entry"])["fields"])["note"])
+    }
 }

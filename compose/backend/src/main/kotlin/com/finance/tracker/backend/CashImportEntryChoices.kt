@@ -70,10 +70,13 @@ internal object CashImportEntryChoices {
             "entries" to selected(index.entries, sorted.toSet()),
             "relations" to selected(index.relations, oldEdges),
             "relation_dependencies" to dependencies.values.sortedBy { it.first }.map { it.second },
-            "final_edges" to (sorted.flatMap { snapshot.incident[it].orEmpty() }.toSet().sortedWith(cashRelationStringOrder)
+            "final_edges" to (sorted.flatMap { snapshot.incident[it].orEmpty() }.toSet().sortedWith { first, second ->
+                val a = first.toBigIntegerOrNull(); val b = second.toBigIntegerOrNull()
+                if (a != null && b != null) a.compareTo(b) else cashRelationStringOrder.compare(first, second)
+            }
                 .map { snapshot.edges.getValue(it) }),
         )
-        return "ie_" + sourceDigest("cash-import-entry-v1", target) to target
+        return "ie_" + cashImportDigest("cash-import-entry-v1", target) to target
     }
 
     fun apply(result: MutableMap<String, Any?>, choices: List<Any?>, previous: Map<String, Any?>?,
@@ -98,7 +101,7 @@ internal object CashImportEntryChoices {
             val choice = raw as? Map<*, *> ?: throw CashImportPlanError("plan_input_invalid")
             val reference = choice["edit_ref"]?.toString() ?: throw CashImportPlanError("plan_input_invalid")
             val target = targets[reference]
-            if (target == null || sourceDigest(target) != sourceDigest(previousTargets[reference]))
+            if (target == null || cashImportDigest(target) != cashImportDigest(previousTargets[reference]))
                 throw CashImportPlanError("plan_changed")
             val patch = linkedMapOf<String, Any?>()
             val patchRaw = choice["patch"] as? Map<*, *> ?: throw CashImportPlanError("plan_changed")
