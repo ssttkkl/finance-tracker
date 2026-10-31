@@ -22,7 +22,7 @@ internal class CashImportCommitPreparation(private val context: CashSqlContext) 
         return operation + ("candidate_ids" to candidates)
     }
 
-    fun newBatches(operations: List<Map<String, Any?>>, sources: Map<String, SourceOccurrence>): Map<String, CashRecordWriteResult> {
+    fun newBatches(operations: List<Map<String, Any?>>, sources: Map<String, SourceOccurrence>, beforeBatch: (List<Map<String, Any?>>) -> Unit = {}): Map<String, CashRecordWriteResult> {
         val eligible = operations.mapNotNull { operation ->
             val updates = maps(operation["source_updates"])
             val rows = updates.filter { it["bind"] == true }.map { sources.getValue(it["row_ref"] as String) }
@@ -32,13 +32,14 @@ internal class CashImportCommitPreparation(private val context: CashSqlContext) 
         if (eligible.size < 20) return emptyMap()
         val result = linkedMapOf<String, CashRecordWriteResult>()
         for (batch in eligible.chunked(100)) {
+            beforeBatch(batch.map { it.first })
             val saved = CashImportNewRowsRepository(context).insert(batch)
             for ((index, entry) in batch.withIndex()) result[entry.first["operation_ref"] as String] = saved[index]
         }
         return result
     }
 
-    fun saveEvidence(files: List<ParsedImportFile>, sources: PreparedCashSourcePlan, plan: Map<String, Any?>) {
+    fun saveEvidence(files: List<ParsedImportFile>, sources: PreparedCashSourcePlan, plan: Map<String, Any?>, beforeGroup: (List<ParsedImportFile>) -> Unit = {}) {
         val conflicts = CashSourceResolver.conflictingSourceDocumentPages(sources.rows.rows.values.toList(), sources.records, sources.evidence)
             .map { DocumentNamespace(it.sourceType, it.parserVersion, it.documentKey) }.toSet()
         val skipped = maps(plan["row_decisions"]).filter { it["planned_action"] == "skip" }.map { it["row_ref"] }.toSet()
@@ -56,7 +57,10 @@ internal class CashImportCommitPreparation(private val context: CashSqlContext) 
         val groups = linkedMapOf<DocumentNamespace, MutableList<ParsedImportFile>>()
         for (file in files) for (evidence in CashSourceRows.fileDocumentEvidence(listOf(file)))
             if (evidence.coverage.documentKey != null && evidence.namespace !in excluded) groups.getOrPut(evidence.namespace) { mutableListOf() }.add(file)
-        for (members in groups.values) CashSourceDocumentWriteRepository(context).saveEmptyPages(members)
+        for (members in groups.values) {
+            beforeGroup(members)
+            CashSourceDocumentWriteRepository(context).saveEmptyPages(members)
+        }
     }
 
     companion object {

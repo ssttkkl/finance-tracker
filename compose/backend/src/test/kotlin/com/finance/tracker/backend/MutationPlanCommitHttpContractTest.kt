@@ -216,7 +216,7 @@ class MutationPlanCommitHttpContractTest {
             setBody(buildJsonObject { put("plan_id", planId) }.toString())
         }
         assertEquals(422, missingResolveKey.status.value)
-        assertEquals("plan_input_invalid", errorCode(missingResolveKey.bodyAsText()))
+        assertEquals("import_payload_invalid", errorCode(missingResolveKey.bodyAsText()))
         val missing = client.post("/api/v1/cash-mutations/plans/$planId/commit") {
             header(HttpHeaders.Authorization, "Bearer synthetic-admin")
             contentType(ContentType.Application.Json)

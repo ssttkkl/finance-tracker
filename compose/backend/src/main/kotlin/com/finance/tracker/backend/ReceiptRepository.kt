@@ -8,7 +8,7 @@ import org.jooq.Field
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import com.finance.tracker.backend.persistence.generated.tables.records.CashMutationResultsRecord
 
-internal class ReceiptConflict(val code: String,val receiptId: String?=null): RuntimeException(code)
+internal class ReceiptConflict(val code: String,val receiptId: String?=null,var commitState: String?=null): RuntimeException(code)
 
 internal class ReceiptRepository(private val connection: Connection,private val workspace: String,private val sqlite: Boolean,
     private val now: ()->java.time.Instant=java.time.Instant::now,private val nextId: ()->String={java.util.UUID.randomUUID().toString()}) {

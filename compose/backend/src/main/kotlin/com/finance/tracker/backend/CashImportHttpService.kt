@@ -10,6 +10,10 @@ internal class CashImportHttpService(private val database: Database, private val
     private val parser: (CashImportUpload, ByteArray) -> ParsedCashDocument = { upload, content ->
         CashStatementRowNormalization.parseCashStatement(content, upload.sourceHint, upload.password)
     }) {
+    private var commands = CashImportCommandService(database, staging)
+    internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService) : this(database, staging) {
+        this.commands = commands
+    }
     private val reads = ReadServices(database)
     private val sessionIdPattern = Regex("[A-Za-z0-9_-]{43}")
 
@@ -243,6 +247,10 @@ internal class CashImportHttpService(private val database: Database, private val
         readPlan(token, planId, listOf("processing", cursor, limit)) {
             CashImportPlanViews.page(it, "processing_details", cursor, limit = limit)
         }
+
+    fun commit(token: String?, planId: String, revision: Long, key: String?): JsonObject = commands.commit(token, planId, revision, key)
+
+    fun resolve(token: String?, planId: String, key: String?): JsonObject = commands.resolve(token, planId, key)
 
     private fun parserService(): CashImportContextService {
         // 解析只依赖文件自身，不读取会话；发布始终在锁内用当前成员重建。

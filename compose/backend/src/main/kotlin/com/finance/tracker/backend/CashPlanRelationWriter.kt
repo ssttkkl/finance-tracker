@@ -36,12 +36,13 @@ internal class CashPlanRelationWriter(private val context: CashSqlContext, priva
     }
 
     fun saveGroups(plan: Map<String, Any?>, fresh: Map<String, Any?>, identity: Map<String, String>, components: Map<String, String>,
-        affected: MutableSet<Long>, manual: Set<String>): List<Map<String, Any?>> {
+        affected: MutableSet<Long>, manual: Set<String>, beforeGroup: (List<Map<String, Any?>>) -> Unit = {}): List<Map<String, Any?>> {
         context.requireActive()
         val current = maps(fresh["relation_groups"]).associateBy { it["suggestion_id"] }
         val batches = maps(plan["relation_groups"]).groupBy { it.getOrDefault("commit_group_id", it.getValue("suggestion_id")) as String }
         val results = mutableListOf<Map<String, Any?>>()
         for ((commitId, members) in batches) {
+            beforeGroup(members)
             if (members.any { it["action"] == "skip" }) {
                 for (group in members) {
                     val code = group.getOrDefault("code", "relation_save_failed") as String

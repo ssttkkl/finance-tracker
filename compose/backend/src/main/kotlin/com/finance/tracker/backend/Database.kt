@@ -54,7 +54,11 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
 
     fun <T> write(block: (Connection) -> T): T = transaction(true, block)
 
-    private fun <T> transaction(write: Boolean, block: (Connection) -> T): T {
+    internal fun <T> writeGuarded(beforeCommit: () -> Unit, block: (Connection) -> T): T = transaction(true, block, beforeCommit)
+
+    internal fun <T> writeNonblocking(block: (Connection) -> T): T = transaction(true, block, nonblocking = true)
+
+    private fun <T> transaction(write: Boolean, block: (Connection) -> T, beforeCommit: () -> Unit = {}, nonblocking: Boolean = false): T {
         try {
             val url = if (sqlite) {
                 val path = Path.of(jdbcUrl.removePrefix("jdbc:sqlite:"))
@@ -69,7 +73,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
             DriverManager.getConnection(url, properties).use { rawConnection ->
                 if (sqlite) rawConnection.createStatement().use {
                     it.execute("PRAGMA foreign_keys=ON")
-                    it.execute("PRAGMA busy_timeout=5000")
+                    it.execute(if (nonblocking) "PRAGMA busy_timeout=0" else "PRAGMA busy_timeout=5000")
                     it.execute("PRAGMA journal_mode=WAL")
                     // WAL + NORMAL keeps transaction atomicity while avoiding a full fsync per mutation.
                     it.execute("PRAGMA synchronous=NORMAL")
@@ -78,12 +82,14 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 val explicitSqlite = sqlite && write
                 if (explicitSqlite) connection.createStatement().use { it.execute("BEGIN IMMEDIATE") }
                 else connection.autoCommit = false
+                if (nonblocking && !sqlite) connection.createStatement().use { it.execute("SET LOCAL lock_timeout = '1ms'") }
                 fun finish(commit: Boolean) {
                     if (explicitSqlite) connection.createStatement().use { it.execute(if (commit) "COMMIT" else "ROLLBACK") }
                     else if (commit) connection.commit() else connection.rollback()
                 }
                 try {
                     val result = block(connection)
+                    if (write) beforeCommit()
                     finish(write)
                     return result
                 } catch (failure: Throwable) {

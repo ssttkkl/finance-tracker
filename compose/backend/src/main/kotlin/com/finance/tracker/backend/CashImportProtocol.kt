@@ -35,6 +35,25 @@ internal object CashImportProtocol {
 
     private fun fail(code: String = "import_payload_invalid"): Nothing = throw CashImportProtocolError(code)
 
+    fun idempotencyKey(value: String?): String = value?.takeIf { Regex("[A-Za-z0-9_:.~-]{1,255}").matches(it) }
+        ?: fail("idempotency_key_required")
+
+    fun commitInput(text: String): Long {
+        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
+            catch (_: CategoryFailure) { fail() }
+        if (root.keys != setOf("expected_session_revision")) fail()
+        return integer(root["expected_session_revision"], 1) ?: fail()
+    }
+
+    fun resolveInput(text: String): Pair<String, String> {
+        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
+            catch (_: CategoryFailure) { fail() }
+        if (root.keys != setOf("plan_id", "idempotency_key")) fail()
+        val planId = (root["plan_id"] as? JsonPrimitive)?.takeIf { it.isString && Regex("[A-Za-z0-9_:.~-]{1,128}").matches(it.content) }?.content ?: fail()
+        val key = (root["idempotency_key"] as? JsonPrimitive)?.takeIf { it.isString && Regex("[A-Za-z0-9_:.~-]{1,255}").matches(it.content) }?.content ?: fail()
+        return planId to key
+    }
+
     private fun utf8(text: String): ByteArray = text.toByteArray(StandardCharsets.UTF_8)
     private fun strictText(bytes: ByteArray): String = try {
         StandardCharsets.UTF_8.newDecoder().onMalformedInput(CodingErrorAction.REPORT)

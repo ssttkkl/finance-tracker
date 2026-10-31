@@ -8,10 +8,12 @@ import java.sql.ResultSet
 import java.time.Instant
 import kotlinx.serialization.json.*
 
-internal class CashSqlContext(val connection:Connection,val workspace:String,val sqlite:Boolean,val now:()->Instant=Instant::now) {
+internal class CashSqlContext(val connection:Connection,val workspace:String,val sqlite:Boolean,entryIdFactory:()->String,val now:()->Instant) {
+    constructor(connection:Connection,workspace:String,sqlite:Boolean,now:()->Instant=Instant::now):
+        this(connection,workspace,sqlite,{java.util.UUID.randomUUID().toString()},now)
     private val transaction=(connection as? CashSqlTransactionBoundary)?.cashTransactionStamp()
     val sql by lazy { connection.jooq(sqlite) }
-    val entries=CashEntryRepository(connection,workspace,sqlite)
+    val entries=CashEntryRepository(connection,workspace,sqlite,entryIdFactory)
     val snapshot by lazy {CashSnapshotRepository(this)}
     internal var projectionState:CashLockedProjectionState?=null
     init {(connection as? CashSqlTransactionBoundary)?.cashOnSavepointRollback {if(projectionState!=null) CashProjectionRepository(this).readyStateLockOrNone()}}

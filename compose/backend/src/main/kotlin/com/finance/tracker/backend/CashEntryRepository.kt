@@ -14,7 +14,8 @@ internal data class CashEntryMember(val transactionId:Long,var entryId:String,va
 internal data class CashEntrySnapshot(val transactionId:Long,val entryId:String,val revision:Long,val digest:String)
 internal data class CashSplitFieldDiff(val field:String,val current:JsonElement,val restored:JsonElement,val memberIds:List<Long>)
 
-internal class CashEntryRepository(private val connection:Connection,private val workspace:String,private val sqlite:Boolean) {
+internal class CashEntryRepository(private val connection:Connection,private val workspace:String,private val sqlite:Boolean,
+    private val nextEntryId:()->String={UUID.randomUUID().toString()}) {
     var autoFlush=true
     private val entries=linkedMapOf<String,CashEntry>()
     private val members=linkedMapOf<Long,CashEntryMember>()
@@ -274,7 +275,7 @@ internal class CashEntryRepository(private val connection:Connection,private val
                 }
                 for(field in old.manualFields) {val value=old.values.getValue(field);if(field in human && human[field]!=value) throw CashPolicyError("common_field_conflict",listOf(field));human[field]=value}
             }
-            if(candidate==null) {candidate=CashEntry(UUID.randomUUID().toString(),root,1,source.getValue(root).values,emptyList(),null);fresh+=candidate}
+            if(candidate==null) {candidate=CashEntry(nextEntryId(),root,1,source.getValue(root).values,emptyList(),null);fresh+=candidate}
             else if(candidate.rootTransactionId!=root || oldMembers[candidate.id]!=group) {candidate.revision=Math.addExact(candidate.revision,1);candidate.rootTransactionId=root}
             for(memberId in group) {
                 val s=source.getValue(memberId);var m=ms[memberId]

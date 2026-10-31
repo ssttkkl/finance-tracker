@@ -4,7 +4,8 @@ import java.math.BigInteger
 import java.util.Base64
 import kotlinx.serialization.json.*
 
-internal class CashImportPlanError(val code: String) : RuntimeException(code)
+internal class CashImportPlanError(val code: String, var commitState: String? = null,
+    var diagnostic: com.finance.tracker.business.contracts.CashDiagnosticDto? = null) : RuntimeException(code)
 
 /** 导入计划的只读公开视图、分页与冻结详情；不访问实时库。 */
 internal object CashImportPlanViews {

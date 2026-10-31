@@ -160,6 +160,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false))
                 })
                 failure.receiptId?.let { put("receipt_id", JsonPrimitive(it)) }
+                if (failure.commitState == "not_committed") put("commit_state", JsonPrimitive("not_committed"))
             })
         }
         exception<MutationPlanStore.Expired> { call, _ -> planStoreExpired(call) }
@@ -181,16 +182,34 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 "plan_page_invalid" -> 422 to "列表页码无效，请刷新后重试。"
                 "plan_cursor_invalid" -> 422 to "列表位置已失效，请刷新后重试。"
                 "plan_build_failed" -> 503 to "暂时无法准备核对内容，请稍后重试。"
+                    "category_unavailable" -> 422 to "分类已不可用，请重新选择。"
                 else -> 422 to "核对选择有误，请重新核对。"
             }
             call.respond(HttpStatusCode.fromValue(status), buildJsonObject {
                 put("error", buildJsonObject {
                     put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
-                    if (status == 503) put("diagnostic", Json.encodeToJsonElement(
+                    if (failure.diagnostic != null) put("diagnostic", Json.encodeToJsonElement(failure.diagnostic))
+                    else if (status == 503) put("diagnostic", Json.encodeToJsonElement(
                         com.finance.tracker.business.contracts.CashDiagnosticDto(
                             java.util.UUID.randomUUID().toString().replace("-", ""), "request", "request", emptyList(), 0)))
                 })
+                if (failure.commitState == "not_committed") put("commit_state", JsonPrimitive("not_committed"))
+            })
+        }
+        exception<CashImportCommitFailure> { call, failure ->
+            val diagnostic = failure.diagnostic
+            val frames = failure.failure.stackTrace.map { "${it.fileName}:${it.lineNumber}:${it.methodName}" }
+            runCatching { this@financeModule.log.error("cash_import_failure error_id={} stage={} scope=request type={} frames={}",
+                diagnostic.errorId, diagnostic.stage, failure.failure.javaClass.simpleName, frames) }
+            call.respond(HttpStatusCode.ServiceUnavailable, buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive(if (failure.commitState == "not_committed") "commit_failed" else "commit_state_unknown"))
+                    put("message", JsonPrimitive(if (failure.commitState == "not_committed") "本次未能保存，请重试本次操作。" else "保存结果待确认，请先核实本次操作。"))
+                    put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(true))
+                    put("diagnostic", Json.encodeToJsonElement(diagnostic))
+                })
+                put("commit_state", JsonPrimitive(failure.commitState))
             })
         }
         exception<ParsedImportDataError> { call, _ ->
@@ -214,8 +233,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         exception<CashImportProtocolError> { call, failure ->
             val status = if (failure.code == "upload_too_large") HttpStatusCode.PayloadTooLarge else HttpStatusCode.UnprocessableEntity
-            val code = if (failure.code == "upload_too_large") "upload_too_large" else "import_payload_invalid"
-            val message = if (failure.code == "upload_too_large") "上传内容过多，请减少文件后重试。" else "导入信息有误，请检查后重试。"
+            val code = when (failure.code) { "upload_too_large", "idempotency_key_required" -> failure.code; else -> "import_payload_invalid" }
+            val message = when (failure.code) { "upload_too_large" -> "上传内容过多，请减少文件后重试。"; "idempotency_key_required" -> "未能确认本次操作，请重试。"; else -> "导入信息有误，请检查后重试。" }
             call.respond(status, buildJsonObject { put("error", buildJsonObject {
                 put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
                 put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(false)) }) })
@@ -500,6 +519,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     request.expectedRevision, request.previousPlanId, request.input) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
+            post("/api/v1/cash-import/plans/{plan_id}/commit") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
+                val revision = CashImportProtocol.commitInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+                val receipt = uploadView { cashImports.commit(token, call.parameters["plan_id"]!!, revision, key).mapValues { cashSourceValue(it.value) } }
+                call.respondText(sourceJson(receipt).toString(), ContentType.Application.Json)
+            }
             get("/api/v1/cash-import/plans/{plan_id}/items") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val query = importPlanPageQuery(call.request.queryParameters)
@@ -560,15 +586,12 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respondText(result.toString(), ContentType.Application.Json)
         }
         post("/api/v1/cash-mutations/resolve") {
-            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
-                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
-            val input = body.value as? JsonObject ?: throw MutationPlanFailure("plan_input_invalid")
-            val planId = (input["plan_id"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?: throw MutationPlanFailure("plan_input_invalid")
-            val key = (input["idempotency_key"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-                ?: throw MutationPlanFailure("plan_input_invalid")
+            val (planId, key) = CashImportProtocol.resolveInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
             val result = withContext(Dispatchers.IO) {
-                mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
+                if (planId.startsWith("ip_")) {
+                    (cashImports ?: throw CashImportPlanError("plan_not_found")).resolve(
+                        bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key)
+                } else mutationPlans.resolve(bearerToken(call.request.headers[HttpHeaders.Authorization]), planId, key,
                     call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)

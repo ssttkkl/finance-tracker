@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。状态仅在相应 HTTP/错误/双库证据完成后更新。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 63/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 23 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -23,13 +23,13 @@
 | GET | `/api/v1/accounts/by-id/{account_id}` | `src/ft/web/account_routes.py:164` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
 | PATCH | `/api/v1/accounts/by-id/{account_id}` | `src/ft/web/account_routes.py:173` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
 | DELETE | `/api/v1/accounts/by-id/{account_id}` | `src/ft/web/account_routes.py:177` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
-| POST | `/api/v1/cash-import/sessions` | `src/ft/web/cash_import_routes.py:116` | 未迁移 |
-| POST | `/api/v1/cash-import/sessions/{session_id}/files` | `src/ft/web/cash_import_routes.py:121` | 未迁移 |
-| GET | `/api/v1/cash-import/sessions/{session_id}` | `src/ft/web/cash_import_routes.py:125` | 未迁移 |
-| PATCH | `/api/v1/cash-import/sessions/{session_id}/files/{file_ref}` | `src/ft/web/cash_import_routes.py:162` | 未迁移 |
-| DELETE | `/api/v1/cash-import/sessions/{session_id}/files/{file_ref}` | `src/ft/web/cash_import_routes.py:168` | 未迁移 |
-| DELETE | `/api/v1/cash-import/sessions/{session_id}` | `src/ft/web/cash_import_routes.py:172` | 未迁移 |
-| POST | `/api/v1/cash-import/sessions/{session_id}/plans` | `src/ft/web/cash_plan_routes.py:155` | 未迁移 |
+| POST | `/api/v1/cash-import/sessions` | `src/ft/web/cash_import_routes.py:116` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| POST | `/api/v1/cash-import/sessions/{session_id}/files` | `src/ft/web/cash_import_routes.py:121` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| GET | `/api/v1/cash-import/sessions/{session_id}` | `src/ft/web/cash_import_routes.py:125` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| PATCH | `/api/v1/cash-import/sessions/{session_id}/files/{file_ref}` | `src/ft/web/cash_import_routes.py:162` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| DELETE | `/api/v1/cash-import/sessions/{session_id}/files/{file_ref}` | `src/ft/web/cash_import_routes.py:168` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| DELETE | `/api/v1/cash-import/sessions/{session_id}` | `src/ft/web/cash_import_routes.py:172` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
+| POST | `/api/v1/cash-import/sessions/{session_id}/plans` | `src/ft/web/cash_plan_routes.py:155` | 已实现完整业务预览与共享暂存条件发布；双库 HTTP、失败保留原计划及现有 Compose 消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}` | `src/ft/web/cash_plan_routes.py:160` | 已实现；双库 36 组完整响应/状态/无写入、角色与损坏状态边界、独立复核及现有 Compose 来源消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 未迁移 |
 | PATCH | `/api/v1/cash-records/{transaction_id}/draft` | `src/ft/web/cash_plan_routes.py:173` | 未迁移 |
@@ -39,17 +39,17 @@
 | GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；双库通过，其余意图未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 单项详情已实现；双库通过，其余意图未完成 |
 | POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record/finalize_draft/save_draft/resolve_issue 已实现；双库 Python 收据/状态/问题/余额/投影 oracle、幂等重放与上下文消费通过；maintain_relations 与其他操作未完成 |
-| GET | `/api/v1/cash-import/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:213` | 未迁移 |
-| GET | `/api/v1/cash-import/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:218` | 未迁移 |
-| GET | `/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:227` | 未迁移 |
-| GET | `/api/v1/cash-import/plans/{plan_id}/processing-details` | `src/ft/web/cash_plan_routes.py:232` | 未迁移 |
-| POST | `/api/v1/cash-import/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:241` | 未迁移 |
+| GET | `/api/v1/cash-import/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:213` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
+| GET | `/api/v1/cash-import/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:218` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
+| GET | `/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:227` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
+| GET | `/api/v1/cash-import/plans/{plan_id}/processing-details` | `src/ft/web/cash_plan_routes.py:232` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
+| POST | `/api/v1/cash-import/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:241` | 已接入联合确认；写锁后完整重验、原子收据、同键重放、COMMIT 前后故障及原键核实，双库与现有 Compose 消费见 tasks；原组合测试仍 pending |
 | GET | `/api/v1/cash-mutations/receipts/by-key` | `src/ft/web/cash_plan_routes.py:249` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/by-key/{key}` | `src/ft/web/cash_plan_routes.py:258` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}` | `src/ft/web/cash_plan_routes.py:263` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}/rows` | `src/ft/web/cash_plan_routes.py:279` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
 | GET | `/api/v1/cash-mutations/receipts/{receipt_id}/relations` | `src/ft/web/cash_plan_routes.py:284` | 已实现；当前权限/所有者、旧键、分页与投影引用，双库及实际 Compose 解码证据见 tasks |
-| POST | `/api/v1/cash-mutations/resolve` | `src/ft/web/cash_plan_routes.py:289` | 已实现；双库 retry_original/已提交收据/非法 plan/缺键通过；pending 锁冲突未专项验证 |
+| POST | `/api/v1/cash-mutations/resolve` | `src/ft/web/cash_plan_routes.py:289` | 已接入导入/维护核实；严格输入、永久收据优先、当前权限及导入锁冲突 pending 通过；其余维护意图仍随计划迁移 |
 | POST | `/api/v1/cashflow/add` | `src/ft/web/operation_routes.py:113` | 已实现；旧来源/日期/精确金额、editor、响应编码失败全回滚；双库 HTTP/13 表全列、原断言及真实 Netty 通过 |
 | POST | `/api/v1/cashflow/checkin` | `src/ft/web/operation_routes.py:134` | 已实现；零金额事实、指定币种余额及快照错误顺序；双库 HTTP/13 表全列、原断言及真实 Netty 通过；Compose 无现有消费者 |
 | POST | `/api/v1/cashflow/transfer` | `src/ft/web/operation_routes.py:150` | 已实现；现金/贷款/借款/证券/加密双侧事件、现金关系、余额和投影同事务；双库 92 组 HTTP/全部财务列、editor 原断言及现有 Compose 消费通过 |
@@ -68,17 +68,17 @@
 | POST | `/api/v1/operations/projections/rebuild` | `src/ft/web/operation_routes.py:381` | 已实现；双库实际发布/完整状态、真实 HTTP、领域/运行错误及锁等待撤权验证通过 |
 | GET | `/api/v1/accounts` | `src/ft/web/routes.py:56` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
 | GET | `/api/v1/cash-projections` | `src/ft/web/routes.py:62` | 未迁移 |
-| GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 已实现；双库功能/实际客户端验证，最终独立审查待完成 |
-| GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 已实现并通过 SQLite/PG18 功能、快照/权限交错及现有 Compose 成员消费；最终独立审查待完成，暂不计已验收 |
-| GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现并通过 SQLite/PG18 功能、隐藏/缺失/跨工作区边界及真实 Netty；最终独立审查待完成，暂不计已验收 |
+| GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
+| GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
+| GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/investment-events` | `src/ft/web/routes.py:181` | 未迁移 |
 | GET | `/api/v1/evidence/investment-events/{event_id:path}` | `src/ft/web/routes.py:191` | 未迁移 |
 | GET | `/api/v1/investment-portfolio` | `src/ft/web/routes.py:199` | 未迁移 |
 | GET | `/api/v1/investment-portfolio/stream` | `src/ft/web/routes.py:212` | 未迁移 |
 | POST | `/api/v1/investment-portfolio/refresh` | `src/ft/web/routes.py:231` | 未迁移 |
 | GET | `/api/v1/cash-categories` | `src/ft/web/routes.py:97` | 首片已实现；双库黄金及真实 Netty HTTP 通过 |
-| POST | `/api/v1/cash-categories` | `src/ft/web/routes.py:101` | 已实现；目录切片双库合同与 Compose 回包消费见 tasks，分类完整模块仍未完成 |
-| PATCH | `/api/v1/cash-categories/{category_id}` | `src/ft/web/routes.py:112` | 已实现；保留字段缺省/null/父级语义，同步修复后代深度；完整投影验收待后续切片 |
+| POST | `/api/v1/cash-categories` | `src/ft/web/routes.py:101` | 已实现；目录切片双库合同与 Compose 回包消费见 tasks，完整分类功能已迁移 |
+| PATCH | `/api/v1/cash-categories/{category_id}` | `src/ft/web/routes.py:112` | 已实现；保留字段缺省/null/父级语义，同步修复后代深度；投影调用边界及分类完整功能已复核 |
 | POST | `/api/v1/cash-categories/{category_id}/reorder` | `src/ft/web/routes.py:124` | 已实现；目录修订、边界无操作与兄弟顺序/时间戳，专项证据见 tasks |
 | GET | `/api/v1/cash-categories/{category_id}/deletion-impact` | `src/ft/web/routes.py:135` | 已实现；双库完整响应/财务状态、原生回滚/撤权/性能与实际 Compose 确认协议通过 |
 | DELETE | `/api/v1/cash-categories/{category_id}` | `src/ft/web/routes.py:142` | 已实现；双库完整响应/财务状态、原生回滚/撤权/性能与实际 Compose 确认协议通过 |
