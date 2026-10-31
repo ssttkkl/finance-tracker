@@ -7078,6 +7078,234 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid",
+      "source_sha256": "50a1369870a330f65e155ce949cac4a8ebaa8b4aca43d57655c67eb428fd9aee",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[v-True]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[version-True]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[workspace-1]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[filters-value3]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[sort_at-1]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[sort_at-2026-07-03]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[projection_id-1]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[projection_id-True]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[projection_id-None]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[projection_id-value9]",
+        "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid[projection_id-value10]"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='invalid_cursor'):\n    service.list_cash_projections(cursor=cursor)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalInvalidCursorContractRejectsAllElevenParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics",
+      "source_sha256": "93328ef0c1fdee77de01ac28286dfbba7498e9208dea953f5fd705d0c1636b74",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics[cash_web_runtime]",
+        "tests/test_application_web_queries.py::test_indexed_mixed_drafts_keep_unknown_positions_without_entering_statistics[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert cold_middle.items == middle.items",
+        "assert cold_middle.total_count == 3 and cold_middle.pending_item_count == 1",
+        "assert cold_middle.month_positions == cold_middle.monthly_summaries == ()",
+        "assert not cold_empty.items and cold_empty.total_count == cold_empty.pending_item_count == 0",
+        "assert not cold_beyond.items and cold_beyond.total_count == 3 and (cold_beyond.pending_item_count == 1)",
+        "assert [row.transaction_id for page in (first, middle, end) for row in page.items] == [row.transaction_id for page in (cursor_first, cursor_second, cursor_last) for row in page.items]",
+        "assert [(p.month, p.start_index, p.end_index) for p in first.month_positions] == [('2026-10', 0, 1), ('unknown', 1, 2), ('2026-10', 2, 3)]",
+        "assert [(p.total_count, p.pending_item_count) for p in (first, middle, end)] == [(3, 1)] * 3",
+        "assert middle.items[0].occurred_at is None",
+        "assert middle.items[0].statistics_eligible is False",
+        "assert middle.month_positions == end.month_positions == ()",
+        "assert middle.monthly_summaries == end.monthly_summaries == ()",
+        "assert sum((Decimal(row.expense) for row in currencies)) == Decimal(first.items[0].amount)",
+        "assert sum((Decimal(row.income) for row in currencies)) == Decimal(end.items[0].amount)",
+        "assert pending.total_count == pending.pending_item_count == 1",
+        "assert pending.monthly_summaries == ()",
+        "assert [(p.month, p.start_index, p.end_index) for p in pending.month_positions] == [('unknown', 0, 1)]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalMixedDraftIndexAndCursorAgreeWithoutCountingUnknownStatistics"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid",
+      "source_sha256": "4e0bc792d69a360b870125aa0ec902bf383d48576df5766f2f3bb2c0dde3dc19",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid[[]]",
+        "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid[\"cursor\"]",
+        "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid[0]",
+        "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid[true]",
+        "tests/test_application_web_queries.py::test_non_object_cursor_is_invalid[null]"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='invalid_cursor'):\n    service.list_cash_projections(cursor=cursor)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalNonObjectCursorsRejectAllFiveParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_filters_bind_requested_browser_timezone",
+      "source_sha256": "c167df42114b68f454c6a0661689452328b434435572e0f1060c04d0b8a2db2a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_filters_bind_requested_browser_timezone"
+      ],
+      "assertions": [
+        "assert filters.timezone == 'Asia/Tokyo'",
+        "assert start.isoformat() == '2026-06-30T15:00:00+00:00'",
+        "assert end.isoformat() == '2026-07-01T15:00:00+00:00'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalBrowserTimezoneBindsLocalCalendarBounds"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_filters_reject_unknown_browser_timezone",
+      "source_sha256": "ac0f2840da89a9525b20742bbb90300c17d9409462ea64590b1c6a8e9d28b7fe",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_filters_reject_unknown_browser_timezone"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='invalid_filter'):\n    normalize_filters(date_from='2026-07-01', timezone='Not/AZone')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalBrowserTimezoneRejectsUnknownZone"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_index_rejects_cursor_combination_and_invalid_values",
+      "source_sha256": "4cc4fa90f8a0afb69f64077be3592b9cf1846c67aa80ad60cabc71c1d7e0ef5c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_index_rejects_cursor_combination_and_invalid_values"
+      ],
+      "assertions": [
+        "assert initial_seek.items[0].projection_id == 'cash:1002'",
+        "assert initial_seek.projection_version > 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalIndexRejectsCursorCombinationAndNegativeValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_page_filters_and_stable_cursor",
+      "source_sha256": "297f088a2fe8ec707af7cba1102c983d9d4e867483bea7234733cc0338918e81",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_page_filters_and_stable_cursor"
+      ],
+      "assertions": [
+        "assert [x.projection_id for x in first.items + second.items] == ['cash:1003', 'cash:1002', 'cash:1001']",
+        "assert [x.projection_id for x in service.list_cash_projections(category_id='category-food').items] == ['cash:1003']",
+        "assert [x.projection_id for x in service.list_cash_projections(economic_type='income').items] == ['cash:1001']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalFilteredPagesKeepStableCursorAndBindAllFilters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_page_returns_global_filter_options_independent_of_current_filters",
+      "source_sha256": "6714c088d117df1c7ed395eb94bbc88a5393c5abc444a76cb7c777b68625eaff",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_page_returns_global_filter_options_independent_of_current_filters"
+      ],
+      "assertions": [
+        "assert tuple((item.name for item in page.filter_options.categories)) == ('日用', '餐饮', '收入', '转账')",
+        "assert page.filter_options.currencies == ('CNY',)",
+        "assert filtered.filter_options == page.filter_options"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalGlobalOptionsDoNotShrinkWithCurrentFilters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_projection_page_supports_absolute_index_and_filtered_total",
+      "source_sha256": "c24524d1cbed1082d0c65400dd2d5e58ab21caf811a1c97708c06113e08441ef",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_projection_page_supports_absolute_index_and_filtered_total"
+      ],
+      "assertions": [
+        "assert [first.items[0].projection_id, middle.items[0].projection_id, last.items[0].projection_id] == ['cash:1003', 'cash:1002', 'cash:1001']",
+        "assert (first.total_count, middle.total_count, last.total_count) == (3, 3, 3)",
+        "assert (first.start_index, middle.start_index, last.start_index) == (0, 1, 2)",
+        "assert (first.items_before, first.items_after) == (0, 2)",
+        "assert (middle.items_before, middle.items_after) == (1, 1)",
+        "assert (last.items_before, last.items_after) == (2, 0)",
+        "assert [item.projection_id for item in food.items] == ['cash:1003']",
+        "assert food.total_count == 1",
+        "assert empty.items == ()",
+        "assert empty.total_count == 0",
+        "assert empty.month_positions == ()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalAbsolutePagesKeepFilteredTotalsAndBoundaryCounts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_application_web_queries.py::test_query_fails_closed_before_first_build",
+      "source_sha256": "7741f054c3bf2575aaaab316a1f2f614909d347b91bbd7bf1ccb5cca1dd6d5c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_web_queries.py::test_query_fails_closed_before_first_build"
+      ],
+      "assertions": [
+        "with pytest.raises(ProjectionUnavailableError):\n    CashLedgerQueryService(cash_web_runtime.sessions, cash_web_runtime.workspace_id).list_cash_projections()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt",
+          "test": "originalReadFailsClosedWithoutAnActiveBuild"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_cash_category_api.py::test_category_api_moves_and_reorders_with_directory_revision",
       "source_sha256": "d0b7e8b159927336a6208e36019fc1b8dfd882d87eefe8443a7ff66feec8c2ed",
       "status": "migrated",

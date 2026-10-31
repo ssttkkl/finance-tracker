@@ -62,11 +62,29 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
+    projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashProjectionListFailure> { call, failure ->
+            if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+            else {
+                val (status, message) = when (failure.code) {
+                    "read_snapshot_changed" -> HttpStatusCode.Conflict to "账本已更新，请刷新列表。"
+                    "projection.unavailable" -> HttpStatusCode.ServiceUnavailable to "账本数据暂不可用，请先完成更新。"
+                    else -> HttpStatusCode.BadRequest to "筛选条件或分页位置无效，请返回第一页重试。"
+                }
+                call.respond(status, sourceJson(mapOf("error" to mapOf("code" to failure.code, "message" to message))))
+            }
+        }
+        exception<CashProjectionListBooleanFailure> { call, failure ->
+            call.respond(HttpStatusCode.UnprocessableEntity, sourceJson(mapOf("detail" to listOf(mapOf(
+                "type" to "bool_parsing", "loc" to listOf("query", "uncategorized"),
+                "msg" to "Input should be a valid boolean, unable to interpret input", "input" to failure.input,
+            )))))
+        }
         exception<CashEvidenceNotFound> { call, _ ->
             call.respond(HttpStatusCode.NotFound, ErrorBody(ErrorDetail("not_found", "当前工作区中找不到该收支记录。")))
         }
@@ -620,6 +638,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) {
                 mutationPlans.item(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
                     call.parameters["preview_item_id"], call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-projections") {
+            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            val result = withContext(Dispatchers.IO) {
+                projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }

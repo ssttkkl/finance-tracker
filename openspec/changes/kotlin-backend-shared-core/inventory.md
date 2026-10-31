@@ -1,6 +1,6 @@
 # 全量迁移盘点
 
-基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 64/86 个 HTTP 操作，其中 6 个维护计划操作只覆盖部分意图；其余 22 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
+基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 65/86 个 HTTP 操作，其中 6 个维护计划操作只覆盖部分意图；其余 21 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
 
 ## 模块与合同
 
@@ -15,7 +15,7 @@
 | 导入来源计划、业务计划、整笔选择、提交 | `cash_import_source_plan.py`、`cash_import_business_plan.py`、`cash_import_entry_choices.py`、`cash_import_commit.py` | 先共用账单行、预览/选择/提交协议；规划留服务端，按真实双端需求再提取纯规则；提交重读来源/账户/当前事实/关系并比较操作指纹，原子保存余额/entry/投影/收据 | 来源规划读取已迁；导入计划公开视图/分页/冻结详情纯层、只读预览准备、含类型变化回滚的内存快照/预计投影、关系提议发现、关系组/候选构建及冻结选择/最终图应用已迁；完整业务计划与预览 HTTP/共享暂存条件发布已接线；来源绑定/当前问题/认证空页及共用流水/现金部分写入、类型变化局部关系维护、关系组保存及确认余额/完整条目编辑收尾、文档证据筛选、冻结候选恢复和有界新增已迁，并接入同事务联合确认、永久收据、同键重放及原键结果核实；完整原组合测试、真实 R2 与真实账单专项待验 |
 | 来源文件与行证据 | `adapters/cash_statement_*`、`bank_statement_document.py`、`icbc_pdf_*`、`domain/cash_source_*` | 保持上传/服务端解析流程，先共用行模型和协议；解码、逐行归一、字节预算/物理位置/声明真实性留服务端，不新增客户端解析入口 | 平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 TSV、工行信用卡/借记卡 PDF 的原始文档读取已迁入后端，并分别通过 Python 匿名金标准；记录类型/子类型与对方账号公共规则、平台、银行与工行 PDF 行归一已迁并对照；来源身份/文件绑定键、已解析文件组合、来源账户扫描及来源对应解析已迁；多文件来源批次规划已迁并通过原功能断言及完整结果对照；解析会话编解码、内存及 R2 条件对象端口已迁；R2 SDK 与清扫器已接本机运行入口；维护计划存储已接线；内部来源账户对应仓库和只读建议已迁，发布保留调用方事务；上传文件准备纯层、只读来源规划/会话视图与上传 HTTP 已迁；完整导入规划/预览及共享暂存发布已接线；确认事务、导入成功证明的对应发布、真实 R2 与真实样本仍未迁移 |
 | 支付镜像、退款抵扣、转账配对 | `domain/relations/`、`cash_relation_policy.py`、`cash_relation_graph.py`、`application/cash_current_relation_*`、`cash_relation_context.py`、`relations.py` | 先共用选择/命令协议与客户端组合校验；完整图和候选纯计算按双端需求接入；查询当前超集、授权、决定及落账由服务器负责 | 角色/闭包/分组/完整图纯规则 43 原定义已迁并复核；当前角色关系字段写入、按修订替换及规范候选替换仓库已迁，类型变化局部维护已迁；关系组联合写入、完整重复识别及发现失败记录已迁；关系组已接入联合导入确认，其余资金生命周期仍未迁移 |
-| 当前收支、证据、分页、投影发布 | `cash_projections.py`、`web_queries.py`、`adapters/relational/cash_*` | 共用 DTO/版本及纯展示结果；当前成员/entry 完整性、staging/active dataset、快照游标由服务器负责 | 投影纯构建 26 原定义及管理员状态 GET 已迁并复核；暂存发布、全量重建应用服务及工作区初始化已通过双库；管理员重建 HTTP 已通过真实双库及锁等待权限验证；内部增量维护、保存点缓存及 7 定义/14 参数的持久化图集成通过双库；手工新建、转账和旧现金新增/余额校准已接线，其余公开写入、当前查询/证据、分页及性能仍未迁移 |
+| 当前收支、证据、分页、投影发布 | `cash_projections.py`、`web_queries.py`、`adapters/relational/cash_*` | 共用 DTO/版本及纯展示结果；当前成员/entry 完整性、staging/active dataset、快照游标由服务器负责 | 投影纯构建、管理员状态／重建、暂存发布、全量及增量维护已通过双库；当前详情、按流水定位、证据及账本列表 GET 已接通，列表保留游标／序号、筛选／版本、全局选项及精确月汇总，并由实际 Compose 消费验证。手工新建、转账、旧现金新增／余额校准及导入已接线；其余公开写入、完整组合原测试、历史迁移和性能仍未验收 |
 | 投资事件、重放、持仓/成本、表现 | `investment.py`、`investment_import.py`、`investment_web_queries.py`、`domain/investment_*` | 共用协议与实际客户端需要的精确计算；完整重放/成本/PnL/回报按双端需求提取，来源/持久化由服务器负责 | 未迁移 |
 | 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 未迁移 |
 | 连接器同步、增量游标 | `sync_service.py`、`adapters/connectors/ccxt_exchange.py`、`polymarket.py` | 共用事件归一；服务端凭据、网络分页、cursor 与财务写入不下沉 | 未迁移 |
@@ -31,7 +31,7 @@
 
 PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等价，UTC 显式时区；BIGINT 在 SQLite 保持 INTEGER affinity。复合 workspace 外键、逻辑删除、来源证据和审计不删改。收据 `(workspace_id,user_id,idempotency_key)` 永久唯一，同时绑定 digest、operation、plan/context。请求结果未知按原键核实；暂存清理不能重新开放已消费命令。
 
-已实现的 Kotlin 业务查询和写入已改用 jOOQ OSS `3.21.9`，以 SQLite 和 PostgreSQL 18 功能矩阵验证。67 个官方生成文件只留后端，schema 仍由原 Alembic 管理；JDBC 继续负责事务、保存点和驱动配置。当前详情、按流水定位和收支证据三个 GET 已实现并有双库功能及实际客户端验证，独立复核已完成，完整组合原测试仍待迁移；其余查询及列表继续待迁移。证据不包含账单原文，单条流水详情与现有来源消费者已接入；完整来源规则组合原测试仍待迁移；旧证据 DTO 的草稿空值解码限制保留，来源成员 DTO 的空值消费已覆盖。
+已实现的 Kotlin 业务查询和写入已改用 jOOQ OSS `3.21.9`，以 SQLite 和 PostgreSQL 18 功能矩阵验证。67 个官方生成文件只留后端，schema 仍由原 Alembic 管理；JDBC 继续负责事务、保存点和驱动配置。当前详情、按流水定位和收支证据三个 GET 已实现并有双库功能及实际客户端验证，独立复核已完成，完整组合原测试仍待迁移；当前账本列表已接线，保留完整筛选、分页及月份统计；旧流水列表与其他未接入查询继续待迁移。证据不包含账单原文，单条流水详情与现有来源消费者已接入；完整来源规则组合原测试仍待迁移；旧证据 DTO 的草稿空值解码限制保留，来源成员 DTO 的空值消费已覆盖。
 
 当前流水关联候选 GET 已接线，复用现有 Compose 搜索消费者，保留原始字段与只读能力、完整关系闭包排除、按 ID 连续分页、账户／精确金额／本地日期筛选；不依赖活动投影。三个原只读定义已迁移，完整关联预览／确认及同时覆盖它们的原 HTTP 定义仍 pending，不能据此关闭完整维护。
 
@@ -51,7 +51,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 ## 测试与黄金合同
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 492 个定义／1,223 个展开参数，5 个定义按语言类型及异常边界保留，其余 2,116 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 502 个定义／1,248 个展开参数，5 个定义按语言类型及异常边界保留，其余 2,106 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - Python oracle：`test_exact_decimal.py`、`test_cash_record_policy.py`、`test_cash_category_management.py`、`test_cash_statement_rows.py`、`test_bank_statement_rows.py`、`test_cash_statement_document.py`、`test_icbc_pdf_statement.py`、`test_cash_source_matching.py`、`test_cash_import_readable_equivalence.py`。
 - 完整 `tests/contract` 与 `tests/integration`：HTTP/错误、来源/关系/投影、暂存生命周期、收据/未知结果、修订/权限/回滚、同步/券商及双库矩阵。

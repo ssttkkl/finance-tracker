@@ -173,6 +173,31 @@ internal class CurrentProjectionReadRepository(
         }
     }
 
+    fun listActiveSources(): Condition = activeSources()
+
+    fun listCategories(): JsonArray = JsonArray(categoryRows.values.sortedWith { first, second ->
+        cashRelationStringOrder.compare(first.categoryPath!!, second.categoryPath!!).takeIf { it != 0 }
+            ?: first.sortOrder!!.compareTo(second.sortOrder!!).takeIf { it != 0 }
+            ?: cashRelationStringOrder.compare(first.id!!, second.id!!)
+    }.map { category(it.id) }.filter { it != JsonNull })
+
+    fun listItem(record: CashProjectionsRecord, dataset: String, version: Long): JsonObject {
+        val row = projectionRow(record, version)
+        val relations = relations(dataset, row.id)
+        val sources = if (row.memberCount == 1L) listOfNotNull(record.sourceType?.takeIf(String::isNotEmpty)) else
+            sql.select(fact.SOURCE_TYPE).from(member).join(fact)
+                .on(fact.WORKSPACE_ID.eq(member.WORKSPACE_ID)).and(fact.ID.eq(member.CASH_TRANSACTION_ID))
+                .where(member.WORKSPACE_ID.eq(workspace)).and(member.DATASET_ID.eq(dataset)).and(member.PROJECTION_ROW_ID.eq(row.id))
+                .orderBy(member.ORDINAL).fetch(fact.SOURCE_TYPE).filterNotNull().filter(String::isNotEmpty).distinct()
+        return JsonObject(row.value + mapOf(
+            "account" to account(row.accountId), "category" to category(row.categoryId),
+            "source_types" to JsonArray(sources.map(::JsonPrimitive)),
+            "composition" to JsonArray(relations.map { it.kind }.distinct().sortedWith(cashRelationStringOrder).map(::JsonPrimitive)),
+            "accepted_relation_summary" to relationSummary(relations),
+            "transfer" to if (record.hasTransferPair == true || record.fundingRelationId != null) transfer(dataset, row) else JsonNull,
+        ))
+    }
+
     private fun projectionRow(row: CashProjectionsRecord, version: Long): CurrentProjectionRow {
         val attention = row.attentionCount!!
         val state = row.state!!
@@ -227,11 +252,13 @@ internal class CurrentProjectionReadRepository(
         return buildJsonObject { put("id", row[a.ID]!!); put("name", row[a.NAME]!!); put("type", row[a.TYPE]!!); put("active", row[a.ACTIVE]!!) }
     }
 
+    private val categoryRows by lazy {
+        sql.selectFrom(CASH_CATEGORIES).where(CASH_CATEGORIES.WORKSPACE_ID.eq(workspace)).fetch().associateBy { it.id!! }
+    }
+
     private fun category(id: String?): JsonElement {
         if (id.isNullOrEmpty()) return JsonNull
-        val c = CASH_CATEGORIES
-        val categories = sql.select(c.ID, c.PARENT_ID, c.NAME).from(c).where(c.WORKSPACE_ID.eq(workspace)).fetch()
-            .associate { it[c.ID]!! to (it[c.PARENT_ID] to it[c.NAME]!!) }
+        val categories = categoryRows
         val selected = categories[id] ?: return JsonNull
         val path = mutableListOf<JsonElement>()
         val visited = mutableSetOf<String>()
@@ -239,10 +266,10 @@ internal class CurrentProjectionReadRepository(
         while (current != null && current in categories) {
             check(visited.add(current)) { "category cycle in current projection" }
             val item = categories.getValue(current)
-            path += buildJsonObject { put("id", current); put("name", item.second) }
-            current = item.first?.takeIf(String::isNotEmpty)
+            path += buildJsonObject { put("id", current); put("name", item.name!!) }
+            current = item.parentId?.takeIf(String::isNotEmpty)
         }
-        return buildJsonObject { put("id", id); put("name", selected.second); put("path", JsonArray(path.reversed())) }
+        return buildJsonObject { put("id", id); put("name", selected.name!!); put("path", JsonArray(path.reversed())) }
     }
 
     private fun relations(dataset: String, rowId: Long): List<CurrentProjectionRelation> {

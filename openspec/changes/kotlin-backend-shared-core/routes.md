@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 64/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 22 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 65/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 21 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -67,7 +67,7 @@
 | GET | `/api/v1/operations/projections` | `src/ft/web/operation_routes.py:371` | 已实现；当前工作区管理员、原状态字段/缺省和固定失败合同，双库证据见 tasks |
 | POST | `/api/v1/operations/projections/rebuild` | `src/ft/web/operation_routes.py:381` | 已实现；双库实际发布/完整状态、真实 HTTP、领域/运行错误及锁等待撤权验证通过 |
 | GET | `/api/v1/accounts` | `src/ft/web/routes.py:56` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
-| GET | `/api/v1/cash-projections` | `src/ft/web/routes.py:62` | 未迁移 |
+| GET | `/api/v1/cash-projections` | `src/ft/web/routes.py:62` | 已实现；完整筛选、游标／序号分页、版本围栏、全局选项与精确月汇总，双库及现有 Compose 消费证据见 tasks |
 | GET | `/api/v1/evidence/cash-projections/{projection_id}` | `src/ft/web/routes.py:70` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/cash-projections/{projection_id}` | `src/ft/web/routes.py:75` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
 | GET | `/api/v1/cash-records/{transaction_id}/projection` | `src/ft/web/routes.py:86` | 已实现；双库完整响应/财务快照/权限边界、现有 Compose 消费与独立复核通过，完整组合原测试仍 pending |
