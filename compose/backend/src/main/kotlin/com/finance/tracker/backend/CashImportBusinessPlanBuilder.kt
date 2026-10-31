@@ -5,14 +5,42 @@ import java.math.BigDecimal
 import java.time.Instant
 
 /** 在当前事务中构建独占的冻结预览；财务事实只读，发布由会话服务负责。 */
-internal class CashImportBusinessPlanBuilder(private val context: CashSqlContext) {
+internal open class CashImportBusinessPlanBuilder(private val context: CashSqlContext) {
+    private data class PreparedPreview(val preview: PreparedCashImportPreview,
+        val rows: List<Map<String, Any?>>, val candidateSets: Map<String, List<String>>)
+    private data class RenderedPreview(val result: MutableMap<String, Any?>,
+        val operations: List<Map<String, Any?>>, val rows: List<Map<String, Any?>>)
     @Suppress("UNCHECKED_CAST")
     private fun choices(input: Map<String, Any?>, key: String): List<Map<String, Any?>> =
         (input[key] as? List<Map<String, Any?>>).orEmpty()
 
+    protected open fun prepareOperations(files: List<ParsedImportFile>, input: Map<String, Any?>,
+        recordIds: Map<String, String>, sourcePlan: PreparedCashSourcePlan?): PreparedCashImportOperations =
+        CashImportOperationPlanner(context).prepare(files, choices(input, "account_selections"),
+            choices(input, "row_choices"), recordIds, sourcePlan, wireValues = false)
+
+    protected open fun snapshot(prepared: PreparedCashImportPreview, rows: List<Map<String, Any?>>): CashImportPreviewSnapshot =
+        CashImportPreviewSnapshotBuilder(context).build(prepared, rows)
+
+    protected open fun applyEntryChoices(result: MutableMap<String, Any?>, choices: List<Map<String, Any?>>, previous: Map<String, Any?>?) {
+        CashImportEntryChoices.apply(result, choices, previous) { id ->
+            val table = CASH_CATEGORIES
+            context.sql.select(table.ID).from(table).where(table.WORKSPACE_ID.eq(context.workspace).and(table.ID.eq(id))).fetchAny() != null
+        }
+    }
+
     fun build(files: List<ParsedImportFile>, input: Map<String, Any?>, previous: Map<String, Any?>?,
         sourcePlan: PreparedCashSourcePlan? = null): Map<String, Any?> {
         context.requireActive()
+        val rendered = present(files, prepare(files, input, previous, sourcePlan), input, previous)
+        applyEntryChoices(rendered.result, choices(input, "entry_choices"), previous)
+        rendered.result["operations"] = rendered.operations
+        rendered.result["row_decisions"] = rendered.rows
+        @Suppress("UNCHECKED_CAST") return wire(rendered.result) as Map<String, Any?>
+    }
+
+    private fun prepare(files: List<ParsedImportFile>, input: Map<String, Any?>, previous: Map<String, Any?>?,
+        sourcePlan: PreparedCashSourcePlan?): PreparedPreview {
         val recordIds = linkedMapOf<String, String>()
         for (raw in (previous?.get("operations") as? List<*>).orEmpty()) {
             val operation = raw as Map<*, *>
@@ -22,19 +50,24 @@ internal class CashImportBusinessPlanBuilder(private val context: CashSqlContext
                 recordIds[occurrence] = values["record_id"] as String
             }
         }
-        val operations = CashImportOperationPlanner(context).prepare(files, choices(input, "account_selections"),
-            choices(input, "row_choices"), recordIds, sourcePlan, wireValues = false)
+        val operations = prepareOperations(files, input, recordIds, sourcePlan)
         val entryChoices = choices(input, "entry_choices")
         val prepared = CashImportPreviewPreparation(context).prepare(operations.operations, operations.source.rows.rows,
             entryChoices, previous)
-        val snapshot = CashImportPreviewSnapshotBuilder(context).build(prepared, operations.rows)
+        return PreparedPreview(prepared, operations.rows, operations.candidateSets)
+    }
+
+    private fun present(files: List<ParsedImportFile>, input: PreparedPreview, inputChoices: Map<String, Any?>,
+        previous: Map<String, Any?>?): RenderedPreview {
+        val prepared = input.preview
+        val snapshot = snapshot(prepared, input.rows)
         val seeds = snapshot.components.values.filter {
             snapshot.parentOps[it.transactionId]?.get("planned_action") in setOf("create_posted", "finalize_draft")
         }.map { it.componentId.toString() }.toSet()
         val proposals = CashImportRelationDiscovery(context).discover(snapshot, seeds, prepared.accounts)
         val grouped = CashImportRelationGroups.build(snapshot, proposals)
         val groups = grouped.groups
-        val selected = CashImportRelationDecisions.applyChoices(groups, choices(input, "relation_choices"), previous)
+        val selected = CashImportRelationDecisions.applyChoices(groups, choices(inputChoices, "relation_choices"), previous)
         CashImportRelationDecisions.restoreSplitValues(context, snapshot, groups)
         val failures = linkedMapOf<String, Map<String, Any?>>()
         for (failure in grouped.failures + CashImportRelationDecisions.applyGroups(snapshot, groups)) {
@@ -49,19 +82,13 @@ internal class CashImportBusinessPlanBuilder(private val context: CashSqlContext
             prepared.accounts, entryParentIds = prepared.retainedParentIds)
         result.putAll(linkedMapOf("invalidated_choices" to selected.invalidated,
             "invalidated_relation_choices" to selected.sources, "relation_choice_generations" to selected.generations,
-            "source_candidate_sets" to operations.candidateSets, "relation_groups" to wire(groups),
+            "source_candidate_sets" to input.candidateSets, "relation_groups" to wire(groups),
             "relation_failures" to failures.values.toList(), "dependencies" to linkedMapOf(
                 "seed_ids" to snapshot.context.seedIds.sorted(), "token" to snapshot.context.token(),
                 "candidate_ids" to prepared.candidateIds.sorted(), "discovery_seeds" to seeds.sortedWith(cashRelationStringOrder)),
             "type_effects" to mapOf("removed_relation_ids" to snapshot.removedRelations.sorted(),
                 "removed_funding_ids" to snapshot.removedFunding.sorted())))
-        CashImportEntryChoices.apply(result, entryChoices, previous) { id ->
-            val table = CASH_CATEGORIES
-            context.sql.select(table.ID).from(table).where(table.WORKSPACE_ID.eq(context.workspace).and(table.ID.eq(id))).fetchAny() != null
-        }
-        result["operations"] = snapshot.operations
-        result["row_decisions"] = snapshot.rows
-        @Suppress("UNCHECKED_CAST") return wire(result) as Map<String, Any?>
+        return RenderedPreview(result, snapshot.operations, snapshot.rows)
     }
 
     private fun wire(value: Any?): Any? = when (value) {

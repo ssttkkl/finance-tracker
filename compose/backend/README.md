@@ -103,6 +103,8 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 
+导入对象寿命的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashImportPlanLifetimeTest.kt) 使用原确认生成器的 `lifetime` 场景，沿用 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR`。准备包装在最终快照前、快照在条目选择前退出构建器持有范围；JVM 弱引用及有限次显式 GC 验证可回收性，冻结操作和条目目标保持列表。该合同不按耗时验收，也不替代性能测试。
+
 原计划 API 的 [Ktor 回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt) 使用独立匿名种子和真实上传／预览／确认／恢复路由；来源、关系、收据和提交响应丢失的故障位于实际 JDBC 边界。为 `scripts/export_cash_import_plan_api_contracts.py --help` 列出的每个 `--scenario` 分别准备空测试库，设置 `FT_KOTLIN_IMPORT_PLAN_API_CONTRACT_DIR` 为共同输出根目录：
 
 ```bash

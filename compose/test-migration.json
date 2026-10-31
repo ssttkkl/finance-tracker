@@ -2443,6 +2443,34 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_plan_lifetime.py::test_preparation_graph_is_released_before_final_snapshot",
+      "source_sha256": "0e4d35aac604c8ec30d99e433e3dee7806739c2bc6cfb8341281bba77605eab8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_lifetime.py::test_preparation_graph_is_released_before_final_snapshot[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_lifetime.py::test_preparation_graph_is_released_before_final_snapshot[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert checked and plan['summary']['create_posted'] == 1",
+        "assert references and all((reference() is None for reference in references))",
+        "assert final_graph and all((reference() is None for reference in final_graph))",
+        "assert type(operation[field]) is list",
+        "assert type(target[field]) is list",
+        "JVM tracing GC replaces CPython immediate reference counting: bounded explicit GC observes weak references at both real build boundaries, without latency assertions."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanLifetimeTest.kt",
+          "test": "preparationSourceAndFundingWrappersAreReleasedBeforeSnapshot"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportPlanLifetimeTest.kt",
+          "test": "snapshotIsReleasedBeforeEntryChoicesAndFrozenCollectionsRemainLists"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_plan_publication.py::test_builder_failure_preserves_previous_immutable_plan",
       "source_sha256": "9e193b949eaf17a6de05f0884be86c0ce9255461981e4544db13e7796b0d6a0b",
       "status": "migrated",

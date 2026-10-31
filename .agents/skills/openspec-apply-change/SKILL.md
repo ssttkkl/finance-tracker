@@ -129,6 +129,8 @@ Implement tasks from an OpenSpec change.
 
 **Output During Implementation**
 
+原准备图寿命测试不能因为 JVM 使用追踪 GC 就按 Python 基础设施保留。先把准备包装和最终快照的逻辑持有范围分别限制在准备／呈现方法内，只把必要的列表／候选集合向后传递；在真实步骤边界以弱引用和有限次显式 GC 验证可回收性，同时核对冻结列表类型和业务结果。不要以重复深复制整张图或手动置空代替阶段边界，也不要把释放时间当成本轮性能验收。
+
 ```
 ## Implementing: <change-name> (schema: <schema-name>)
 
