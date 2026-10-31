@@ -40,7 +40,7 @@ Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收�
 
 导入确认的[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt)直接覆盖批次失败整体回滚、混合分摊/来源别名/公共人工值/精确余额、草稿、重放、核实、当前权限及收据用户隔离，并验证镜像/退款共同落账、零净额可见、当前结果定位、并发一次消费、旧计划拒绝及草稿组成项身份；不以命令黄金代替源断言。已补关系发现内部错误停止预览和重验转换保留行级诊断，实际 409 回包由既有消费者验证。没有新增页面或平台入口，F-05 的其他原组合测试与真实环境 TODO 保留。
 
-Kotlin 操作规划的 [原断言测试](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 已覆盖原 14 个定义／40 参数：新建与草稿决定、支付宝余额分组、跨文件重复、坏行、非法修改／分类／类型、多决定、显式分摊矛盾、无身份重复、账户改名、现金部分身份和输入不变性；所有规划保持只读。原文件其余 22 定义仍待迁移。Web、Native 和共享生产合同不变，页面数仍为 10，F-05 两端 TODO 保留。
+Kotlin 操作规划的 [原断言测试](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 覆盖原文件全部 36 个定义／94 参数：新建与草稿决定、余额分组、重复、来源更新／时间顺序、公共备注与人工保护、固定字段冲突、分类／类型、多决定、分摊矛盾、账户资格／币种、草稿补全、现金部分身份及输入不变性；内部错误停止当前计划，所有规划保持只读。其他原业务计划等文件仍待迁移。Web、Native 和共享生产合同不变，页面数仍为 10，F-05 两端 TODO 保留。
 
 ## 现金导入后端与客户端边界
 

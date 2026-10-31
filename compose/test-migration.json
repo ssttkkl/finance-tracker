@@ -1910,6 +1910,151 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_operations.py::test_corrected_missing_amount_and_time_can_be_posted_without_stale_parser_issues",
+      "source_sha256": "ca6e43f6504367993f07e335fc6bd6da8fc6e3a30ac71d29274c21c98c417170",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_corrected_missing_amount_and_time_can_be_posted_without_stale_parser_issues[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_corrected_missing_amount_and_time_can_be_posted_without_stale_parser_issues[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'create_posted' and (not operation['issues'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "correctedMissingAmountAndTimePostWithoutStaleParserIssues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_cross_batch_source_update_ignores_old_and_new_file_modification_order",
+      "source_sha256": "722b64413c6aa58eed7e456a42f05adac7344e6ddea3b254c1cf0d83f805a678",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_cross_batch_source_update_ignores_old_and_new_file_modification_order[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_cross_batch_source_update_ignores_old_and_new_file_modification_order[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'update_posted'",
+        "assert operation['values']['source_payload']['状态'] == '交易成功'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "crossBatchUpdateIgnoresOldAndNewFileModificationOrder"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_duplicate_keeps_result_and_binding_work_but_does_not_claim_record_update",
+      "source_sha256": "bd664d28e3c8eee6f1196b25fd2cda1f8ab0fb3e98f7e1a135f238922d41f7a2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_duplicate_keeps_result_and_binding_work_but_does_not_claim_record_update[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_duplicate_keeps_result_and_binding_work_but_does_not_claim_record_update[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert prepared.rows[0]['planned_action'] == 'duplicate'",
+        "assert operation['planned_action'] == 'duplicate' and operation['source_updates'][0]['bind'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "duplicateKeepsBindingWorkWithoutClaimingUpdate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_existing_complete_draft_uses_current_account_eligibility_when_finalizing",
+      "source_sha256": "8ea4cfbf1fe3ef1f193f388f1aa71eba76c5c9fe4e3f17d0032c5fce1523fb84",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_existing_complete_draft_uses_current_account_eligibility_when_finalizing[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_existing_complete_draft_uses_current_account_eligibility_when_finalizing[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['values']['state'] == 'draft'",
+        "assert any((issue['code'] == 'account_unavailable' for issue in operation['issues']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "existingCompleteDraftUsesCurrentAccountEligibility"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_existing_draft_funding_refresh_preserves_current_component_identity",
+      "source_sha256": "7551fb475a40730bb70a2a986ed3f8840038b8499c4de5de293651c0326b7c84",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_existing_draft_funding_refresh_preserves_current_component_identity[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_existing_draft_funding_refresh_preserves_current_component_identity[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'finalize_draft'",
+        "assert operation['values']['components'][0]['component_id'] == '1003'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "existingDraftFundingRefreshPreservesComponentIdentity"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_explicit_draft_component_ids_must_be_owned_and_unique",
+      "source_sha256": "894030a3f59904c0842b90c27c5989f2b60f6b031ae26380b7a6859da4954b0c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_component_ids_must_be_owned_and_unique[cash_web_runtime-components0]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_component_ids_must_be_owned_and_unique[cash_web_runtime-components1]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_component_ids_must_be_owned_and_unique[postgres_cash_web_runtime-components0]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_component_ids_must_be_owned_and_unique[postgres_cash_web_runtime-components1]"
+      ],
+      "assertions": [
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "explicitDraftComponentIdsMustBeOwnedAndUniqueForBothOriginalParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason",
+      "source_sha256": "f3657e2179e2c39befb10bda5ec1b81d0bebb36210bd2a205deb53ad89914c13",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[cash_web_runtime-101-True-create_posted]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[cash_web_runtime-101-False-None]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[cash_web_runtime-104-True-None]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[postgres_cash_web_runtime-101-True-create_posted]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[postgres_cash_web_runtime-101-False-None]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_draft_financial_completion_revalidates_account_and_clears_old_missing_reason[postgres_cash_web_runtime-104-True-None]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == expected",
+        "assert not operation['issues'] and operation['expected_accounts'] == [{'account_id': '101', 'exists': True, 'active': True, 'type': 'cash', 'currency_support': {'CNY': True}}]",
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "explicitFinancialCompletionRevalidatesAllOriginalAccountParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_operations.py::test_explicit_financial_contradictions_reject_plan_instead_of_creating_draft",
       "source_sha256": "05c11c0db481e22cfcc234d407f4823f9c534b345cdc6d21170443b035f81602",
       "status": "migrated",
@@ -1934,6 +2079,152 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
           "test": "explicitFinancialContradictionsRejectAllSixOriginalCombinations"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_explicit_same_value_note_is_a_manual_decision_even_when_source_is_duplicate",
+      "source_sha256": "0a2d356080fbbe0e36c11d90e924fbebd74b17a3d2e1936ec503db38bca19433",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_explicit_same_value_note_is_a_manual_decision_even_when_source_is_duplicate[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_explicit_same_value_note_is_a_manual_decision_even_when_source_is_duplicate[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'update_posted' and operation['entry_edit']['patch'] == {'note': '原始备注'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "explicitSameValueNoteIsManualDecisionOnDuplicateSource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_fixed_amount_conflict_skips_only_one_row_without_partial_mutable_updates",
+      "source_sha256": "585d001534f884534fc4494feb8f4a8fc552ed244126ef05a62eb79430b08065",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_fixed_amount_conflict_skips_only_one_row_without_partial_mutable_updates[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_fixed_amount_conflict_skips_only_one_row_without_partial_mutable_updates[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert prepared.rows[0]['planned_action'] == 'skip' and prepared.rows[0]['code'] == 'fixed_field_conflict'",
+        "assert prepared.rows[1]['planned_action'] == 'create_posted' and len(prepared.operations) == 1",
+        "assert session.get(CashTransactionModel, 1003).counterparty == first.document.rows[0].fields['counterparty']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "fixedAmountConflictSkipsOnlyItsRowWithoutPartialMutableUpdate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_fixed_conflict_explains_the_actual_field_in_safe_row_result",
+      "source_sha256": "4fe05b1d39f7284c062df686470989ad8b9ed5eec52713e90dec62f76834d9dc",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_fixed_conflict_explains_the_actual_field_in_safe_row_result[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_fixed_conflict_explains_the_actual_field_in_safe_row_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert issue['field_path'] == 'amount' and '金额' in issue['message']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "fixedConflictExplainsActualFieldInSafeRowResult"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit",
+      "source_sha256": "d469c40feb07394596fc6c135449802d87114c4d38adcb259d002d280f4096cd",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[cash_web_runtime-False-None-\\u4eba\\u5de5\\u4fee\\u6539\\u7684\\u6765\\u6e90\\u539f\\u6587]",
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[cash_web_runtime-True-None-\\u4eba\\u5de5\\u65e7\\u5907\\u6ce8]",
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[cash_web_runtime-False--]",
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[postgres_cash_web_runtime-False-None-\\u4eba\\u5de5\\u4fee\\u6539\\u7684\\u6765\\u6e90\\u539f\\u6587]",
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[postgres_cash_web_runtime-True-None-\\u4eba\\u5de5\\u65e7\\u5907\\u6ce8]",
+        "tests/contract/test_cash_import_operations.py::test_import_user_source_payload_patch_is_rejected_without_partial_public_edit[postgres_cash_web_runtime-False--]"
+      ],
+      "assertions": [
+        "assert session.get(CashTransactionModel, 1003).source_payload != patch['source_payload']",
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "userSourcePayloadPatchRejectsAllThreeOriginalParametersWithoutPartialEdit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_keep_existing_requires_a_matched_saved_record",
+      "source_sha256": "1574d1042e6fa982c07be33ac7432f4513a5b890d83552fa0bcca3e4b3e88c25",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_keep_existing_requires_a_matched_saved_record[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_keep_existing_requires_a_matched_saved_record[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert prepared.rows[0]['planned_action'] == 'duplicate'",
+        "assert prepared.operations[0]['transaction_id'] == '1003'",
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "keepExistingRequiresActuallyMatchedSavedRecord"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_known_source_update_can_defer_on_existing_record_without_creating_a_draft",
+      "source_sha256": "c7fb560d81dd89f5d12402834917ea2764d2ee923f2d673a24b58302741c697b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_known_source_update_can_defer_on_existing_record_without_creating_a_draft[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_known_source_update_can_defer_on_existing_record_without_creating_a_draft[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['transaction_id'] == '1003' and operation['values']['state'] == 'posted'",
+        "assert operation['values']['counterparty'] == first.document.rows[0].fields['counterparty']",
+        "assert operation['pending_fields']['counterparty'] == '稍后处理的名称'",
+        "assert operation['issues'] and operation['planned_action'] == 'update_posted'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "deferKnownSourceUpdateKeepsPostedRecordAndPendingFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_rejected",
+      "source_sha256": "06bbf7c55c8a807a7804b3b17160c0c1e5a810c919012d1d4283bd9df129711f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_rejected[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_manual_note_patch_overrides_protection_and_fixed_manual_patch_is_rejected[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert cleared.operations[0]['entry_edit']['patch'] == {'note': ''} and cleared.operations[0]['values']['note'] == '原始备注'",
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "explicitNoteClearsProtectionAndFixedManualPatchRejects"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
@@ -2002,6 +2293,26 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_operations.py::test_new_draft_never_substitutes_currency_or_guesses_financial_account",
+      "source_sha256": "bce9bca0b1506172d78c0d21fc5931b25c86154431e4287b868e21a88d5d6c56",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_new_draft_never_substitutes_currency_or_guesses_financial_account[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_new_draft_never_substitutes_currency_or_guesses_financial_account[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['values']['state'] == 'draft' and operation['values']['currency'] == 'CNY'",
+        "assert any((issue['code'] == 'account_currency_missing' for issue in operation['issues']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "newDraftDoesNotSubstituteCurrencyOrGuessAccount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_operations.py::test_new_record_cannot_claim_an_existing_component_identifier",
       "source_sha256": "a734f861b17fd556af0f8fd4f6257953c680b530c8f2371b465b6e5b578be175",
       "status": "migrated",
@@ -2042,6 +2353,46 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_operations.py::test_posted_type_edit_rejects_plan_without_changing_current_record",
+      "source_sha256": "cda072fddf4c72953a4092c5f551ce28285ff868793b7a7e44e7567351294909",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_posted_type_edit_rejects_plan_without_changing_current_record[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_posted_type_edit_rejects_plan_without_changing_current_record[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert session.get(CashTransactionModel, 1003).record_type == 'consumption'",
+        "assert not session.new and (not session.dirty)",
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "postedTypeEditRejectsWithoutChangingCurrentRecord"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_posted_user_source_payload_noop_is_still_not_an_editable_field",
+      "source_sha256": "4715b8f48be0022c0272d36aa97aa89ba7b9f8d1facfcb8dc472efb0335f5053",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_posted_user_source_payload_noop_is_still_not_an_editable_field[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_posted_user_source_payload_noop_is_still_not_an_editable_field[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "pytest.raises(CashImportPlanError, match='plan_input_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "identicalPostedSourcePayloadStillIsNotEditable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_operations.py::test_repeated_provider_row_across_files_creates_one_operation_with_all_row_results",
       "source_sha256": "5772138ce27763cb36fc91e6e9d48091cb707ae315776a0cd1c1f4a8f4b63846",
       "status": "migrated",
@@ -2059,6 +2410,90 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
           "test": "repeatedProviderAcrossFilesHasOneOperationAndAllResults"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_same_batch_uses_newest_file_snapshot_for_one_existing_source_update",
+      "source_sha256": "ee505ecc29ce234f29cc3091e153aadebb6608385c8223092c9a1fff7a922556",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_same_batch_uses_newest_file_snapshot_for_one_existing_source_update[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_same_batch_uses_newest_file_snapshot_for_one_existing_source_update[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'update_posted'",
+        "assert operation['values']['source_payload']['状态'] == '交易成功'",
+        "assert [(row['row_ref'], row['planned_action']) for row in prepared.rows] == [('file_a:r1', 'update_posted'), ('file_b:r1', 'duplicate_in_batch')]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "sameBatchUsesNewestSnapshotForOneExistingUpdate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_same_file_ambiguous_draft_does_not_finalize_on_complete_reupload",
+      "source_sha256": "3f47f5153306fb1150dc6eed3cadcdaf01ceb426aa73b2ce9ac138ef6ef3a10f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_same_file_ambiguous_draft_does_not_finalize_on_complete_reupload[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_same_file_ambiguous_draft_does_not_finalize_on_complete_reupload[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['values']['state'] == 'draft'",
+        "assert operation['planned_action'] != 'finalize_draft'",
+        "assert any((issue['code'] == 'source_identity_ambiguous' for issue in operation['issues']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "sameFileAmbiguousDraftDoesNotFinalizeOnCompleteReupload"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_selected_different_financial_account_is_conflict_for_existing_posted_record",
+      "source_sha256": "293ea04efed906e7f1a1ea1f04cbdfc3e30ce2ab1462e5f52fe6dad6d11e42ea",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_selected_different_financial_account_is_conflict_for_existing_posted_record[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_selected_different_financial_account_is_conflict_for_existing_posted_record[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert prepared.rows[0]['planned_action'] == 'skip' and prepared.rows[0]['code'] == 'fixed_field_conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "differentSelectedAccountConflictsWithPostedRecord"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_source_changes_preserve_manual_note_and_do_not_require_active_account_mapping",
+      "source_sha256": "d713e7d6f2c447012df85d01d26ec10740663f7287fed36066adb3d924f86ced",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_source_changes_preserve_manual_note_and_do_not_require_active_account_mapping[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_source_changes_preserve_manual_note_and_do_not_require_active_account_mapping[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['planned_action'] == 'update_posted' and operation['transaction_id'] == '1003'",
+        "assert operation['values']['counterparty'] == '当前商户' and operation['values']['note'] == '新来源备注'",
+        "assert operation['values']['account_id'] == '101'",
+        "assert operation['values']['source_payload'] == changed.document.rows[0].fields['source_payload']",
+        "assert any((diff['field'] == 'note' and diff['resolution'] == 'apply' for diff in operation['field_diffs']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "sourceUpdateKeepsManualNoteAndNeedsNoActiveMapping"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
@@ -2084,6 +2519,26 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
       "compatibility": "Python Decimal is the native exact CashAmount; canonical wire conversion covers the complete operation and deep file equality."
+    },
+    {
+      "source": "tests/contract/test_cash_import_operations.py::test_unexpected_row_preparation_failure_stops_plan",
+      "source_sha256": "f310e9fc4027d54183faf0ea5a4171a1f680efa86d239c00416aabc0b3639988",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_operations.py::test_unexpected_row_preparation_failure_stops_plan[cash_web_runtime]",
+        "tests/contract/test_cash_import_operations.py::test_unexpected_row_preparation_failure_stops_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "pytest.raises(RuntimeError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt",
+          "test": "unexpectedFirstRowPreparationErrorStopsBeforeNextOperation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
+      "compatibility": "Inject an internal exception while the actual native operation reads the first prepared occurrence; assert first-row reach, no next operation and unchanged all-table snapshot, without production test hooks."
     },
     {
       "source": "tests/contract/test_cash_import_operations.py::test_unidentified_equivalent_repetitions_do_not_create_extra_operations",
