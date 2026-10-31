@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认和当前流水关联候选读取，共接入 65/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 21 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选和旧流水列表读取，共接入 66/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 20 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核；完整组合原测试仍待迁移。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；列表和维护入口仍待迁移。
 
@@ -107,8 +107,11 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_ASSOCIATION_CONTRACT_DIR` | `scripts/export_cash_association_contracts.py`（当前流水关联候选 HTTP 与原只读断言） |
 | `FT_KOTLIN_PROJECTION_LIST_CONTRACT_DIR` | `scripts/export_cash_projection_list_contracts.py`（当前账本列表、筛选与分页） |
 | `FT_KOTLIN_PROJECTION_ORIGINAL_QUERY_CONTRACT_DIR` | `scripts/export_cash_projection_original_query_contracts.py`（原查询断言的真实预置状态） |
+| `FT_KOTLIN_LEGACY_SEARCH_CONTRACT_DIR` | `scripts/export_legacy_cash_record_search_contracts.py`（旧流水列表 HTTP 与原读取断言） |
 
 查询原断言的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashProjectionOriginalQueryTest.kt) 使用表中生成器，为 `--help` 列出的 10 个场景分别准备独立空测试库，传入 `--database-url`、共同 `--output` 根目录和 `--scenario`，运行环境为 `PYTHONPATH=.:src:tests`；设置表中环境变量后，在 `compose/` 运行 `./gradlew :backend:test --tests '*CashProjectionOriginalQueryTest' -PbackendFunctionalOnly=true`。生成器执行原测试到首次查询前，只保存实际状态；退款输入来自原关系工厂，不保存预期查询结果。`index_version`、`cursor_version`、`snapshot` 会执行真实重建，复跑须准备新库。新增 13 个方法与现有列表测试共同对应原查询文件全部 23 定义／40 参数；月汇总直接调用生产流式累加器，SQL 观测验证版本页不重复计算月份信息，以及重建交错仍属于同一快照。
+
+旧流水列表的 [原生回归](src/test/kotlin/com/finance/tracker/backend/LegacyCashRecordSearchTest.kt) 使用对应生成器，为 `--help` 列出的 8 个场景分别准备独立空测试库，传入 `--database-url`、共同的仓库外 `--output` 和 `--scenario`；环境同上，设置 `FT_KOTLIN_LEGACY_SEARCH_CONTRACT_DIR` 后运行 `./gradlew :backend:test --tests '*LegacyCashRecordSearchTest' -PbackendFunctionalOnly=true`。原四个读取定义／七个参数由 Kotlin 直接核对断言，完整 HTTP 对照另覆盖字段、草稿、筛选和错误。`snapshot`、`revoke` 会修改其专用库，复跑须重新准备。GET `/cash-records` 保留原时间及编号游标和 1–20 页长，包含人工流水及草稿；当前 Compose 没有该 GET 的实际消费者，不据此新增页面或宣称客户端接线。
 
 当前账本列表的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashProjectionListContractTest.kt) 使用表中生成器，为 `--help` 列出的 9 个场景分别准备独立目标与参考空测试库，传入 `--database-url`、不同的 `--oracle-database-url`、共同 `--output` 根目录和 `--scenario`；运行环境为 `PYTHONPATH=.:src:tests`。在 `compose/` 执行 `./gradlew :backend:test --tests '*CashProjectionListContractTest' -PbackendFunctionalOnly=true`。测试覆盖原完整 HTTP、游标与序号分页、筛选后的统计与月份位置、全局选项、精确金额、草稿、已删除成员、版本及安全失败；`snapshot`／`revoke` 会修改事实，复跑须重新准备。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，实际回包可供 `:shared:testAndroidHostTest --tests '*KotlinProjectionListResponseIntegrationTest'` 验证现有 Compose 列表调用及领域映射。带版本的后续序号页省略月份数据并在 SQL 计数；分类树在同次读取内仅加载一次。
 

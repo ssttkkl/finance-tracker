@@ -63,11 +63,22 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
     projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
+    legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<LegacyCashSearchFailure> { call, failure ->
+            if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+            else call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail(failure.code, "搜索条件或加载位置无效，请重新搜索。")))
+        }
+        exception<LegacyCashSearchLimitFailure> { call, failure ->
+            call.respond(HttpStatusCode.UnprocessableEntity, sourceJson(mapOf("detail" to listOf(mapOf(
+                "type" to if (failure.oversized) "int_parsing_size" else "int_parsing", "loc" to listOf("query", "limit"),
+                "msg" to if (failure.oversized) "Unable to parse input string as an integer, exceeded maximum size"
+                    else "Input should be a valid integer, unable to parse string as an integer", "input" to failure.input)))))
+        }
         exception<CashProjectionListFailure> { call, failure ->
             if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
             else {
@@ -645,6 +656,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
             val result = withContext(Dispatchers.IO) {
                 projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-records") {
+            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            val result = withContext(Dispatchers.IO) {
+                legacyRecordSearch.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }

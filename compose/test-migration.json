@@ -8177,6 +8177,93 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_cash_ledger_management.py::test_relation_candidate_api_applies_date_range_in_requested_timezone",
+      "source_sha256": "3ab1d21432e44358497de692d839870376af3ae5d4ed16583bf9a03ee348a42a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_relation_candidate_api_applies_date_range_in_requested_timezone[cash_web_runtime]",
+        "tests/test_cash_ledger_management.py::test_relation_candidate_api_applies_date_range_in_requested_timezone[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert [item['counterparty'] for item in response.json()['items']] == ['本地日期 3 日']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashRecordSearchTest.kt",
+          "test": "originalApiAppliesDateRangeInRequestedTimezone"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_relation_candidate_api_filters_inclusive_date_range",
+      "source_sha256": "d154bf05b8d8fbf92312c4f0692e52a6b6df2be7ceadc1b05e2bedbb6ec7fbad",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_relation_candidate_api_filters_inclusive_date_range[cash_web_runtime]",
+        "tests/test_cash_ledger_management.py::test_relation_candidate_api_filters_inclusive_date_range[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert [item['counterparty'] for item in response.json()['items']] == ['日期候选 5', '日期候选 4', '日期候选 3']",
+        "assert invalid.status_code == 400",
+        "assert invalid.json()['error']['code'] == 'invalid_filter'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashRecordSearchTest.kt",
+          "test": "originalApiFiltersInclusiveDateRange"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_relation_candidate_api_rejects_invalid_cursor_and_caps_page_size",
+      "source_sha256": "59b89fa2b1544a8b87a0eb8b581f36968cac6003a138fdf2f948634ef0f0418d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_relation_candidate_api_rejects_invalid_cursor_and_caps_page_size"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert len(response.json()['items']) == 20",
+        "assert response.json()['next_cursor']",
+        "assert invalid.status_code == 400",
+        "assert invalid.json()['error']['code'] == 'invalid_cursor'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashRecordSearchTest.kt",
+          "test": "originalApiRejectsInvalidCursorAndCapsPageSize"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_relation_candidate_search_is_filtered_bounded_and_stably_paginated",
+      "source_sha256": "044ad23c4480c71325ed6fdc7a56970cbd964e92c773e50635fad0c134355c1f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_relation_candidate_search_is_filtered_bounded_and_stably_paginated[cash_web_runtime]",
+        "tests/test_cash_ledger_management.py::test_relation_candidate_search_is_filtered_bounded_and_stably_paginated[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert [item['counterparty'] for item in first['items']] == ['候选商户 3', '候选商户 2']",
+        "assert [item['counterparty'] for item in second['items']] == ['候选商户 1']",
+        "assert first['next_cursor']",
+        "assert second['next_cursor'] is None",
+        "assert {item['id'] for item in first['items']}.isdisjoint({item['id'] for item in second['items']})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyCashRecordSearchTest.kt",
+          "test": "originalSearchIsFilteredBoundedAndStablyPaginated"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/test_cash_projection.py::test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply",
       "source_sha256": "0c38df3bce1d4c6628633a62d36307f5df268f6bd187b077bd359a9d7154d02c",
       "status": "migrated",

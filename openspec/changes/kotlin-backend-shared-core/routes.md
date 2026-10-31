@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 65/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 21 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 66/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 20 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -85,7 +85,7 @@
 | PUT | `/api/v1/cash-projections/categories` | `src/ft/web/routes.py:157` | 已实现；完整成员/版本/人工保护/原子回滚及当前授权，双库 HTTP/状态和实际 Compose 解码通过 |
 | PUT | `/api/v1/cash-projections/{projection_id}/category` | `src/ft/web/routes.py:169` | 已实现；完整成员/版本/人工保护/原子回滚及当前授权，双库 HTTP/状态和实际 Compose 解码通过 |
 | GET | `/api/v1/cash-ledger/options` | `src/ft/web/routes.py:238` | 已实现；完整选项/合法子类型/标签/顺序、读权限及真实 Compose 消费，双库证据见 tasks |
-| GET | `/api/v1/cash-records` | `src/ft/web/routes.py:242` | 未迁移 |
+| GET | `/api/v1/cash-records` | `src/ft/web/routes.py:242` | 已实现；原时间／编号游标、页长压到 1–20、文字／本地日期、人工／草稿、精确字段及错误；双库原四定义七参数、完整 HTTP／无写入／快照与权限回归通过；当前 Compose 无实际调用者 |
 | POST | `/api/v1/cash-records` | `src/ft/web/routes.py:258` | 已实现；严格公开输入、editor、完整现金部分/余额/稳定收支/投影原子保存，双库 HTTP/全部财务列及现有 Compose 消费通过；OpenAPI schema 保持 pending |
 | DELETE | `/api/v1/cash-records/{fact_id}` | `src/ft/web/routes.py:273` | 未迁移 |
 | POST | `/api/v1/cash-projections/delete-impact` | `src/ft/web/routes.py:286` | 未迁移 |
