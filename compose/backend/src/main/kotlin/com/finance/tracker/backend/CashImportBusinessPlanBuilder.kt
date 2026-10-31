@@ -19,6 +19,14 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
         CashImportOperationPlanner(context).prepare(files, choices(input, "account_selections"),
             choices(input, "row_choices"), recordIds, sourcePlan, wireValues = false)
 
+    protected open fun preparePreview(operations: PreparedCashImportOperations, input: Map<String, Any?>,
+        previous: Map<String, Any?>?): PreparedCashImportPreview = CashImportPreviewPreparation(context).prepare(
+        operations.operations, operations.source.rows.rows, choices(input, "entry_choices"), previous)
+
+    protected open fun discover(snapshot: CashImportPreviewSnapshot, seeds: Set<String>,
+        accounts: Map<String, Map<String, Any?>>): List<RelationProposal> =
+        CashImportRelationDiscovery(context).discover(snapshot, seeds, accounts)
+
     protected open fun snapshot(prepared: PreparedCashImportPreview, rows: List<Map<String, Any?>>): CashImportPreviewSnapshot =
         CashImportPreviewSnapshotBuilder(context).build(prepared, rows)
 
@@ -51,9 +59,7 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
             }
         }
         val operations = prepareOperations(files, input, recordIds, sourcePlan)
-        val entryChoices = choices(input, "entry_choices")
-        val prepared = CashImportPreviewPreparation(context).prepare(operations.operations, operations.source.rows.rows,
-            entryChoices, previous)
+        val prepared = preparePreview(operations, input, previous)
         return PreparedPreview(prepared, operations.rows, operations.candidateSets)
     }
 
@@ -64,7 +70,7 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
         val seeds = snapshot.components.values.filter {
             snapshot.parentOps[it.transactionId]?.get("planned_action") in setOf("create_posted", "finalize_draft")
         }.map { it.componentId.toString() }.toSet()
-        val proposals = CashImportRelationDiscovery(context).discover(snapshot, seeds, prepared.accounts)
+        val proposals = if (seeds.isEmpty()) emptyList() else discover(snapshot, seeds, prepared.accounts)
         val grouped = CashImportRelationGroups.build(snapshot, proposals)
         val groups = grouped.groups
         val selected = CashImportRelationDecisions.applyChoices(groups, choices(inputChoices, "relation_choices"), previous)

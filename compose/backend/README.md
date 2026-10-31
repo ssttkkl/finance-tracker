@@ -103,6 +103,9 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR` | `scripts/export_cash_import_original_operation_contracts.py`（原操作规划的匿名输入） |
+| `FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR` | `scripts/export_cash_import_original_business_contracts.py`（原业务计划的匿名输入／当前状态） |
+
+完整业务计划的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt) 使用表中生成器，为 `--help` 列出的 18 个场景分别准备独立空测试库，传入 `--database-url`、共同 `--output` 根目录和 `--scenario`；运行环境为 `PYTHONPATH=.:src:tests`。在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalBusinessTest' -PbackendFunctionalOnly=true`。场景包含来源／关系／候选的真实预置状态，不生成预期计划；候选变化用例会修改事实，重新执行必须准备新库。原文件全部 30 定义／84 参数以实际构建结果验证；无新建／转正式种子时跳过关系发现。原 monkeypatch 使用实例内部阶段／图构建依赖适配，默认仍为真实实现，无新增 HTTP 或配置字段。
 
 操作规划的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 使用表中生成器，以 `--database-url`、共同根目录 `--output` 和 `--scenario` 逐一准备 `--help` 列出的 13 个独立空测试库；在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalOperationTest' -PbackendFunctionalOnly=true`。`base` 由只读用例共用，其他场景预置原来源绑定、人工保护、草稿问题及账户状态；版本字段通过原 ORM 更新，所有规划调用禁止写入 SQL 并比较完整业务表快照。生成器只保存原输入；原生测试直接核对原文件全部 36 定义／94 参数，包括已有来源更新／时间顺序、公共备注、固定字段冲突、草稿补全、现金部分身份、内部错误停止及完整 typed／wire 输入不变性。其他原业务计划等文件仍待迁移。
 

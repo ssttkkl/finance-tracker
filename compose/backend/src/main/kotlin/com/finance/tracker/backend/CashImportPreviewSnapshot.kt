@@ -19,6 +19,7 @@ internal data class CashImportPreviewSnapshot(
     val removedFunding: MutableSet<Long>,
     val operations: MutableList<MutableMap<String, Any?>>,
     val rows: MutableList<MutableMap<String, Any?>>,
+    val graphBuilder: (Any?, Any?, Any?, Any?) -> CashProjectionBuild = ::buildCashRelationGraph,
 ) {
     private fun withFunding(fact: CashProjectionFact, fundingId: Long?): CashProjectionFact = CashProjectionFact.create(
         fact.id, fact.accountId, fact.occurredAt, fact.amount?.toString(), fact.currency, fact.counterparty,
@@ -50,7 +51,7 @@ internal data class CashImportPreviewSnapshot(
             listed.orEmpty().mapNotNull { components[it["component_id"].toString()] }
         }
         val componentIds = parts.map { it.componentId }.toSet()
-        val complete = buildCashRelationGraph(formal, parts, selectedEdges,
+        val complete = graphBuilder(formal, parts, selectedEdges,
             fundingRows.map { it.componentId.toString() }.filter { it in componentIds })
         val drafts = buildCashProjections(parents.mapNotNull { facts[it]?.takeIf { fact -> fact.state == "draft" } }, emptyList())
         return CashProjectionBuild(complete.projections + drafts.projections)
