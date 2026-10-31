@@ -5,11 +5,22 @@ import java.nio.charset.StandardCharsets
 import java.sql.Connection
 import kotlinx.serialization.json.*
 
+internal fun interface CashImportPlanBuilder {
+    fun build(context: CashSqlContext, files: List<ParsedImportFile>, input: Map<String, Any?>,
+        previous: Map<String, Any?>?): Map<String, Any?>
+}
+
 /** 上传命令的工作区事务边界：解析在锁外，发布与永久收据核实在同一把工作区锁内。 */
 internal class CashImportHttpService(private val database: Database, private val staging: ParsedImportStore,
     private val parser: (CashImportUpload, ByteArray) -> ParsedCashDocument = { upload, content ->
         CashStatementRowNormalization.parseCashStatement(content, upload.sourceHint, upload.password)
     }) {
+    private var builder = CashImportPlanBuilder { context, files, input, previous ->
+        CashImportBusinessPlanBuilder(context).build(files, input, previous)
+    }
+    internal constructor(database: Database, staging: ParsedImportStore, builder: CashImportPlanBuilder) : this(database, staging) {
+        this.builder = builder
+    }
     private var commands = CashImportCommandService(database, staging)
     internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService) : this(database, staging) {
         this.commands = commands
@@ -198,8 +209,9 @@ internal class CashImportHttpService(private val database: Database, private val
                 if (current.revision != revision(expectedRevision) || current.cancelled || current.plan?.get("plan_id") != previousPlanId)
                     throw CashImportPlanError("plan_changed")
                 val planId = "ip_$sessionId." + MutationPlanStore.secureUrlToken(12)
-                val result = CashImportBusinessPlanBuilder(CashSqlContext(connection, principal.workspaceId!!, database.sqlite))
-                    .build(current.files, previewInput, current.plan ?: CashImportChoiceContext.previous(current))
+                @Suppress("UNCHECKED_CAST") val builderInput = CashRecordPolicy.copyValue(previewInput) as Map<String, Any?>
+                val result = builder.build(CashSqlContext(connection, principal.workspaceId!!, database.sqlite),
+                    current.files, builderInput, current.plan ?: CashImportChoiceContext.previous(current))
                 val items = result["items"] as? List<*> ?: throw CashImportPlanError("plan_build_failed")
                 if (result["summary"] !is Map<*, *> || result["can_commit"] !is Boolean) throw CashImportPlanError("plan_build_failed")
                 val identifiers = mutableSetOf<String>()

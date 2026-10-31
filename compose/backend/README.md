@@ -103,6 +103,17 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 
+原计划发布断言由 `CashImportOriginalPublicationTest` 直接验证，不使用 Python 预期回包。为 `scripts/export_cash_import_publication_contracts.py --help` 列出的每个 `--scenario` 手工准备独立空测试库，运行下列命令；`--output` 是全部场景的共同根目录，生成器在其下建立场景子目录。设置 `FT_KOTLIN_IMPORT_PUBLICATION_CONTRACT_DIR` 为此根目录后运行测试。生成器只使用原匿名账本和认证种子；121 条合成条目、畸形构建结果及原断言都在 Kotlin 中定义。消费和权限测试会修改各自隔离库，重跑必须重新准备。
+
+```bash
+PYTHONPATH=.:src:tests PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_cash_import_publication_contracts.py \
+  --database-url "$FT_TEST_POSTGRES_URL" --output "$FT_KOTLIN_IMPORT_PUBLICATION_CONTRACT_DIR" --scenario publication
+cd compose
+./gradlew :backend:test --tests '*CashImportOriginalPublicationTest' -PbackendFunctionalOnly=true
+```
+
+SQLite 同样逐场景显式传入不同的 `sqlite+pysqlite:////绝对路径/测试.db`，不设置 PostgreSQL URL。计划发布保留修订、原有效期、旧计划及输入不可变性；缺省详情映射可为空，显式 `null` 的处理明细或文件结果会在发布前拒绝。
+
 原确认断言夹具需为生成器 `--help` 中的每个 `--scenario` 准备独立空测试库，以 `--output <仓库外根目录>/<scenario>` 输出；设置 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` 为该根目录。生成器复用原匿名账本、editor、现金/贷款账户和已解析文件，运行时环境为 `PYTHONPATH=.:src:tests`。Kotlin 自行预览、提交并直接断言，不消费 Python 预期结果；批量故障在实际 JDBC 来源写入后触发。场景还包括镜像与全额退款整组、收据随当前拆分/删除定位、并发一次消费、旧计划拒绝、来源更新及草稿组成项替换/序号交换；关系/认证空页故障在实际写入后验证整体回滚。确认原测试文件的 44 个定义已逐项对应；关系发现内部编程错误停止预览，重验错误码转换保留更精确的原诊断，并补齐文件位置。其他原测试和完整迁移仍待完成。数据库和夹具会被消费，重新执行写入测试须重新准备，不能复用旧收据状态。
 
 PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：

@@ -231,7 +231,7 @@ internal object CashImportPlanViews {
 
     fun operationIndex(plan: Map<String, Any?>): Map<String, Map<String, Any?>> {
         val operations = plan["operations"] ?: emptyList<Any?>()
-        if (operations !is List<*> || plan["detail_values"] !is Map<*, *>) throw CashImportPlanError("plan_build_failed")
+        if (operations !is List<*> || plan.getOrDefault("detail_values", emptyMap<String, Any?>()) !is Map<*, *>) throw CashImportPlanError("plan_build_failed")
         val result = linkedMapOf<String, Map<String, Any?>>()
         for (raw in operations) {
             val operation = raw as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
@@ -343,8 +343,8 @@ internal object CashImportPlanViews {
             if (independentDetail(detail, operations)) continue
             publicDetail(resolveDetail(plan, detail, operations), copyValues = false)
         }
-        processing(plan["processing_details"] ?: emptyList<Any?>())
-        fileResults(plan["file_results"] ?: emptyList<Any?>())
+        processing(plan.getOrDefault("processing_details", emptyList<Any?>()))
+        fileResults(plan.getOrDefault("file_results", emptyList<Any?>()))
         objects(plan["invalidated_choices"] ?: emptyList<Any?>(), setOf("kind", "reference", "code"))
     }
 
