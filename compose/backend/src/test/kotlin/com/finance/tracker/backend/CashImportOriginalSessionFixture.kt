@@ -11,8 +11,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
-internal class CashImportOriginalSessionFixture(name: String, limit: Int = CashImportContext.MAX_UPLOAD_BYTES) {
-    val base = CashImportOriginalApiFixture(name, "FT_KOTLIN_IMPORT_SESSION_CONTRACT_DIR")
+internal class CashImportOriginalSessionFixture(name: String, limit: Int = CashImportContext.MAX_UPLOAD_BYTES,
+    rootVariable: String = "FT_KOTLIN_IMPORT_SESSION_CONTRACT_DIR") {
+    val base = CashImportOriginalApiFixture(name, rootVariable)
     val document = base.files("default").single().document!!
     val calls = mutableListOf<String>()
     var parser: (CashImportUpload) -> ParsedCashDocument = { document }

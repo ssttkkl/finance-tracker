@@ -318,13 +318,16 @@ internal object CashStatementDocumentReader {
     }
 
     /** Python csv.reader 语义：引号内换行属于同一记录，CRLF 规范为 LF，空行仍产生空记录。 */
-    private fun parseCsv(text: String): List<List<String>> {
+    private fun parseCsv(text: String): List<List<String>> = parseDelimited(text, ',')
+
+    internal fun parseDelimited(text: String, delimiter: Char, strict: Boolean = false): List<List<String>> {
         val records = mutableListOf<List<String>>()
         var index = 0
         while (index < text.length) {
             val cells = mutableListOf<String>()
             val field = StringBuilder()
             var quoted = false
+            var afterQuote = false
             var finished = false
             while (index < text.length && !finished) {
                 val char = text[index]
@@ -333,22 +336,29 @@ internal object CashStatementDocumentReader {
                         if (index + 1 < text.length && text[index + 1] == '"') {
                             field.append('"'); index += 2; continue
                         }
-                        quoted = false; index++; continue
+                        quoted = false; afterQuote = true; index++; continue
                     }
                     field.append(char); index++; continue
                 }
+                if (strict && afterQuote && char != delimiter && char != '\n' && char != '\r')
+                    throw StatementDocumentFailure("statement_unreadable")
                 when (char) {
-                    '"' -> { quoted = true; index++ }
-                    ',' -> { cells += field.toString(); field.clear(); index++ }
+                    '"' -> {
+                        if (strict && field.isNotEmpty()) field.append(char) else quoted = true
+                        index++
+                    }
+                    delimiter -> { cells += field.toString(); field.clear(); afterQuote = false; index++ }
                     '\n' -> { cells += field.toString(); index++; finished = true }
                     '\r' -> {
                         if (index + 1 < text.length && text[index + 1] == '\n') {
                             cells += field.toString(); index += 2; finished = true
-                        } else { field.append(char); index++ }
+                        } else if (strict) { cells += field.toString(); index++; finished = true }
+                        else { field.append(char); index++ }
                     }
                     else -> { field.append(char); index++ }
                 }
             }
+            if (strict && quoted) throw StatementDocumentFailure("statement_unreadable")
             if (!finished) cells += field.toString()
             records += cells
         }

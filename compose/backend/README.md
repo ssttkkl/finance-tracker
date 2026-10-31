@@ -103,6 +103,8 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 
+解析上下文的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt) 使用 `scripts/export_cash_import_context_contracts.py` 逐场景准备独立空库，参数同下方会话生成器；设置共同根目录 `FT_KOTLIN_IMPORT_CONTEXT_CONTRACT_DIR` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalContextTest' -PbackendFunctionalOnly=true`。它核对解析在工作区锁外、解析后权限／消费、私有工作流及真实银行字节和加密 PDF；角色／收据用例必须重新准备后重跑。工银亚洲 TSV 以严格逻辑记录读取，备注内引号、制表符及换行保留，非法引号返回文件不可读；私有编辑上下文的导入核实在无收据时返回 `not_committed`，不能用于导入。
+
 会话 HTTP 的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt) 使用 `scripts/export_cash_import_session_contracts.py`。为其 `--help` 列出的每个场景手工准备独立空测试库，传入 `--database-url`、共同输出根目录 `--output` 和 `--scenario`；设置 `FT_KOTLIN_IMPORT_SESSION_CONTRACT_DIR` 为共同根目录，在 `compose/` 运行 `:backend:test --tests '*CashImportOriginalSessionApiTest'`。生成器只准备原账本、认证和解析文档，不生成预期响应。测试通过实际 Ktor 部件观察读取／释放，覆盖元数据拒绝、密码重试、文件范围、用户边界、过期／永久收据与读取失败；内部 8 字节测试预算不改变生产 100 MiB 上限。已提交和修改角色的场景必须重新准备后重跑。
 
 导入对象寿命的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashImportPlanLifetimeTest.kt) 使用原确认生成器的 `lifetime` 场景，沿用 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR`。准备包装在最终快照前、快照在条目选择前退出构建器持有范围；JVM 弱引用及有限次显式 GC 验证可回收性，冻结操作和条目目标保持列表。该合同不按耗时验收，也不替代性能测试。

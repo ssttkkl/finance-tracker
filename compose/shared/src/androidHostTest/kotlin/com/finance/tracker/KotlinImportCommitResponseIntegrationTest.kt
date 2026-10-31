@@ -14,6 +14,26 @@ import kotlinx.serialization.json.*
 import org.junit.Assume.assumeTrue
 
 class KotlinImportCommitResponseIntegrationTest {
+    @Test fun actualPrivateContextResolveIsNotCommittedAndNeverRetried() = runTest {
+        val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
+        assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)
+        val source = Json.parseToJsonElement(Files.readString(Path.of(requireNotNull(root), "cash-import-private-resolve.json"))).jsonObject
+        assertTrue(source.getValue("backend").jsonPrimitive.content in setOf("sqlite", "postgresql"))
+        val planId = source.getValue("plan_id").jsonPrimitive.content
+        var calls = 0
+        val engine = MockEngine { request ->
+            calls++; assertEquals(HttpMethod.Post, request.method); assertEquals("/api/v1/cash-mutations/resolve", request.url.encodedPath)
+            assertEquals(buildJsonObject { put("plan_id", planId); put("idempotency_key", "synthetic-private-context") },
+                Json.parseToJsonElement((request.body as TextContent).text))
+            respond(source.getValue("body").toString(), HttpStatusCode.fromValue(source.getValue("status").jsonPrimitive.int), headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+        try {
+            val result = KtorCashImportLifecycleRepository(client).resolve(planId, "synthetic-private-context")
+            assertEquals("not_committed", result.status); assertNull(result.receipt); assertEquals(1, calls)
+        } finally { client.close() }
+    }
+
     @Test fun actualSessionViewPreservesFileStateAndUnknownCountsWithoutRetry() = runTest {
         val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
         assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)

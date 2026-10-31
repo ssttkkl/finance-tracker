@@ -108,7 +108,7 @@ internal object BankStatementDocumentReader {
 
     private fun readAsia(content: ByteArray): CashStatementDocument {
         val text = try { String(content, StandardCharsets.UTF_16) } catch (_: Exception) { fail("statement_encoding_unsupported") }
-        val records = text.split(Regex("\\r?\\n")).map { it.split('\t') }
+        val records = CashStatementDocumentReader.parseDelimited(text, '\t', strict = true)
         val collected = collect(records, "icbc_asia", padTrailing = false)
         val declarations = linkedMapOf<String, MutableList<List<String>>>()
         for (row in collected.metadata) {

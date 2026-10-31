@@ -43,6 +43,7 @@ internal class CashImportOriginalApiFixture(name: String, rootVariable: String =
         private val values = linkedMapOf<String, ParsedImportObject>()
         var poisonDocuments = false
         @Synchronized fun clear() = values.clear()
+        @Synchronized fun size() = values.size
         @Synchronized fun raw(id: String) = values.getValue(id).content.copyOf()
         @Synchronized override fun readRaw(id: String): ParsedImportObject {
             val value = values[id] ?: throw ParsedImportNotFound()

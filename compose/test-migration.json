@@ -4768,7 +4768,16 @@
       "assertions": [
         "一个文件失败不阻止另一个文件成功"
       ],
-      "targets": [],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "parserFailureAndPasswordRequestAreIsolated"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "unexpectedInternalParserErrorStopsTheWholeOperation"
+        }
+      ],
       "reason": "Kotlin 解析器返回显式文档类型，形状错误在编译期排除；类型化失败隔离由独立回归覆盖。",
       "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k bad_document_from_one_importer",
       "compatibility": "Kotlin 以类型化解析失败验证同一边界，不再接受任意返回形状。"
@@ -4796,51 +4805,65 @@
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication",
       "source_sha256": "1fb377c59b5534e57ef9b93d14b40bf682b2051d0385c06fa43fd2bc37d2b80b",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_commit_while_file_parses_prevents_late_publication[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "解析期间提交成功后拒绝晚到发布",
-        "原会话保持不变"
+        "assert saved == first",
+        "pytest.raises(CashMutationConflict, match='session_committed')"
       ],
-      "targets": [],
-      "reason": "晚到发布阻止需要永久收据与工作区事务，待上传 HTTP 切片。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "consumptionDuringParsingPreventsLatePublication"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled",
       "source_sha256": "2f4156a3d08868b4af3cbff2bf554c503bf0ce92e46788d7e87e640fc722724a",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_consumed_session_is_resolved_before_staging_and_cannot_be_cancelled[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "收据优先于存储缺失",
-        "已消费会话不能取消"
+        "assert context.session is None and context.receipt['receipt_id'] == receipt['receipt_id']",
+        "pytest.raises(CashMutationConflict, match='session_committed')"
       ],
-      "targets": [],
-      "reason": "消费收据优先于临时存储缺失的路径待收据接入；取消已消费会话同样待 HTTP 切片。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "consumedSessionResolvesBeforeStagingAndCannotBeCancelled"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows",
       "source_sha256": "920cd46504c3c4d716d73ebc333236f6487e8851fc98048f2338696e2ac245f1",
-      "status": "retained",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_default_parser_accepts_bank_tables_and_preserves_incomplete_rows[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "扩展名误导仍按内容识别来源",
-        "金额不可读行保留问题码",
-        "成功文件可恢复",
-        "声明数量为空"
+        "assert [file.status for file in created.files] == ['parsed', 'parsed', 'failed']",
+        "assert created.files[0].document.rows[1].issue_codes == ('amount_unreadable',)",
+        "assert created.files[1].document.rows[0].fields['amount'] == '-100.50'",
+        "assert restored == created",
+        "assert restored.files[0].document.declared_count is None"
       ],
-      "targets": [],
-      "reason": "银行表格解析与不完整行保留已由现有文档和行归一 Python 对照覆盖，本层只消费同一归一结果。",
-      "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k default_parser_accepts_bank_tables_and_preserves_incomplete_rows",
-      "compatibility": "Kotlin BankStatementDocumentGoldenTest 与 BankRowNormalizationGoldenTest 使用同一 Python 对照。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "actualBankBytesUseDefaultParserAndPreserveIncompleteRows"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_each_file_parsed_once_and_only_parsed_rows_survive",
@@ -4867,18 +4890,24 @@
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import",
       "source_sha256": "de890b703d3b89baa1641cd37d1dcfa653c907f387074fe7a81872754135ff4a",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import[cash_web_runtime-mutation]",
         "tests/contract/test_parsed_cash_import_context.py::test_edit_context_is_not_a_public_import[postgres_cash_web_runtime-mutation]"
       ],
       "assertions": [
-        "非导入上下文对会话命令不可见",
-        "计划预览、读取和提交拒绝",
-        "提交结果查询为未提交"
+        "assert commands.resolve(plan_id, idempotency_key='synthetic-private-context') == {'status': 'not_committed'}",
+        "pytest.raises(CashImportPlanError, match='plan_expired')",
+        "pytest.raises(ImportSessionNotFound)",
+        "pytest.raises(CashImportPlanError, match='plan_expired')"
       ],
-      "targets": [],
-      "reason": "会话读取、取消与追加已拒绝非导入上下文；计划读取、提交和收据查询待 HTTP/收据切片迁移。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "privateEditContextIsNotPublicImport"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_file_parser_failure_and_password_request_are_isolated",
@@ -4895,7 +4924,16 @@
         "技术正文不进入会话",
         "密码文件无文档"
       ],
-      "targets": [],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "parserFailureAndPasswordRequestAreIsolated"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "unexpectedInternalParserErrorStopsTheWholeOperation"
+        }
+      ],
       "reason": "Kotlin 解析器为显式类型；已知格式错误与密码请求映射为文件结果，未知异常按内部错误停止，不复制 Python 的任意异常吸收。",
       "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k file_parser_failure_and_password_request_are_isolated",
       "compatibility": "密码与已知格式错误的文件结果与 Python 一致；未知异常处理是 Kotlin 边界的刻意收窄。"
@@ -4943,16 +4981,22 @@
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock",
       "source_sha256": "4d1ed027fea3ed1793f60317476e7cd88e5b07f285c83fc3d3b8dd65930dbf0f",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_parsing_does_not_hold_the_workspace_lock[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "解析期间其他工作区命令可进入"
+        "assert _service(context_runtime, parser).create((_upload(),)).files[0].status == 'parsed'",
+        "assert entered.wait(2), 'heavy parsing must be outside the workspace boundary'"
       ],
-      "targets": [],
-      "reason": "纯准备层不持有工作区锁；解析与另一命令并发的真实边界待工作区事务切片。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "parsingDoesNotHoldWorkspaceLock"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_password_is_scrubbed_from_filename_before_truncation",
@@ -4992,7 +5036,8 @@
         "正确密码后解析成功且修订递增",
         "替换不延长过期时间",
         "只使用本次上传正文和密码",
-        "显示文件名不含密码"
+        "显示文件名不含密码",
+        "Real anonymous encrypted PDF input goes through the default byte parser for absent/wrong/correct passwords; JVM reads the upload ByteArray and PDFBox closes its document with use, rather than constructing Python file streams."
       ],
       "targets": [
         {
@@ -5006,6 +5051,10 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
           "test": "displayFilenameMatchesPythonContracts"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "realEncryptedPdfRetryUsesEachNewUploadAndNeverStagesPassword"
         }
       ]
     },
@@ -5063,17 +5112,22 @@
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing",
       "source_sha256": "352be825209d5cf947f59dba5b301b3c8b632d09f67b2b34c43a6628857197b8",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_revoked_import_permission_is_rechecked_after_parsing[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "解析后权限撤销拒绝发布",
-        "会话存储保持为空"
+        "assert service._staging._entries == {}",
+        "pytest.raises(CashImportPermissionDenied)"
       ],
-      "targets": [],
-      "reason": "解析后权限重验需要工作区事务与成员查询，待上传 HTTP 切片。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "revokedPermissionIsRecheckedAfterParsingBeforePublication"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_scope_setting_is_only_for_wechat_and_invalid_values_leave_session_unchanged",
@@ -5129,7 +5183,16 @@
         "错误正文不进入日志",
         "替换后诊断清除"
       ],
-      "targets": [],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "parserFailureAndPasswordRequestAreIsolated"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportContextTest.kt",
+          "test": "unexpectedInternalParserErrorStopsTheWholeOperation"
+        }
+      ],
       "reason": "Kotlin 内部未知异常停止整次操作；类型化文件错误保留 file_read 诊断，替换后诊断清除由独立回归覆盖。",
       "python_command": "PYTHONPATH=src:tests .venv/bin/python -m pytest tests/contract/test_parsed_cash_import_context.py -k unexpected_converter_diagnostic",
       "compatibility": "诊断结构由同一编码校验；内部异常策略按 Kotlin 边界收窄。"
@@ -5160,33 +5223,43 @@
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission",
       "source_sha256": "87d9e3dff093a58eaf54a6b4f1ff151f11856793201f04ad50d696a4a932f169",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_rechecks_current_write_permission[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "解析后权限降级拒绝写入",
-        "会话保持不变"
+        "assert service.get(created.session_id).session == created",
+        "pytest.raises(CashImportPermissionDenied)"
       ],
-      "targets": [],
-      "reason": "成员权限查询属于工作区事务层，待上传 HTTP 切片接入。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "wechatScopeRechecksCurrentWritePermissionWithoutChangingSession"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries",
       "source_sha256": "84b8aca2b82b003b9891147d2b0bdf98f6c59505beda5ae0ac0e5118a89c8758",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries[cash_web_runtime]",
         "tests/contract/test_parsed_cash_import_context.py::test_wechat_scope_setting_uses_revision_membership_and_consumption_boundaries[postgres_cash_web_runtime]"
       ],
       "assertions": [
-        "错误修订拒绝",
-        "已消费会话拒绝修改",
-        "收据仍可读取"
+        "assert service.get(created.session_id).receipt",
+        "pytest.raises(ImportSessionRevisionConflict)",
+        "pytest.raises(CashMutationConflict, match='session_committed')"
       ],
-      "targets": [],
-      "reason": "修订冲突与关闭已在纯层覆盖；已消费会话的 session_committed 取决于永久收据，待上传 HTTP 切片。"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt",
+          "test": "wechatScopeUsesCurrentRevisionAndDurableConsumptionBoundary"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_web_api.py::test_projection_evidence_api_has_not_found_unavailable_and_missing_snapshot_contracts",

@@ -143,7 +143,7 @@ internal class CashImportCommandService(private val database: Database, private 
             val stored = try { staging.get(sessionId, workspace, current.userId) }
                 catch (_: ParsedImportNotFound) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
                 catch (_: ParsedImportExpired) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
-            if (stored.workflowKind != "import") throw ParsedImportNotFound()
+            if (stored.workflowKind != "import") return@writeNonblocking buildJsonObject { put("status", "not_committed") }
             buildJsonObject { put("status", if (stored.cancelled || stored.plan?.get("plan_id") != planId) "not_committed" else "retry_original") }
         } } catch (failure: StorageFailure) {
             if (failure.code == "storage.busy") buildJsonObject { put("status", "pending") } else throw failure
