@@ -669,6 +669,197 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection",
+      "source_sha256": "1cb9fd4149a94f658511ae9d03f95474c953f94054b90981c65d463f357a3f70",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[cash_web_runtime-references]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[cash_web_runtime-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[cash_web_runtime-balance]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[postgres_cash_web_runtime-references]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[postgres_cash_web_runtime-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection[postgres_cash_web_runtime-balance]"
+      ],
+      "assertions": [
+        "with pytest.raises(RuntimeError):\n    _delete(runtime, 1101)",
+        "assert _rows(runtime) == before and _records(runtime).read('1101') == fields and (_snapshot(runtime) == balances)",
+        "assert CashProjectionService(runtime.sessions, runtime.workspace_id).status()['projection_version'] == version",
+        "assert all((getattr(issue, key) == value for (key, value) in issue_before.items()))",
+        "assert set(session.scalars(select(CashIssueCandidateModel.candidate_transaction_id).where(CashIssueCandidateModel.issue_id == issue.id))) == {1101, 1102}",
+        "assert [(row.id, row.transaction_id, row.identity_key, row.revision) for row in session.scalars(select(CashSourceBindingModel).where(CashSourceBindingModel.transaction_id == 1101))] == bindings",
+        "assert [(row.id, row.account_id, row.amount, row.currency, row.ordinal, row.label, row.source_key, row.metadata_json) for row in session.scalars(select(CashTransactionComponentModel).where(CashTransactionComponentModel.cash_transaction_id == 1101))] == parts"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalFailuresAfterReferencesProjectionAndBalanceRollBackEveryTable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation",
+      "source_sha256": "ad18e67531d8110e86f18e0322bdf569d066493207ec47f5a979893d43aa1ea7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[cash_web_runtime-True-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[cash_web_runtime-True-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[cash_web_runtime-False-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[cash_web_runtime-False-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[postgres_cash_web_runtime-True-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[postgres_cash_web_runtime-True-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[postgres_cash_web_runtime-False-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_delete_parent_only_draft_cleans_its_current_relation[postgres_cash_web_runtime-False-projection]"
+      ],
+      "assertions": [
+        "assert _delete(runtime, 1101, operation)['deleted']",
+        "assert parent is not None and parent.deleted_at is not None",
+        "assert parent.delete_reason == ('delete_all' if operation == 'projection' else 'delete_current_dissolve')",
+        "assert not list(session.scalars(select(TransactionRelationModel).where(TransactionRelationModel.workspace_id == runtime.workspace_id)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalParentOnlyDraftDeletesActiveAndInactiveRelationsThroughBothOperations"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_deleted_source_occurrence_is_silently_imported_as_a_new_record",
+      "source_sha256": "584aa12ad7bb82e59e98f285837b27053a4a39eb5cce23f653f0a1169d4592c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_deleted_source_occurrence_is_silently_imported_as_a_new_record[cash_web_runtime-synthetic-deleted-provider]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleted_source_occurrence_is_silently_imported_as_a_new_record[cash_web_runtime-None]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleted_source_occurrence_is_silently_imported_as_a_new_record[postgres_cash_web_runtime-synthetic-deleted-provider]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleted_source_occurrence_is_silently_imported_as_a_new_record[postgres_cash_web_runtime-None]"
+      ],
+      "assertions": [
+        "assert repeated['summary']['create_posted'] == 1 and repeated['summary'].get('create_draft', 0) == 0",
+        "assert result['outcome'] == 'created_posted' and result['transaction_id'] != identifier",
+        "assert deleted is not None and deleted.deleted_at is not None and (deleted.deleted_by == 'web')",
+        "assert deleted.amount == Decimal(before['amount']) and deleted.source_payload == before['source_payload']",
+        "assert len(parts) == len(before['components'])",
+        "assert not list(session.scalars(select(CashSourceBindingModel).where(CashSourceBindingModel.transaction_id == int(identifier))))",
+        "assert repository.current_references({int(identifier)}, state=repository.require_ready_state_lock()) == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalDeletedSourceReimportsAsNewRecordWithAndWithoutProviderId"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_joint_draft_member_clears_the_complete_unconfirmed_group",
+      "source_sha256": "09b50b31a1a9038a6503c0c78b512245a6f0317734985ee6020044a5eee9233e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_joint_draft_member_clears_the_complete_unconfirmed_group[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_joint_draft_member_clears_the_complete_unconfirmed_group[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert not {row['id'] for row in rows}.intersection((row['id'] for row in mirrors))",
+        "assert retained['kind'] == 'refund_offset' and retained['state'] == 'confirmed'",
+        "assert _records(runtime).read('1103')['confirmation_status'] == 'confirmed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalJointDraftDeletionClearsUnconfirmedGroupAndKeepsConfirmedEdge"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_deleting_one_member_keeps_unrelated_confirmed_edges_in_the_old_closure",
+      "source_sha256": "ca79a39803a04d58b7bbab87efeeda11aade98228abf37ef5a208c9fa2fd98f7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_one_member_keeps_unrelated_confirmed_edges_in_the_old_closure[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_one_member_keeps_unrelated_confirmed_edges_in_the_old_closure[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert row['id'] == retained['id'] and row['active'] and (row['state'] == 'confirmed')",
+        "assert remaining[0]['projection_ref']['projection_id'] == remaining[1]['projection_ref']['projection_id']",
+        "assert all((item['confirmation_status'] == 'confirmed' for item in remaining))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalUnrelatedConfirmedEdgesRemainInOldClosure"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revisions",
+      "source_sha256": "30f802948b744b0bebe4f60f62a040365555a9b773e4e567213c9930d7a1de91",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revisions[cash_web_runtime-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revisions[cash_web_runtime-projection]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revisions[postgres_cash_web_runtime-record]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_only_a_candidate_keeps_other_proofs_and_advances_current_revisions[postgres_cash_web_runtime-projection]"
+      ],
+      "assertions": [
+        "assert after['id'] == before['id'] and after['row_revision'] > before['row_revision'] and (after['state'] == 'draft')",
+        "assert after['candidates'] == [candidate for candidate in before['candidates'] if candidate['candidate_transaction_id'] == 1105]",
+        "assert issue.revision > issue_before['revision']",
+        "assert all((getattr(issue, key) == value for (key, value) in issue_before.items() if key != 'revision'))",
+        "assert list(session.scalars(select(CashIssueCandidateModel.candidate_transaction_id).where(CashIssueCandidateModel.issue_id == issue.id))) == [1102]",
+        "assert not list(session.scalars(select(CashSourceBindingModel).where(CashSourceBindingModel.transaction_id == 1101)))",
+        "assert not list(session.scalars(select(CashTransactionIssueModel).where(CashTransactionIssueModel.transaction_id == 1101)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalCandidateDeletionKeepsOtherProofsAndAdvancesCurrentRevisions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_parent_only_relation_is_counted_in_projection_delete_preview",
+      "source_sha256": "aff9fa8563f13641c3df75ca04952cc5e5b0e43653820eaa5ce6d00a0bbb603b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_parent_only_relation_is_counted_in_projection_delete_preview[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_delete.py::test_parent_only_relation_is_counted_in_projection_delete_preview[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert impact == {'projection_count': 1, 'transaction_count': 1, 'relation_group_count': 1}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalParentOnlyRelationCountsInPreviewWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_same_group_in_another_workspace_is_not_part_of_deletion",
+      "source_sha256": "bb2e6597d9003031990d2025ae57061849e688125960a652a44a7918d2febc43",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_same_group_in_another_workspace_is_not_part_of_deletion[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_delete.py::test_same_group_in_another_workspace_is_not_part_of_deletion[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert CurrentCashRelationRepository(session, other).get(row['id']) == row"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalSameGroupInOtherWorkspaceIsUntouched"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_draft_balances.py::test_balance_delta_preserves_all_supported_digits",
       "source_sha256": "4c412cb6b21f47b15843695f51aa6f6902290dd9cd6c3e5ae4cd03f962fe2751",
       "status": "migrated",
@@ -8172,6 +8363,205 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportConfigTest.kt",
           "test": "backendAndLocalMemorySwitchMustBeExplicit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets",
+      "source_sha256": "c6c5a95939818b73898a6d3d7b619e04ea5f6756aa78a070c24fbd06bc69f07a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='projection.delete_required'):\n    service.preview_delete_projections([], projection_version=page.projection_version)",
+        "with pytest.raises(ValueError, match='projection.version_conflict'):\n    service.preview_delete_projections(['cash:not-visible'], projection_version=page.projection_version)",
+        "with pytest.raises(ValueError, match='projection.version_conflict'):\n    service.preview_delete_projections(['cash:other-workspace'], projection_version=page.projection_version)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalEmptyHiddenAndCrossWorkspaceSelectionsReject"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_rejects_stale_projection_version_without_mutating_facts",
+      "source_sha256": "efc3a68b96057222127b71316d8d040ace22fa6f9956244e4ffd8f06200fe259",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_rejects_stale_projection_version_without_mutating_facts"
+      ],
+      "assertions": [
+        "with pytest.raises(ValueError, match='projection.version_conflict'):\n    service.delete_projections(selected, projection_version=page.projection_version)",
+        "assert service.get_record(fact_id)['record']['id'] == int(fact_id)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalStaleVersionRejectsWithoutMutatingFacts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_related_projection_deletes_the_whole_relation_group",
+      "source_sha256": "604db730b6712b7a8f745ba1378e6b67b4d1cb64e8b87f38148ff92036ba08a2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_related_projection_deletes_the_whole_relation_group"
+      ],
+      "assertions": [
+        "assert len(selected) == 1",
+        "assert impact == {'projection_count': 1, 'transaction_count': 3, 'relation_group_count': 1}",
+        "assert deleted['transaction_count'] == 3",
+        "with pytest.raises(ValueError, match='找不到'):\n    service.get_record(record['id'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalBatchRelatedSelectionDeletesWholeGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically",
+      "source_sha256": "3821fa754ae9a79e8ea361c0d02bd7106fd606f696efde9ebf24422eda9a5da5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically[cash_web_runtime]",
+        "tests/test_cash_ledger_management.py::test_batch_delete_reports_impact_and_removes_selected_projections_atomically[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert impact == {'projection_count': 2, 'transaction_count': 2, 'relation_group_count': 0}",
+        "assert deleted['projection_count'] == 2",
+        "assert deleted['transaction_count'] == 2",
+        "assert deleted['relation_group_count'] == 0",
+        "assert set(deleted['deleted_fact_ids']) == {'1002', '1003'}",
+        "assert deleted['projection_version'] > page.projection_version",
+        "assert [item.projection_id for item in remaining.items] == ['cash:1001']",
+        "with pytest.raises(ValueError, match='找不到'):\n    service.get_record('1002')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalBatchImpactAndDeleteAreAtomicAndRemoveSelectedRecords"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure",
+      "source_sha256": "66764a6ca429c95954f48a80034247f23189ae4a18608d435bac473657bc0eb3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_rolls_back_projection_and_fact_removal_on_write_failure"
+      ],
+      "assertions": [
+        "with pytest.raises(RuntimeError, match='snapshot write failed'):\n    service.delete_projections(['cash:1003'], projection_version=page.projection_version)",
+        "assert service.get_record('1003')['record']['id'] == 1003",
+        "assert 'cash:1003' in {item.projection_id for item in current.items}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalBatchFailureRollsBackFactAndProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_batch_delete_routes_preview_confirmation_and_version_errors",
+      "source_sha256": "c0f94677c61256d9545acfa7ddb5c49c420533493bcdb07184509bdbb289bebe",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_batch_delete_routes_preview_confirmation_and_version_errors"
+      ],
+      "assertions": [
+        "assert impact.status_code == 200",
+        "assert impact.json() == {'projection_count': 1, 'transaction_count': 1, 'relation_group_count': 0}",
+        "assert missing_confirmation.status_code == 400",
+        "assert missing_confirmation.json()['error']['code'] == 'projection.confirmation_required'",
+        "assert deleted.status_code == 200",
+        "assert deleted.json()['transaction_count'] == 1",
+        "assert 'deleted_fact_ids' not in deleted.json()",
+        "assert stale.status_code == 409",
+        "assert stale.json()['error']['code'] == 'projection.version_conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalHttpPreviewConfirmationDeleteAndStaleErrors"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_delete_record_removes_relation_and_keeps_other_endpoint",
+      "source_sha256": "6643934e847e447bea3c84db279eeb417d4550ad1e916da3da548f5681f4b8d1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_delete_record_removes_relation_and_keeps_other_endpoint"
+      ],
+      "assertions": [
+        "assert relation['relations']",
+        "assert result['deleted'] is True",
+        "assert result['related_count'] == 1",
+        "assert service.get_record(incoming['record']['id'])['record']['id'] == incoming['record']['id']",
+        "with pytest.raises(ValueError, match='找不到'):\n    service.get_record(outgoing['record']['id'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalRecordDeleteRemovesRelationAndKeepsOtherEndpoint"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_delete_related_record_supports_delete_all_or_current_and_dissolve",
+      "source_sha256": "6a89bec1c0316f405273ec50939d1ae816645bedbe8e3de8d9550acb6aa01526",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_delete_related_record_supports_delete_all_or_current_and_dissolve"
+      ],
+      "assertions": [
+        "assert result['deleted'] is True",
+        "assert result['deleted_fact_ids'] == [str(first['id'])]",
+        "assert service.get_record(second['id'])['relations'] == []",
+        "assert set(result['deleted_fact_ids']) == {str(third['id']), str(fourth['id'])}",
+        "with pytest.raises(ValueError, match='找不到'):\n    service.get_record(fourth['id'])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalDeleteCurrentDissolvesWithoutDeletingRemainingFact"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalDeleteAllRemovesBothMembersOfConfirmedGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_ledger_management.py::test_delete_transfer_related_record_clears_projection_relation_before_fact",
+      "source_sha256": "8d75994e002f248dedd4564b7e76b4b65f27e4bd8bad34b21f4ac162a5bc162a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_ledger_management.py::test_delete_transfer_related_record_clears_projection_relation_before_fact"
+      ],
+      "assertions": [
+        "assert deleted['deleted'] is True",
+        "assert service.get_record(incoming['id'])['relations'] == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt",
+          "test": "originalTransferDeleteClearsProjectionRelationBeforeFact"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"

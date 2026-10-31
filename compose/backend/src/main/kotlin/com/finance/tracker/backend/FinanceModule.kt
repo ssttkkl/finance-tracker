@@ -64,11 +64,23 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
     projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
+    cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashDeletionFailure> { call, failure ->
+            if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+            else if (failure.record) call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_record", failure.code)))
+            else {
+                val messages = mapOf("projection.delete_required" to "请选择要删除的收支记录。", "projection.confirmation_required" to "请确认删除已选收支记录。",
+                    "projection.version_conflict" to "列表已更新，请重新选择记录。", "projection.unavailable" to "账本数据暂不可用，请先完成更新。")
+                val status = when (failure.code) { "projection.unavailable" -> 503; "projection.version_conflict" -> 409; else -> 400 }
+                call.respond(HttpStatusCode.fromValue(status), ErrorBody(ErrorDetail(failure.code.takeIf { it in messages } ?: "invalid_projection_delete",
+                    messages[failure.code] ?: "收支记录无法删除，请刷新后重试。")))
+            }
+        }
         exception<LegacyCashSearchFailure> { call, failure ->
             if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
             else call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail(failure.code, "搜索条件或加载位置无效，请重新搜索。")))
@@ -658,6 +670,32 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 projectionList.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        delete("/api/v1/cash-records/{fact_id}") {
+            val value = try { categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>())).value }
+                catch (_: CategoryFailure) { JsonObject(emptyMap()) }
+                catch (_: IllegalArgumentException) { JsonObject(emptyMap()) }
+            val body = value as? JsonObject ?: throw CashDeletionFailure("internal")
+            val mode = body["mode"].takeIf(::pythonTruthy)?.let(::pythonString) ?: "delete_current_dissolve"
+            val result = withContext(Dispatchers.IO) {
+                cashDeletion.deleteRecord(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["fact_id"]!!, mode, call.attributes[requestPrincipalKey].workspaceId)
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        for (deleting in listOf(false, true)) route(if (deleting) "/api/v1/cash-projections" else "/api/v1/cash-projections/delete-impact", if (deleting) HttpMethod.Delete else HttpMethod.Post) {
+            handle {
+                val body = try { categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>())).value as? JsonObject
+                    ?: throw CashDeletionFailure("projection.delete_required") }
+                    catch (_: CategoryFailure) { throw CashDeletionFailure("invalid_projection_delete") }
+                    catch (_: IllegalArgumentException) { throw CashDeletionFailure("invalid_projection_delete") }
+                if (deleting && body["confirmed"] != JsonPrimitive(true)) throw CashDeletionFailure("projection.confirmation_required")
+                val result = withContext(Dispatchers.IO) {
+                    val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                    if (deleting) JsonObject(cashDeletion.deleteProjections(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey].workspaceId) - "deleted_fact_ids")
+                    else cashDeletion.preview(token, body["projection_ids"], body["projection_version"], call.attributes[requestPrincipalKey])
+                }
+                call.respondText(result.toString(), ContentType.Application.Json)
+            }
         }
         get("/api/v1/cash-records") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
