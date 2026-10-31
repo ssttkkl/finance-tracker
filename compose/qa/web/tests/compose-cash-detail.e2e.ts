@@ -13,7 +13,7 @@ async function openDetail(page: Page, width: number) {
   await page.goto("/w/workspace-1/");
   const row = byId(page, "ledger.record-projection-1");
   await expect(row).toBeVisible();
-  await press(page, width < 600 ? row : row.locator('[id="ledger.open-record"]').last());
+  await press(page, row);
   await expect(byId(page, "cash.current.detail")).toBeVisible();
 }
 function currentRecord(note = "拿铁", counterparty = "咖啡店") {

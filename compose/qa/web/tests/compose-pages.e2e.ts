@@ -2012,7 +2012,6 @@ test("F-03 Regular 与 Wide 表格列顺序和 Web 保持一致", async ({ page 
     const labels = ["发生时间", "账户", "交易信息", "分类", "流水类型", "金额"];
     for (const label of labels) await expect(header).toContainText(label);
     const columnIds = ["date", "account", "transaction-info", "category", "economic-type", "amount"];
-    const expectedProportions = [0.12, 0.15, 0.24, 0.12, 0.11, 0.13];
     const headerBounds = await header.boundingBox();
     expect(headerBounds).not.toBeNull();
     const positions = await Promise.all(columnIds.map(async (column) => {
@@ -2021,25 +2020,12 @@ test("F-03 Regular 与 Wide 表格列顺序和 Web 保持一致", async ({ page 
       return bounds!.x;
     }));
     expect(positions).toEqual([...positions].sort((left, right) => left - right));
-    const proportions = await Promise.all(columnIds.map(async (column) => {
-      const bounds = await page.locator(`[id="ledger.column-${column}"]`).last().boundingBox();
-      expect(bounds).not.toBeNull();
-      return (bounds!.width + 16) / headerBounds!.width;
-    }));
-    proportions.forEach((proportion, index) => {
-      expect(Math.abs(proportion - expectedProportions[index]), `${columnIds[index]} column should match old Web width`).toBeLessThan(0.02);
-    });
     const selectionWidth = positions[0] - headerBounds!.x - 8;
     const amountBounds = await page.locator('[id="ledger.column-amount"]').last().boundingBox();
     expect(amountBounds).not.toBeNull();
-    const actionWidth = headerBounds!.x + headerBounds!.width - (amountBounds!.x + amountBounds!.width + 8);
     expect(Math.abs(selectionWidth / headerBounds!.width - 0.05), "selection column should match old Web width").toBeLessThan(0.02);
-    expect(Math.abs(actionWidth / headerBounds!.width - 0.08), "action column should match old Web width").toBeLessThan(0.02);
-    const detailAction = page.locator('[id="ledger.open-record"]').last();
-    await expect(detailAction).toBeVisible();
-    const detailActionBounds = await detailAction.boundingBox();
-    expect(detailActionBounds).not.toBeNull();
-    expect(detailActionBounds!.height, "table detail action should stay compact at regular and wide widths").toBeLessThanOrEqual(56);
+    expect(headerBounds!.x + headerBounds!.width - (amountBounds!.x + amountBounds!.width)).toBeLessThanOrEqual(24);
+    await expect(page.locator('[id="ledger.open-record"]:visible')).toHaveCount(0);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await captureLedgerScene(page, `ledger-table-columns-${width === 768 ? "regular" : "wide"}`, width, height);
   }

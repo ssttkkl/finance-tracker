@@ -8,6 +8,7 @@ import com.finance.tracker.data.KtorCashImportLifecycleRepository
 import com.finance.tracker.data.DemoCashImportLifecycleRepository
 import com.finance.tracker.domain.CashImportLifecycleRepository
 import com.finance.tracker.data.FinanceApiClient
+import com.finance.tracker.data.seedAuditScenarios
 import com.finance.tracker.data.DemoFinanceRepository
 import com.finance.tracker.data.DemoSessionRepository
 import com.finance.tracker.data.DemoStatementFileSource
@@ -48,7 +49,7 @@ fun createFinanceTrackerGraph(apiOrigin: String, tokenStore: TokenStore): Financ
 }
 
 fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph {
-    val finance = DemoFinanceRepository()
+    val finance = DemoFinanceRepository().apply { seedAuditScenarios() }
     return FinanceTrackerGraph(
     apiClient = null,
     sessionRepository = DemoSessionRepository(),
@@ -57,6 +58,6 @@ fun createDemoFinanceTrackerGraph(): FinanceTrackerGraph {
     cashCreationRepository = DemoCashCreationRepository(finance),
     cashImportRepository = DemoCashImportLifecycleRepository(finance),
     diagnosticLogger = NoOpDiagnosticLogger,
-    demoStatement = DemoStatementFileSource(),
+    demoStatement = DemoStatementFileSource(auditScenarios = true),
 )
 }

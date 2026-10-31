@@ -213,8 +213,8 @@ def cash_plan_router(services):
             plan_id, expected_plan_revision=body.expected_plan_revision, idempotency_key=key), keyed=True, write=True)
 
     @router.get("/cash-import/plans/{plan_id}", response_model=ImportPlanView, response_model_exclude_unset=True)
-    async def read_plan(plan_id: str):
-        return await invoke(lambda: services.cash_import_commands().read_plan(plan_id))
+    async def read_plan(plan_id: str, timezone_name: str = "UTC"):
+        return await invoke(lambda: services.cash_import_commands().read_plan(plan_id, timezone_name=timezone_name))
 
     @router.get("/cash-import/plans/{plan_id}/items", response_model=ImportItemPageView, response_model_exclude_unset=True,
         openapi_extra=page_contract(indexed=True))

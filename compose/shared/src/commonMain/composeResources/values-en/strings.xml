@@ -815,6 +815,11 @@
     <string name="cash_import_aftercare">Review drafts and pending relationships in the ledger</string>
     <string name="cash_import_expected_items">Expected items</string>
     <string name="cash_import_draft">Drafts</string>
+    <string name="cash_draft_needs_details">Draft needs details</string>
+    <string name="cash_pair_suggestion">Pair suggestion</string>
+    <string name="cash_source_update_needs_review">Bill update to review</string>
+    <string name="cash_source_identity_needs_review">Possible duplicate to review</string>
+    <string name="cash_information_needs_review">Details to review</string>
     <string name="cash_import_draft_tag">Draft</string>
     <string name="cash_import_relation_pending">Relationship pending</string>
     <string name="cash_import_relationship_summary">Relationship: %1$s</string>
@@ -839,7 +844,7 @@
     <string name="cash_detail_check">Review suggestion</string>
     <string name="cash_detail_reject">Reject suggestion</string>
     <string name="cash_detail_remove">Remove association</string>
-    <string name="cash_detail_add">Add association</string>
+    <string name="cash_detail_add">Find a record to link</string>
     <string name="cash_detail_no_target">This transaction may be related. Select its counterpart.</string>
     <string name="cash_detail_review_hint">Review matching transactions.</string>
     <string name="cash_detail_repayment">Credit repayment</string>

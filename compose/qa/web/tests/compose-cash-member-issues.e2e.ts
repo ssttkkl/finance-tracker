@@ -21,7 +21,7 @@ for (const width of [390, 768, 1440]) {
     await page.route(/\/api\/v1\/cash-projections(?:\?|$)/, route => route.fulfill({ json: {
       items: [{ ...projection, confirmation_status: committed ? "confirmed" : "pending", attention_count: committed ? 0 : 1 }],
       next_cursor: null, projection_version: committed ? 10 : 9, pending_item_count: committed ? 0 : 1,
-      page_size: 20, filters: {}, filter_options: {}, monthly_summaries: [],
+      page_size: 20, start_index: 0, total_count: 1, filters: {}, filter_options: {}, monthly_summaries: [],
     } }));
     await page.route(/\/api\/v1\/cash-projections\/group-one$/, route => route.fulfill({ json: {
       projection_version: committed ? 10 : 9,
@@ -51,7 +51,7 @@ for (const width of [390, 768, 1440]) {
         created_at: "2026-10-24T00:00:00Z", status: "completed", summary: {}, retained_transaction_id: "12" } });
     });
     await page.goto("/w/workspace-1/");
-    await press(page, width === 390 ? "ledger.record-group-one" : "ledger.open-record");
+    await press(page, "ledger.record-group-one");
     await expect(page.locator('[id="cash.current.detail"]:visible').last()).toContainText("来源账单备注有更新");
     await press(page, "cash.current.process-member-31");
     await expect(page.locator('[id="cash.issue.treatment-31"]:visible').last()).toContainText("账单新备注");

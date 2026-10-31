@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
+import kotlin.math.floor
 
 private const val DRAG_SEEK_INTERVAL_MS = 72L
 private const val FINAL_SEEK_TIMEOUT_MS = 2_000L
@@ -76,15 +77,20 @@ internal fun cashLedgerOrdinalForProgress(progress: Float, totalCount: Int): Int
     return (safeProgress * (totalCount - 1)).roundToInt().coerceIn(0, totalCount - 1)
 }
 
-private data class ScrollbarSeekRequest(val ordinal: Int, val exact: Boolean)
+internal fun cashLedgerPixelOffsetForPosition(position: Double, rowSize: Int): Int {
+    if (rowSize <= 0 || !position.isFinite()) return 0
+    return ((position - floor(position)) * rowSize).roundToInt().coerceIn(0, rowSize - 1)
+}
+
+private data class ScrollbarSeekRequest(val position: Double, val exact: Boolean)
 
 private class CashLedgerOrdinalScrollbarAdapter(
     private val totalCount: androidx.compose.runtime.State<Int>,
-    private val ordinalState: MutableState<Int>,
-    private val onSeek: (Int) -> Unit,
+    private val positionState: MutableState<Double>,
+    private val onSeek: (Double) -> Unit,
 ) : ScrollbarAdapter {
     override val scrollOffset: Double
-        get() = ordinalState.value.toDouble()
+        get() = positionState.value
 
     override val contentSize: Double
         get() = totalCount.value.coerceAtLeast(0).toDouble()
@@ -96,9 +102,9 @@ private class CashLedgerOrdinalScrollbarAdapter(
     override suspend fun scrollTo(scrollOffset: Double) {
         val count = totalCount.value
         if (count <= 1) return
-        val ordinal = scrollOffset.roundToInt().coerceIn(0, count - 1)
-        ordinalState.value = ordinal
-        onSeek(ordinal)
+        val position = scrollOffset.coerceIn(0.0, (count - 1).toDouble())
+        positionState.value = position
+        onSeek(position)
     }
 }
 
@@ -118,7 +124,7 @@ internal fun CashLedgerScrollbar(
     val currentVisibleTransactions = listState.layoutInfo.visibleItemsInfo.count { it.index < totalCount }
     val visibleTransactionCount = currentVisibleTransactions.coerceAtLeast(1)
     val firstVisibleOrdinal = listState.firstVisibleItemIndex.coerceIn(0, (totalCount - 1).coerceAtLeast(0))
-    val offsetState = remember(listState) { mutableStateOf(firstVisibleOrdinal) }
+    val offsetState = remember(listState) { mutableStateOf(firstVisibleOrdinal.toDouble()) }
     val pendingSeekState = remember(listState) { mutableStateOf(false) }
     val interactionSource = remember(listState) { MutableInteractionSource() }
     val isDragged by interactionSource.collectIsDraggedAsState()
@@ -129,7 +135,7 @@ internal fun CashLedgerScrollbar(
     val currentIsDragged = rememberUpdatedState(isDragged)
     val wasDragged = remember(listState) { mutableStateOf(false) }
     val description = localizedText("ledger_scrollbar_description")
-    val progress = if (totalCount <= 1) 0f else offsetState.value.coerceIn(0, totalCount - 1).toFloat() / (totalCount - 1)
+    val progress = if (totalCount <= 1) 0f else offsetState.value.coerceIn(0.0, (totalCount - 1).toDouble()).toFloat() / (totalCount - 1)
     val canSeek = totalCount > 1
 
     LaunchedEffect(listState, compact) {
@@ -163,28 +169,32 @@ internal fun CashLedgerScrollbar(
         }
     }
 
-    val requestTarget: (Int, Boolean) -> Unit = { requestedOrdinal, exact ->
+    val requestTarget: (Double, Boolean) -> Unit = { requestedPosition, exact ->
         val count = currentTotalCount.value
-        val ordinal = requestedOrdinal.coerceIn(0, (count - 1).coerceAtLeast(0))
+        val position = requestedPosition.coerceIn(0.0, (count - 1).coerceAtLeast(0).toDouble())
         if (count > 1) {
-            offsetState.value = ordinal
+            offsetState.value = position
             pendingSeekState.value = true
-            seekRequests.trySend(ScrollbarSeekRequest(ordinal, exact))
+            seekRequests.trySend(ScrollbarSeekRequest(position, exact))
         }
     }
     val currentRequestTarget = rememberUpdatedState(requestTarget)
     val adapter = remember(listState) {
         CashLedgerOrdinalScrollbarAdapter(
             totalCount = currentTotalCount,
-            ordinalState = offsetState,
-            onSeek = { ordinal -> currentRequestTarget.value(ordinal, false) },
+            positionState = offsetState,
+            onSeek = { position -> currentRequestTarget.value(position, false) },
         )
     }
 
     LaunchedEffect(listState, totalCount) {
-        snapshotFlow { listState.firstVisibleItemIndex }.collect { ordinal ->
+        snapshotFlow {
+            val ordinal = listState.firstVisibleItemIndex
+            val rowSize = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == ordinal }?.size?.coerceAtLeast(1) ?: 1
+            ordinal.toDouble() + listState.firstVisibleItemScrollOffset.toDouble() / rowSize
+        }.collect { position ->
             if (!currentIsDragged.value && !pendingSeekState.value) {
-                offsetState.value = ordinal.coerceIn(0, (currentTotalCount.value - 1).coerceAtLeast(0))
+                offsetState.value = position.coerceIn(0.0, (currentTotalCount.value - 1).coerceAtLeast(0).toDouble())
             }
         }
     }
@@ -202,22 +212,31 @@ internal fun CashLedgerScrollbar(
         for (request in seekRequests) {
             var latest = request
             if (!request.exact) {
-                delay(DRAG_SEEK_INTERVAL_MS)
+                val requestedOrdinal = floor(request.position).toInt()
+                delay(if (currentIsOrdinalLoaded.value(requestedOrdinal)) 16L else DRAG_SEEK_INTERVAL_MS)
                 while (true) {
                     latest = seekRequests.tryReceive().getOrNull() ?: break
                 }
             }
             val count = currentTotalCount.value
             if (count > 0) {
-                val target = latest.ordinal.coerceIn(0, count - 1)
-                listState.scrollToItem(target)
+                val position = latest.position.coerceIn(0.0, (count - 1).toDouble())
+                val target = floor(position).toInt().coerceIn(0, count - 1)
+                val visibleRows = listState.layoutInfo.visibleItemsInfo.filter { it.index in 0 until count }
+                val rowSize = visibleRows.firstOrNull { it.index == target }?.size
+                    ?: visibleRows.map { it.size }.takeIf { it.isNotEmpty() }?.average()?.roundToInt()
+                    ?: 1
+                listState.scrollToItem(target, cashLedgerPixelOffsetForPosition(position, rowSize))
                 if (latest.exact) {
                     val loaded = withTimeoutOrNull(FINAL_SEEK_TIMEOUT_MS) {
                         snapshotFlow { currentIsOrdinalLoaded.value(target) }.first { it }
                     } == true
-                    if (loaded) listState.scrollToItem(target)
+                    if (loaded) {
+                        val actualSize = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == target }?.size ?: rowSize
+                        listState.scrollToItem(target, cashLedgerPixelOffsetForPosition(position, actualSize))
+                    }
                     pendingSeekState.value = false
-                    offsetState.value = listState.firstVisibleItemIndex.coerceIn(0, count - 1)
+                    offsetState.value = position
                 }
             } else {
                 pendingSeekState.value = false
@@ -247,7 +266,7 @@ internal fun CashLedgerScrollbar(
             }
             .onKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown || !canSeek) return@onKeyEvent false
-                val first = offsetState.value
+                val first = offsetState.value.roundToInt()
                 val target = when (event.key) {
                     Key.DirectionUp -> first - 1
                     Key.DirectionDown -> first + 1
@@ -258,7 +277,7 @@ internal fun CashLedgerScrollbar(
                     else -> return@onKeyEvent false
                 }.coerceIn(0, totalCount - 1)
                 markCompactControlActivity()
-                currentRequestTarget.value(target, true)
+                currentRequestTarget.value(target.toDouble(), true)
                 true
             }
             .focusable(enabled = canSeek, interactionSource = interactionSource)
@@ -270,7 +289,7 @@ internal fun CashLedgerScrollbar(
             ) {
                 markCompactControlActivity()
                 val nextPage = (offsetState.value + visibleTransactionCount)
-                    .coerceIn(0, (currentTotalCount.value - 1).coerceAtLeast(0))
+                    .coerceIn(0.0, (currentTotalCount.value - 1).coerceAtLeast(0).toDouble())
                 currentRequestTarget.value(nextPage, true)
             }
             .semantics {
@@ -280,7 +299,7 @@ internal fun CashLedgerScrollbar(
                 setProgress { requestedProgress ->
                     val ordinal = cashLedgerOrdinalForProgress(requestedProgress, currentTotalCount.value)
                     if (ordinal == null) false else {
-                        currentRequestTarget.value(ordinal, true)
+                        currentRequestTarget.value(ordinal.toDouble(), true)
                         true
                     }
                 }
@@ -317,7 +336,7 @@ internal fun CashLedgerScrollbar(
                                     .testTag(SemanticIds.ledgerScrollbarThumb),
                             )
                         }
-                        val month = cashLedgerMonthForOrdinal(currentMonthPositions.value, offsetState.value)
+                        val month = cashLedgerMonthForOrdinal(currentMonthPositions.value, offsetState.value.toInt())
                         if (isDragged && isVisible && month != null && trackHeightPx > 0f) {
                             val thumbCenter = (position + thumbHeightPx / 2f).coerceIn(
                                 bubbleHeightPx / 2f,

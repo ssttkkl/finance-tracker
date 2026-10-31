@@ -46,7 +46,7 @@ def association_targets(service, transaction_id, *, kind=None, query="", account
         model = CashTransactionModel
         statement = select(model).where(model.workspace_id == service._workspace_id,
             model.deleted_at.is_(None), model.state == "posted", model.record_origin.in_(("import", "legacy")),
-            model.id > after, model.id.not_in(excluded)).order_by(model.id).limit(limit + 1)
+            model.id > after, model.id.not_in(excluded)).order_by(model.id)
         if kind is not None:
             statement = statement.where(_role_target_condition(session, source, model, kind))
         if query.strip():
@@ -64,27 +64,43 @@ def association_targets(service, transaction_id, *, kind=None, query="", account
             statement = statement.where(model.occurred_at >= start)
         if end:
             statement = statement.where(model.occurred_at < end)
-        rows = list(session.scalars(statement))
-        parts = {}
-        for part in session.scalars(select(CashTransactionComponentModel).where(
-            CashTransactionComponentModel.workspace_id == service._workspace_id,
-            CashTransactionComponentModel.cash_transaction_id.in_([identifier, *(row.id for row in rows[:limit])])
-        ).order_by(CashTransactionComponentModel.ordinal)):
-            parts.setdefault(part.cash_transaction_id, []).append(part)
-        funded_parents = set(session.scalars(select(CashTransactionComponentModel.cash_transaction_id).join(
-            CashInvestmentFundingRelationModel,
-            and_(CashInvestmentFundingRelationModel.workspace_id == service._workspace_id,
-                CashInvestmentFundingRelationModel.cash_transaction_component_id == CashTransactionComponentModel.id,
-                CashInvestmentFundingRelationModel.status == 'accepted',
-                CashInvestmentFundingRelationModel.active_slot == 'active')).where(
-            CashTransactionComponentModel.workspace_id == service._workspace_id,
-            CashTransactionComponentModel.cash_transaction_id.in_(parts))))
+        selected = []
+        scan_after = after
+        batch_size = max(32, limit + 1)
+        while len(selected) <= limit:
+            rows = list(session.scalars(statement.where(model.id > scan_after).limit(batch_size)))
+            if not rows:
+                break
+            parts = {}
+            ids = [identifier, *(row.id for row in rows)]
+            for part in session.scalars(select(CashTransactionComponentModel).where(
+                CashTransactionComponentModel.workspace_id == service._workspace_id,
+                CashTransactionComponentModel.cash_transaction_id.in_(ids)
+            ).order_by(CashTransactionComponentModel.ordinal)):
+                parts.setdefault(part.cash_transaction_id, []).append(part)
+            funded_parents = set(session.scalars(select(CashTransactionComponentModel.cash_transaction_id).join(
+                CashInvestmentFundingRelationModel,
+                and_(CashInvestmentFundingRelationModel.workspace_id == service._workspace_id,
+                    CashInvestmentFundingRelationModel.cash_transaction_component_id == CashTransactionComponentModel.id,
+                    CashInvestmentFundingRelationModel.status == 'accepted',
+                    CashInvestmentFundingRelationModel.active_slot == 'active')).where(
+                CashTransactionComponentModel.workspace_id == service._workspace_id,
+                CashTransactionComponentModel.cash_transaction_id.in_(ids))))
+            for row in rows:
+                choices = _component_choices(source, row, parts, kind, funded_parents)
+                if choices['component_choices']:
+                    selected.append((row, choices))
+                    if len(selected) > limit:
+                        break
+            scan_after = rows[-1].id
+            if len(rows) < batch_size:
+                break
         items = [{"transaction_id": str(row.id), "row_revision": row.row_revision,
             "record_origin": row.record_origin, "state": row.state, "confirmation_status": "confirmed" if row.state == "posted" else "pending",
             "entry": None, "fields": _wire(service._fields(session, row)), "editable_fields": [],
             "issues": [], "relations": [], "projection_ref": None,
-            **_component_choices(source, row, parts, kind, funded_parents)} for row in rows[:limit]]
-        return {"kind": kind, "items": items, "next_cursor": str(rows[limit - 1].id) if len(rows) > limit else None}
+            **choices} for row, choices in selected[:limit]]
+        return {"kind": kind, "items": items, "next_cursor": str(selected[limit - 1][0].id) if len(selected) > limit else None}
 
 
 def _role_target_condition(session, source, model, kind):

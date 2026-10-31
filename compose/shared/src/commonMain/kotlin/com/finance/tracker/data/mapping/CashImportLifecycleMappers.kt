@@ -35,12 +35,13 @@ internal fun ImportChoiceSet.toDto(revision: Long, previousPlanId: String?) = Ca
     entries.map { CashImportEntryInput(it.editRef, it.patch.toJsonObject()) },
 )
 internal fun CashPlanMemberRefDto.toDomain() = ImportMemberRef(rowRef, transactionId)
-internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, currency, counterparty, note, accounts, categoryId, counterpartyAccount, counterpartyAccountAttrs)
+internal fun CashPlanDisplayDto.toDomain() = ImportDisplay(occurredAt, amount, currency, counterparty, note, accounts, categoryId, counterpartyAccount, counterpartyAccountAttrs, recordType, recordSubtype)
 internal fun CashPlanItemDto.toDomain() = ImportProjectedItem(previewItemId, confirmationStatus, anticipatedState, display.toDomain(), statisticsEligible,
     memberRefs.map(CashPlanMemberRefDto::toDomain), attentionReasons.map(CashImportIssueDto::toDomain), detailAvailable)
 internal fun CashImportPlanDto.toDomain() = ImportPlan(planId, sessionId, sessionRevision, expiresAt, summary, itemCounts, canCommit,
     items.map(CashPlanItemDto::toDomain), fileResults.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues.map(CashImportIssueDto::toDomain), it.code, it.canRetry, it.diagnostic?.toDomain()) },
-    pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) })
+    pages.items, invalidatedChoices.map { ImportInvalidatedChoice(it.kind, it.reference, it.code) },
+    monthlySummaries.mapValues { (_, values) -> values.map(CashMonthlySummaryDto::toDomain) })
 internal fun CashPlanItemPageDto.toDomain() = ImportItemPage(items.map(CashPlanItemDto::toDomain), nextCursor, startIndex, totalCount)
 internal fun CashPlanProcessingPageDto.toDomain() = ImportProcessingPage(items.map { ImportProcessingDetail(it.rowRef, it.transactionId, it.fileRef, it.plannedAction, it.operationRef, it.duplicateOf, it.code, it.message, it.fieldPath, it.blockingScope, it.nextAction) }, nextCursor)
 internal fun CashPlanMemberDto.toDomain() = ImportMemberDetail(rowRef, transactionId, plannedAction, fields.toStructuredObject(), editableFields, allowedActions, rowRevision)

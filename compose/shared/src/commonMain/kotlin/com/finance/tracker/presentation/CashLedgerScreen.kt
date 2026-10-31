@@ -11,8 +11,8 @@ import com.finance.tracker.resources.ic_file_download
 import com.finance.tracker.resources.ic_keyboard_arrow_down
 import com.finance.tracker.resources.ic_label
 import com.finance.tracker.resources.ic_search
-import com.finance.tracker.resources.ic_visibility
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -53,6 +53,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AlertDialogDefaults
 import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.CircularProgressIndicator
@@ -209,7 +210,6 @@ internal fun CashLedgerScreen(
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var batchCategoryDialogOpen by remember { mutableStateOf(false) }
     var batchCategoryDraft by remember(batchCategoryDialogOpen) { mutableStateOf(state.selectedCategory) }
-    val monthHeaderHeightsPx = remember { mutableStateMapOf<String, Int>() }
     val selectionMode = state.selectedIds.isNotEmpty()
     val listReady = state.page != null && fullRefreshError == null
     val fullRefreshPending = !listReady && fullRefreshError == null
@@ -265,7 +265,6 @@ internal fun CashLedgerScreen(
                     categories = state.categories,
                     currencies = state.filterOptions.currencies,
                     typeOptions = state.filterOptions.economicTypes,
-                    onReset = viewModel::clearFilters,
                     onInvalidAmount = viewModel::reportInvalidAmountFilter,
                 )
             }
@@ -288,8 +287,19 @@ internal fun CashLedgerScreen(
                 modifier = Modifier.fillMaxWidth().weight(1f),
                 enabled = listReady && !selectionMode,
             ) {
-                Box(
-                    Modifier.fillMaxSize().pointerInput(listState) {
+                CashWaterfallViewport(
+                    listState = listState,
+                    totalCount = if (listReady) totalCount else 0,
+                    monthAt = { ordinal -> if (ordinal in 0 until pagedRows.itemCount) pagedRows.peek(ordinal)?.let { localMonthKey(it.occurredAt) } else null },
+                    monthStartAt = { ordinal -> cashLedgerMonthPositionForOrdinal(monthPositions, ordinal)?.startIndex ?: 0 },
+                    monthPositions = monthPositions,
+                    isOrdinalLoaded = { ordinal -> ordinal in 0 until pagedRows.itemCount && pagedRows.peek(ordinal) != null },
+                    summaryForMonth = { summariesByMonth[it] },
+                    showTotals = true,
+                    sizeClass = sizeClass,
+                    showSelection = true,
+                    auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+                    modifier = Modifier.fillMaxSize().pointerInput(listState) {
                         awaitEachGesture {
                             val down = awaitFirstDown(
                                 requireUnconsumed = false,
@@ -308,7 +318,7 @@ internal fun CashLedgerScreen(
                             }
                         }
                     },
-                ) {
+                ) { onHeaderHeight ->
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize()
@@ -356,40 +366,22 @@ internal fun CashLedgerScreen(
                     } else {
                         index == pagedRows.itemCount - 1 && (appendReachedEnd || pagedRows.loadState.append is LoadState.Loading || appendError != null)
                     }
-                    val baseShape = MaterialTheme.shapes.medium
-                    val monthShape = RoundedCornerShape(
-                        topStart = if (monthStart) baseShape.topStart else CornerSize(0.dp),
-                        topEnd = if (monthStart) baseShape.topEnd else CornerSize(0.dp),
-                        bottomEnd = if (monthEnd) baseShape.bottomEnd else CornerSize(0.dp),
-                        bottomStart = if (monthEnd) baseShape.bottomStart else CornerSize(0.dp),
-                    )
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(top = if (monthStart && index > 0) GeneratedTokens.Core.Space.Token3 else 0.dp),
-                        shape = monthShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerLow,
-                        tonalElevation = 0.dp,
+                    CashWaterfallItem(
+                        month = month,
+                        first = monthStart,
+                        last = monthEnd,
+                        gapBefore = monthStart && index > 0,
+                        summary = summariesByMonth[month],
+                        showTotals = true,
+                        sizeClass = sizeClass,
+                        showSelection = true,
+                        auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+                        onHeaderHeight = onHeaderHeight,
                     ) {
                         Column(Modifier.fillMaxWidth().testTag("${SemanticIds.ledgerTable}-$month")) {
-                            if (monthStart) {
-                                Column(
-                                    Modifier.fillMaxWidth().onSizeChanged { measuredSize ->
-                                        if (monthHeaderHeightsPx[month] != measuredSize.height) {
-                                            monthHeaderHeightsPx[month] = measuredSize.height
-                                        }
-                                    },
-                                ) {
-                                    CashProjectionMonthHeader(
-                                        group = CashProjectionMonthGroup(month, emptyList(), summariesByMonth[month]),
-                                        compact = sizeClass == WindowSizeClass.COMPACT,
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                    )
-                                    if (sizeClass != WindowSizeClass.COMPACT) {
-                                        CashLedgerTableHeader(modifier = Modifier.padding(horizontal = 16.dp))
-                                    }
-                                }
-                            }
                             CashProjectionRow(
                                 item = row,
+                                options = state.options,
                                 checked = row.projectionId in state.selectedIds,
                                 canWrite = canWrite,
                                 sizeClass = sizeClass,
@@ -418,74 +410,6 @@ internal fun CashLedgerScreen(
                 }
             }
             }
-            }
-            if (listReady) {
-            CashLedgerScrollbar(
-                listState = listState,
-                totalCount = totalCount,
-                monthPositions = monthPositions,
-                isOrdinalLoaded = { ordinal -> pagedRows.peek(ordinal) != null },
-                compact = sizeClass == WindowSizeClass.COMPACT,
-                modifier = Modifier.align(Alignment.CenterEnd).zIndex(1f),
-            )
-            }
-            val firstVisibleRecord = if (listReady) listState.layoutInfo.visibleItemsInfo
-                .firstNotNullOfOrNull { visibleItem ->
-                    if (visibleItem.index in 0 until pagedRows.itemCount) {
-                        pagedRows.peek(visibleItem.index)?.let { visibleItem to it }
-                    } else {
-                        null
-                    }
-                }
-            else null
-            val stickyMonthGroup = if (!listReady || !listState.canScrollBackward) null else firstVisibleRecord?.let { (visibleItem, row) ->
-                val month = localMonthKey(row.occurredAt)
-                val monthStartIndex = cashLedgerMonthPositionForOrdinal(monthPositions, visibleItem.index)?.startIndex ?: 0
-                val measuredHeaderHeight = monthHeaderHeightsPx[month] ?: 0
-                val monthStartItem = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == monthStartIndex }
-                val monthHeaderTopInset = with(LocalDensity.current) {
-                    ((if (monthStartIndex > 0) GeneratedTokens.Core.Space.Token3 else 0.dp) + 8.dp).toPx().roundToInt()
-                }
-                val nextMonthHeaderStillBelowTop = monthStartIndex > 0 && monthStartItem != null &&
-                    monthStartItem.offset + monthHeaderTopInset > 0
-                val hasScrolledPastHeader = visibleItem.offset + measuredHeaderHeight <= 0
-                when {
-                    nextMonthHeaderStillBelowTop ->
-                        monthPositions.lastOrNull { it.startIndex < monthStartIndex }?.month
-                    visibleItem.index > monthStartIndex -> month
-                    visibleItem.index == monthStartIndex && monthStartIndex == 0 && measuredHeaderHeight > 0 && hasScrolledPastHeader -> month
-                    visibleItem.index == monthStartIndex -> month
-                    else -> null
-                }
-            }
-            if (stickyMonthGroup != null) {
-                val stickyTableHeaderTag = if (sizeClass == WindowSizeClass.COMPACT) {
-                    null
-                } else {
-                    Modifier.testTag(SemanticIds.ledgerStickyTableHeader)
-                }
-                Surface(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .fillMaxWidth()
-                        .testTag(SemanticIds.ledgerStickySummary),
-                    shape = MaterialTheme.shapes.medium,
-                    color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    tonalElevation = 0.dp,
-                ) {
-                    Column(Modifier.fillMaxWidth()) {
-                        CashProjectionMonthHeader(
-                            group = CashProjectionMonthGroup(stickyMonthGroup, emptyList(), summariesByMonth[stickyMonthGroup]),
-                            compact = sizeClass == WindowSizeClass.COMPACT,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                        )
-                        if (stickyTableHeaderTag != null) {
-                            CashLedgerTableHeader(
-                                modifier = Modifier.padding(horizontal = 16.dp).then(stickyTableHeaderTag),
-                            )
-                        }
-                    }
-                }
             }
             }
         }
@@ -795,7 +719,27 @@ private fun CashLedgerSkeletonLines(
 }
 
 @Composable
-internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection: Boolean = true, statusOnly: Boolean = false) {
+internal fun CashLedgerGroupSurface(first: Boolean, last: Boolean, gapBefore: Boolean = false, content: @Composable () -> Unit) {
+    val baseShape = MaterialTheme.shapes.medium
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(top = if (gapBefore) GeneratedTokens.Core.Space.Token3 else 0.dp),
+        shape = RoundedCornerShape(
+            topStart = if (first) baseShape.topStart else CornerSize(0.dp),
+            topEnd = if (first) baseShape.topEnd else CornerSize(0.dp),
+            bottomEnd = if (last) baseShape.bottomEnd else CornerSize(0.dp),
+            bottomStart = if (last) baseShape.bottomStart else CornerSize(0.dp),
+        ),
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        tonalElevation = 0.dp,
+        content = content,
+    )
+}
+
+internal enum class CashLedgerAuxiliaryColumn { TYPE }
+
+@Composable
+internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection: Boolean = true,
+    auxiliaryColumn: CashLedgerAuxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE) {
     Row(
         modifier = modifier.fillMaxWidth().testTag(SemanticIds.ledgerTableHeader),
         verticalAlignment = Alignment.CenterVertically,
@@ -805,51 +749,38 @@ internal fun CashLedgerTableHeader(modifier: Modifier = Modifier, showSelection:
         FinanceTableCell(localizedText("copy_c3d92b20c8"), weight = 0.15f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnAccount))
         FinanceTableCell(localizedText("ledger_column_transaction_info"), weight = 0.24f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnTransactionInfo))
         FinanceTableCell(localizedText("copy_435c5259e4"), weight = 0.12f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnCategory))
-        FinanceTableCell(localizedText(if (statusOnly) "cash_import_status" else "copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
+        FinanceTableCell(localizedText("copy_e81089915c"), weight = 0.11f, header = true, modifier = Modifier.testTag(SemanticIds.ledgerColumnEconomicType))
         FinanceTableCell(localizedText("copy_34943c40c9"), weight = 0.13f, header = true, textAlign = TextAlign.End, modifier = Modifier.testTag(SemanticIds.ledgerColumnAmount))
-        Spacer(Modifier.weight(0.08f))
     }
     HorizontalDivider()
 }
 
 @Composable
-private fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact: Boolean, modifier: Modifier = Modifier) {
+internal fun CashProjectionMonthHeader(group: CashProjectionMonthGroup, compact: Boolean, modifier: Modifier = Modifier) {
     val summaries = group.summary?.currencies.orEmpty()
-    Column(
-        modifier = modifier.fillMaxWidth().testTag(SemanticIds.ledgerSummary),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        if (compact) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
-                Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
-                if (summaries.isEmpty()) {
-                    Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        summaries.forEach { summary ->
-                            Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
-                            Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
-                        }
+    val summaryContent: @Composable () -> Unit = {
+        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (summaries.isEmpty()) {
+                Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                summaries.forEach { summary ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
+                        Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }
+        }
+    }
+    Column(modifier.fillMaxWidth().testTag(SemanticIds.ledgerSummary), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (compact) {
+            Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
+            Box(Modifier.align(Alignment.End)) { summaryContent() }
         } else {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(localMonthLabel(group.month), style = MaterialTheme.typography.titleMedium)
-                if (summaries.isEmpty()) {
-                    Text(localizedText("copy_9c522d837a"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else {
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        summaries.forEach { summary ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text(summary.currency, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(localizedText("copy_b2dfe7c9d3", displaySignedSummaryAmount("income", summary.income)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.primary)
-                                Text(localizedText("copy_bdbfa1d0c9", displaySignedSummaryAmount("expense", summary.expense)), style = MaterialTheme.typography.bodySmall.withTabularNumbers(), color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
+                summaryContent()
             }
         }
     }
@@ -880,7 +811,6 @@ private fun CashFilterPanel(
     categories: List<CashCategory>,
     currencies: List<String>,
     typeOptions: List<CashEconomicTypeFilterOption>,
-    onReset: () -> Unit,
     onInvalidAmount: () -> Unit,
 ) {
     val compact = sizeClass == WindowSizeClass.COMPACT
@@ -892,7 +822,10 @@ private fun CashFilterPanel(
         else -> value.economicType.orEmpty()
     }
     val orderedTypes = cashQuickEconomicTypes(typeOptions)
+    var draft by remember { mutableStateOf(value) }
     val closeDetailedFilters: () -> Unit = { detailedVisible = false }
+    val openDetailedFilters: () -> Unit = { draft = value; detailedVisible = true }
+    val applyDetailedFilters: () -> Unit = { onChange(draft); detailedVisible = false }
 
     Column(
         modifier = Modifier.fillMaxWidth().testTag(SemanticIds.ledgerFilters),
@@ -963,7 +896,7 @@ private fun CashFilterPanel(
                 }
             }
             TextButton(
-                onClick = { detailedVisible = true },
+                onClick = openDetailedFilters,
                 modifier = Modifier.testTag(SemanticIds.ledgerMoreFilters),
                 contentPadding = PaddingValues(horizontal = 4.dp),
             ) {
@@ -990,15 +923,16 @@ private fun CashFilterPanel(
             ),
         ) {
             CashDetailedFilters(
-                value = value,
+                value = draft,
                 sizeClass = sizeClass,
-                onChange = onChange,
+                onChange = { draft = it },
                 accounts = accounts,
                 categories = categories,
                 currencies = currencies,
                 typeOptions = typeOptions,
-                onReset = onReset,
+                onReset = { draft = CashFilters() },
                 onClose = closeDetailedFilters,
+                onApply = applyDetailedFilters,
                 onInvalidAmount = onInvalidAmount,
                 modifier = Modifier.fillMaxWidth().heightIn(max = 700.dp),
             )
@@ -1027,15 +961,16 @@ private fun CashFilterPanel(
                     tonalElevation = AlertDialogDefaults.TonalElevation,
                 ) {
                     CashDetailedFilters(
-                        value = value,
+                        value = draft,
                         sizeClass = sizeClass,
-                        onChange = onChange,
+                        onChange = { draft = it },
                         accounts = accounts,
                         categories = categories,
                         currencies = currencies,
                         typeOptions = typeOptions,
-                        onReset = onReset,
+                        onReset = { draft = CashFilters() },
                         onClose = closeDetailedFilters,
+                onApply = applyDetailedFilters,
                         onInvalidAmount = onInvalidAmount,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1107,6 +1042,7 @@ private fun CashDetailedFilters(
     typeOptions: List<CashEconomicTypeFilterOption>,
     onReset: () -> Unit,
     onClose: () -> Unit,
+    onApply: () -> Unit,
     onInvalidAmount: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -1215,7 +1151,7 @@ private fun CashDetailedFilters(
         }
         HorizontalDivider()
         Column(
-            modifier = (if (compact) Modifier.weight(1f) else Modifier).fillMaxWidth()
+            modifier = Modifier.weight(1f, fill = false).fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(
                     start = if (compact) 20.dp else 24.dp,
@@ -1306,36 +1242,58 @@ private fun CashDetailedFilters(
             ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (compact) TextButton(onClick = onReset, modifier = Modifier.testTag("ledger.filter.reset")) { Text(localizedText("copy_7b15e5e8e7")) }
             Spacer(Modifier.weight(1f))
-            if (!compact) TextButton(onClick = onReset) { Text(localizedText("copy_7b15e5e8e7")) }
+            if (!compact) TextButton(onClick = onReset, modifier = Modifier.testTag("ledger.filter.reset")) { Text(localizedText("copy_7b15e5e8e7")) }
             if (!compact) Spacer(Modifier.width(8.dp))
-            TextButton(onClick = onClose) { Text(localizedText("ledger_filter_done")) }
+            Button(onClick = onApply,
+                enabled = listOfNotNull(value.amountMin, value.amountMax).all(::isExactDecimalString),
+                modifier = Modifier.testTag("ledger.filter.apply")) { Text(localizedText("ledger_category_apply")) }
         }
     }
 }
 
 @Composable
 private fun CashProjectionRow(
-    item: CashProjection, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
+    item: CashProjection, options: LedgerOptions, checked: Boolean, canWrite: Boolean, sizeClass: WindowSizeClass,
     selectionMode: Boolean, lastInMonth: Boolean, onChecked: (Boolean) -> Unit, onOpen: () -> Unit,
-) = CashLedgerRow(CashLedgerRowContent(item.projectionId, item.occurredAt, item.counterparty, item.note,
-    cashProjectionAccountLabel(item), cashCategoryDisplayPath(item.category), cashProjectionEconomicTypeLabel(item),
-    cashProjectionSourceLabel(item), item.confirmationStatus, cashProjectionAmountLabel(item), item.amount?.startsWith("-") == true),
-    checked, canWrite, sizeClass, selectionMode, lastInMonth, onChecked, onOpen)
+) {
+    val typeLabel = cashRecordTypeAndSubtypeLabel(item.recordType, item.recordSubtype, options)
+        ?: cashProjectionEconomicTypeLabel(item)
+    val businessLabel = item.businessLabel?.let { cashBusinessLabel(it) }
+        ?.takeUnless { it in typeLabel.split("－") }
+    CashLedgerRow(CashLedgerRowContent(item.projectionId, item.occurredAt, item.counterparty, item.note,
+        cashProjectionAccountLabel(item), cashCategoryDisplayPath(item.category), typeLabel,
+        null, item.confirmationStatus, cashProjectionAmountLabel(item), item.amount?.startsWith("-") == true,
+        statusTags = cashAttentionTags(item.state, item.confirmationStatus, item.attentionCodes),
+        showConfirmationStatus = false, businessLabel = businessLabel),
+        checked, canWrite, sizeClass, selectionMode, lastInMonth, onChecked, onOpen)
+}
 
 internal data class CashLedgerRowContent(
     val id: String, val occurredAt: String?, val counterparty: String, val note: String,
     val accountLabel: String, val categoryLabel: String, val economicLabel: String?, val sourceLabel: String?,
     val confirmationStatus: String, val amountLabel: String, val negative: Boolean,
-    val statusTags: List<CashLedgerRowStatusTag> = emptyList(), val showConfirmationStatus: Boolean = true,
+    val statusTags: List<CashLedgerRowStatusTag> = emptyList(), val showConfirmationStatus: Boolean = false,
     val relationshipSummary: String? = null, val attentionSummary: String? = null,
+    val auxiliaryColumn: CashLedgerAuxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+    val businessLabel: String? = null,
 )
 
 internal enum class CashLedgerRowStatusTag(val testKey: String, val labelId: String) {
-    DRAFT("draft", "cash_import_draft_tag"),
-    NEEDS_REVIEW("needs-review", "cash_confirmation_pending"),
-    RELATION_PENDING("relation-pending", "cash_import_relation_pending"),
+    DRAFT("draft", "cash_draft_needs_details"),
+    NEEDS_REVIEW("needs-review", "cash_information_needs_review"),
+    RELATION_PENDING("relation-pending", "cash_pair_suggestion"),
+    SOURCE_UPDATE("source-update", "cash_source_update_needs_review"),
+    SOURCE_IDENTITY("source-identity", "cash_source_identity_needs_review"),
+}
+
+internal fun cashAttentionTags(state: String, confirmationStatus: String, codes: List<String>): List<CashLedgerRowStatusTag> = buildList {
+    if (state == "draft") add(CashLedgerRowStatusTag.DRAFT)
+    if ("relation_pending" in codes) add(CashLedgerRowStatusTag.RELATION_PENDING)
+    if ("source_update_pending" in codes) add(CashLedgerRowStatusTag.SOURCE_UPDATE)
+    if ("source_identity_ambiguous" in codes) add(CashLedgerRowStatusTag.SOURCE_IDENTITY)
+    if (confirmationStatus == "pending" && isEmpty()) add(CashLedgerRowStatusTag.NEEDS_REVIEW)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -1347,17 +1305,13 @@ internal fun CashLedgerRow(
     singleSelection: Boolean = false,
     showOpenAction: Boolean = true,
 ) {
-    val recordBackground = when {
-        CashLedgerRowStatusTag.DRAFT in item.statusTags -> LocalFinanceColorRoles.current.warningSurface
-        CashLedgerRowStatusTag.NEEDS_REVIEW in item.statusTags || CashLedgerRowStatusTag.RELATION_PENDING in item.statusTags -> MaterialTheme.colorScheme.primaryContainer
-        else -> null
-    }
+    val recordBackground = if (item.statusTags.isNotEmpty()) LocalFinanceColorRoles.current.warningSurface else null
     val recordModifier = Modifier.testTag("${SemanticIds.ledgerRecord}-${item.id}")
         .then(recordBackground?.let { Modifier.background(it) } ?: Modifier)
     if (sizeClass == WindowSizeClass.COMPACT) {
         Column(
             modifier = recordModifier.fillMaxWidth().combinedClickable(
-                enabled = selectionMode || showOpenAction,
+                enabled = (selectionMode && canWrite) || showOpenAction,
                 onClick = { if (selectionMode) onChecked(!checked) else onOpen() },
                 onLongClick = { if (canWrite && !selectionMode) onChecked(true) },
             ),
@@ -1368,12 +1322,12 @@ internal fun CashLedgerRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (selectionMode && showSelection) {
-                    if (singleSelection) RadioButton(
+                    if (singleSelection && canWrite) RadioButton(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
                         modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
-                    ) else Checkbox(
+                    ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
@@ -1395,36 +1349,40 @@ internal fun CashLedgerRow(
                         Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    CashLedgerRowStatusTags(item)
                     Text(localDateTimeDisplayLabel(item.occurredAt), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("${item.accountLabel} · ${item.categoryLabel}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     val source = item.sourceLabel
                     val confirmation = if (item.showConfirmationStatus) localizedText(
                         if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
                     ) else null
-                    listOfNotNull(item.economicLabel, source, confirmation).takeIf { it.isNotEmpty() }?.let { labels ->
+                    listOfNotNull(item.economicLabel, item.businessLabel, source, confirmation).takeIf { it.isNotEmpty() }?.let { labels ->
                         Text(labels.joinToString(" · "), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
+                    CashLedgerRowStatusTags(item)
                 }
                 FinanceAmount(item.amountLabel, negative = item.negative)
             }
             if (!lastInMonth) HorizontalDivider(Modifier.padding(start = GeneratedTokens.Core.Space.Token4))
         }
     } else {
-        Column(recordModifier.fillMaxWidth()) {
+        Column(recordModifier.fillMaxWidth().clickable(
+            enabled = showOpenAction,
+            onClickLabel = localizedText("copy_faea8c1db9"),
+            onClick = onOpen,
+        )) {
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(vertical = 8.dp)
                     .testTag("${SemanticIds.ledgerTableRowContent}-${item.id}"),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (showSelection) Box(Modifier.weight(0.05f), contentAlignment = Alignment.Center) {
-                    if (singleSelection) RadioButton(
+                    if (singleSelection && canWrite) RadioButton(
                         selected = checked,
                         onClick = { onChecked(true) },
                         enabled = canWrite,
                         modifier = Modifier.testTag("ledger.record-radio-${item.id}").semantics { contentDescription = item.counterparty },
-                    ) else Checkbox(
+                    ) else if (!singleSelection) Checkbox(
                         checked = checked,
                         onCheckedChange = onChecked,
                         enabled = canWrite,
@@ -1456,7 +1414,6 @@ internal fun CashLedgerRow(
                         Text(it, Modifier.testTag("ledger.attention-${item.id}"), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     }
-                    CashLedgerRowStatusTags(item)
                 }
                 FinanceTableCell(item.categoryLabel, weight = 0.12f)
                 Column(
@@ -1464,6 +1421,9 @@ internal fun CashLedgerRow(
                     verticalArrangement = Arrangement.spacedBy(2.dp),
                 ) {
                     item.economicLabel?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    item.businessLabel?.let { Text(it, style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    CashLedgerRowStatusTags(item)
                     if (item.showConfirmationStatus) Text(localizedText(
                         if (item.confirmationStatus == "pending") "cash_confirmation_pending" else "cash_confirmation_confirmed",
                     ), style = MaterialTheme.typography.labelSmall,
@@ -1478,17 +1438,6 @@ internal fun CashLedgerRow(
                     negative = item.negative,
                     textAlign = TextAlign.End,
                 )
-                Box(Modifier.weight(0.08f).padding(end = 16.dp), contentAlignment = Alignment.CenterEnd) {
-                    if (showOpenAction) IconButton(
-                        onClick = onOpen,
-                        modifier = Modifier.testTag(SemanticIds.ledgerOpenRecord),
-                    ) {
-                        Icon(
-                            painter = painterResource(Res.drawable.ic_visibility),
-                            contentDescription = localizedText("copy_faea8c1db9"),
-                        )
-                    }
-                }
             }
             if (!lastInMonth) HorizontalDivider(Modifier.testTag("${SemanticIds.ledgerTableRowDivider}-${item.id}"))
         }
@@ -1504,8 +1453,10 @@ private fun CashLedgerRowStatusTags(item: CashLedgerRowContent) {
         item.statusTags.forEach { tag ->
             val (containerColor, contentColor) = when (tag) {
                 CashLedgerRowStatusTag.DRAFT -> colorRoles.warning to colorRoles.background
-                CashLedgerRowStatusTag.NEEDS_REVIEW -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
-                CashLedgerRowStatusTag.RELATION_PENDING -> MaterialTheme.colorScheme.primary to MaterialTheme.colorScheme.onPrimary
+                CashLedgerRowStatusTag.NEEDS_REVIEW,
+                CashLedgerRowStatusTag.RELATION_PENDING,
+                CashLedgerRowStatusTag.SOURCE_UPDATE,
+                CashLedgerRowStatusTag.SOURCE_IDENTITY -> colorRoles.warning to colorRoles.background
             }
             Surface(
                 modifier = Modifier.testTag("ledger.status-tag-${item.id}-${tag.testKey}"),

@@ -64,6 +64,7 @@ def test_missing_alipay_funding_uses_wallet_in_business_plan(draft_runtime):
 
 
 def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runtime):
+    from ft.application.cash_import_plans import _page
     file = _file()
     with draft_runtime.sessions() as session:
         count = session.scalar(select(func.count()).select_from(CashTransactionModel))
@@ -71,6 +72,11 @@ def test_business_plan_new_and_draft_items_are_real_read_only_results(draft_runt
         draft = _build(session, draft_runtime, (file,), mapped=False)
         assert posted["can_commit"] is True and len(posted["items"]) == 1
         assert posted["items"][0]["display"]["amount"] == "-12.5"
+        assert posted["items"][0]["display"]["record_type"]
+        assert "record_subtype" in posted["items"][0]["display"]
+        public_item = _page(posted, "items")["items"][0]
+        assert public_item["display"]["record_type"] == posted["items"][0]["display"]["record_type"]
+        assert public_item["display"]["record_subtype"] == posted["items"][0]["display"]["record_subtype"]
         assert posted["items"][0]["confirmation_status"] == "confirmed"
         assert posted["items"][0]["statistics_eligible"] is True
         assert draft["items"][0]["confirmation_status"] == "pending"
@@ -331,6 +337,8 @@ def test_actual_builder_can_publish_read_and_repreview_through_session_service(d
         for group in scan_cash_funding(created.files).groups]
     plan = service.preview(created.session_id, expected_session_revision=1, account_selections=selections)
     assert len(plan["items"]) == 1 and "operations" not in plan and "relation_groups" not in plan
+    assert plan["monthly_summaries"]["all"] == service.read_plan(plan["plan_id"])["monthly_summaries"]["all"]
+    assert plan["monthly_summaries"]["all"]
     detail = service.item(plan["plan_id"], plan["items"][0]["preview_item_id"])
     assert len(detail["members"]) == 2 and len(detail["relation_choices"]) == 1
     assert all(not part.get("component_id") for member in detail["members"] for part in member["fields"]["components"])

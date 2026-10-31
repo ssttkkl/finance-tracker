@@ -1,6 +1,7 @@
 package com.finance.tracker.data
 
 import com.finance.tracker.domain.*
+import com.finance.tracker.core.getLocalDateForInstant
 
 /** Synthetic, process-local data for the real import task UI. */
 class DemoCashImportLifecycleRepository(private val finance: DemoFinanceRepository) : CashImportLifecycleRepository {
@@ -12,6 +13,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
     private val receipts = mutableMapOf<String, ImportReceipt>()
     private val accountVersions = mutableMapOf<String, Long>()
     private val deletedAccounts = mutableMapOf<String, ImportAccount>()
+    private val sourceRows = mutableMapOf<String, List<DemoImportRow>>()
     private val public = listOf("category_id", "note", "counterparty", "counterparty_account", "counterparty_account_attrs")
     private fun fail(code: String, status: Int = 409): Nothing = throw DomainFailure(code, status, FailureCategory.RECOVERABLE)
     override suspend fun upload(files: List<ImportUpload>, context: ImportContext?, replacingFileRef: String?, onContext: suspend (ImportContext) -> Unit): ImportUploadBatch {
@@ -20,10 +22,13 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         if (files.any { it.file !is DemoStatementFileSource }) fail("demo_statement_only", 400)
         val id = old?.sessionId ?: "demo${++next}".padEnd(43, 'x')
         val kept = old?.files.orEmpty().filterNot { it.fileRef == replacingFileRef }
-        val added = files.map { file -> ImportContextFile(replacingFileRef ?: "demo-file-${++next}", file.clientFileRef, file.file.name,
-            "demo_bank", "ready", 2, emptyList(), false) }
-        val groups = if (kept.isEmpty() && added.isEmpty()) emptyList() else listOf(ImportSourceAccount("demo-source", "demo_bank", "日常账户", listOf("CNY"), // i18n-allow: demo-fixture
-            (kept.size + added.size) * 2, ImportAccountTarget("1", accountVersions["1"] ?: 1), "existing_account", null))
+        val added = files.map { file ->
+            val ref = replacingFileRef ?: "demo-file-${++next}"
+            val rows = (file.file as DemoStatementFileSource).rows
+            sourceRows[ref] = rows
+            ImportContextFile(ref, file.clientFileRef, file.file.name, "demo_bank", "ready", rows.size, emptyList(), false)
+        }
+        val groups = sourceGroups(kept + added)
         val selected = old?.lastChoices?.accountSelections?.filter { selection -> groups.any { it.sourceAccountRef == selection.sourceAccountRef } }
             ?: groups.map { ImportAccountSelection(it.sourceAccountRef, it.suggestion!!) }
         val value = ImportContext(id, (old?.revision ?: 0) + 1, "2099-01-01T00:00:00Z", "open", kept + added,
@@ -34,7 +39,7 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
     override suspend fun context(sessionId: String) = contexts[sessionId] ?: fail("session_not_found", 404)
     override suspend fun removeFile(sessionId: String, fileRef: String, revision: Long): ImportContext {
         val old = open(sessionId, revision); val remaining = old.files.filterNot { it.fileRef == fileRef }
-        return old.copy(revision = revision + 1, files = remaining, sourceAccounts = if (remaining.isEmpty()) emptyList() else old.sourceAccounts,
+        return old.copy(revision = revision + 1, files = remaining, sourceAccounts = sourceGroups(remaining),
             canPreview = remaining.isNotEmpty(), lastChoices = ImportChoiceSet(accountSelections = old.lastChoices?.accountSelections.orEmpty()), lastPlanId = null).also { contexts[sessionId] = it }
     }
     override suspend fun cancel(sessionId: String): ImportContext {
@@ -42,6 +47,12 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         if (old.state == "committed") fail("session_committed")
         return old.copy(state = "cancelled", canPreview = false).also { contexts[sessionId] = it }
     }
+    private fun sourceGroups(files: List<ImportContextFile>) = files.flatMap { sourceRows.getValue(it.fileRef) }
+        .groupBy { it.sourceRef }.map { (ref, rows) ->
+            val first = rows.first()
+            ImportSourceAccount(ref, first.sourceType, first.accountName, rows.mapNotNull { it.currency }.distinct(), rows.size,
+                ImportAccountTarget(first.accountId, first.accountId?.let { accountVersions[it] ?: 1 }), "existing_account", null)
+        }
     private suspend fun open(id: String, revision: Long): ImportContext {
         val old = context(id)
         if (old.state != "open") fail("session_closed")
@@ -50,22 +61,24 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
     }
     override suspend fun preview(sessionId: String, revision: Long, previousPlanId: String?, choices: ImportChoiceSet): ImportPlan {
         val old = open(sessionId, revision)
-        val target = choices.accountSelections.firstOrNull { it.sourceAccountRef == "demo-source" }?.target ?: ImportAccountTarget(null, null)
-        val selectedAccount = target.accountId?.let { account(it) }
-        if (selectedAccount != null && (!selectedAccount.active || selectedAccount.revision != target.revision)) fail("account_changed")
         val version = revision + 1
         val id = "ip_$sessionId." + (++next).toString().padEnd(16, 'x')
-        val details = old.files.flatMap { file -> listOf(
-            "${file.fileRef}-coffee" to mapOf("occurred_at" to "2026-10-09T04:30:00Z", "amount" to "-28.00", "counterparty" to "山海咖啡", "note" to "午后咖啡", "record_type" to "consumption", "category_id" to "food"), // i18n-allow: demo-fixture
-            "${file.fileRef}-income" to mapOf("occurred_at" to "2026-10-10T01:00:00Z", "amount" to "12000.00", "counterparty" to "示例公司", "note" to "月度收入", "record_type" to "income", "category_id" to "income") // i18n-allow: demo-fixture
-        ) }.associate { (row, source) ->
+        val details = old.files.flatMap { file -> sourceRows.getValue(file.fileRef).map { source ->
+            "${file.fileRef}-${source.id}" to source
+        } }.associate { (row, source) ->
+            val target = choices.accountSelections.firstOrNull { it.sourceAccountRef == source.sourceRef }?.target ?: ImportAccountTarget(null, null)
+            val selectedAccount = target.accountId?.let { account(it) }
+            if (selectedAccount != null && (!selectedAccount.active || selectedAccount.revision != target.revision)) fail("account_changed")
             val oldPatch = choices.rows.firstOrNull { it.rowRef == row }?.patch?.fields.orEmpty()
             val entryPatch = choices.entries.firstOrNull { it.editRef == "demo-edit-$row" }?.patch?.fields.orEmpty()
             if (entryPatch.keys.any { it !in public }) fail("field_not_editable", 422)
-            row to StructuredObject(source.mapValues { StructuredText(it.value) } + mapOf("currency" to StructuredText("CNY"),
-                "record_subtype" to StructuredText("not_applicable"), "account_id" to (selectedAccount?.accountId?.let(::StructuredText) ?: StructuredNull),
-                "account_name" to (selectedAccount?.name?.let(::StructuredText) ?: StructuredNull), "counterparty_account" to StructuredText(""),
-                "counterparty_account_attrs" to StructuredArray(emptyList()), "source_payload" to StructuredObject(source.mapValues { StructuredText(it.value) })) + oldPatch)
+            fun value(text: String?): StructuredValue = text?.let(::StructuredText) ?: StructuredNull
+            val values = source.values.mapValues { value(it.value) } + mapOf("currency" to value(source.currency),
+                "record_subtype" to value(source.values["record_subtype"] ?: "not_applicable"),
+                "account_id" to value(selectedAccount?.accountId), "account_name" to value(selectedAccount?.name),
+                "counterparty_account" to StructuredText(""), "counterparty_account_attrs" to StructuredArray(emptyList()))
+            row to StructuredObject(values + ("source_payload" to StructuredObject(values + mapOf("source_type" to value(source.sourceType),
+                "source_account" to value(source.accountName)))) + oldPatch)
         }
         val items = details.map { (row, values) ->
             val entryPatch = choices.entries.firstOrNull { it.editRef == "demo-edit-$row" }?.patch?.fields.orEmpty()
@@ -73,13 +86,15 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
             val ready = demoCashPostingComplete(values, finance.demoAccounts())
             val issues = if (ready) emptyList() else listOf(ImportIssue("posting_incomplete", if (text("account_id") == null) "请选择对应账户。" else "请补齐收支信息。", null, "row", "edit")) // i18n-allow: demo-fixture
             ImportProjectedItem(row, if (ready) "confirmed" else "pending", if (ready) "posted" else "draft",
-                ImportDisplay(text("occurred_at"), text("amount"), text("currency"), text("counterparty"), text("note"), listOfNotNull(text("account_name")), text("category_id")),
+                ImportDisplay(text("occurred_at"), text("amount"), text("currency"), text("counterparty"), text("note"), listOfNotNull(text("account_name")), text("category_id"),
+                    recordType = text("record_type"), recordSubtype = text("record_subtype")),
                 ready, listOf(ImportMemberRef(row, null)), issues, true)
-        }
+        }.sortedByDescending { it.display.occurredAt.orEmpty() }
         val pending = items.count { it.confirmationStatus == "pending" }.toLong()
+        val monthlySummaries = demoImportMonthlySummaries(items, details.toMap())
         val plan = ImportPlan(id, sessionId, version, "2099-01-01T00:00:00Z", mapOf("create_posted" to items.size.toLong() - pending, "create_draft" to pending),
             mapOf("all" to items.size.toLong(), "pending" to pending, "confirmed" to items.size.toLong() - pending), true, items,
-            old.files.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues, null, it.canRetry) }, null, emptyList())
+            old.files.map { ImportPlanFile(it.fileRef, it.displayName, it.status, it.recognizedRowCount, it.issues, null, it.canRetry) }, null, emptyList(), monthlySummaries)
         plans[id] = plan; this.choices[id] = choices; fields[id] = details
         contexts[sessionId] = old.copy(revision = version, lastPlanId = id, lastChoices = choices)
         return plan
@@ -161,4 +176,57 @@ class DemoCashImportLifecycleRepository(private val finance: DemoFinanceReposito
         deletedAccounts[accountId] = result
         return result
     }
+}
+
+private fun demoImportMonthlySummaries(items: List<ImportProjectedItem>, details: Map<String, StructuredObject>): Map<String, List<CashMonthlySummary>> {
+    val totals = mutableMapOf<Triple<String, String, String>, Pair<Long, Long>>()
+    val months = mutableMapOf<String, MutableSet<String>>()
+    for (item in items) {
+        val instant = item.display.occurredAt ?: continue
+        val month = getLocalDateForInstant(instant).take(7)
+        if (month.length != 7) continue
+        val statuses = listOf("all", item.confirmationStatus)
+        statuses.forEach { months.getOrPut(it) { mutableSetOf() }.add(month) }
+        if (!item.statisticsEligible) continue
+        val currency = item.display.currency ?: continue
+        val amount = item.display.amount ?: continue
+        val type = (details[item.itemId]?.fields?.get("record_type") as? StructuredText)?.value
+        val direction = when (type) {
+            "consumption", "refund", "investment_out", "fee" -> "expense"
+            "income", "investment_in", "interest" -> "income"
+            else -> continue
+        }
+        val scaled = demoImportScaledAmount(amount)
+        for (status in statuses) {
+            val key = Triple(status, month, currency)
+            val (income, expense) = totals[key] ?: (0L to 0L)
+            totals[key] = if (direction == "income") (income + scaled) to expense else income to (expense + scaled)
+        }
+    }
+    return months.mapValues { (status, monthSet) ->
+        monthSet.sortedDescending().map { month ->
+            CashMonthlySummary(month, totals.keys.filter { it.first == status && it.second == month }
+                .map { it.third }.distinct().sorted().map { currency ->
+                    val (income, expense) = totals.getValue(Triple(status, month, currency))
+                    CashMonthlyCurrencySummary(currency, demoImportAmount(income), demoImportAmount(expense))
+                })
+        }
+    }
+}
+
+private fun demoImportScaledAmount(value: String): Long {
+    require(isExactDecimalString(value))
+    val negative = value.startsWith('-')
+    val unsigned = value.removePrefix("-").removePrefix("+")
+    val fraction = unsigned.substringAfter('.', "")
+    require(fraction.length <= 6)
+    val scaled = unsigned.substringBefore('.').toLong() * 1_000_000 + fraction.padEnd(6, '0').toLong()
+    return if (negative) -scaled else scaled
+}
+
+private fun demoImportAmount(value: Long): String {
+    if (value == 0L) return "0"
+    val unsigned = if (value < 0) -value else value
+    val fraction = (unsigned % 1_000_000).toString().padStart(6, '0').trimEnd('0')
+    return (if (value < 0) "-" else "") + (unsigned / 1_000_000) + (if (fraction.isEmpty()) "" else ".$fraction")
 }

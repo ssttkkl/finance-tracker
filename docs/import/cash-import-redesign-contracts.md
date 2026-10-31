@@ -28,8 +28,8 @@
 | 区域／状态 | 用户看到的内容 | 系统默认处理 | 用户可做的事 | 操作条件 |
 |---|---|---|---|---|
 | 选择文件 | 文件名称、识别进度；有问题的文件显示具体原因 | 逐文件解析，成功文件不因其他文件失败而作废 | 添加／移除文件，为单个文件重传并输入密码；保留错误项继续 | 至少一条可辨认业务行，或有可展示的终结处理结果；正在改变文件集合的请求完成 |
-| 选择对应账户 | 按渠道展示账单中的资金账户及当前已选账户；微信组显示当次昵称或文件名 | 非微信渠道按已确认映射和账户别名预选；微信每次重新选择 | 选择或新建对应账户；默认合并跨渠道且无歧义的同名组，可关闭后分别选择；允许暂不选择 | 点“下一步”前补齐所选账户缺少的币种 |
-| 预览并导入 | 投影后的流水列表，逐项“已确认／待确认”；有来源变化的项可展开差异 | 自动对应来源并形成预计展示；强证据合法关系纳入拟确认图，未确认关系不连接；保护人工分类和备注 | 直接确认导入；按需打开一项查看差异、组成流水和关联；无需逐项处理待确认项 | 当前计划已生成，没有未提交的本地修改；单项待确认不禁用导入 |
+| 选择对应账户 | 单渠道直接展示来源账户；至少两种来源渠道时按渠道分组并显示“合并不同渠道的同名账户”；微信组显示当次昵称或文件名 | 非微信渠道按已确认映射和账户别名预选；微信每次重新选择 | 选择或新建对应账户；多渠道时可调整同名账户合并；允许暂不选择 | 点“下一步”前补齐所选账户缺少的币种 |
+| 预览并导入 | 预计收支列表显示主流水类型及具体待处理原因；有来源变化的项可展开差异 | 自动对应来源并形成预计展示；强证据合法关系纳入拟确认图，未确认关系不连接；保护人工分类和备注 | 直接确认导入；按需打开一项查看差异、组成流水和关联；无需逐项处理待确认项 | 当前计划已生成，没有未提交的本地修改；单项待确认不禁用导入 |
 | 结果 | 实际保存结果、待确认数量和未导入原因 | 待确认项默认引导回主页处理；实际未合并时不沿用预览合并结果 | 返回主页；按需查看错误或重试未导入项 | 结果已确定；网络未知状态走第 2.5 节 |
 
 所有可应用更新的字段差异都可查看，“确认导入”同时确认这些更新，不额外逐条弹窗。用户选择“保留现有”只跳过本次更新，不建立永久禁止更新规则。人工分类和备注的保护规则不因预选更新而失效。强建议仍在最终确认前不生效；“暂不处理”保存草稿关系，“拒绝”形成忽略决定，两者不能共用一个动作。
@@ -57,9 +57,9 @@
 
 ### 2.4 导入后如何补充
 
-主页流水列表与导入预览使用相同的投影展示语义和“已确认／待确认”标记。主页默认可展示已保存的正式项及草稿项，待确认筛选提供快捷定位；不新增一级问题中心或关系页面。草稿显示已知信息但所有金额汇总仍排除草稿，正式流水的待确认关联不改变现有统计口径。不能把用户引导回主页后，又将待确认项隐藏在默认不可见的独立列表。
+主页流水列表与导入预览使用相同的收支展示和确认状态语义。列表显示主流水类型及具体待处理原因标签；普通已确认项不显示状态标签。主页默认可展示已保存的正式项及草稿项，待确认筛选提供快捷定位；不新增一级问题中心或关系页面。草稿显示已知信息但所有金额汇总仍排除草稿，正式流水的待确认关联不改变现有统计口径。不能把用户引导回主页后，又将待确认项隐藏在默认不可见的独立列表。
 
-全额退款及全额平台退回在导入预览展示净额为 0；主页保留该投影和详情证据，列表默认由“隐藏0元流水”筛选隐藏，关闭后可以查看。关闭筛选后，无待处理事项时显示已确认，有待处理事项时显示待确认，问题解决后状态随当前问题更新。其他业务隐藏项有活动待处理事项时优先展示，统计资格仍按原口径；此优先级不覆盖权限、工作区、逻辑删除或用户明确筛选。默认查询不能因为草稿时间为空而漏掉它，可在“时间待补充”分组展示；用户主动设置的具体筛选条件仍明确生效，结果页进入待确认筛选时清除妨碍定位的旧日期条件。
+全额退款及全额平台退回在导入预览展示净额为 0；主页保留该投影和详情证据，列表默认由“隐藏0元流水”筛选隐藏，关闭后可以查看。关闭筛选后，无待处理事项时不显示状态标签，有待处理事项时显示具体原因；问题解决后标签随当前问题移除。其他业务隐藏项有活动待处理事项时优先展示，统计资格仍按原口径；此优先级不覆盖权限、工作区、逻辑删除或用户明确筛选。默认查询不能因为草稿时间为空而漏掉它，可在“时间待补充”分组展示；用户主动设置的具体筛选条件仍明确生效，结果页进入待确认筛选时清除妨碍定位的旧日期条件。
 
 | 用户进入的对象 | 详情提供的动作 | 保存语义 |
 |---|---|---|
@@ -222,7 +222,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | `preview_item_id` | 本计划内不透明标识，不能用作提交后的正式投影 ID |
 | `confirmation_status` | `confirmed/pending`，按当前问题、草稿状态和未确认关系派生，不是独立持久化的审核开关 |
 | `anticipated_state` | `posted/draft`；用于解释统计资格，不向用户暴露内部枚举 |
-| `display` | `occurred_at/amount/currency/counterparty/note/accounts[]`；未知值可空，金额为字符串 |
+| `display` | `occurred_at/amount/currency/counterparty/note/accounts[]/record_type/record_subtype`；未知值可空，金额为字符串；类型与适用细分取预计收支的主流水 |
 | `statistics_eligible` | 按预计正式投影与既有财务口径计算；不是由确认状态直接决定 |
 | `member_refs[]` | `{row_ref}` 或 `{transaction_id}`，一个成员不能同时用两种身份重复计算 |
 | `attention_reasons[]` | 安全原因及 `after_import_action=open_home_item`；待确认默认回主页处理 |
@@ -238,7 +238,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
       "preview_item_id": "pi_1",
       "confirmation_status": "pending",
       "anticipated_state": "posted",
-      "display": {"occurred_at": "2026-10-01T12:00:00+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例支付账户"]},
+      "display": {"occurred_at": "2026-10-01T12:00:00+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例支付账户"], "record_type": "consumption", "record_subtype": "not_applicable"},
       "statistics_eligible": true,
       "member_refs": [{"row_ref": "f1:r1"}],
       "attention_reasons": [{"code": "relation_pending", "message": "待确认关联，可回主页处理", "after_import_action": "open_home_item"}],
@@ -248,7 +248,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
       "preview_item_id": "pi_2",
       "confirmation_status": "pending",
       "anticipated_state": "posted",
-      "display": {"occurred_at": "2026-10-01T12:00:01+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例银行卡"]},
+      "display": {"occurred_at": "2026-10-01T12:00:01+08:00", "amount": "-100", "currency": "CNY", "counterparty": "示例商户", "note": "", "accounts": ["示例银行卡"], "record_type": "consumption", "record_subtype": "not_applicable"},
       "statistics_eligible": true,
       "member_refs": [{"row_ref": "f2:r1"}],
       "attention_reasons": [{"code": "relation_pending", "message": "待确认关联，可回主页处理", "after_import_action": "open_home_item"}],
@@ -259,6 +259,8 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 ```
 
 同一例中，关系纳入拟确认图且整体合法时，列表改为一个 `confirmed/posted` 项，两个成员、金额 `"-100"`；未确认不能只把它的状态改成 `pending` 而保留合并金额。上述 JSON 只展示计划的列表字段，计划标识、摘要及文件结果仍遵守完整响应合同。
+
+计划响应的 `monthly_summaries` 按 `all/pending/confirmed` 提供各本地月份的 `currencies[]`，每种币种分别含收入和支出十进制字符串。汇总依据整份预计结果计算，与当前已加载分页无关；仅纳入有统计资格的收支，退款抵减支出，转账和未知金额不虚构数值。
 
 `FieldDiff` 包含 `field`、`current`、`incoming`、`effective`、`resolution`；`resolution` 可为 `apply/protected/fixed_conflict/keep_existing`。人工保护的备注即使来源不同，也显示最终保留值。来源行差异支持展开，不在默认列表展开整个 JSON。
 
@@ -318,6 +320,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 | 会话或计划属于其他用户／工作区 | `404`，不泄漏对象是否存在 |
 | 行决定重复、无效动作或显式补丁不合法 | `422 plan_input_invalid`；请求结构或未声明字段不合法时为 `422 import_payload_invalid`。清除无效选择后重新核对，不生成收据 |
 | 预览输入基于旧会话修订，或旧计划已被新计划替代 | `409 plan_changed`，刷新当前预览 |
+| 已保存的旧导入计划缺少月度汇总依据或主流水类型字段 | 读取、翻页或提交返回 `409 plan_changed`；核实原提交返回 `not_committed`，在当前会话重新预览生成完整计划，不把缺失字段显示为空汇总或空类型 |
 | 提交重建时，冻结的显式行补丁因账户停用等事实变化而不再合法 | `409 plan_changed`、`commit_state=not_committed`，无流水或收据写入；重新核对后重试 |
 | 提交重验发现流水修订变化、来源映射账户不可用或关系失效 | `409 plan_changed` 或安全冲突错误；本次全部写入回滚，重新核对 |
 | 相同幂等键与相同计划重试 | 原收据，不能重跑其中失败项 |
@@ -453,7 +456,7 @@ multipart 的文件字段名为 `file:<client_file_ref>`，唯一文本字段 `m
 
 `maintain_relations` 从相关 `transaction_id` 出发，保留服务端提供的完整建议与组决定。`accept/defer/ignore/remove` 是协议动作；界面不提供无实际影响的 `defer` 按钮，关闭弹窗不提交决定。主动新增使用 `relation_additions`，每次最多一项，显式提供 `target_transaction_id`、`expected_target_revision`、双方 `anchor_component_id/target_component_id`、`kind`；服务端读取真实导入流水、推导角色并校验共同硬约束及最终关系图，人工指定不要求来源证明，不接受客户端直接构造关系边。现有建议的公共人工值冲突以 `common_field_conflicts` 返回，选择放入 `common_fields`；新增关系的选择放在对应 `relation_additions[].common_fields`。客户端提供端点已有值及明确清空选项；主动新增的服务端输入限制为端点现值或字段对应的清空值：文本为空字符串、分类为 `null`、账号属性为空数组。解除只有 `split_field_diffs` 非空时才要求布尔 `inherit_common_fields`，差异列出字段、当前值和成员原值；同值人工标记不额外询问。
 
-`GET /api/v1/cash-records/{transaction_id}/association-targets` 只读搜索同一工作区的导入流水，排除当前已确认关系连通组和手工记录。查询支持 `query`、`kind`（`payment_mirror`、`refund_offset` 或 `transfer_pair`，省略时不限类型）、`account_id`、精确绝对金额 `amount`、`date_from/date_to`、`timezone_name`、`cursor` 和 `limit`（默认 20、上限 100）；客户端显式发送本地时区，日期边界按该时区解释。响应为当前流水详情列表 `items` 和可空 `next_cursor`，不以自动匹配候选窗口限制搜索。每项另返回服务端认可的 `component_choices`（`anchor_component_id`/`target_component_id`）和 `unavailable_reason`；客户端只能提交这些明确组合，不能自行推导角色或金额，并据此说明结果当前不可选的原因。搜索只提供当前可选范围，最终合法性仍以完整图预览和提交为准。只有合法正式端点才能进入新增确认，所有财务规则及当前修订在预览和提交时继续校验。
+`GET /api/v1/cash-records/{transaction_id}/association-targets` 只读搜索同一工作区的导入流水，排除当前已确认关系连通组和手工记录。查询支持 `query`、`kind`（`payment_mirror`、`refund_offset` 或 `transfer_pair`，省略时不限类型）、`account_id`、精确绝对金额 `amount`、`date_from/date_to`、`timezone_name`、`cursor` 和 `limit`（默认 20、上限 100）；客户端显式发送本地时区，日期边界按该时区解释。服务端在分页前排除不可选记录，响应仅含当前可选流水 `items` 和可空 `next_cursor`，不以自动匹配候选窗口限制搜索。每项返回服务端认可的 `component_choices`（`anchor_component_id`/`target_component_id`）；`unavailable_reason` 保留为兼容字段，返回项中为 `null`。客户端只能提交这些明确组合，不能自行推导角色或金额。搜索后的资格变化、所有财务规则及当前修订仍在完整图预览和提交时重新校验。
 
 关系建议及每套 `candidates` 各自返回 `relations` 摘要，包含 `kind` 和 `member_refs`；端点保留明确 `row_ref/transaction_id`，不公开内部证明。客户端按完整摘要显示混合方案，不能用首条关系的 `kind` 代替全部关系。仅普通备注等无关联影响的编辑，前端在点击“保存”后可以先请求计划再立即提交；若服务端返回实际额外影响，先展示确认。
 

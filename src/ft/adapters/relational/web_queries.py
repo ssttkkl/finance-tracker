@@ -3,7 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from decimal import Decimal, localcontext
-from sqlalchemy import and_, case, func, literal, or_, select
+from sqlalchemy import and_, case, func, literal, or_, select, union_all
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import aliased
 from ft.adapters.relational.dialect import RelationalEngineError
@@ -278,8 +278,9 @@ class RelationalCashLedgerQueryRepository:
             source_types = tuple(dict.fromkeys(parent.source_type for parent in parents if parent.source_type))
             transfer = self._transfer_details(session, state.active_dataset_id, (row.id,)).get(row.id)
             categories = _category_rows(session, self._workspace_id) if row.category_id else {}
+            metadata = self._projection_ui_metadata(session, state.active_dataset_id, (row,))
             projection = self._dto(row, account, relations, source_types, transfer, categories,
-                projection_version=state.projection_version)
+                projection_version=state.projection_version, ui_metadata=metadata[row.id])
             return ProjectionDetailDTO(state.projection_version, projection, members, tuple(issues))
 
     def read_finance_report(self, *, month=None):
@@ -321,13 +322,52 @@ class RelationalCashLedgerQueryRepository:
                 sorted(grouped.items(), key=lambda item: (-item[1], item[0]))[:10])
             return {"income": income, "expenses": expenses, "flows": flows}
 
-    def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None, *, projection_version):
+    def _projection_ui_metadata(self, session, dataset_id, rows):
+        """Batch the primary record type and current attention reasons for visible projections."""
+        result = {row.id: {"record_type": None, "record_subtype": None, "attention_codes": set()} for row in rows}
+        if not result:
+            return result
+        for batch in _batches(sorted(result)):
+            member_scope = (
+                CashProjectionMemberModel.workspace_id == self._workspace_id,
+                CashProjectionMemberModel.dataset_id == dataset_id,
+                CashProjectionMemberModel.projection_row_id.in_(batch),
+            )
+            primary_types = select(CashProjectionModel.id, CashTransactionModel.record_type,
+                CashTransactionModel.record_subtype, literal(None)).join(CashTransactionModel, and_(
+                    CashTransactionModel.workspace_id == CashProjectionModel.workspace_id,
+                    CashTransactionModel.id == CashProjectionModel.root_cash_transaction_id)).where(
+                        CashProjectionModel.workspace_id == self._workspace_id,
+                        CashProjectionModel.dataset_id == dataset_id, CashProjectionModel.id.in_(batch))
+            issue_codes = select(CashProjectionMemberModel.projection_row_id, literal(None), literal(None),
+                CashTransactionIssueModel.code).join(CashTransactionIssueModel, and_(
+                    CashTransactionIssueModel.workspace_id == CashProjectionMemberModel.workspace_id,
+                    CashTransactionIssueModel.transaction_id == CashProjectionMemberModel.cash_transaction_id)).where(*member_scope)
+            pending_relations = select(CashProjectionMemberModel.projection_row_id, literal(None), literal(None),
+                literal("relation_pending")).join(TransactionRelationModel, and_(
+                    TransactionRelationModel.workspace_id == CashProjectionMemberModel.workspace_id,
+                    TransactionRelationModel.active.is_(True), TransactionRelationModel.state == "draft",
+                    or_(TransactionRelationModel.primary_transaction_id == CashProjectionMemberModel.cash_transaction_id,
+                        TransactionRelationModel.secondary_transaction_id == CashProjectionMemberModel.cash_transaction_id))).where(*member_scope)
+            for identifier, record_type, record_subtype, code in session.execute(
+                union_all(primary_types, issue_codes, pending_relations)):
+                if code is None:
+                    result[identifier]["record_type"] = record_type
+                    result[identifier]["record_subtype"] = record_subtype
+                else:
+                    result[identifier]["attention_codes"].add(code)
+        return {identifier: {**value, "attention_codes": tuple(sorted(value["attention_codes"]))}
+            for identifier, value in result.items()}
+
+    def _dto(self, row, account, relations, source_types=(), transfer=None, categories=None, *, projection_version, ui_metadata=None):
         kinds = tuple(sorted({r.kind for r in relations}))
         summary = tuple({"kind": kind, "count": sum(r.kind == kind for r in relations)} for kind in kinds)
         account_summary = None if account is None else CashAccountSummaryDTO(account.id,account.name,account.type,account.active)
         return ProjectionDTO(row.projection_id,row.occurred_at.isoformat() if row.occurred_at is not None else None,account_summary,row.counterparty,_category_dto(categories or {}, row.category_id),row.note,_amount(row.net_amount),row.currency,row.economic_type,row.business_label,kinds,row.member_count,summary,row.source_type,tuple(source_types),row.record_id,row.visible,row.hidden_reason,transfer,
             state=row.state, statistics_eligible=row.statistics_eligible, attention_count=row.attention_count,
-            confirmation_status="pending" if row.state == "draft" or row.attention_count else "confirmed", projection_version=projection_version, entry_id=row.entry_id, transaction_id=str(row.root_cash_transaction_id))
+            confirmation_status="pending" if row.state == "draft" or row.attention_count else "confirmed", projection_version=projection_version, entry_id=row.entry_id, transaction_id=str(row.root_cash_transaction_id),
+            record_type=(ui_metadata or {}).get("record_type"), record_subtype=(ui_metadata or {}).get("record_subtype"),
+            attention_codes=(ui_metadata or {}).get("attention_codes", ()))
     def _member_source_types(self, session, dataset_id, projection_row_ids):
         projection_row_ids = tuple(projection_row_ids)
         source_types = {projection_row_id: [] for projection_row_id in projection_row_ids}
@@ -804,15 +844,23 @@ class RelationalCashLedgerQueryRepository:
             if categories is None:
                 category_ids = {row.category_id for row, _account in rows if row.category_id}
                 categories = _category_rows(s, self._workspace_id) if category_ids else {}
+            ui_metadata = self._projection_ui_metadata(s, dataset_id, tuple(row for row, _account in rows))
             return ProjectionReadPage(version,
-                tuple(self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories, projection_version=version) for row,account in rows),
+                tuple(self._dto(row,account,by[row.id],source_types[row.id],transfer_details.get(row.id),categories, projection_version=version, ui_metadata=ui_metadata[row.id]) for row,account in rows),
                 tuple((row.sort_at.isoformat(), row.projection_id) for row, _account in rows),
                 self._filter_options(s, dataset_id, version=version, categories=categories, deleted_sources=deleted_sources), monthly_summaries, pending_item_count, total_count if indexed else None, month_positions if indexed else ())
     def get_evidence(self, projection_id):
         with self._read_snapshot() as s:
-            state=self._active(s); row=s.scalar(select(CashProjectionModel).where(CashProjectionModel.workspace_id==self._workspace_id,CashProjectionModel.dataset_id==state.active_dataset_id,self._projection_reference_condition(state.active_dataset_id, projection_id), *self._active_source_conditions(state.active_dataset_id)))
-            if row is None: raise LookupError(projection_id)
-            account=s.scalar(select(AccountModel).where(AccountModel.workspace_id==self._workspace_id,AccountModel.id==row.account_id))
+            state = self._active(s)
+            selected = s.execute(select(CashProjectionModel, AccountModel).outerjoin(AccountModel, and_(
+                AccountModel.workspace_id == CashProjectionModel.workspace_id,
+                AccountModel.id == CashProjectionModel.account_id)).where(
+                    CashProjectionModel.workspace_id == self._workspace_id,
+                    CashProjectionModel.dataset_id == state.active_dataset_id,
+                    self._projection_reference_condition(state.active_dataset_id, projection_id),
+                    *self._active_source_conditions(state.active_dataset_id))).one_or_none()
+            if selected is None: raise LookupError(projection_id)
+            row, account = selected
             rels=s.scalars(select(CashProjectionRelationModel).where(CashProjectionRelationModel.projection_row_id==row.id).order_by(CashProjectionRelationModel.ordinal)).all()
             component_account = aliased(AccountModel)
             members=s.execute(
@@ -946,7 +994,8 @@ class RelationalCashLedgerQueryRepository:
                     }
             return {
                 "projection_version": state.projection_version,
-                "projection": self._dto(row, account, rels, source_types, transfer, categories, projection_version=state.projection_version),
+                "projection": self._dto(row, account, rels, source_types, transfer, categories, projection_version=state.projection_version,
+                    ui_metadata=self._projection_ui_metadata(s, state.active_dataset_id, (row,))[row.id]),
                 "root_record": root_record,
                 "members": [
                     {

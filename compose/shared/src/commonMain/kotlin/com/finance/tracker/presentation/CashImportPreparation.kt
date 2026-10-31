@@ -133,36 +133,43 @@ internal fun CashImportPreparation(state: ImportTaskUiState, accountState: Impor
         if (mappingStep) {
             Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().testTag("cash.import.mapping-step")) {
                 CashImportPreparationHeading(localizedText("cash_import_accounts_heading")) {}
-                val mergeSameNameLabel = localizedText("cash_import_merge_same_name")
-                val mergeSameNameStateLabel = localizedText(if (state.mergeSameNameAcrossChannels)
-                    "cash_import_merge_same_name_on" else "cash_import_merge_same_name_off")
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("cash.import.merge-same-name")
-                    .toggleable(value = state.mergeSameNameAcrossChannels, enabled = !busy, role = Role.Switch,
-                        onValueChange = onMergeSameNameAcrossChannels)
-                    .semantics { contentDescription = "$mergeSameNameLabel，$mergeSameNameStateLabel" },
-                    horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(mergeSameNameLabel, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                    Switch(state.mergeSameNameAcrossChannels, onCheckedChange = null, enabled = !busy)
-                }
                 val sourceAccounts = state.context?.sourceAccounts.orEmpty()
+                val multipleChannels = sourceAccounts.map(ImportSourceAccount::sourceType).distinct().size > 1
+                if (multipleChannels) {
+                    val mergeSameNameLabel = localizedText("cash_import_merge_same_name")
+                    val mergeSameNameStateLabel = localizedText(if (state.mergeSameNameAcrossChannels)
+                        "cash_import_merge_same_name_on" else "cash_import_merge_same_name_off")
+                    Row(Modifier.fillMaxWidth().padding(vertical = 12.dp).testTag("cash.import.merge-same-name")
+                        .toggleable(value = state.mergeSameNameAcrossChannels, enabled = !busy, role = Role.Switch,
+                            onValueChange = onMergeSameNameAcrossChannels)
+                        .semantics { contentDescription = "$mergeSameNameLabel，$mergeSameNameStateLabel" },
+                        horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text(mergeSameNameLabel, Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                        Switch(state.mergeSameNameAcrossChannels, onCheckedChange = null, enabled = !busy)
+                    }
+                }
                 sourceAccounts.groupBy { group ->
                     group.sessionGroupRef?.takeIf { group.sessionLabel != null }?.let { "account::${group.sourceType}::$it" }
                         ?: "channel::${group.sourceType}"
                 }.values.forEach { groups ->
                     val firstGroup = groups.first()
-                    val hasAccountHeader = firstGroup.sessionGroupRef != null && firstGroup.sessionLabel != null
+                    val hasAccountHeader = multipleChannels && firstGroup.sessionGroupRef != null && firstGroup.sessionLabel != null
                     val heading = if (hasAccountHeader) {
-                        "${cashImportAccountGroupChannelLabel(firstGroup.sourceType)} - ${firstGroup.sessionLabel}"
+                        firstGroup.sessionLabel.orEmpty()
                     } else cashImportSourceChannelLabel(firstGroup.sourceType)
                     val sectionModifier = Modifier.fillMaxWidth().then(
                         if (hasAccountHeader) Modifier.testTag("cash.import.account-session-group-${firstGroup.sessionGroupRef}") else Modifier)
                     Column(sectionModifier) {
-                        Text(heading, Modifier.padding(top = 12.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium)
+                        if (multipleChannels) Text(heading, Modifier.padding(top = 12.dp, bottom = 8.dp), style = MaterialTheme.typography.titleMedium)
+                        if (hasAccountHeader) Text(cashImportAccountGroupChannelLabel(firstGroup.sourceType), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         groups.forEachIndexed { index, group ->
                             val target = state.choices.accountSelections.firstOrNull { it.sourceAccountRef == group.sourceAccountRef }?.target
                             Column(Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("cash.import.account-group-${group.sourceAccountRef}"),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(if (hasAccountHeader) group.displayName else group.sessionLabel?.let { "$it · ${group.displayName}" } ?: group.displayName,
+                                val accountName = group.sessionLabel?.takeIf {
+                                    !hasAccountHeader && it.isNotBlank() && it != group.displayName
+                                }?.let { "$it · ${group.displayName}" } ?: group.displayName
+                                Text(accountName,
                                     style = MaterialTheme.typography.titleSmall)
                                 Text(localizedText("cash_import_source_rows", group.rowCount.toString(), group.currencies.joinToString(" / ")),
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

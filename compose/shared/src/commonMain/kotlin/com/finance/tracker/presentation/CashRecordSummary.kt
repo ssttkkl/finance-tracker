@@ -128,7 +128,10 @@ internal fun CashCurrentRecordSummary(record: CashCurrentRecord, projection: Cas
         }
     }
     val secondary = buildList {
-        if ("record_type" !in editingFields) fields["record_type"].cashText()?.let { add(cashRecordTypeLabel(it, options)) }
+        if ("record_type" !in editingFields) {
+            val business = projection?.businessLabel
+            if (business != null) add(cashBusinessLabel(business)) else fields["record_type"].cashText()?.let { add(cashRecordTypeLabel(it, options)) }
+        }
         if ("occurred_at" !in editingFields) add(localDateTimeDisplayLabel(cashCurrentRecordOccurredAt(record, projection)))
     }.joinToString(" · ")
     CashRecordSummary(

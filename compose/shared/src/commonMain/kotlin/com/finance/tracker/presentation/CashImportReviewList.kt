@@ -15,7 +15,6 @@ import androidx.paging.LoadState
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.itemKey
 import com.finance.tracker.core.*
-import com.finance.tracker.core.design.GeneratedTokens
 import com.finance.tracker.domain.*
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -60,7 +59,26 @@ internal fun CashImportReviewList(
                 modifier = Modifier.testTag("cash.import.filter-all"),
             )
         }
-        Box(Modifier.weight(1f).fillMaxWidth()) {
+        val summariesByMonth = state.plan?.monthlySummaries?.get(state.filter).orEmpty().associateBy(CashMonthlySummary::month)
+        CashWaterfallViewport(
+            listState = listState,
+            totalCount = rows.itemCount,
+            monthAt = { ordinal -> rows.peek(ordinal)?.display?.occurredAt?.let(::localMonthKey) },
+            monthStartAt = { ordinal ->
+                val month = rows.peek(ordinal)?.display?.occurredAt?.let(::localMonthKey)
+                var start = ordinal
+                while (start > 0 && rows.peek(start - 1)?.display?.occurredAt?.let(::localMonthKey) == month) start--
+                start
+            },
+            monthPositions = emptyList(),
+            isOrdinalLoaded = { ordinal -> rows.peek(ordinal) != null },
+            summaryForMonth = { summariesByMonth[it] },
+            showTotals = true,
+            sizeClass = sizeClass,
+            showSelection = false,
+            auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+        ) { onHeaderHeight ->
             LazyColumn(
                 Modifier.fillMaxSize().testTag("cash.import.items"),
                 state = listState,
@@ -81,11 +99,8 @@ internal fun CashImportReviewList(
                         val monthEnd = nextMonth?.let { it != month } ?: (index == rows.itemCount - 1)
                         val detail = state.details[item.itemId]
                         val relationPending = detail?.relationChoices?.any { it.action == "defer" } == true
-                        val statusTags = buildList {
-                            if (item.anticipatedState == "draft") add(CashLedgerRowStatusTag.DRAFT)
-                            if (relationPending) add(CashLedgerRowStatusTag.RELATION_PENDING)
-                            else if (item.confirmationStatus == "pending") add(CashLedgerRowStatusTag.NEEDS_REVIEW)
-                        }
+                        val statusTags = cashAttentionTags(item.anticipatedState, item.confirmationStatus,
+                            item.attentionReasons.map(ImportIssue::code) + if (relationPending) listOf("relation_pending") else emptyList())
                         val pairLabels = detail?.let { currentDetail -> currentDetail.relationChoices
                             .filter { it.action in setOf("accept", "defer") }
                             .map { group ->
@@ -109,27 +124,19 @@ internal fun CashImportReviewList(
                             .takeIf(String::isNotBlank)
                             ?.let { localizedText("cash_import_attention_summary", it) }
 
-                        Surface(
-                            modifier = Modifier.fillMaxWidth().padding(
-                                top = if (monthStart && index > 0) GeneratedTokens.Core.Space.Token3 else 0.dp,
-                            ),
-                            shape = MaterialTheme.shapes.medium,
-                            color = MaterialTheme.colorScheme.surfaceContainerLow,
-                            tonalElevation = 0.dp,
+                        CashWaterfallItem(
+                            month = month,
+                            first = monthStart,
+                            last = monthEnd,
+                            gapBefore = monthStart && index > 0,
+                            summary = summariesByMonth[month],
+                            showTotals = true,
+                            sizeClass = sizeClass,
+                            showSelection = false,
+                            auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
+                            onHeaderHeight = onHeaderHeight,
                         ) {
                             Column(Modifier.fillMaxWidth()) {
-                                if (monthStart) {
-                                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
-                                        Text(localMonthLabel(month), style = MaterialTheme.typography.titleMedium)
-                                        if (sizeClass != WindowSizeClass.COMPACT) {
-                                            CashLedgerTableHeader(
-                                                modifier = Modifier.padding(top = 8.dp),
-                                                showSelection = false,
-                                                statusOnly = true,
-                                            )
-                                        }
-                                    }
-                                }
                                 CashLedgerRow(
                                     item = CashLedgerRowContent(
                                         id = "import-${item.itemId}",
@@ -139,7 +146,7 @@ internal fun CashImportReviewList(
                                         accountLabel = item.display.accounts.joinToString("、")
                                             .ifEmpty { localizedText("cash_import_no_account") },
                                         categoryLabel = cashCategoryDisplayPath(categories.firstOrNull { it.id == item.display.categoryId }),
-                                        economicLabel = null,
+                                        economicLabel = cashRecordTypeAndSubtypeLabel(item.display.recordType, item.display.recordSubtype, options),
                                         sourceLabel = null,
                                         confirmationStatus = item.confirmationStatus,
                                         amountLabel = if (item.display.amount == null) localizedText("cash_import_amount_unknown")
@@ -149,6 +156,7 @@ internal fun CashImportReviewList(
                                         showConfirmationStatus = false,
                                         relationshipSummary = relationshipSummary,
                                         attentionSummary = attentionSummary,
+                                        auxiliaryColumn = CashLedgerAuxiliaryColumn.TYPE,
                                     ),
                                     checked = false,
                                     canWrite = false,
@@ -199,16 +207,6 @@ internal fun CashImportReviewList(
                 )
             }
 
-            if (rows.itemCount > 0) {
-                CashLedgerScrollbar(
-                    listState = listState,
-                    totalCount = rows.itemCount,
-                    monthPositions = emptyList(),
-                    isOrdinalLoaded = { ordinal -> rows.peek(ordinal) != null },
-                    compact = sizeClass == WindowSizeClass.COMPACT,
-                    modifier = Modifier.align(Alignment.CenterEnd).zIndex(1f),
-                )
-            }
         }
         if (onProcessing != null) {
             TextButton(

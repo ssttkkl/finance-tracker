@@ -21,6 +21,7 @@ type FixtureOptions = {
   cashAppendFailures?: number;
   cashBusinessLabels?: string[];
   cashProjectionOverrides?: Record<string, unknown>;
+  cashSummaryCurrencies?: Array<{ currency: string; income: string; expense: string }>;
 };
 
 export type ComposeApiFixtures = {
@@ -508,7 +509,7 @@ export async function installComposeApiFixtures(
             { economic_type: "internal_transfer", business_labels: options.cashBusinessLabels ?? [] },
           ],
         },
-        monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: [{ currency: "CNY", income: "0", expense: "28.50" }] }],
+        monthly_summaries: options.cashPageEmpty ? [] : [{ month: "2026-09", currencies: options.cashSummaryCurrencies ?? [{ currency: "CNY", income: "0", expense: "28.50" }] }],
       });
     }
     if (pathname === "/api/v1/cash-projections/categories" && method === "PUT") {

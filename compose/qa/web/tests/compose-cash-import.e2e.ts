@@ -139,14 +139,14 @@ async function uploadAndReview(page: Page, fromLedger = false, prepareOnly = fal
   await expect(page.locator('[id="cash.import.files-step"]:visible')).toHaveCount(1);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(0);
   const task = page.locator('[id="cash.import.task"]:visible');
-  await expect(task).toContainText("1  选择文件");
+  await expect(task).toContainText("1  文件");
   await expect(task).not.toContainText("添加本次要导入的账单文件。");
   await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
   if (prepareOnly) return;
   await enterAccountMapping(page);
   await expect(page.locator('[id="cash.import.mapping-step"]:visible')).toHaveCount(1);
-  await expect(task).toContainText("2  选择对应账户");
+  await expect(task).toContainText("2  账户");
   await expect(task).not.toContainText("为账单中的账户选择对应的账本账户。");
   await expect(task).not.toContainText("账户映射");
   await expect(task).not.toContainText("核对预计结果");
@@ -232,7 +232,7 @@ test("currency-ineligible account suggestion stays selected and expands when con
   ]);
 });
 
-test("creating an account from its mapping menu returns to the same source with it selected", async ({ page }) => {
+test("creating an account from its mapping menu returns to the same source with it selected", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const calls = await setup(page);
   await page.route(/\/api\/v1\/accounts\/by-id\/1$/, route => route.fulfill({ json: {
@@ -260,7 +260,7 @@ test("creating an account from its mapping menu returns to the same source with 
   await chooseAccountMenuOption(page);
   await expect(page.locator('[id="cash.import.account-form"]:visible')).toBeVisible();
   await expect(page.locator('[id="cash.import.account-form.save"]:visible')).toBeEnabled();
-  await page.screenshot({ path: "/tmp/cash-import-account-form-prefill.png" });
+  await page.screenshot({ path: info.outputPath("account-form-prefill.png") });
   const accountReload = page.waitForResponse(response => response.request().method() === "GET"
     && new URL(response.url()).pathname === "/api/v1/accounts/by-id/42");
   await press(page, "cash.import.account-form.save");
@@ -270,8 +270,8 @@ test("creating an account from its mapping menu returns to the same source with 
   // primary action's real screen position to continue this 1440px scenario.
   await accountReload;
   await page.waitForTimeout(300);
-  await page.screenshot({ path: "/tmp/cash-import-account-after-save.png" });
-  await page.mouse.click(1357, 872);
+  await page.screenshot({ path: info.outputPath("account-after-save.png") });
+  await page.mouse.click(1020, 872);
   await expect.poll(() => calls.previews.length).toBe(1);
   expect(calls.previews.at(-1)?.account_selections).toEqual([
     { source_account_ref: "source-account", account_id: "42", expected_account_revision: 1 },
@@ -286,7 +286,7 @@ test("cash import defaults to pending items, switches to all, and shows only the
   const items = page.locator('[id="cash.import.items"]:visible');
   await expect(items).toContainText("待核对商户");
   await expect(items).not.toContainText("正常商户");
-  await expect(page.locator('[id="ledger.status-tag-import-pending-item-draft"]:visible')).toHaveText("草稿");
+  await expect(page.locator('[id="ledger.record-import-pending-item"]:visible')).toContainText("草稿待补充");
   expect(calls.pages[0]).toBe("pending");
   await press(page, "cash.import.filter-all");
   await expect.poll(() => calls.pageRanges.some(range => range.filter === "all")).toBe(true);
@@ -358,8 +358,7 @@ test(`current relation candidates remain readable and readonly in the import det
   await press(page, "cash.import.filter-all");
 
   const relationRow = page.locator('[id="ledger.record-import-confirmed-item"]:visible');
-  if (width < 600) await clickLocator(page, relationRow);
-  else await clickLocator(page, relationRow.locator('[id="ledger.open-record"]'));
+  await clickLocator(page, relationRow);
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(page.getByText("流水详情", { exact: true })).toBeVisible();
   await expect(detail.getByText("流水信息", { exact: true })).toHaveCount(0);
@@ -438,7 +437,7 @@ test("import review pages through the ledger rows, shows the right scrollbar, an
   const targetRow = page.locator('[id="ledger.record-import-pending-46"]:visible');
   await expect(targetRow).toBeVisible();
   await page.screenshot({ path: info.outputPath("import-review-paged-before-detail.png") });
-  await clickLocator(page, targetRow.locator('[id="ledger.open-record"]'));
+  await clickLocator(page, targetRow);
   const detail = page.locator('[id="cash.import.detail"]:visible');
   await expect(detail).toBeVisible();
   await expect(page.getByText("流水详情", { exact: true })).toBeVisible();
@@ -524,10 +523,12 @@ test("cash import account choices are grouped by channel and account and expose 
   await uploadAndReview(page, false, true);
   await enterAccountMapping(page);
   const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
-  await expect(mapping).toContainText("支付宝 - a***@example.test");
-  await expect(mapping).toContainText("支付宝 - b***@example.test");
-  await expect(mapping).toContainText("微信 - 昵称甲");
-  await expect(mapping).toContainText("微信 - 昵称乙");
+  await expect(mapping).toContainText("a***@example.test");
+  await expect(mapping).toContainText("b***@example.test");
+  await expect(mapping).toContainText("昵称甲");
+  await expect(mapping).toContainText("昵称乙");
+  await expect(mapping).toContainText("支付宝");
+  await expect(mapping).toContainText("微信");
   const alipayA = page.locator('[id="cash.import.account-session-group-alipay-account-a"]:visible');
   const alipayB = page.locator('[id="cash.import.account-session-group-alipay-account-b"]:visible');
   const wechatA = page.locator('[id="cash.import.account-session-group-wechat-nickname-a"]:visible');
@@ -551,6 +552,26 @@ test("cash import account choices are grouped by channel and account and expose 
   await expect(wechatB).toContainText("零钱");
   await page.screenshot({ path: info.outputPath("account-choices-bottom-account-groups.png") });
 });
+test("single channel keeps same-name source accounts identifiable without channel groups", async ({ page }, info) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const calls = await setup(page);
+  calls.context.source_accounts.push(...["甲", "乙"].map((name, index) => ({
+    source_account_ref: `wechat-${index}`, source_type: "wechat", session_group_ref: `nickname-${index}`,
+    session_label: `昵称${name}`, display_name: "零钱", currencies: ["CNY"], row_count: 1,
+    suggestion: { basis: "none" }, selection: null,
+  })));
+  await uploadAndReview(page, false, true);
+  await enterAccountMapping(page);
+  const mapping = page.locator('[id="cash.import.mapping-step"]:visible');
+  await expect(mapping.locator('[id="cash.import.merge-same-name"]')).toHaveCount(0);
+  await expect(mapping.locator('[id^="cash.import.account-session-group-"]')).toHaveCount(0);
+  await expect(mapping.locator('[id="cash.import.account-group-wechat-0"]')).toContainText("昵称甲 · 零钱");
+  await expect(mapping.locator('[id="cash.import.account-group-wechat-1"]')).toContainText("昵称乙 · 零钱");
+  // Allow the first Compose CJK font render to settle before saving visual evidence.
+  await page.waitForTimeout(8_000);
+  await page.screenshot({ path: info.outputPath("single-channel-source-account-identities.png") });
+});
+
 test("file retry input error does not claim review choices are invalid", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   const calls = await setup(page);
@@ -561,7 +582,7 @@ test("file retry input error does not claim review choices are invalid", async (
   await uploadAndReview(page, false, true);
   const file = page.locator('[id="cash.import.file-file"]:visible');
   await expect(file).toContainText("需要文件密码");
-  await clickLocator(page, file.getByRole("button", { name: "重试", exact: true }));
+  await clickLocator(page, file.locator('[id="cash.import.retry-file"]'));
   const task = page.locator('[id="cash.import.task"]:visible');
   await expect(task).toContainText("导入时发生异常，请返回后重试。");
   await expect(task).not.toContainText("核对选择无效");
@@ -625,7 +646,7 @@ for (const width of [390, 768, 1440]) {
     await expect(page.locator('[id="ledger.table-header"]:visible')).toHaveCount(width < 600 ? 0 : 1);
     const confirm = await page.locator('[id="cash.import.confirm"]:visible').boundingBox();
     if (!confirm) throw new Error("Missing import confirmation");
-    await press(page, width < 600 ? "ledger.record-import-pending-item" : "ledger.open-record");
+    await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
     const detail = page.locator('[id="cash.import.detail"]:visible');
     const panel = page.locator('[id="ledger.record-panel"]:visible');
     await expect(detail).toBeVisible();
@@ -739,7 +760,7 @@ test("an authoritative uncommitted refusal offers return without replaying the c
 });
 
 
-test("import account preparation keeps the single form within the desktop width limit", async ({ page }) => {
+test("import account preparation keeps the single form within the desktop width limit", async ({ page }, info) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   const { context } = await setup(page);
   context.source_accounts.push({ source_account_ref: "account-group", source_type: "alipay", display_name: "对应账户",
@@ -755,7 +776,7 @@ test("import account preparation keeps the single form within the desktop width 
   await expect(account).toBeVisible();
   const box = await account.boundingBox();
   expect(box?.width ?? Infinity).toBeLessThanOrEqual(720);
-  await page.screenshot({ path: "/tmp/ft-compose-cash-evidence/import-account-width-1440.png" });
+  await page.screenshot({ path: info.outputPath("import-account-width-1440.png") });
 });
 
 
@@ -771,7 +792,7 @@ test("import source differences show both statement bodies as readonly content",
     issues: [], relation_choices: [], relation_effects: [], relation_members: [],
   } }));
   await uploadAndReview(page);
-  await press(page, "ledger.open-record");
+  await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
   const changed = page.getByRole("button", { name: /账单内容有变化/ });
   const box = await changed.boundingBox();
   if (!box) throw new Error("Missing source difference card");
@@ -794,7 +815,7 @@ test("import empty incoming allocations remain explicitly visible and readonly",
     issues: [], relation_choices: [], relation_effects: [], relation_members: [],
   } }));
   await uploadAndReview(page);
-  await press(page, "ledger.open-record");
+  await clickLocator(page, page.locator('[id="ledger.record-import-pending-item"]:visible'));
   const changed = page.getByRole("button", { name: /账单内容有变化/ });
   const box = await changed.boundingBox();
   if (!box) throw new Error("Missing source difference card");

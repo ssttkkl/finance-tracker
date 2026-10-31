@@ -32,6 +32,7 @@ fun CashProjectionDto.toDomain(): CashProjection = CashProjection(
     transfer = transfer?.toDomain(),
     state = state, statisticsEligible = statisticsEligible, attentionCount = attentionCount,
     confirmationStatus = confirmationStatus, projectionVersion = projectionVersion, entryId = entryId, transactionId = transactionId,
+    recordType = recordType, recordSubtype = recordSubtype, attentionCodes = attentionCodes,
 )
 
 fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
@@ -56,6 +57,7 @@ fun CashProjection.toDto(): CashProjectionDto = CashProjectionDto(
     transfer = transfer?.toDto(),
     state = state, statisticsEligible = statisticsEligible, attentionCount = attentionCount,
     confirmationStatus = confirmationStatus, projectionVersion = projectionVersion, entryId = entryId, transactionId = transactionId,
+    recordType = recordType, recordSubtype = recordSubtype, attentionCodes = attentionCodes,
 )
 
 fun CashEconomicTypeFilterOptionDto.toDomain(): CashEconomicTypeFilterOption = CashEconomicTypeFilterOption(
