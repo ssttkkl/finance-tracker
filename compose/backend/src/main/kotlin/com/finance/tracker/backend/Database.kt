@@ -1,5 +1,6 @@
 package com.finance.tracker.backend
 
+import com.finance.tracker.backend.persistence.registerAssociationDecimalComparison
 import java.nio.file.Files
 import java.nio.file.Path
 import java.sql.Connection
@@ -71,6 +72,7 @@ class Database(private val jdbcUrl: String, private val user: String? = null, pr
                 if (!sqlite) { setProperty("connectTimeout", "10"); setProperty("socketTimeout", "30") }
             }
             DriverManager.getConnection(url, properties).use { rawConnection ->
+                if (sqlite) registerAssociationDecimalComparison(rawConnection)
                 if (sqlite) rawConnection.createStatement().use {
                     it.execute("PRAGMA foreign_keys=ON")
                     it.execute(if (nonblocking) "PRAGMA busy_timeout=0" else "PRAGMA busy_timeout=5000")

@@ -113,6 +113,23 @@ internal class CashRecordDetailRepository(
     private val commonCashFields = listOf("category_id", "counterparty", "counterparty_account", "counterparty_account_attrs", "note")
     private val commonCashFieldSet = commonCashFields.toSet()
 
+    fun requireAssociationAnchor(id: Long) {
+        val row = record(id)
+        if (row.recordOrigin !in setOf("import", "legacy") || row.state != "posted") throw MutationPlanFieldFailure("relation_endpoint_incompatible", emptyList())
+    }
+
+    fun associationCandidate(id: Long): JsonObject {
+        val row = record(id)
+        return buildJsonObject {
+            put("transaction_id", row.id.toString()); put("row_revision", row.rowRevision)
+            put("record_origin", row.recordOrigin); put("state", row.state)
+            put("confirmation_status", if (row.state == "posted") "confirmed" else "pending")
+            put("entry", JsonNull); put("fields", fieldsJson(row, components(id)))
+            put("editable_fields", JsonArray(emptyList())); put("issues", JsonArray(emptyList()))
+            put("relations", JsonArray(emptyList())); put("projection_ref", JsonNull)
+        }
+    }
+
     fun read(identifier: String?): CashRecordDetailResult {
         val id = recordIdentifier(identifier)
         val role = sql.select(WORKSPACE_MEMBERSHIPS.ROLE).from(WORKSPACE_MEMBERSHIPS)

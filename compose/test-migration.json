@@ -4747,6 +4747,68 @@
       "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现 Pytest 9.2 defaults to argname+index for auto-generated string IDs longer than 100 characters; the complete current collection uses query6/query7/key1 with the original parameter values and source fingerprints unchanged."
     },
     {
+      "source": "tests/contract/test_cash_manual_associations.py::test_search_excludes_manual_and_current_and_supports_pagination",
+      "source_sha256": "3096e9dbf6c3e9111ec00ddc8688c2e9eebc50a6e102450fde836e8cd4570054",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_associations.py::test_search_excludes_manual_and_current_and_supports_pagination[cash_web_runtime]",
+        "tests/contract/test_cash_manual_associations.py::test_search_excludes_manual_and_current_and_supports_pagination[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(first['items']) == 1 and first['next_cursor']",
+        "assert len(ids) == len(set(ids)) and '1101' not in ids and ('1105' not in ids)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAssociationContractTest.kt",
+          "test": "originalSearchExcludesCurrentAndManualAndPaginatesWithoutDuplicates"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_manual_associations.py::test_search_returns_actual_import_members_beyond_match_window",
+      "source_sha256": "fa74961caaa0b13906a3c2ecd5bdcdf77d0a46b6b9caca283dae04c978e39042",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_associations.py::test_search_returns_actual_import_members_beyond_match_window[cash_web_runtime]",
+        "tests/contract/test_cash_manual_associations.py::test_search_returns_actual_import_members_beyond_match_window[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert [row['transaction_id'] for row in found['items']] == ['1102']",
+        "assert found['items'][0]['row_revision'] > 0",
+        "assert Decimal(found['items'][0]['fields']['amount']) == Decimal('-100.00')",
+        "assert found['items'][0]['fields']['components'][0]['component_id'] == '6102'",
+        "assert records(runtime).association_targets('1101', query='自由搜索', account_id='999999')['items'] == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAssociationContractTest.kt",
+          "test": "originalSearchReturnsActualMembersOutsideMatchWindow"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_manual_associations.py::test_search_uses_explicit_local_calendar_day",
+      "source_sha256": "c7dae18883e6181ec939d4192b8e92bee71426b47d7f72eff62883a4622d26d8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_associations.py::test_search_uses_explicit_local_calendar_day[cash_web_runtime]",
+        "tests/contract/test_cash_manual_associations.py::test_search_uses_explicit_local_calendar_day[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert '1102' in [row['transaction_id'] for row in found['items']]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashAssociationContractTest.kt",
+          "test": "originalSearchUsesExplicitLocalCalendarDay"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_manual_classification.py::test_category_deletion_protects_empty_value_for_live_and_deleted_records",
       "source_sha256": "0e76814ca25b9c2df112abd6871d472d62050027bb78a76e94bf2b324e10ef61",
       "status": "migrated",

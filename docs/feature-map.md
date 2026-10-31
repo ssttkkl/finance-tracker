@@ -18,6 +18,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 导入会话的 [真实 HTTP 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalSessionApiTest.kt) 覆盖原 14 个定义／54 参数：上传资源释放、元数据、密码、范围、有效期、建议／选择、用户隔离、永久恢复及安全失败。合法值的重复元数据键在发布前拒绝；会话实际回包由现有 Compose context 消费者读取文件状态和未知数量。解析上下文的 [原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalContextTest.kt) 覆盖私有工作流隔离、锁外解析、解析后撤权／消费、永久恢复、来源修订／权限及真实银行／加密 PDF 字节；工银亚洲备注中的引号、制表符和换行保留为同一逻辑记录。私有编辑上下文的原键核实返回 `not_committed`，由现有 Compose 消费者验证。该原文件 21 个定义已迁移，3 个保留语言类型／异常策略适配。Web／Native 协议和页面数不变，操作规划等其他原测试及 F-05 两端 TODO 保留。
 
+当前流水的 [关联候选读取](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashAssociationSearchService.kt) 已接入 Kotlin 本机预览；原三个只读测试验证实际导入流水、无自动匹配时间窗、排除当前／人工流水、连续分页和本地日期，完整 HTTP 对照覆盖权限、精确金额及只读字段。[现有 Compose 消费者回归](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinAssociationResponseIntegrationTest.kt) 使用后端实际回包，不新增 Web／Native 页面或 DTO。F-04 的完整关联预览／确认、主账本列表和两端既有验收 TODO 仍保留。
+
 本轮页面数仍为 10，F-01 认证、F-04 编辑分摊与 F-07 分类任务的入口、跨端覆盖和既有验收 TODO 不变。共享模块与新运行时的验证状态以本轮实施证据为准，不能把模块存在写成全部后端或所有平台已验收。其余 Kotlin HTTP、格式适配、完整导入/维护/投影/关系/投资和后台任务均未完成；原 Python 功能保留。
 
 稳定收支对象仓库的公共人工值、拆分恢复和事务缓存，以及投影源读取、局部关系上下文、完整组校验和摘要已有双库内部验证，已接入全量重建/原子发布与新工作区初始化，管理员重建 HTTP 已通过真实双库对照，内部增量维护已通过双库；手工收支新建与转账创建已接入，转账编辑和完整维护仍待迁移，导入已接入联合确认；没有新增 Web 或 Native 入口，F-03/F-04 的迁移 TODO 保留。 转账创建迁移证据为 [`CashTransferService.kt`](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashTransferService.kt) 与 [`Compose 实际回包消费`](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinTransferResponseIntegrationTest.kt)；Web/Native 共用现有创建消费者，不增加页面。

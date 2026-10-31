@@ -61,6 +61,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
+    associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
@@ -102,6 +103,14 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
                 })
+            })
+        }
+        exception<CashAssociationLimitFailure> { call, failure ->
+            call.respond(HttpStatusCode.UnprocessableEntity, buildJsonObject {
+                put("detail", JsonArray(listOf(buildJsonObject {
+                    put("type", JsonPrimitive("int_parsing")); put("loc", JsonArray(listOf(JsonPrimitive("query"), JsonPrimitive("limit"))))
+                    put("msg", JsonPrimitive("Input should be a valid integer, unable to parse string as an integer")); put("input", JsonPrimitive(failure.input))
+                })))
             })
         }
         exception<MutationPlanFailure> { call, failure ->
@@ -611,6 +620,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) {
                 mutationPlans.item(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
                     call.parameters["preview_item_id"], call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        get("/api/v1/cash-records/{transaction_id}/association-targets") {
+            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            val result = withContext(Dispatchers.IO) {
+                associationTargets.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["transaction_id"], filters, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }

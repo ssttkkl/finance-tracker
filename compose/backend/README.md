@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取和确认，共接入 63/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 23 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认和当前流水关联候选读取，共接入 64/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 22 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核；完整组合原测试仍待迁移。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；列表和维护入口仍待迁移。
 
@@ -104,6 +104,9 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_OPERATION_CONTRACT_DIR` | `scripts/export_cash_import_original_operation_contracts.py`（原操作规划的匿名输入） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_BUSINESS_CONTRACT_DIR` | `scripts/export_cash_import_original_business_contracts.py`（原业务计划的匿名输入／当前状态） |
+| `FT_KOTLIN_ASSOCIATION_CONTRACT_DIR` | `scripts/export_cash_association_contracts.py`（当前流水关联候选 HTTP 与原只读断言） |
+
+关联候选的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashAssociationContractTest.kt) 使用表中生成器，为 `--help` 列出的 9 个场景分别准备独立空测试库，传入 `--database-url`、共同 `--output` 根目录和 `--scenario`，运行环境为 `PYTHONPATH=.:src:tests`。在 `compose/` 执行 `./gradlew :backend:test --tests '*CashAssociationContractTest' -PbackendFunctionalOnly=true`；测试覆盖原完整 HTTP 响应、闭包排除、分页、精确金额、本地日期、权限、安全失败和同快照读取。`revoke`、`snapshot` 场景会修改事实，复跑必须重新准备。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，实际回包可供 `:shared:testAndroidHostTest --tests '*KotlinAssociationResponseIntegrationTest'` 验证现有 Compose 消费者。这里只接通候选读取，完整关联预览／提交仍待迁移。
 
 完整业务计划的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt) 使用表中生成器，为 `--help` 列出的 18 个场景分别准备独立空测试库，传入 `--database-url`、共同 `--output` 根目录和 `--scenario`；运行环境为 `PYTHONPATH=.:src:tests`。在 `compose/` 执行 `./gradlew :backend:test --tests '*CashImportOriginalBusinessTest' -PbackendFunctionalOnly=true`。场景包含来源／关系／候选的真实预置状态，不生成预期计划；候选变化用例会修改事实，重新执行必须准备新库。原文件全部 30 定义／84 参数以实际构建结果验证；无新建／转正式种子时跳过关系发现。原 monkeypatch 使用实例内部阶段／图构建依赖适配，默认仍为真实实现，无新增 HTTP 或配置字段。
 

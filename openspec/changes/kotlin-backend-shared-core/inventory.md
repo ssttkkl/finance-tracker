@@ -1,6 +1,6 @@
 # 全量迁移盘点
 
-基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 63/86 个 HTTP 操作，其中 6 个维护计划操作只覆盖部分意图；其余 23 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
+基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 64/86 个 HTTP 操作，其中 6 个维护计划操作只覆盖部分意图；其余 22 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
 
 ## 模块与合同
 
@@ -33,6 +33,8 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 已实现的 Kotlin 业务查询和写入已改用 jOOQ OSS `3.21.9`，以 SQLite 和 PostgreSQL 18 功能矩阵验证。67 个官方生成文件只留后端，schema 仍由原 Alembic 管理；JDBC 继续负责事务、保存点和驱动配置。当前详情、按流水定位和收支证据三个 GET 已实现并有双库功能及实际客户端验证，独立复核已完成，完整组合原测试仍待迁移；其余查询及列表继续待迁移。证据不包含账单原文，单条流水详情与现有来源消费者已接入；完整来源规则组合原测试仍待迁移；旧证据 DTO 的草稿空值解码限制保留，来源成员 DTO 的空值消费已覆盖。
 
+当前流水关联候选 GET 已接线，复用现有 Compose 搜索消费者，保留原始字段与只读能力、完整关系闭包排除、按 ID 连续分页、账户／精确金额／本地日期筛选；不依赖活动投影。三个原只读定义已迁移，完整关联预览／确认及同时覆盖它们的原 HTTP 定义仍 pending，不能据此关闭完整维护。
+
 ## 格式矩阵
 
 | 来源 | 字节解码与预算 | 可共享内容 | 状态 |
@@ -49,7 +51,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 ## 测试与黄金合同
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 489 个定义／1,217 个展开参数，5 个定义按语言类型及异常边界保留，其余 2,119 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码回归后当前为 2,613 个定义、5,844 个完整 pytest 参数化用例；已迁移 492 个定义／1,223 个展开参数，5 个定义按语言类型及异常边界保留，其余 2,116 个定义保持 pending。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - Python oracle：`test_exact_decimal.py`、`test_cash_record_policy.py`、`test_cash_category_management.py`、`test_cash_statement_rows.py`、`test_bank_statement_rows.py`、`test_cash_statement_document.py`、`test_icbc_pdf_statement.py`、`test_cash_source_matching.py`、`test_cash_import_readable_equivalence.py`。
 - 完整 `tests/contract` 与 `tests/integration`：HTTP/错误、来源/关系/投影、暂存生命周期、收据/未知结果、修订/权限/回滚、同步/券商及双库矩阵。

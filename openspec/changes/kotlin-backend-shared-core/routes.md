@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 63/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 23 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 64/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 22 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -31,7 +31,7 @@
 | DELETE | `/api/v1/cash-import/sessions/{session_id}` | `src/ft/web/cash_import_routes.py:172` | 已实现会话/文件生命周期；解析锁外、发布锁内重验权限/修订/永久收据，匿名双库 HTTP 通过；真实 R2/真实账单专项待验 |
 | POST | `/api/v1/cash-import/sessions/{session_id}/plans` | `src/ft/web/cash_plan_routes.py:155` | 已实现完整业务预览与共享暂存条件发布；双库 HTTP、失败保留原计划及现有 Compose 消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}` | `src/ft/web/cash_plan_routes.py:160` | 已实现；双库 36 组完整响应/状态/无写入、角色与损坏状态边界、独立复核及现有 Compose 来源消费通过 |
-| GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 未迁移 |
+| GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 已实现；当前权限、原字段、关系闭包排除、ID 翻页、精确金额与本地日期，双库及现有 Compose 消费证据见 tasks |
 | PATCH | `/api/v1/cash-records/{transaction_id}/draft` | `src/ft/web/cash_plan_routes.py:173` | 未迁移 |
 | POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 及关系自由的 maintain_relations 已实现；双库 Python 视图/单项对照、错误与无写入通过；其余意图未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 计划读取已实现；双库通过，其余意图未完成 |
