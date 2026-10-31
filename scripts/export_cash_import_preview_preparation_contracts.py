@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, replace
+from datetime import timedelta
 from decimal import Decimal
 import json
 from pathlib import Path
@@ -15,7 +16,7 @@ from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
 from ft.adapters.relational.models import (
-    AccountModel, CashEntryMemberModel, CashEntryModel, CashInvestmentFundingRelationModel,
+    AccountAliasModel, AccountModel, CashEntryMemberModel, CashEntryModel, CashInvestmentFundingRelationModel,
     CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel,
 )
 
@@ -48,6 +49,13 @@ def export(database_url: str, output: Path) -> None:
                 currency="CNY", counterparty="多现金部分", counterparty_account="",
                 counterparty_account_attrs=[], note="", record_type="consumption",
                 record_subtype="not_applicable", row_revision=1, created_at=NOW))
+            session.add(CashTransactionModel(id=7507, workspace_id=WORKSPACE, account_id=9201,
+                state="posted", record_origin="legacy", cash_granularity="atomic", source_type="icbc_debit",
+                record_id="BANK-7507", source_payload={"摘要": "支付宝", "备注": "商户来源备注"},
+                occurred_at=NOW + timedelta(days=1, hours=1), amount="-5.00", currency="CNY",
+                counterparty="商户", counterparty_account="", counterparty_account_attrs=[], note="人工银行备注",
+                record_type="consumption", record_subtype="not_applicable", row_revision=1, created_at=NOW,
+                relation_metadata={"summary": "支付宝", "card_number": "1234"}))
             session.flush()
             for identifier, amount in ((7503, "-12.30"), (7504, "12.30"), (7505, "-7.00")):
                 session.add(CashTransactionComponentModel(id=identifier + 2000, workspace_id=WORKSPACE,
@@ -64,6 +72,13 @@ def export(database_url: str, output: Path) -> None:
             session.add(CashEntryModel(id="entry-7506", workspace_id=WORKSPACE,
                 root_transaction_id=7506, revision=1, category_id=None, note="", counterparty="多现金部分",
                 counterparty_account="", counterparty_account_attrs=[], manual_fields=[], split_inherit=None))
+            session.add(CashTransactionComponentModel(id=9508, workspace_id=WORKSPACE,
+                cash_transaction_id=7507, account_id=9201, amount="-5.00", currency="CNY", ordinal=0,
+                label="", source_key="", metadata_json={}, created_at=NOW))
+            session.add(AccountAliasModel(workspace_id=WORKSPACE, account_id=9201, alias_type="card_tail",
+                alias_value="1234", created_at=NOW, updated_at=NOW))
+            session.add(AccountAliasModel(workspace_id=WORKSPACE, account_id=9201, alias_type="account_identifier",
+                alias_value="fixture-cash-9201", created_at=NOW, updated_at=NOW))
             session.flush()
             for identifier in (7503, 7504, 7505, 7506):
                 session.add(CashEntryMemberModel(workspace_id=WORKSPACE, transaction_id=identifier,
@@ -156,6 +171,12 @@ def export(database_url: str, output: Path) -> None:
                     "context_seed_ids": sorted(context.seed_ids),
                     "context_transaction_ids": sorted(context.transaction_ids), "context_token": context.token})
                 snapshot = builder._snapshot(session, context, operations, accounts, rows, normalized_operations=True)
+                discovery_seeds = {part.component_id for part in snapshot.components.values()
+                    if snapshot.parent_ops.get(part.transaction_id, {}).get("planned_action") in {"create_posted", "finalize_draft"}}
+                proposals, failures = builder._discover(snapshot, discovery_seeds, accounts, session)
+                cases[-1].update(matching_facts=[_wire(asdict(fact)) for fact in builder._matching_facts(snapshot, accounts)],
+                    discovery_seeds=sorted(discovery_seeds), proposals=[_wire(asdict(proposal)) for proposal in proposals],
+                    discovery_failures=failures)
                 cases[-1]["snapshot"] = {
                     "values": _wire(snapshot.values),
                     "facts": {key: _wire(asdict(value)) for key, value in snapshot.facts.items()},

@@ -1,6 +1,7 @@
 package com.finance.tracker.backend
 
 import java.math.BigDecimal
+import java.math.BigInteger
 import java.nio.file.Path
 import java.time.Instant
 import java.time.ZoneOffset
@@ -78,7 +79,10 @@ class CashImportPreviewSnapshotContractTest {
 
     private fun cases() = Json.parseToJsonElement(root().resolve("snapshot-cases.json").readText()).jsonArray.map { it.jsonObject }
 
-    private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot {
+    private fun snapshot(db: Database, case: JsonObject): CashImportPreviewSnapshot = snapshot(db, case) { _, _, value -> value }
+
+    private fun <T> snapshot(db: Database, case: JsonObject,
+        use: (CashSqlContext, PreparedCashImportPreview, CashImportPreviewSnapshot) -> T): T {
         @Suppress("UNCHECKED_CAST") val operations = cashSourceValue(case.getValue("operations")) as List<Map<String, Any?>>
         @Suppress("UNCHECKED_CAST") val rows = cashSourceValue(case.getValue("rows")) as List<Map<String, Any?>>
         val sourceRows = case.getValue("source_rows").jsonObject.mapValues { (_, value) ->
@@ -95,10 +99,82 @@ class CashImportPreviewSnapshotContractTest {
         val actual = db.read { connection ->
             val context = CashSqlContext(connection, "operation-workspace", db.sqlite)
             val prepared = CashImportPreviewPreparation(context).prepare(operations, sourceRows, choices, previous, extra)
-            CashImportPreviewSnapshotBuilder(context, now = { Instant.parse("2026-10-01T09:00:00Z") }).build(prepared, rows)
+            val value = CashImportPreviewSnapshotBuilder(context, now = { Instant.parse("2026-10-01T09:00:00Z") }).build(prepared, rows)
+            use(context, prepared, value)
         }
         assertEquals(case.getValue("operations"), wire(operations))
         return actual
+    }
+
+    private fun matchingFact(fact: RelationFact): Map<String, Any?> = linkedMapOf(
+        "id" to fact.id, "amount" to fact.amount, "currency" to fact.currency, "account_id" to fact.accountId,
+        "account_name" to fact.accountName, "account_type" to fact.accountType, "occurred_at" to fact.occurredAt,
+        "counterparty" to fact.counterparty, "counterparty_account" to fact.counterpartyAccount,
+        "counterparty_account_attrs" to fact.counterpartyAccountAttrs, "payment_method" to fact.paymentMethod,
+        "note" to fact.note, "record_type" to fact.recordType, "record_subtype" to fact.recordSubtype,
+        "bill_source" to fact.billSource, "source" to fact.source, "fact_type" to fact.factType,
+        "deleted" to fact.deleted, "raw_record_id" to fact.rawRecordId, "source_identity" to fact.sourceIdentity,
+        "record_id" to fact.recordId, "raw_payload" to fact.rawPayload, "relation_metadata" to fact.relationMetadata,
+        "parent_id" to fact.parentId, "component_ordinal" to fact.componentOrdinal, "cash_granularity" to fact.cashGranularity,
+    )
+
+    @Test fun matchingFactsAndDiscoveryMatchPythonWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        for (case in cases()) snapshot(db, case) { context, prepared, value ->
+            val discovery = CashImportRelationDiscovery(context)
+            assertEquals(case.getValue("matching_facts"), wire(discovery.matchingFacts(value, prepared.accounts).map(::matchingFact)))
+            val seeds = case.getValue("discovery_seeds").jsonArray.map { it.jsonPrimitive.content }.toSet()
+            assertEquals(case.getValue("proposals"), wire(discovery.discover(value, seeds, prepared.accounts).map { it.json() }))
+            assertEquals(JsonArray(emptyList()), case.getValue("discovery_failures"))
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
+    @Test fun discoveryUsesSourceHintsFiltersManualRecordsAndRespectsAcceptedRelations() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val normal = cases().single { it.getValue("name").jsonPrimitive.content == "normal" }
+        val seeds = normal.getValue("discovery_seeds").jsonArray.map { it.jsonPrimitive.content }.toSet()
+        snapshot(db, normal) { context, prepared, value ->
+            val discovery = CashImportRelationDiscovery(context)
+            assertTrue(discovery.discover(value, emptySet(), prepared.accounts).isEmpty())
+            val proposal = discovery.discover(value, seeds, prepared.accounts).first { it.kind == "payment_mirror" }
+            assertTrue("9508" in setOf(proposal.primaryFactId, proposal.secondaryFactId))
+            val first = value.components.getValue(proposal.primaryFactId)
+            val second = value.components.getValue(proposal.secondaryFactId!!)
+            value.edges[BigInteger.valueOf(999)] = CashRelationGraphEdge(999L, "payment_mirror",
+                first.transactionId, second.transactionId, first.componentId, second.componentId,
+                "expense", "expense", state = "confirmed")
+            assertTrue(discovery.discover(value, seeds, prepared.accounts).none {
+                it.primaryFactId == proposal.primaryFactId && it.secondaryFactId == proposal.secondaryFactId
+            })
+        }
+        snapshot(db, normal) { context, prepared, value ->
+            val discovery = CashImportRelationDiscovery(context)
+            value.values.getValue("7507")["record_origin"] = "manual"
+            assertTrue(discovery.discover(value, seeds, prepared.accounts).isEmpty())
+            val wechat = value.values.getValue("7502")
+            wechat["record_type"] = "refund"
+            wechat["source_explanation"] = mapOf("_wechat_direction" to "支出", "platform_status" to "已全额退款")
+            wechat["source_payload"] = mapOf("商品" to "账单原文商品")
+            value.components.replaceAll { _, part -> if (part.transactionId == "7502") part.copy(recordType = "refund") else part }
+            val fact = discovery.matchingFacts(value, prepared.accounts).single { it.parentId == "7502" }
+            assertEquals("expense", fact.relationMetadata?.get("offset_role"))
+            assertEquals("账单原文商品", fact.note)
+            assertEquals("新备注", value.facts.getValue("7502").note)
+            assertFalse("offset_role" in (wechat["source_explanation"] as Map<*, *>))
+            wechat["source_explanation"] = mapOf("direction" to "支出", "status" to "已全额退款")
+            assertEquals("expense", discovery.matchingFacts(value, prepared.accounts).single {
+                it.parentId == "7502"
+            }.relationMetadata?.get("offset_role"))
+        }
+        snapshot(db, normal) { context, prepared, value ->
+            val newParent = value.parentOps.entries.single { it.value["planned_action"] == "create_posted" }.key
+            value.values.getValue(newParent)["record_origin"] = "manual"
+            assertTrue(CashImportRelationDiscovery(context).discover(value, seeds, prepared.accounts).isEmpty())
+        }
+        assertEquals(before, detailDatabaseState(db))
     }
 
     @Test fun snapshotMatchesPythonOnBothBackendsWithoutWrites() {
