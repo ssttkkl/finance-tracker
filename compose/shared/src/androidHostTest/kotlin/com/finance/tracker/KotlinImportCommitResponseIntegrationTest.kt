@@ -14,6 +14,33 @@ import kotlinx.serialization.json.*
 import org.junit.Assume.assumeTrue
 
 class KotlinImportCommitResponseIntegrationTest {
+    @Test fun actualViewerDenialUsesExistingPreviewConsumerWithoutRetry() = runTest {
+        val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
+        assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)
+        val source = Json.parseToJsonElement(Files.readString(Path.of(requireNotNull(root), "cash-import-viewer-error.json"))).jsonObject
+        assertTrue(source.getValue("backend").jsonPrimitive.content in setOf("sqlite", "postgresql"))
+        val sessionId = source.getValue("session_id").jsonPrimitive.content
+        val revision = source.getValue("revision").jsonPrimitive.long
+        val body = source.getValue("body").jsonObject
+        val error = body.getValue("error").jsonObject
+        assertEquals(JsonArray(emptyList()), error["field_errors"])
+        assertEquals(JsonPrimitive(false), error["retryable"])
+        var calls = 0
+        val engine = MockEngine { request ->
+            calls++
+            assertEquals(HttpMethod.Post, request.method)
+            assertEquals("/api/v1/cash-import/sessions/$sessionId/plans", request.url.encodedPath)
+            assertEquals(JsonPrimitive(revision), Json.parseToJsonElement((request.body as TextContent).text).jsonObject["expected_session_revision"])
+            respond(body.toString(), HttpStatusCode.fromValue(source.getValue("status").jsonPrimitive.int), headersOf(HttpHeaders.ContentType, "application/json"))
+        }
+        val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+        try {
+            val failure = assertFailsWith<DomainFailure> { KtorCashImportLifecycleRepository(client).preview(sessionId, revision, null, ImportChoiceSet()) }
+            assertEquals(403, failure.status); assertEquals("workspace_forbidden", failure.code)
+            assertEquals(1, calls)
+        } finally { client.close() }
+    }
+
     @Test fun actualRevalidationConflictPreservesExactRowDiagnosticWithoutAutomaticRetry() = runTest {
         val root = System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")
         assumeTrue("Actual Ktor captures are required; skip is not acceptance", root != null)

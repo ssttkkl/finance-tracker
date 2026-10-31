@@ -25,6 +25,10 @@ internal class CashImportHttpService(private val database: Database, private val
     internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService) : this(database, staging) {
         this.commands = commands
     }
+    internal constructor(database: Database, staging: ParsedImportStore, commands: CashImportCommandService,
+        parser: (CashImportUpload, ByteArray) -> ParsedCashDocument) : this(database, staging, parser) {
+        this.commands = commands
+    }
     private val reads = ReadServices(database)
     private val sessionIdPattern = Regex("[A-Za-z0-9_-]{43}")
 

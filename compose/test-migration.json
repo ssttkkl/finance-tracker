@@ -1825,6 +1825,624 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_authentication_and_viewer_denial_keep_the_public_error_envelope",
+      "source_sha256": "66dab624d52ae1df8b1b78f76c084f094ab9a6a671812fdcd943b9ea8027b018",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_authentication_and_viewer_denial_keep_the_public_error_envelope[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_authentication_and_viewer_denial_keep_the_public_error_envelope[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert denied.status_code == 401",
+        "assert denied.json()['error']['field_errors'] == [] and denied.json()['error']['retryable'] is False",
+        "assert denied.status_code == 403",
+        "assert denied.json()['error']['field_errors'] == [] and denied.json()['error']['retryable'] is False",
+        "assert 'private' not in denied.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "authenticationAndViewerDenialKeepSafePublicEnvelope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_failed_subset_retry_endpoint_is_removed",
+      "source_sha256": "f1d2c3d27375afc7f4c42b0734345ab68ca51cd6e7bfd6b83a6779bc837ddda2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_failed_subset_retry_endpoint_is_removed[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_failed_subset_retry_endpoint_is_removed[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 404",
+        "assert not any((key.startswith('retry_context') for key in receipt))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "failedSubsetRetryEndpointStaysRemoved"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters",
+      "source_sha256": "f936cf143d6a96e64f538d7070829ae16fdb59ffc85e72f73952ecf35227df88",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_hot_public_pages_keep_plan_identity_and_complete_pagination_parameters[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(first['items']) == 1",
+        "assert client.get(path + '/items?limit=1').json() == first",
+        "assert len(client.get(path + '/items?limit=2').json()['items']) == 2",
+        "assert client.get(path + '/items?limit=1&confirmation_status=pending').json()['items'] == []",
+        "assert second['items'][0] != first['items'][0]",
+        "assert response.status_code == 409 and response.json()['error']['code'] == 'plan_changed'",
+        "assert response.status_code == 409 and response.json()['error']['code'] == 'session_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "cachedPagesRetainPlanIdentityAndCompletePaginationParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_failed",
+      "source_sha256": "9bc9e39a821787c1394313c65f356989b2dda4b65335470d8989fa14a9d31ffe",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_failed[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_duplicate_only_can_confirm_and_fixed_amount_conflict_only_is_failed[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _commit(client, plan).json()['summary']['created_posted'] == 1",
+        "assert duplicate['items'] == [] and duplicate['can_commit'] is True",
+        "assert receipt['status'] == 'no_changes' and receipt['summary']['duplicate'] == 1",
+        "assert conflict['items'] == [] and conflict['summary']['skip'] == 1",
+        "assert receipt['status'] == 'failed' and receipt['summary']['skipped'] == 1",
+        "assert receipt['commit_outcome'] == {'has_new_failures': False, 'has_business_writes': False, 'reason_codes': []}",
+        "assert results['items'][0]['code'] == 'fixed_field_conflict'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "duplicateOnlyCanConfirmAndFixedAmountConflictIsFailedWithoutBusinessWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_duplicates_plus_new_failure_roll_back_without_receipt",
+      "source_sha256": "f8fdd0df6109897b9dbed16255336525074ba714118fb22a439e64d26b07c956",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_duplicates_plus_new_failure_roll_back_without_receipt[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_duplicates_plus_new_failure_roll_back_without_receipt[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_http_atomic_failure(context_runtime, lambda : _commit(client, plan, 'mixed-confirm'))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "duplicatesPlusNewFailureRollBackWithoutNewReceipt"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_empty_import_evidence_failure_returns_known_rollback",
+      "source_sha256": "2d4a417a7e17f4cc70f02d7040020298e50f2fc13d5fdb91ef614f954a9deb95",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_empty_import_evidence_failure_returns_known_rollback[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_empty_import_evidence_failure_returns_known_rollback[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "_assert_http_atomic_failure(context_runtime, lambda : _commit(client, plan))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "emptyEvidenceFailureReturnsKnownRollback"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_expiry_and_cancellation_resolve_to_not_committed",
+      "source_sha256": "443cc22c17150b8e2d797ad1e11706c7e8bb5ad31ce56ab39e5e273d8de34416",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_expiry_and_cancellation_resolve_to_not_committed[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_expiry_and_cancellation_resolve_to_not_committed[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_expiry_and_cancellation_resolve_to_not_committed[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_expiry_and_cancellation_resolve_to_not_committed[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert client.get(path).status_code == (409 if cancelled else 410)",
+        "assert _commit(client, plan).json()['error']['code'] == ('plan_changed' if cancelled else 'plan_expired')",
+        "assert client.post('/api/v1/cash-mutations/resolve', json={'plan_id': plan['plan_id'], 'idempotency_key': 'synthetic-api-confirm'}).json() == {'status': 'not_committed'}",
+        "assert client.delete('/api/v1/cash-import/sessions/' + view['session_id']).status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "cancellationResolvesToNotCommitted"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "expiryResolvesToNotCommitted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_failed_commit_is_atomic_and_original_request_can_retry",
+      "source_sha256": "1a27a53cc2131649079d96581b27dc68bf6bf305ed3bd6dbdd3fe96437018d34",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_failed_commit_is_atomic_and_original_request_can_retry[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_failed_commit_is_atomic_and_original_request_can_retry[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert not any((key.startswith('retry_context') for key in response.json()))",
+        "_assert_http_atomic_failure(context_runtime, lambda : _commit(client, plan))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "failedSourceWriteIsAtomicAndOriginalRequestCanRetry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_full_refund_zero_is_available_for_review_and_current_result",
+      "source_sha256": "69cd9608b35b849b0198cdf61389414bd39b936a38383202fc0e41fc03fa099b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_full_refund_zero_is_available_for_review_and_current_result[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_full_refund_zero_is_available_for_review_and_current_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert len(plan['items']) == 1 and Decimal(plan['items'][0]['display']['amount']) == 0, plan",
+        "assert plan['items'][0]['detail_available'] is True",
+        "assert receipt['summary']['created_posted'] == 4 and receipt['summary']['relations_confirmed'] == 1",
+        "assert len(rows['items']) == 4 and len({item['projection_id'] for item in rows['projection_refs']}) == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "fullRefundZeroRemainsReviewableAndHasOneCurrentResult"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_import_items_support_absolute_pages_and_return_filtered_total",
+      "source_sha256": "5659b98dfc1d5c69249cdc99bdd775d4e93e140a5345ff75df1bcdbc079bd1e5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_import_items_support_absolute_pages_and_return_filtered_total[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_import_items_support_absolute_pages_and_return_filtered_total[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert page['start_index'] == 0",
+        "assert page['total_count'] == plan['item_counts']['pending']",
+        "assert all((item['confirmation_status'] == 'pending' for item in page['items']))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "absolutePagesReturnFilteredTotal"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_known_rollback_and_lost_commit_response_have_distinct_recovery",
+      "source_sha256": "575ca2ea0b8bf030518ad2b85182617b55ddd16c2431ec246b5a15a0f229472f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_known_rollback_and_lost_commit_response_have_distinct_recovery[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_known_rollback_and_lost_commit_response_have_distinct_recovery[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert 'plan_id' in plan",
+        "assert response.status_code == 503 and response.json()['commit_state'] == 'not_committed'",
+        "assert response.json()['error']['code'] == 'commit_failed' and 'private' not in response.text",
+        "assert client.get('/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm').status_code == 404",
+        "assert client.post('/api/v1/cash-mutations/resolve', json={'plan_id': plan['plan_id'], 'idempotency_key': 'synthetic-api-confirm'}).json() == {'status': 'retry_original'}",
+        "assert response.status_code == 503 and response.json()['commit_state'] == 'unknown'",
+        "assert response.json()['error']['code'] == 'commit_state_unknown' and 'private' not in response.text",
+        "assert resolved['status'] == 'committed'",
+        "assert _commit(client, plan).json() == resolved['receipt']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "knownRollbackAndLostCommitResponseHaveDistinctRecovery"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_missing_full_array_duplicate_json_and_missing_key_are_rejected",
+      "source_sha256": "6444fec5bcc92854785ab716c183b33b62016f6eddbe47832fab5f2f4e6e2b71",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_missing_full_array_duplicate_json_and_missing_key_are_rejected[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_missing_full_array_duplicate_json_and_missing_key_are_rejected[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert client.post(path, json=body).status_code == 422",
+        "assert client.post(path, content=raw, headers={'Content-Type': 'application/json'}).status_code == 422",
+        "assert client.post('/api/v1/cash-import/plans/' + plan['plan_id'] + '/commit', json={'expected_session_revision': plan['session_revision']}).status_code == 422"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "missingFullArrayDuplicateJsonAndMissingKeyAreRejected"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_new_row_cannot_keep_existing_and_can_retry_with_default",
+      "source_sha256": "c430413759d484c64cd8fd1f0f2419bfaf30142407a63cecf4f3cb5f1100e332",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_new_row_cannot_keep_existing_and_can_retry_with_default[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_new_row_cannot_keep_existing_and_can_retry_with_default[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert invalid.status_code == 422 and invalid.json()['error']['code'] == 'plan_input_invalid'",
+        "assert valid.status_code == 200 and valid.json()['summary']['create_posted'] == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "newRowCannotKeepExistingAndDefaultCanRetry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_old_cursor_and_another_operator_cannot_read_or_commit",
+      "source_sha256": "4e25dcca310bd9fb7dd45e50de8668bac6ead77a1571377483e28847da072481",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_old_cursor_and_another_operator_cannot_read_or_commit[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_old_cursor_and_another_operator_cannot_read_or_commit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422",
+        "assert client.get(path + '/items', params={'cursor': cursor, 'confirmation_status': 'pending'}).status_code == 422",
+        "assert other.get(path).status_code == 404",
+        "assert _commit(other, plan).status_code == 404",
+        "assert other.get('/api/v1/cash-mutations/receipts/' + receipt['receipt_id']).status_code == 404",
+        "assert other.get('/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm').status_code == 404"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "oldCursorAndOtherOperatorCannotReadOrCommit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_permission_is_rechecked_for_repreview_and_replay",
+      "source_sha256": "485a1abb32b6a6f50b726428a4418571daee6c7031c6f2c2ea27f66adefbe670",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_permission_is_rechecked_for_repreview_and_replay[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_permission_is_rechecked_for_repreview_and_replay[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _commit(client, plan).status_code == 403",
+        "assert _preview(client, view).status_code == 403",
+        "assert client.get('/api/v1/cash-mutations/receipts/' + receipt['receipt_id']).status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "permissionsAreRecheckedBeforeRepreviewAndReceiptReplay"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_plan_keeps_file_status_and_unknown_count_consistent_with_session",
+      "source_sha256": "2dbe84828f1fd56d0e8b43743b9797142791f383373eabcb375fe3010752b19d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_keeps_file_status_and_unknown_count_consistent_with_session[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_keeps_file_status_and_unknown_count_consistent_with_session[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert plan['can_commit'] is True",
+        "assert plan['file_results'][1]['recognized_row_count'] is None",
+        "assert shown['file_ref'] == original['file_ref']",
+        "assert shown['status'] == original['status']",
+        "assert shown['recognized_row_count'] == original['recognized_row_count']",
+        "Use known StatementDocumentFailure as unreadable input; arbitrary internal programming exceptions still stop the whole operation per AGENTS.md."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "fileStatusAndUnknownCountMatchTheUploadedSession"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe",
+      "source_sha256": "7b4bcfc6a9088b4bfa8db806f4beafa8666ab8b592cf59a7464d70f6269eff34",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-limit=0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-limit=201]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-limit=1.0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-limit=1&limit=2]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-other=private]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-confirmation_status=invalid]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-cursor=private-invalid]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-start_index=-1]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-start_index=1.5]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-cursor=old&start_index=0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[cash_web_runtime-start_index=0&start_index=1]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-limit=0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-limit=201]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-limit=1.0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-limit=1&limit=2]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-other=private]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-confirmation_status=invalid]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-cursor=private-invalid]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-start_index=-1]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-start_index=1.5]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-cursor=old&start_index=0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_plan_query_errors_are_safe[postgres_cash_web_runtime-start_index=0&start_index=1]"
+      ],
+      "assertions": [
+        "assert 'plan_id' in plan",
+        "assert response.status_code == 422 and 'private' not in response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "planQueryErrorsAreSafeForAllOriginalParameters"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_preview_commit_pages_and_receipt_replay_after_temporary_cleanup",
+      "source_sha256": "a1570f6b77ff7e42414a7d48450a0d2a5e32b2c1c671dac17d4ab1aee701e99e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_commit_pages_and_receipt_replay_after_temporary_cleanup[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_commit_pages_and_receipt_replay_after_temporary_cleanup[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert plan['session_revision'] == 2 and plan['can_commit'] is True",
+        "assert len(plan['items']) == 3 and plan['item_counts'] == {'confirmed': 3, 'pending': 0}",
+        "assert not {'operations', 'relation_groups', 'source_candidate_sets', 'detail_values'}.intersection(plan)",
+        "assert client.get(path).json() == plan",
+        "assert len(page['items']) == 1 and page['next_cursor']",
+        "assert len(client.get(path + '/items', params={'limit': '2', 'cursor': page['next_cursor']}).json()['items']) == 2",
+        "assert detail.status_code == 200 and len(detail.json()['members']) == 1",
+        "assert 'fields_ref' not in detail.text and 'preview_components' not in detail.text",
+        "assert client.get(path + '/processing-details').json()['items'] == []",
+        "assert committed.status_code == 200, committed.text",
+        "assert receipt['committed'] is True and receipt['summary']['created_posted'] == 3",
+        "assert not {'request_digest', 'session_digest', 'retry_context_id', 'row_results', 'affected_transaction_ids'}.intersection(receipt)",
+        "assert client.get(receipt_path).json() == receipt",
+        "assert client.get('/api/v1/cash-mutations/receipts/by-key/synthetic-api-confirm').json() == receipt",
+        "assert len(page['items']) == 1 and isinstance(page['next_after'], str)",
+        "assert len(page['projection_refs']) == 1",
+        "assert len(client.get(receipt_path + '/rows', params={'after': page['next_after'], 'limit': '2'}).json()['items']) == 2",
+        "assert client.get(receipt_path + '/relations').json()['items'] == []",
+        "assert _commit(client, plan).json() == receipt",
+        "assert _commit(client, plan, 'another-key').json()['error']['code'] == 'session_committed'",
+        "assert resolved.status_code == 200 and resolved.json() == {'status': 'committed', 'receipt': receipt}",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before + 3"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "previewCommitPagesAndReceiptReplaySurviveTemporaryCleanup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input",
+      "source_sha256": "6fab0864c310923dee0841c78e7601601fa3d7b0d69a428cb208c4eba4153487",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change1]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change2]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change3]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change4]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[cash_web_runtime-change5]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change0]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change1]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change2]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change3]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change4]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_preview_structure_is_strict_and_does_not_echo_input[postgres_cash_web_runtime-change5]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422 and 'private' not in response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "previewStructureIsStrictForAllOriginalTypesAndNeverEchoesInput"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_relation_failure_rolls_back_entire_command",
+      "source_sha256": "47e50ac513c9de51018350f6d6250c533a0c4ca206836ffc7d19cfc735ba6c35",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_relation_failure_rolls_back_entire_command[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_relation_failure_rolls_back_entire_command[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['item_counts']['confirmed'] == 1",
+        "assert response.status_code == 200, response.text",
+        "assert not any((key.startswith('retry_context') for key in response.json()))",
+        "_assert_http_atomic_failure(context_runtime, lambda : _commit(client, plan))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "failedRelationWriteRollsBackEntireCommand"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_repreview_uses_complete_inputs_and_old_plan_cannot_commit",
+      "source_sha256": "f3ab3d8acdf1a577efaab12a975aeff75cab9b650a7f30f8125cd0dbc2ec4e3e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_repreview_uses_complete_inputs_and_old_plan_cannot_commit[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_repreview_uses_complete_inputs_and_old_plan_cannot_commit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert 'plan_id' in first",
+        "assert changed.status_code == 200, changed.text",
+        "assert changed.json()['items'][0]['display']['note'] == '人工备注'",
+        "assert _preview(client, view).json()['error']['code'] == 'plan_changed'",
+        "assert _commit(client, first).status_code == 409",
+        "assert _commit(client, changed.json()).status_code == 200",
+        "assert 'note' in saved.manual_fields",
+        "assert session.scalar(select(CashTransactionModel).where(CashTransactionModel.note == '人工备注')) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "repreviewUsesCompleteInputsAndOldPlanCannotCommit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_resolve_reports_pending_while_an_independent_writer_holds_lock",
+      "source_sha256": "a3bfa1d87d0a9efa018387a3edbad510c2c592bd487589395739224e947eb401",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_resolve_reports_pending_while_an_independent_writer_holds_lock[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_resolve_reports_pending_while_an_independent_writer_holds_lock[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert client.post('/api/v1/cash-mutations/resolve', json=body).json() == {'status': 'retry_original'}",
+        "assert response.status_code == 200 and response.json() == {'status': 'pending'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "independentWriterMakesResolvePendingUntilLockIsReleased"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_http_unselected_account_saves_draft_but_rejects_invalid_row_patch",
+      "source_sha256": "dde4c37e49dd543d57e1278e9d0775b020b17b8f978b2f75b057aa3e8f422487",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_http_unselected_account_saves_draft_but_rejects_invalid_row_patch[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_http_unselected_account_saves_draft_but_rejects_invalid_row_patch[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert draft['item_counts']['pending'] == 2 and all((not item['statistics_eligible'] for item in draft['items']))",
+        "assert invalid.status_code == 422 and invalid.json()['error']['code'] == 'plan_input_invalid'",
+        "assert checked.status_code == 200, checked.text",
+        "assert checked.json()['summary']['create_draft'] == 2",
+        "assert receipt['summary']['saved_draft'] == 2 and receipt['summary']['skipped'] == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "unselectedAccountsSaveDraftsAndInvalidRowPatchDoesNotPublish"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_public_plan_reads_do_not_materialize_unrelated_parsed_documents",
+      "source_sha256": "9b39a100d7c506e2400b3c70f858d39b0769e67f789fc273eb75b5fa6132627a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_public_plan_reads_do_not_materialize_unrelated_parsed_documents[cash_web_runtime]",
+        "tests/contract/test_cash_import_plan_api.py::test_public_plan_reads_do_not_materialize_unrelated_parsed_documents[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200",
+        "assert client.get(path).status_code == 200",
+        "assert client.get(path + '/items').status_code == 200",
+        "assert client.get(path + '/processing-details').status_code == 200",
+        "assert client.get(path + '/items/' + plan['items'][0]['preview_item_id']).status_code == 200",
+        "JVM methods are final: poison only the parsed document restoration input while preserving valid JSON/metadata; full store.get fails but all four HTTP plan reads remain 200."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "publicReadsNeverRestoreUnrelatedParsedDocuments"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_plan_api.py::test_replaying_committed_key_cannot_report_not_committed_on_read_failure",
+      "source_sha256": "af9accc2df1c5dee1b17efc61a4986a8bfc4f8e7ba94f4b7342b9ce4eb21c643",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_plan_api.py::test_replaying_committed_key_cannot_report_not_committed_on_read_failure[cash_web_runtime-replay_query]",
+        "tests/contract/test_cash_import_plan_api.py::test_replaying_committed_key_cannot_report_not_committed_on_read_failure[cash_web_runtime-replay_exit]",
+        "tests/contract/test_cash_import_plan_api.py::test_replaying_committed_key_cannot_report_not_committed_on_read_failure[postgres_cash_web_runtime-replay_query]",
+        "tests/contract/test_cash_import_plan_api.py::test_replaying_committed_key_cannot_report_not_committed_on_read_failure[postgres_cash_web_runtime-replay_exit]"
+      ],
+      "assertions": [
+        "assert receipt['committed'] is True",
+        "assert response.status_code == 503 and response.json()['commit_state'] == 'unknown'",
+        "assert 'private' not in response.text",
+        "assert _commit(client, plan).json() == receipt",
+        "Python __exit__ error is adapted to an actual replay transaction finalization error after COMMIT; the durable receipt stays recoverable and response remains unknown."
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "committedReplayQueryFailureCannotClaimNotCommitted"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt",
+          "test": "committedReplayExitFailureCannotClaimNotCommitted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_import_plan_publication.py::test_builder_failure_preserves_previous_immutable_plan",
       "source_sha256": "9e193b949eaf17a6de05f0884be86c0ce9255461981e4544db13e7796b0d6a0b",
       "status": "migrated",

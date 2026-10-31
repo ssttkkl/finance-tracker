@@ -455,7 +455,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     else if(path.startsWith("/api/v1/cash-mutations/receipts/") && (path.endsWith("/rows") || path.endsWith("/relations"))) receiptPageQuery(query)
                 }
                 if (write && principal.role?.canWrite == false) {
-                    if(path.startsWith("/api/v1/cash-mutations") || path.startsWith("/api/v1/cash-projections/")) call.respond(HttpStatusCode.Forbidden,kotlinx.serialization.json.buildJsonObject {
+                    if(path.startsWith("/api/v1/cash-import") || path.startsWith("/api/v1/cash-mutations") || path.startsWith("/api/v1/cash-projections/")) call.respond(HttpStatusCode.Forbidden,kotlinx.serialization.json.buildJsonObject {
                         put("error",kotlinx.serialization.json.buildJsonObject {put("code",JsonPrimitive("workspace_forbidden"));put("message",JsonPrimitive("当前角色仅可查看账本。"));put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(false))})
                     }) else call.respond(HttpStatusCode.Forbidden, ErrorBody(ErrorDetail("workspace_forbidden", "当前角色仅可查看账本。")))
                     finish()

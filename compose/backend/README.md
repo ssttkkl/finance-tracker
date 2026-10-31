@@ -103,6 +103,17 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
 | `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
 
+原计划 API 的 [Ktor 回归](src/test/kotlin/com/finance/tracker/backend/CashImportOriginalPlanApiTest.kt) 使用独立匿名种子和真实上传／预览／确认／恢复路由；来源、关系、收据和提交响应丢失的故障位于实际 JDBC 边界。为 `scripts/export_cash_import_plan_api_contracts.py --help` 列出的每个 `--scenario` 分别准备空测试库，设置 `FT_KOTLIN_IMPORT_PLAN_API_CONTRACT_DIR` 为共同输出根目录：
+
+```bash
+PYTHONPATH=.:src:tests PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_cash_import_plan_api_contracts.py \
+  --database-url "$FT_TEST_POSTGRES_URL" --output "$FT_KOTLIN_IMPORT_PLAN_API_CONTRACT_DIR" --scenario lifecycle
+cd compose
+./gradlew :backend:test --tests '*CashImportOriginalPlanApiTest' -PbackendFunctionalOnly=true
+```
+
+该生成器只提供原输入，不生成预期结果；SQLite 逐场景传不同的绝对测试库路径。写入用例会消费数据库，重跑须重建。导入接口的认证和只读角色拒绝均返回完整公开错误字段，且先于正文解析；403 实际回包由现有 Compose 预览消费者验证，不自动重试。
+
 原计划发布断言由 `CashImportOriginalPublicationTest` 直接验证，不使用 Python 预期回包。为 `scripts/export_cash_import_publication_contracts.py --help` 列出的每个 `--scenario` 手工准备独立空测试库，运行下列命令；`--output` 是全部场景的共同根目录，生成器在其下建立场景子目录。设置 `FT_KOTLIN_IMPORT_PUBLICATION_CONTRACT_DIR` 为此根目录后运行测试。生成器只使用原匿名账本和认证种子；121 条合成条目、畸形构建结果及原断言都在 Kotlin 中定义。消费和权限测试会修改各自隔离库，重跑必须重新准备。
 
 ```bash

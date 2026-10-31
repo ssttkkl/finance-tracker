@@ -430,3 +430,5 @@ Concurrency tests must wait for both independent command workers before releasin
 When translating plan_input_invalid into plan_changed during revalidation, carry the existing diagnostic through the conversion. The command boundary enriches known file/row locations while retaining the inner stage, scope and error ID; generate an outer diagnostic only if none exists. Trigger internal read failures inside the actual discovery/build stack, verify complete rollback and unchanged staging, and decode the real 409 response with the current Compose client without retry.
 
 计划发布的原断言使用独立构建依赖覆盖边界，生产默认仍是完整业务构建器。构建选择须深复制，保存解析正文须来自原暂存字节；构建器或返回视图的可变列表不能污染已保存对象。缺省 `detail_values` 是空映射，显式 `null` 的处理明细／文件结果必须在条件替换前拒绝；不得用 Elvis 缺省抹平两者。121 条原合成条目以原生循环直接核对筛选、总数、绝对序号和游标绑定；JVM `Int` 无法接收布尔值时用真实 HTTP 非整数查询验证既有协议拒绝，并登记语言边界适配。新测试环境变量必须同组提供可复现的匿名场景准备脚本和说明，每场景隔离，不能只依赖本机脚本。
+
+原计划 API 断言必须经过真实 Ktor 上传／预览／确认／收据／核实路由，不能只调用内部服务或复用 Python 预期响应。JDBC 故障匹配同时去掉 SQLite 反引号与 PG 双引号，并断言确实到达；测试读取重放必须在读取失败或事务完成异常后保持 unknown，不能返回 not_committed。公开计划读取可通过只破坏文档还原输入、保留有效 JSON 和元数据证明不物化来源正文；完整 get 必须失败，四类公开 HTTP 读取仍成功。全局 viewer 拦截也属于导入协议，须在正文解析前返回完整 field_errors／retryable；真实回包同时交给现有客户端消费者验证，不新增 UI 或公开测试参数。
