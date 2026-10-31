@@ -19,6 +19,8 @@ internal data class CashImportFileMetadata(val clientFileRef: String, val passwo
 internal data class CashImportUploadMetadata(val files: List<CashImportFileMetadata>,
     val expectedSessionRevision: Long? = null, val fileRef: String? = null)
 
+internal data class CashImportPreviewRequest(val expectedRevision: Long, val previousPlanId: String?, val input: Map<String, Any?>)
+
 internal object CashImportProtocol {
     const val MAX_FILE_BYTES = 100 * 1024 * 1024
     const val MAX_METADATA_BYTES = 65536
@@ -46,6 +48,53 @@ internal object CashImportProtocol {
         val number = primitive.content.toLongOrNull() ?: fail()
         if (number < minimum) fail()
         return number
+    }
+
+    fun preview(text: String): CashImportPreviewRequest {
+        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
+            catch (_: CategoryFailure) { fail() }
+        val required = setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices")
+        if (!root.keys.containsAll(required) || (root.keys - required - "entry_choices").isNotEmpty()) fail()
+        val revision = integer(root["expected_session_revision"], 1) ?: fail()
+        fun reference(value: JsonElement?, maximum: Int = 255): Boolean = value is JsonPrimitive && value.isString &&
+            Regex("[A-Za-z0-9_:.~-]{1,$maximum}").matches(value.content)
+        val previous = root["previous_plan_id"].takeUnless { it == JsonNull }?.let {
+            if (!reference(it, 128)) fail()
+            it.jsonPrimitive.content
+        }
+        val inputs = linkedMapOf<String, Any?>()
+        for ((field, ref) in listOf("account_selections" to "source_account_ref", "row_choices" to "row_ref",
+            "relation_choices" to "suggestion_id", "entry_choices" to "edit_ref")) {
+            val items = if (field == "entry_choices" && field !in root) JsonArray(emptyList()) else root[field] as? JsonArray ?: fail()
+            if (items.size > 100_000) fail()
+            val allowed = when (field) {
+                "account_selections" -> setOf(ref, "account_id", "expected_account_revision")
+                "row_choices" -> setOf(ref, "action", "patch")
+                "relation_choices" -> setOf(ref, "action", "candidate_id", "common_fields", "inherit_common_fields")
+                else -> setOf(ref, "patch")
+            }
+            for (raw in items) {
+                val item = raw as? JsonObject ?: fail()
+                if ((item.keys - allowed).isNotEmpty() || !reference(item[ref])) fail()
+                if (field == "account_selections") {
+                    if (item["account_id"] != null && item["account_id"] != JsonNull && !reference(item["account_id"], 128)) fail()
+                    integer(item["expected_account_revision"], 1)
+                }
+                if (field in setOf("row_choices", "relation_choices")) {
+                    val actions = if (field == "row_choices") setOf("apply", "keep_existing", "defer") else setOf("accept", "defer", "ignore")
+                    if (item["action"] !is JsonPrimitive || !item.getValue("action").jsonPrimitive.isString ||
+                        item.getValue("action").jsonPrimitive.content !in actions) fail()
+                }
+                if (field == "entry_choices" && "patch" !in item || "patch" in item && item["patch"] !is JsonObject) fail()
+                if (item["candidate_id"] != null && item["candidate_id"] != JsonNull && !reference(item["candidate_id"], 128)) fail()
+                if (item["common_fields"] != null && item["common_fields"] != JsonNull && item["common_fields"] !is JsonObject) fail()
+                if (item["inherit_common_fields"] != null && item["inherit_common_fields"] != JsonNull &&
+                    ((item["inherit_common_fields"] as? JsonPrimitive)?.isString != false ||
+                        item["inherit_common_fields"]?.jsonPrimitive?.booleanOrNull == null)) fail()
+            }
+            inputs[field] = cashSourceValue(items)
+        }
+        return CashImportPreviewRequest(revision, previous, inputs)
     }
 
     /** 严格解析元数据 JSON：未知键、重复客户端引用和越界修订都整体拒绝。 */

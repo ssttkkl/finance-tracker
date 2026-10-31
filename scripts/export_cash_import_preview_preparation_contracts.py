@@ -13,6 +13,7 @@ from ft.application.cash_import_business_plan import CashImportBusinessPlanBuild
 from ft.application.cash_import_funding import scan_cash_funding
 from ft.application.cash_import_operations import CashImportOperationPlanner, _wire
 from ft.application.cash_import_plans import CashImportPlanError
+from ft.application.parsed_import_staging import InMemoryParsedImportStore
 from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_relation_context import CashRelationGraphService
 from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
@@ -105,7 +106,7 @@ def export(database_url: str, output: Path) -> None:
                     "secondary_component_id": secondary + 2000, "anchor_transaction_id": 7501,
                     "anchor_component_id": 9501, "primary_role": "expense", "secondary_role": role,
                     "applied_amount": "12.30"})
-        source_files = files()
+        source_files = [replace(file, digest="b" * 64) if file.source_type == "wechat" else file for file in files()]
         selections = [{"source_account_ref": group.source_account_ref, "account_id": "9201",
                        "expected_account_revision": 1} for group in scan_cash_funding(source_files).groups]
         choices = [{"row_ref": "f_a" + "0" * 31 + ":r1", "action": "keep_existing"},
@@ -263,6 +264,36 @@ def export(database_url: str, output: Path) -> None:
         except CashImportPlanError as error:
             invalid_target_error = error.code
         output.mkdir(parents=True, exist_ok=True)
+        store = InMemoryParsedImportStore(clock=lambda: NOW)
+        stored = store.create(workspace_id=WORKSPACE, user_id="owner", files=tuple(source_files))
+        (output / "input-session.json").write_text(json.dumps({"session_id": stored.session_id,
+            "content": json.loads(store._encode(stored))}, ensure_ascii=False, indent=2) + "\n")
+        preview = {"account_selections": selections, "row_choices": choices, "relation_choices": [], "entry_choices": []}
+        with sessions() as session:
+            baseline = builder(session=session, files=source_files, preview_input=deepcopy(preview), previous_plan=None, plan_id="unused")
+            relation_ref = baseline["relation_groups"][0]["suggestion_id"]
+            entry_ref = baseline["item_details"][baseline["items"][0]["preview_item_id"]]["entry"]["edit_ref"]
+            build_cases = []
+            for name, changes, previous in (
+                ("selected", {}, None), ("repeat", {}, baseline),
+                ("unselected", {"account_selections": [], "row_choices": []}, None),
+                ("defer_rows", {"row_choices": draft_choices}, None),
+                ("defer_relation", {"relation_choices": [{"suggestion_id": relation_ref, "action": "defer"}]}, baseline),
+                ("accept_common", {"relation_choices": [{"suggestion_id": relation_ref, "action": "accept", "common_fields": {"note": "合并备注"}}]}, baseline),
+                ("edit_entry", {"entry_choices": [{"edit_ref": entry_ref, "patch": {"note": "整笔备注", "category_id": "op-food"}}]}, baseline),
+                ("missing_category", {"entry_choices": [{"edit_ref": entry_ref, "patch": {"category_id": "missing"}}]}, baseline),
+                ("missing_entry", {"entry_choices": [{"edit_ref": "missing", "patch": {}}]}, baseline),
+                ("missing_relation", {"relation_choices": [{"suggestion_id": "missing", "action": "accept"}]}, baseline),
+            ):
+                inputs = deepcopy(preview | changes)
+                case = {"name": name, "input": inputs, "previous": deepcopy(previous)}
+                try:
+                    case["expected"] = builder(session=session, files=source_files, preview_input=deepcopy(inputs),
+                        previous_plan=deepcopy(previous), plan_id="unused")
+                except CashImportPlanError as error:
+                    case["error"] = error.code
+                build_cases.append(case)
+        (output / "business-plan-cases.json").write_text(json.dumps(_wire(build_cases), ensure_ascii=False, indent=2) + "\n")
         (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc}) + "\n")
         (output / "preparation-cases.json").write_text(json.dumps(
             [case for case in cases if not case["name"].startswith("type_change_")], ensure_ascii=False, indent=2) + "\n")

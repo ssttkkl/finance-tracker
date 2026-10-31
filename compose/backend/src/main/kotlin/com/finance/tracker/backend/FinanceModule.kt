@@ -493,6 +493,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 val view = uploadView { cashImports.plan(token, call.parameters["plan_id"]) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
             }
+            post("/api/v1/cash-import/sessions/{session_id}/plans") {
+                val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
+                val request = CashImportProtocol.preview(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+                val view = uploadView { cashImports.preview(token, call.parameters["session_id"]!!,
+                    request.expectedRevision, request.previousPlanId, request.input) }
+                call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
+            }
             get("/api/v1/cash-import/plans/{plan_id}/items") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val query = importPlanPageQuery(call.request.queryParameters)

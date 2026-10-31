@@ -180,6 +180,49 @@ internal class CashImportHttpService(private val database: Database, private val
         }
     }
 
+    fun preview(token: String?, sessionId: String, expectedRevision: Long, previousPlanId: String?,
+        input: Map<String, Any?>): Map<String, Any?> {
+        if (expectedRevision < 1) throw CashImportPlanError("plan_changed")
+        val previewInput = CashImportPlanViews.previewInput(input["account_selections"] ?: emptyList<Any?>(),
+            input["row_choices"] ?: emptyList<Any?>(), input["relation_choices"] ?: emptyList<Any?>(), input["entry_choices"])
+        try {
+            return locked(token, true) { principal, connection ->
+                receipt(connection, principal, sessionId)?.let { throw ReceiptConflict("session_committed", receiptId(it)) }
+                val snapshot = staging.planUpdateSnapshot(sessionId, principal.workspaceId!!, principal.userId)
+                val current = snapshot.session()
+                if (current.workflowKind != "import") throw ParsedImportNotFound()
+                if (current.revision != revision(expectedRevision) || current.cancelled || current.plan?.get("plan_id") != previousPlanId)
+                    throw CashImportPlanError("plan_changed")
+                val planId = "ip_$sessionId." + MutationPlanStore.secureUrlToken(12)
+                val result = CashImportBusinessPlanBuilder(CashSqlContext(connection, principal.workspaceId!!, database.sqlite))
+                    .build(current.files, previewInput, current.plan ?: CashImportChoiceContext.previous(current))
+                val items = result["items"] as? List<*> ?: throw CashImportPlanError("plan_build_failed")
+                if (result["summary"] !is Map<*, *> || result["can_commit"] !is Boolean) throw CashImportPlanError("plan_build_failed")
+                val identifiers = mutableSetOf<String>()
+                for (raw in items) {
+                    val item = raw as? Map<*, *> ?: throw CashImportPlanError("plan_build_failed")
+                    val id = item["preview_item_id"] as? String ?: throw CashImportPlanError("plan_build_failed")
+                    if (!Regex("[A-Za-z0-9_:.~-]{1,128}").matches(id) || !identifiers.add(id) ||
+                        item["confirmation_status"] !in setOf("confirmed", "pending")) throw CashImportPlanError("plan_build_failed")
+                }
+                val plan = result + linkedMapOf("plan_id" to planId, "session_id" to sessionId,
+                    "session_revision" to current.revision + BigInteger.ONE, "expires_at" to ParsedImportCodec.timeText(current.expiresAt),
+                    "contract_version" to 1, "item_counts" to listOf("confirmed", "pending").associateWith { status ->
+                        items.count { (it as Map<*, *>)["confirmation_status"] == status }
+                    })
+                CashImportPlanViews.validateReadable(plan)
+                val view = CashImportPlanViews.view(plan)
+                staging.replacePlan(snapshot, principal.workspaceId!!, principal.userId, current.revision,
+                    previewInput, plan, CashImportChoiceContext.without(current))
+                view
+            }
+        } catch (_: CashImportChoiceContextError) { throw CashImportPlanError("plan_build_failed") }
+        catch (_: ParsedImportRevisionConflict) { throw CashImportPlanError("plan_changed") }
+        catch (_: ParsedImportClosed) { throw CashImportPlanError("plan_changed") }
+        catch (_: ParsedImportExpired) { throw CashImportPlanError("plan_expired") }
+        catch (_: ParsedImportNotFound) { throw CashImportPlanError("plan_expired") }
+    }
+
     fun plan(token: String?, planId: String?): Map<String, Any?> =
         readPlan(token, planId, listOf("plan")) { CashImportPlanViews.view(it) }
 

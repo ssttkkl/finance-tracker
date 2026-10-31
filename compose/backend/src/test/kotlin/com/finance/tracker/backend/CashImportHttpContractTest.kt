@@ -60,6 +60,82 @@ class CashImportHttpContractTest {
             header(HttpHeaders.Authorization, "Bearer $token"); setBody(multipart(metadata, parts))
         }
 
+    private fun previewInput(revision: Int, previous: String? = null, selection: JsonArray = JsonArray(emptyList()),
+        entries: JsonArray = JsonArray(emptyList())) = buildJsonObject {
+        put("expected_session_revision", revision); put("previous_plan_id", previous?.let(::JsonPrimitive) ?: JsonNull)
+        put("account_selections", selection); put("row_choices", JsonArray(emptyList()))
+        put("relation_choices", JsonArray(emptyList())); put("entry_choices", entries)
+    }
+
+    @Test fun previewPublishesFrozenPlanAndPreservesPreviousPlanOnFailure() = testApplication {
+        val db = database()
+        val store = InMemoryParsedImportStore()
+        application { financeModule(db, cashImports = service(db, store)) }
+        val session = json(create(this).bodyAsText())
+        val id = session.getValue("session_id").jsonPrimitive.content
+        val selection = JsonArray(session.getValue("source_accounts").jsonArray.map { raw -> buildJsonObject {
+            put("source_account_ref", raw.jsonObject.getValue("source_account_ref"))
+            put("account_id", "101"); put("expected_account_revision", 1)
+        } })
+        suspend fun preview(input: JsonObject, token: String = "synthetic-admin") = client.post("/api/v1/cash-import/sessions/$id/plans") {
+            header(HttpHeaders.Authorization, "Bearer $token"); contentType(ContentType.Application.Json); setBody(input.toString())
+        }
+        val before = detailDatabaseState(db)
+        val firstInput = previewInput(1, selection = selection)
+        val captures = mutableListOf<JsonObject>()
+        fun capture(input: JsonObject, body: String, status: Int) {
+            captures += buildJsonObject { put("request", input); put("body", body); put("status", status) }
+        }
+        val response = preview(firstInput)
+        assertEquals(200, response.status.value, response.bodyAsText())
+        capture(firstInput, response.bodyAsText(), response.status.value)
+        val plan = json(response.bodyAsText())
+        val planId = plan.getValue("plan_id").jsonPrimitive.content
+        assertEquals(2, plan.getValue("session_revision").jsonPrimitive.int)
+        assertTrue(plan.getValue("can_commit").jsonPrimitive.boolean)
+        val frozen = store.get(id, workspace, admin)
+        assertEquals(1, frozen.files.size)
+        assertEquals(session.getValue("expires_at"), JsonPrimitive(ParsedImportCodec.timeText(frozen.expiresAt)))
+        assertEquals(plan, json(client.get("/api/v1/cash-import/plans/$planId") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }.bodyAsText()))
+        assertEquals("plan_changed", error(preview(previewInput(1, planId, selection))))
+        assertEquals("plan_changed", error(preview(previewInput(2, selection = selection))))
+        assertEquals("workspace_forbidden", error(preview(previewInput(2, planId, selection), "synthetic-viewer")))
+        assertEquals(frozen, store.get(id, workspace, admin))
+        val itemId = plan.getValue("items").jsonArray.first().jsonObject.getValue("preview_item_id").jsonPrimitive.content
+        val detail = json(client.get("/api/v1/cash-import/plans/$planId/items/$itemId") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }.bodyAsText())
+        fun entryPatch(category: String? = null) = JsonArray(listOf(buildJsonObject {
+            put("edit_ref", detail.getValue("entry").jsonObject.getValue("edit_ref"))
+            put("patch", buildJsonObject { put("note", "整笔新备注"); category?.let { put("category_id", it) } })
+        }))
+        val invalidInput = previewInput(2, planId, selection, entryPatch("missing"))
+        val invalid = preview(invalidInput)
+        assertEquals("category_unavailable", error(invalid))
+        capture(invalidInput, invalid.bodyAsText(), invalid.status.value)
+        assertEquals(frozen, store.get(id, workspace, admin))
+        val nextInput = previewInput(2, planId, selection, entryPatch())
+        val updated = preview(nextInput)
+        assertEquals(200, updated.status.value, updated.bodyAsText())
+        capture(nextInput, updated.bodyAsText(), updated.status.value)
+        val next = json(updated.bodyAsText())
+        assertEquals(3, next.getValue("session_revision").jsonPrimitive.int)
+        assertEquals("整笔新备注", next.getValue("items").jsonArray.first().jsonObject.getValue("display").jsonObject.getValue("note").jsonPrimitive.content)
+        assertEquals("plan_changed", error(client.get("/api/v1/cash-import/plans/$planId") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin")
+        }))
+        assertEquals(before, detailDatabaseState(db))
+        System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { directory ->
+            val output = Path.of(directory); require(output.isAbsolute); java.nio.file.Files.createDirectories(output)
+            java.nio.file.Files.writeString(output.resolve("cash-import-preview-responses.json"), buildJsonObject {
+                put("backend", if (db.sqlite) "sqlite" else "postgresql"); put("session_id", id)
+                put("responses", JsonArray(captures)); put("detail", detail)
+            }.toString())
+        }
+    }
+
     @Test fun uploadLifecyclePublishesSessionViews() = testApplication {
         val db = database()
         val store = InMemoryParsedImportStore()
@@ -188,6 +264,94 @@ class CashImportHttpContractTest {
         assertEquals(409, cancel.status.value)
         assertEquals("session_committed", error(cancel))
         assertEquals(receiptId, json(cancel.bodyAsText()).getValue("receipt_id").jsonPrimitive.content)
+        val preview = client.post("/api/v1/cash-import/sessions/$sessionId/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin"); contentType(ContentType.Application.Json)
+            setBody(previewInput(1).toString())
+        }
+        assertEquals(409, preview.status.value)
+        assertEquals("session_committed", error(preview))
+        assertEquals(receiptId, json(preview.bodyAsText()).getValue("receipt_id").jsonPrimitive.content)
+    }
+
+    @Test fun previewRejectsInvalidProtocolAndClosedExpiredOrWrongWorkflowSessions() = testApplication {
+        val db = database()
+        var now = java.time.Instant.now()
+        val store = InMemoryParsedImportStore(clock = { now })
+        application { financeModule(db, cashImports = service(db, store)) }
+        val session = json(create(this).bodyAsText())
+        val id = session.getValue("session_id").jsonPrimitive.content
+        suspend fun preview(body: String, identifier: String = id) = client.post("/api/v1/cash-import/sessions/$identifier/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin"); contentType(ContentType.Application.Json); setBody(body)
+        }
+        val base = previewInput(1)
+        val bad = listOf("null", "[]", "{", JsonObject(base - "previous_plan_id").toString(),
+            JsonObject(base + ("expected_session_revision" to JsonPrimitive("1"))).toString(),
+            JsonObject(base + ("expected_session_revision" to JsonPrimitive(0))).toString(),
+            JsonObject(base + ("expected_session_revision" to JsonPrimitive(1.0))).toString(),
+            JsonObject(base + ("unknown" to JsonPrimitive(true))).toString(),
+            base.toString().dropLast(1) + ",\"previous_plan_id\":null}",
+            JsonObject(base + ("relation_choices" to JsonArray(listOf(buildJsonObject {
+                put("suggestion_id", "sg_1"); put("action", "accept"); put("inherit_common_fields", "true")
+            })))).toString())
+        for (body in bad) {
+            val response = preview(body)
+            assertEquals(422, response.status.value, body + response.bodyAsText())
+            assertEquals("import_payload_invalid", error(response))
+        }
+        assertEquals(java.math.BigInteger.ONE, store.get(id, workspace, admin).revision)
+        val mutation = store.create(workspace, admin, emptyList(), workflowKind = "mutation")
+        assertEquals("plan_expired", error(preview(base.toString(), mutation.sessionId)))
+        store.cancel(id, workspace, admin, 1)
+        assertEquals("plan_changed", error(preview(previewInput(2).toString())))
+        now = now.plusSeconds(1801)
+        val expired = preview(previewInput(2).toString())
+        assertEquals(410, expired.status.value)
+        assertEquals("plan_expired", error(expired))
+    }
+
+    @Test fun failedConditionalPublicationKeepsFrozenPlanAndChoiceProof() = testApplication {
+        val db = database()
+        var failPublish = false
+        val values = linkedMapOf<String, ParsedImportObject>()
+        val store = object : ParsedImportStore() {
+            override fun readRaw(id: String) = values[id] ?: throw ParsedImportNotFound()
+            override fun writeRaw(id: String, content: ByteArray, expected: String?, expiresAt: java.time.Instant) {
+                if (failPublish && expected != null) throw ParsedImportRevisionConflict()
+                if (values[id]?.etag != expected) throw ParsedImportRevisionConflict()
+                values[id] = ParsedImportObject(content.copyOf(), ParsedImportStore.digest(content))
+            }
+            override fun deleteRaw(id: String) { values.remove(id) }
+            override fun sweepExpired(cursor: String?, limit: Int, shouldStop: () -> Boolean) = ParsedImportSweep(0, 0, null)
+        }
+        application { financeModule(db, cashImports = service(db, store)) }
+        val session = json(create(this).bodyAsText())
+        val id = session.getValue("session_id").jsonPrimitive.content
+        suspend fun preview(input: JsonObject) = client.post("/api/v1/cash-import/sessions/$id/plans") {
+            header(HttpHeaders.Authorization, "Bearer synthetic-admin"); contentType(ContentType.Application.Json); setBody(input.toString())
+        }
+        val first = preview(previewInput(1))
+        assertEquals(200, first.status.value, first.bodyAsText())
+        val planId = json(first.bodyAsText()).getValue("plan_id").jsonPrimitive.content
+        val frozen = store.get(id, workspace, admin)
+        failPublish = true
+        val failed = preview(previewInput(2, planId))
+        assertEquals(409, failed.status.value)
+        assertEquals("plan_changed", error(failed))
+        assertEquals(frozen, store.get(id, workspace, admin))
+        failPublish = false
+        val retained = CashImportChoiceContext.retained(frozen)
+        store.replace(id, workspace, admin, 2, frozen.files, emptyMap(), null, retained)
+        val next = preview(previewInput(3))
+        assertEquals(200, next.status.value, next.bodyAsText())
+        assertFalse(CashImportChoiceContext.CONTEXT_KEY in store.get(id, workspace, admin).contextData)
+        val current = store.get(id, workspace, admin)
+        store.replace(id, workspace, admin, current.revision, current.files, emptyMap(), null,
+            mapOf(CashImportChoiceContext.CONTEXT_KEY to mapOf("bad" to true)))
+        val invalid = store.get(id, workspace, admin)
+        val failedBuild = preview(previewInput(invalid.revision.toInt()))
+        assertEquals(503, failedBuild.status.value)
+        assertEquals("plan_build_failed", error(failedBuild))
+        assertEquals(invalid, store.get(id, workspace, admin))
     }
 
     @Test fun lateCommitDuringParsePreventsPublication() = testApplication {

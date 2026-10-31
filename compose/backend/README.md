@@ -16,7 +16,9 @@
 
 来源事项选择的纯规则已实现，覆盖正文缺省／明确清空、固定字段、现金部分归属、多个来源冲突及当前事项修订。`scripts/export_cash_source_resolution_goldens.py --check` 校验 708 组匿名输入、完整结果和正文摘要。来源正文派生已覆盖微信、支付宝、建行、工行信用卡／借记卡和工银亚洲；保留原文备注、支付渠道与退款线索，账户身份只取可信解释，人工备注优先。`scripts/export_cash_source_effects_goldens.py --check` 校验完整结果及输入不变。单条流水详情及维护事务尚未接入这些规则，不能据此增加已验收 HTTP 数或关闭来源处理流程。
 
-账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；来源账户扫描与选择、上传文件准备纯层（严格文件命令、脱敏、范围继承、选择失效与关系证明）已实现；来源规划只读仓库和导入会话视图也已实现并按双库匿名种子对照；上传 HTTP 已接入会话创建、追加、替换、范围、删除、取消和读取，解析在锁外、发布与永久收据核实同锁。导入计划公开视图、分页与冻结详情纯层已实现并按 15 组 Python 结果对照；导入逐流水操作规划纯层已实现并按双库 Python 结果对照；条目目标/公共条目编辑与关系核心、几何/镜像图、余额/损益投影与退款文本/菱形匹配与平台退款配对纯层已实现并按 Python 结果对照；导入业务计划/预览/提交、账户映射持久化、真实 R2 连通性和真实账单样本仍未迁移，不能据此宣称导入流程可用。
+账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；来源账户扫描与选择、上传文件准备纯层（严格文件命令、脱敏、范围继承、选择失效与关系证明）已实现；来源规划只读仓库和导入会话视图也已实现并按双库匿名种子对照；上传 HTTP 已接入会话创建、追加、替换、范围、删除、取消和读取，解析在锁外、发布与永久收据核实同锁。导入计划公开视图、分页与冻结详情纯层已实现并按 15 组 Python 结果对照；导入逐流水操作规划纯层已实现并按双库 Python 结果对照；条目目标/公共条目编辑与关系核心、几何/镜像图、余额/损益投影与退款文本/菱形匹配与平台退款配对纯层已实现并按 Python 结果对照；完整导入业务计划、预计列表/详情及预览 HTTP 已接共享解析暂存，发布核对当前修订、上一计划、原有效期、权限与永久收据，并使用对象版本条件替换；失败保留原计划。导入确认、成功使用证明的账户映射发布、真实 R2 连通性和真实账单样本仍未完成，不能据此宣称完整导入流程可用。
+
+导入预览的实际 Ktor 回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinImportPreviewResponseIntegrationTest`，验证现有 Compose 预览请求、计划/冻结详情解码、领域映射和业务错误消费，且不重复请求。此验证不代替完整导入确认或 UI 验收。
 
 来源账户对应的内部仓库和只读建议已实现：按完整来源组查询已确认对应、窄范围旧对应和完整账户别名，重新核对当前账户资格；发布在调用方事务内执行，同值不改变修订。[导入资金组扫描及账户选择准备](src/main/kotlin/com/finance/tracker/backend/CashImportFunding.kt) 已实现，按完整身份区分来源，保留明确分摊、优惠排除和当前账户资格；115 组 Python 完整结果及原生边界回归通过。上传与实际成功证明的提交接线尚未完成。
 
@@ -128,7 +130,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 同样的实际 Ktor 回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinAccountResponseIntegrationTest`，验证普通账户读取、导入账户读取与读写命令消费共享 DTO。账户列表按现金/投资视图分组，保留停用账户；历史余额/估值查询不在此列表接口中。
 
-永久收据读取保留操作者和当前工作区隔离、旧键原文查询、行/关系分页及当前投影位置；读取也锁定工作区并复核当前权限。收据摘要只输出公开字段，损坏记录返回安全诊断。服务端保留任意精度非负计数；现有 Compose 仍使用 `Long`，超范围计数是未解决的客户端边界。实际回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinReceiptResponseIntegrationTest`，验证现有 API 的读取消费及该限制。现金提交、resolve 和导入暂存仍未迁移。
+永久收据读取保留操作者和当前工作区隔离、旧键原文查询、行/关系分页及当前投影位置；读取也锁定工作区并复核当前权限。收据摘要只输出公开字段，损坏记录返回安全诊断。服务端保留任意精度非负计数；现有 Compose 仍使用 `Long`，超范围计数是未解决的客户端边界。实际回包目录可运行 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinReceiptResponseIntegrationTest`，验证现有 API 的读取消费及该限制。维护专用提交及原键核实、导入解析暂存和预览条件发布已接入；完整导入确认及其原键结果核实仍未完成。
 
 永久收据仓库的摘要/结果校验、原键重放、单一会话/编辑上下文消费已迁入，并由账户命令实际复用。仓库与业务写入共用调用方事务，异常整体回滚；原数据库永久唯一和工作区复合外键由真实双库测试验证。摘要按原 Python ASCII JSON 编码计算 1 MiB 上限，包括 DEL 转义；`scripts/export_receipt_write_goldens.py --check` 核对 1,052 个匿名校验及字节预算向量。通用 UoW 并发、历史 Alembic 升降级、现金提交与 retry 仍未验收。
 
