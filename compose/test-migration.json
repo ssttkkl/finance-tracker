@@ -826,6 +826,378 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_import_commit.py::test_draft_is_saved_in_same_tables_without_entering_statistics_or_balances",
+      "source_sha256": "fb5081eac8b82e46b01bb4eb2292172a34d349e306bc10e414b2cd491f555011",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_draft_is_saved_in_same_tables_without_entering_statistics_or_balances[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_draft_is_saved_in_same_tables_without_entering_statistics_or_balances[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert row[\"outcome\"] == \"saved_draft\" and receipt[\"needs_attention_count\"] == 1",
+        "assert receipt[\"pending_item_count\"] == 1",
+        "assert parent.state == \"draft\" and parent.account_id is None",
+        "assert (snapshot.payload if snapshot else None) == before",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionIssueModel).where(\n            CashTransactionIssueModel.transaction_id == parent.id)) > 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalDraftStaysInFactTablesWithoutBalanceOrStatistics"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_execution_failure_rolls_back_entire_import_without_retry_capsule",
+      "source_sha256": "797e6b656a05de49f160c617b3ece7c0c6cc5f28aa50f07a37c4fb7684991935",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_execution_failure_rolls_back_entire_import_without_retry_capsule[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_execution_failure_rolls_back_entire_import_without_retry_capsule[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert rejected.value.commit_state == \"not_committed\"",
+        "assert len(service._staging._entries) == 1",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before",
+        "assert session.scalar(select(CashMutationReceiptModel).where(\n            CashMutationReceiptModel.idempotency_key == \"synthetic-confirm\")) is None",
+        "pytest.raises(CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalSecondRowExecutionFailureLeavesNoReceiptOrRetryCapsule"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_file_failure_and_normal_whitelist_skip_have_distinct_result_status",
+      "source_sha256": "b9dbaddb8ac1864fc56c9120709ea58a45c58c360e0918b7989a15b27323bae4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_file_failure_and_normal_whitelist_skip_have_distinct_result_status[cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_file_failure_and_normal_whitelist_skip_have_distinct_result_status[cash_web_runtime-False]",
+        "tests/contract/test_cash_import_commit.py::test_file_failure_and_normal_whitelist_skip_have_distinct_result_status[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_import_commit.py::test_file_failure_and_normal_whitelist_skip_have_distinct_result_status[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert receipt[\"status\"] == (\"partial\" if failed_file else \"no_changes\")",
+        "assert receipt[\"commit_outcome\"] == {\"has_new_failures\": False, \"has_business_writes\": failed_file, \"reason_codes\": []}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalBadFileAndWhitelistSkipKeepDistinctResultStatusAndWriteProof"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_final_receipt_or_projection_failure_rolls_back_all_business_writes",
+      "source_sha256": "fc43c95300bff31092331ea3e5c53eeada7bbe00c08242ebb81adccc4b6b6465",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_final_receipt_or_projection_failure_rolls_back_all_business_writes[cash_web_runtime-receipt]",
+        "tests/contract/test_cash_import_commit.py::test_final_receipt_or_projection_failure_rolls_back_all_business_writes[cash_web_runtime-projection]",
+        "tests/contract/test_cash_import_commit.py::test_final_receipt_or_projection_failure_rolls_back_all_business_writes[postgres_cash_web_runtime-receipt]",
+        "tests/contract/test_cash_import_commit.py::test_final_receipt_or_projection_failure_rolls_back_all_business_writes[postgres_cash_web_runtime-projection]"
+      ],
+      "assertions": [
+        "assert failure.value.commit_state == \"not_committed\"",
+        "assert receipt[\"summary\"][\"created_posted\"] == 1",
+        "assert session.scalar(select(func.count()).select_from(CashTransactionModel)) == before",
+        "assert session.scalar(select(func.count()).select_from(CashSourceBindingModel)) == 0",
+        "pytest.raises(CashCommitFailure)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalFinalFailureRollsBackAllBusinessWritesAndAllowsOriginalRequestRetry"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback",
+      "source_sha256": "419eaa14f96a63b78f96a203fb4dade1fe91f32fac2e06c7aea5459d5b25a41f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_large_new_batch_failure_rolls_back_entire_command_without_row_fallback[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert diagnostic[\"stage\"] == \"batch_write\" and diagnostic[\"scope\"] == \"related\"",
+        "assert diagnostic[\"total_locations\"] == 100",
+        "assert all(item.get(\"display_name\") and item.get(\"row_number\") for item in diagnostic[\"locations\"])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalFirstHundredBatchFailureRollsBackAllRowsWithoutFallback"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrite_balance",
+      "source_sha256": "9be1ee14c38334f88baf4c62df3b3408d0f16df0eafc7c26fe2c108a398b1d2a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrite_balance[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_new_session_with_identical_bill_is_silent_duplicate_and_does_not_rewrite_balance[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert second[\"status\"] == \"no_changes\" and second[\"summary\"][\"duplicate\"] == 1",
+        "assert _results(service, first, \"row\")[0][\"transaction_id\"] == _results(service, second, \"row\")[0][\"transaction_id\"]",
+        "assert session.get(LedgerSnapshotModel, context_runtime.workspace_id).version == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalEquivalentNewSessionKeepsSameRecordAndBalanceVersion"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_permission_is_rechecked_even_when_replaying_a_receipt",
+      "source_sha256": "89f4a959093b8ba699b3f11da7340cc006a4508ee9df8fc264d6c333433638cf",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_permission_is_rechecked_even_when_replaying_a_receipt[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_permission_is_rechecked_even_when_replaying_a_receipt[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "pytest.raises(CashImportPermissionDenied)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalReceiptReplayStillRequiresCurrentWritePermission"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_real_plan_creates_formal_record_binding_and_projection_in_one_confirmation",
+      "source_sha256": "376276ea9f9acf65b71c628b04b621da89a87ed453c5f065e36aa09f70892247",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_real_plan_creates_formal_record_binding_and_projection_in_one_confirmation[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_real_plan_creates_formal_record_binding_and_projection_in_one_confirmation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt[\"status\"] == \"completed\" and receipt[\"committed\"] is True",
+        "assert receipt[\"summary\"][\"created_posted\"] == 1",
+        "assert receipt[\"projection_version\"] > 0",
+        "assert parent.state == \"posted\" and parent.amount == Decimal(\"-12.5\")",
+        "assert session.scalar(select(func.count()).select_from(CashSourceBindingModel).where(\n            CashSourceBindingModel.transaction_id == parent.id)) > 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "realPlanCreatesFormalFactBindingsAndProjectionAsOriginal"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_receipt_reads_are_user_scoped_and_only_contain_safe_results",
+      "source_sha256": "5f6d65894cbece0084bb94f4b0e8fcdd9cc132bb7b8d084ad204a32f1ed09ec1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_receipt_reads_are_user_scoped_and_only_contain_safe_results[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_receipt_reads_are_user_scoped_and_only_contain_safe_results[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.receipt(receipt[\"receipt_id\"]) == receipt",
+        "assert \"session_digest\" not in receipt and \"request_digest\" not in receipt",
+        "pytest.raises(CashImportPlanError, match=\"receipt_not_found\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalReceiptAndResultsRemainUserScopedAndStripPrivateDigests"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending",
+      "source_sha256": "72c071e1811b94bd2f804170fcbecacbd1348abdc8d786c50752b5017bb2bf6d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[cash_web_runtime-storage.connect]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[cash_web_runtime-storage.readonly]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[cash_web_runtime-storage.schema]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[postgres_cash_web_runtime-storage.connect]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[postgres_cash_web_runtime-storage.readonly]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_does_not_treat_other_storage_failures_as_pending[postgres_cash_web_runtime-storage.schema]"
+      ],
+      "assertions": [
+        "assert captured.value.code == code",
+        "pytest.raises(StorageError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalResolvePropagatesEveryNonLockStorageFailure"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_resolve_returns_pending_for_independent_writer_then_recovers",
+      "source_sha256": "a758591e34dbebeaecc1c64cc5ab5334d899b6a268379ae7c4f046296a0ea074",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_resolve_returns_pending_for_independent_writer_then_recovers[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_resolve_returns_pending_for_independent_writer_then_recovers[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.resolve(plan[\"plan_id\"], idempotency_key=\"synthetic-pending\") == {\"status\": \"retry_original\"}",
+        "assert service.resolve(plan[\"plan_id\"], idempotency_key=\"synthetic-pending\")[\"receipt\"][\"receipt_id\"] == receipt[\"receipt_id\"]",
+        "assert service.resolve(plan[\"plan_id\"], idempotency_key=\"synthetic-pending\") == {\"status\": \"pending\"}",
+        "assert session.connection().exec_driver_sql(\"PRAGMA busy_timeout\").scalar() == 5000"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalResolveObservesIndependentWriterReceiptAndCancellation"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_row_failure_rolls_back_all_aliases_and_duplicate_results_and_preserves_entire_batch",
+      "source_sha256": "4763c76f0e6f1e446db7d87485ea86374db403841d4f0c72ff39dc9825c2d589",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_row_failure_rolls_back_all_aliases_and_duplicate_results_and_preserves_entire_batch[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_row_failure_rolls_back_all_aliases_and_duplicate_results_and_preserves_entire_batch[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert diagnostic[\"stage\"] == \"row_write\" and diagnostic[\"scope\"] == \"related\"",
+        "assert diagnostic[\"total_locations\"] == 2",
+        "assert all(item.get(\"display_name\") and item.get(\"row_number\") for item in diagnostic[\"locations\"])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalRowAliasFailurePreservesWholeBatchAndBothDuplicateLocations"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_same_key_replays_after_temporary_session_is_gone_and_other_key_cannot_consume_again",
+      "source_sha256": "e047ada22b4a0983fbd5c54029b27c5eb18cec57ac6e8d1a8038b71694c207c4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_same_key_replays_after_temporary_session_is_gone_and_other_key_cannot_consume_again[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_same_key_replays_after_temporary_session_is_gone_and_other_key_cannot_consume_again[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _commit(service, plan) == first",
+        "assert error.value.receipt_id == first[\"receipt_id\"]",
+        "pytest.raises(CashMutationConflict, match=\"session_committed\")",
+        "pytest.raises(CashMutationConflict, match=\"idempotency_conflict\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalKeyReplaysWithoutTemporarySessionAndRejectsDifferentRequestOrKey"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_success_has_no_failed_subset_recovery_capability",
+      "source_sha256": "8bb6884b913f2b53de0f1d627dadf545867f0559d4c465bf3c843f75eb889eb0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_success_has_no_failed_subset_recovery_capability[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_success_has_no_failed_subset_recovery_capability[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert not any(key.startswith(\"retry_context\") for key in receipt)",
+        "assert not hasattr(service, \"retry_session\")"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalSuccessfulReceiptHasNoSubsetRecoveryCapability"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_balances",
+      "source_sha256": "5846b3359fd6da08a678613542deef2d2efce652aadfe1725a76975ccfefe1e4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_balances[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_successful_bulk_keeps_mixed_components_aliases_protection_and_exact_balances[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan[\"summary\"].get(\"create_posted\") == 32, (plan[\"summary\"], service.processing_details(plan[\"plan_id\"])[\"items\"][:2])",
+        "assert sum(calls) == 32 and receipt[\"summary\"][\"created_posted\"] == 32, (errors, receipt[\"summary\"])",
+        "assert receipt[\"summary\"][\"duplicate\"] == 32 and receipt[\"summary\"][\"skipped\"] == 0",
+        "assert identifier == repository.find(incoming[f\"file_b:r{index + 1}\"])",
+        "assert parent.source_payload == {\"synthetic_index\": index} and parent.amount == Decimal(row.fields[\"amount\"])",
+        "assert parent.note == source.fields['note'] and not parent.manual_overrides.get('note')",
+        "assert entry.note == f\"人工备注{index}\" and 'note' in entry.manual_fields",
+        "assert [(str(part.account_id), part.amount, part.currency) for part in parts] == [\n                (part[\"account_id\"], Decimal(part[\"amount\"]), part[\"currency\"]) for part in expected_parts[index]]",
+        "assert Decimal(after[\"accounts\"][kind][name][\"CNY\"]) - old == expected_deltas[identifier]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalMixedBulkPreservesBothAliasesManualEntriesComponentsAndExactBalances"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_import_commit.py::test_unknown_result_resolves_under_same_lock_before_and_after_commit_or_cancellation",
+      "source_sha256": "39cb3de95deab55138d509f2c95f9dabba87b14047c7bf46e5a60c9a01c04809",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_import_commit.py::test_unknown_result_resolves_under_same_lock_before_and_after_commit_or_cancellation[cash_web_runtime]",
+        "tests/contract/test_cash_import_commit.py::test_unknown_result_resolves_under_same_lock_before_and_after_commit_or_cancellation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.resolve(plan[\"plan_id\"], idempotency_key=\"synthetic-confirm\") == {\"status\": \"retry_original\"}",
+        "assert service.resolve(plan[\"plan_id\"], idempotency_key=\"synthetic-confirm\") == {\"status\": \"committed\", \"receipt\": receipt}",
+        "assert service.receipt_by_key(\"synthetic-confirm\") == receipt",
+        "assert other.resolve(pending[\"plan_id\"], idempotency_key=\"not-submitted\") == {\"status\": \"not_committed\"}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt",
+          "test": "originalResolveObservesIndependentWriterReceiptAndCancellation"
+        }
+      ],
+      "compatibility": "复用原 cash_web_runtime 匿名行、101 现金/102 贷款账户、editor 和原 ParsedImportFile；HTTP 会话令牌仅作传输认证。原 Python 全部参数分别在 SQLite/显式 PostgreSQL 执行；原生断言在对应双库场景运行。批量故障使用真实 JDBC 来源写入后异常，验证第一批 100 行和无逐行回退；无 retry_session 按 JVM 公开成员缺失验证。",
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key",
       "source_sha256": "a402b89a0cef375fe73ce98d52c2112d35684a69ef3139f11d6439a24cdd1aa3",
       "status": "migrated",

@@ -34,6 +34,8 @@ Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收�
 
 [联合导入确认](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportCommandService.kt)已接既有确认和结果核实 HTTP，在工作区写锁后重建冻结计划，并将来源、流水、关系、账户对应、余额、公共值、投影和永久收据原子保存。同键重放优先于临时正文；提交结果未知按原键核实，清理失败不改变已提交结果。[现有 Compose 消费验证](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinImportCommitResponseIntegrationTest.kt)覆盖收据、逐行结果、诊断及不自动重试。页面数仍为 10，Web、Native 和共享生产合同未变；真实 R2、真实账单和原组合测试未齐，F-05 两端完整导入 TODO 保留。
 
+导入确认的[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalCommitTest.kt)直接覆盖批次失败整体回滚、混合分摊/来源别名/公共人工值/精确余额、草稿、重放、核实、当前权限及收据用户隔离；不以命令黄金代替源断言。没有新增页面或平台入口，F-05 的剩余原组合测试与真实环境 TODO 保留。
+
 ## 现金导入后端与客户端边界
 
 流水模型、展示与维护流程见 [现金流水](cash-ledger.md)，账单入库过程见 [现金账单导入](cash-import-flow.md)。现金导入后端已完成开发及验收，旧公开写入口已关闭；Compose 已接入 F-03 当前状态列表、F-04 当前详情、草稿维护、公共整笔编辑、普通记账／转账创建和完整转账编辑；F-05 已切换当前会话与统一核对入口；来源／身份问题已有真实 API 最终冒烟；密码重传等分支未逐项 Web 穷举，演示确认仍待完成。共享入口由 Web、Android、iOS 共用；直接转账响应已修复列表中的精确金额序列化。默认验证按 AGENTS.md 执行 Web 冒烟及相称原生编译／单元测试，不将未执行的设备 QA 记为通过。页面数没有增加。现金详情／表单和导入准备页已按修改前的视觉基线恢复信息层级，全部可编辑字段按业务分组展开，编辑操作固定在底部，浅深主题交互蓝配对已通过对比度回归；当前演示尚待用户确认。业务规则见 [规则与设计取舍](cash-import-redesign.md)，协议见 [接口与数据契约](cash-import-redesign-contracts.md)；开发、迁移、双后端及真实账单验收集中在 [实施记录](../openspec/changes/cash-import-lifecycle-redesign/tasks.md)。

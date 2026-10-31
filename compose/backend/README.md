@@ -100,6 +100,10 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_PLAN_RELATION_WRITE_CONTRACT_DIR` | `scripts/export_cash_plan_relation_write_contracts.py` |
 | `FT_KOTLIN_PLAN_FINALIZE_CONTRACT_DIR` | `scripts/export_cash_plan_finalize_contracts.py` |
 | `FT_KOTLIN_IMPORT_COMMIT_PREPARATION_CONTRACT_DIR` | `scripts/export_cash_import_commit_preparation_contracts.py` |
+| `FT_KOTLIN_IMPORT_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_commit_contracts.py`（确认命令完整对照，另传独立 `--oracle-database-url`） |
+| `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` | `scripts/export_cash_import_original_commit_contracts.py`（逐场景原断言夹具） |
+
+原确认断言夹具需为生成器 `--help` 中的每个 `--scenario` 准备独立空测试库，以 `--output <仓库外根目录>/<scenario>` 输出；设置 `FT_KOTLIN_IMPORT_ORIGINAL_COMMIT_CONTRACT_DIR` 为该根目录。生成器复用原匿名账本、editor、现金/贷款账户和已解析文件，运行时环境为 `PYTHONPATH=.:src:tests`。Kotlin 自行预览、提交并直接断言，不消费 Python 预期结果；批量故障在实际 JDBC 来源写入后触发。数据库和夹具会被消费，重新执行写入测试须重新准备，不能复用旧收据状态。
 
 PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：
 
