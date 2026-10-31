@@ -55,15 +55,15 @@
 | 浏览器主流程 | `node scripts/run-compose-playwright.mjs tests/compose-cash-ui-audit.e2e.ts` | 5 passed |
 | 账户补充回归 | `node scripts/run-compose-playwright.mjs tests/compose-cash-import.e2e.ts -g 'single channel keeps\|account choices are grouped'` | 2 passed；后续仅截图等待字体的目标补跑 1 passed |
 | 预览基础设施 | `node --test tests/*.node-test.mjs` | 3 passed |
-| 规格与格式 | `openspec validate --all --strict`、`git diff --check` | 26 项校验通过；无空白错误 |
+| 规格与格式 | `openspec validate --all --strict`、`git diff --check` | 归档前 26 项、归档后 25 项校验通过；无空白错误 |
 
 性能检查：`pytest -q -m performance` 为 70 passed、3 failed；其中 PostgreSQL 分类删除 775ms 超过 500ms、旧关系操作超过 100ms，在相同环境 `origin/main` 对照中分别以 582ms 和 add／confirm P95 133／122ms 复现，独立调用链审查确认两条计时路径不进入本变更代码。当前配对选择与提交整组 P95 200ms 超过 170ms，单独同环境补跑 P95 104ms、1 passed；main 对照该项也通过。未放宽预算，仍记录本机整组计时波动与两条既有超时风险。
 
-浏览器边界：详情／草稿／手工记录等扩展组 37 个场景中 31 条路径通过；当前列表 3 个视口保留键盘定位与关闭详情后语义树未恢复的问题，草稿 3 个视口保留禁用状态语义断言失败。指针主流程（筛选、重试、打开详情与来源重试）已实际操作。上述既有 Compose Web 限制见 `docs/shared/feature-map.md` 的 CMP-10623 及禁用语义说明，未删除失败断言，不宣称全组通过。
+浏览器边界：详情／草稿／手工记录等扩展组 37 个场景中 31 条路径通过；当前列表 3 个视口保留键盘定位与关闭详情后语义树未恢复的问题，草稿 3 个视口保留禁用状态语义断言失败。指针主流程（筛选、重试、打开详情与来源重试）已实际操作。关闭弹层与禁用状态的既有 Compose Web 限制见 `docs/shared/feature-map.md` 的 CMP-10623 及禁用语义说明；当前列表键盘定位断言仍未通过，未将它算作已验证。未删除失败断言，不宣称全组通过。
 
 验证环境与边界：2026-10-31（Asia/Shanghai）；验证执行于工作树 HEAD `7462aaf6d6589c75f6958109bb4580de450f127d`；该提交树与比较基线 `origin/main` `00c927fb5e330e48f2b5c4688d0563988735fcfd` 完全一致。为避免已合并历史进入 PR，保留原样工作树后切到以该 main 为基线的 `fix/cash-ui-audit-findings`；切换未改变任何源码或依赖，最后账户回归与 Compose 编译在新分支完成。OpenSpec CLI 1.7.0、Node v26.8.1。PostgreSQL 使用本机专用 `_test` 库并显式设置 `FT_TEST_POSTGRES_URL`，skip 不计通过。Chromium 通过仓库 Playwright 运行；设备／模拟器交互 QA 按默认范围未执行，不宣称通过。Web 1440 首次加载中文字体有短暂渲染延迟，稳定后页面可读；未发现失败资源请求。Cross-platform Impact Check：展示逻辑在 `commonMain`，Web／Android／iOS 消费相同 DTO、文案和语义；后端展示字段供三端使用，原生仅执行编译与单测。
 
 ## 7. 发布
 
 - [x] 7.1 README、三个功能地图、词表、导入流程／合同与实现一致；受影响文档本地链接已检查，12 个 delta requirement 已逐块与主规格核对一致，严格校验及 `git diff --check` 通过。无新配置、依赖、迁移或部署操作；回滚为还原本次提交，已有导入旧计划需重新预览。已删除本任务临时文件、最终测试重建的 `/private/tmp/ft-compose-cash-evidence` 及 main 性能对照临时源码，保留忽略目录中的必要证据。
-- [ ] 7.2 在用户已授权的范围内归档变更，提交并推送 `fix/cash-ui-audit-findings`，创建目标为 `main` 的 PR；不合并或部署。
+- [x] 7.2 已按授权归档到本目录，实现提交 `9c71c5cc` 已推送到 `fix/cash-ui-audit-findings`，创建目标为 `main` 的 [PR #107](https://github.com/ssttkkl/finance-tracker/pull/107)。归档后全量规格严格校验 25 项通过，工作树与远端最终核对；未合并或部署。
