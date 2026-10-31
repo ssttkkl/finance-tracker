@@ -28,6 +28,8 @@ Kotlin 解析会话已具备编解码、内存/R2 条件对象端口、修订与
 
 [确认事务收尾](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashPlanFinalizer.kt)已实现余额变化、完整条目公共编辑与增量投影刷新、待处理成员计数和逐行结果；当前仍为内部能力，导入确认与永久收据尚未接线，F-05 两端 TODO 保留。
 
+[联合确认前置层](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportCommitPreparation.kt)已实现文档证据筛选和冻结候选恢复；[有界新增](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportNewRowsRepository.kt)保留门槛/批次、父项及现金部分映射、别名/独立证明占用和整体回滚。提交与永久收据联合入口仍未接线，F-05 两端 TODO 保留。
+
 Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收支快照重验，工作区锁后重新核对权限；失败保留原方案，来源事项和人工字段按原合同写回。本片不增加页面，Web、Native、共享客户端均无修改，F-03/F-04 的完整 Kotlin 维护流程 TODO 保留。
 
 ## 现金导入后端与客户端边界

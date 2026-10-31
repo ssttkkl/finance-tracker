@@ -18,6 +18,8 @@
 
 确认事务收尾层已实现冻结前后值的余额变化、手工转账快照口径、依赖关系结果与完整成员校验后的整笔公共编辑、增量投影刷新和待处理计数；逐行结果保留批内重复和跳过。最终授权、重验、永久收据及 HTTP 确认尚未接线。
 
+联合确认前置层已实现冲突文档证据筛选、所需既有证据例外、冻结候选集合恢复及有界全新流水写入；保留 20 项门槛、100 项批次、父项/现金部分映射、来源身份/独立证明占用和外层整笔回滚。父项与现金部分按输入顺序取回 ID，别名批量保存；本轮未验证性能。最终提交服务和 HTTP 确认仍待接线。
+
 来源事项选择的纯规则已实现，覆盖正文缺省／明确清空、固定字段、现金部分归属、多个来源冲突及当前事项修订。`scripts/export_cash_source_resolution_goldens.py --check` 校验 708 组匿名输入、完整结果和正文摘要。来源正文派生已覆盖微信、支付宝、建行、工行信用卡／借记卡和工银亚洲；保留原文备注、支付渠道与退款线索，账户身份只取可信解释，人工备注优先。`scripts/export_cash_source_effects_goldens.py --check` 校验完整结果及输入不变。单条流水详情及维护事务尚未接入这些规则，不能据此增加已验收 HTTP 数或关闭来源处理流程。
 
 账单原始文档读取已实现平台 CSV/TSV/XLSX、建行 XLS、工银亚洲 UTF-16 TSV 及工行信用卡/借记卡 PDF；PDF 使用后端专用 PDFBox，保留页/字符/表/行/列预算、独立密码失败类型、页指纹与文档键。各行读取器由 `scripts/export_cash_statement_document_goldens.py`、`export_bank_statement_document_goldens.py` 和 `export_icbc_pdf_document_goldens.py` 生成匿名 Python 金标准对照；记录类型与对方账号规则由 `export_cash_record_type_goldens.py` 生成行组合对照。记录类型/子类型分类与对方账号规范表示已按来源行字段迁入后端，并通过匿名 Python 行组合对照；平台 CSV/TSV/XLSX、建行 XLS/工银亚洲 TSV 以及工行信用卡/借记卡 PDF 行归一也已按 Python 完整行结果对照。统一读取/归一入口、来源身份/文件绑定键、已解析文件组合及来源账户扫描、支付宝组件分摊及来源对应解析已实现并按 Python 键值对照；多文件批次规划已保留最大出现次数、可靠快照选择、共同结果引用和完整旧目标证据，34 个原功能定义与 49 组完整 Python 结果已验证；来源账户扫描与选择、上传文件准备纯层（严格文件命令、脱敏、范围继承、选择失效与关系证明）已实现；来源规划只读仓库和导入会话视图也已实现并按双库匿名种子对照；上传 HTTP 已接入会话创建、追加、替换、范围、删除、取消和读取，解析在锁外、发布与永久收据核实同锁。导入计划公开视图、分页与冻结详情纯层已实现并按 15 组 Python 结果对照；导入逐流水操作规划纯层已实现并按双库 Python 结果对照；条目目标/公共条目编辑与关系核心、几何/镜像图、余额/损益投影与退款文本/菱形匹配与平台退款配对纯层已实现并按 Python 结果对照；来源绑定、当前问题/候选及认证空页的事务内写入仓库已实现；共用流水写入覆盖现金部分身份/序号、草稿端点拆除、公共编辑和来源问题，类型变化沿完整旧组校验后解除不兼容关系/资金关联并使候选失效。它们保留调用方事务回滚，尚未接联合确认。完整导入业务计划、预计列表/详情及预览 HTTP 已接共享解析暂存，发布核对当前修订、上一计划、原有效期、权限与永久收据，并使用对象版本条件替换；失败保留原计划。导入确认、成功使用证明的账户映射发布、真实 R2 连通性和真实账单样本仍未完成，不能据此宣称完整导入流程可用。
@@ -97,6 +99,7 @@ backend/build/install/backend/bin/backend
 | `FT_KOTLIN_CURRENT_RELATION_CONTRACT_DIR` | `scripts/export_current_cash_relation_contracts.py` |
 | `FT_KOTLIN_PLAN_RELATION_WRITE_CONTRACT_DIR` | `scripts/export_cash_plan_relation_write_contracts.py` |
 | `FT_KOTLIN_PLAN_FINALIZE_CONTRACT_DIR` | `scripts/export_cash_plan_finalize_contracts.py` |
+| `FT_KOTLIN_IMPORT_COMMIT_PREPARATION_CONTRACT_DIR` | `scripts/export_cash_import_commit_preparation_contracts.py` |
 
 PG 另以 `FT_KOTLIN_TEST_DB_USER` / `FT_KOTLIN_TEST_DB_PASSWORD` 提供测试凭据。运行当前功能验收：
 
