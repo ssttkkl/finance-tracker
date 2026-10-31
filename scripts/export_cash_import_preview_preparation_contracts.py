@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict, replace
+from decimal import Decimal
 import json
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from ft.application.cash_import_operations import CashImportOperationPlanner, _w
 from ft.application.cash_import_plans import CashImportPlanError
 from ft.application.cash_import_source_plan import CashImportSourcePlanner
 from ft.application.cash_relation_context import CashRelationGraphService
+from ft.adapters.relational.cash_relations import CurrentCashRelationRepository
+from ft.adapters.relational.models import (
+    AccountModel, CashEntryMemberModel, CashEntryModel, CashInvestmentFundingRelationModel,
+    CashTransactionComponentModel, CashTransactionModel, InvestmentEventModel,
+)
 
 from export_cash_import_operation_contracts import NOW, WORKSPACE, connect, files, seed
 
@@ -20,6 +26,63 @@ def export(database_url: str, output: Path) -> None:
     engine, sessions, jdbc = connect(database_url)
     try:
         seed(sessions)
+        with sessions.begin() as session:
+            session.add(AccountModel(id=9203, workspace_id=WORKSPACE, name="合成投资", type="investment",
+                active=True, currencies=["CNY"], metadata_json={}, revision=1, created_at=NOW, updated_at=NOW))
+            session.add(AccountModel(id=9204, workspace_id=WORKSPACE, name="合成现金二", type="cash",
+                active=True, currencies=["CNY"], metadata_json={}, revision=1, created_at=NOW, updated_at=NOW))
+            for identifier, amount, record_type in (
+                (7503, "-12.30", "consumption"),
+                (7504, "12.30", "refund"),
+                (7505, "-7.00", "investment_out"),
+            ):
+                session.add(CashTransactionModel(id=identifier, workspace_id=WORKSPACE, account_id=9201,
+                    state="posted", record_origin="import", cash_granularity="atomic", source_type="fixture",
+                    record_id=f"TYPE-{identifier}", source_payload={}, occurred_at=NOW, amount=amount,
+                    currency="CNY", counterparty="类型变化对照", counterparty_account="",
+                    counterparty_account_attrs=[], note="", record_type=record_type,
+                    record_subtype="not_applicable", row_revision=1, created_at=NOW))
+            session.add(CashTransactionModel(id=7506, workspace_id=WORKSPACE, account_id=None,
+                state="posted", record_origin="import", cash_granularity="aggregate", source_type="fixture",
+                record_id="TYPE-7506", source_payload={}, occurred_at=NOW, amount="-12.30",
+                currency="CNY", counterparty="多现金部分", counterparty_account="",
+                counterparty_account_attrs=[], note="", record_type="consumption",
+                record_subtype="not_applicable", row_revision=1, created_at=NOW))
+            session.flush()
+            for identifier, amount in ((7503, "-12.30"), (7504, "12.30"), (7505, "-7.00")):
+                session.add(CashTransactionComponentModel(id=identifier + 2000, workspace_id=WORKSPACE,
+                    cash_transaction_id=identifier, account_id=9201, amount=amount, currency="CNY", ordinal=0,
+                    label="", source_key="", metadata_json={}, created_at=NOW))
+                session.add(CashEntryModel(id=f"entry-{identifier}", workspace_id=WORKSPACE,
+                    root_transaction_id=identifier, revision=1, category_id=None, note="",
+                    counterparty="类型变化对照", counterparty_account="", counterparty_account_attrs=[],
+                    manual_fields=[], split_inherit=None))
+            for part_id, account_id, amount, ordinal in ((9506, 9201, "-6.00", 0), (9507, 9204, "-6.30", 1)):
+                session.add(CashTransactionComponentModel(id=part_id, workspace_id=WORKSPACE,
+                    cash_transaction_id=7506, account_id=account_id, amount=amount, currency="CNY",
+                    ordinal=ordinal, label="", source_key="", metadata_json={}, created_at=NOW))
+            session.add(CashEntryModel(id="entry-7506", workspace_id=WORKSPACE,
+                root_transaction_id=7506, revision=1, category_id=None, note="", counterparty="多现金部分",
+                counterparty_account="", counterparty_account_attrs=[], manual_fields=[], split_inherit=None))
+            session.flush()
+            for identifier in (7503, 7504, 7505, 7506):
+                session.add(CashEntryMemberModel(workspace_id=WORKSPACE, transaction_id=identifier,
+                    entry_id=f"entry-{identifier}", standalone_values={}, standalone_manual_fields=[]))
+            investment = InvestmentEventModel(workspace_id=WORKSPACE, account_id=9203, record_type="funding",
+                record_subtype="external", currency="CNY", occurred_at=NOW, payload={"fixture": "funding"},
+                to_amount="7.00")
+            session.add(investment)
+            session.flush()
+            session.add(CashInvestmentFundingRelationModel(workspace_id=WORKSPACE,
+                cash_transaction_component_id=9505, investment_event_id=investment.id,
+                direction="cash_to_investment", status="accepted", active_slot="active", rule_id="fixture"))
+            relations = CurrentCashRelationRepository(session, WORKSPACE)
+            for kind, secondary, role in (("payment_mirror", 7503, "expense"), ("refund_offset", 7504, "refund")):
+                relations.add({"kind": kind, "state": "confirmed", "primary_transaction_id": 7501,
+                    "secondary_transaction_id": secondary, "primary_component_id": 9501,
+                    "secondary_component_id": secondary + 2000, "anchor_transaction_id": 7501,
+                    "anchor_component_id": 9501, "primary_role": "expense", "secondary_role": role,
+                    "applied_amount": "12.30"})
         source_files = files()
         selections = [{"source_account_ref": group.source_account_ref, "account_id": "9201",
                        "expected_account_revision": 1} for group in scan_cash_funding(source_files).groups]
@@ -36,6 +99,10 @@ def export(database_url: str, output: Path) -> None:
              [{"edit_ref": "ie-good"}], [7502]),
             ("file_scope_fallback", None, [], []),
             ("draft_only", None, [], []),
+            ("type_change_remove_mirror", None, [], []),
+            ("type_change_restore_graph_error", None, [], []),
+            ("type_change_remove_funding", None, [], []),
+            ("type_change_aggregate", None, [], []),
         ):
             with sessions() as session:
                 selected_choices = draft_choices if name == "draft_only" else choices
@@ -54,6 +121,30 @@ def export(database_url: str, output: Path) -> None:
                 operations, rows, candidate_sets, state = builder._prepare_operations(
                     session, source_files, {"account_selections": selections, "row_choices": selected_choices,
                     "entry_choices": entry_choices}, previous, source_plan)
+                if name.startswith("type_change_"):
+                    changed = next(op for op in operations if op["transaction_id"] == "7501")
+                    changed["planned_action"] = "update_posted"
+                    changed["type_changed"] = True
+                    changed["values"]["record_type"] = "investment_out"
+                    if name == "type_change_restore_graph_error":
+                        changed["values"]["amount"] = Decimal("-6.15")
+                        changed["values"]["components"][0]["amount"] = Decimal("-6.15")
+                    if name == "type_change_remove_funding":
+                        changed["transaction_id"] = "7505"
+                        changed["matching_record_id"] = "TYPE-7505"
+                        changed["values"].update(record_type="consumption", record_id="TYPE-7505",
+                            source_type="fixture", amount=Decimal("-7.00"), components=[{
+                                "component_id": "9505", "account_id": "9201", "amount": Decimal("-7.00"),
+                                "currency": "CNY", "ordinal": 0}])
+                    if name == "type_change_aggregate":
+                        changed["transaction_id"] = "7506"
+                        changed["matching_record_id"] = "TYPE-7506"
+                        changed["values"].update(record_id="TYPE-7506", source_type="fixture",
+                            account_id=None, cash_granularity="aggregate", amount=Decimal("-12.30"),
+                            components=[{"component_id": "9506", "account_id": "9201",
+                                "amount": Decimal("-6.00"), "currency": "CNY", "ordinal": 0},
+                                {"component_id": "9507", "account_id": "9204",
+                                "amount": Decimal("-6.30"), "currency": "CNY", "ordinal": 1}])
                 accounts, candidates, retained = state
                 existing = {int(op["transaction_id"]) for op in operations if op.get("transaction_id")}
                 context = CashRelationGraphService(session, WORKSPACE).load(existing | candidates | set(extra))
@@ -77,6 +168,12 @@ def export(database_url: str, output: Path) -> None:
                     "removed_funding_ids": sorted(snapshot.removed_funding),
                     "operations": _wire(operations),
                     "rows": _wire(rows),
+                    "projections": [{"projection_id": item.projection_id, "net_amount": _wire(item.net_amount),
+                        "economic_type": item.economic_type.value if item.economic_type else None,
+                        "member_ids": list(item.member_ids), "relation_ids": [edge.id for edge in item.relations],
+                        "compositions": list(item.compositions), "funding_relation_id": item.funding_relation_id,
+                        "state": item.state, "attention_count": item.attention_count}
+                        for item in snapshot.build().projections],
                 }
         try:
             builder._entry_parents([{"edit_ref": "missing"}], {"entry_targets": {}})
@@ -85,7 +182,9 @@ def export(database_url: str, output: Path) -> None:
             invalid_target_error = error.code
         output.mkdir(parents=True, exist_ok=True)
         (output / "database.json").write_text(json.dumps({"jdbc_url": jdbc}) + "\n")
-        (output / "preparation-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
+        (output / "preparation-cases.json").write_text(json.dumps(
+            [case for case in cases if not case["name"].startswith("type_change_")], ensure_ascii=False, indent=2) + "\n")
+        (output / "snapshot-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
         (output / "invalid-target.json").write_text(json.dumps({"code": invalid_target_error}) + "\n")
     finally:
         engine.dispose()
