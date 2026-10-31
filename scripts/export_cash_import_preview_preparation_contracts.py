@@ -21,6 +21,7 @@ from ft.adapters.relational.models import (
 )
 
 from export_cash_import_operation_contracts import NOW, WORKSPACE, connect, files, seed
+from export_cash_import_relation_decisions import decision_cases
 
 
 def export(database_url: str, output: Path) -> None:
@@ -83,6 +84,11 @@ def export(database_url: str, output: Path) -> None:
             for identifier in (7503, 7504, 7505, 7506):
                 session.add(CashEntryMemberModel(workspace_id=WORKSPACE, transaction_id=identifier,
                     entry_id=f"entry-{identifier}", standalone_values={}, standalone_manual_fields=[]))
+            session.flush()
+            for identifier in (7501, 7503, 7504, 7505, 7506):
+                session.get(CashEntryMemberModel, (WORKSPACE, identifier)).standalone_values = {
+                    "note": f"独立备注 {identifier}", "counterparty": f"独立商户 {identifier}",
+                    "category_id": None, "counterparty_account": "", "counterparty_account_attrs": []}
             investment = InvestmentEventModel(workspace_id=WORKSPACE, account_id=9203, record_type="funding",
                 record_subtype="external", currency="CNY", occurred_at=NOW, payload={"fixture": "funding"},
                 to_amount="7.00")
@@ -109,6 +115,7 @@ def export(database_url: str, output: Path) -> None:
         builder = CashImportBusinessPlanBuilder(WORKSPACE, clock=lambda: NOW)
         cases = []
         group_cases = []
+        choices_cases, application_cases = [], []
         for name, previous, entry_choices, extra in (
             ("normal", None, [], []),
             ("retained_target", {"entry_targets": {"ie-good": {"parent_ids": ["7501"]}}},
@@ -202,6 +209,9 @@ def export(database_url: str, output: Path) -> None:
                         group_cases.append({"name": variant_name, "snapshot_case": name,
                             "proposals": [_wire(asdict(variant))], "groups": _wire(groups),
                             "failures": _wire(group_failures)})
+                    indexed = {case["name"]: case["groups"] for case in group_cases}
+                    choices_cases, application_cases = decision_cases(builder, snapshot, indexed["normal"],
+                        indexed["weak_closed"], indexed["open_leg"], session, WORKSPACE)
                 cases[-1]["snapshot"] = {
                     "values": _wire(snapshot.values),
                     "facts": {key: _wire(asdict(value)) for key, value in snapshot.facts.items()},
@@ -232,6 +242,8 @@ def export(database_url: str, output: Path) -> None:
             [case for case in cases if not case["name"].startswith("type_change_")], ensure_ascii=False, indent=2) + "\n")
         (output / "snapshot-cases.json").write_text(json.dumps(cases, ensure_ascii=False, indent=2) + "\n")
         (output / "relation-group-cases.json").write_text(json.dumps(group_cases, ensure_ascii=False, indent=2) + "\n")
+        (output / "relation-choice-cases.json").write_text(json.dumps(_wire(choices_cases), ensure_ascii=False, indent=2) + "\n")
+        (output / "relation-application-cases.json").write_text(json.dumps(_wire(application_cases), ensure_ascii=False, indent=2) + "\n")
         (output / "invalid-target.json").write_text(json.dumps({"code": invalid_target_error}) + "\n")
     finally:
         engine.dispose()

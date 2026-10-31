@@ -235,6 +235,95 @@ class CashImportPreviewSnapshotContractTest {
         assertEquals(before, detailDatabaseState(db))
     }
 
+    private fun mapList(value: JsonElement): List<MutableMap<String, Any?>> {
+        @Suppress("UNCHECKED_CAST")
+        return cashSourceValue(value) as List<MutableMap<String, Any?>>
+    }
+
+    @Test fun frozenRelationChoicesAndInvalidationMatchPython() {
+        val cases = Json.parseToJsonElement(root().resolve("relation-choice-cases.json").readText()).jsonArray
+        for (item in cases) {
+            val case = item.jsonObject
+            val groups = mapList(case.getValue("groups"))
+            val choices = mapList(case.getValue("choices"))
+            @Suppress("UNCHECKED_CAST") val previous = cashSourceValue(case.getValue("previous")) as? Map<String, Any?>
+            if (case["error"] != null) {
+                assertEquals(case.getValue("error").jsonPrimitive.content, assertFailsWith<CashImportPlanError> {
+                    CashImportRelationDecisions.applyChoices(groups, choices, previous)
+                }.code)
+            } else {
+                val result = CashImportRelationDecisions.applyChoices(groups, choices, previous)
+                assertEquals(case.getValue("expected"), wire(mapOf("groups" to groups, "invalidated" to result.invalidated,
+                    "sources" to result.sources, "generations" to result.generations)), case.getValue("name").jsonPrimitive.content)
+                if (case.getValue("name").jsonPrimitive.content == "candidate_disappeared") {
+                    assertEquals(1, result.invalidated.size)
+                    assertEquals("defer", groups.single()["action"])
+                    assertFalse(groups.single()["source_suggestion_id"] == groups.single()["suggestion_id"])
+                }
+                if (case.getValue("name").jsonPrimitive.content == "huge_generation")
+                    assertEquals(BigInteger.ONE.shiftLeft(80), result.generations.values.single())
+            }
+            assertEquals(case.getValue("choices"), wire(choices))
+            assertEquals(case.getValue("previous"), wire(previous))
+        }
+    }
+
+    private fun graphState(value: CashImportPreviewSnapshot) = JsonObject(summary(value).filterKeys {
+        it in setOf("facts", "edges", "entry_public", "projections")
+    })
+
+    @Test fun applyingRelationGroupsAndRestoringSplitValuesMatchesPythonWithoutWrites() {
+        val db = database()
+        val before = detailDatabaseState(db)
+        val snapshots = cases().associateBy { it.getValue("name").jsonPrimitive.content }
+        val cases = Json.parseToJsonElement(root().resolve("relation-application-cases.json").readText()).jsonArray
+        for (item in cases) {
+            val case = item.jsonObject
+            snapshot(db, snapshots.getValue(case.getValue("snapshot_case").jsonPrimitive.content), true) { context, _, value ->
+                val groups = mapList(case.getValue("groups"))
+                @Suppress("UNCHECKED_CAST") val overrides = cashSourceValue(case.getValue("entry_overrides")) as Map<String, Map<String, Any?>>
+                value.entryPublic.putAll(overrides)
+                for ((parent, raw) in case.getValue("amount_overrides").jsonObject) {
+                    val amount = raw.jsonPrimitive.content
+                    val fact = value.facts.getValue(parent)
+                    value.facts[parent] = CashProjectionFact.create(fact.id, fact.accountId, fact.occurredAt, amount,
+                        fact.currency, fact.counterparty, fact.categoryId, fact.note, fact.sourceType, fact.recordId,
+                        fact.fundingRelationId, fact.cashGranularity, fact.state, fact.createdAt, fact.needsAttention)
+                    value.values.getValue(parent)["amount"] = CashAmount.parse(amount)
+                    @Suppress("UNCHECKED_CAST") val parts = value.values.getValue(parent)["components"] as List<MutableMap<String, Any?>>
+                    for (part in parts) {
+                        part["amount"] = CashAmount.parse(amount)
+                        val id = part["component_id"] as String
+                        value.components[id] = value.components.getValue(id).copy(amount = CashAmount.parse(amount))
+                    }
+                }
+                if (case["error"] != null) {
+                    val failure = assertFailsWith<CashPolicyError> { CashImportRelationDecisions.applyGroups(value, groups) }
+                    assertEquals(case.getValue("error").jsonPrimitive.content, failure.code)
+                    assertEquals(case.getValue("error_fields"), wire(failure.fields))
+                    assertEquals(case.getValue("state"), graphState(value))
+                } else {
+                    if (case.getValue("restore_split").jsonPrimitive.boolean)
+                        CashImportRelationDecisions.restoreSplitValues(context, value, groups)
+                    val failures = CashImportRelationDecisions.applyGroups(value, groups)
+                    assertEquals(case.getValue("expected"), wire(mapOf("groups" to groups, "failures" to failures,
+                        "state" to graphState(value))), case.getValue("name").jsonPrimitive.content)
+                    if (case.getValue("name").jsonPrimitive.content == "manual_field_conflict") {
+                        assertEquals("defer", groups.single()["action"])
+                        assertEquals("common_field_conflict", groups.single()["code"])
+                    }
+                    if (case.getValue("name").jsonPrimitive.content == "joint_decision_conflict")
+                        assertTrue(groups.all { it["action"] == "defer" })
+                    if (case.getValue("name").jsonPrimitive.content == "remove_restores_standalone") {
+                        assertEquals(false, groups.single()["inherit_common_fields"])
+                        assertEquals("独立备注 7501", value.facts.getValue("7501").note)
+                    }
+                }
+            }
+        }
+        assertEquals(before, detailDatabaseState(db))
+    }
+
     private fun matchingFact(fact: RelationFact): Map<String, Any?> = linkedMapOf(
         "id" to fact.id, "amount" to fact.amount, "currency" to fact.currency, "account_id" to fact.accountId,
         "account_name" to fact.accountName, "account_type" to fact.accountType, "occurred_at" to fact.occurredAt,
