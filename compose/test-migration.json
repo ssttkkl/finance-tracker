@@ -7502,6 +7502,510 @@
       "compatibility": "JDBC repository reads full current context and requires explicit row revision increments at SQL mutation sites, replacing SQLAlchemy onupdate. No transaction/relation/projection writes occur during prepare. 500-parent batching and complete joined funding read retained."
     },
     {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_conflicting_source_choices_require_an_explicit_final_value",
+      "source_sha256": "1182fa6aae35bbaf1f5254cf0640b611df5e416ce8bad3f59f25feb510aaae49",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_conflicting_source_choices_require_an_explicit_final_value[cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_conflicting_source_choices_require_an_explicit_final_value[cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_conflicting_source_choices_require_an_explicit_final_value[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_conflicting_source_choices_require_an_explicit_final_value[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'source_resolution_conflict' and _records(runtime).read(identifier) == before",
+        "assert receipt['summary']['resolved_issues'] == 2",
+        "assert _records(runtime).read(identifier)['entry']['fields']['counterparty'] == '本次明确统一'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "conflictingSourcesRequireAnExplicitFinalValueAndThenResolveBoth"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_contradictory_body_presence_is_unknown_and_not_adoptable",
+      "source_sha256": "766a2be9a8405c819a354cd9c07499a3b1e7d55908273f553eb36bc13e7f1eb0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_contradictory_body_presence_is_unknown_and_not_adoptable[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_contradictory_body_presence_is_unknown_and_not_adoptable[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert issue['pending_source_payload_present'] is None",
+        "assert issue['allowed_resolutions'] == ['keep_existing']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "contradictoryPresenceIsUnknownAndCannotBeAdopted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_finalization_publication_failure_restores_source_body_draft_and_balances",
+      "source_sha256": "a852a9cfc62c151ef8992b14166af4b73f05cd81a91c46f70dbbccb15ca3c434",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_finalization_publication_failure_restores_source_body_draft_and_balances[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_finalization_publication_failure_restores_source_body_draft_and_balances[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == before and _read_issue(runtime, choice) == saved",
+        "assert _snapshot(runtime) == balance and service.read_plan(view['plan_id']) == view"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "finalizationPublicationFailureRestoresBodyDraftBalancesAndPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content",
+      "source_sha256": "65eb34bae5fcc5463e3e244c756718cfce7e5d5dbf45216c4a8b968e95635f3c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content[cash_web_runtime-1]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content[cash_web_runtime-2]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content[postgres_cash_web_runtime-1]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_import_keep_existing_with_new_alias_preserves_all_prior_pending_content[postgres_cash_web_runtime-2]"
+      ],
+      "assertions": [
+        "assert _results(importer, receipt, 'row')[0]['transaction_id'] == identifier",
+        "assert [_read_issue(runtime, choice) for choice in choices] == before",
+        "assert CashSourceRepository(session, runtime.workspace_id).find(next(iter(source_batch_rows((incoming,)).values()))) == int(identifier)",
+        "assert session.get(CashTransactionModel, int(identifier)).row_revision == parent_revision",
+        "assert [(row.id, row.issue_id, row.candidate_transaction_id, row.expected_row_revision) for row in session.scalars(select(CashIssueCandidateModel).order_by(CashIssueCandidateModel.id))] == candidates"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "newImportAliasKeepsEveryExistingPendingBodyRevisionAndCandidate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_imported_pending_update_preserves_explicit_source_clear_presence",
+      "source_sha256": "f3e5891c909c4c0c5d1a2c3dc4d3c9ca353fb9e82040d1241a7dff22e31fe1c1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_imported_pending_update_preserves_explicit_source_clear_presence[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_imported_pending_update_preserves_explicit_source_clear_presence[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _results(importer, receipt, 'row')[0]['transaction_id'] == identifier",
+        "assert issue.pending_source_payload is None and issue.pending_fields['_source_payload_present'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "deferredImportRetainsExplicitSourceClearPresence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_inline_legacy_body_has_the_same_presence_and_content_as_adoption",
+      "source_sha256": "5ccfed932680dbbe8ad9d89cdbd5424f3349bd2414fe30c978fc1f56140db9e2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_inline_legacy_body_has_the_same_presence_and_content_as_adoption[cash_web_runtime-body0]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_inline_legacy_body_has_the_same_presence_and_content_as_adoption[cash_web_runtime-None]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_inline_legacy_body_has_the_same_presence_and_content_as_adoption[postgres_cash_web_runtime-body0]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_inline_legacy_body_has_the_same_presence_and_content_as_adoption[postgres_cash_web_runtime-None]"
+      ],
+      "assertions": [
+        "assert issue['pending_source_payload_present'] is True",
+        "assert issue['pending_source_payload'] == body"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "inlineLegacyBodyHasTheSamePresenceAndContentAsAdoption"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_issue_body_is_restored_after_record_unit_or_publication_failure",
+      "source_sha256": "e6da0b342294089cb36cdd91258fde47f5077332299db5069c591b7466871906",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_body_is_restored_after_record_unit_or_publication_failure[cash_web_runtime-row]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_body_is_restored_after_record_unit_or_publication_failure[cash_web_runtime-projection]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_body_is_restored_after_record_unit_or_publication_failure[postgres_cash_web_runtime-row]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_body_is_restored_after_record_unit_or_publication_failure[postgres_cash_web_runtime-projection]"
+      ],
+      "assertions": [
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert _records(runtime).read(identifier) == before and _read_issue(runtime, choice) == saved",
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "rowOrProjectionFailureRestoresIssueBodyAndTheOriginalPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_issue_resolution_count_survives_whole_record_category_members",
+      "source_sha256": "1e1f276f3707ea02ae2831e3267e3e3c1e8b8d1a680809ec0bfa1e978b1cfa9d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_resolution_count_survives_whole_record_category_members[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_issue_resolution_count_survives_whole_record_category_members[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['resolve_issue'] == 1 and view['summary']['update_posted'] == 1",
+        "assert receipt['summary']['resolved_issues'] == 1",
+        "assert entry.category_id == category and 'category_id' in entry.manual_fields",
+        "assert row.category_id != category and (not row.manual_overrides.get('category_id'))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "issueCountSurvivesWholeRecordCategoryEditingWithoutChangingSourceCategories"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_keep_existing_clears_only_selected_instance_without_faking_parent_update",
+      "source_sha256": "f22855f67d97954293f6f05720714e26c3e448f1bb9dc5c73fe44d9613655ac0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_keep_existing_clears_only_selected_instance_without_faking_parent_update[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_keep_existing_clears_only_selected_instance_without_faking_parent_update[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed' and receipt['summary']['resolved_issues'] == 1",
+        "assert receipt['summary']['updated_posted'] == 0 and receipt['summary']['duplicate'] == 1",
+        "assert after['row_revision'] == before['row_revision'] and after['fields'] == before['fields']",
+        "assert [item['issue_id'] for item in after['issues']] == [second['issue_id']]",
+        "assert _read_issue(runtime, second) == retained and _read_issue(runtime, first) is None",
+        "assert receipt['needs_attention_count'] == 1 and _snapshot(runtime) == balance",
+        "assert last['status'] == 'completed' and last['needs_attention_count'] == 0",
+        "assert _records(runtime).read(identifier)['row_revision'] == before['row_revision']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "keepingExistingClearsOnlyTheChosenInstanceWithoutChangingParentOrBalance"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_legacy_nonempty_body_is_adoptable_without_new_presence_metadata",
+      "source_sha256": "e3099e66f747d515e27ac5a5d4022b4e10f30dcff8f23d9d2eb3c7854d0a2de4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_legacy_nonempty_body_is_adoptable_without_new_presence_metadata[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_legacy_nonempty_body_is_adoptable_without_new_presence_metadata[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['issues'][0]['allowed_resolutions'] == ['apply_source', 'keep_existing']",
+        "assert _records(runtime).read(identifier)['issues'][0]['pending_source_payload_present'] is True",
+        "assert _records(runtime).read(identifier)['fields']['note'] == '旧事项仍有原文'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "legacyNonemptyBodyWithoutPresenceMetadataIsAdoptable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted",
+      "source_sha256": "7b7133d0d8491a867a9a39175de6cb3edc5c9e855182fb1359742f4a51d6b254",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[cash_web_runtime-invalid]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_missing_legacy_body_is_not_clear_but_explicit_null_can_be_adopted[postgres_cash_web_runtime-invalid]"
+      ],
+      "assertions": [
+        "assert before['issues'][0]['pending_source_payload_present'] is (True if present is True else None)",
+        "assert allowed == ['apply_source', 'keep_existing']",
+        "assert after['fields']['source_payload'] is None and after['fields']['note'] == ''",
+        "assert allowed == ['keep_existing']",
+        "assert _commit(service, _preview(service, runtime, identifier, intent='resolve_issue', issue_resolutions=[choice]))['status'] == 'completed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "missingBodyIsNotClearAndExplicitNullCanBeAdopted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved",
+      "source_sha256": "79d2315762f5004b8b22d57652238d676fdec45cb2c8e883cbb61b1eefeee44c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[cash_web_runtime-foreign_parent]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[cash_web_runtime-stale_issue]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[cash_web_runtime-wrong_kind]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[postgres_cash_web_runtime-foreign_parent]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[postgres_cash_web_runtime-stale_issue]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_only_applicable_current_owned_issue_can_be_resolved[postgres_cash_web_runtime-wrong_kind]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == before and (not service._staging._entries)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "onlyCurrentApplicableOwnedIssuesCanBeResolved"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note",
+      "source_sha256": "ffe99b9bfe0ad4c01d1e93e9ef2c16a3502c1ddd3e2d426697fa3ea552cb7385",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[cash_web_runtime-None-None-\\u6765\\u6e90\\u65b0\\u539f\\u6587]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[cash_web_runtime-\\u4eba\\u5de5\\u5907\\u6ce8-None-\\u4eba\\u5de5\\u5907\\u6ce8]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[cash_web_runtime--None-]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[cash_web_runtime-None--]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[postgres_cash_web_runtime-None-None-\\u6765\\u6e90\\u65b0\\u539f\\u6587]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[postgres_cash_web_runtime-\\u4eba\\u5de5\\u5907\\u6ce8-None-\\u4eba\\u5de5\\u5907\\u6ce8]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[postgres_cash_web_runtime--None-]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_adoption_is_read_only_until_commit_and_preserves_manual_note[postgres_cash_web_runtime-None--]"
+      ],
+      "assertions": [
+        "assert view['summary']['resolve_issue'] == 1 and view['can_commit']",
+        "assert detail['entry']['fields']['note'] == expected",
+        "assert _members(service, view)[identifier]['fields']['note'] == '来源新原文'",
+        "assert _records(runtime).read(identifier) == before",
+        "assert receipt['status'] == 'completed' and receipt['summary']['resolved_issues'] == 1",
+        "assert after['entry']['fields']['note'] == expected and after['fields']['counterparty'] == '来源新对方'",
+        "assert after['fields']['note'] == '来源新原文'",
+        "assert after['fields']['counterparty_account_attrs'] == ['source-attribute'] and after['issues'] == []",
+        "assert _commit(service, view) == receipt",
+        "assert ('note' in entry.manual_fields) == (protected is not None or explicit is not None)",
+        "assert not row.manual_overrides.get('note')",
+        "assert not row.manual_overrides.get('category_id')",
+        "assert row.relation_metadata['_source_account_identifier'] == 'trusted-current-owner'",
+        "assert '_refund_signal' not in row.relation_metadata"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "adoptionStaysReadOnlyUntilCommitAndKeepsPublicManualNoteAndTrustedOwner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_category_does_not_create_manual_protection_or_override_manual_clear",
+      "source_sha256": "bd8aad142b293bb2dbaa9db7460a5ddd46d6f99e8eaeee1b24bcecdd39a7b260",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_category_does_not_create_manual_protection_or_override_manual_clear[cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_category_does_not_create_manual_protection_or_override_manual_clear[cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_category_does_not_create_manual_protection_or_override_manual_clear[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_category_does_not_create_manual_protection_or_override_manual_clear[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed' and receipt['summary']['resolved_issues'] == 1",
+        "assert row.category_id == category and (not row.manual_overrides.get('category_id'))",
+        "assert entry.category_id == (None if protected else category)",
+        "assert ('category_id' in entry.manual_fields) is protected"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "sourceCategoryNeverCreatesManualProtectionOrOverridesAManualClear"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch",
+      "source_sha256": "462ebc8607f386008663e6b578254f1327ed60cb75933c828c6262fe15c25074",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[cash_web_runtime-unknown_field]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[cash_web_runtime-foreign_component]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[cash_web_runtime-duplicate_ordinal]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[postgres_cash_web_runtime-unknown_field]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[postgres_cash_web_runtime-foreign_component]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_component_structure_cannot_be_hidden_by_a_valid_patch[postgres_cash_web_runtime-duplicate_ordinal]"
+      ],
+      "assertions": [
+        "assert next((item for item in current['issues'] if item['issue_id'] == choice['issue_id']))['allowed_resolutions'] == ['keep_existing']",
+        "assert _records(runtime).read(identifier) == current and (not service._staging._entries)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "invalidSourceComponentsCannotBeHiddenByAValidPatch"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_fixed_conflict_cannot_be_hidden_by_explicit_patch",
+      "source_sha256": "5652d5340614505f58b4e84f54c68d781b265de6a092e1254973fdc5ae72d3b4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_fixed_conflict_cannot_be_hidden_by_explicit_patch[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_fixed_conflict_cannot_be_hidden_by_explicit_patch[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert before['issues'][0]['allowed_resolutions'] == ['keep_existing']",
+        "assert error.value.code == 'fixed_field_conflict' and _records(runtime).read(identifier) == before",
+        "assert not service._staging._entries"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "fixedSourceConflictCannotBeHiddenByAnExplicitFinalPatch"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_issue_changes_invalidate_frozen_plan_even_without_parent_change",
+      "source_sha256": "4717b595d6c400ea4b2097ca63f1d8973d465f2748f95c912f5cfd5a6521ac7c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_issue_changes_invalidate_frozen_plan_even_without_parent_change[cash_web_runtime-revision]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_issue_changes_invalidate_frozen_plan_even_without_parent_change[cash_web_runtime-body_without_parent]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_issue_changes_invalidate_frozen_plan_even_without_parent_change[postgres_cash_web_runtime-revision]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_issue_changes_invalidate_frozen_plan_even_without_parent_change[postgres_cash_web_runtime-body_without_parent]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == current and service.read_plan(view['plan_id']) == view"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "issueRevisionOrBodyChangeRejectsFrozenPlanEvenWithTheSameParentRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_resolution_and_completion_share_one_draft_plan",
+      "source_sha256": "017e8b9abbd86ac4264803bb5b809f8ee600ca9487c3efd9f4ac4c99c4407f92",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_resolution_and_completion_share_one_draft_plan[cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_resolution_and_completion_share_one_draft_plan[cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_resolution_and_completion_share_one_draft_plan[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_resolution_and_completion_share_one_draft_plan[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert after['transaction_id'] == identifier and after['state'] == ('posted' if finalize else 'draft')",
+        "assert after['issues'] == [] and receipt['summary']['resolved_issues'] == 1",
+        "assert receipt['summary']['finalized_draft'] == int(finalize)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "resolutionAndCompletionShareOneDraftPlanAndPreserveIdentity"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_source_type_conflict_cannot_be_hidden_by_a_reset_patch",
+      "source_sha256": "09c26e11babb681af5204ef2bbe9d3ac90446fe40fafe56e1acbdcf402a6d074",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_type_conflict_cannot_be_hidden_by_a_reset_patch[cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_type_conflict_cannot_be_hidden_by_a_reset_patch[cash_web_runtime-True]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_type_conflict_cannot_be_hidden_by_a_reset_patch[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_source_type_conflict_cannot_be_hidden_by_a_reset_patch[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == before",
+        "assert session.get(TransactionRelationModel, relation_id).active is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "sourceTypeConflictCannotBeHiddenByAResetAndNeverRemovesTheGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_unselected_identity_problem_still_blocks_same_plan_finalization",
+      "source_sha256": "032cb9019cf8b8e8cb2aa6ccaf78ba875fc71e830f82d25ea7818018ee7bf2a9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_unselected_identity_problem_still_blocks_same_plan_finalization[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_unselected_identity_problem_still_blocks_same_plan_finalization[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'source_identity_ambiguous' and _records(runtime).read(identifier) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "anUnselectedIdentityProblemStillBlocksFinalization"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_valid_field_only_update_explicitly_has_no_body_update",
+      "source_sha256": "4e1f6e866ddbcf0895da6be6261334cc02b19d7756e1742e61e7f71aabc594a6",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_valid_field_only_update_explicitly_has_no_body_update[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_valid_field_only_update_explicitly_has_no_body_update[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert issue['pending_source_payload_present'] is False",
+        "assert issue['pending_source_payload'] is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "validFieldOnlyUpdateExplicitlyHasNoBodyUpdate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_source_issue_resolution.py::test_viewer_gets_no_resolution_actions_and_cannot_publish_source_plan",
+      "source_sha256": "4968d8ce7d96bda4c7bbeff62a6d3e846be55b7a86be59e612204ce8e2d1cb11",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_source_issue_resolution.py::test_viewer_gets_no_resolution_actions_and_cannot_publish_source_plan[cash_web_runtime]",
+        "tests/contract/test_cash_source_issue_resolution.py::test_viewer_gets_no_resolution_actions_and_cannot_publish_source_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['issues'][0]['allowed_resolutions'] == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt",
+          "test": "viewerHasNoResolutionActionsAndCannotPublishASourcePlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_transfer_http_response.py::test_direct_transfer_returns_real_rows_as_json_after_one_complete_write",
       "source_sha256": "6f34d973c9a667e4f90033d797c74170f04c29b51a76c35e56237b9ad3505e50",
       "status": "migrated",

@@ -52,6 +52,10 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 旧现金新增和余额校准分别使用 `POST /api/v1/cashflow/add` 与 `POST /api/v1/cashflow/checkin`。新增保留原来源、日期响应和金额精度；成功响应无法编码时整笔回滚。余额校准保存零金额事实，仅设置指定币种的余额，保留其他币种；快照结构损坏与金额错误保持原状态及检查顺序。两个入口都在锁后及返回前重验当前权限。Compose 当前没有这两个旧接口的消费者，本片不增加页面或客户端入口。
 
+来源问题处理的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已覆盖原文件全部 22 定义／78 双库参数：采用、保留现有值、明确清空与旧格式正文，人工备注／清空和分类，来源冲突、权限、事项变化及真实写后回滚。采用后的来源说明贯穿后续补丁；来源固定字段先校验，预览保留受保护字段的 incoming／effective／protected 差异，所选事项编号按字符串排序。只处理所选事项，公共人工值、来源字段、余额、投影和永久收据同事务。
+
+`scripts/export_cash_source_issue_contracts.py` 为 `--help` 列出的 41 个场景分别准备独立空测试库，传入 `--database-url`、共同的仓库外 `--output` 和 `--scenario`，运行环境为 `PYTHONPATH=.:src:tests:scripts`。39 个原参数组合与 2 个补充场景分别统计；补充覆盖旧正文保护及编号 `10`／`2` 的顺序，不增加原定义数。设置 `FT_KOTLIN_SOURCE_ISSUE_CONTRACT_DIR` 运行真实提交，另以隔离的 `FT_KOTLIN_SOURCE_ISSUE_GOLDEN_DIR` 对照完整只读计划。执行 `:backend:test --tests '*CashSourceIssueOriginalTest' -PbackendFunctionalOnly=true`，25 个 JUnit 方法验证原断言、完整图和补充边界；写库复跑须从初始状态恢复。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，以 `:shared:testAndroidHostTest --tests '*KotlinMaintenancePlanResponseIntegrationTest'` 验证四种真实 HTTP 来源采用回包经过既有 Compose 仓库／领域映射，包括待采用正文、公共人工值、所选事项与收据。
+
 ## 运行匿名预览
 
 在 `compose/` 使用 JDK 21 构建：
