@@ -631,6 +631,8 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                         call.attributes[requestPrincipalKey])
                 } catch (failure: CashSourceBindingConflict) {
                     throw CashImportInputError().also { it.addSuppressed(failure) }
+                } catch (failure: CashRelationFailure) {
+                    throw CashImportInputError().also { it.addSuppressed(failure) }
                 }
             }
             call.respondText(result.toString(), ContentType.Application.Json)

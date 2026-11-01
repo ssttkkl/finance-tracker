@@ -1336,6 +1336,671 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_category_member_failure_rolls_back_earlier_target_and_prepared_candidates",
+      "source_sha256": "6376d378f6987ced49e02eb801cca3b7a1cc490e4437126fb4a82371591b7754",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_category_member_failure_rolls_back_earlier_target_and_prepared_candidates[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_category_member_failure_rolls_back_earlier_target_and_prepared_candidates[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitCategoryFailureRestoresEarlierTargetAndPreparedCandidates"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_duplicate_candidates_keep_existing_target_only_when_equivalent",
+      "source_sha256": "69c79104560b79179cb13105fda06f108b27d518693a163939260c4a5a204f2b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_duplicate_candidates_keep_existing_target_only_when_equivalent[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_duplicate_candidates_keep_existing_target_only_when_equivalent[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_duplicate_candidates_keep_existing_target_only_when_equivalent[postgres_cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_duplicate_candidates_keep_existing_target_only_when_equivalent[postgres_cash_web_runtime-False]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'relation_context_changed'",
+        "assert _business(runtime) == before and (not service._staging._entries)",
+        "assert receipt['status'] == 'completed'",
+        "assert candidate.id == target_candidate_id and candidate.validity == 'stale'",
+        "assert candidate.expected_row_revision != session.get(CashTransactionModel, int(target)).row_revision"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitDuplicateCandidatesKeepExistingTargetOnlyWhenEquivalent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_equivalent_candidates_are_removed_before_target_parts_are_cleared",
+      "source_sha256": "01d2c08c38f77805f57c4d465bd87f64098e48399101e944d174fe4bfdc0cc04",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_equivalent_candidates_are_removed_before_target_parts_are_cleared[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_equivalent_candidates_are_removed_before_target_parts_are_cleared[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed'",
+        "assert candidate.candidate_transaction_id == int(target) and candidate.candidate_component_id is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitDeletesEquivalentCandidatesBeforeClearingTargetParts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_applies_multiple_source_decisions_with_final_patch_in_one_receipt",
+      "source_sha256": "03dd52c34a7325a68a973472e12fa4d7330d43657a4ceb3dd8421318278049fe",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_applies_multiple_source_decisions_with_final_patch_in_one_receipt[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_applies_multiple_source_decisions_with_final_patch_in_one_receipt[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed' and receipt['summary']['resolved_issues'] == 3",
+        "assert _records(runtime).read(target)['entry']['fields']['note'] == '最后明确值'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitMultipleSourceDecisionsAndFinalPatchShareOneReceipt"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_keeps_target_identity_balance_and_permanent_replay",
+      "source_sha256": "0f87c0c0eb4b173153fd226688434e98daf524df5494f54719659e5f30e9adb3",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_keeps_target_identity_balance_and_permanent_replay[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_keeps_target_identity_balance_and_permanent_replay[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_keeps_target_identity_balance_and_permanent_replay[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_keeps_target_identity_balance_and_permanent_replay[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert 'merge_into' in identity['allowed_resolutions']",
+        "assert view['can_commit']",
+        "assert receipt['status'] == 'completed' and receipt['summary']['merged_draft'] == 1",
+        "assert receipt['retained_transaction_id'] == target and receipt['summary']['resolved_issues'] == 1",
+        "assert current['state'] == ('draft' if draft_target else 'posted') and current['entry']['fields']['note'] == ''",
+        "assert _snapshot(runtime) == before_balance",
+        "assert error.value.code == 'record_not_found'",
+        "assert result['item_ref'] == source and result['transaction_id'] == target and (result['outcome'] == 'merged_draft')",
+        "assert _commit(service, view) == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm')['receipt'] == receipt",
+        "assert {ref['transaction_id'] for ref in service.results(receipt['receipt_id'])['projection_refs']} == {target}",
+        "assert session.get(CashTransactionModel, int(source)).deleted_at is not None",
+        "assert not CashSourceRepository(session, runtime.workspace_id).bindings_for(source)",
+        "assert CashSourceRepository(session, runtime.workspace_id).bindings_for(target)",
+        "assert 'note' in session.get(CashEntryModel, current['entry']['entry_id']).manual_fields",
+        "assert _results(importer, _import_commit(importer, repeated, 'reimport-after-merge'), 'row')[0]['transaction_id'] == target",
+        "assert _records(runtime).read(target)['entry']['fields']['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeKeepsTargetIdentityBalanceAndPermanentReplay"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_moves_both_directions_and_preserves_complete_manual_group",
+      "source_sha256": "db8fe55897136d3f4d9f0da59854aa3427fa9b320ee5761b4d3ccf36b151e64a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_moves_both_directions_and_preserves_complete_manual_group[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_moves_both_directions_and_preserves_complete_manual_group[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed'",
+        "assert moved.primary_transaction_id == moved.anchor_transaction_id == int(target)",
+        "assert moved.primary_component_id == moved.anchor_component_id == target_part",
+        "assert moved.state == 'draft' and moved.decision_source == 'manual'",
+        "assert session.get(TransactionRelationModel, second).decision_group_id == moved.decision_group_id == 'merge:joint'",
+        "assert candidate.candidate_transaction_id == int(target) and candidate.candidate_component_id == target_part",
+        "assert candidate.validity == 'stale' and candidate.evidence == {'proof': 'reverse'}",
+        "assert candidate.candidate_transaction_id == int(target)",
+        "assert candidate.expected_row_revision != session.get(CashTransactionModel, int(target)).row_revision",
+        "assert not session.scalar(select(CashIssueCandidateModel.id).where(CashIssueCandidateModel.candidate_transaction_id == int(source)))",
+        "assert not session.scalar(select(CashRelationCandidateModel.id).where(CashRelationCandidateModel.candidate_transaction_id == int(source)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitMovesBothDirectionsAndKeepsCompleteManualGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_preserves_issue_instances_bodies_candidates_and_same_key_collision",
+      "source_sha256": "7a0913e5a9363556e914cd980f78e5aed1d98604deccbc7272399fe2d29cee01",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_preserves_issue_instances_bodies_candidates_and_same_key_collision[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_preserves_issue_instances_bodies_candidates_and_same_key_collision[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed'",
+        "assert {row.id: (row.pending_fields, row.pending_source_payload, row.origin) for row in rows} == before",
+        "assert {row.transaction_id for row in rows} == {int(target)}",
+        "assert len({row.issue_key for row in rows}) == 2 and all((len(row.issue_key) <= 128 for row in rows))",
+        "assert session.get(CashTransactionIssueModel, int(second['issue_id'])).issue_key == 'same:key'",
+        "assert {row.issue_id for row in session.scalars(select(CashIssueCandidateModel))} == set(before)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitPreservesIssueInstancesBodiesCandidatesAndKeyCollision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_publication_failure_rolls_back_everything_and_keeps_plan",
+      "source_sha256": "0a2b1b967558b8eac4920fde7779d53a7fa8ffe0f66e81d03d6a8cf79e087283",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_publication_failure_rolls_back_everything_and_keeps_plan[cash_web_runtime-projection]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_publication_failure_rolls_back_everything_and_keeps_plan[cash_web_runtime-receipt]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_publication_failure_rolls_back_everything_and_keeps_plan[postgres_cash_web_runtime-projection]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_publication_failure_rolls_back_everything_and_keeps_plan[postgres_cash_web_runtime-receipt]"
+      ],
+      "assertions": [
+        "assert _business(runtime) == before and _snapshot(runtime) == balance",
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert _commit(service, view)['retained_transaction_id'] == target",
+        "assert failure.value.commit_state == 'not_committed'",
+        "assert 'synthetic publication' not in str(failure.value)",
+        "assert session.scalar(select(CashMutationReceiptModel.id).where(CashMutationReceiptModel.plan_id == view['plan_id'])) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitProjectionAndReceiptFailuresKeepPlanAndAllowOriginalRetry"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_current_proof_change_without_parent_revision_change",
+      "source_sha256": "292ab304de02f93ccc992ec14b671a8e3c379e1a8e77ca1f23648ede80fd2476",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_current_proof_change_without_parent_revision_change[cash_web_runtime-binding]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_current_proof_change_without_parent_revision_change[cash_web_runtime-reverse_candidate]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_current_proof_change_without_parent_revision_change[postgres_cash_web_runtime-binding]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_current_proof_change_without_parent_revision_change[postgres_cash_web_runtime-reverse_candidate]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(source)['row_revision'] == revision",
+        "assert error.value.code == 'record_changed' and _business(runtime) == before",
+        "assert service.read_plan(view['plan_id']) == view"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitBindingAndReverseProofChangesInvalidateWithoutParentRevisionChange"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_posted_target_type_change_and_preserves_group",
+      "source_sha256": "38d7a7467db3c3bc9e00ee002671cda2b5a05536bd9afce0cea82fc5a31e097d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_posted_target_type_change_and_preserves_group[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_rejects_posted_target_type_change_and_preserves_group[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _business(runtime) == before and _snapshot(runtime) == balances"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitPostedTargetTypeChangeRejectsAndKeepsGroupAndBalance"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts",
+      "source_sha256": "111b596e25fafcf3c6d42206defc46eede0356b38a4ddbef715550ceae6f1f6d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-row]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-bindings]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-issues]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-relations]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-candidates]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[cash_web_runtime-source_exit]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-row]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-bindings]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-issues]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-relations]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-candidates]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_merge_unit_failure_restores_all_current_facts[postgres_cash_web_runtime-source_exit]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitEveryActualUnitWriteFailureRestoresAllFacts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_pending_source_component_reference_remains_maintainable_after_move",
+      "source_sha256": "ddcaf7f8122bbf86954fed7472bbe39c1cfd6e7f5d90aec6804517bc16270cbc",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_pending_source_component_reference_remains_maintainable_after_move[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_pending_source_component_reference_remains_maintainable_after_move[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed'",
+        "assert moved['pending_fields']['components'] == current['fields']['components']",
+        "assert 'apply_source' in moved['allowed_resolutions']",
+        "assert _commit(service, view, 'resolve-moved-body')['summary']['resolved_issues'] == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitMovedPendingComponentBodyCanStillBeAdopted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_commit.py::test_source_issue_key_also_avoids_new_target_issue_from_same_confirmation",
+      "source_sha256": "8d1f5859405435e8a01ab369800a53aa61c7fcf1808502faba426775c0d25499",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_commit.py::test_source_issue_key_also_avoids_new_target_issue_from_same_confirmation[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_commit.py::test_source_issue_key_also_avoids_new_target_issue_from_same_confirmation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed' and source_issues",
+        "assert moved.transaction_id == int(target) and moved.issue_key != old_key",
+        "assert (moved.pending_fields, moved.pending_source_payload, moved.origin) == (fields, payload, origin)",
+        "assert len([row for row in target_issues if row.code == code and row.field_path == path]) == 2"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergeCommitSourceIssueKeyAvoidsNewTargetIssueInSameConfirmation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_adopted_new_source_parts_remain_pending_when_target_parts_are_unknown",
+      "source_sha256": "a6def233fc57400f9a4325e7dc5ed1ca5d7b8c50306f76a19e178860bfb3f8f1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_adopted_new_source_parts_remain_pending_when_target_parts_are_unknown[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_adopted_new_source_parts_remain_pending_when_target_parts_are_unknown[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert operation['merge_draft']['pending_fields']['components'] == adopted_parts",
+        "assert choice['issue_id'] in operation['resolved_issue_ids']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewAdoptedPartsStayPendingWhenTargetPartsAreUnknown"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_both_human_notes_including_cleared_source_need_explicit_value",
+      "source_sha256": "c7b1295ebe635d3cea85b10c7b98b41736e902a2be2139a5b64471b1358777e5",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_both_human_notes_including_cleared_source_need_explicit_value[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_both_human_notes_including_cleared_source_need_explicit_value[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_both_human_notes_including_cleared_source_need_explicit_value[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_both_human_notes_including_cleared_source_need_explicit_value[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert _current(runtime, source, target) == before",
+        "assert view['items'][0]['display']['note'] == ''",
+        "assert error.value.code == 'source_resolution_conflict' and 'note' in error.value.fields"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewHumanNoteConflictRequiresExplicitClear"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions",
+      "source_sha256": "fa680ccef09b2f4b6a0d38e147f8647e23b80fc4234e3ad1e19445e69fe01209",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[cash_web_runtime-False-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[cash_web_runtime-True-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[cash_web_runtime-True-True]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[postgres_cash_web_runtime-False-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[postgres_cash_web_runtime-True-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_category_merge_protects_target_group_human_decisions[postgres_cash_web_runtime-True-True]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'source_resolution_conflict' and 'category_id' in error.value.fields",
+        "assert view['items'][0]['display']['category_id'] == (category if explicit else None)",
+        "assert len(operations) == 1",
+        "assert ('category_id' in operations[0].get('entry_edit', {}).get('patch', {})) == explicit"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewCategoryProtectsTargetHumanClearAndExplicitChoice"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_each_adopted_finance_is_checked_before_explicit_unification",
+      "source_sha256": "6d70f87f2aa421a9e57335cd866f935955871fbbfafcea8ef6fee0387f346074",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_each_adopted_finance_is_checked_before_explicit_unification[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_each_adopted_finance_is_checked_before_explicit_unification[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'fixed_field_conflict' and 'amount' in error.value.fields"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewChecksEachAdoptedFinanceBeforeExplicitUnification"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_equal_split_parts_do_not_get_arbitrary_mapping",
+      "source_sha256": "5511434ed7a69e9d58c4f848c449250b4bc895f94ab46b0fbd806214b6df42b2",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_equal_split_parts_do_not_get_arbitrary_mapping[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_equal_split_parts_do_not_get_arbitrary_mapping[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert all((value is None for value in merge['component_map'].values()))",
+        "assert len(merge['pending_fields']['components']) == 2",
+        "assert relation['primary_transaction_id'] == relation['anchor_transaction_id'] == int(target)",
+        "assert relation['primary_component_id'] is relation['anchor_component_id'] is relation['primary_role'] is None",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewEqualSplitPartsHaveNoArbitraryMapping"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_existing_confirmed_group_keeps_legally_deactivated_member",
+      "source_sha256": "fa3e7e1c4b87128c3d4d07f565ceb864726d159c5b6fe14a254e656e548b466a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_existing_confirmed_group_keeps_legally_deactivated_member[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_existing_confirmed_group_keeps_legally_deactivated_member[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert {(row['state'], row['active']) for row in rows} == {('confirmed', False), ('confirmed', True)}",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewConfirmedGroupKeepsLegallyInactiveMember"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_explicit_patch_unifies_multiple_adopted_notes_while_merging",
+      "source_sha256": "b61fb679501f08e634f31328ffc525cbbf0fa8c18ba51de5d0c49a205f503f1e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_explicit_patch_unifies_multiple_adopted_notes_while_merging[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_explicit_patch_unifies_multiple_adopted_notes_while_merging[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['items'][0]['display']['note'] == '明确统一'",
+        "assert view['summary']['resolve_issue'] == 3"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewExplicitPatchUnifiesAllAdoptedNotes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_identity_candidates_show_current_data_without_updating_stored_proof",
+      "source_sha256": "37bb8836c333d7141cb20cfa8aa0950e7976cc01c00eae7e423f59ba8abf404a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_identity_candidates_show_current_data_without_updating_stored_proof[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_identity_candidates_show_current_data_without_updating_stored_proof[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert candidate['transaction_id'] == target and candidate['row_revision'] == expected_revision",
+        "assert candidate['state'] == 'posted' and candidate['display']['note'] == '当前候选备注'",
+        "assert issue['candidates'] == []",
+        "assert [(row.id, row.expected_row_revision) for row in session.scalars(select(CashIssueCandidateModel))] == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewIdentityCandidatesUseCurrentValuesAndKeepStoredProof"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_merge_freezes_reverse_candidates_and_full_joint_groups",
+      "source_sha256": "1a1687b9cea807003afbaf6d1f40759a4729fbc98c35ce9c00392b845b2089d4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_freezes_reverse_candidates_and_full_joint_groups[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_freezes_reverse_candidates_and_full_joint_groups[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert group_ids <= {row['id'] for row in merge['references']['relations']}",
+        "assert candidate_id in {row['id'] for row in merge['references']['relation_candidates']}",
+        "assert 'synthetic:joint' in {row['decision_group_id'] for row in merge['relations']}",
+        "assert _current(runtime, source, target) == before",
+        "assert updated['merge_draft']['snapshot'] != merge['snapshot']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewFreezesReverseCandidatesAndCompleteJointGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_merge_preview_keeps_only_target_without_writing_current_state",
+      "source_sha256": "035c2c080d454f472b286d5d2c697f5d3ef3ccf0d6c021b7ca9cc28315e1d1c7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_preview_keeps_only_target_without_writing_current_state[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_preview_keeps_only_target_without_writing_current_state[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_preview_keeps_only_target_without_writing_current_state[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_preview_keeps_only_target_without_writing_current_state[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert view['summary']['merge_draft'] == 1",
+        "assert item['member_refs'] == [{'transaction_id': target}]",
+        "assert item['anticipated_state'] == ('draft' if draft_target else 'posted')",
+        "assert set(_members(service, view)) == {target}",
+        "assert _members(service, view)[target]['allowed_actions'] == (['save_draft'] if draft_target else ['edit_record'])",
+        "assert _current(runtime, source, target) == before",
+        "assert service.read_plan(view['plan_id']) == view"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewKeepsOnlyTargetStateActionsAndOriginalPlanWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_merge_rejects_self_relation_or_collision_without_picking_one",
+      "source_sha256": "3f2774f966af147b4df0c901a6e68ffa630bf41377b9fdba4659ca9a32886927",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_rejects_self_relation_or_collision_without_picking_one[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_rejects_self_relation_or_collision_without_picking_one[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_rejects_self_relation_or_collision_without_picking_one[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_merge_rejects_self_relation_or_collision_without_picking_one[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert error.value.code in {'relation_endpoint_incompatible', 'relation_context_changed'}",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewRejectsSelfRelationAndBusinessCollisionWithoutChoosingOne"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_original_financial_conflict_is_rejected_before_patch",
+      "source_sha256": "03070b732d232370ccb82c8d888f6c3e9027fb7365e03832949679224ed335bf",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_original_financial_conflict_is_rejected_before_patch[cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_original_financial_conflict_is_rejected_before_patch[cash_web_runtime-True]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_original_financial_conflict_is_rejected_before_patch[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_original_financial_conflict_is_rejected_before_patch[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'fixed_field_conflict' and 'amount' in error.value.fields",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewRejectsOriginalFinancialConflictBeforeExplicitPatch"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_target_change_rejects_merge_preview_and_keeps_original_context",
+      "source_sha256": "19f2443d2e66c20d6e839195a45674eb12c988fe47816d26c2462e11e939f712",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_target_change_rejects_merge_preview_and_keeps_original_context[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_target_change_rejects_merge_preview_and_keeps_original_context[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'record_changed' and (not service._staging._entries)",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewChangedTargetRejectsAndKeepsContextUnpublished"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_target_draft_component_removal_also_returns_its_relations_to_parent_anchor",
+      "source_sha256": "3093a2b26876ecc9f91548c781ca2bbe207769488caeecee400eddda1119d9d0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_target_draft_component_removal_also_returns_its_relations_to_parent_anchor[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_target_draft_component_removal_also_returns_its_relations_to_parent_anchor[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert relation['primary_transaction_id'] == relation['anchor_transaction_id'] == int(target)",
+        "assert relation['primary_component_id'] is relation['anchor_component_id'] is relation['primary_role'] is None",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewRemovedTargetDraftPartsReturnRelationToParentAnchor"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_unknown_funding_placeholder_does_not_contradict_known_split",
+      "source_sha256": "386456e2a0a3ddbbf7fbb38a13fb22b2d2c70364b948254fee5a2f3d0c0521d0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_unknown_funding_placeholder_does_not_contradict_known_split[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_unknown_funding_placeholder_does_not_contradict_known_split[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _members(service, view)[target]['fields']['components'] == before[1]['fields']['components']",
+        "assert _current(runtime, source, target) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewUnknownFundingPlaceholderKeepsKnownTargetSplit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_draft_merge_plan.py::test_unknown_source_finances_do_not_clear_known_target",
+      "source_sha256": "1ac7d456983e17551a2f5fad8047f5adb2aaa34ddad0ab7fe8d0361bdf4c3f88",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_draft_merge_plan.py::test_unknown_source_finances_do_not_clear_known_target[cash_web_runtime]",
+        "tests/contract/test_cash_draft_merge_plan.py::test_unknown_source_finances_do_not_clear_known_target[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _current(runtime, source, target) == before",
+        "assert fields[field] == before[1]['fields'][field]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt",
+          "test": "mergePreviewUnknownSourceFinancesKeepEveryKnownTargetField"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
+    },
+    {
       "source": "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit",
       "source_sha256": "e0e79bfb41d88d6ce6c6992b7278ac5774f8e37ce7b9656ab908321e58c67dee",
       "status": "migrated",

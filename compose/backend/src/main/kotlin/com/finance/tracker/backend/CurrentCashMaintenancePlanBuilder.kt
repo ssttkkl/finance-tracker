@@ -21,12 +21,24 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
         }
         val prepared = MutationPlanBuilder(context).prepareMaintenanceOperations(request)
         val operations = prepared.operations
+        val operation = operations.first()
+        @Suppress("UNCHECKED_CAST") val merge = operation["merge_draft"] as? Map<String, Any?>
+        val decisionGroups = planner?.decisionGroupIds.orEmpty().toMutableSet()
+        if (merge != null) {
+            seeds += merge.getValue("source_transaction_id").toString().toLong()
+            @Suppress("UNCHECKED_CAST") val references = (merge.getValue("references") as Map<String, Any?>).getValue("relations") as List<Map<String, Any?>>
+            for (relation in references) {
+                listOf("primary_transaction_id", "secondary_transaction_id").mapNotNull { relation[it]?.toString()?.toLong() }.forEach { seeds += it }
+                (relation["decision_group_id"] as? String)?.let { decisionGroups += it }
+            }
+        }
         val rows = operations.map { mapOf("transaction_id" to it["transaction_id"], "operation_ref" to it["operation_ref"], "planned_action" to it["planned_action"]) }
         @Suppress("UNCHECKED_CAST") val before = previous?.let(::cashSourceValue) as? Map<String, Any?>
         val result = CashImportBusinessPlanBuilder(context).buildOperations(operations, rows,
             mapOf("relation_choices" to request.relationChoices.map(::cashSourceValue)), before,
-            includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = planner?.decisionGroupIds.orEmpty(),
-            snapshotTransform = if (prepared.transferRelations.isEmpty()) null else { snapshot ->
+            includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = decisionGroups.toList(),
+            snapshotTransform = if (merge == null && prepared.transferRelations.isEmpty()) null else { snapshot ->
+                if (merge != null) CashDraftMergePlanner.overlay(snapshot, operation)
                 for (update in prepared.transferRelations) {
                     val identifier = update.getValue("relation_id").toString().toBigInteger()
                     snapshot.edges[identifier] = snapshot.edges.getValue(identifier).copy(subtype = update["subtype"])
@@ -49,7 +61,7 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
                 val member = raw.jsonObject
                 JsonObject(member + mapOf("editable_fields" to if (members.size > 1) JsonArray(emptyList()) else
                     JsonArray(member.getValue("editable_fields").jsonArray.filter { it != JsonPrimitive("account_name") }),
-                    "allowed_actions" to JsonArray((if (member["transaction_id"] in draftIds) listOf("save_draft", "finalize_draft") else listOf("edit_record")).map(::JsonPrimitive))))
+                    "allowed_actions" to JsonArray((if (merge != null && member["transaction_id"] == JsonPrimitive(operation.getValue("transaction_id").toString()) && member["transaction_id"] in draftIds) listOf("save_draft") else if (member["transaction_id"] in draftIds) listOf("save_draft", "finalize_draft") else listOf("edit_record")).map(::JsonPrimitive))))
             })))
         })
         val summary = wire.getValue("summary").jsonObject.toMutableMap()

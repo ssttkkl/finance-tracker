@@ -41,7 +41,53 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
     private fun sameJson(first: JsonElement?, second: JsonElement?): Boolean =
         CashRecordPolicy.valuesEqual(cashSourceValue(first), cashSourceValue(second))
 
-    fun independentIdentitySnapshot(transactionId: Long): Map<String, Any?> {
+    fun independentIdentitySnapshot(transactionId: Long): Map<String, Any?> = identitySnapshot(transactionId)
+
+    fun validateDraftMerge(sourceId: Long, targetId: Long): Map<String, Any?> {
+        val source = target(sourceId, includeSource = true); val destination = target(targetId, includeSource = true)
+        if (source[transaction.STATE] != "draft" || sourceId == targetId || source[transaction.SOURCE_TYPE] != destination[transaction.SOURCE_TYPE])
+            fail("source_merge_requires_draft")
+        val all = sql.selectFrom(binding).where(binding.WORKSPACE_ID.eq(workspace)).and(binding.TRANSACTION_ID.`in`(sourceId, targetId)).fetch()
+        val scopes = linkedSetOf<String>(); val providers = linkedSetOf<String>(); val evidence = linkedSetOf<String>()
+        for (parent in listOf(source, destination)) {
+            val current = all.filter { it[binding.TRANSACTION_ID] == parent[transaction.ID] }
+            val localScopes = current.filter { it[binding.SOURCE_SCOPE_KIND] == "account" }.map { it[binding.SOURCE_SCOPE_KEY]!! }.toMutableSet()
+            val localProviders = current.filter { it[binding.IDENTITY_KIND] == "provider_id" }.map { it[binding.IDENTITY_KEY]!! }.toMutableSet()
+            if (localScopes.isEmpty() && parent[transaction.SOURCE_TYPE] == "wechat") {
+                val raw = (parent[transaction.SOURCE_PAYLOAD] as? JsonObject)?.get("交易单号") as? JsonPrimitive
+                if (raw?.isString == true) {
+                    val number = raw.content.trim { it.code in pythonWhitespace }
+                    if (number.isNotEmpty() && number !in setOf("/", "-", "--") && number.codePointCount(0, number.length) <= 512 &&
+                        parent[transaction.RECORD_ID] == "wechat_${raw.content}") {
+                        localScopes += CashSourceScope.WECHAT_DEFAULT_SCOPE; localProviders += providerIdentityKey(number)
+                    }
+                }
+            }
+            scopes += localScopes; providers += localProviders
+            evidence += current.mapNotNull { it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty) }
+        }
+        if (scopes.size > 1 || providers.size > 1 || evidence.size > 1) fail("source_identity_conflict")
+        val positions = linkedMapOf<String, MutableSet<String>>()
+        val pages = all.map { row ->
+            val coverage = cashSourceCoverage(row[binding.COVERAGE]); val sourceType = row[binding.SOURCE_TYPE]!!; val parser = row[binding.STRATEGY_VERSION]!!
+            if (coverage.documentKey != null && row[binding.SOURCE_SCOPE_KIND] == "file_local" && row[binding.IDENTITY_KIND] == "file_occurrence" &&
+                row[binding.SOURCE_SCOPE_KEY] == sourceDigest("source-document-v1", sourceType, parser, coverage.documentKey))
+                positions.getOrPut(row[binding.SOURCE_SCOPE_KEY]!!) { linkedSetOf() }.add(row[binding.IDENTITY_KEY]!!)
+            SourceDocumentEvidence(sourceType, parser, coverage)
+        }
+        if (positions.values.any { it.size > 1 }) fail("source_identity_conflict")
+        if (CashSourceResolver.conflictingSourceDocumentPages(emptyList(), evidence = pages).isNotEmpty()) fail("source_document_conflict")
+        val same = setOf(sourceId, targetId)
+        return mapOf(sourceId.toString() to identitySnapshot(sourceId, same), targetId.toString() to identitySnapshot(targetId, same))
+    }
+
+    fun transferDraftBindings(sourceId: Long, targetId: Long) {
+        validateDraftMerge(sourceId, targetId)
+        sql.update(binding).set(binding.TRANSACTION_ID, targetId).set(binding.REVISION, binding.REVISION.plus(1L))
+            .set(binding.UPDATED_AT, context.now()).where(binding.WORKSPACE_ID.eq(workspace)).and(binding.TRANSACTION_ID.eq(sourceId)).execute()
+    }
+
+    private fun identitySnapshot(transactionId: Long, sameIdentity: Set<Long> = emptySet()): Map<String, Any?> {
         val parent = target(transactionId, includeSource = true)
         val bindings = sql.selectFrom(binding).where(binding.WORKSPACE_ID.eq(workspace))
             .and(binding.TRANSACTION_ID.eq(transactionId)).orderBy(binding.ID).fetch()
@@ -67,7 +113,7 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
             row[binding.SOURCE_SCOPE_KEY]!!, row[binding.IDENTITY_KIND]!!, row[binding.IDENTITY_KEY]!!) }.distinct()
         val others = CashSourceReadRepository(context).forKeys(keys, bindings.mapNotNull {
             it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty)
-        }.distinct()).map { it.transactionId }.filter { it != transactionId }.distinct()
+        }.distinct()).map { it.transactionId }.filter { it != transactionId && it !in sameIdentity }.distinct()
         for (batch in others.chunked(500)) if (sql.fetchExists(transaction, transaction.WORKSPACE_ID.eq(workspace)
             .and(transaction.ID.`in`(batch)).and(transaction.DELETED_AT.isNull))) fail("active_source_binding")
         val keyFields = listOf(binding.SOURCE_TYPE, binding.SOURCE_SCOPE_KIND, binding.SOURCE_SCOPE_KEY, binding.IDENTITY_KIND, binding.IDENTITY_KEY)

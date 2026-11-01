@@ -24,13 +24,18 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
             val coupled = writer.coupledGroups(frozen, unit)
             excluded += coupled.map { it["suggestion_id"] as String }
             if (coupled.isNotEmpty()) early += writer.beforeRecords(coupled, frozen)
-            for (operation in unit) {
-                if (operation["merge_draft"] != null) throw MutationPlanFailure("plan_input_invalid")
+            val merges = CashDraftMergeWriter(context, afterWrite = { boundary.done(it) })
+            for (operation in unit) if (operation["merge_draft"] != null) merges.prepareRecordUpdates(operation)
+            val savedUnit = unit.map { operation ->
                 val saved = CashRecordWriter(context).save(operation, emptyMap())
                 boundary.done("record")
+                operation to saved
+            }
+            for ((operation, result) in savedUnit) {
+                val saved = if (operation["merge_draft"] != null) result.copy(touched = result.touched + merges.save(operation)) else result
                 identity[operation["preview_transaction_id"] as String] = saved.transactionId.toString()
                 components.putAll(saved.componentIds)
-                val outcome = mapOf("update_posted" to "updated_posted", "update_draft" to "saved_draft", "finalize_draft" to "finalized_draft", "duplicate" to "duplicate")
+                val outcome = mapOf("update_posted" to "updated_posted", "update_draft" to "saved_draft", "finalize_draft" to "finalized_draft", "merge_draft" to "merged_draft", "duplicate" to "duplicate")
                     .getValue(operation["planned_action"] as String)
                 actual[operation["operation_ref"] as String] = mapOf("outcome" to outcome, "transaction_id" to saved.transactionId.toString())
                 affected += saved.touched
@@ -50,7 +55,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
             if (coupled.isNotEmpty()) affected += writer.parentIds(coupled)
             context.entries.flush()
         }
-        val rows = operations.map { operation -> mapOf("result_kind" to "row", "item_ref" to operation["transaction_id"],
+        val rows = operations.map { operation -> mapOf("result_kind" to "row", "item_ref" to (operation["merge_draft"]?.let(::map)?.get("source_transaction_id") ?: operation["transaction_id"]),
             "operation_ref" to operation["operation_ref"]) + actual.getValue(operation["operation_ref"] as String) }
         val groups = early.toMutableList()
         boundary.done("current_relation_start")
@@ -84,7 +89,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val written = summary.getValue("resolved_issues") > 0 || (rows + groups).any { it["outcome"] !in setOf("skipped", "duplicate") }
         val result = buildJsonObject {
             put("status", if (problem && succeeded) "partial" else if (problem) "failed" else if (written) "completed" else "no_changes")
-            put("summary", sourceJson(summary)); put("retained_transaction_id", request.transactionId)
+            put("summary", sourceJson(summary)); put("retained_transaction_id", operations.firstOrNull { it["merge_draft"] != null }?.get("transaction_id")?.toString() ?: request.transactionId)
             put("projection_version", maintained?.get("projection_version") ?: JsonPrimitive(state.projectionVersion))
             put("needs_attention_count", finalizer.attentionCount(successful)); put("pending_item_count", pendingItems)
         }

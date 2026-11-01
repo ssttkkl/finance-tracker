@@ -14,6 +14,65 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 
 class KotlinMaintenancePlanResponseIntegrationTest {
+    @Test fun actualDraftMergeTargetChoicesPlanAndRetainedReceiptUseExistingRepository() = runTest {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")))
+        val captures = Json.parseToJsonElement(Files.readString(root.resolve("draft-merge-response.json"))).jsonArray
+        assertEquals(2, captures.size)
+        for (raw in captures) {
+            val capture = raw.jsonObject; val input = capture.getValue("request").jsonObject
+            val plan = capture.getValue("plan").jsonObject; val after = capture.getValue("after").jsonObject
+            var previewed = false; var committed = false
+            val engine = MockEngine { call ->
+                val path = call.url.encodedPath
+                val result = when {
+                    path.startsWith("/api/v1/cash-records/") -> {
+                        assertEquals(HttpMethod.Get, call.method)
+                        assertTrue(path.endsWith((if (committed) after else input).getValue("transaction_id").jsonPrimitive.content))
+                        capture.getValue(if (committed) "after" else "before")
+                    }
+                    path.endsWith("/plans") -> {
+                        assertEquals(HttpMethod.Post, call.method)
+                        val sent = Json.parseToJsonElement((call.body as TextContent).text).jsonObject
+                        for (field in listOf("intent", "transaction_id", "expected_revision", "patch", "issue_resolutions")) assertEquals(input[field], sent[field], field)
+                        previewed = true; plan
+                    }
+                    path.contains("/items/") -> capture.getValue("items").jsonArray.single()
+                    path.endsWith("/commit") -> {
+                        assertEquals(HttpMethod.Post, call.method); assertEquals(capture.getValue("key").jsonPrimitive.content, call.headers["Idempotency-Key"])
+                        assertEquals(plan["plan_revision"], Json.parseToJsonElement((call.body as TextContent).text).jsonObject["expected_plan_revision"])
+                        committed = true; capture.getValue("receipt")
+                    }
+                    else -> error("unexpected $path")
+                }
+                respond(result.toString(), headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+            val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+            try {
+                val repository = KtorCashMaintenanceRepository(client)
+                val before = repository.record(input.getValue("transaction_id").jsonPrimitive.content)
+                assertTrue(before.issues.any { "merge_into" in it.allowedResolutions })
+                val request = CashMaintenanceRequest(input.getValue("intent").jsonPrimitive.content, before.transactionId,
+                    input.getValue("expected_revision").jsonPrimitive.long, input.getValue("patch").jsonObject.toStructuredObject(),
+                    issueResolutions = input.getValue("issue_resolutions").jsonArray.map { item ->
+                        val choice = item.jsonObject
+                        CashIssueResolution(choice.getValue("issue_id").jsonPrimitive.content,
+                            choice.getValue("expected_issue_revision").jsonPrimitive.long, choice.getValue("resolution").jsonPrimitive.content,
+                            choice.getValue("target_transaction_id").jsonPrimitive.content, choice.getValue("expected_target_revision").jsonPrimitive.long)
+                    })
+                val current = repository.preview(request); assertTrue(previewed); assertTrue(current.canCommit)
+                assertEquals(1, current.summary["merge_draft"])
+                val detail = repository.item(current.planId, current.items.single().itemId)
+                assertEquals(after.getValue("transaction_id").jsonPrimitive.content, detail.members.single().transactionId)
+                val receipt = repository.commit(ImportFrozenCommand(current.planId, current.revision, capture.getValue("key").jsonPrimitive.content))
+                assertTrue(committed); assertTrue(receipt.committed); assertEquals(1, receipt.summary["merged_draft"])
+                assertEquals(after.getValue("transaction_id").jsonPrimitive.content, receipt.retainedTransactionId)
+                val retained = repository.record(requireNotNull(receipt.retainedTransactionId))
+                assertEquals(after.getValue("entry").jsonObject.getValue("fields"), retained.entry!!.fields.toJsonObject())
+                assertEquals(JsonPrimitive(""), retained.entry!!.fields.toJsonObject()["note"])
+                assertEquals(if (capture.getValue("draft_target").jsonPrimitive.boolean) "draft" else "posted", after.getValue("state").jsonPrimitive.content)
+            } finally { client.close() }
+        }
+    }
     @Test fun actualTransferMemberRequestPlanAndReceiptUseExistingRepository() = runTest {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")))
         val captures = Json.parseToJsonElement(Files.readString(root.resolve("transfer-maintenance-response.json"))).jsonArray

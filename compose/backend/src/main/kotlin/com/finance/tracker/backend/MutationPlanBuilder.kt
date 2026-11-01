@@ -35,6 +35,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         val entry = entry(row.id)
         if (request.intent == "edit_entry" && (entry == null || entry.id != request.entryId || entry.revision != request.expectedEntryRevision))
             throw CashPolicyError("entry_changed", emptyList())
+        if (request.issueResolutions.any { it.resolution == "merge_into" }) return CashDraftMergePlanner(context, this).prepare(request)
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
         val existing = issues(row.id)
         if (request.issueResolutions.any { it.resolution !in setOf("apply_source", "keep_existing", "create_independent") }) throw MutationPlanFailure("plan_input_invalid")
@@ -111,7 +112,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 if (derived.any { (key, value) -> key in patch && patch[key] != value })
                     throw CashPolicyError("relation_endpoint_incompatible", listOf("record_type", "record_subtype"))
                 validatePatch(member, patch + derived, allowGroupFinancial = true)
-                val extra = decorate(member, prepare(member, fields(member), patch + derived, entry(member.id), existingIssues = issues(member.id)))
+                val extra = decorate(member, prepare(member, fields(member), patch + derived, entry(member.id), existingIssues = issues(member.id), allowGroupFinancial = true))
                 if (member.id == row.id) {
                     val action = primary["planned_action"]
                     @Suppress("UNCHECKED_CAST")
@@ -142,7 +143,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         }
     }
 
-    private fun decorate(row: PlanRecord, operation: JsonObject): Map<String, Any?> {
+    fun decorate(row: PlanRecord, operation: JsonObject): Map<String, Any?> {
         val transactionId = row.id
         val scope = CashImportPreviewSnapshotBuilder(context).scopes(setOf(transactionId))[transactionId.toString() to row.sourceType] ?: "unbound:$transactionId"
         @Suppress("UNCHECKED_CAST")
@@ -156,7 +157,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         return CurrentCashMaintenancePlanBuilder(context).build(request, previous)
     }
 
-    private data class PlanRecord(
+    data class PlanRecord(
         val id: Long, val state: String, val revision: Long, val origin: String, val sourceType: String?,
         val recordId: String, val manualTransferId: String?, val counterparty: String, val counterpartyAccount: String,
         val attrs: JsonElement?, val note: String, val categoryId: String?, val recordType: String?, val recordSubtype: String?,
@@ -165,7 +166,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         val createdAt: Instant,
     )
 
-    private fun record(id: Long): PlanRecord {
+    fun record(id: Long): PlanRecord {
         val tx = CASH_TRANSACTIONS
         val row = sql.select(tx.ID, tx.STATE, tx.ROW_REVISION, tx.RECORD_ORIGIN, tx.SOURCE_TYPE, tx.RECORD_ID,
                 tx.MANUAL_TRANSFER_ID, tx.COUNTERPARTY, tx.COUNTERPARTY_ACCOUNT, tx.COUNTERPARTY_ACCOUNT_ATTRS, tx.NOTE,
@@ -180,7 +181,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             row[tx.CASH_GRANULARITY]!!, row[tx.MANUAL_OVERRIDES], row[tx.RELATION_METADATA], row[tx.CREATED_AT]!!)
     }
 
-    private fun fields(record: PlanRecord): MutableMap<String, Any?> = linkedMapOf(
+    fun fields(record: PlanRecord): MutableMap<String, Any?> = linkedMapOf(
         "counterparty" to record.counterparty, "counterparty_account" to record.counterpartyAccount,
         "counterparty_account_attrs" to record.attrs?.let(::cashSourceValue), "note" to record.note,
         "category_id" to record.categoryId, "record_type" to record.recordType, "record_subtype" to record.recordSubtype,
@@ -203,7 +204,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             .fetch { Part(it[part.ID]!!, it[part.ACCOUNT_ID], it[part.AMOUNT], it[part.CURRENCY], it[part.ORDINAL]!!) }
     }
 
-    private fun issues(id: Long): List<CashSourceIssue> {
+    fun issues(id: Long): List<CashSourceIssue> {
         val issue = CASH_TRANSACTION_ISSUES
         return sql.select(issue.ID, issue.REVISION, issue.CODE, issue.FIELD_PATH, issue.ISSUE_KEY,
                 issue.PENDING_FIELDS, issue.PENDING_SOURCE_PAYLOAD, issue.ORIGIN).from(issue)
@@ -212,9 +213,9 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 it[issue.PENDING_FIELDS], it[issue.PENDING_SOURCE_PAYLOAD], it[issue.ORIGIN], it[issue.ISSUE_KEY]!!) }
     }
 
-    private data class EntryRow(val id: String, val revision: Long, val categoryId: String?, val note: String,
+    data class EntryRow(val id: String, val revision: Long, val categoryId: String?, val note: String,
         val counterparty: String, val counterpartyAccount: String, val attrs: JsonElement?, val manualFields: List<String>)
-    private fun entry(id: Long): EntryRow? {
+    fun entry(id: Long): EntryRow? {
         val member = CASH_ENTRY_MEMBERS
         val entryId = sql.select(member.ENTRY_ID).from(member).where(member.WORKSPACE_ID.eq(workspace))
             .and(member.TRANSACTION_ID.eq(id)).fetchOne(member.ENTRY_ID) ?: return null
@@ -240,9 +241,9 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             }
     }
 
-    private fun prepare(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>, entry: EntryRow?,
+    fun prepare(record: PlanRecord, current: MutableMap<String, Any?>, patch: Map<String, Any?>, entry: EntryRow?,
         sourcePatch: Map<String, Any?> = emptyMap(), resolutions: List<PreparedCashSourceResolution> = emptyList(),
-        existingIssues: List<CashSourceIssue> = emptyList()): JsonObject {
+        existingIssues: List<CashSourceIssue> = emptyList(), allowGroupFinancial: Boolean = false): JsonObject {
         val protected = protectedFields(record)
         val storedExplanation = record.relationMetadata?.let(::cashSourceValue)
         var base = LinkedHashMap(current)
@@ -257,6 +258,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
             base = LinkedHashMap(sourceEffects.values)
             explanation = sourceEffects.explanation
         }
+        validatePatch(record, patch, allowGroupFinancial)
         var policyPatch = LinkedHashMap(patch)
         val publicPatch = CashRecordPolicy.prepare(mapOf("state" to "draft"),
             patch.filterKeys { it in commonCashFields }).values
@@ -379,7 +381,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         }
     }
 
-    private fun entryValue(entry: EntryRow, field: String): JsonElement = when (field) {
+    fun entryValue(entry: EntryRow, field: String): JsonElement = when (field) {
         "category_id" -> entry.categoryId?.let(::JsonPrimitive) ?: JsonNull
         "counterparty" -> JsonPrimitive(entry.counterparty)
         "counterparty_account" -> JsonPrimitive(entry.counterpartyAccount)
@@ -485,14 +487,14 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         }
     }
 
-    private fun protectedFields(record: PlanRecord): Set<String> {
+    fun protectedFields(record: PlanRecord, includeCommon: Boolean = false): Set<String> {
         val overrides = record.manualOverrides as? JsonObject ?: return emptySet()
         return overrides.filterValues { value -> when (value) {
             JsonNull -> false
             is JsonObject -> value.isNotEmpty()
             is JsonArray -> value.isNotEmpty()
             is JsonPrimitive -> if (value.isString) value.content.isNotEmpty() else value.booleanOrNull ?: (value.content.toBigDecimalOrNull()?.signum() != 0)
-        } }.keys - commonCashFields
+        } }.keys - (if (includeCommon) emptySet() else commonCashFields)
     }
 
     private fun wireObject(values: Map<String, Any?>): JsonObject = JsonObject(values.mapValues { cashValueJson(it.value) })
@@ -518,7 +520,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         return (if (negativeZero) "-" else "") + decimal.toPlainString()
     }
 
-    private fun issueJson(issue: CashImportIssueDto): JsonObject = buildJsonObject {
+    fun issueJson(issue: CashImportIssueDto): JsonObject = buildJsonObject {
         put("code", issue.code); put("message", issue.message)
         put("field_path", issue.fieldPath?.let(::JsonPrimitive) ?: JsonNull)
         put("blocking_scope", issue.blockingScope); put("next_action", issue.nextAction)

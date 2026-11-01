@@ -4,11 +4,13 @@
 
 `maintain_relations` 已接通 [当前关系预览](src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenancePlanBuilder.kt) 与 [原子提交](src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)：保留完整决定组、候选身份与证明、上一方案、拆分公共值及明确的人工关联。必要的候选清理在现金部分移除前执行，字段、关系、余额、稳定收支、投影及永久收据同事务；提交调用失败保留未知结果，原键重试先查永久收据。完整维护仍待验收，6 个维护接口继续标为部分实现。
 
-普通保存、正式编辑、转正式及既有来源决定使用相同的完整预计图和确认执行器，已移除单流水的重复呈现／写入代码。正式备注编辑不发起新关系发现；转正式只以本操作的现金部分为种子，允许完整发现组参与同一事务。`scripts/export_cash_maintenance_business_contracts.py` 为 15 个原业务计划检查点分别准备独立测试库；设置 `FT_KOTLIN_MAINTENANCE_BUSINESS_CONTRACT_DIR`，运行 `:backend:test --tests '*CashMaintenanceBusinessPlanTest' -PbackendFunctionalOnly=true` 对照全部内部结果／错误及 31 表只读，检查点不计作原定义迁移。普通维护原提交文件的全部 13 定义／28 参数已直接断言，其中 4 个预览／发现异常定义由 `CashMaintenancePreviewFailureTest` 覆盖。草稿合并的专门准备／写入及完整恢复组合仍未完成；不得据普通单流水接线关闭维护接口。
+普通保存、正式编辑、转正式及既有来源决定使用相同的完整预计图和确认执行器，已移除单流水的重复呈现／写入代码。正式备注编辑不发起新关系发现；转正式只以本操作的现金部分为种子，允许完整发现组参与同一事务。`scripts/export_cash_maintenance_business_contracts.py` 为 15 个原业务计划检查点分别准备独立测试库；设置 `FT_KOTLIN_MAINTENANCE_BUSINESS_CONTRACT_DIR`，运行 `:backend:test --tests '*CashMaintenanceBusinessPlanTest' -PbackendFunctionalOnly=true` 对照全部内部结果／错误及 31 表只读，检查点不计作原定义迁移。普通维护原提交文件的全部 13 定义／28 参数已直接断言，其中 4 个预览／发现异常定义由 `CashMaintenancePreviewFailureTest` 覆盖。其余恢复组合仍未完成；不得据普通单流水接线关闭维护接口。
 
 手工转账的双端财务编辑保留同一维护单元，按账户／币种推导转账、还款或换汇类型，保留目标的公共编辑和原内部关系编号。两端保存及关系子类型更新后验证完整图，再统一维护余额、收支、投影与收据；第二端或关系写后失败整笔回滚，另一端／关系修订及账户资格变化拒绝旧方案。原双端成功、故障和依赖变化 3 定义／14 参数由原生确认测试覆盖；另以原孤立转账 1 定义／2 参数验证详情能力关闭及单端金额拒绝。`scripts/export_cash_transfer_maintenance_contracts.py` 提供 3 个完整只读检查点，可与原 15 个普通维护检查点合并；原定义与检查点分开统计。现有 `KotlinMaintenancePlanResponseIntegrationTest` 消费本批真实 HTTP 请求、双成员方案／详情和永久收据，共享生产代码／DTO 不变。
 
 公共备注编辑与双端财务补丁同时提交时，Python 与 Kotlin 均保留公共编辑的动作及差异；财务值未变化不再覆盖备注修改。新增原回归覆盖任一端、只改备注、同时修改金额和完全无变化，直接检查预览、保存计数、实际公共值、精确余额及同键重放；本片当前完整双库组合各 1,096 项和实际 Compose 各 15 项通过，独立最终审查无可执行问题，命令及证据见 tasks。
+
+身份草稿合并复用完整维护计划及确认事务，按双方原财务事实、人工公共值、完整绑定／引用和现金部分对应验证；无法证明的对应不猜测，待处理正文保留。合并保留目标身份、转移绑定和引用、软删除源，返回目标并保持原键永久重放；问题实例／正文与旧候选证明保留。`CashDraftMergeOriginalTest` 直接覆盖原 29 定义／88 双库参数；设置 `FT_KOTLIN_DRAFT_MERGE_CONTRACT_DIR`（真实确认）和 `FT_KOTLIN_DRAFT_MERGE_GOLDEN_DIR`（隔离只读）分别运行。当前两库完整组合各 1,127 项与实际 Compose 各 16 项通过，独立最终审查无可执行问题，证据见 tasks；不据此关闭完整维护或两端 UI TODO。
 
 维护预览异常的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashMaintenancePreviewFailureTest.kt) 使用 `scripts/export_cash_maintenance_preview_failures.py` 为四个原测试分别保存预览入口前的真实状态；设置 `FT_KOTLIN_MAINTENANCE_PREVIEW_FAILURE_DIR`，运行 `:backend:test --tests '*CashMaintenancePreviewFailureTest' -PbackendFunctionalOnly=true`。测试在具备发现种子后、实际发现器的账户别名读取处注入异常，核对单部分／显式多部分／导入均只到达一次、31 表不变，维护上下文未创建、导入原会话正文／修订及未发布方案保持。账单原文修改拒绝后详情不变，完整退款仍呈现一笔、金额为零；不改变生产代码、公共字段或 UI。
 

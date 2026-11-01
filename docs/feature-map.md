@@ -14,6 +14,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 来源问题处理的 [原生服务回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已迁移原 22 定义／78 参数，覆盖采用／保留／清空、旧正文、公共人工值／分类、事项归属及变化、完整失败回滚；四种真实 HTTP 采用响应通过 [现有 Compose 消费](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt)。后端恢复原合同，共享生产 DTO、Web／Native 页面及交互不变；页面数仍为 10，独立身份、草稿合并、完整维护和既有两端 UI TODO 保留。
 
+身份草稿合并的 [后端规划](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftMergePlanner.kt) 与 [原子写入](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftMergeWriter.kt) 已实现，保留目标、来源身份、问题实例与双向关联证明；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt) 对应原 29 定义／88 参数，实际 HTTP 经过现有 Compose 维护仓库。完整双库及实际 Compose 消费已通过；共享生产合同与页面不变，页面数为 10，两端既有 UI TODO 保留。
+
 手工转账公共备注与双端金额同时提交时，Python／Kotlin 已同步保留修改动作及完整差异；新增 [原回归](../tests/contract/test_cash_transfer_public_edit.py) 与 [Kotlin 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 覆盖任一端、备注／金额组合、无变化及原键重放。当前不增加页面、公开 DTO 或客户端入口，两端既有 UI TODO 保留；本片完整双库及真实 Compose 消费通过，证据见迁移 tasks。
 
 确认独立记录的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt) 已覆盖原 9 定义／46 参数：同一实体／绑定和后续重复导入、同计划补充／转正式、微信范围隔离、绑定实例／证据变化拒绝、活动归属、认证页冲突、永久重放、权限及真实写后回滚；两种实际 HTTP 回包通过现有 Compose 维护仓库。共享生产 DTO、Web／Native 页面与交互不变，页面数仍为 10；草稿合并、完整维护、既有两端 UI TODO 保留。
