@@ -20,7 +20,7 @@ class CurrentCashRelationPlannerTest {
                     now = { Instant.parse("2026-10-01T09:00:00Z") })
                 val previous = case["previous"]?.takeIf { it != JsonNull }?.jsonObject
                 if (case["error"] != null) {
-                    val failure = assertFailsWith<RuntimeException>(name) { CurrentCashMaintenancePlanBuilder(context).build(MutationPlanRequest.parse(case.getValue("input")), previous) }
+                    val failure = assertFailsWith<RuntimeException>(name) { CurrentCashMaintenancePlanBuilder(context).build(MutationPlanRequest.fromStored(case.getValue("input").jsonObject), previous) }
                     val code = when (failure) {
                         is CashPolicyError -> failure.code
                         is MutationPlanFailure -> failure.code
@@ -30,7 +30,7 @@ class CurrentCashRelationPlannerTest {
                     }
                     assertEquals(case.getValue("error").jsonPrimitive.content, code, name)
                 } else {
-                    val result = CurrentCashMaintenancePlanBuilder(context).build(MutationPlanRequest.parse(case.getValue("input")), previous)
+                    val result = CurrentCashMaintenancePlanBuilder(context).build(MutationPlanRequest.fromStored(case.getValue("input").jsonObject), previous)
                     assertEquals(case.getValue("expected"), result, name)
                     MutationPlanView.validateBuild(result)
                 }
@@ -59,7 +59,7 @@ class CurrentCashRelationPlannerTest {
                 val context = CashSqlContext(connection, config.getValue("workspace").jsonPrimitive.content, db.sqlite,
                     now = { Instant.parse("2026-10-01T09:00:00Z") })
                 val planner = CurrentCashRelationPlanner(context, case.getValue("input").jsonObject.getValue("transaction_id").jsonPrimitive.long)
-                val request = MutationPlanRequest.parse(case.getValue("input"))
+                val request = MutationPlanRequest.fromStored(case.getValue("input").jsonObject)
                 val seeds = planner.seedIds + request.relationAdditions.map { it.getValue("target_transaction_id").jsonPrimitive.long }
                 assertEquals(raw.getValue("additional_seed_ids").jsonArray.map { it.jsonPrimitive.long }.toSet(), seeds, name)
                 assertEquals(raw.getValue("decision_group_ids").jsonArray.map { it.jsonPrimitive.content }.toSet(), planner.decisionGroupIds.toSet(), name)

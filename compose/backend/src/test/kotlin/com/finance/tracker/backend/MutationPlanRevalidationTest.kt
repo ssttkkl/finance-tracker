@@ -254,6 +254,17 @@ class MutationPlanRevalidationTest {
         } finally { release.countDown(); executor.shutdown(); assertTrue(executor.awaitTermination(20, java.util.concurrent.TimeUnit.SECONDS)) }
     }
     @Test fun storedNormalizationDoesNotWidenPublicInput() {
+        for (intent in listOf("save_draft", "maintain_relations")) {
+            val canonical = buildJsonObject {
+                put("intent", intent); put("transaction_id", "2001"); put("expected_revision", 1)
+                put("issue_resolutions", JsonArray(emptyList()))
+            }
+            assertEquals("plan_input_invalid", assertFailsWith<MutationPlanFailure>(intent) { MutationPlanRequest.parse(canonical) }.code)
+            assertEquals(intent, MutationPlanRequest.fromStored(canonical).intent)
+            assertEquals("plan_input_invalid", assertFailsWith<MutationPlanFailure>(intent) {
+                MutationPlanRequest.fromStored(JsonObject(canonical + ("issue_resolutions" to JsonArray(listOf(JsonObject(emptyMap()))))))
+            }.code)
+        }
         val stored = buildJsonObject { put("intent", "edit_record"); put("transaction_id", "2001"); put("expected_revision", 1)
             put("relation_additions", JsonArray(emptyList())) }
         assertEquals("edit_record", MutationPlanRequest.fromStored(stored).intent)

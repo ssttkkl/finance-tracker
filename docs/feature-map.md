@@ -1,6 +1,6 @@
 # Compose 功能地图
 
-维护接口的 [HTTP 主流程回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt) 直接覆盖原 8 定义／16 双库参数，包括联合关系的零额结果、身份合并的保留目标／原结果引用，以及草稿重放返回当前详情。仅补现有后端合同测试，无新增生产路由、DTO 或页面；页面数仍为 10，Web／Native 既有维护 TODO 保留，6 个维护接口仍部分完成。
+维护接口的 [HTTP 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt) 直接覆盖原文件全部 17 定义／52 双库参数，包括真实回滚／结果未知恢复、权限／私有归属、过期和非法输入。草稿保存计划与关系维护请求按原协议拒绝显式问题列表，内部空列表表示使用专用适配；成功后的详情不可读不影响已提交收据。无新增生产路由、DTO 或页面；页面数仍为 10，Web／Native 既有维护 TODO 保留，6 个维护接口仍部分完成。
 
 > 盘点日期：2026-10-29。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
 

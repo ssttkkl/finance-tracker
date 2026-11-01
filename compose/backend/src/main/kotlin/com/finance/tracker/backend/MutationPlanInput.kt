@@ -19,6 +19,7 @@ internal data class MutationPlanRequest(
 ) {
     companion object {
         val intents = setOf("save_draft", "edit_entry", "edit_record", "finalize_draft", "resolve_issue", "maintain_relations")
+        private val intentsWithoutIssues = setOf("save_draft", "maintain_relations")
         private val commonKeys = setOf("intent", "transaction_id", "expected_revision", "patch", "relation_choices",
             "issue_resolutions", "entry_id", "expected_entry_revision", "member_patches", "relation_additions")
         private val metaKeys = setOf("edit_context_id", "previous_plan_id", "expected_plan_revision")
@@ -31,10 +32,14 @@ internal data class MutationPlanRequest(
             "counterparty_account_attrs")
 
         fun fromStored(input: JsonObject): MutationPlanRequest {
-            val normalized = if (input["intent"] != JsonPrimitive("maintain_relations") && "relation_additions" in input) {
+            var normalized = if (input["intent"] != JsonPrimitive("maintain_relations") && "relation_additions" in input) {
                 if (input["relation_additions"] != JsonArray(emptyList())) invalid()
                 JsonObject(input - "relation_additions")
             } else input
+            if ((normalized["intent"] as? JsonPrimitive)?.content in intentsWithoutIssues && "issue_resolutions" in normalized) {
+                if (normalized["issue_resolutions"] != JsonArray(emptyList())) invalid()
+                normalized = JsonObject(normalized - "issue_resolutions")
+            }
             return parse(normalized)
         }
 
@@ -43,6 +48,7 @@ internal data class MutationPlanRequest(
             if ((input.keys - commonKeys - metaKeys).isNotEmpty()) invalid()
             val intent = (input["intent"] as? JsonPrimitive)?.takeIf { it.isString }?.content
                 ?.takeIf { it in intents } ?: invalid()
+            if (intent in intentsWithoutIssues && "issue_resolutions" in input) invalid()
             val expectedRevision = input["expected_revision"].revision() ?: invalid()
             val patch = if ("patch" in input) input["patch"] as? JsonObject ?: invalid() else JsonObject(emptyMap())
             val transactionId = input["transaction_id"].identifier()

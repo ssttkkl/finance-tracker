@@ -24,7 +24,7 @@ class CurrentCashRelationWriterTest {
             }
         } } }
         @Suppress("UNCHECKED_CAST") fun plan(context: CashSqlContext) = cashSourceValue(CurrentCashMaintenancePlanBuilder(context).build(
-            MutationPlanRequest.parse(case.getValue("input")), case.getValue("previous").jsonObject)) as Map<String, Any?>
+            MutationPlanRequest.fromStored(case.getValue("input").jsonObject), case.getValue("previous").jsonObject)) as Map<String, Any?>
     }
     @Test fun confirmedRemovalKeepsRelationIdentityAndSplitsOnlyItsEntries() {
         val f = Fixture("remove"); val before = f.snapshot()

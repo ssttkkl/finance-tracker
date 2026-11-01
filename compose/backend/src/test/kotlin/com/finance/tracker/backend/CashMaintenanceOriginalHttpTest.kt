@@ -1,19 +1,32 @@
 package com.finance.tracker.backend
 
 import com.finance.tracker.backend.persistence.generated.tables.references.*
+import com.finance.tracker.backend.persistence.generated.DefaultSchema
 import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
 import io.ktor.server.testing.testApplication
 import java.math.BigDecimal
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
+import java.sql.Connection
+import java.sql.PreparedStatement
+import java.sql.Statement
 import java.nio.file.Path
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class CashMaintenanceOriginalHttpTest {
+    private fun names(label: String): Set<String> {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_MAINTENANCE_HTTP_CONTRACT_DIR")))
+        return Json.parseToJsonElement(root.resolve("scenarios.json").readText()).jsonObject
+            .filterValues { it.jsonObject["label"] == JsonPrimitive(label) }.keys.also { assertTrue(it.isNotEmpty(), label) }
+    }
     private class Store(clock: () -> Instant) : ParsedImportStore(1800, clock) {
         val entries = linkedMapOf<String, ParsedImportObject>()
         override fun readRaw(id: String) = entries[id] ?: throw ParsedImportNotFound()
@@ -30,11 +43,62 @@ class CashMaintenanceOriginalHttpTest {
         val case = Json.parseToJsonElement(directory.resolve("case.json").readText()).jsonObject
         val id = case.getValue("transaction_id").jsonPrimitive.content
         val path = "/api/v1/cash-records/$id"
-        val now = Instant.parse("2026-10-22T00:00:00Z")
-        val database = Database(config.getValue("jdbc_url").jsonPrimitive.content, System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))
+        var now = Instant.parse("2026-10-22T00:00:00Z")
+        fun database(decorate: (Connection) -> Connection = { it }) = Database(config.getValue("jdbc_url").jsonPrimitive.content,
+            System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"), decorate)
+        val database = database()
         val store = Store { now }
-        val service = MutationPlanService(database, now = { now }, staging = store)
+        fun service(db: Database = database, step: (String) -> Unit = {}) = MutationPlanService(db, now = { now }, staging = store, afterCommitStep = step)
+        val service = service()
         val base = buildJsonObject { put("intent", "edit_record"); put("transaction_id", id); put("expected_revision", case.getValue("expected_revision")) }
+        val params get() = case.getValue("metadata").jsonObject.getValue("params").jsonObject
+        fun role(value: String, other: Boolean = false) = database.write { connection -> connection.jooq(database.sqlite).update(WORKSPACE_MEMBERSHIPS)
+            .set(WORKSPACE_MEMBERSHIPS.ROLE, value).where(WORKSPACE_MEMBERSHIPS.WORKSPACE_ID.eq(config.getValue("workspace").jsonPrimitive.content))
+            .and(if (other) WORKSPACE_MEMBERSHIPS.USER_ID.ne(config.getValue("user").jsonPrimitive.content) else WORKSPACE_MEMBERSHIPS.USER_ID.eq(config.getValue("user").jsonPrimitive.content)).execute() }
+        fun state() = database.read { connection ->
+            val tables = DefaultSchema.DEFAULT_SCHEMA.tables; assertEquals(31, tables.size)
+            tables.associate { table -> table.name to connection.createStatement().use { statement ->
+                statement.executeQuery("SELECT * FROM \"${table.name}\"").use { rows ->
+                    buildList { while (rows.next()) add(JsonArray((1..rows.metaData.columnCount).map { rows.getString(it)?.let(::JsonPrimitive) ?: JsonNull }).toString()) }.sorted()
+                }
+            } }
+        }
+    }
+    private class Faults {
+        val rollback = AtomicBoolean(); val loseResponse = AtomicBoolean(); val failReplay = AtomicBoolean()
+        val receiptReached = AtomicInteger(); val commitsReached = AtomicInteger(); val replaysReached = AtomicInteger()
+        fun afterStep(step: String) {
+            if (step == "receipt" && rollback.get()) { receiptReached.incrementAndGet(); error("private SQL password /tmp/private.csv") }
+        }
+        fun decorate(connection: Connection): Connection {
+            fun invoke(target: Any, method: java.lang.reflect.Method, args: Array<out Any?>?): Any? = try {
+                method.invoke(target, *(args ?: emptyArray()))
+            } catch (failure: InvocationTargetException) { throw failure.cause ?: failure }
+            return Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
+                if (method.name == "commit" && loseResponse.compareAndSet(true, false)) {
+                    invoke(connection, method, args); commitsReached.incrementAndGet(); throw java.sql.SQLException("private lost response")
+                }
+                val value = invoke(connection, method, args)
+                if (method.name == "prepareStatement" && value is PreparedStatement) {
+                    val sql = (args?.firstOrNull() as? String).orEmpty().lowercase()
+                    Proxy.newProxyInstance(PreparedStatement::class.java.classLoader, arrayOf(PreparedStatement::class.java)) { _, operation, values ->
+                        if (operation.name.startsWith("execute") && failReplay.get() && sql.trimStart().startsWith("select") &&
+                            "cash_mutation_receipts" in sql && "idempotency_key" in sql) {
+                            replaysReached.incrementAndGet(); error("private replay query")
+                        }
+                        invoke(value, operation, values)
+                    }
+                } else if (method.name == "createStatement" && value is Statement) {
+                    Proxy.newProxyInstance(Statement::class.java.classLoader, arrayOf(Statement::class.java)) { _, operation, values ->
+                        if (operation.name == "execute" && (values?.firstOrNull() as? String)?.trim()?.equals("COMMIT", ignoreCase = true) == true &&
+                            loseResponse.compareAndSet(true, false)) {
+                            invoke(value, operation, values); commitsReached.incrementAndGet(); throw java.sql.SQLException("private lost response")
+                        }
+                        invoke(value, operation, values)
+                    }
+                } else value
+            } as Connection
+        }
     }
     private val api = "/api/v1/cash-mutations"
     private fun patch(note: String) = buildJsonObject { put("note", note) }
@@ -42,17 +106,17 @@ class CashMaintenanceOriginalHttpTest {
         val body = bodyAsText(); assertEquals(status, this.status.value, body)
         return Json.parseToJsonElement(body).jsonObject
     }
-    private suspend fun HttpClient.read(path: String) = get(path) { bearerAuth("original-import-owner") }
-    private suspend fun HttpClient.send(path: String, body: JsonObject, key: String? = null, draft: Boolean = false): HttpResponse = request(path) {
+    private suspend fun HttpClient.read(path: String, actor: String = "original-import-owner") = get(path) { bearerAuth(actor) }
+    private suspend fun HttpClient.send(path: String, body: JsonObject, key: String? = null, draft: Boolean = false, actor: String = "original-import-owner"): HttpResponse = request(path) {
         method = if (draft) HttpMethod.Patch else HttpMethod.Post
-        bearerAuth("original-import-owner"); contentType(ContentType.Application.Json)
+        bearerAuth(actor); contentType(ContentType.Application.Json)
         if (key != null) header("Idempotency-Key", key)
         setBody(body.toString())
     }
     private suspend fun HttpClient.preview(f: Fixture, changes: JsonObject) = send("$api/plans", JsonObject(f.base + changes))
-    private suspend fun HttpClient.commit(plan: JsonObject, key: String = "synthetic-maintenance-confirm") = send(
+    private suspend fun HttpClient.commit(plan: JsonObject, key: String = "synthetic-maintenance-confirm", actor: String = "original-import-owner") = send(
         "$api/plans/${plan.getValue("plan_id").jsonPrimitive.content}/commit",
-        buildJsonObject { put("expected_plan_revision", plan.getValue("plan_revision")) }, key)
+        buildJsonObject { put("expected_plan_revision", plan.getValue("plan_revision")) }, key, actor = actor)
     private suspend fun HttpClient.resolve(plan: JsonObject) = send("$api/resolve", buildJsonObject {
         put("plan_id", plan.getValue("plan_id")); put("idempotency_key", "synthetic-maintenance-confirm")
     })
@@ -170,6 +234,108 @@ class CashMaintenanceOriginalHttpTest {
         assertEquals(JsonArray(emptyList()), client.read(planPath(plan)).checked()["additional_effects"])
         val receipt = client.commit(plan).checked(); assertEquals(JsonPrimitive("draft"), client.read(f.path).checked()["state"])
         f.store.entries.clear(); assertEquals(buildJsonObject { put("status", "committed"); put("receipt", receipt) }, client.resolve(plan).checked())
+    }
+    @Test fun rollbackAndLostResponseAreSafeForBothActualMaintenanceWrites() {
+        for (name in names("fault")) testApplication {
+            val f = Fixture(name); val faults = Faults(); val db = f.database(faults::decorate)
+            application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service(db, faults::afterStep),
+                cashDraftSave = CashDraftSaveService(db, now = { f.now }, afterStep = faults::afterStep)) }
+            val before = client.read(f.path).checked(); val draft = f.params.getValue("operation") == JsonPrimitive("draft")
+            val plan = if (draft) null else client.preview(f, buildJsonObject { put("patch", patch("已保存")) }).checked()
+            suspend fun perform() = if (draft) client.send(f.path + "/draft", buildJsonObject {
+                put("expected_revision", before.getValue("row_revision")); put("patch", patch("已保存"))
+            }, "fault-http", draft = true) else client.commit(plan!!, "fault-http")
+            val initial = f.state(); faults.rollback.set(true)
+            val rejected = perform(); val failure = rejected.checked(503)
+            assertEquals(JsonPrimitive("not_committed"), failure["commit_state"]); assertFalse("private" in rejected.bodyAsText())
+            assertEquals(1, faults.receiptReached.get()); assertEquals(before, client.read(f.path).checked()); assertEquals(initial, f.state())
+            faults.rollback.set(false); faults.loseResponse.set(true)
+            val lost = perform(); assertEquals(JsonPrimitive("unknown"), lost.checked(503)["commit_state"]); assertFalse("private" in lost.bodyAsText())
+            assertEquals(1, faults.commitsReached.get()); val committed = f.state()
+            assertEquals(initial.getValue("cash_mutation_receipts").size + 1, committed.getValue("cash_mutation_receipts").size)
+            val replay = perform().checked(); val receipt = if (draft) replay.getValue("receipt").jsonObject else replay
+            assertEquals(receipt, client.read("$api/receipts/by-key/fault-http").checked())
+            assertEquals(JsonPrimitive("已保存"), client.read(f.path).checked().getValue("entry").jsonObject.getValue("fields").jsonObject["note"])
+            assertEquals(committed, f.state())
+        }
+    }
+    @Test fun existingKeyReplayQueryFailureKeepsUnknownAndDoesNotWriteAgain() {
+        for (name in names("replay_fault")) testApplication {
+            val f = Fixture(name); val faults = Faults(); val db = f.database(faults::decorate)
+            application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service(db), cashDraftSave = CashDraftSaveService(db, now = { f.now })) }
+            val before = client.read(f.path).checked(); val draft = f.params.getValue("operation") == JsonPrimitive("draft")
+            val plan = if (draft) null else client.preview(f, buildJsonObject { put("patch", patch("已保存")) }).checked()
+            suspend fun perform() = if (draft) client.send(f.path + "/draft", buildJsonObject {
+                put("expected_revision", before.getValue("row_revision")); put("patch", patch("已保存"))
+            }, "replay-http", draft = true) else client.commit(plan!!, "replay-http")
+            perform().checked(); val saved = f.state(); faults.failReplay.set(true)
+            val response = perform(); assertEquals(JsonPrimitive("unknown"), response.checked(503)["commit_state"])
+            assertFalse("private" in response.bodyAsText()); assertEquals(1, faults.replaysReached.get()); faults.failReplay.set(false)
+            assertEquals(saved, f.state())
+        }
+    }
+    @Test fun currentViewerIsReadOnlyAndExpiredPlansReturnGone() = testApplication {
+        val f = Fixture("expiry"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+        val plan = client.preview(f, buildJsonObject { put("patch", patch("允许的字段")) }).checked(); f.role("viewer")
+        assertEquals(JsonArray(emptyList()), client.read(f.path).checked()["editable_fields"])
+        val before = f.state(); client.commit(plan).checked(403); client.preview(f, buildJsonObject {}).checked(403); assertEquals(before, f.state())
+        f.role("editor"); f.now = Instant.parse(plan.getValue("expires_at").jsonPrimitive.content).plusSeconds(1)
+        client.read(planPath(plan)).checked(410); client.commit(plan).checked(410)
+    }
+    @Test fun invalidStructuresNeverPublishOrCreateTemporaryContext() {
+        for (name in names("invalid")) testApplication {
+            val f = Fixture(name); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+            val before = f.state(); val raw = client.preview(f, f.params.getValue("changes").jsonObject)
+            assertEquals(422, raw.status.value, name)
+            val response = raw.checked(422)
+            assertEquals(JsonArray(emptyList()), response.getValue("error").jsonObject["field_errors"])
+            assertTrue(f.store.entries.isEmpty()); assertEquals(before, f.state())
+        }
+    }
+    @Test fun fixedFinancialConflictHasSafeFieldErrorAndNoChanges() = testApplication {
+        val f = Fixture("fixed"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+        val before = client.read(f.path).checked(); val state = f.state()
+        val response = client.preview(f, buildJsonObject { put("patch", buildJsonObject { put("amount", "-999") }) })
+        val error = response.checked(422).getValue("error").jsonObject
+        assertEquals(JsonPrimitive("fixed_field_conflict"), error["code"])
+        assertEquals(JsonPrimitive("amount"), error.getValue("field_errors").jsonArray.first().jsonObject["field"])
+        assertFalse("-999" in response.bodyAsText()); assertEquals(before, client.read(f.path).checked()); assertTrue(f.store.entries.isEmpty()); assertEquals(state, f.state())
+    }
+    @Test fun otherEditorCannotReadOrCommitPrivatePlanAndOwnerCanStillCommit() = testApplication {
+        val f = Fixture("private"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+        val plan = client.preview(f, buildJsonObject { put("patch", patch("他人的未确认内容")) }).checked(); f.role("editor", other = true)
+        client.read(f.path, "original-import-other").checked(); client.read(planPath(plan), "original-import-other").checked(404)
+        val before = f.state(); val denied = client.commit(plan, actor = "original-import-other")
+        assertEquals(JsonPrimitive(false), denied.checked(404).getValue("error").jsonObject["retryable"])
+        assertFalse("他人的未确认内容" in denied.bodyAsText()); assertEquals(before, f.state()); client.commit(plan).checked()
+    }
+    @Test fun successfulDraftReceiptStaysSuccessfulWhenCurrentDetailReadFails() = testApplication {
+        val f = Fixture("outcome"); val reached = AtomicInteger()
+        application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service,
+            cashDraftSave = CashDraftSaveService(f.database, now = { f.now }, beforeOutcomeRead = { reached.incrementAndGet(); error("private current read") })) }
+        val before = client.read(f.path).checked(); val response = client.send(f.path + "/draft", buildJsonObject {
+            put("expected_revision", before.getValue("row_revision")); put("patch", patch("已成功"))
+        }, "current-read-http", draft = true)
+        val result = response.checked(); assertEquals(1, reached.get()); assertEquals(JsonPrimitive(true), result.getValue("receipt").jsonObject["committed"])
+        assertEquals(JsonPrimitive("unavailable"), result["current_record_status"]); assertEquals(JsonNull, result["current_record"])
+        assertFalse("private" in response.bodyAsText()); assertEquals(JsonPrimitive("已成功"), client.read(f.path).checked().getValue("fields").jsonObject["note"])
+    }
+    @Test fun missingRecordMissingKeyWrongStateAndStaleRevisionHaveDistinctSafeErrors() = testApplication {
+        val f = Fixture("state"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+        val before = client.read(f.path).checked(); val state = f.state()
+        assertEquals(JsonPrimitive("record_not_found"), client.read("/api/v1/cash-records/9223372036854775807").checked(404).getValue("error").jsonObject["code"])
+        val body = buildJsonObject { put("expected_revision", before.getValue("row_revision")); put("patch", patch("不应写入")) }
+        client.send(f.path + "/draft", body, draft = true).checked(422)
+        assertEquals(JsonPrimitive("draft_required"), client.send(f.path + "/draft", body, "posted-is-not-draft", draft = true).checked(409).getValue("error").jsonObject["code"])
+        val stale = client.preview(f, buildJsonObject { put("expected_revision", before.getValue("row_revision").jsonPrimitive.long + 1) }).checked(409)
+        assertEquals(JsonPrimitive("record_changed"), stale.getValue("error").jsonObject["code"]); assertEquals(before, client.read(f.path).checked()); assertEquals(state, f.state())
+    }
+    @Test fun incompleteDraftStaysEditableAndDoesNotPublishFinalizePlan() = testApplication {
+        val f = Fixture("incomplete"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }
+        val before = client.read(f.path).checked(); val state = f.state()
+        val error = client.preview(f, buildJsonObject { put("intent", "finalize_draft") }).checked(422).getValue("error").jsonObject
+        assertEquals(JsonPrimitive("account_missing"), error["code"]); assertTrue("账户" in error.getValue("message").jsonPrimitive.content)
+        assertEquals(before, client.read(f.path).checked()); assertTrue(f.store.entries.isEmpty()); assertEquals(state, f.state())
     }
     @Test fun changedAccountAfterFinalizePreviewIsAKnownHttpRefusal() = testApplication {
         val f = Fixture("account"); application { financeModule(f.database, clock = { f.now }, mutationPlans = f.service) }

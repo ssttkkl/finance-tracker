@@ -17,7 +17,11 @@ class CurrentCashMaintenanceServiceTest {
     private inner class Fixture(name: String) {
         private val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR"))).resolve(name).resolve(scenario)
         val config = Json.parseToJsonElement(root.resolve("database.json").readText()).jsonObject
-        val input = Json.parseToJsonElement(root.resolve("case.json").readText()).jsonObject.getValue("input").jsonObject
+        private val canonicalInput = Json.parseToJsonElement(root.resolve("case.json").readText()).jsonObject.getValue("input").jsonObject
+        val input = JsonObject(canonicalInput - "issue_resolutions").also {
+            assertEquals(JsonPrimitive("maintain_relations"), canonicalInput["intent"])
+            assertEquals(JsonArray(emptyList()), canonicalInput["issue_resolutions"])
+        }
         val database = database()
         val at = Instant.parse("2026-10-01T09:00:00Z")
         val staging = InMemoryParsedImportStore(clock = { at })

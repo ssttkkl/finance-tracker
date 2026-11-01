@@ -6410,6 +6410,50 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
     },
     {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_draft_saved_receipt_remains_success_when_current_read_fails",
+      "source_sha256": "b02ddb10bc1b24b2f6e5b8ed61cddbd64aa64ff727529051fc5c405b83b97be3",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_draft_saved_receipt_remains_success_when_current_read_fails[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_draft_saved_receipt_remains_success_when_current_read_fails[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200 and response.json()['receipt']['committed']",
+        "assert response.json()['current_record_status'] == 'unavailable' and response.json()['current_record'] is None",
+        "assert 'private' not in response.text and _records(context_runtime).read(identifier)['fields']['note'] == '已成功'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "successfulDraftReceiptStaysSuccessfulWhenCurrentDetailReadFails"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_existing_key_replay_read_failure_does_not_claim_not_committed",
+      "source_sha256": "4f7a2da0c1f54bb2fc55ddf51bc914a8fd50c70d81108c60732a0c3c19ff4374",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_existing_key_replay_read_failure_does_not_claim_not_committed[cash_web_runtime-draft]",
+        "tests/contract/test_cash_maintenance_api.py::test_existing_key_replay_read_failure_does_not_claim_not_committed[cash_web_runtime-mutation]",
+        "tests/contract/test_cash_maintenance_api.py::test_existing_key_replay_read_failure_does_not_claim_not_committed[postgres_cash_web_runtime-draft]",
+        "tests/contract/test_cash_maintenance_api.py::test_existing_key_replay_read_failure_does_not_claim_not_committed[postgres_cash_web_runtime-mutation]"
+      ],
+      "assertions": [
+        "assert perform().status_code == 200",
+        "assert result.status_code == 503 and result.json()['commit_state'] == 'unknown' and ('private' not in result.text)",
+        "assert response.status_code == 200, response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "existingKeyReplayQueryFailureKeepsUnknownAndDoesNotWriteAgain"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
       "source": "tests/contract/test_cash_maintenance_api.py::test_finalize_http_uses_one_plan_and_recovers_receipt_after_context_cleanup",
       "source_sha256": "01e1de68416e77dd906ae853c590cc7ab4a021f80a6b8ec8ad6e2fda9c2a3d66",
       "status": "migrated",
@@ -6445,6 +6489,27 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
     },
     {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_fixed_financial_field_conflict_has_safe_business_field_error",
+      "source_sha256": "b20fdc750fac18a96986fde693f9cc1c9f64f3f3774afa17599b076c9ab59680",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_fixed_financial_field_conflict_has_safe_business_field_error[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_fixed_financial_field_conflict_has_safe_business_field_error[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422 and response.json()['error']['code'] == 'fixed_field_conflict'",
+        "assert response.json()['error']['field_errors'][0]['field'] == 'amount'",
+        "assert '-999' not in response.text and _records(context_runtime).read(identifier) == before and (store._entries == {})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "fixedFinancialConflictHasSafeFieldErrorAndNoChanges"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
       "source": "tests/contract/test_cash_maintenance_api.py::test_identity_merge_http_returns_retained_target_and_preserves_original_result_reference",
       "source_sha256": "9912d1696b0e6e07a21c023d08c43953acd95babd96ba2e9f27062eb207b8855",
       "status": "migrated",
@@ -6469,6 +6534,27 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
     },
     {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_incomplete_draft_stays_editable_and_does_not_publish_finalize_plan",
+      "source_sha256": "8a63b8f396ed2ea962c04714929d500862ff8aa486b8160d617ac2c29f761268",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_incomplete_draft_stays_editable_and_does_not_publish_finalize_plan[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_incomplete_draft_stays_editable_and_does_not_publish_finalize_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422 and response.json()['error']['code'] == 'account_missing'",
+        "assert '账户' in response.json()['error']['message']",
+        "assert _records(context_runtime).read(identifier) == before and store._entries == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "incompleteDraftStaysEditableAndDoesNotPublishFinalizePlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
       "source": "tests/contract/test_cash_maintenance_api.py::test_joint_current_relation_confirmation_is_one_http_task_and_keeps_zero_result",
       "source_sha256": "7c044a62cc39ea7963a3f167288f4b145eb0c7301ceb3a802c59857302fa06a4",
       "status": "migrated",
@@ -6491,6 +6577,64 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_maintenance_expiry_and_current_viewer_permission",
+      "source_sha256": "17ebef2944a904b779902e30076e0f2400b84854a51e45d080826dd5a0a37c49",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_expiry_and_current_viewer_permission[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_expiry_and_current_viewer_permission[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert detail.status_code == 200 and detail.json()['editable_fields'] == []",
+        "assert _commit(client, plan).status_code == 403",
+        "assert _preview(client, context_runtime, identifier).status_code == 403",
+        "assert client.get('/api/v1/cash-mutations/plans/' + plan['plan_id']).status_code == 410",
+        "assert _commit(client, plan).status_code == 410"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "currentViewerIsReadOnlyAndExpiredPlansReturnGone"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing",
+      "source_sha256": "4c891d18d260fe597af10946e1438eebe142e8970987a076e68a6c3887bc57e8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes0]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes1]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes2]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes3]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes4]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes5]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes6]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[cash_web_runtime-changes7]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes0]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes1]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes2]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes3]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes4]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes5]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes6]",
+        "tests/contract/test_cash_maintenance_api.py::test_maintenance_protocol_rejects_invalid_structure_before_publishing[postgres_cash_web_runtime-changes7]"
+      ],
+      "assertions": [
+        "assert response.status_code == 422 and response.json()['error']['field_errors'] == []",
+        "assert store._entries == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "invalidStructuresNeverPublishOrCreateTemporaryContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
     },
     {
       "source": "tests/contract/test_cash_maintenance_api.py::test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_is_gone",
@@ -6518,6 +6662,52 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
     },
     {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_other_editor_cannot_read_or_commit_private_maintenance_context",
+      "source_sha256": "35a98d913c22669b92de05888d376f0180477cd39116fcf325465de3acdc120b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_other_editor_cannot_read_or_commit_private_maintenance_context[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_other_editor_cannot_read_or_commit_private_maintenance_context[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert second.get('/api/v1/cash-records/' + identifier).status_code == 200",
+        "assert second.get('/api/v1/cash-mutations/plans/' + plan['plan_id']).status_code == 404",
+        "assert denied.status_code == 404 and denied.json()['error']['retryable'] is False",
+        "assert '他人的未确认内容' not in denied.text and _commit(first, plan).status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "otherEditorCannotReadOrCommitPrivatePlanAndOwnerCanStillCommit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_record_state_missing_key_and_stale_revision_have_distinct_safe_errors",
+      "source_sha256": "85e728950f12757048fb82489b6f1cac1f00ac23d547ca713bcae1df51f9d088",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_record_state_missing_key_and_stale_revision_have_distinct_safe_errors[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_record_state_missing_key_and_stale_revision_have_distinct_safe_errors[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert missing.status_code == 404 and missing.json()['error']['code'] == 'record_not_found'",
+        "assert client.patch(path, json=body).status_code == 422",
+        "assert posted.status_code == 409 and posted.json()['error']['code'] == 'draft_required'",
+        "assert stale.status_code == 409 and stale.json()['error']['code'] == 'record_changed'",
+        "assert _records(context_runtime).read(identifier) == detail"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "missingRecordMissingKeyWrongStateAndStaleRevisionHaveDistinctSafeErrors"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
+    },
+    {
       "source": "tests/contract/test_cash_maintenance_api.py::test_repreview_replaces_complete_input_without_renewing_context",
       "source_sha256": "418ede9467ee4bbe357cca67b5e7e5c7a693a852391306b4b2dfea8410d74a40",
       "status": "migrated",
@@ -6540,6 +6730,33 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance_writes",
+      "source_sha256": "02e938c14b8f1d93f9ab8a52e123f60bb8b81ea663c9d95023d5943c27729695",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance_writes[cash_web_runtime-draft]",
+        "tests/contract/test_cash_maintenance_api.py::test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance_writes[cash_web_runtime-mutation]",
+        "tests/contract/test_cash_maintenance_api.py::test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance_writes[postgres_cash_web_runtime-draft]",
+        "tests/contract/test_cash_maintenance_api.py::test_storage_rollback_and_lost_commit_response_are_safe_for_both_maintenance_writes[postgres_cash_web_runtime-mutation]"
+      ],
+      "assertions": [
+        "assert result.status_code == 503 and result.json()['commit_state'] == 'not_committed'",
+        "assert 'private' not in result.text and _records(context_runtime).read(identifier) == before",
+        "assert result.status_code == 503 and result.json()['commit_state'] == 'unknown' and ('private' not in result.text)",
+        "assert replay.status_code == 200, replay.text",
+        "assert client.get('/api/v1/cash-mutations/receipts/by-key/fault-http').json() == receipt",
+        "assert _records(context_runtime).read(identifier)['entry']['fields']['note'] == '已保存'",
+        "assert response.status_code == 200, response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "rollbackAndLostResponseAreSafeForBothActualMaintenanceWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
     },
     {
       "source": "tests/contract/test_cash_manual_associations.py::test_http_search_and_association_use_explicit_target_contract",
