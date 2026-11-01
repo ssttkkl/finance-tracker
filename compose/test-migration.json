@@ -5832,6 +5832,26 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_component_discovery_exception_stops_preview_without_creating_problems",
+      "source_sha256": "e38bb7fa6d0a1eca80c8d03186e9c0543e8c999ef2b961390d905aa51d9e2a34",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_component_discovery_exception_stops_preview_without_creating_problems[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_component_discovery_exception_stops_preview_without_creating_problems[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenancePreviewFailureTest.kt",
+          "test": "discoveryFailureStopsExplicitMultiplePartsBeforePublishingAnyProblemOrPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_commit.py::test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan",
       "source_sha256": "cfb747f4e9c5a51a2b2026ca4614de6a838df0bef8a9aa4eadb5067f1d79dc1c",
       "status": "migrated",
@@ -5848,6 +5868,26 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
           "test": "ordinaryConnectionFailureRollsBackAndKeepsThePlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_discovery_exception_stops_finalization_without_publishing_a_problem",
+      "source_sha256": "17241a2633c3ce3c8e727e255123b619a24bcdcb92bc6b1d97244b6cba058700",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_discovery_exception_stops_finalization_without_publishing_a_problem[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_discovery_exception_stops_finalization_without_publishing_a_problem[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenancePreviewFailureTest.kt",
+          "test": "discoveryFailureStopsSinglePartFinalizationBeforePublishingAnyProblemOrPlan"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
@@ -5888,6 +5928,26 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
           "test": "ordinaryMemberFailureRollsBackTheWholeRecordUnit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result",
+      "source_sha256": "e121f1bcc88ebf41efde67e9e902fd9cc7ef9186d63b5606d2c0034aa9181201",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_import_discovery_exception_does_not_publish_a_plan_or_permanent_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenancePreviewFailureTest.kt",
+          "test": "importDiscoveryFailureKeepsTheOriginalSessionAndPublishesNoPlanOrPermanentResult"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
@@ -5935,6 +5995,26 @@
         {
           "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
           "test": "ordinaryPostedEditReplaysAfterContextAndTargetDisappear"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_posted_source_text_user_edit_is_rejected_and_full_refund_stays_confirmed",
+      "source_sha256": "4031e87fadb9b67b82127ea861501f43efc8696de1ae60a452d26fef4726217c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_posted_source_text_user_edit_is_rejected_and_full_refund_stays_confirmed[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_posted_source_text_user_edit_is_rejected_and_full_refund_stays_confirmed[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier) == before",
+        "assert len(unchanged['items']) == 1 and Decimal(unchanged['items'][0]['display']['amount']) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenancePreviewFailureTest.kt",
+          "test": "sourceTextCannotBeEditedAndTheFullRefundStillAppearsOnceAtZero"
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"

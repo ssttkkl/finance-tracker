@@ -89,6 +89,7 @@
 - [ ] 4.8.3 完整维护提交重验：按 Python `_validate_current` 在写事务重建计划并核对冻结操作、当前关系/事项/账户/修订及原错误合同，不能仅凭父流水和 entry 修订提交；独立复核指出的关系/事项变化缺口须失败先行，未完成前 4.8 不可关闭。
 - [ ] 4.8.5 移除普通维护的临时单流水呈现／提交路径：全部意图复用原已准备操作、共享业务图及原子执行；依次补普通编辑／转正式／来源决定、手工转账双端和身份草稿合并，保留原状态、来源范围、真实发现种子、完整成员和上一方案。当前基线 `041a4df8`，沿用已接受整体澄清、A 类合同及原分支提交授权。
 - [ ] 4.8.5.1 将普通保存、编辑、转正式及来源决定接入完整共享预计图与统一确认，先以原业务计划检查点复现，再完成相称原断言、恢复组合、双库全门禁及实际客户端验证；多成员／合并的专门准备与写入后续补齐，不用局部完成关闭父任务。
+- [x] 4.8.5.1.2 迁移原普通提交文件剩余 4 定义／8 参数：来源原文拒绝且完整退款保持可见，单现金部分／多现金部分及导入发现异常停止，31 表不变且不发布临时方案。（2026-11-01 04:28 UTC，HEAD／比较基线 `8d9e575e4346f7f09b1e9c51e0967132651378c5` 加独立工作树。本片只有原生测试、匿名生成器、映射和文档；普通提交原文件共 13 定义／28 参数全部完成。两库各 182 套／1,056 项、零失败／错误，SQLite 3 项 PG 专属跳过，PG16 零跳过；构建／静态及实际 Host 七项筛选各 12 项通过。源全文件参考 28 passed／零跳过，源范围 `--require-complete` 为 13 migrated、零 pending，全局 589 migrated／1,498 参数、5 retained／2,019 pending。独立工程／安全／原断言／最终 diff 复核无可执行 finding。八阶段、输入校验、准确命令与证据见当前记录；完整维护父任务仍未完成。）
 - [x] 4.8.5.1.1 统一现有单流水意图的操作、来源范围、共享业务图与确认，删除临时重复路径；覆盖普通提交 9 原定义／20 参数、15 个完整计划检查点及原 diamond 空种子回退。（2026-11-01 03:35 UTC，提交前 HEAD／比较基线 `041a4df84c7b9edc5cffa383031a42cae36bad39` 加工作树。两库各 181 套／1,052 项、零失败／错误；SQLite 3 项 PG 专属跳过，PG16 零跳过。构建／静态及 Host 七项筛选各 12 项通过。原提交文件参考 28 passed，尚有 4 个预览／发现异常原定义未映射；恢复、独立身份／合并及手工转账双端仍待实施，父任务不关闭。八阶段、精确命令与证据见当前记录。）
 - [x] 4.8.3.1 先补已接入单流水动作的提交重建与原 operation fingerprint、当前关系上下文/事项/账户资格依赖核对；失败不写财务、不消费方案，无关账户改名不使正式备注失效。完整关系/多成员操作和原恢复组合定义随后迁移。
 - [x] 4.8.1 先迁永久收据按当前操作者/工作区读取、原键查询和行/关系结果分页的 5 个 GET；共享现有 Compose 收据协议，验证历史键严格解码、分页、脱敏、权限、当前投影引用及真实客户端解码。resolve/提交/暂存写入随后验收。
@@ -230,7 +231,7 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前普通维护统一片的提交前 HEAD／diff 比较基线为 `041a4df84c7b9edc5cffa383031a42cae36bad39`；全迁移固定基线为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前实现接入 HTTP 70/86（含 6 个只覆盖部分意图的维护计划操作），剩余 16 个操作未接入；原测试映射为 585 migrated／5 retained／2,023 pending，迁移的完整参数为 1,490/5,844。接口、原定义、展开参数及 OpenSpec 任务分别统计，不据其中一项关闭整个迁移。已完成切片以相应八阶段条目和下表实际证据为准；全量原测试、投资、同步／行情／后台与最终验收继续未完成。用户已授权本仓库当前分支逐片提交并推送至 `origin/continue-kotlin-backend-refactor`；未授权 PR、合并、部署、切流、真实数据迁移或删除 Python。
+当前普通维护异常测试片的提交前 HEAD／diff 比较基线为 `8d9e575e4346f7f09b1e9c51e0967132651378c5`；全迁移固定基线为 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。工作区 `/Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck`，分支 `continue-kotlin-backend-refactor`。当前实现接入 HTTP 70/86（含 6 个只覆盖部分意图的维护计划操作），剩余 16 个操作未接入；原测试映射为 589 migrated／5 retained／2,019 pending，迁移的完整参数为 1,498/5,844。接口、原定义、展开参数及 OpenSpec 任务分别统计，不据其中一项关闭整个迁移。已完成切片以相应八阶段条目和下表实际证据为准；全量原测试、投资、同步／行情／后台与最终验收继续未完成。用户已授权本仓库当前分支逐片提交并推送至 `origin/continue-kotlin-backend-refactor`；未授权 PR、合并、部署、切流、真实数据迁移或删除 Python。
 
 已执行的 grill-me → grilling、explore、propose、jOOQ 架构确认和 apply 继续适用。用户明确要求本轮不运行性能测试，以功能迁移和功能测试为验收；功能回归使用 `-PbackendFunctionalOnly=true`，仅排除 `CategoryDeletionPerformanceTest`、`CashClassificationPerformanceTest`。原预算不变，原分类删除失败 `legacy-all-sqlite.log`（973 毫秒）与 `legacy-review-sqlite.log`（561 毫秒）保留，不宣称性能通过。
 
@@ -312,27 +313,27 @@ Gradle 从 `compose/` 执行 `:backend:test :backend:installDist :backend:ktlint
 | 4.9 银行表格文档读取 | `BankStatementDocumentGoldenTest` 11 组对照 Python `read_bank_document`：建行 XLS 正常/标题不匹配/笔数不符/序号跳号/行形状/非 512 字节，工银亚洲 UTF-16 TSV 正常/笔数不符/银行不匹配/掩码账户/来源提示冲突；文档、行原文、账户/标签/币种与日期覆盖逐项一致。工行 PDF 原始文档读取见 4.9.4 |
 | 4.9 CSV/TSV/XLSX 文档读取 | `CashStatementDocumentGoldenTest` 19 组对照 Python `read_platform_document`：支付宝/微信 CSV、引号内换行/逗号、GB18030、导出类型缺失、金额原样、声明笔数不符、列形状错误、空输入、非账单内容、未知来源及错误码；完整文档字段、行位置/原文/错误和覆盖证据逐项一致。XLSX 覆盖解压/成员/坐标/DTD 预检、稀疏行、超宽列、声明笔数不符与尾部空列。上传流程与行归一未迁移 |
 | 4.9.4 ICBC PDF 文档读取 | `IcbcPdfDocumentGoldenTest` 38 组对照 Python `read_icbc_document`：信用卡/借记卡、来源提示及不匹配、两页、卡号冲突/缺失、区间冲突、笔数/页数/页码/筛选/缺失区间、无效/空表头、无表、同页两表、换行表头、欧元、特殊字符、缩放表格、装饰性单格框、合并列/合并行单元格、曲线绘制的表格、缺失 `%%EOF`、损坏 `startxref`、空/非 PDF/零页、加密必填/错误/正确密码（确定性 pypdf 样本，正确密码核对完整文档）；源类型、每行原文/物理位置、账户、声明笔数、上下界、`document_key`、`page_fingerprints` 与逐项覆盖一致。`IcbcPdfDocumentLimitsTest` 覆盖输入/页/字符/解析字节/物理行/业务行/表/列预算；`CashStatementDocuments` 按字节和来源提示分派 PDF。PDFBox 仅后端依赖；行归一、上传流程和真实账单样本未迁移。独立复核确认无 P1/P2；重审发现并修复曲线边丢失（新增曲线绘制表格金标准），残余 `startxref` 错误优先级、超 32 位声明笔数、旋转页与极端图形预算登记为 P3 |
-| 普通维护统一与完整后端功能 | 2026-11-01 03:35 UTC，HEAD／比较基线 `041a4df8` 加当前工作树；显式环境见 `full-{sqlite,pg}-1101cz/environment.json`，执行 `:backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，两库各 181 套／1,052 项、零失败／错误，SQLite 3 项 PG 专属跳过，PG16 零跳过。Host 七项筛选各 12 项通过，新增普通维护实际消费者；日志／摘要／XML 位于同目录。原断言类 32 项覆盖 32 定义／98 参数，本片新增普通提交 9 定义／20 参数；另以新业务图类对照 15 个完整原计划及错误／31 表只读，diamond 纯层空列表金标准与完整第二边故障通过。51 个提交前场景、既有 55 个当前关系检查点均重验。PG18 与性能按范围未验证。 |
-| OpenSpec | 2026-11-01，HEAD／比较基线 `041a4df8` 加当前工作树；`openspec validate --all --strict --json` 38/38、`openspec doctor --json` healthy，见仓库外 `ordinary-{openspec,doctor}-1101cz.json`。 |
-| 清单门禁 | 完整 collection 为 5,844 参数、2,613 定义；`scripts/check_kotlin_test_migration.py --collection <缓存根>/collection-1101as.txt --report <缓存根>/ordinary-migration-1101cz.json` 无错误。已迁 585 定义／1,490 参数，5 retained／2,023 pending；检查点不重复计数。原普通提交文件 9 定义已映射、4 定义仍 pending；全文件 Python 双库参考 28 passed／零跳过，见 `ordinary-reference-dual-1101cz.{log,xml}`，不据参考通过关闭其余定义。 |
-| 静态、依赖和文档 | Markdown 链接／锚点及 `git diff --check` 通过，见仓库外 `ordinary-docs-1101cz.json`；新／修改生成器语法及退款 diamond `--check` 通过。接口仍 70/86（含 6 个部分意图）、16 未接入；共享生产 DTO 未变，无新依赖。 |
-| 测试环境收尾 | 本机 PostgreSQL 16.14，显式 URL 与人工创建的 `_test` 库。旧初始库 SHA、原种子／迁移输入指纹已核对；仅纯层金标准导出脚本新增空列表输出，通过去除此字典键的 AST 等价与原 SHA 校验，见 `full-restore-input-allowances-1101cz.json`，未笼统放行输入。SQLite 恢复 403 个写库，沿用 55 个当前关系及 15 个业务图只读夹具；新 51 场景两库初始快照另存。PG 专项因并行 Gradle 的结果文件冲突作废，51 库恢复后串行重跑通过；最终完整双库和 Host 全部串行。本轮 525 个自有 PG 测试库在确认无活动连接后全部删除，剩余零；554 个已消费 SQLite 文件按精确清单删除，见 `ordinary-{db,sqlite}-cleanup-1101cz.json`。保留初始快照、只读业务输入、日志与 XML，无真实数据或 `/tmp` 新文件。 |
+| 普通维护异常与完整后端功能 | 2026-11-01 04:28 UTC，HEAD／比较基线 `8d9e575e` 加独立工作树；显式环境见 `full-{sqlite,pg}-1101dd/environment.json`。在独立工作树 `compose/` 执行 `:backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，两库各 182 套／1,056 项、零失败／错误，SQLite 3 项 PG 专属跳过，本机 PostgreSQL 16.14 零跳过。随后 `:shared:testAndroidHostTest` 以导入、关联、列表、删除、草稿保存、当前关系及普通维护七项筛选，各 12 项实际客户端消费通过／无跳过。日志、摘要及 XML 位于同目录；新类四项全部通过。原三类发现故障核对相同异常只到达一次、31 表不变及暂存未发布；多部分在故障前核对实际准备的两个金额。PG18 与性能未验证。 |
+| OpenSpec | HEAD／比较基线 `8d9e575e` 加独立工作树；`openspec validate --all --strict --json` 38/38、`openspec doctor --json` healthy，见仓库外 `maintenance-preview-{openspec,doctor}-1101dd.json`。 |
+| 清单门禁 | 完整 collection 为 5,844 参数、2,613 定义；`scripts/check_kotlin_test_migration.py --collection <缓存根>/collection-1101as.txt --report <缓存根>/maintenance-preview-migration-1101dd.json` 无错误，589 定义／1,498 参数、5 retained／2,019 pending。原普通提交文件以 `--scope tests/contract/test_cash_mutation_commit.py --require-complete` 验证 13 migrated／零 pending，见 `maintenance-preview-source-green-1101dd.json`；失败先行 9 migrated／4 pending，见 `maintenance-preview-source-red-1101dc.json`。原 Python 全文件双库参考 28 passed／零跳过，见 `maintenance-preview-reference-dual-1101dd.{log,xml}`；不把源参考或匿名场景数重复计迁移数。 |
+| 静态、依赖和文档 | 本片导出脚本语法、6 个 Markdown 文件的 253 个本地链接／锚点及 `git diff --check` 通过，见 `maintenance-preview-docs-1101dd.json`。接口仍 70/86（含 6 个部分意图）、16 未接入；生产代码、共享 DTO、数据库及依赖均不变。 |
+| 测试环境收尾 | 使用手工创建的专用 `_test` 库及显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动数据库。347 个旧初始库及全部源／根配置 SHA 核对，纯层空种子金标准的精确允许差异证明沿用 `full-restore-input-allowances-1101dd.json`，其余输入未放行。SQLite 恢复 403 个写库，沿用 55 个当前预览、15 个业务图及 4 个新增只读场景；PG 为 477 个独立场景库，另有源参考库。所有测试串行运行，生成器初次独立目录复制失败未计通过，修正后专项及完整双库通过。478 个自有 PG 测试库在确认无活动连接后按精确清单全部删除、剩余零，见 `preview-db-cleanup-1101dd.json`；477 个已消费 SQLite 文件删除，见 `preview-sqlite-cleanup-1101dd.json`。保留初始快照、只读输入、日志及 XML，无真实数据或 `/tmp` 新文件。 |
 
-Cross-platform Impact Check：本片将既有普通编辑、草稿保存／转正式与当前关系维护接入共用预计图及事务执行；共享生产代码／DTO、Web／Native 页面／文案／交互不变。真实 HTTP 方案、单项关系及收据经过现有 Compose 仓库和领域映射；导入／关联候选／主账本／批量删除／草稿保存／当前关系维护／普通维护七项筛选、各 12 项实际回包消费者同批重跑。无浏览器、原生平台编译或设备 QA 范围。页面数仍为 10，完整维护、其他组合与两端既有 UI TODO 保留。
+Cross-platform Impact Check：只有测试、匿名夹具导出、原映射及开发文档变化，Web／Native／共享生产代码、DTO、页面、文案、交互及路由均不变；本片没有新增客户端能力。两库完整后均重跑现有七类实际回包消费者、各 12 项通过。无浏览器、原生应用包编译或设备 QA 范围。页面数仍为 10，完整维护及两端既有 UI TODO 保留。
 
-文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及项目 apply skill。backend README、地图、接口／测试迁移清单、design／tasks 和技能按普通维护共用执行及现有关系维护接线原位更新；根 README 的导航、现有收支／关联流水／现金部分含义、主规格与既有公开协议均无变化，其余无需修改。未归档、切流或删除 Python／schema；回滚撤销本片 Kotlin 代码和映射，生产数据不受影响。全仓 Python 功能回归的既有中断不能计通过；全量迁移、余下接口、后台、格式及历史迁移矩阵仍由 6.3／6.5 跟踪。
+文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及项目 apply skill。backend README、地图、测试清单、design／tasks 和技能按原普通提交全文件覆盖及真实发现阶段回归原位更新；没有新术语、公开行为、schema、依赖或配置，其余文件无需修改。原未完成接口、完整维护、身份／恢复及历史迁移仍由父任务跟踪。本片交付目标为当前分支 `origin/continue-kotlin-backend-refactor`；未归档、合并、部署或删除 Python。回滚仅撤销本片测试、导出脚本、映射及文档，无生产数据影响。
 
 ## 当前审查
 
-当前普通维护统一片沿用已接受的整体 grilling／A 类范围。阶段 1–3 对照原业务构建器、操作准备、确认、转账双端及合并的依赖，回写 design／任务拆分；先统一共有后段，专门准备及完整恢复仍列后续，不改原合同、schema、依赖或公开字段。
+阶段 1–3 沿用已接受的整体 grilling／A 类范围，对照原四个 pending 定义、完整退款、单部分／多部分及导入发现、真实预览和暂存发布顺序；design／任务已先回写。采用独立工作树 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/ordinary-preview-worktree-1101dd`（detached `8d9e575e`），只验证和交付本片测试范围，不带其他未完成生产改动。
 
-阶段 4 普通编辑完整图先红，见 `maintenance-business-red-1101cy.log`；移除单流水重复呈现／写入，保留来源范围、原种子及来源决定摘要。金标准复现空分类被列为修改，改为使用归一后的公共补丁。实际第二边故障又复现少一条 diamond 银行退款边：事实、既有边、种子及操作完全一致，纯层空列表金标准先红，修复为空列表按原假值回退；见 `maintenance-diamond-empty-red-1101cy.log`、`ordinary-commit-sqlite-fixed-1101cy.log` 及两端发现输入。新关系实际写后注入，完整组与外层 31 表回滚通过。
+阶段 4 源清单先为 9 migrated／4 pending，完整门禁未通过；生成器执行原函数到实际失败入口前停止，只提供真实状态和请求／解析文件。原生四项直接断言来源原文拒绝后详情相同、完整退款单项且为零，及三类发现故障的同一异常只到达一次、31 张业务表不变。故障仅在实际发现器具备种子后的账户别名读取处触发；显式多部分先核对准备值中两个金额。维护暂存零创建，导入保留原正文、修订及未发布方案，无生产配置或错误语义修改。
 
-阶段 5 `ordinary-maintenance-review-1101cz.log` 独立静态复核工程／财务／安全、共用规划／确认、生成器、原断言及代码 diff；`ordinary-maintenance-final-review-1101cz.log` 复核最终 diff、文档及映射，均无可执行 finding，审查者未代跑测试。实施者发现的 P2 空列表缺边已以原函数、纯层与完整组回归修复；无剩余已知阻断。阶段 6 当前命令、完整双库与源参考见上表。
+阶段 5 `maintenance-preview-review-1101dd.log`、`maintenance-preview-final-review-1101dd.log` 及最终交付范围的 `maintenance-preview-delivery-review-1101dd.log` 独立静态复核范围、工程／安全、原断言、生成器、映射、文档及最终 diff，均无可执行 finding；审查者未代跑测试。本片不改变生产行为，不关闭其余维护能力。
 
-阶段 7 README、功能地图、routes／inventory、原测试映射、design／tasks 和 apply skill 原位同步；其余文档、词表及主规格／delta 无新合同／概念，无需改动。回滚撤销本片统一、匹配边界和测试映射，保留 Python／schema，不涉及生产数据或部署。
+阶段 6 完整双库、实际客户端、源参考及清单门禁见上表。阶段 7 文档和正式 artifact 已同步，按当前分支授权交付本片；回滚不影响 schema／真实数据，保留 Python。阶段 8 固定实际发现到达、相同异常、完整业务表及暂存正文／修订断言，避免用早期读取失败或数据库事务回滚代替未发布验证。原文件 13 定义／28 参数全部覆盖，完整维护及整个迁移仍未完成。
 
-阶段 8 固定共享后段而非重复视图、归一公共补丁、真实转正式种子和原空集合语义；完整冻结图帮助区分操作、发现、关系组和写入偏差。Gradle 不共享输出目录并行验证；结果文件冲突轮作废、恢复后串行重跑。快照复用核对精确输入及允许差异的 AST 证明，不以旧收据状态或旧 XML 冒充通过。普通提交文件仍有 4 个预览异常定义，多成员、身份、恢复和全量迁移继续未完成。
+普通维护统一片独立 `ordinary-maintenance-{review,final-review}-1101cz.log` 无可执行 finding，原 diamond 空列表缺边已修复；两库各 181 套／1,052 项及 Host 各 12 项通过，映射 9 定义／20 参数，提交 `8d9e575e`。完整冻结图、归一公共补丁、真实发现种子及 Gradle 串行门禁继续适用。
 
 原操作规划复核全部 36 定义／94 参数、typed／wire 与输入不变性、SQL 只读观测、原版本／来源状态、逐行内部故障、生成器及迁移映射；`operations-remaining-review-1101bo.log` 独立静态复核无可执行 finding。实施者完成两库各 878 项后端回归和各 6 项实际客户端消费，该原文件无 pending。没有生产逻辑、schema、真实数据、公共 DTO 或 UI 变化；业务计划等其余原测试及完整迁移仍未完成。
 
