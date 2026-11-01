@@ -40,7 +40,29 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
     fun build(files: List<ParsedImportFile>, input: Map<String, Any?>, previous: Map<String, Any?>?,
         sourcePlan: PreparedCashSourcePlan? = null): Map<String, Any?> {
         context.requireActive()
-        val rendered = present(files, prepare(files, input, previous, sourcePlan), input, previous)
+        return finish(files, prepare(files, input, previous, sourcePlan), input, previous)
+    }
+
+    fun buildOperations(operations: List<Map<String, Any?>>, rows: List<Map<String, Any?>>,
+        input: Map<String, Any?>, previous: Map<String, Any?>?, files: List<ParsedImportFile> = emptyList(),
+        sourceRows: Map<String, SourceOccurrence> = emptyMap(), sourceCandidateSets: Map<String, List<String>> = emptyMap(),
+        includeUnchanged: Boolean = false, additionalSeedIds: Set<Long> = emptySet(), decisionGroupIds: List<String> = emptyList(),
+        snapshotTransform: ((CashImportPreviewSnapshot) -> Unit)? = null,
+        currentRelationBuilder: ((CashImportPreviewSnapshot, Map<String, Map<String, Any?>>) -> List<MutableMap<String, Any?>>)? = null,
+    ): Map<String, Any?> {
+        context.requireActive()
+        val prepared = CashImportPreviewPreparation(context).prepareOperations(operations, sourceRows,
+            choices(input, "entry_choices"), previous, additionalSeedIds, decisionGroupIds)
+        return finish(files, PreparedPreview(prepared, rows, sourceCandidateSets), input, previous,
+            includeUnchanged, snapshotTransform, currentRelationBuilder)
+    }
+
+    private fun finish(files: List<ParsedImportFile>, prepared: PreparedPreview, input: Map<String, Any?>,
+        previous: Map<String, Any?>?, includeUnchanged: Boolean = false,
+        snapshotTransform: ((CashImportPreviewSnapshot) -> Unit)? = null,
+        currentRelationBuilder: ((CashImportPreviewSnapshot, Map<String, Map<String, Any?>>) -> List<MutableMap<String, Any?>>)? = null,
+    ): Map<String, Any?> {
+        val rendered = present(files, prepared, input, previous, includeUnchanged, snapshotTransform, currentRelationBuilder)
         applyEntryChoices(rendered.result, choices(input, "entry_choices"), previous)
         rendered.result["operations"] = rendered.operations
         rendered.result["row_decisions"] = rendered.rows
@@ -64,16 +86,23 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
     }
 
     private fun present(files: List<ParsedImportFile>, input: PreparedPreview, inputChoices: Map<String, Any?>,
-        previous: Map<String, Any?>?): RenderedPreview {
+        previous: Map<String, Any?>?, includeUnchanged: Boolean,
+        snapshotTransform: ((CashImportPreviewSnapshot) -> Unit)?,
+        currentRelationBuilder: ((CashImportPreviewSnapshot, Map<String, Map<String, Any?>>) -> List<MutableMap<String, Any?>>)?,
+    ): RenderedPreview {
         val prepared = input.preview
         val snapshot = snapshot(prepared, input.rows)
+        snapshotTransform?.invoke(snapshot)
         val seeds = snapshot.components.values.filter {
             snapshot.parentOps[it.transactionId]?.get("planned_action") in setOf("create_posted", "finalize_draft")
         }.map { it.componentId.toString() }.toSet()
         val proposals = if (seeds.isEmpty()) emptyList() else discover(snapshot, seeds, prepared.accounts)
         val grouped = CashImportRelationGroups.build(snapshot, proposals)
-        val groups = grouped.groups
+        val groups = grouped.groups.toMutableList()
+        currentRelationBuilder?.let { groups.addAll(it(snapshot, prepared.accounts)) }
         val selected = CashImportRelationDecisions.applyChoices(groups, choices(inputChoices, "relation_choices"), previous)
+        for (group in groups) if (group["origin"] == "current" && group["action"] == "remove" &&
+            (group["split_field_diffs"] as? List<*>).isNullOrEmpty()) group.putIfAbsent("inherit_common_fields", false)
         CashImportRelationDecisions.restoreSplitValues(context, snapshot, groups)
         val failures = linkedMapOf<String, Map<String, Any?>>()
         for (failure in grouped.failures + CashImportRelationDecisions.applyGroups(snapshot, groups)) {
@@ -85,7 +114,7 @@ internal open class CashImportBusinessPlanBuilder(private val context: CashSqlCo
             snapshot.facts[parent]?.let { snapshot.facts[parent.toString()] = it.withAttention(true) }
         }
         val result = CashImportPreviewPresentation.present(files, snapshot, snapshot.build(), groups, failures.values.toList(),
-            prepared.accounts, entryParentIds = prepared.retainedParentIds)
+            prepared.accounts, includeUnchanged = includeUnchanged, entryParentIds = prepared.retainedParentIds)
         result.putAll(linkedMapOf("invalidated_choices" to selected.invalidated,
             "invalidated_relation_choices" to selected.sources, "relation_choice_generations" to selected.generations,
             "source_candidate_sets" to input.candidateSets, "relation_groups" to wire(groups),

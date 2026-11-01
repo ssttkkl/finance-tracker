@@ -30,6 +30,18 @@ internal class CashImportPreviewPreparation(private val context: CashSqlContext)
                     "occurrence:${source.occurrenceKey}"
             }
         }
+        return prepareOperations(prepared, sourceRows, entryChoices, previousPlan, additionalSeedIds)
+    }
+
+    fun prepareOperations(
+        operations: List<Map<String, Any?>>,
+        sourceRows: Map<String, SourceOccurrence> = emptyMap(),
+        entryChoices: List<Map<String, Any?>> = emptyList(),
+        previousPlan: Map<String, Any?>? = null,
+        additionalSeedIds: Set<Long> = emptySet(),
+        decisionGroupIds: List<String> = emptyList(),
+    ): PreparedCashImportPreview {
+        context.requireActive()
         @Suppress("UNCHECKED_CAST") val targets = previousPlan?.get("entry_targets") as? Map<String, Any?> ?: emptyMap()
         val retained = linkedSetOf<String>()
         for (choice in entryChoices) {
@@ -44,10 +56,10 @@ internal class CashImportPreviewPreparation(private val context: CashSqlContext)
                 accounts[row[table.ID]!!.toString()] = linkedMapOf(
                     "name" to row[table.NAME], "type" to row[table.TYPE], "revision" to row[table.REVISION])
             }
-        val new = prepared.filter { it["planned_action"] in setOf("create_posted", "finalize_draft") }
+        val new = operations.filter { it["planned_action"] in setOf("create_posted", "finalize_draft") }
         val candidates = CashImportCandidateRepository(context).candidateIds(new, sourceRows)
-        val existing = prepared.mapNotNull { it["transaction_id"]?.toString()?.takeIf(String::isNotEmpty)?.toLong() }.toSet()
-        val relationContext = CashRelationContextService(context).load(existing + candidates + additionalSeedIds)
-        return PreparedCashImportPreview(prepared, accounts, candidates, retained, relationContext)
+        val existing = operations.mapNotNull { it["transaction_id"]?.toString()?.takeIf(String::isNotEmpty)?.toLong() }.toSet()
+        val relationContext = CashRelationContextService(context).load(existing + candidates + additionalSeedIds, decisionGroupIds)
+        return PreparedCashImportPreview(operations, accounts, candidates, retained, relationContext)
     }
 }

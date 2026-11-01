@@ -68,7 +68,7 @@ internal fun cashImportClosures(edges: Collection<CashRelationGraphEdge>): Map<S
 }
 
 internal fun cashImportRef(snapshot: CashImportPreviewSnapshot, identifier: String): Map<String, Any?> =
-    snapshot.parentOps[identifier]?.let { mapOf("row_ref" to (it["row_refs"] as List<*>).first()) }
+    snapshot.parentOps[identifier]?.let { (it["row_refs"] as List<*>).firstOrNull()?.let { ref -> mapOf("row_ref" to ref) } }
         ?: mapOf("transaction_id" to identifier)
 
 internal data class CashImportRelationGroupResult(val groups: List<MutableMap<String, Any?>>, val failures: List<Map<String, Any?>>)

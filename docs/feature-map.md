@@ -6,6 +6,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 ## Kotlin 后端迁移与公共业务层
 
+导入与维护共用的 [预计图构建器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 已提供接收当前流水操作的内部入口，支持无导入文件、额外流水／决定组、快照变换和当前关系构建；[只读合同回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportBusinessPlanContractTest.kt) 对照完整 Python 结果并核对输入隔离。当前关系规划与完整维护提交尚未接通该入口，6 个维护计划接口继续保留部分完成状态。Web／Native／共享生产 UI 和 DTO 不变，页面数仍为 10，F-03／F-04 的完整维护 TODO 保留。
+
 普通草稿保存的 [Kotlin 服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftSaveService.kt) 已接通现有 PATCH，保持草稿与余额，来源正文、现金部分、公共条目、事项及投影与永久收据同事务；提交后的当前详情不可读或已删除仍保留成功结果。[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftSaveContractTest.kt) 覆盖原 17 定义／82 参数、双库完整 HTTP、回滚、真实 COMMIT 故障和 PG 锁后权限；[现有 Compose 保存消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinDraftSaveResponseIntegrationTest.kt) 已验证实际回包。Web／Native 共用页面和共享生产合同，页面数仍为 10；普通草稿保存 API 的迁移 TODO 关闭，完整维护及两端既有 UI 验收 TODO 保留。
 
 流水与已选收支的 [Kotlin 删除服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDeletionService.kt) 已接通旧单条删除、影响预览和批量删除，保持明确确认、当前版本、完整成员以及引用／余额／稳定收支／投影同事务。删除保留原金额、现金部分及账单原文，候选引用清理后推进当前修订；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDeletionContractTest.kt) 覆盖原 17 定义／40 参数、双库完整 HTTP、阶段回滚、真实 PG 锁后权限及来源删除后重新导入。[现有 Compose 批量消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinDeletionResponseIntegrationTest.kt) 已通过实际回包，旧单条 DELETE 没有当前真实调用者。Web／Native 共用页面和协议，页面数仍为 10；删除 API 的迁移 TODO 关闭，完整关系维护及两端既有 UI 验收 TODO 保留。
