@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 74/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 12 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 78/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 8 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的导入和未接入 API 不出现在文档。原 `/docs`／`/redoc` 保持关闭。
 
@@ -61,10 +61,10 @@
 | GET | `/api/v1/queries/transactions` | `src/ft/web/operation_routes.py:175` | 已实现；双库原 HTTP／十字段 DTO、UTC 月份／父和现金部分账户／分类、精确金额、1–200 条、权限／只读快照／读取故障及两个原应用定义验证，当前 Compose 无此 GET 消费者 |
 | GET | `/api/v1/reports/finance` | `src/ft/web/operation_routes.py:186` | 未迁移 |
 | POST | `/api/v1/relations/aliases` | `src/ft/web/operation_routes.py:196` | 已通过原 HTTP／状态和事务合同；账户别名登记 |
-| GET | `/api/v1/funding-relations/pending` | `src/ft/web/operation_routes.py:211` | 未迁移 |
-| POST | `/api/v1/funding-relations/scan` | `src/ft/web/operation_routes.py:218` | 未迁移 |
-| POST | `/api/v1/funding-relations/{relation_id}/confirm` | `src/ft/web/operation_routes.py:225` | 未迁移 |
-| POST | `/api/v1/funding-relations/{relation_id}/reject` | `src/ft/web/operation_routes.py:238` | 未迁移 |
+| GET | `/api/v1/funding-relations/pending` | `src/ft/web/operation_routes.py:211` | 已接入；双库完整验证通过 |
+| POST | `/api/v1/funding-relations/scan` | `src/ft/web/operation_routes.py:218` | 已接入；双库完整验证通过 |
+| POST | `/api/v1/funding-relations/{relation_id}/confirm` | `src/ft/web/operation_routes.py:225` | 已接入；双库完整验证通过 |
+| POST | `/api/v1/funding-relations/{relation_id}/reject` | `src/ft/web/operation_routes.py:238` | 已接入；双库完整验证通过 |
 | POST | `/api/v1/investment-events` | `src/ft/web/operation_routes.py:251` | 未迁移 |
 | POST | `/api/v1/investment-import` | `src/ft/web/operation_routes.py:298` | 未迁移 |
 | POST | `/api/v1/operations/sync` | `src/ft/web/operation_routes.py:339` | 未迁移 |

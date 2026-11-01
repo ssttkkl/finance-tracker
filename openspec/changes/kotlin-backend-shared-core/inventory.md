@@ -1,6 +1,6 @@
 # 全量迁移盘点
 
-基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 74/86 个 HTTP 操作，其中 6 个维护计划操作已完成完整合同验收；其余 12 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
+基线：`0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。以下列出迁移验收范围；「未迁移」不代表原功能不可用，原 Python 运行时保留。完整 HTTP 方法与路径见 [接口矩阵](routes.md)。当前已接入 78/86 个 HTTP 操作，其中 6 个维护计划操作已完成完整合同验收；其余 8 项未接入。接入数不代表全部原测试或模块已完成。按用户要求，本轮只以功能迁移和功能测试验收，性能测试不阻断本轮功能交付；原预算和未通过证据保留。
 
 ## 模块与合同
 
@@ -17,7 +17,7 @@
 | 支付镜像、退款抵扣、转账配对 | `domain/relations/`、`cash_relation_policy.py`、`cash_relation_graph.py`、`application/cash_current_relation_*`、`cash_relation_context.py`、`relations.py` | 先共用选择/命令协议与客户端组合校验；完整图和候选纯计算按双端需求接入；查询当前超集、授权、决定及落账由服务器负责 | 角色/闭包/分组/完整图纯规则 43 原定义已迁并复核；当前角色关系字段写入、按修订替换及规范候选替换仓库已迁，类型变化局部维护已迁；关系组联合写入、完整重复识别及发现失败记录已迁；关系组已接入联合导入确认，其余资金生命周期仍未迁移 |
 | 当前收支、证据、分页、投影发布 | `cash_projections.py`、`web_queries.py`、`adapters/relational/cash_*` | 共用 DTO/版本及纯展示结果；当前成员/entry 完整性、staging/active dataset、快照游标由服务器负责 | 投影纯构建、管理员状态／重建、暂存发布、全量及增量维护已通过双库；当前详情、按流水定位、证据及账本列表 GET 已接通，列表保留游标／序号、筛选／版本、全局选项及精确月汇总，并由实际 Compose 消费验证。手工新建、转账、旧现金新增／余额校准及导入已接线；其余公开写入、完整组合原测试、历史迁移和性能仍未验收 |
 | 投资事件、重放、持仓/成本、表现 | `investment.py`、`investment_import.py`、`investment_web_queries.py`、`domain/investment_*` | 共用协议与实际客户端需要的精确计算；完整重放/成本/PnL/回报按双端需求提取，来源/持久化由服务器负责 | 事件列表／账单原文两个 GET 已完成原 HTTP／只读、源断言、真实故障／当前权限与现有 Compose 消费验收；原应用四定义和 HTTP 前四定义共 8／11 参数已迁，写入／导入、重放／持仓／成本／表现及其他原测试仍待迁移 |
-| 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 未迁移 |
+| 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 四操作已接入；原 13 定义／27 参数及双库完整验证通过 |
 | 连接器同步、增量游标 | `sync_service.py`、`adapters/connectors/ccxt_exchange.py`、`polymarket.py` | 共用事件归一；服务端凭据、网络分页、cursor 与财务写入不下沉 | 未迁移 |
 | 行情、FX、历史估值 | `adapters/market_data.py`、`fx_rates.py`、`application/valuation.py` | 共用资产身份、估值/新鲜度规则；外部请求、缓存和超时由服务器负责 | 未迁移 |
 | 持仓刷新、SSE | `portfolio_refresh.py`、`web/app.py` | 工作区隔离 worker；5 秒刷新、15 秒 heartbeat、60 秒 backoff、last-success/generation/version、关闭等待 | 未迁移 |
@@ -59,7 +59,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 原 OpenAPI／浏览器错误和写边界新增直接迁移 8 定义／12 参数；历史 Alembic 收据迁移 1 定义／2 参数整体保留并在两库运行，Native 读取原真实升级后的两份完整收据及当前 schema，且全表只读。公开文档按当前真实路由筛选原完整 86 项资源，完整装配为 74 项；框架元数据入口不增加业务接口数。当前关系预览、稳定收支编辑及公开协议原定义已有直接对应，维护接口验收已完成，剩余共享存储／基础规则原测试继续单独保留。
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 818 个定义／2,192 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,783 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 831 个定义／2,219 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,770 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - 维护提交恢复原 9 定义／34 参数已由 `CashMutationRecoveryOriginalTest` 直接对应，包含真实双库锁、永久收据优先、过期与权限错误、局部依赖拒绝和当前账户资格；完整验证证据见 tasks。
 - 维护计划发布原 12 定义／40 参数已由 `CashMutationPublicationOriginalTest` 直接对应；当前完整双库与实际 Compose 消费通过，独立最终复核无可执行 finding，证据见 tasks。

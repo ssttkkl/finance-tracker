@@ -60,6 +60,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     transfers: CashTransferService = CashTransferService(database,now = clock),
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
     accountAliases: AccountAliasService = AccountAliasService(database, now = clock),
+    fundingRelations: FundingRelationService = FundingRelationService(database, now = clock),
     investmentReads: InvestmentLedgerReadService = InvestmentLedgerReadService(database, now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
@@ -74,6 +75,18 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<FundingRelationInternalFailure> { call, _ ->
+            call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+        }
+        exception<FundingRelationHttpFailure> { call, failure ->
+            call.respond(HttpStatusCode.fromValue(failure.status), ErrorBody(ErrorDetail("invalid_relation", failure.message.orEmpty())))
+        }
+        exception<FundingRelationPathFailure> { call, failure ->
+            call.respond(HttpStatusCode.UnprocessableEntity, sourceJson(mapOf("detail" to listOf(mapOf(
+                "type" to if (failure.oversized) "int_parsing_size" else "int_parsing", "loc" to listOf("path", "relation_id"),
+                "msg" to if (failure.oversized) "Unable to parse input string as an integer, exceeded maximum size"
+                    else "Input should be a valid integer, unable to parse string as an integer", "input" to failure.input)))))
+        }
         exception<InvestmentReadFailure> { call, failure ->
             when (failure.code) {
                 "internal" -> call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
@@ -739,6 +752,31 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 }
                 call.respondText(result.toString(), ContentType.Application.Json)
             }
+        }
+        get("/api/v1/funding-relations/pending") {
+            val result = try { withContext(Dispatchers.IO) {
+                fundingRelations.pending(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.attributes[requestPrincipalKey])
+            } } catch (_: FundingRelationFailure) { throw FundingRelationHttpFailure(400, "资金调拨关系无法读取。") }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        post("/api/v1/funding-relations/scan") {
+            val result = try { withContext(Dispatchers.IO) {
+                fundingRelations.write(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.attributes[requestPrincipalKey], "scan")
+            } } catch (_: FundingRelationFailure) { throw FundingRelationHttpFailure(400, "资金调拨关系扫描失败。") }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        for (operation in listOf("confirm", "reject")) post("/api/v1/funding-relations/{relation_id}/" + operation) {
+            val id = fundingRelationId(call.parameters["relation_id"]!!)
+            val result = try {
+                val input = categoryDeleteRequest(pythonJsonText(call.receive<ByteArray>()))
+                withContext(Dispatchers.IO) {
+                    fundingRelations.write(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.attributes[requestPrincipalKey], operation,
+                        id, input.value, input)
+                }
+            } catch (failure: FundingRelationFailure) { throw FundingRelationHttpFailure(409, failure.message.orEmpty().ifEmpty {
+                if (operation == "confirm") "资金调拨关系确认失败。" else "资金调拨关系驳回失败。" }) }
+            catch (failure: CategoryFailure) { throw FundingRelationHttpFailure(409, failure.code) }
+            call.respondText(result.toString(), ContentType.Application.Json)
         }
         get("/api/v1/investment-events") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }

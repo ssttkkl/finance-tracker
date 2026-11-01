@@ -13610,6 +13610,300 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
+      "source": "tests/test_cash_investment_funding_relations.py::test_complete_cash_draft_is_not_a_funding_candidate_until_posted",
+      "source_sha256": "c48197f4e628e4ae533f43fd807240e67c8b80fc54667454b59a32ea900f75d6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_complete_cash_draft_is_not_a_funding_candidate_until_posted[sqlite-investment_out]",
+        "tests/test_cash_investment_funding_relations.py::test_complete_cash_draft_is_not_a_funding_candidate_until_posted[sqlite-transfer_out]",
+        "tests/test_cash_investment_funding_relations.py::test_complete_cash_draft_is_not_a_funding_candidate_until_posted[postgresql-investment_out]",
+        "tests/test_cash_investment_funding_relations.py::test_complete_cash_draft_is_not_a_funding_candidate_until_posted[postgresql-transfer_out]"
+      ],
+      "assertions": [
+        "assert service.scan() == []",
+        "assert relation['cash_transaction_component_id'] == cash._test_component_id",
+        "assert relation['status'] == ('accepted' if record_type == 'investment_out' else 'pending_review')",
+        "assert session.scalars(select(CashInvestmentFundingRelationModel)).all() == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "completeStrongDraftIsExcludedUntilPosted"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "completeOrdinaryDraftIsExcludedUntilPosted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_confirmation_rechecks_cash_lifecycle_without_consuming_an_investment_endpoint",
+      "source_sha256": "5a8343d5e37fa59c2c7d0d3d4c5a78a7536a0f14d8999092e61582f1add620cd",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_confirmation_rechecks_cash_lifecycle_without_consuming_an_investment_endpoint[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_confirmation_rechecks_cash_lifecycle_without_consuming_an_investment_endpoint[postgresql]"
+      ],
+      "assertions": [
+        "assert pending['status'] == 'pending_review'",
+        "assert accepted['cash_transaction_component_id'] == posted._test_component_id",
+        "assert session.get(CashInvestmentFundingRelationModel, pending['id']).status == 'pending_review'",
+        "pytest.raises(ValueError, match='端点不可用')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "confirmationRechecksLifecycleWithoutConsumingInvestment"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_confirmed_funding_relation_participates_in_projection_source_digest",
+      "source_sha256": "2f4dff16aefa38001ff2ffd3305a30748da911a91decd2ace0dbbfd43d1ad787",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_confirmed_funding_relation_participates_in_projection_source_digest[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_confirmed_funding_relation_participates_in_projection_source_digest[postgresql]"
+      ],
+      "assertions": [
+        "assert CashInvestmentFundingRelationService(sessions, 'funding').scan()[0]['status'] == 'accepted'",
+        "assert repository.source_digest() != before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "acceptedFundingEvidenceChangesProjectionSourceDigest"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_funding_scan_reads_current_endpoints_after_a_competing_workspace_delete",
+      "source_sha256": "dd9707083bbca56c29a6a64c92ff4c295ffe4909b04cc39f1b992d65060994e3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_funding_scan_reads_current_endpoints_after_a_competing_workspace_delete[postgresql]"
+      ],
+      "assertions": [
+        "assert not worker.is_alive() and (not errors)",
+        "assert result == []",
+        "assert ready.wait(5), 'independent scanner did not reach its read boundary'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "competingWorkspaceDeleteIsReadAfterActualPostgresLockWait"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_respects_directional_window",
+      "source_sha256": "2751de95e73ff8136a12e05b8c5552c6a499b730afdd7bdb4b82ce053aa96f30",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_respects_directional_window[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_respects_directional_window[postgresql]"
+      ],
+      "assertions": [
+        "assert CashInvestmentFundingRelationService(sessions, 'funding').scan() == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "institutionStillRequiresDirectionalWindow"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_upgrades_unreviewed_system_candidate",
+      "source_sha256": "2d418eecb86b4770012c793f67b1bc6c5a37ef7dc617646c95153f90d302056b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_upgrades_unreviewed_system_candidate[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_candidate_upgrades_unreviewed_system_candidate[postgresql]"
+      ],
+      "assertions": [
+        "assert relation['status'] == 'accepted'",
+        "assert relation['decided_by'] == 'system'",
+        "assert relation['decision_reason'] == 'unique_institution_name_candidate'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "unreviewedSystemCandidateCanBeUpgraded"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_institution_name_prefers_the_unique_exact_candidate_over_generic_transfer",
+      "source_sha256": "0acf5d6b701eca4a3f97b330c081de1cb8d5abe6e7ea39664af49b77871f703d",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_prefers_the_unique_exact_candidate_over_generic_transfer[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_institution_name_prefers_the_unique_exact_candidate_over_generic_transfer[postgresql]"
+      ],
+      "assertions": [
+        "assert len(relations) == 1",
+        "assert relations[0]['status'] == 'accepted'",
+        "assert relations[0]['cash_transaction_component_id'] == institution_cash._test_component_id",
+        "assert relations[0]['investment_event_id'] == investment.id"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "exactInstitutionCandidateReplacesGenericTransfer"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_non_external_funding_and_other_workspace_endpoints_fail_closed",
+      "source_sha256": "14d7aed6b69e09f868a26456987b08aa32e499a5956a071a0471afae48242861",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_non_external_funding_and_other_workspace_endpoints_fail_closed[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_non_external_funding_and_other_workspace_endpoints_fail_closed[postgresql]"
+      ],
+      "assertions": [
+        "assert service.scan() == []",
+        "pytest.raises(ValueError, match='找不到资金调拨关系')",
+        "pytest.raises(IntegrityError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "nonExternalAndCrossWorkspaceEndpointsFailClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_endpoints_once",
+      "source_sha256": "16beecd9ab19db75088ac41d7666c118bb76ec1a4c782a902009af9c0b57fb34",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_endpoints_once[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_ordinary_or_ambiguous_candidates_require_manual_decision_and_consume_endpoints_once[postgresql]"
+      ],
+      "assertions": [
+        "assert {item['status'] for item in candidates} == {'pending_review'}",
+        "assert {item['investment_event_id'] for item in candidates} == {investment.id}",
+        "assert accepted['status'] == 'accepted'",
+        "assert accepted['decided_by'] == 'tester'",
+        "assert rejected['status'] == 'rejected'",
+        "assert rejected['cash_transaction_component_id'] != first_cash._test_component_id or accepted['cash_transaction_component_id'] == first_cash._test_component_id",
+        "pytest.raises(ValueError, match='端点已被确认关系占用')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "ambiguousCandidatesRequireManualDecisionAndConsumeEndpointsOnce"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_schwab_institution_name_candidate_allows_bank_fee_difference",
+      "source_sha256": "1686e985602fa97a1bf9b94521ba387e0ef6108188a8d82be0fd576da3a90e01",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_schwab_institution_name_candidate_allows_bank_fee_difference[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_schwab_institution_name_candidate_allows_bank_fee_difference[postgresql]"
+      ],
+      "assertions": [
+        "assert relation['status'] == 'accepted'",
+        "assert relation['cash_transaction_component_id'] == cash._test_component_id",
+        "assert relation['investment_event_id'] == investment.id",
+        "assert relation['decision_reason'] == 'unique_institution_name_candidate'",
+        "assert relation['evidence'] == {'business_day_window': 0, 'candidate_count': 1, 'cash_record_type': 'transfer_out', 'match_keys': ['institution_name', 'direction', 'business_day']}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "schwabInstitutionAllowsBankFeeDifference"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_stronger_institution_candidate_archives_legacy_generic_candidate",
+      "source_sha256": "d4a2389878507478dfd20ddb8f2ca9982fe29f22f39f0fe6321b61f8342a429e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_stronger_institution_candidate_archives_legacy_generic_candidate[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_stronger_institution_candidate_archives_legacy_generic_candidate[postgresql]"
+      ],
+      "assertions": [
+        "assert by_cash_id[generic_cash._test_component_id]['status'] == 'rejected'",
+        "assert by_cash_id[generic_cash._test_component_id]['decision_reason'] == 'no_longer_candidate'",
+        "assert by_cash_id[institution_cash._test_component_id]['status'] == 'accepted'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "strongerInstitutionArchivesLegacyGenericCandidate"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_unique_institution_name_candidate_allows_cross_currency_and_amount_difference",
+      "source_sha256": "2097d36a77b2de9ef7fe198fec4e480bcb56a38a1bb08dd7210395fcb23bf338",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_unique_institution_name_candidate_allows_cross_currency_and_amount_difference[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_unique_institution_name_candidate_allows_cross_currency_and_amount_difference[postgresql]"
+      ],
+      "assertions": [
+        "assert relation['status'] == 'accepted'",
+        "assert relation['cash_transaction_component_id'] == cash._test_component_id",
+        "assert relation['investment_event_id'] == investment.id",
+        "assert relation['decision_reason'] == 'unique_institution_name_candidate'",
+        "assert relation['evidence'] == {'business_day_window': 6, 'candidate_count': 1, 'cash_record_type': 'transfer_out', 'match_keys': ['institution_name', 'direction', 'business_day']}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "institutionAllowsCrossCurrencyAndDifferentAmount"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
+      "source": "tests/test_cash_investment_funding_relations.py::test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer",
+      "source_sha256": "d2f78ce3f886e449daea1e9c06ee9aea8f5b8e045463fc2ab2573898245016d6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_investment_funding_relations.py::test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer[sqlite]",
+        "tests/test_cash_investment_funding_relations.py::test_unique_strong_candidate_is_idempotently_confirmed_and_projects_as_bank_security_transfer[postgresql]"
+      ],
+      "assertions": [
+        "assert len(first) == 1",
+        "assert first == second",
+        "assert relation['status'] == 'accepted'",
+        "assert relation['cash_transaction_component_id'] == cash._test_component_id",
+        "assert relation['investment_event_id'] == investment.id",
+        "assert relation['rule_id'] == 'cash-investment-funding-v1'",
+        "assert relation['evidence'] == {'business_day_window': 0, 'candidate_count': 1, 'cash_record_type': 'investment_out', 'match_keys': ['amount', 'currency', 'direction', 'business_day']}",
+        "assert projection.economic_type == 'internal_transfer'",
+        "assert projection.transfer_subtype == 'bank_security_transfer'",
+        "assert projection.net_amount == Decimal('0')",
+        "assert projection.funding_relation_id == relation['id']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/FundingRelationContractTest.kt",
+          "test": "strongCandidateIsIdempotentAndMaintainsRealProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨"
+    },
+    {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets",
       "source_sha256": "c6c5a95939818b73898a6d3d7b619e04ea5f6756aa78a070c24fbd06bc69f07a",
       "status": "migrated",

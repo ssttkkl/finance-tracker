@@ -215,6 +215,7 @@
 - [ ] 4.12.23 迁移导入即时与缓存关系计划应用：当前摘要、人工决定验证/拒绝/接受留后、镜像保护、系统调和、冗余退款替换、剩余额度、完整图、受影响现金部分与缓存不重匹配；先以 Python 匿名双库完整结果/错误/无写入合同失败测试驱动，再接 4.11 导入事务。（2026-10-30 UTC，HEAD/比较基线 `2aa3d0fc` 工作树。即时与缓存入口分别先因缺方法编译失败，见 `/tmp/ft-import-apply-red.log`、`/tmp/ft-cached-apply-red.log`；Python 隔离 SQLite 与本机 PostgreSQL 16.14 `_test` 各导出七组即时、八组缓存结果和错误后无写入合同。Kotlin `CashRelationServiceTest` 两库各 14 项通过，日志 `/tmp/ft-relation-after-rejection-sqlite.log`、`/tmp/ft-relation-after-rejection-pg16.log`；`ktlintCheck`、`detekt` 通过，见 `/tmp/ft-relation-apply-static.log`；独立只读 diff 审查无可执行 finding，工具未代跑测试。PostgreSQL 18 当前 Docker Desktop 不可启动，须在专用 `_test` 实例恢复后重跑；全部匿名夹具已配置；完整后端功能回归 SQLite 676 项、0 failure/error、1 项 PostgreSQL 专属锁测试 skip，PostgreSQL 16.14 专用 `_test` 库 676 项、0 failure/error/skip，`installDist` 两库成功，见 `/tmp/ft-full-{sqlite,pg16}-20261030d.log`。当前方法仍待接入 4.11 导入事务及补足组合边界验证，不计完成。）
 - [ ] 4.12 镜像/退款/转账纯算法及权威候选/决定/完整关系图、entry/投影更新、现金—投资资金调拨。
 - [x] 4.13.1 接通投资事件列表和账单原文两个原 GET：按当前工作区和原筛选／分页读取，保留 18 位金额、原版本游标、活动资金调拨摘要、来源安全白名单及原错误；原应用四定义与原 HTTP 前四定义直接对应，双库全量、实际 Compose 消费与独立复核后验收。
+- [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
@@ -357,6 +358,23 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 现金与投资账户资金调拨
+
+本片比较基线 `0d47a1297c724ad9a4e1e6731aa1a0a9db50bd72`，隔离工作树 `funding-worktree-1102fh`，目标仍为 `origin/continue-kotlin-backend-refactor`。沿用已完成的全量 A 类 grilling 和 86 接口验收，不引入新的财务语义。
+
+阶段 1–3：对照资金调拨主规格、词表、原应用服务和完整原测试文件，保留 UTC 自然日 0–7 窗口、普通候选／强类型／受控机构名称的选择优先级、人工决定、活动端点互斥、工作区锁和投影事务。计划直接迁移 13 个原定义／27 个参数；组合 CLI 替代 HTTP 定义仍待其他接口完成后整体验收。先生成原测试首次服务调用前的独立输入，再写失败测试。
+
+阶段 4：FundingRelationRepository 直接迁移原 13 定义／27 参数，14 个 JVM 方法保留全部原断言，另 6 个 HTTP 方法覆盖真实 Python 46 组响应及完整持久关系、原非对象／可选原因／整数路径错误、权限与事务故障。funding-compile-red-1102fh.log 先因缺少服务失败；funding-http-red-1102fh/ 复现真实 404。错误顺序回归 funding-reason-order-red-1102fh/ 复现备注编码盖过找不到关系，原双库证明在 funding-reason-order-original-1102fh.json；已在原存在／状态／可用性校验后检查编码。测试夹具复制修正为实际记录 copy，保留类型／子类型；PG 锁等待观察刷新统计快照，投影故障观察实际 UPDATE／批量执行，不把观察器缺陷记为财务服务缺陷。原服务边界和 Python 均不改。
+
+阶段 5：funding-review-1102fh.log 独立只读辅助工具复核产品范围、工程、权限、输入、事务、原断言映射，无可执行 finding；审查者未改文件、运行测试或访问数据库。funding-final-review-1102fi.log 对完整当前 diff、测试观察器、全部映射和文档最终复核，无可执行 finding；审查者未代跑验证。
+
+阶段 6：原 Python 27 passed／零跳过，见 funding-python-reference-1102fh.log/xml；Native 定向两库各 20 项，SQLite 1 项原 PG 专属跳过、PG 零跳过，零失败／错误，构建／ktlint／detekt 通过，见 funding-focus-{sqlite,pg}-combined-final-1102fh。源文件完整门禁先为 13 pending，再为 13 migrated／27 参数、零错误，见 funding-source-{red,green}-1102fh。当前工作树映射 831 定义／2,219 参数，13 retained／1,770 pending；接口接通并验收 78/86，其余 8 项未接入。全新 SQLite 完整 207 套／1,345 项零失败／错误、4 项原 PG 专属跳过，构建与静态通过；八类实际回包 Host 18 项通过，见 full-sqlite-1102fi。真实 Netty 两库各 46 组对照通过，见 funding-netty-{sqlite,pg}-1102fi.json；仅新生成的 created_at／decided_at 使用真实时钟，均限定在本次运行 UTC 时间内且逐项等于数据库保存值，其余完整响应与关系行不作归一。全源门禁零错误，OpenSpec all strict 38/38、doctor 和 7 文档／313 链接及 diff 检查通过。真实 PostgreSQL16 完整回归按互斥基础组 190 套／1,128 项、维护组 17 套／217 项执行，并集完整 207 套／1,345 项，零失败／错误／跳过；496 个后端源码／资源／构建文件 SHA 和逐类项数与 SQLite 同版一致，见 full-pg-1102fi/coverage-verification.json。其后八类实际客户端回包 Host 18 项通过／零跳过。所有实际命令、环境、JUnit 和 UTC 时间均在对应 full 目录，不沿用旧矩阵。在 compose/ 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，PG 两组使用 command.json 的明确 `--tests` 清单；随后 `:shared:testAndroidHostTest` 用 client-command.json 的八类筛选，SQLite 同等筛选见运行驱动及日志。仅使用明确专用 `_test` PostgreSQL 与仓库外匿名 SQLite，性能仍按用户决定排除，PG18 未验证。
+
+阶段 7：backend README、功能地图、inventory／routes、design／tasks、原定义映射和 apply skill 已同步实际接线与完整验收状态；核对根 README、词表、主规格／delta、导入行为／协议、配置和依赖，无新概念、schema 或公开字段，其余无需改写。最终独立静态审查已完成；已按精确清单清理 865 个自有 PostgreSQL 测试库（含基础组前序 347 个）及 797 个 SQLite 临时文件／544,280,576 字节，见 funding-{pg,sqlite}-cleanup-1102fi.json。正确不可变初始快照、SHA、原响应、日志与 JUnit 保留，仓库 tmp/ 不存在。根交付 15 文件与隔离验证／审查树逐 SHA 一致，见 funding-delivery-backup-1102fi/manifest.json；根执行 `:backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，见 funding-root-compile-1102fi.log。根全源／参数门禁、OpenSpec all strict 38/38、doctor、7 文档／313 链接及 diff 检查通过。交付目标仍为 origin/continue-kotlin-backend-refactor，最终交付 SHA 见仓库外 funding-delivered-1102fi.json；按已有同分支授权提交／推送，备份、提交 blob 与远端 SHA 核对后移除本轮隔离工作树。完整验收证明为 funding-final-proof-1102fi.json。Cross-platform Impact Check：本片不改 Web／Native 页面和共享生产 DTO；目前未发现四个旧接口的 Compose 实际消费者，不能以测试假消费者宣称产品接线。页面数仍为 10，保留现有两端 TODO。回滚撤销新增服务、路由和测试映射，无 schema、真实数据迁移或生产切换。
+
+阶段 8：已在 apply skill 沉淀原首次服务构造前的输入捕获、备注编码错误顺序、PG 统计快照与实际批量 SQL 故障观察规则；保留当前候选／人工决定和投影维护合同。全迁移保持未完成。
+
 
 ### 投资事件列表与账单原文读取
 
