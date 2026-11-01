@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.10.6.5 补解析暂存原文件剩余 37 定义：真实内存／R2 条件对象端口、生命周期、原始行证据、预算／JSON、快照与公开缓存；原输入及全部参数直接对应，静态类型不可构造的 Python 参数整定义 retained 并运行原参考／Native 兼容验证，完成前不把该原文件计为验收。
+
 - [x] 4.8.15 直接迁移来源决定输入原 4 定义／22 参数：共享记录意图、全部 16 类非法结构、规范化重复事项和终结性合并；不改生产解析器或原 Python，核对无数据库输入边界后重新执行维护源范围验收。
 
 - [x] 4.8.14 补公开计划 JSON 协议剩余原 5 定义：实际字节预算、非有限数、解析／验证调度、权威未提交状态及访问日志语言边界；先复现维护 JSON 未受流预算限制，恢复原流读取／解码合同，完成双库、独立复核与文档收尾。
@@ -253,11 +255,13 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前工作树原测试映射为 775 migrated／8 retained／1,831 pending，参数 2,082/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线为 `dca1e6931b2d52223ab5e33f807576c61bc9605f`，加 `source-input-worktree-1102fa`，交付目标 `origin/continue-kotlin-backend-refactor`；同分支小步提交／推送授权继续适用。HTTP 已接入 71/86，其中 6 个维护接口已完成完整合同验收（合计 71 完整、15 未接入）；其余原测试、投资、同步／行情／后台及全迁移最终验收未完成。
+当前工作树原测试映射为 808 migrated／12 retained／1,794 pending，参数 2,177/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线为 `414d18af19e39672458c9b1126c51aefc1443603`，加 `staging-worktree-1102fb`；交付仍为 `origin/continue-kotlin-backend-refactor`，同分支小步提交／推送授权适用。HTTP 为 71/86（71 完整、15 未接入）；本片无路由或生产代码变化，完整维护已验收，其余原测试、投资、同步／行情／后台及全迁移最终验收未完成。
 
-本片新增来源决定输入原 4 定义／22 参数的直接断言。原 Python 22 passed，Native 4 项及静态检查通过；维护相关 23 个源文件完整门禁为 243 migrated／3 retained、零 pending，保留项均有原执行及 Native 兼容证据。此前 200 套／1,265 项完整双库证据绑定上述基线，SQLite 零失败／错误、3 项 PG 专属跳过，PG16 零失败／错误／跳过，七项实际 Host 两库各 16 项通过。逐文件 SHA 证明本片只有一个纯测试类新增，全部生产、资源、既有测试及 backend 构建配置不变；旧 200 类完整证据与新 4 项纯输入合计覆盖 201 套／1,269 项，明确不宣称本片重新执行了整条全量 Gradle 命令。覆盖证明为 `source-input-coverage-1102fa/coverage-proof.json`，既有双库证据为 `full-{sqlite,pg}-1101ey`。
+本片补解析暂存原文件剩余 37 定义：33 migrated／95 参数，4 整定义／30 参数 retained。原文件累计 51 migrated／135 参数、4 retained／30 参数、零 pending。原 Python 全文件 165 passed；新 Native 37 项及静态检查通过，实际内存／R2 条件端口与纯预算均有直接断言，不宣称真实 R2 云验证。四个宽类型原定义无法通过 Kotlin 模型／签名构造，保留完整原参数，Native 兼容覆盖可表示输入和损坏存储，二者异常不混同。
 
-匿名输入／初始 SHA、实际命令／环境、日志／JUnit、完整覆盖和精确清理记录均位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。新增实际命令为 `./gradlew :backend:test --tests '*CashSourceIssueInputOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，日志／JUnit 为 `source-input-native-1102fa.log/xml`；该纯输入类无数据库访问，无需新建或重跑已消费数据库。原 Python 命令使用根 `.venv/bin/python`，外置 basetemp／cache_dir／JUnit，见 `source-input-python-1102fa.log/xml`。本机 PG16.14 位于 `127.0.0.1:55433`，原完整矩阵使用手工准备的专用 `_test` 库及显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动；PG18 尚未验证。
+`staging-coverage-1102fb/coverage-proof.json` 逐文件证明生产、资源、旧 201 类及 backend 构建配置与基线 SHA 相同，只新增本类。旧完整双库 200 套／1,265 项（SQLite 零失败／错误、3 项 PG 专属跳过，PG16 零失败／错误／跳过）、此前纯输入 4 项和本片 37 项合计覆盖 202 套／1,306 项；明确不宣称本片重新执行整条全量 Gradle 命令。实际当前命令为 `./gradlew :backend:test --tests '*ParsedImportStagingOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，日志 `staging-all-1102fb.log`、JUnit `staging-native-1102fb.xml`；原 Python 全文件命令与日志／JUnit 见 `staging-python-1102fb.log/xml`，使用根 .venv、显式 `PYTHONPATH` 及外置 basetemp／cache_dir。
+
+匿名输入／初始 SHA、命令／环境、日志／JUnit、覆盖与精确清理记录均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。旧双库完整矩阵为 `full-{sqlite,pg}-1101ey`，前片纯输入为 `source-input-coverage-1102fa`；本机 PG16.14 在 `127.0.0.1:55433`，原矩阵手工准备专用 `_test` 库并显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动。生产与 SQL 行为未变，本片无新数据库；七项实际 Host 两库各 16 项旧证据仍绑定原矩阵及未变的生产／共享消费代码，没有 UI／客户端修改，不另宣称重跑。PG18、真实 R2 和真实账单专项仍待完成。
 
 用户明确排除性能执行，`-PbackendFunctionalOnly=true` 仅排除 `CategoryDeletionPerformanceTest` 与 `CashClassificationPerformanceTest`，原预算与未通过证据保留，不宣称性能通过。本片无 schema、依赖、生产客户端／UI 或金融语义变化，已授权的既有修复保留；未授权 PR、合并、部署、真实数据迁移或删除 Python。
 
@@ -348,6 +352,27 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 解析暂存剩余原合同
+
+本片 HEAD／比较基线 `414d18af19e39672458c9b1126c51aefc1443603`，隔离工作树 `staging-worktree-1102fb`，交付目标仍为 `origin/continue-kotlin-backend-refactor`。沿用已接受全量 A 类 grilling、OpenSpec 合同及本分支小步提交／推送授权；不添加产品语义、配置、依赖、公开 API、数据库或 UI。
+
+阶段 1：原 `test_parsed_import_staging.py` 共 55 定义，已有 18 定义映射，剩余 37 定义包含内存／R2 两种端口、上下文及过期、严格 JSON／原始行／文档证据、原子替换／取消、清扫、只读快照与缓存。先运行完整范围门禁保存 37 pending，再补对应。R2 合同使用既有条件对象端口的真实状态假客户端，不声称真实 R2 云验证。
+
+阶段 2：design 先确定类型适配及错误边界。Kotlin 的 `sourceExplanation`、`sourceAccountIdentifier`、rows／fields 和 sweep limit 为静态类型，不能为复刻 Python 的 None、整数／列表、错误行结构或布尔／字符串参数扩大生产 API。相关混合参数原定义整体 retained，原 Python 全文件执行；Native 验证可表示的无效值、静态签名和损坏存储拒绝，不把部分参数计作 migrated。空 tuple 按 JSON 数组表示，与空 list 使用同一 Native 序列合同，保留原参数标签。
+
+阶段 3：按 37 原定义及全部参数逐项核对失败／正常断言、真实条件发布／关闭流、旧可选字段、当前对象／所有者／TTL、缓存预算及原文件复用；测试观察器只在底层读写边界注入原故障或检查存储／缓存，调用实际共同 `ParsedImportStore` 和实际两种存储端口，不伪造业务结果或通过新增生产 hook 凑断言。
+
+阶段 4：原范围先为 37 pending，已增加 37 个 Native 方法，实际调用同一公共存储行为及两个具体条件对象端口。首轮仅新夹具缺少 `CashSourceCoverage` 必填构造参数而编译失败；显式提供原默认值后核心 25 项通过，补齐快照／缓存等 12 项后全部 37 项和静态检查通过。没有发现或修改生产行为，原 Python 与已迁测试均不变。构造器提供原可变测试预算的等价小预算配置，保留生产默认预算；快照只读以真实解码故障负控制证明不恢复无关文件，不用空文件替代原合法文件。
+
+阶段 5：独立范围／工程／安全、原断言、类型保留及最终 diff 复核无可执行 finding，见 `staging-review-1102fb.log`；审查核对源参数、实际条件端口委托和快照负控制，未代跑测试。没有业务行为差异，四个静态类型边界按整定义保留，未放宽原断言或把内部异常当作业务跳过。
+
+阶段 6：原 Python 全文件 165 passed，日志／JUnit `staging-python-1102fb.log/xml`；新 Native 37 项及静态检查通过，日志 `staging-all-1102fb.log`、JUnit `staging-native-1102fb.xml`。原文件完整范围为 51 migrated／4 retained、零 pending；本片 33 migrated／95 参数，4 retained／30 参数，保留整定义。全部 125 个原参数节点原样登记，类型不可构造的四定义不计 migrated。全源／参数门禁为 808 migrated／12 retained／1,794 pending、零错误；原文件完整门禁通过。`staging-coverage-1102fb/coverage-proof.json` 逐文件证明生产／资源／原 201 类测试及 backend 构建配置完全不变，只新增本类；原完整双库 200 套／1,265 项和随后纯输入 4 项与本片新 37 项合计覆盖 202 套／1,306 项，SQLite 保留 3 项 PG 专属跳过，PG16 零跳过。不宣称重新执行整条全量 Gradle；实际当前命令为 `./gradlew :backend:test --tests '*ParsedImportStagingOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。没有 SQL 存储变更时不新增数据库，不将条件对象假客户端称为真实云验证；性能按用户决定排除、PG18 仍待验。
+
+阶段 7：README、地图、inventory、design／tasks 和项目 skill 已原位收尾；主 README、主规格／delta、词表、routes、配置与依赖无新概念／合同或接线变化，无需改写；根交付 8 文件与隔离验证／审查树逐 SHA 一致，见 `staging-delivery-backup-1102fb/manifest.json`。根执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，日志 `staging-root-compile-1102fb.log`；根全源／参数、55 定义原文件完整范围、OpenSpec all strict 38/38、doctor、6 文档／299 本地链接和 `git diff --check` 均通过。无新数据库、真实数据或仓库临时目录；现有初始快照和日志／JUnit 保留，隔离工作树在精确备份、提交与远端 SHA 核对后清理。Web／Native／共享生产 DTO 与交互不变，页面数 10，两端 UI TODO 保留，无浏览器／设备／原生包 QA 新增范围。回滚只撤销本片测试／映射及适用原合同恢复，不触碰真实数据、部署或 Python 生产入口。
+
+阶段 8：完整参数范围、语言类型边界、真实流／条件端口、原始文件快照及缓存当前对象围栏已沉淀到 apply skill；不以单类通过关闭整个存储或后端迁移。
+
 
 ### 来源决定输入与维护范围验收
 

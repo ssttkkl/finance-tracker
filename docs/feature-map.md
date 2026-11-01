@@ -1,5 +1,7 @@
 # Compose 功能地图
 
+解析暂存的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt) 已覆盖内存／R2 条件端口的固定有效期、修订、取消、文档证据、预算、快照和缓存围栏。原文件 51 定义／135 参数已迁移，4 整定义／30 参数按静态类型边界保留原 Python 参考及 Native 兼容验证，原文件零 pending。该测试补齐不新增页面、客户端入口或公共 DTO；Web／Native 页面数仍为 10，两端既有 UI TODO 保留。真实 R2、真实账单、其余运行时／持久化原测试及整个 Kotlin 迁移仍未完成。
+
 Kotlin 本机预览已接入 71/86 个业务操作，6 个维护计划操作已完成完整合同验收；其余 15 个操作未接入。来源决定的 [直接输入回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt) 已覆盖原 4 定义／22 参数，维护相关 23 个原文件为 243 migrated／3 retained、零 pending，见 [验收矩阵](../openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收)。Web／Native 页面、共享生产 DTO 和交互未变，页面数仍为 10；两端既有 UI 验收 TODO 保留，生产入口仍为 Python。
 
 [公开协议](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 已提供当前注册操作的 `/openapi.json`；[原生验证](../compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt) 覆盖账户、上传、计划、维护、诊断与普通新增的原 schema，不将未接入 API 写成可用。浏览器错误使用真实认证和两种来源核对；历史收据在原升级／拒绝降级后由 Native 读取。无新产品页面，Web／Native／共享生产 DTO 和交互均不变，页面数 10，两端既有 TODO 及维护部分状态保留。

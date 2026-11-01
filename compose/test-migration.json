@@ -16998,6 +16998,54 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_parsed_import_staging.py::test_background_sweep_removes_unvisited_expired_sessions_in_bounded_pages",
+      "source_sha256": "ae56af8f1382e056886ccacbc685fa2343d5f8b4520caa24373fb9b689e602bf",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_background_sweep_removes_unvisited_expired_sessions_in_bounded_pages[memory]",
+        "tests/test_parsed_import_staging.py::test_background_sweep_removes_unvisited_expired_sessions_in_bounded_pages[r2]"
+      ],
+      "assertions": [
+        "assert scanned == 4 and deleted == 3",
+        "assert _get(store, live) == live",
+        "assert result.scanned <= 2",
+        "assert client.bodies == [] and len(client.head_calls) == 4",
+        "assert all((call[0] == 'cash-import/parsed/' and call[1] == 2 for call in client.list_calls))",
+        "assert all((client.metadata['private-imports', store._key(item.session_id)]['expires-at'] == item.expires_at.isoformat() for item in expired))",
+        "assert set(store._entries) == {live.session_id}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "backgroundSweepRemovesUnvisitedExpiredSessionsInBoundedPages"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_cancel_clears_financial_body_and_cannot_be_reopened_by_stale_publish",
+      "source_sha256": "c2bc8cd35369ef5f4d4c83bee976c9001c6632a22d44c3c89a56b153eb9cb7b8",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_cancel_clears_financial_body_and_cannot_be_reopened_by_stale_publish[memory]",
+        "tests/test_parsed_import_staging.py::test_cancel_clears_financial_body_and_cannot_be_reopened_by_stale_publish[r2]"
+      ],
+      "assertions": [
+        "assert cancelled.cancelled and cancelled.revision == 2",
+        "assert cancelled.files == () and cancelled.plan is None and (cancelled.preview_input == {})",
+        "assert _get(store, first).cancelled",
+        "pytest.raises(ImportSessionRevisionConflict)",
+        "pytest.raises(ImportSessionClosed)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "cancelClearsFinancialBodyAndCannotBeReopenedByStalePublish"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
       "source": "tests/test_parsed_import_staging.py::test_cancelled_session_cannot_be_reopened_by_a_plan_snapshot",
       "source_sha256": "ecd9effb5224b00b02e9d2a91aae2634d06715b70a0f5e6bfcb82eda34388fc8",
       "status": "migrated",
@@ -17015,6 +17063,135 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_datetime_in_source_fields_keeps_safe_invalid_json_failure",
+      "source_sha256": "f37376e02fb0bd477f2d3d6eeac2d08785a9199641d822eebb1b7dda8f0762a0",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_datetime_in_source_fields_keeps_safe_invalid_json_failure[memory]",
+        "tests/test_parsed_import_staging.py::test_datetime_in_source_fields_keeps_safe_invalid_json_failure[r2]"
+      ],
+      "assertions": [
+        "pytest.raises(ParsedImportDataError, match='import_session_json_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "datetimeInSourceFieldsKeepsSafeInvalidJsonFailure"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_document_page_proof_and_locator_roundtrip_without_original_file",
+      "source_sha256": "5d61ba96be316a55fc656c39bf74725060add73c61e6ab8b4f782f1a0cd8d606",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_document_page_proof_and_locator_roundtrip_without_original_file[memory]",
+        "tests/test_parsed_import_staging.py::test_document_page_proof_and_locator_roundtrip_without_original_file[r2]"
+      ],
+      "assertions": [
+        "assert restored.coverage == coverage and restored.rows[0].document_position == 'p2:t0:r1'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "documentPageProofAndLocatorRoundtripWithoutOriginalFile"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_edit_context_inherits_original_lifetime_and_clears_private_data_on_cancel",
+      "source_sha256": "9c6a9edceea940d36c849bcddcf1beb81ffa767a0080b29fa9877b1e8f7a2f54",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_edit_context_inherits_original_lifetime_and_clears_private_data_on_cancel[memory]",
+        "tests/test_parsed_import_staging.py::test_edit_context_inherits_original_lifetime_and_clears_private_data_on_cancel[r2]"
+      ],
+      "assertions": [
+        "assert child.created_at == original.created_at and child.expires_at == original.expires_at",
+        "assert _get(store, child).workflow_kind == 'mutation'",
+        "assert _get(store, child).context_data == {'synthetic_proof': 'a' * 64}",
+        "assert changed.expires_at == original.expires_at and changed.workflow_kind == 'mutation'",
+        "assert closed.context_data == {} and closed.files == () and closed.cancelled",
+        "pytest.raises(ImportSessionExpired)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "editContextInheritsOriginalLifetimeAndClearsPrivateDataOnCancel"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_empty_json_containers_preserve_budget_and_depth_boundary",
+      "source_sha256": "87816792876859716c07b8983b4cf3f6dab26959ae68d146022266210f1e42c5",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_empty_json_containers_preserve_budget_and_depth_boundary[empty0]",
+        "tests/test_parsed_import_staging.py::test_empty_json_containers_preserve_budget_and_depth_boundary[empty1]",
+        "tests/test_parsed_import_staging.py::test_empty_json_containers_preserve_budget_and_depth_boundary[empty2]"
+      ],
+      "assertions": [
+        "assert budget == [0]",
+        "assert budget == [0]",
+        "pytest.raises(ParsedImportDataError, match='import_session_draft_too_large')",
+        "pytest.raises(ParsedImportDataError, match='import_session_json_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "emptyJsonContainersPreserveBudgetAndDepthBoundary"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_escaped_json_overflow_keeps_size_reason_and_previous_plan",
+      "source_sha256": "d2ceba8e9ee362b1516240c062ac66ce8ea1edc089fef4db11684aa91f0eeb89",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_escaped_json_overflow_keeps_size_reason_and_previous_plan[memory]",
+        "tests/test_parsed_import_staging.py::test_escaped_json_overflow_keeps_size_reason_and_previous_plan[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, session).revision == 1 and _get(store, session).plan is None",
+        "pytest.raises(ParsedImportDataError, match='import_session_draft_too_large')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "escapedJsonOverflowKeepsSizeReasonAndPreviousPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write",
+      "source_sha256": "398459e9ed075e0c9b979fba285eaca481660c5851c1d95560085318b7c322f6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[memory-files0]",
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[memory-files1]",
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[memory-files2]",
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[r2-files0]",
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[r2-files1]",
+        "tests/test_parsed_import_staging.py::test_file_limits_and_unique_references_are_checked_before_write[r2-files2]"
+      ],
+      "assertions": [
+        "assert not client.objects",
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "fileLimitsAndUniqueReferencesAreCheckedBeforeWrite"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_parsed_import_staging.py::test_foreign_user_cannot_delete_expired_body",
@@ -17035,6 +17212,157 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written",
+      "source_sha256": "76146f28bd01bdcbd64f4c3da263f205e7590189356fb4967976a4d9768cda39",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[memory-arbitrary-0-60]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[memory-mutation-0-1900]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[memory-mutation-10-60]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[memory-mutation--60--1]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[r2-arbitrary-0-60]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[r2-mutation-0-1900]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[r2-mutation-10-60]",
+        "tests/test_parsed_import_staging.py::test_invalid_context_kind_or_lifetime_cannot_be_written[r2-mutation--60--1]"
+      ],
+      "assertions": [
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "invalidContextKindOrLifetimeCannotBeWritten"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session",
+      "source_sha256": "6c03db7649ed83dc09bec6890886c3ee1cacdd6f9c938575061d60fc7aab341e",
+      "status": "retained",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session[memory-rows0]",
+        "tests/test_parsed_import_staging.py::test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session[memory-rows1]",
+        "tests/test_parsed_import_staging.py::test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session[r2-rows0]",
+        "tests/test_parsed_import_staging.py::test_invalid_nested_document_is_rejected_before_it_can_corrupt_existing_session[r2-rows1]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first",
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "typedNestedDocumentAndCorruptWireFailClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同",
+      "reason": "rows are List<ParsedCashRow> and fields are Map<String,Any?>?; original dictionary rows and string fields cannot be constructed through the typed API. Keep the entire original definition and every original parameter as Python reference; no partial migrated count.",
+      "compatibility": "Native executes representable invalid values against both actual memory and R2 conditional object ports, verifies unchanged valid publication where constructible, and rejects equivalent malformed stored JSON with ParsedImportStorageUnavailable. Corrupt storage is a separate boundary, not claimed as the original prewrite input exception.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest -q tests/test_parsed_import_staging.py --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-temp-1102fb -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-pytest-cache-1102fb --junitxml=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-1102fb.xml"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session",
+      "source_sha256": "46a17c7dd062b282e44bc45afdd17f1d60f8446e0ae2a609eff448ab5fd1fa3f",
+      "status": "retained",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[memory-]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[memory-owner1]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[memory-123]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[memory-owner3]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[r2-]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[r2-owner1]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[r2-123]",
+        "tests/test_parsed_import_staging.py::test_invalid_row_level_scope_is_rejected_without_corrupting_session[r2-owner3]"
+      ],
+      "assertions": [
+        "assert _get(store, session) == session",
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "typedRowScopeRejectsInvalidStringsAndCorruptNonStrings"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同",
+      "reason": "sourceAccountIdentifier is String?; original integer and list values cannot enter the typed publication API. Keep the entire original definition and every original parameter as Python reference; no partial migrated count.",
+      "compatibility": "Native executes representable invalid values against both actual memory and R2 conditional object ports, verifies unchanged valid publication where constructible, and rejects equivalent malformed stored JSON with ParsedImportStorageUnavailable. Corrupt storage is a separate boundary, not claimed as the original prewrite input exception.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest -q tests/test_parsed_import_staging.py --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-temp-1102fb -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-pytest-cache-1102fb --junitxml=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-1102fb.xml"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published",
+      "source_sha256": "57ad02635d54cf986b48e33c6177b2bf775a07d093a31e3fb68876857ca0ca49",
+      "status": "retained",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[memory-explanation0]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[memory-explanation1]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[memory-explanation2]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[memory-explanation3]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[memory-None]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[r2-explanation0]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[r2-explanation1]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[r2-explanation2]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[r2-explanation3]",
+        "tests/test_parsed_import_staging.py::test_invalid_source_explanation_cannot_be_published[r2-None]"
+      ],
+      "assertions": [
+        "assert _get(store, session) == session",
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "typedSourceExplanationRejectsRepresentableInvalidValuesAndCorruptNull"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同",
+      "reason": "sourceExplanation is a non-null Map in ParsedCashRow; the original None case cannot enter the typed publication API. Keep the entire original definition and every original parameter as Python reference; no partial migrated count.",
+      "compatibility": "Native executes representable invalid values against both actual memory and R2 conditional object ports, verifies unchanged valid publication where constructible, and rejects equivalent malformed stored JSON with ParsedImportStorageUnavailable. Corrupt storage is a separate boundary, not claimed as the original prewrite input exception.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest -q tests/test_parsed_import_staging.py --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-temp-1102fb -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-pytest-cache-1102fb --junitxml=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-1102fb.xml"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_json_budget_still_visits_empty_looking_container_subclass",
+      "source_sha256": "6aac29794d4d56ccf835966b2465a77c0f6a6a7be2c1cd98113bc47501bc6ff1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_json_budget_still_visits_empty_looking_container_subclass"
+      ],
+      "assertions": [
+        "assert budget == [100 - 3 - 2 - len('not empty')]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "jsonBudgetStillVisitsEmptyLookingContainerSubclass"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_json_scalar_depth_boundary_is_preserved",
+      "source_sha256": "d870bbcf79c59ca24e94943fd232b63e617686c2384b090eba92083a8af21635",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_json_scalar_depth_boundary_is_preserved[memory-list]",
+        "tests/test_parsed_import_staging.py::test_json_scalar_depth_boundary_is_preserved[memory-dict]",
+        "tests/test_parsed_import_staging.py::test_json_scalar_depth_boundary_is_preserved[r2-list]",
+        "tests/test_parsed_import_staging.py::test_json_scalar_depth_boundary_is_preserved[r2-dict]"
+      ],
+      "assertions": [
+        "assert _get(store, accepted).plan == {'nested': value}",
+        "assert _get(store, accepted) == accepted",
+        "pytest.raises(ParsedImportDataError, match='import_session_json_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "jsonScalarDepthBoundaryIsPreserved"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_parsed_import_staging.py::test_late_old_page_fill_cannot_replace_a_new_revision_response",
@@ -17058,6 +17386,26 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_legacy_context_without_kind_is_plain_import",
+      "source_sha256": "ffaeef9b1ad726e7a74d71de1f382a0b09e14caf5df1ce3d1348d71b445ce8e2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_legacy_context_without_kind_is_plain_import[memory]",
+        "tests/test_parsed_import_staging.py::test_legacy_context_without_kind_is_plain_import[r2]"
+      ],
+      "assertions": [
+        "assert restored.workflow_kind == 'import' and restored.context_data == {}",
+        "assert not restored.files[0].is_subset"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "legacyContextWithoutKindIsPlainImport"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_parsed_import_staging.py::test_memory_session_capacity_is_reclaimed_after_expiry",
@@ -17095,6 +17443,111 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_mutation_context_has_no_files_and_keeps_owner_cas_and_original_ttl",
+      "source_sha256": "7e2f7d20b51308e14d947d0d53ea79179183a0cf55a42a5f6b3b206db486cc88",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_mutation_context_has_no_files_and_keeps_owner_cas_and_original_ttl[memory]",
+        "tests/test_parsed_import_staging.py::test_mutation_context_has_no_files_and_keeps_owner_cas_and_original_ttl[r2]"
+      ],
+      "assertions": [
+        "assert current.files == () and _get(store, current).workflow_kind == 'mutation'",
+        "assert changed.expires_at == current.expires_at and changed.files == ()",
+        "assert closed.files == () and closed.context_data == {} and (closed.preview_input == {}) and (closed.plan is None)",
+        "pytest.raises(ImportSessionForbidden)",
+        "pytest.raises(ImportSessionRevisionConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "mutationContextHasNoFilesAndKeepsOwnerCasAndOriginalTtl"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_nested_invalid_json_is_rejected_without_leaking_a_recursion_error",
+      "source_sha256": "c91dfb21de1f5aab60fcec41265697f55b47d2230a1cafbe9c9839e006cd17e6",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_nested_invalid_json_is_rejected_without_leaking_a_recursion_error[memory]",
+        "tests/test_parsed_import_staging.py::test_nested_invalid_json_is_rejected_without_leaking_a_recursion_error[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, session) == session",
+        "pytest.raises(ParsedImportDataError, match='import_session_json_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "nestedInvalidJsonIsRejectedWithoutLeakingARecursionError"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_non_financial_json_numbers_can_roundtrip_in_source_evidence",
+      "source_sha256": "390902f805e4ca3b417f2e38fb37020a39fa755587d1d7d8a607114cec245653",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_non_financial_json_numbers_can_roundtrip_in_source_evidence[memory]",
+        "tests/test_parsed_import_staging.py::test_non_financial_json_numbers_can_roundtrip_in_source_evidence[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == second"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "nonFinancialJsonNumbersCanRoundtripInSourceEvidence"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_old_parsed_objects_without_source_explanation_remain_readable",
+      "source_sha256": "374e53da52edeb139d1c7770b6fe29a74885776985d63817b07595cc01381d99",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_old_parsed_objects_without_source_explanation_remain_readable[memory]",
+        "tests/test_parsed_import_staging.py::test_old_parsed_objects_without_source_explanation_remain_readable[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, session).files[0].document.rows[0].source_explanation == {}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "oldParsedObjectsWithoutSourceExplanationRemainReadable"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged",
+      "source_sha256": "d49fc25d54a60c6e4953e1e22cc63826cc21fd87961eb411a5c1ca4de2d080d2",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[memory-original upload bytes]",
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[memory-bad1]",
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[memory-bad2]",
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[r2-original upload bytes]",
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[r2-bad1]",
+        "tests/test_parsed_import_staging.py::test_only_json_business_values_can_be_staged[r2-bad2]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first",
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "onlyJsonBusinessValuesCanBeStaged"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_parsed_import_staging.py::test_only_one_concurrent_replacement_can_publish",
@@ -17161,6 +17614,53 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_parsed_import_staging.py::test_parsed_session_roundtrip_is_detached_and_never_contains_upload_bytes",
+      "source_sha256": "274f78f7fe546a91991078632cff53e5cfb3d3050d50645959fd9ff3dc9ce115",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_parsed_session_roundtrip_is_detached_and_never_contains_upload_bytes[memory]",
+        "tests/test_parsed_import_staging.py::test_parsed_session_roundtrip_is_detached_and_never_contains_upload_bytes[r2]"
+      ],
+      "assertions": [
+        "assert session.revision == 1",
+        "assert len(session.session_id) == 43",
+        "assert _get(store, session) == session",
+        "assert _get(store, session).files[0].document.rows[0].fields['note'] == '原始说明'",
+        "assert all((body.closed for body in client.bodies))",
+        "assert value['files'][0]['document']['rows'][0]['fields']['amount'] == '-20.00'",
+        "assert 'content' not in value['files'][0]",
+        "assert 'password' not in value['files'][0]",
+        "assert session.session_id.encode() not in body"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "parsedSessionRoundtripIsDetachedAndNeverContainsUploadBytes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_payload_overflow_leaves_previous_state_untouched",
+      "source_sha256": "56a938ae09f092ac3558e42e78f525c5202ebca3d0f374af53c644a403ce931a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_payload_overflow_leaves_previous_state_untouched[memory]",
+        "tests/test_parsed_import_staging.py::test_payload_overflow_leaves_previous_state_untouched[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first",
+        "pytest.raises(ParsedImportDataError, match='import_session_draft_too_large')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "payloadOverflowLeavesPreviousStateUntouched"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
       "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_checks_owner_and_expiry",
       "source_sha256": "dcb3b6f9b62b9346783e184c2db9c64d376ed8e17763c8ee3c61671834fb6ff0",
       "status": "migrated",
@@ -17181,6 +17681,79 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_publication_reuses_original_files_and_cas",
+      "source_sha256": "b7ec226d79f7b42e01aac09fd3f0b7d8b1a8c5767e0cac75e8e9b56ef3c53d9f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_publication_reuses_original_files_and_cas[memory]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_publication_reuses_original_files_and_cas[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, current).plan == {'plan_id': 'first'}",
+        "assert _get(store, current).plan == {'plan_id': 'first'}",
+        "assert _get(store, current).files == original.files",
+        "pytest.raises(ImportSessionRevisionConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "planSnapshotPublicationReusesOriginalFilesAndCas"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_reads_do_not_restore_unrelated_files_and_remain_isolated",
+      "source_sha256": "07d28645dc6d73e6d18f048efdad0f308d4f228ae4c7ab0a0ef4635892b3030b",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_reads_do_not_restore_unrelated_files_and_remain_isolated[memory]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_reads_do_not_restore_unrelated_files_and_remain_isolated[r2]"
+      ],
+      "assertions": [
+        "assert first.files == () and first.plan == plan and (first.revision == 2)",
+        "assert store.get_plan_snapshot(value.session_id, workspace_id='w', user_id='u').plan == plan",
+        "pytest.raises(module.ImportSessionForbidden)",
+        "pytest.raises(module.ImportSessionForbidden)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "planSnapshotReadsDoNotRestoreUnrelatedFilesAndRemainIsolated"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata",
+      "source_sha256": "3167f78255c755b24db94b487cb00d81ae7e46322ce36d5b53b2aacd572f6c8f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change0]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change1]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change2]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change3]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change4]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[memory-change5]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change0]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change1]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change2]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change3]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change4]",
+        "tests/test_parsed_import_staging.py::test_plan_snapshot_rejects_corrupt_metadata[r2-change5]"
+      ],
+      "assertions": [
+        "pytest.raises(ImportSessionStorageUnavailable)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "planSnapshotRejectsCorruptMetadata"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
       "source": "tests/test_parsed_import_staging.py::test_plan_snapshot_still_observes_expiry_replacement_and_cancellation",
       "source_sha256": "4c71681509a71c1da4e981ba1a33d0ee1dd6ace5628eeb5daf2757e07ecc078c",
       "status": "migrated",
@@ -17199,6 +17772,52 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_public_plan_cache_never_hides_storage_failures_and_bounds_payloads",
+      "source_sha256": "aeff5e369d9a2f3e297af4f34a74f514a37eebdfdf3bd7acee25b516767d1e98",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_public_plan_cache_never_hides_storage_failures_and_bounds_payloads[memory]",
+        "tests/test_parsed_import_staging.py::test_public_plan_cache_never_hides_storage_failures_and_bounds_payloads[r2]"
+      ],
+      "assertions": [
+        "assert len(store._plan_read_cache) == 16",
+        "assert sum((len(item[-1]) for item in store._plan_read_cache.values())) <= 4 * 1024 * 1024",
+        "assert all((b'private' not in item[-1] for item in store._plan_read_cache.values()))",
+        "assert len(store._plan_read_cache) == 16",
+        "assert read(index) == {'value': 'public'}",
+        "pytest.raises(ImportSessionStorageUnavailable)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "publicPlanCacheNeverHidesStorageFailuresAndBoundsPayloads"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_public_plan_page_cache_is_bounded_by_current_object_owner_and_lifetime",
+      "source_sha256": "1af7c9e9d8e4028a914c9e356e7728090df81c4d5792397787ea7dd9f196ef23",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_public_plan_page_cache_is_bounded_by_current_object_owner_and_lifetime[memory]",
+        "tests/test_parsed_import_staging.py::test_public_plan_page_cache_is_bounded_by_current_object_owner_and_lifetime[r2]"
+      ],
+      "assertions": [
+        "assert read() == {'items': [{'value': 'original'}]} and calls == [2]",
+        "assert read() == {'items': [{'value': 'current'}]} and calls == [2, 3]",
+        "pytest.raises(ImportSessionForbidden)",
+        "pytest.raises(ImportSessionExpired)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "publicPlanPageCacheIsBoundedByCurrentObjectOwnerAndLifetime"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_parsed_import_staging.py::test_publish_that_crosses_expiry_never_returns_a_successful_expired_session",
@@ -17342,6 +17961,25 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_parsed_import_staging.py::test_r2_sweep_ignores_unrelated_keys_and_can_clean_pre_metadata_objects",
+      "source_sha256": "85fb08fa89e26e1ddd98d3478e83cc73f1878d0be8655cb1cbf816d82fa8f628",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_r2_sweep_ignores_unrelated_keys_and_can_clean_pre_metadata_objects"
+      ],
+      "assertions": [
+        "assert result.deleted == 1 and len(client.objects) == 3",
+        "assert client.bodies == [] and client.head_calls == [old_key]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "r2SweepIgnoresUnrelatedKeysAndCanCleanPreMetadataObjects"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
       "source": "tests/test_parsed_import_staging.py::test_r2_uncertain_write_is_never_retried_as_unconditional_put",
       "source_sha256": "edbcb2c9c02a8c38e15a2e5b2f11b5d2587ddd57ffa293f98145f2e9ae344453",
       "status": "migrated",
@@ -17360,6 +17998,202 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_replacement_atomically_changes_files_input_and_plan_and_rejects_stale_revision",
+      "source_sha256": "8bcf9ce014b2fed95acb918770078aaac803454fa7082e0a61d23a6401e16c35",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_replacement_atomically_changes_files_input_and_plan_and_rejects_stale_revision[memory]",
+        "tests/test_parsed_import_staging.py::test_replacement_atomically_changes_files_input_and_plan_and_rejects_stale_revision[r2]"
+      ],
+      "assertions": [
+        "assert second.revision == 2",
+        "assert second.files[0].file_ref == 'replacement'",
+        "assert second.plan['plan_id'] == 'plan-1'",
+        "assert _get(store, first) == second",
+        "assert client.writes[0][2] == '*'",
+        "assert client.writes[-1][1] is not None",
+        "pytest.raises(ImportSessionRevisionConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "replacementAtomicallyChangesFilesInputAndPlanAndRejectsStaleRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_retired_failed_subset_kinds_cannot_be_created",
+      "source_sha256": "81c7b3c8bcdd2799db83ad30ca6e6d5a3ce51d209f65d61cf3b02fe62c522e00",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_retired_failed_subset_kinds_cannot_be_created[memory-retry]",
+        "tests/test_parsed_import_staging.py::test_retired_failed_subset_kinds_cannot_be_created[memory-retry_capsule]",
+        "tests/test_parsed_import_staging.py::test_retired_failed_subset_kinds_cannot_be_created[r2-retry]",
+        "tests/test_parsed_import_staging.py::test_retired_failed_subset_kinds_cannot_be_created[r2-retry_capsule]"
+      ],
+      "assertions": [
+        "pytest.raises(ParsedImportDataError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "retiredFailedSubsetKindsCannotBeCreated"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_revision_changes_never_extend_ttl_and_expiry_deletes_body",
+      "source_sha256": "8eb0102ef84b9098e6692f61aff7d3d2070032620515281bcf2d52f653690012",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_revision_changes_never_extend_ttl_and_expiry_deletes_body[memory]",
+        "tests/test_parsed_import_staging.py::test_revision_changes_never_extend_ttl_and_expiry_deletes_body[r2]"
+      ],
+      "assertions": [
+        "assert second.expires_at == first.expires_at",
+        "assert not client.objects",
+        "pytest.raises(ImportSessionExpired)",
+        "pytest.raises(ImportSessionNotFound)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "revisionChangesNeverExtendTtlAndExpiryDeletesBody"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_row_level_source_scope_survives_both_parsed_stores",
+      "source_sha256": "b43c6aa81083daae6b2040300260b061f7310994553cd702d1f3b426df8153b1",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_row_level_source_scope_survives_both_parsed_stores[memory]",
+        "tests/test_parsed_import_staging.py::test_row_level_source_scope_survives_both_parsed_stores[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, session).files[0].document.rows[0].source_account_identifier == '6222000000001234'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "rowLevelSourceScopeSurvivesBothParsedStores"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_source_explanation_roundtrip_is_detached",
+      "source_sha256": "26057fc474dc4e8474e4048bb961df803bc615082868896d2a4ffaa61cf56c89",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_source_explanation_roundtrip_is_detached[memory]",
+        "tests/test_parsed_import_staging.py::test_source_explanation_roundtrip_is_detached[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, session).files[0].document.rows[0].source_explanation == {'txn_id': '001', '_is_refund': False}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "sourceExplanationRoundtripIsDetached"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_sweep_does_not_extend_expiry_after_a_late_edit",
+      "source_sha256": "20dd88bdd75f65e3d4faf9d008784f13df208725e007998b0afc5d68b033799a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_sweep_does_not_extend_expiry_after_a_late_edit[memory]",
+        "tests/test_parsed_import_staging.py::test_sweep_does_not_extend_expiry_after_a_late_edit[r2]"
+      ],
+      "assertions": [
+        "assert store.sweep_expired(limit=10).deleted == 1"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "sweepDoesNotExtendExpiryAfterALateEdit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size",
+      "source_sha256": "d5d79418b8b6ec9eb3da03bc67c1069b04711b08582b2e39de2194361c82e256",
+      "status": "retained",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[memory-0]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[memory-201]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[memory-True]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[memory-10]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[r2-0]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[r2-201]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[r2-True]",
+        "tests/test_parsed_import_staging.py::test_sweep_rejects_unbounded_or_malformed_page_size[r2-10]"
+      ],
+      "assertions": [
+        "pytest.raises(ParsedImportDataError, match='import_session_sweep_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "typedSweepLimitRejectsInvalidIntegersAndDoesNotAcceptOtherTypes"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同",
+      "reason": "sweepExpired limit is Int; original bool and string values cannot be supplied to this signature. Keep the entire original definition and every original parameter as Python reference; no partial migrated count.",
+      "compatibility": "Native rejects the original invalid Int limits 0 and 201 on both ports and verifies the actual public Int parameter signature; bool/string input does not exist on this typed API.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest -q tests/test_parsed_import_staging.py --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-temp-1102fb -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-pytest-cache-1102fb --junitxml=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/staging-python-1102fb.xml"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision",
+      "source_sha256": "1fee7f2d6f17f9d6ccff9bc442dfb4ca48a3cb5ea2eb033cf97041a6730bcd77",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision[memory-{\"note\":\"\\\\ud800\"}]",
+        "tests/test_parsed_import_staging.py::test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision[memory-{\"\\\\ud800\":\"value\"}]",
+        "tests/test_parsed_import_staging.py::test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision[r2-{\"note\":\"\\\\ud800\"}]",
+        "tests/test_parsed_import_staging.py::test_unpaired_unicode_surrogate_has_safe_error_and_preserves_current_revision[r2-{\"\\\\ud800\":\"value\"}]"
+      ],
+      "assertions": [
+        "assert _get(store, first) == first",
+        "pytest.raises(ParsedImportDataError, match='import_session_json_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "unpairedUnicodeSurrogateHasSafeErrorAndPreservesCurrentRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
+    },
+    {
+      "source": "tests/test_parsed_import_staging.py::test_wechat_scope_roundtrips_and_invalid_scope_never_replaces_session",
+      "source_sha256": "84e6c95465dab4279e2e2f25bbfcd1d3d1093390b579a6b83a5a0e63d4e8c9b3",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_parsed_import_staging.py::test_wechat_scope_roundtrips_and_invalid_scope_never_replaces_session[memory]",
+        "tests/test_parsed_import_staging.py::test_wechat_scope_roundtrips_and_invalid_scope_never_replaces_session[r2]"
+      ],
+      "assertions": [
+        "assert _get(store, created).files[0].source_scope_label == '工作微信'",
+        "assert _get(store, created) == created",
+        "pytest.raises(ParsedImportDataError, match='import_session_file_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt",
+          "test": "wechatScopeRoundtripsAndInvalidScopeNeverReplacesSession"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#解析暂存剩余原合同"
     },
     {
       "source": "tests/test_postgres_adapter.py::test_cross_currency_cash_to_security_transfer_preserves_exact_projection_values",
