@@ -6759,6 +6759,164 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-failures-and-permissions"
     },
     {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_component_change_without_parent_revision_still_invalidates_confirmation",
+      "source_sha256": "af8d415399d131d0860b16298fe7859f6279d53bc8b67b4ea6aa6d973614bfba",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_component_change_without_parent_revision_still_invalidates_confirmation[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_component_change_without_parent_revision_still_invalidates_confirmation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert parent.row_revision == revision",
+        "assert parent.note == note and parent.row_revision == revision",
+        "assert session.scalar(select(CashTransactionComponentModel.ordinal).where(CashTransactionComponentModel.cash_transaction_id == int(identifier))) == 1",
+        "Exception boundary: pytest.raises(CashMutationConflict, match='record_changed')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "componentChangeWithoutParentRevisionInvalidatesConfirmation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused",
+      "source_sha256": "7d80246e4f22d6bce652f5c3a27f46ec572cb061a75bd838d27e43761ac12ed3",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused[cash_web_runtime-soft]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused[cash_web_runtime-pending]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused[postgres_cash_web_runtime-soft]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused[postgres_cash_web_runtime-pending]"
+      ],
+      "assertions": [
+        "Exception boundary: pytest.raises(CashRecordMaintenanceError, match='record_not_found')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "softDeletionRejectsReadsAndNoPendingEntityCanBeSupplied"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts",
+      "reason": "SQLAlchemy Session.deleted is an unflushed entity state. Native JDBC lookup accepts only a Long ID and immutable snapshots cannot be supplied as entity state; the whole mixed definition remains a Python reference.",
+      "python_command": "FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/contract/test_cash_maintenance_current_reuse.py::test_deleted_supplied_object_is_not_reused",
+      "compatibility": "Native verifies actual soft-delete rejection and full rollback, final snapshot fields, and the ID-only lookup signature. Existing financial foreign keys are preserved; no pending ORM-deletion registry or physical-delete bypass is introduced."
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_object_from_another_session_cannot_override_the_current_record",
+      "source_sha256": "98333e55ef40a4285336b9c29528669cdc895e882aa8e7fae11e50d4fbe94a65",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_object_from_another_session_cannot_override_the_current_record[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_object_from_another_session_cannot_override_the_current_record[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert actual.note == '其他会话的新值' and old.note == old_note"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "anotherConnectionSnapshotCannotOverrideTheCurrentCommittedRecord"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts",
+      "compatibility": "An immutable first-connection snapshot remains unchanged while a second connection commits a new note; a third current lookup must read the new value."
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_posted_import_type_change_is_rejected_without_changing_members_or_relation",
+      "source_sha256": "f443c7b1580e3d5d3b0c174db9e367e2f2cae21342e35fc63b6cf578e0b6147d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_posted_import_type_change_is_rejected_without_changing_members_or_relation[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_posted_import_type_change_is_rejected_without_changing_members_or_relation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert records(runtime).read('1003')['fields']['components'] == before",
+        "assert session.get(TransactionRelationModel, relation_id).active",
+        "Exception boundary: pytest.raises(ValueError, match='field_not_editable')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "postedImportTypeEditRejectsWithoutChangingMembersOrRelation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_members",
+      "source_sha256": "b49e1d9dfa221a5b23ce3a9d6b9c0ba6fd12d2d82e627f476acf06fded20aa23",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_members[cash_web_runtime-False]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_members[cash_web_runtime-True]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_members[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_reused_source_snapshot_matches_fresh_scope_for_additional_closure_members[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert context.transaction_ids == frozenset({1001, 1003})",
+        "assert reused.values == fresh.values and reused.facts == fresh.facts and (reused.components == fresh.components)",
+        "assert reused.values['1001']['source_scope_key'] == 'synthetic-bank-scope'",
+        "assert bool(scopes) is root_bound"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "rootScopeAvailabilityNeverDropsAdditionalClosureMembersSources"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts",
+      "compatibility": "Native always retrieves scopes for the complete closure rather than accepting a root-only cached scope argument. Both root-bound cases directly compare current values, facts and components and require the additional member bank scope."
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_does_not_bypass_workspace_scope",
+      "source_sha256": "b711f190dab6c92f7700012ad86bdaac43d6e35dacaf1652b29f4f26201b65ff",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_does_not_bypass_workspace_scope[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_does_not_bypass_workspace_scope[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "Exception boundary: pytest.raises(CashRecordMaintenanceError, match='record_not_found')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "previouslyReadRecordNeverBypassesWorkspaceScope"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts",
+      "compatibility": "The old snapshot supplies only an ID; every JDBC lookup independently filters its current workspace and live-row scope."
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session",
+      "source_sha256": "eb83c5b237953739d11660413d5e3060077064e358689b26960c5c93cd3e5d92",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[cash_web_runtime-current]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[cash_web_runtime-expired]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[cash_web_runtime-rolled_back]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[cash_web_runtime-other_record]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[postgres_cash_web_runtime-current]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[postgres_cash_web_runtime-expired]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[postgres_cash_web_runtime-rolled_back]",
+        "tests/contract/test_cash_maintenance_current_reuse.py::test_supplied_record_is_only_reused_while_current_in_this_session[postgres_cash_web_runtime-other_record]"
+      ],
+      "assertions": [
+        "assert found.id == 1001 and found.note == '当前已读内容'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt",
+          "test": "currentExpiredRolledBackAndOtherSnapshotsNeverReplaceCurrentSqlValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts",
+      "compatibility": "JDBC performs ID-selected current reads. Source current/expired/rollback/other-record cases are adapted to current reads, completed-transaction snapshots, actual rollback, and another-record snapshots; immutable values and an ID-only signature prevent an old entity from replacing current facts."
+    },
+    {
       "source": "tests/contract/test_cash_manual_associations.py::test_http_search_and_association_use_explicit_target_contract",
       "source_sha256": "d93b0e8980b1a0fddc3458b002149d86417559966808883167ad643fa17d6c32",
       "status": "migrated",
@@ -12321,6 +12479,44 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_mutation_failure_results.py::test_duplicate_discovery_failures_have_one_safe_stable_result_and_group_failure_is_separate",
+      "source_sha256": "baec7799be159dc58fe9e02257049137b066680d44195f7ae3b79d8d983ac074",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_mutation_failure_results.py::test_duplicate_discovery_failures_have_one_safe_stable_result_and_group_failure_is_separate"
+      ],
+      "assertions": [
+        "assert result['result_kind'] == 'relation' and result['outcome'] == 'failed' and (result['code'] == 'relation_discovery_failed')",
+        "assert result['transaction_id'] == '100'",
+        "assert repeated == result"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt",
+          "test": "duplicateDiscoveryFailuresHaveOneStableSafeResultAndSkipExistingGroups"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
+    },
+    {
+      "source": "tests/test_cash_mutation_failure_results.py::test_unresolved_virtual_members_do_not_expose_a_virtual_transaction_reference",
+      "source_sha256": "381a75c283659c9435f93c5cba1a71659e5eb7b6df32941b1576316b029ef0af",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_mutation_failure_results.py::test_unresolved_virtual_members_do_not_expose_a_virtual_transaction_reference"
+      ],
+      "assertions": [
+        "assert result['transaction_id'] is None and virtual not in str(result)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt",
+          "test": "unresolvedVirtualMembersNeverExposeAVirtualTransactionReference"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
     },
     {
       "source": "tests/test_cash_projection.py::test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply",

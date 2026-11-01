@@ -51,9 +51,11 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 ## 测试与黄金合同
 
+当前记录复用与发现失败结果两文件共 9 定义／26 参数，已直接迁移 8 定义／22 参数；1 定义／4 参数依赖 SQLAlchemy 未刷写删除状态，按语言边界保留 Python 参考。Native 验证实际软删除拒绝、完整回滚和只接受 ID 的不可变快照边界，不用物理删除绕过财务外键，也不计为已迁移。完整来源闭包与无父修订变化的现金部分依赖分别直接验证，证据见 tasks。
+
 维护 HTTP 的 `CashMaintenanceOriginalHttpTest` 直接对应原文件全部 17 定义／52 参数，包含实际回滚、提交后丢失响应、原键读取故障、权限／过期、非法结构、私有归属及成功后详情不可读。26 个原组合在双库分别执行，公开输入与内部规范化表示分别验证；原定义与附加断言分开统计，完整矩阵证据见 tasks。
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 692 个定义／1,868 个展开参数，5 个定义按语言类型及异常边界保留，其余 1,917 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 700 个定义／1,890 个展开参数，6 个定义按语言类型及异常边界保留，其余 1,908 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - 维护提交恢复原 9 定义／34 参数已由 `CashMutationRecoveryOriginalTest` 直接对应，包含真实双库锁、永久收据优先、过期与权限错误、局部依赖拒绝和当前账户资格；完整验证证据见 tasks。
 - 维护计划发布原 12 定义／40 参数已由 `CashMutationPublicationOriginalTest` 直接对应；当前完整双库与实际 Compose 消费通过，独立最终复核无可执行 finding，证据见 tasks。
