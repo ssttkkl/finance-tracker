@@ -673,6 +673,30 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_association_split.py::test_split_only_requires_actual_changed_manual_values",
+      "source_sha256": "a0cd88f80c8ba72ffa81b4b850130d1b96342287d68eeb58d0defd875267c2a8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_association_split.py::test_split_only_requires_actual_changed_manual_values[cash_web_runtime--False]",
+        "tests/contract/test_cash_association_split.py::test_split_only_requires_actual_changed_manual_values[cash_web_runtime-\\u5171\\u540c\\u4eba\\u5de5\\u5907\\u6ce8-True]",
+        "tests/contract/test_cash_association_split.py::test_split_only_requires_actual_changed_manual_values[postgres_cash_web_runtime--False]",
+        "tests/contract/test_cash_association_split.py::test_split_only_requires_actual_changed_manual_values[postgres_cash_web_runtime-\\u5171\\u540c\\u4eba\\u5de5\\u5907\\u6ce8-True]"
+      ],
+      "assertions": [
+        "assert bool(diffs) is required",
+        "assert {item['field'] for item in diffs} == {'note'}",
+        "assert all((item['current'] == note for item in diffs))",
+        "assert plan['can_commit']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "splitOnlyRequiresActuallyChangedManualValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
       "source": "tests/contract/test_cash_current_relation_commit.py::test_candidate_evidence_concurrency_refuses_old_commit_before_any_writes",
       "source_sha256": "75445592f88b0c657d87d51c17e6b0a131606b0d28cca7d1d5425075d69784e3",
       "status": "migrated",
@@ -1186,6 +1210,26 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_prechecked_candidate_invalidates_the_old_current_relation_plan",
+      "source_sha256": "ccf140b0ec76fd44f18b30f5db9babe312db9a62b408a791d2096e01546b7ed7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_prechecked_candidate_invalidates_the_old_current_relation_plan[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_delete.py::test_deleting_a_prechecked_candidate_invalidates_the_old_current_relation_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'relation_context_changed' and _rows(runtime) == before",
+        "pytest.raises(CashMutationConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "deletingPrecheckedCandidateInvalidatesOldPlanBeforeAnyWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
     },
     {
       "source": "tests/contract/test_cash_current_relation_delete.py::test_deleting_one_member_keeps_unrelated_confirmed_edges_in_the_old_closure",
@@ -2409,6 +2453,224 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#身份草稿合并迁移"
     },
     {
+      "source": "tests/contract/test_cash_entry_editing.py::test_cash_investment_manual_transfer_has_entry_but_no_single_side_financial_edit",
+      "source_sha256": "200a21ba4cffa32bb1f3dff93b065226f2876b7ae476d20893ba8e0a0e257692",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_cash_investment_manual_transfer_has_entry_but_no_single_side_financial_edit[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_cash_investment_manual_transfer_has_entry_but_no_single_side_financial_edit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert TransferService(RelationalUnitOfWork(runtime.sessions, runtime.workspace_id)).transfer(from_name=names[0], to_name=names[1], amount=Decimal('50'), from_currency='CNY', to_currency='CNY').ok",
+        "assert current['entry'] is not None and (not current['entry']['supports_transfer_edit'])",
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "cashInvestmentTransferKeepsEntryAndPreventsSingleSideFinanceEdit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_conflicting_human_values_defer_only_the_relation_and_can_be_resolved",
+      "source_sha256": "69dd734ea5fef01a9e3b593f9d043a192162d9717c65e894df8b9d3cdd5f8641",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_conflicting_human_values_defer_only_the_relation_and_can_be_resolved[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_conflicting_human_values_defer_only_the_relation_and_can_be_resolved[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(pending['items']) == 2",
+        "assert set(conflict['common_field_conflicts']['note']) == {'人工甲', '人工乙'}",
+        "assert conflict['action'] == 'defer'",
+        "assert len(confirmed['items']) == 1 and confirmed['items'][0]['display']['note'] == '共同决定'",
+        "assert receipt['summary']['relations_confirmed'] == 1",
+        "assert records(runtime).read('1001')['entry']['fields']['note'] == '共同决定'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "conflictingHumanValuesDeferOnlyRelationUntilExplicitCommonChoice"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_deleting_display_root_reuses_entry_with_surviving_root",
+      "source_sha256": "e92ae38bd42273abcb9aa23afad45471180c89d2b59a66e34d6321e64e4232c1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_deleting_display_root_reuses_entry_with_surviving_root[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_deleting_display_root_reuses_entry_with_surviving_root[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert entry.root_transaction_id == 1001"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "deletingDisplayRootKeepsEntryWithSurvivingRoot"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_deleting_standalone_removes_its_current_entry_membership",
+      "source_sha256": "2f65ec7e2dcaaa2f35e0091a27328dfe5f6a2cdb7a4c1cf56eb1f0c9b7f592cf",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_deleting_standalone_removes_its_current_entry_membership[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_deleting_standalone_removes_its_current_entry_membership[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert session.scalar(select(CashEntryMemberModel).where(CashEntryMemberModel.transaction_id == int(identifier))) is None",
+        "assert session.get(CashEntryModel, entry_id) is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "deletingStandaloneRemovesEntryAndMembership"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_edit_entry_http_uses_public_revision_and_keeps_source_fields",
+      "source_sha256": "7e5cd010c1735fccc9c1458147576d03812fd1103522e45ea6b096358f87761c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_edit_entry_http_uses_public_revision_and_keeps_source_fields[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_edit_entry_http_uses_public_revision_and_keeps_source_fields[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert before['record_origin'] == 'import'",
+        "assert response.status_code == 200, response.text",
+        "assert response.json()['items'][0]['display']['note'] == ''",
+        "assert commit_http(client, response.json()).status_code == 200",
+        "assert after['fields'] == before['fields'] and after['row_revision'] == before['row_revision']",
+        "assert after['entry']['fields']['note'] == '' and after['entry']['fields']['counterparty_account'] == '显示账号'",
+        "assert after['entry']['revision'] > before['entry']['revision']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "editEntryHttpUsesPublicRevisionAndKeepsSourceFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_entry_revision_rejects_old_public_edit_without_changing_source_revision",
+      "source_sha256": "8fd118dde8602f568253bfa3bf0751f1981979e15d8d64ee4640f5a48240ed2c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_entry_revision_rejects_old_public_edit_without_changing_source_revision[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_entry_revision_rejects_old_public_edit_without_changing_source_revision[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert before['row_revision'] == after['row_revision']",
+        "assert before['entry']['revision'] < after['entry']['revision']",
+        "assert records(runtime).read(identifier)['entry']['fields']['note'] == '先保存的新值'",
+        "pytest.raises(CashMutationConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "staleEntryRevisionRejectsOldEditWithoutChangingSourceRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_import_public_patch_preserves_source_and_protects_entry",
+      "source_sha256": "fb9d07e4a29c4d7fbb3efe9d74d73d2cf1e5b35a7e97418bf7356f44fcef7f47",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_import_public_patch_preserves_source_and_protects_entry[cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_import_public_patch_preserves_source_and_protects_entry[cash_web_runtime-True]",
+        "tests/contract/test_cash_entry_editing.py::test_import_public_patch_preserves_source_and_protects_entry[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_import_public_patch_preserves_source_and_protects_entry[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert plan['items'][0]['display']['note'] == ''",
+        "assert records(runtime).read(identifier)['entry']['fields']['note'] == ''",
+        "assert plan['items'][0]['display']['note'] == ''",
+        "assert records(runtime).read(identifier)['entry']['fields']['counterparty'] == '人工对方'",
+        "assert source.note == '来源乙' and source.counterparty == '合成商户'",
+        "assert session.get(CashTransactionModel, int(identifier)).note == '来源丙'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "importPublicPatchPreservesSourceAndProtectsEntryAcrossReimport"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_imported_type_is_fixed_and_origin_cannot_be_forged",
+      "source_sha256": "317b3d3672c3a2c3d52a5e811042d4230f624f79b6f84f3734de8a75314e9b6d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_imported_type_is_fixed_and_origin_cannot_be_forged[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_imported_type_is_fixed_and_origin_cannot_be_forged[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert detail['record_origin'] == 'import'",
+        "assert 'record_type' not in detail['editable_fields']",
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "importedTypeAndOriginCannotBeForged"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_manual_financial_edit_uses_same_command_and_preserves_origin",
+      "source_sha256": "a168c28787447104aa574eecfce52824daf688193cde7c929f0d8ed745c4ae86",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_manual_financial_edit_uses_same_command_and_preserves_origin[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_financial_edit_uses_same_command_and_preserves_origin[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert before['record_origin'] == 'manual' and 'amount' in before['editable_fields']",
+        "assert set(detail['members'][0]['editable_fields']) == set(before['editable_fields'])",
+        "assert after['fields']['amount'] == '-30' and after['record_origin'] == 'manual'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "manualFinancialEditKeepsOriginAndOriginalEditableFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_manual_origin_blocks_cash_relations_even_if_source_is_forged",
+      "source_sha256": "0be5afc951b59e05de8f6d7c43b986ea8866e93d2a9a72467ada7721a95a5d51",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_manual_origin_blocks_cash_relations_even_if_source_is_forged[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_origin_blocks_cash_relations_even_if_source_is_forged[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "pytest.raises(CashRelationError, match='manual_relation_forbidden')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "manualOriginPreventsCashRelationsEvenWithForgedSource"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
       "source": "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit",
       "source_sha256": "e0e79bfb41d88d6ce6c6992b7278ac5774f8e37ce7b9656ab908321e58c67dee",
       "status": "migrated",
@@ -2501,6 +2763,152 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_public_edits_do_not_rewrite_sources_and_survive_full_rebuild",
+      "source_sha256": "4b59343c312d26c307f37138977aeccf5b629b976fface760c35303a317b3e69",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_public_edits_do_not_rewrite_sources_and_survive_full_rebuild[cash_web_runtime-1003]",
+        "tests/contract/test_cash_entry_editing.py::test_public_edits_do_not_rewrite_sources_and_survive_full_rebuild[cash_web_runtime-1001]",
+        "tests/contract/test_cash_entry_editing.py::test_public_edits_do_not_rewrite_sources_and_survive_full_rebuild[postgres_cash_web_runtime-1003]",
+        "tests/contract/test_cash_entry_editing.py::test_public_edits_do_not_rewrite_sources_and_survive_full_rebuild[postgres_cash_web_runtime-1001]"
+      ],
+      "assertions": [
+        "assert plan['items'][0]['display']['note'] == '' and plan['items'][0]['display']['counterparty'] == '统一对方'",
+        "assert receipt['status'] == 'completed'",
+        "assert records(runtime).read('1001')['editable_fields'] == []",
+        "assert (first.note, second.note) == ('平台原文', '银行原文')",
+        "assert row.id == old_row_id",
+        "assert row.note == '' and row.counterparty == '统一对方'",
+        "assert state.last_build_status == 'succeeded'",
+        "assert state.last_error_code is state.last_error_summary is None",
+        "assert row.entry_id == entry_id and row.note == '' and (row.counterparty == '统一对方')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "publicEditsPreserveBothSourcesAndSurviveFullRebuild"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision",
+      "source_sha256": "c24cc914e37c43d0d02fc761ee24964de59f585b1468443a83cea15c4164629d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[cash_web_runtime-second_patch0]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[cash_web_runtime-second_patch1]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[cash_web_runtime-second_patch2]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[postgres_cash_web_runtime-second_patch0]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[postgres_cash_web_runtime-second_patch1]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_combines_one_entry_public_decision[postgres_cash_web_runtime-second_patch2]"
+      ],
+      "assertions": [
+        "assert plan['items'][0]['display']['note'] == '统一备注'",
+        "assert receipt['summary']['skipped'] == 0",
+        "assert len(results) == 2",
+        "assert entry['fields']['note'] == '统一备注'",
+        "assert entry['fields']['counterparty'] == second_patch['counterparty']",
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "reimportCombinesOnePublicDecisionAndRejectsConflictingValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_reimport_unprotected_public_values_match_preview_commit_and_rebuild",
+      "source_sha256": "ec208a4326f1543ea110030c40f21dfc97ae5b3910b94df0b234d09601427e91",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_reimport_unprotected_public_values_match_preview_commit_and_rebuild[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_reimport_unprotected_public_values_match_preview_commit_and_rebuild[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['items'][0]['display']['note'] == '来源乙'",
+        "assert entry['entry_id'] == entry_id and entry['fields']['note'] == '来源乙'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "unprotectedReimportMatchesPreviewCommitAndFullRebuild"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_reliable_key_lookup_and_discovery_exclude_manual_origins",
+      "source_sha256": "5afc48d9416b5cbadd68a5975761baae5ebd5327f9194ed05b07e286d447b300",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_reliable_key_lookup_and_discovery_exclude_manual_origins[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_reliable_key_lookup_and_discovery_exclude_manual_origins[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert 1003 not in builder._hard_key_ids(session, [operation], {})",
+        "assert builder._discover(snapshot, {part.component_id for part in context.components}, accounts, session) == ([], [])"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "hardKeyLookupAndDiscoveryExcludeManualOrigins"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_unlink_requires_explicit_inheritance_and_restores_current_member_values",
+      "source_sha256": "28ccef0791f403d3f0fe8d36fee9b901ccc7d200d83091b20408b156b28cad2f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_unlink_requires_explicit_inheritance_and_restores_current_member_values[cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_unlink_requires_explicit_inheritance_and_restores_current_member_values[cash_web_runtime-True]",
+        "tests/contract/test_cash_entry_editing.py::test_unlink_requires_explicit_inheritance_and_restores_current_member_values[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_unlink_requires_explicit_inheritance_and_restores_current_member_values[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert receipt['status'] == 'completed'",
+        "assert len(rows) == 2",
+        "assert {row.note for row in rows} == expected",
+        "assert {row.note for row in session.scalars(select(CashProjectionModel).where(CashProjectionModel.root_cash_transaction_id.in_((1001, 1003))))} == expected",
+        "pytest.raises(ValueError, match='inheritance_required')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "unlinkRequiresExplicitInheritanceAndKeepsRestoredValuesAfterRebuild"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_workspace_deletion_clears_classified_entries_and_preserves_other_workspace",
+      "source_sha256": "f05f659345d8b571a2c08a63b72c877ac1c6c6ee5d22c01b482892f7cb80912f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_workspace_deletion_clears_classified_entries_and_preserves_other_workspace[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_workspace_deletion_clears_classified_entries_and_preserves_other_workspace[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _register(client, 'entry-delete-admin@example.test').status_code == 200",
+        "assert response.status_code == 200, response.text",
+        "assert session.get(WorkspaceModel, runtime.workspace_id) is None",
+        "assert session.scalars(select(CashEntryModel).where(CashEntryModel.workspace_id == runtime.workspace_id)).all() == []",
+        "assert session.scalars(select(CashEntryMemberModel).where(CashEntryMemberModel.workspace_id == runtime.workspace_id)).all() == []",
+        "assert session.get(CashEntryModel, 'unrelated-entry') is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashEntryServiceOriginalTest.kt",
+          "test": "workspaceDeletionClearsClassifiedEntriesAndPreservesOtherWorkspace"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同"
     },
     {
       "source": "tests/contract/test_cash_entry_lookup.py::test_lookup_keeps_complete_batches",

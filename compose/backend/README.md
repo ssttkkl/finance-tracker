@@ -284,3 +284,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 手工新建的内部请求读取器已验证 65,536 字节、编码、重复键/非有限数、严格字段类型及 64 个现金部分限制；直接应用边界复制可变容器，保留缺省与明确清空的区别。POST `/api/v1/cash-records` 已使用该边界，原子保存流水、现金部分、余额及稳定收支/投影，并复用 Compose 现有创建消费者。缺省或明确清空备注/分类的人工保护与原 Python 一致；纯日期及无时区时间按 UTC 保存，正式入账的独立时间校验仍要求时区。公开 OpenAPI schema 已接通；其余未完成入口和原测试继续待迁移。
 
 当前关系预览的原 18 个测试定义／62 个展开用例由 `CurrentCashRelationPlanOriginalTest` 直接核对完整关系摘要、当前候选证明、原决定、失效选择、联合组和父级草稿。原 55 个完整预览检查点继续作为差分，原定义迁移数单独统计；驳回刷新在独立可写夹具中由 Native 实际提交。
+
+稳定收支的整笔公共编辑、解除继承、冲突公共值、重新导入保护、删除后归属和工作区隔离由 `CashEntryServiceOriginalTest` 直接核对原剩余服务断言。预览、实际提交、来源值和全量重建分别验证；旧候选删除后，旧维护计划在写入前拒绝。仅当拆开后人工公共字段实际不同，解除关联才要求明确继承。
+
+按 `scripts/export_cash_entry_service_contracts.py --help` 列出的 24 个场景分别手工准备独立空测试库，使用 `--database-url`、共同的仓库外 `--output` 和 `--scenario` 生成初始输入。运行环境为 `PYTHONPATH=.:src:tests:scripts`；PostgreSQL 库名以 `_test` 结尾，SQLite 使用全新的绝对文件路径。设置 `FT_KOTLIN_ENTRY_SERVICE_CONTRACT_DIR` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*CashEntryServiceOriginalTest' -PbackendFunctionalOnly=true`。这些测试会消费写库，重跑必须重新准备或恢复初始快照。

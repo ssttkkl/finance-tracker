@@ -18,7 +18,7 @@
 | GET | `/api/v1/auth/members` | `src/ft/web/access_routes.py:64` | 已实现；匿名双库 HTTP 与数据库结果对照通过 |
 | GET | `/api/v1/auth/workspace` | `src/ft/web/access_routes.py:68` | 已实现；匿名双库 HTTP 与数据库结果对照通过 |
 | PUT | `/api/v1/auth/workspace` | `src/ft/web/access_routes.py:72` | 已实现；匿名双库 HTTP 与数据库结果对照通过 |
-| DELETE | `/api/v1/auth/workspace` | `src/ft/web/access_routes.py:78` | 已实现；匿名双库 HTTP 与数据库结果对照通过；完整财务数据删除专项待验收 |
+| DELETE | `/api/v1/auth/workspace` | `src/ft/web/access_routes.py:78` | 已实现；匿名双库 HTTP、完整财务删除及分类后稳定收支清理／另一工作区保留的原服务断言验证，当前证据见 tasks |
 | PUT | `/api/v1/auth/members/{user_id}` | `src/ft/web/access_routes.py:84` | 已实现；匿名双库 HTTP 与数据库结果对照通过 |
 | DELETE | `/api/v1/auth/members/{user_id}` | `src/ft/web/access_routes.py:89` | 已实现；匿名双库 HTTP 与数据库结果对照通过 |
 | POST | `/api/v1/accounts` | `src/ft/web/account_routes.py:160` | 已实现；匿名双库 HTTP/状态、原生 editor/修订/原键/回滚/权限及实际 Compose 解码通过；完整账户任务未完成 |
@@ -35,7 +35,7 @@
 | GET | `/api/v1/cash-records/{transaction_id}` | `src/ft/web/cash_plan_routes.py:160` | 已实现；双库 36 组完整响应/状态/无写入、角色与损坏状态边界、独立复核及现有 Compose 来源消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 已实现；当前权限、原字段、关系闭包排除、ID 翻页、精确金额与本地日期，双库及现有 Compose 消费证据见 tasks |
 | PATCH | `/api/v1/cash-records/{transaction_id}/draft` | `src/ft/web/cash_plan_routes.py:173` | 已实现；普通保存保持草稿／余额不变，原键永久收据与当前详情分离；双库原断言、完整 HTTP／COMMIT 故障／锁后权限及现有 Compose 消费见 tasks |
-| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 已接入；maintain_relations 已接当前完整组／候选、上一方案及人工关联预览，55 组 Python 检查点、错误与只读通过；来源问题服务 22 原定义／78 参数及完整只读计划、真实 HTTP／Compose 消费通过；确认独立记录 9 原定义／46 参数、完整绑定摘要及真实 HTTP／Compose 消费通过；更多维护组合及其余意图未完成 |
+| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 已接入；maintain_relations 已接当前完整组／候选、上一方案及人工关联预览，55 组 Python 检查点、错误与只读通过；来源问题服务 22 原定义／78 参数及完整只读计划、真实 HTTP／Compose 消费通过；确认独立记录 9 原定义／46 参数、完整绑定摘要及真实 HTTP／Compose 消费通过；稳定收支编辑／拆分／重新导入保护的原服务断言已补齐；其余完整维护验收未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
 | GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
 | GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；maintain_relations 使用共享分页，完整维护未完成 |
