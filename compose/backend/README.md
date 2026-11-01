@@ -288,3 +288,5 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 稳定收支的整笔公共编辑、解除继承、冲突公共值、重新导入保护、删除后归属和工作区隔离由 `CashEntryServiceOriginalTest` 直接核对原剩余服务断言。预览、实际提交、来源值和全量重建分别验证；旧候选删除后，旧维护计划在写入前拒绝。仅当拆开后人工公共字段实际不同，解除关联才要求明确继承。
 
 按 `scripts/export_cash_entry_service_contracts.py --help` 列出的 24 个场景分别手工准备独立空测试库，使用 `--database-url`、共同的仓库外 `--output` 和 `--scenario` 生成初始输入。运行环境为 `PYTHONPATH=.:src:tests:scripts`；PostgreSQL 库名以 `_test` 结尾，SQLite 使用全新的绝对文件路径。设置 `FT_KOTLIN_ENTRY_SERVICE_CONTRACT_DIR` 后，在 `compose/` 执行 `./gradlew :backend:test --tests '*CashEntryServiceOriginalTest' -PbackendFunctionalOnly=true`。这些测试会消费写库，重跑必须重新准备或恢复初始快照。
+
+公开计划 JSON 以实际收到的字节核对 64 MiB 预算，不依赖 Content-Length；解码、严格 JSON 与字段校验在 IO 调度器执行。导入／维护预览和确认、草稿保存及原键核实均使用同一入口，保留 Python BOM／UTF-8／UTF-16／UTF-32 及非有限数拒绝合同。确认先校验幂等键，正文只接受严格正整数修订；未提交状态只在服务器可证明时输出。运行 `:backend:test --tests "*CashPlan*OriginalTest" -PbackendFunctionalOnly=true`，真实 HTTP／Netty 用 `FT_KOTLIN_CONTRACT_DIR` 的匿名初始库；纯流／调度／编码测试无需数据库。Native 没有安装 URI 访问日志，实际 Netty 记录验证原键及查询不泄露；Uvicorn 过滤器定义保留 Python 执行。

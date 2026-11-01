@@ -591,7 +591,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
             post("/api/v1/cash-import/sessions/{session_id}/plans") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
-                val request = CashImportProtocol.preview(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+                val request = CashImportProtocol.jsonInput(call) { CashImportProtocol.preview(it) }
                 val view = uploadView { cashImports.preview(token, call.parameters["session_id"]!!,
                     request.expectedRevision, request.previousPlanId, request.input) }
                 call.respondText(sourceJson(view).toString(), ContentType.Application.Json)
@@ -599,7 +599,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             post("/api/v1/cash-import/plans/{plan_id}/commit") {
                 val token = bearerToken(call.request.headers[HttpHeaders.Authorization])
                 val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
-                val revision = CashImportProtocol.commitInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+                val revision = CashImportProtocol.jsonInput(call) { CashImportProtocol.commitInput(it) }
                 val receipt = uploadView { cashImports.commit(token, call.parameters["plan_id"]!!, revision, key).mapValues { cashSourceValue(it.value) } }
                 call.respondText(sourceJson(receipt).toString(), ContentType.Application.Json)
             }
@@ -629,11 +629,10 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respondText(result.toString(), ContentType.Application.Json)
         }
         post("/api/v1/cash-mutations/plans") {
-            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
-                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
+            val body = CashImportProtocol.jsonInput(call) { CashImportProtocol.objectInput(it) }
             val result = withContext(Dispatchers.IO) {
                 try {
-                    mutationPlans.preview(bearerToken(call.request.headers[HttpHeaders.Authorization]), body.value.jsonObject,
+                    mutationPlans.preview(bearerToken(call.request.headers[HttpHeaders.Authorization]), body,
                         call.attributes[requestPrincipalKey])
                 } catch (failure: CashSourceBindingConflict) {
                     throw CashImportInputError().also { it.addSuppressed(failure) }
@@ -669,7 +668,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respondText(result.toString(), ContentType.Application.Json)
         }
         post("/api/v1/cash-mutations/resolve") {
-            val (planId, key) = CashImportProtocol.resolveInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+            val (planId, key) = CashImportProtocol.jsonInput(call) { CashImportProtocol.resolveInput(it) }
             val result = withContext(Dispatchers.IO) {
                 if (planId.startsWith("ip_")) {
                     (cashImports ?: throw CashImportPlanError("plan_not_found")).resolve(
@@ -680,13 +679,11 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             call.respondText(result.toString(), ContentType.Application.Json)
         }
         post("/api/v1/cash-mutations/plans/{plan_id}/commit") {
-            val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
-                catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
-            val expected = ((body.value as? JsonObject)?.get("expected_plan_revision") as? JsonPrimitive)?.content?.toLongOrNull()
-                ?: throw MutationPlanFailure("plan_input_invalid")
+            val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
+            val expected = CashImportProtocol.jsonInput(call) { CashImportProtocol.mutationCommitInput(it) }
             val result = withContext(Dispatchers.IO) {
                 mutationPlans.commit(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["plan_id"],
-                    expected, call.request.headers["Idempotency-Key"], call.attributes[requestPrincipalKey])
+                    expected, key, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
@@ -746,7 +743,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
         }
         patch("/api/v1/cash-records/{transaction_id}/draft") {
             val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
-            val (revision, patch) = CashImportProtocol.draftSaveInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+            val (revision, patch) = CashImportProtocol.jsonInput(call) { CashImportProtocol.draftSaveInput(it) }
             val result = withContext(Dispatchers.IO) { cashDraftSave.save(bearerToken(call.request.headers[HttpHeaders.Authorization]),
                 call.parameters["transaction_id"], JsonPrimitive(revision), cashSourceValue(patch), key, call.attributes[requestPrincipalKey]) }
             call.respondText(result.toString(), ContentType.Application.Json)

@@ -233,7 +233,7 @@ class CashMutationPublicationOriginalTest {
                 contentType(ContentType.Application.Json); setBody("{\"expected_plan_revision\":true}")
             }
             val body = response.bodyAsText(); assertEquals(422, response.status.value, body)
-            assertEquals(JsonPrimitive("plan_input_invalid"), Json.parseToJsonElement(body).jsonObject.getValue("error").jsonObject["code"], name)
+            assertEquals(JsonPrimitive("import_payload_invalid"), Json.parseToJsonElement(body).jsonObject.getValue("error").jsonObject["code"], name)
             assertEquals(before, f.state(), name)
         }
     }

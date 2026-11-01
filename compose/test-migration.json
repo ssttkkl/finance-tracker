@@ -13939,6 +13939,91 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
     },
     {
+      "source": "tests/test_cash_plan_protocol.py::test_actual_json_stream_budget_rejects_overflow_without_trusting_length_header",
+      "source_sha256": "3f6807143e166789c3d6fd876d03a79abd400dfcbbfe49315aa9bb7f059b4c04",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_actual_json_stream_budget_rejects_overflow_without_trusting_length_header"
+      ],
+      "assertions": [
+        "pytest.raises(CashImportProtocolError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanJsonInputOriginalTest.kt",
+          "test": "actualStreamBudgetRejectsOverflowDespiteFalseLengthBeforeValidation"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanProtocolHttpOriginalTest.kt",
+          "test": "actualMaintenanceRouteRejectsReceivedBytesOverOriginalPlanBudgetBeforeBusinessRead"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐"
+    },
+    {
+      "source": "tests/test_cash_plan_protocol.py::test_json_validation_does_not_block_other_requests_on_the_event_loop",
+      "source_sha256": "8f35b9e3c8dcc5e54d60dcd30dfd40d3cd739fa91853be04853ccd345b93ed3f",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_json_validation_does_not_block_other_requests_on_the_event_loop"
+      ],
+      "assertions": [
+        "assert asyncio.run(exercise()) is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanJsonInputOriginalTest.kt",
+          "test": "validationAllowsOtherRequestsOnSameRequestDispatcher"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐"
+    },
+    {
+      "source": "tests/test_cash_plan_protocol.py::test_known_entry_target_refusal_exposes_only_authoritative_no_commit_state",
+      "source_sha256": "c14a518575b1be0c8ddfcc21a1db26e14dbfb7c42efc21369e910fc1cca13932",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_known_entry_target_refusal_exposes_only_authoritative_no_commit_state"
+      ],
+      "assertions": [
+        "assert 'commit_state' not in json.loads(plan_failure(error).body)",
+        "assert response.status_code == 409",
+        "assert json.loads(response.body)['commit_state'] == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanProtocolHttpOriginalTest.kt",
+          "test": "entryTargetRefusalExposesOnlyAuthoritativeNoCommitState"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐"
+    },
+    {
+      "source": "tests/test_cash_plan_protocol.py::test_nonfinite_patch_number_is_a_protocol_error",
+      "source_sha256": "4214661fcf9ae225f7266349d40a1305a89c95b0e718ed8264ffce91c73c9662",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_nonfinite_patch_number_is_a_protocol_error[NaN]",
+        "tests/test_cash_plan_protocol.py::test_nonfinite_patch_number_is_a_protocol_error[Infinity]",
+        "tests/test_cash_plan_protocol.py::test_nonfinite_patch_number_is_a_protocol_error[1e999]",
+        "tests/test_cash_plan_protocol.py::test_nonfinite_patch_number_is_a_protocol_error[-1e999]"
+      ],
+      "assertions": [
+        "pytest.raises(CashImportProtocolError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanJsonInputOriginalTest.kt",
+          "test": "nestedNonfinitePatchNumbersRemainProtocolErrors"
+        },
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanProtocolHttpOriginalTest.kt",
+          "test": "maintenanceRejectsNonfiniteAndNonObjectJsonBeforeBusinessCalls"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐"
+    },
+    {
       "source": "tests/test_cash_plan_protocol.py::test_plan_openapi_exposes_complete_input_and_bounded_pages_without_dangling_refs",
       "source_sha256": "c1aaa21daf99c758fa114108a0ae1c14a52fe9a9614b79fc2a65709e9965c283",
       "status": "migrated",
@@ -13962,6 +14047,29 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
+    },
+    {
+      "source": "tests/test_cash_plan_protocol.py::test_receipt_key_is_redacted_in_uvicorn_access_record_and_filter_installed_once",
+      "source_sha256": "535dce53effee575ae8fcf57e80d331003ad3ce13e0a28bd1e4d1dbcad3a6fa4",
+      "status": "retained",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_receipt_key_is_redacted_in_uvicorn_access_record_and_filter_installed_once"
+      ],
+      "assertions": [
+        "assert sum((isinstance(item, CashReceiptAccessFilter) for item in logger.filters)) == 1",
+        "assert logger.filter(record) is True",
+        "assert 'private' not in record.getMessage() and '[redacted]' in record.getMessage()"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashPlanProtocolHttpOriginalTest.kt",
+          "test": "actualNettyReceiptLookupNeverLogsRawKeyOrPrivateQuery"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐",
+      "reason": "Uvicorn access logger filter installation and Python LogRecord mutation are host-specific infrastructure. Keep the original executable contract; Native does not install URI access logging.",
+      "python_command": "PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=.:src:tests:scripts .venv/bin/python -m pytest -q tests/test_cash_plan_protocol.py --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/plan-protocol-python-temp-1101ex -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/plan-protocol-pytest-cache-1101ex",
+      "compatibility": "Actual Netty engine with active application logging serves the private-key lookup, observes lifecycle events, and verifies no raw key or private query text is logged; all business tables remain unchanged."
     },
     {
       "source": "tests/test_cash_projection.py::test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply",

@@ -9,6 +9,8 @@ import java.nio.charset.CharacterCodingException
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import kotlinx.io.readByteArray
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.*
 
 internal class CashImportProtocolError(val code: String = "import_payload_invalid") : RuntimeException(code)
@@ -24,6 +26,7 @@ internal data class CashImportPreviewRequest(val expectedRevision: Long, val pre
 internal object CashImportProtocol {
     const val MAX_FILE_BYTES = 100 * 1024 * 1024
     const val MAX_METADATA_BYTES = 65536
+    const val MAX_PLAN_INPUT_BYTES = 64 * 1024 * 1024
     const val MAX_REQUEST_BYTES = 20L * MAX_FILE_BYTES + 1024 * 1024
     private val clientReference = Regex("[A-Za-z0-9_-]{1,128}")
     private val sourceHint = Regex("[a-z][a-z0-9_-]{0,63}")
@@ -38,23 +41,33 @@ internal object CashImportProtocol {
     fun idempotencyKey(value: String?): String = value?.takeIf { Regex("[A-Za-z0-9_:.~-]{1,255}").matches(it) }
         ?: fail("idempotency_key_required")
 
-    fun commitInput(text: String): Long {
-        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
-            catch (_: CategoryFailure) { fail() }
+    fun objectInput(bytes: ByteArray): JsonObject = try {
+        strictCashJsonRequest(pythonJsonText(bytes)).value as? JsonObject ?: fail()
+    } catch (_: CategoryFailure) { fail() }
+
+    fun commitInput(text: String): Long = commitInput(text.encodeToByteArray())
+    fun commitInput(bytes: ByteArray): Long {
+        val root = objectInput(bytes)
         if (root.keys != setOf("expected_session_revision")) fail()
         return integer(root["expected_session_revision"], 1) ?: fail()
     }
 
-    fun draftSaveInput(text: String): Pair<Long, JsonObject> {
-        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
-            catch (_: CategoryFailure) { fail() }
+    fun mutationCommitInput(bytes: ByteArray): Long {
+        val root = objectInput(bytes)
+        if (root.keys != setOf("expected_plan_revision")) fail()
+        return integer(root["expected_plan_revision"], 1) ?: fail()
+    }
+
+    fun draftSaveInput(text: String): Pair<Long, JsonObject> = draftSaveInput(text.encodeToByteArray())
+    fun draftSaveInput(bytes: ByteArray): Pair<Long, JsonObject> {
+        val root = objectInput(bytes)
         if (root.keys != setOf("expected_revision", "patch")) fail()
         return (integer(root["expected_revision"], 1) ?: fail()) to (root["patch"] as? JsonObject ?: fail())
     }
 
-    fun resolveInput(text: String): Pair<String, String> {
-        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
-            catch (_: CategoryFailure) { fail() }
+    fun resolveInput(text: String): Pair<String, String> = resolveInput(text.encodeToByteArray())
+    fun resolveInput(bytes: ByteArray): Pair<String, String> {
+        val root = objectInput(bytes)
         if (root.keys != setOf("plan_id", "idempotency_key")) fail()
         val planId = (root["plan_id"] as? JsonPrimitive)?.takeIf { it.isString && Regex("[A-Za-z0-9_:.~-]{1,128}").matches(it.content) }?.content ?: fail()
         val key = (root["idempotency_key"] as? JsonPrimitive)?.takeIf { it.isString && Regex("[A-Za-z0-9_:.~-]{1,255}").matches(it.content) }?.content ?: fail()
@@ -76,9 +89,9 @@ internal object CashImportProtocol {
         return number
     }
 
-    fun preview(text: String): CashImportPreviewRequest {
-        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
-            catch (_: CategoryFailure) { fail() }
+    fun preview(text: String): CashImportPreviewRequest = preview(text.encodeToByteArray())
+    fun preview(bytes: ByteArray): CashImportPreviewRequest {
+        val root = objectInput(bytes)
         val required = setOf("expected_session_revision", "previous_plan_id", "account_selections", "row_choices", "relation_choices")
         if (!root.keys.containsAll(required) || (root.keys - required - "entry_choices").isNotEmpty()) fail()
         val revision = integer(root["expected_session_revision"], 1) ?: fail()
@@ -239,9 +252,22 @@ internal object CashImportProtocol {
     }
 
     suspend fun boundedText(call: ApplicationCall, limit: Int = MAX_METADATA_BYTES): String {
-        val packet = call.receiveChannel().readRemaining((limit + 1).toLong())
+        return strictText(boundedBytes(call.receiveChannel(), limit))
+    }
+
+    private suspend fun boundedBytes(channel: ByteReadChannel, limit: Int): ByteArray {
+        require(limit >= 0)
+        val packet = channel.readRemaining(limit.toLong() + 1)
         val bytes = packet.readByteArray()
         if (bytes.size > limit) fail()
-        return strictText(bytes)
+        return bytes
+    }
+
+    suspend fun <T> jsonInput(call: ApplicationCall, limit: Int = MAX_PLAN_INPUT_BYTES, validate: (ByteArray) -> T): T =
+        jsonInput(call.receiveChannel(), limit, validate)
+
+    suspend fun <T> jsonInput(channel: ByteReadChannel, limit: Int = MAX_PLAN_INPUT_BYTES, validate: (ByteArray) -> T): T {
+        val bytes = boundedBytes(channel, limit)
+        return withContext(Dispatchers.IO) { validate(bytes) }
     }
 }

@@ -18,6 +18,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 稳定收支公共编辑、关联解除和重新导入的原服务断言已建立 Native 对应，页面数、两端能力和既有 TODO 不变；验证状态见 [迁移任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#稳定收支编辑完整服务合同)。
 
+公开计划请求已补实际流大小和解析调度边界，页面数与两端任务不变；行为及验证见 [迁移任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#公开计划-json-边界补齐)。
+
 ## Kotlin 后端迁移与公共业务层
 
 手工转账双端编辑已接入 [维护准备与预计图](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanBuilder.kt) 和 [事务执行](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)：按最终账户／币种推导转账、还款或换汇，原关系编号保留，两端、余额、收支、投影及收据同事务。原 4 定义／16 参数覆盖双端成功、第二端／关系故障、依赖变化及孤立单端拒绝；[现有维护仓库消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt) 验证真实 HTTP 的双成员请求、方案／详情和收据。Web／Native 共用合同与生产代码不变，页面数仍为 10；身份合并、完整恢复及两端既有 UI 验收 TODO 保留。
