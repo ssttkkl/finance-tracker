@@ -6,6 +6,10 @@ import kotlinx.serialization.json.*
 
 internal class MutationPlanFieldFailure(val code: String, val fields: List<String>, var commitState: String? = null) : RuntimeException(code)
 
+internal fun interface CashMutationPlanBuilder {
+    fun build(context: CashSqlContext, request: MutationPlanRequest, previous: JsonObject?): JsonObject
+}
+
 class MutationPlanService internal constructor(
     private val database: Database,
     private val now: () -> Instant = Instant::now,
@@ -14,6 +18,9 @@ class MutationPlanService internal constructor(
     private val beforeCommitWrite: () -> Unit = {},
     private val beforeCommitWorkspaceLock: () -> Unit = {},
     private val afterCommitStep: (String) -> Unit = {},
+    private val planBuilder: CashMutationPlanBuilder = CashMutationPlanBuilder { context, request, previous ->
+        MutationPlanBuilder(context).build(request.transactionId.toLong(), request, previous)
+    },
 ) {
     private val reads = ReadServices(database, now)
     private val store = MutationPlanStore(staging = staging)
@@ -38,8 +45,7 @@ class MutationPlanService internal constructor(
             } ?: throw MutationPlanFailure("record_not_found")
             if (row.value2() != request.expectedRevision) throw MutationPlanFailure("record_changed")
             val built = try {
-                MutationPlanBuilder(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now))
-                    .build(transaction, request, context?.plan)
+                planBuilder.build(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now), request, context?.plan)
             } catch (failure: CashPolicyError) {
                 throw MutationPlanFieldFailure(failure.code, failure.fields).also { it.addSuppressed(failure) }
             } catch (_: ReceiptConflict) {
@@ -91,6 +97,29 @@ class MutationPlanService internal constructor(
             MutationPlanView.view(checkedPlan(current, null, null))
         }
 
+    internal fun cancel(token: String?, editContextId: String, expectedPlanRevision: Long) {
+        try {
+            database.read { connection ->
+                val principal = planContext(connection, token, write = true)
+                val current = currentStored(connection, editContextId, principal)
+                if (expectedPlanRevision < 1) throw MutationPlanFailure("plan_changed")
+                checkedPlan(current, null, expectedPlanRevision)
+                store.cancel(editContextId, principal.workspaceId!!, principal.userId, current.revision)
+            }
+        } catch (_: MutationPlanStore.RevisionConflict) { throw MutationPlanFailure("plan_changed") }
+        catch (_: MutationPlanStore.Closed) { throw MutationPlanFailure("plan_changed") }
+    }
+
+    internal fun currentForCommit(connection: java.sql.Connection, principal: Principal, planId: String?,
+        expectedPlanRevision: Any?, beforeBodyRead: () -> Unit = {}): MutationPlanStore.Context {
+        val current = currentStored(connection, MutationPlanStore.contextId(planId), principal, beforeBodyRead)
+        val revision = strictCashInteger(expectedPlanRevision)?.takeIf {
+            it.signum() > 0 && it <= java.math.BigInteger.valueOf(Long.MAX_VALUE)
+        }?.toLong() ?: throw MutationPlanFailure("plan_changed")
+        checkedPlan(current, planId, revision)
+        return current
+    }
+
     fun items(token: String?, planId: String?, cursor: String?, limit: Int, confirmationStatus: String?,
         requestPrincipal: Principal? = null): JsonObject = read(token, requestPrincipal) { connection, principal ->
         val current = currentStored(connection, MutationPlanStore.contextId(planId), principal)
@@ -136,12 +165,8 @@ class MutationPlanService internal constructor(
             repository.replay(current.userId, key, digest, "mutation", planId)?.let { return@writeGuarded it }
             val contextId = MutationPlanStore.contextId(planId)
             val contextDigest = tokenDigest(contextId)
-            repository.forContext(current.userId, editContextDigest = contextDigest)?.let {
-                throw ReceiptConflict("edit_context_committed", it.getValue("receipt_id").jsonPrimitive.content)
-            }
-            boundary.noPriorResult()
-            val stored = store.get(contextId, workspace, current.userId)
-            val plan = checkedPlan(stored, planId, expectedPlanRevision)
+            val stored = currentForCommit(connection, current, planId, expectedPlanRevision, boundary::noPriorResult)
+            val plan = stored.plan!!
             if (plan["can_commit"]?.jsonPrimitive?.booleanOrNull != true) throw MutationPlanFailure("plan_input_invalid")
             val input = stored.previewInput ?: throw MutationPlanFailure("plan_changed")
             val request = MutationPlanRequest.fromStored(input)
@@ -219,12 +244,14 @@ class MutationPlanService internal constructor(
         return result
     }
 
-    private fun currentStored(connection: java.sql.Connection, id: String, principal: Principal): MutationPlanStore.Context {
+    private fun currentStored(connection: java.sql.Connection, id: String, principal: Principal,
+        beforeBodyRead: () -> Unit = {}): MutationPlanStore.Context {
         if (!id.matches(Regex("[A-Za-z0-9_-]{43}"))) throw MutationPlanStore.NotFound()
         ReceiptRepository(connection, principal.workspaceId!!, database.sqlite, now)
             .forContext(principal.userId, editContextDigest = tokenDigest(id))?.let {
                 throw ReceiptConflict("edit_context_committed", it.getValue("receipt_id").jsonPrimitive.content)
             }
+        beforeBodyRead()
         return store.get(id, principal.workspaceId, principal.userId)
     }
 

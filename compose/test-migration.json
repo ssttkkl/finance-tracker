@@ -7052,6 +7052,266 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_another_member_cannot_read_or_cancel_owned_edit_context",
+      "source_sha256": "67c9860192f258c352c061c78a8779b461bd858c3f2b63494accfc2501ef2637",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_another_member_cannot_read_or_cancel_owned_edit_context[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_another_member_cannot_read_or_cancel_owned_edit_context[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(plan['plan_id']) == plan"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "otherEditorCannotReadCurrentPlanOrCancelPrivateContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_consumed_context_is_checked_before_its_cleared_or_missing_body",
+      "source_sha256": "f7c3b523c1673c7bdf368b2ee74e2a3d8e1adc53dfcbcad889b0c3464ffd9ae9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_consumed_context_is_checked_before_its_cleared_or_missing_body[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_consumed_context_is_checked_before_its_cleared_or_missing_body[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'edit_context_committed' and error.value.receipt_id == receipt['receipt_id']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "permanentConsumptionIsCheckedBeforeAnyClearedOrMissingBodyRead"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_expiry_cancel_and_live_membership_gate_the_current_plan",
+      "source_sha256": "92281c3f9f8a8be7e6e05b30a2760285ee90cbbb39c040e5738c8ee18cc59813",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_expiry_cancel_and_live_membership_gate_the_current_plan[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_expiry_cancel_and_live_membership_gate_the_current_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(plan['plan_id']) == plan",
+        "assert new['expires_at'] == plan['expires_at']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "liveMembershipCancelAndExpiryGateCurrentPublication"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_failed_builder_or_plan_budget_keeps_previous_immutable_state",
+      "source_sha256": "8ff2a882987b9f68d388d0974f0e3b13cc753951adc5f4b99c285b9ec8486bd7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_failed_builder_or_plan_budget_keeps_previous_immutable_state[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_failed_builder_or_plan_budget_keeps_previous_immutable_state[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(old['plan_id']) == old",
+        "assert service.read_plan(old['plan_id']) == old"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "builderAndBudgetFailuresPreserveTheCompletePreviousObject"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_first_publication_has_no_file_keeps_current_ledger_and_only_returns_public_fields",
+      "source_sha256": "3577c7e2be838d0551081eb072827383219c29b514d15d97efcc3d6920849ada",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_first_publication_has_no_file_keeps_current_ledger_and_only_returns_public_fields[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_first_publication_has_no_file_keeps_current_ledger_and_only_returns_public_fields[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['plan_revision'] == 1 and plan['plan_id'].startswith('mp_')",
+        "assert plan['item_counts'] == {'confirmed': 61, 'pending': 60} and len(plan['items']) == 50",
+        "assert not {'operations', 'preview_input', 'session_id', 'session_revision', 'files'} & set(plan)",
+        "assert current.workflow_kind == 'mutation' and current.files == ()",
+        "assert current.context_data == {'transaction_id': '1001', 'version': 1}",
+        "assert detail['members'][0]['fields']['note'] == '冻结备注'",
+        "assert 'server-only' not in str(plan) + str(detail)",
+        "assert session.get(CashTransactionModel, 1001).note == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "firstPublicationHasNoFilesIsPrivateAndLeavesLedgerUnchanged"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_import_cannot_read_or_confirm_mutation_context_and_commit_loader_checks_plan_revision",
+      "source_sha256": "306d41e62a0e42d148221641f8145df58458a31afb3abe15e9989ca09cb5a8b1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_import_cannot_read_or_confirm_mutation_context_and_commit_loader_checks_plan_revision[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_import_cannot_read_or_confirm_mutation_context_and_commit_loader_checks_plan_revision[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert current.workflow_kind == 'mutation' and current.plan['plan_id'] == plan['plan_id']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "importWorkflowIsIsolatedAndCommitLoaderChecksActualRevisionType"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context",
+      "source_sha256": "ffdb27be59a13d915e15ece1793a630010b5db804e157b12c1bb0c8f684c1e7d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes0]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes1]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes2]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes3]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes4]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[cash_web_runtime-changes5]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes0]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes1]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes2]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes3]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes4]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_invalid_maintenance_input_never_invokes_builder_or_creates_context[postgres_cash_web_runtime-changes5]"
+      ],
+      "assertions": [
+        "assert not service._staging._entries"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "invalidInputNeverInvokesBuilderOrCreatesContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_pages_and_details_remain_frozen_and_plan_filter_bound",
+      "source_sha256": "7c5fc959781ec3023b8ed9480ab01ed48346aa53182ab37c68faa45015b98a4c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_pages_and_details_remain_frozen_and_plan_filter_bound[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_pages_and_details_remain_frozen_and_plan_filter_bound[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert len(ids) == len(set(ids)) == 60",
+        "assert service.item(plan['plan_id'], 'item_0')['members'][0]['fields']['note'] == '冻结备注'",
+        "assert service.read_plan(plan['plan_id'])['summary'] == {'update_posted': 1}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "pagesDetailsAndReturnedObjectsStayFrozenAndCursorFilterBound"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_preview_rolls_back_even_accidentally_flushed_business_changes",
+      "source_sha256": "f94dce24d0b8626bfbe1586fa3c00496718ad12119cb3b29f14bc23789f5ba97",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_preview_rolls_back_even_accidentally_flushed_business_changes[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_preview_rolls_back_even_accidentally_flushed_business_changes[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert (row.note, row.row_revision) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "evenAnActuallyFlushedBuilderWriteRollsBackBeforePublication"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan",
+      "source_sha256": "8ca442f01c89fd69827e64f9c92365c86a259e6983f776e0ce2efbf42887c324",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[cash_web_runtime-summary0]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[cash_web_runtime-summary1]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[cash_web_runtime-summary2]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[cash_web_runtime-summary3]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[postgres_cash_web_runtime-summary0]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[postgres_cash_web_runtime-summary1]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[postgres_cash_web_runtime-summary2]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_private_or_invalid_summary_never_publishes_or_replaces_current_plan[postgres_cash_web_runtime-summary3]"
+      ],
+      "assertions": [
+        "assert not service._staging._entries",
+        "assert service.read_plan(old['plan_id']) == old"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "privateAndInvalidSummaryNeverPublishOrReplaceFrozenPlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_repreview_is_cas_and_old_plan_is_invalid_but_failed_input_keeps_current",
+      "source_sha256": "7134dc1ce45294175d54539dbdf181361940ba78de3b3186692d3168bdd83099",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_repreview_is_cas_and_old_plan_is_invalid_but_failed_input_keeps_current[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_repreview_is_cas_and_old_plan_is_invalid_but_failed_input_keeps_current[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert new['plan_revision'] == 2 and new['plan_id'] != old['plan_id']",
+        "assert new['expires_at'] == old['expires_at']",
+        "assert service.current_plan(old['edit_context_id']) == new",
+        "assert detail['members'][0]['fields']['note'] == '新的冻结备注'",
+        "assert service.read_plan(old['plan_id']) == old"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "repreviewUsesCasKeepsTtlAndPreservesCurrentAfterRejectedInput"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_plan_publication.py::test_stale_parent_and_cross_workspace_record_cannot_create_plan",
+      "source_sha256": "4f42fda4fe53967995c1cb7a124216178dd57b01f5ed2cb38983f29b26834023",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_plan_publication.py::test_stale_parent_and_cross_workspace_record_cannot_create_plan[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_plan_publication.py::test_stale_parent_and_cross_workspace_record_cannot_create_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert not service._staging._entries"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt",
+          "test": "staleParentAndOtherWorkspaceNeverInvokeBuilderOrPublish"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护计划发布迁移"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_receipts.py::test_account_receipt_only_accepts_matching_whitelisted_account_results",
       "source_sha256": "c8e80583e6be35f3feae0435962f3a773d2a924ffb5023c2a3a18a3163cf1e3f",
       "status": "migrated",
