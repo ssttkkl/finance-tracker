@@ -1,10 +1,10 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 71/86 个操作，其中 6 个维护计划操作尚未完成完整合同验收；其余 15 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 71/86 个操作，其中 6 个维护计划操作已完成完整合同验收；其余 15 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 框架元数据入口 `GET /openapi.json` 已接通，不计入原 86 项业务操作；只列出实际注册的操作，未装配的导入和未接入 API 不出现在文档。原 `/docs`／`/redoc` 保持关闭。
 
-计划 JSON 已统一按实际字节执行原 64 MiB 流预算，并在 IO 调度器解码／校验；确认先核对幂等键，保留严格修订及原协议错误。该修复不增加业务操作数，完整维护验收仍保留。
+计划 JSON 已统一按实际字节执行原 64 MiB 流预算，并在 IO 调度器解码／校验；确认先核对幂等键，保留严格修订及原协议错误。该修复不增加业务操作数，完整维护验收矩阵见 tasks。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -37,12 +37,12 @@
 | GET | `/api/v1/cash-records/{transaction_id}` | `src/ft/web/cash_plan_routes.py:160` | 已实现；双库 36 组完整响应/状态/无写入、角色与损坏状态边界、独立复核及现有 Compose 来源消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 已实现；当前权限、原字段、关系闭包排除、ID 翻页、精确金额与本地日期，双库及现有 Compose 消费证据见 tasks |
 | PATCH | `/api/v1/cash-records/{transaction_id}/draft` | `src/ft/web/cash_plan_routes.py:173` | 已实现；普通保存保持草稿／余额不变，原键永久收据与当前详情分离；双库原断言、完整 HTTP／COMMIT 故障／锁后权限及现有 Compose 消费见 tasks |
-| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 已接入；maintain_relations 已接当前完整组／候选、上一方案及人工关联预览，55 组 Python 检查点、错误与只读通过；来源问题服务 22 原定义／78 参数及完整只读计划、真实 HTTP／Compose 消费通过；确认独立记录 9 原定义／46 参数、完整绑定摘要及真实 HTTP／Compose 消费通过；稳定收支编辑／拆分／重新导入保护的原服务断言已补齐；其余完整维护验收未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
-| GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；maintain_relations 使用共享分页，完整维护未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 及 maintain_relations 当前关系／人工关联明细已接入；双库与实际 Compose 消费通过，完整维护未完成 |
-| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record/finalize_draft/save_draft/resolve_issue 已实现；双库 Python 收据/状态/问题/余额/投影 oracle、幂等重放与上下文消费通过；maintain_relations 的当前组决定与人工关联已接入，32 个原定义／98 双库参数、真实 COMMIT 故障／重放及公开 HTTP／Compose 消费通过；来源问题采用／保留／清空的 22 原定义／78 参数、事项变化／真实写后回滚及实际 Compose 消费通过；手工转账双端原 4 定义／16 参数和授权公共编辑修复新增 1 定义／16 参数、双库原子回滚及实际 Compose 消费通过；确认独立记录原 9 定义／46 参数、绑定变化拒绝、实际写后回滚和原键重放通过；草稿合并原 29 定义／88 参数、完整引用／绑定重验、实际写后回滚及 Compose 消费通过；剩余恢复组合和其他操作未完成 |
+| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 已接入；maintain_relations 已接当前完整组／候选、上一方案及人工关联预览，55 组 Python 检查点、错误与只读通过；来源问题服务 22 原定义／78 参数及完整只读计划、真实 HTTP／Compose 消费通过；确认独立记录 9 原定义／46 参数、完整绑定摘要及真实 HTTP／Compose 消费通过；稳定收支编辑／拆分／重新导入保护的原服务断言已补齐；完整维护合同验收通过，证据见 tasks |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护合同验收完成 |
+| GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护合同验收完成 |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | 全部维护意图使用共享冻结分页，双库原发布合同和实际 Compose 消费通过 |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 及 maintain_relations 当前关系／人工关联明细已接入；双库与实际 Compose 消费通过，完整维护合同验收完成 |
+| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record/finalize_draft/save_draft/resolve_issue 已实现；双库 Python 收据/状态/问题/余额/投影 oracle、幂等重放与上下文消费通过；maintain_relations 的当前组决定与人工关联已接入，32 个原定义／98 双库参数、真实 COMMIT 故障／重放及公开 HTTP／Compose 消费通过；来源问题采用／保留／清空的 22 原定义／78 参数、事项变化／真实写后回滚及实际 Compose 消费通过；手工转账双端原 4 定义／16 参数和授权公共编辑修复新增 1 定义／16 参数、双库原子回滚及实际 Compose 消费通过；确认独立记录原 9 定义／46 参数、绑定变化拒绝、实际写后回滚和原键重放通过；草稿合并原 29 定义／88 参数、完整引用／绑定重验、实际写后回滚及 Compose 消费通过；恢复组合、依赖重验和纯输入原断言已补齐，完整维护合同验收通过 |
 | GET | `/api/v1/cash-import/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:213` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:218` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:227` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |

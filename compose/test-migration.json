@@ -16496,6 +16496,96 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_cash_source_issue_input.py::test_merge_is_a_terminal_identity_choice",
+      "source_sha256": "57891702e742c31247e7dc88240e870df4d0f20fd6136a851e641972b8964f4a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_issue_input.py::test_merge_is_a_terminal_identity_choice[finalize_draft-False]",
+        "tests/test_cash_source_issue_input.py::test_merge_is_a_terminal_identity_choice[resolve_issue-True]"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt",
+          "test": "mergeIsTerminalForEachOriginalConflict"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收"
+    },
+    {
+      "source": "tests/test_cash_source_issue_input.py::test_normalized_duplicate_issue_ids_are_not_ordered_decisions",
+      "source_sha256": "bd812c816ae17e7925e404219f642000a941b116660f3417ca6ee10bfad4828c",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_issue_input.py::test_normalized_duplicate_issue_ids_are_not_ordered_decisions"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt",
+          "test": "normalizedDuplicateIssueIdsAreNotOrderedDecisions"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收"
+    },
+    {
+      "source": "tests/test_cash_source_issue_input.py::test_source_choices_can_share_a_record_intent",
+      "source_sha256": "7c4445cc6c0bebee06638e4b970d8378059a26dcf2a8ae848edee732890c5451",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_issue_input.py::test_source_choices_can_share_a_record_intent[edit_record]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_can_share_a_record_intent[resolve_issue]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_can_share_a_record_intent[finalize_draft]"
+      ],
+      "assertions": [
+        "assert data['issue_resolutions'] == [{'issue_id': '2', 'expected_issue_revision': 1, 'resolution': 'keep_existing'}]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt",
+          "test": "sourceChoicesCanShareEachOriginalRecordIntent"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收"
+    },
+    {
+      "source": "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access",
+      "source_sha256": "cf0c0f6cff4ef5bb4504bccaa569c665b81c7189dc7c76d84cf65fdec4c79ad7",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes0]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes1]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes2]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes3]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes4]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes5]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes6]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes7]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes8]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes9]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes10]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes11]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes12]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes13]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes14]",
+        "tests/test_cash_source_issue_input.py::test_source_choices_reject_invalid_shapes_before_database_access[changes15]"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt",
+          "test": "invalidSourceChoiceShapesAreRejectedWithoutDatabaseAccess"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收"
+    },
+    {
       "source": "tests/test_cash_statement_effects.py::test_arbitrary_json_does_not_forge_refund_evidence_or_replace_trusted_owner",
       "source_sha256": "8e2b773c8c7e165dee25a240879a49e47ce3f18946c29738143589cdfee5a133",
       "status": "pending",
