@@ -20,13 +20,14 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val excluded = mutableSetOf<String>()
         for (references in frozen["mutation_units"] as List<*>) {
             val unit = (references as List<*>).map { byReference.getValue(it as String) }
-            val writer = CurrentCashRelationWriter(context, userId)
+            val writer = CurrentCashRelationWriter(context, userId, afterWrite = { boundary.done("current_relation") })
             val coupled = writer.coupledGroups(frozen, unit)
             excluded += coupled.map { it["suggestion_id"] as String }
             if (coupled.isNotEmpty()) early += writer.beforeRecords(coupled, frozen)
             for (operation in unit) {
                 if (operation["merge_draft"] != null) throw MutationPlanFailure("plan_input_invalid")
                 val saved = CashRecordWriter(context).save(operation, emptyMap())
+                boundary.done("record")
                 identity[operation["preview_transaction_id"] as String] = saved.transactionId.toString()
                 components.putAll(saved.componentIds)
                 val outcome = mapOf("update_posted" to "updated_posted", "update_draft" to "saved_draft", "duplicate" to "duplicate")
@@ -42,7 +43,9 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         val rows = operations.map { operation -> mapOf("result_kind" to "row", "item_ref" to operation["transaction_id"],
             "operation_ref" to operation["operation_ref"]) + actual.getValue(operation["operation_ref"] as String) }
         val groups = early.toMutableList()
-        groups += CurrentCashRelationWriter(context, userId).saveGroups(frozen, current, affected, excluded)
+        boundary.done("current_relation_start")
+        groups += CurrentCashRelationWriter(context, userId, afterWrite = { boundary.done("current_relation") }).saveGroups(frozen, current, affected, excluded)
+        boundary.done("current_relation_end")
         val additions = maps(frozen["relation_groups"]).filter { it["origin"] != "current" }
         val relationWriter = CashPlanRelationWriter(context, userId)
         if (additions.isNotEmpty()) groups += relationWriter.saveGroups(frozen + ("relation_groups" to additions), current, identity, components, affected,
@@ -54,6 +57,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         groups += relationWriter.discoveryResults(frozen, identity)
         val finalizer = CashPlanFinalizer(context); finalizer.balances(changes)
         val maintained = if (affected.isNotEmpty()) CashProjectionService.maintainInSession(context, affected, state) else null
+        boundary.done("projection")
         context.entries.flush()
         val summary = listOf("updated_posted", "finalized_draft", "saved_draft", "merged_draft", "duplicate", "skipped", "relations_confirmed", "relations_deferred",
             "relations_ignored", "relations_removed", "relations_failed").associateWith { 0L }.toMutableMap()
