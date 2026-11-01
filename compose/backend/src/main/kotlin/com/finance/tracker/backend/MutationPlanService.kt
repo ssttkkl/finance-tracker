@@ -112,7 +112,9 @@ class MutationPlanService internal constructor(
 
     internal fun currentForCommit(connection: java.sql.Connection, principal: Principal, planId: String?,
         expectedPlanRevision: Any?, beforeBodyRead: () -> Unit = {}): MutationPlanStore.Context {
-        val current = currentStored(connection, MutationPlanStore.contextId(planId), principal, beforeBodyRead)
+        val current = try { currentStored(connection, MutationPlanStore.contextId(planId), principal, beforeBodyRead) }
+            catch (_: MutationPlanStore.Expired) { throw MutationPlanFailure("plan_expired") }
+            catch (_: MutationPlanStore.NotFound) { throw MutationPlanFailure("plan_expired") }
         val revision = strictCashInteger(expectedPlanRevision)?.takeIf {
             it.signum() > 0 && it <= java.math.BigInteger.valueOf(Long.MAX_VALUE)
         }?.toLong() ?: throw MutationPlanFailure("plan_changed")
@@ -141,6 +143,7 @@ class MutationPlanService internal constructor(
         catch (failure: CashPolicyError) { throw MutationPlanFieldFailure(failure.code, failure.fields, boundary.commitState.takeIf { it == "not_committed" }) }
         catch (failure: ReceiptConflict) { if (boundary.commitState == "not_committed") failure.commitState = boundary.commitState; throw failure }
         catch (failure: AccessFailure) { throw failure }
+        catch (failure: MutationPlanStore.Forbidden) { throw failure }
         catch (failure: Exception) { throw CashImportCommitFailure(boundary.commitState, boundary.diagnostic(), failure) }
     }
     private fun commitGuarded(token: String?, planId: String?, expectedPlanRevision: Long, idempotencyKey: String?,
@@ -204,10 +207,12 @@ class MutationPlanService internal constructor(
         val principal = reads.currentContext(token)
         if (requestPrincipal != null) sameContext(requestPrincipal, principal)
         return try {
-            database.write { connection ->
-                val current = planContext(connection, token, write = true)
+            database.writeNonblocking { connection ->
+                val workspace = principal.workspaceId ?: throw AccessFailure(true)
+                if (!connection.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
+                val current = reads.lockedContext(connection, token, workspace, write = true)
+                sameContext(principal, current)
                 if (requestPrincipal != null) sameContext(requestPrincipal, current)
-                val workspace = current.workspaceId ?: throw AccessFailure(true)
                 val repository = ReceiptRepository(connection, workspace, database.sqlite, now)
                 val byKey = repository.byKey(current.userId, key)
                 if (byKey != null && (byKey["operation_kind"]?.jsonPrimitive?.contentOrNull != "mutation" ||
@@ -215,12 +220,12 @@ class MutationPlanService internal constructor(
                     throw ReceiptConflict("idempotency_conflict", byKey.getValue("receipt_id").jsonPrimitive.content)
                 }
                 val receipt = byKey ?: repository.forContext(current.userId, editContextDigest = tokenDigest(contextId))
-                if (receipt != null) return@write buildJsonObject {
+                if (receipt != null) return@writeNonblocking buildJsonObject {
                     put("status", "committed"); put("receipt", ReceiptRepositoryView.strip(receipt))
                 }
                 val stored = try { store.get(contextId, workspace, current.userId) }
-                    catch (_: MutationPlanStore.Expired) { return@write buildJsonObject { put("status", "not_committed") } }
-                    catch (_: MutationPlanStore.NotFound) { return@write buildJsonObject { put("status", "not_committed") } }
+                    catch (_: MutationPlanStore.Expired) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
+                    catch (_: MutationPlanStore.NotFound) { return@writeNonblocking buildJsonObject { put("status", "not_committed") } }
                 if (stored.cancelled || stored.plan == null ||
                     stored.plan["plan_id"]?.jsonPrimitive?.contentOrNull != planId)
                     buildJsonObject { put("status", "not_committed") }

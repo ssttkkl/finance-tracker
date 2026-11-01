@@ -14,6 +14,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 来源问题处理的 [原生服务回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已迁移原 22 定义／78 参数，覆盖采用／保留／清空、旧正文、公共人工值／分类、事项归属及变化、完整失败回滚；四种真实 HTTP 采用响应通过 [现有 Compose 消费](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt)。后端恢复原合同，共享生产 DTO、Web／Native 页面及交互不变；页面数仍为 10，独立身份、草稿合并、完整维护和既有两端 UI TODO 保留。
 
+维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 70/86，6 个维护接口保持部分实现；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
+
 维护计划发布的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已补原内部取消和确认装载，保留无文件上下文、冻结分页、CAS／TTL、私有归属、永久消费围栏和失败后的原计划；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt) 对应原 12 定义／40 参数。当前完整双库及既有实际 Compose 消费通过；没有新增页面、公开 DTO 或路由，两端既有 UI TODO 保留。
 
 身份草稿合并的 [后端规划](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftMergePlanner.kt) 与 [原子写入](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftMergeWriter.kt) 已实现，保留目标、来源身份、问题实例与双向关联证明；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftMergeOriginalTest.kt) 对应原 29 定义／88 参数，实际 HTTP 经过现有 Compose 维护仓库。完整双库及实际 Compose 消费已通过；共享生产合同与页面不变，页面数为 10，两端既有 UI TODO 保留。

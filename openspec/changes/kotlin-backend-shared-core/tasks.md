@@ -88,6 +88,7 @@
 - [x] 4.8.4.3.2 迁移剩余当前关系失败与证明变更组合：候选／人工目标变化、第二成员／字段／候选清理／投影／收据写后故障、保留方案、无效选择及拒绝类型修改；JDBC 观测一次新鲜图，完整 31 表回滚。（2026-11-01 02:35 UTC，提交前 HEAD／比较基线 `4731fbe17199464a55f4d7586a3bdae4a2a2dd27` 加工作树。新增 13 个 Kotlin 方法覆盖原 14 定义／44 参数，两个原文件累计 26 定义／84 参数均已映射；Kotlin 自行预览后重放证明变更。两库各 180 套／1,042 项、零失败／错误，SQLite 3 项 PG 专属跳过，PG16 零跳过；构建／静态及实际回包 Host 各 11 项通过。源参考 84 passed／零跳过。八阶段、审查与证据见当前记录；其他维护文件、多成员及完整父任务继续未完成。）
 - [ ] 4.8.3 完整维护提交重验：按 Python `_validate_current` 在写事务重建计划并核对冻结操作、当前关系/事项/账户/修订及原错误合同，不能仅凭父流水和 entry 修订提交；独立复核指出的关系/事项变化缺口须失败先行，未完成前 4.8 不可关闭。
 - [x] 4.8.6 迁移维护计划发布原 12 定义／40 参数：无文件上下文、CAS／TTL、冻结分页、坏输入／摘要、预算失败、消费／私有归属及真实 flush 回滚。（2026-11-01 08:21 UTC，提交前 HEAD／比较基线 `3044c32f27b4ab6a2464acc6cdff7f86d8fb9755` 加隔离工作树，八阶段见「维护计划发布迁移」。两库各 186 套／1,139 项零失败／错误，SQLite 3 项 PG 专属跳过、PG16 零跳过；真实 Host 七项筛选各 16 项通过。原 Python 40 passed，源范围 12 migrated／零 pending；全局 666 定义／1,782 参数、5 retained／1,943 pending。最终独立复核无可执行 finding，文档／技能已同步；完整维护、提交恢复及全迁移保持未完成。）
+- [x] 4.8.7 迁移维护提交恢复原 9 定义／34 参数：局部依赖、幂等／永久消费、清理失败、关闭方案、真实写锁与当前权限。（2026-11-01 09:03 UTC，提交前 HEAD／比较基线 `f26a11ceef2103cdb1f67db08a3e2cbcf7eea005` 加隔离工作树；八阶段见「维护提交恢复迁移」。两库各 187 套／1,148 项零失败／错误，SQLite 3 项 PG 专属跳过、PG16 零跳过；真实 Host 七项筛选各 16 项通过。原 Python 34 passed，源范围 9 migrated／零 pending，全局 675 定义／1,816 参数、5 retained／1,934 pending。独立复核无可执行 finding，文档／地图／技能同步；完整维护和全迁移仍未完成。）
 - [ ] 4.8.5 移除普通维护的临时单流水呈现／提交路径：全部意图复用原已准备操作、共享业务图及原子执行；依次补普通编辑／转正式／来源决定、手工转账双端和身份草稿合并，保留原状态、来源范围、真实发现种子、完整成员和上一方案。当前基线 `041a4df8`，沿用已接受整体澄清、A 类合同及原分支提交授权。
 - [x] 4.8.5.3 迁移身份草稿合并原 29 定义／88 参数，保留原目标、财务／人工值、完整引用与来源身份、现金部分映射、原子退出源及永久重放。（2026-11-01 07:37 UTC，提交前 HEAD／比较基线 `0b53b0b0d03d178e707d3e8282301df430917024` 加独立工作树；八阶段见「身份草稿合并迁移」。两库各 185 套／1,127 项零失败／错误，SQLite 3 项 PG 专属跳过、PG16 零跳过；实际 Host 七项筛选各 16 项通过。原 Python 88 passed，两个源文件均零 pending；全局 654 定义／1,742 参数、5 retained／1,955 pending。最终独立复核无可执行 finding，文档／技能同步；完整维护与全迁移保持未完成。）
 - [ ] 4.8.5.1 将普通保存、编辑、转正式及来源决定接入完整共享预计图与统一确认，先以原业务计划检查点复现，再完成相称原断言、恢复组合、双库全门禁及实际客户端验证；多成员／合并的专门准备与写入后续补齐，不用局部完成关闭父任务。
@@ -337,6 +338,24 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 阶段 5 `independent-identity-review-1101di.log` 独立静态复核初版来源摘要、操作准备、原生测试、生成器和映射，无可执行 finding；审查者未代跑测试。最终 HTTP 适配、消费者、映射和文档范围由 `independent-identity-delivery-review-1101di.log` 独立复核，无可执行 finding，diff 检查通过；审查者未代跑数据库回归。
 
 阶段 6 完整双库、实际客户端、原参考及清单门禁见上表。阶段 7 文档和正式 artifact 原位同步后按当前分支授权交付；没有生产切流／数据动作，保留 Python。阶段 8 将绑定实例／创建时间摘要、JSON 业务值、可信范围及预览／确认错误边界写入 apply skill；写／只读库隔离并保留初始 SHA，避免在已消费库上伪造重放与失败验证。完整维护、草稿合并及整个迁移继续未完成。
+
+### 维护提交恢复迁移
+
+本片提交前 HEAD／比较基线 `f26a11ceef2103cdb1f67db08a3e2cbcf7eea005` 加隔离工作树 `recovery-worktree-1101dw`，交付目标为 `origin/continue-kotlin-backend-refactor`。原恢复 9 定义／34 参数已建立直接原生对应；当前工作树为 675 定义／1,816 参数、5 retained／1,934 pending，完整双库与静态门禁通过，按既有授权交付。接口保持 70/86，6 个维护接口部分实现，完整迁移未完成。
+
+阶段 1–3：沿用整体已确认 `grill-me → grilling`／A 类范围，对照原服务及全部 17 个组合，design／tasks 先固定局部依赖、永久消费、原键、关闭方案、当前权限和写锁边界。没有新增产品语义、schema、真实数据、公开字段或路由；原匿名状态导出至仓库外，每个写场景独立测试库。
+
+阶段 4：`recovery-red-sqlite-1101dw.{log,xml}` 先复现过期方案及私有归属拒绝被通用内部错误包装，`recovery-lock-red-pg-1101dw.{log,xml}` 用真实独立工作区写锁复现错误的 `retry_original`。确认装载仅转换临时过期／缺失为 `plan_expired`，保持永久围栏和提交边界；确认保留私有拒绝。核实改用非阻塞工作区写锁，锁后重读当前身份／权限，只有 `storage.busy` 为 `pending`。修复后 `recovery-green-{sqlite,pg}-1101dx.{log,xml}` 两库各 9 项通过、无跳过；全部 17 组合直接原断言，31 表、余额、旧计划及原键恢复分别核对。首次 SQLite 红测的已消费写库另存，不作为初始快照；原 Python 重新生成的 17 个初始状态经 SHA 捕获后才运行绿测，PG 同样先捕获初始快照。
+
+阶段 5：`recovery-review-1101dx.log` 独立复核生产服务、原断言、导出器、范围、工程／安全，无可执行 finding。`recovery-final-review-1101dy.log` 最终独立复核含文档／映射及 diff，同样无可执行 finding；审查者未代跑数据库验证。
+
+阶段 6：原 Python 参考以根 `.venv/bin/python -m pytest -q tests/contract/test_cash_mutation_commit_recovery.py`、显式 `FT_TEST_POSTGRES_URL`／`FT_REQUIRE_TEST_POSTGRES=1` 和专用 `_test` 运行，34 passed／零跳过，日志及 JUnit 为 `recovery-reference-1101dy.{log,xml}`。完整矩阵从初始 SHA 恢复所有写库，以 `full-{sqlite,pg}-1101dy/environment.json` 在 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，随后既有 7 项真实回包 Host 筛选。2026-11-01 09:03 UTC，SQLite／本机真实 PostgreSQL 16.14 各 187 套／1,148 项零失败／错误；SQLite 3 项 PG 专属跳过、PG 零跳过，实际 Host 七项筛选两库各 16 项通过／无跳过。构建／ktlint／detekt 通过，完整日志、环境、XML 与两个验证摘要位于上述目录。PG18 未验证，性能按用户要求排除。
+
+阶段 7：backend README、功能地图、inventory、design／tasks、映射和 apply skill 同步；OpenSpec all strict 38/38、doctor、全源／参数门禁及源文件 `--require-complete`、新导出器语法、6 个文档／276 个本地链接和 `git diff --check` 通过。主 README、主行为规格、词表、导入协议、routes／配置核对没有新增合同或概念。Cross-platform Impact Check：后端恢复和匿名测试，Web／Native 页面、生产共享 DTO 与交互不变，既有 Host 消费真实回包；UI 冒烟、原生包／设备 QA 不适用。页面数 10，两端既有 TODO 保留。按同分支既有授权小步交付；撤销服务改动和测试可回滚，无部署或真实数据动作。临时文件全部在仓库外缓存，按精确所有权清理写库，保留初始 SHA 与必要证据。
+
+隔离验证／审查的 10 个文件按 SHA 与根交付树逐字一致，见 `recovery-delivery-backup-1101dy/manifest.json`。根执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，日志 `recovery-root-compile-1101dy.log`；根全源清单及 OpenSpec 同样通过。本轮 783 个精确登记的 PostgreSQL 专用库、686 个 SQLite 临时文件已清理，释放 SQLite 470,261,760 字节，见 `recovery-{pg,sqlite}-cleanup-1101dy.json`；初始快照／SHA、生成输入、只读黄金及验证／审查证据保留。没有在仓库 `tmp/` 或 `/tmp` 创建临时文件。
+
+阶段 8：固定真实锁忙与其他存储故障的区分，永久消费优先于正文，清理失败不掩盖已知成功；原账户停用只阻止转正式，无关导入／账户重命名不阻止正式备注编辑。初始状态与写后证据分开保存，避免用已消费写库验证恢复合同。
 
 ### 维护计划发布迁移
 

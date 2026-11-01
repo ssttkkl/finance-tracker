@@ -7052,6 +7052,217 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_account_disabled_after_preview_blocks_only_draft_finalization",
+      "source_sha256": "e89ddc02ee9ef17e44c294dba4b13ad5cc1ce282122d3bd34e4405cbb035572d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_account_disabled_after_preview_blocks_only_draft_finalization[cash_web_runtime-False]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_account_disabled_after_preview_blocks_only_draft_finalization[cash_web_runtime-True]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_account_disabled_after_preview_blocks_only_draft_finalization[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_account_disabled_after_preview_blocks_only_draft_finalization[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert getattr(captured.value, 'code', None) == 'account_unavailable'",
+        "assert _records(runtime).read(identifier) == before and service.read_plan(view['plan_id']) == view",
+        "assert _commit(service, view)['summary']['updated_posted'] == 1",
+        "异常边界：pytest.raises(ValueError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "disabledAccountBlocksFinalizationAndAllowsExistingPostedNote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_cleanup_failure_after_commit_does_not_hide_known_success",
+      "source_sha256": "c5b7c5ded299b4f93d9aa668419c3b6ae085751e0e6578802caa1ea336d2d847",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_cleanup_failure_after_commit_does_not_hide_known_success[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_cleanup_failure_after_commit_does_not_hide_known_success[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['edit_context_id'] in service._staging._entries",
+        "assert _commit(service, view) == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm')['receipt'] == receipt",
+        "异常边界：pytest.raises(CashMutationConflict, match='edit_context_committed')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "cleanupFailureKeepsKnownSuccessAndPermanentReceipt"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively",
+      "source_sha256": "959342d351e587a19aab28a8094b18a2b5400219ed99c1add6c755c61156800e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[cash_web_runtime-cancel]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[cash_web_runtime-expire]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[cash_web_runtime-replace]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[postgres_cash_web_runtime-cancel]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[postgres_cash_web_runtime-expire]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_closed_or_replaced_plan_cannot_commit_and_resolves_authoritatively[postgres_cash_web_runtime-replace]"
+      ],
+      "assertions": [
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm') == {'status': 'retry_original'}",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm') == {'status': 'not_committed'}",
+        "assert _records(runtime).read(identifier) == before",
+        "异常边界：pytest.raises(CashMutationPlanError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "cancelledExpiredAndReplacedPlansAreBusinessRejectionsAndNotCommitted"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_commit_and_replay_recheck_current_editor_and_private_owner",
+      "source_sha256": "5fc109c9397a4aee8aa88407a69f60240a4dc9112521434324127ef6a9335a8c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_commit_and_replay_recheck_current_editor_and_private_owner[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_commit_and_replay_recheck_current_editor_and_private_owner[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "异常边界：pytest.raises(PermissionDenied)",
+        "异常边界：pytest.raises(ImportSessionForbidden)",
+        "异常边界：pytest.raises(CashMutationPlanError, match='receipt_not_found')",
+        "异常边界：pytest.raises(PermissionDenied)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "commitReplayAndReceiptAlwaysRecheckLiveEditorAndPrivateOwner"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context",
+      "source_sha256": "0e60f0b8e01f023a28eea0d3706f50e95634b630be7e40b292ca05bbc45c6963",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[cash_web_runtime-parent]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[cash_web_runtime-issue]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[cash_web_runtime-relation]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[cash_web_runtime-members]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[postgres_cash_web_runtime-parent]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[postgres_cash_web_runtime-issue]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[postgres_cash_web_runtime-relation]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_current_dependency_change_rejects_before_writes_without_consuming_context[postgres_cash_web_runtime-members]"
+      ],
+      "assertions": [
+        "assert captured.value.code in {'record_changed', 'relation_context_changed'}",
+        "assert _records(runtime).read(identifier) == current",
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert current['row_revision'] == before['row_revision']",
+        "assert session.get(CashTransactionIssueModel, issue_id).pending_fields == {'counterparty': '新待采用'}",
+        "异常边界：pytest.raises(CashMutationConflict)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "everyLocalDependencyChangeRejectsBeforeWritesAndKeepsContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_permanent_context_consumption_and_idempotency_are_checked_before_body",
+      "source_sha256": "043d0c66deaa4c1c72b2b82dc0a020ee89f4e719a121d1496d4f0106f543c175",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_permanent_context_consumption_and_idempotency_are_checked_before_body[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_permanent_context_consumption_and_idempotency_are_checked_before_body[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _commit(service, view) == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-other-key')['receipt'] == receipt",
+        "异常边界：pytest.raises(CashMutationConflict, match='edit_context_committed')",
+        "异常边界：pytest.raises(CashMutationConflict, match='idempotency_conflict')",
+        "异常边界：pytest.raises(CashMutationConflict, match='idempotency_conflict')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "permanentKeyAndContextFencesPrecedeBodyEvenForReplayAndResolve"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors",
+      "source_sha256": "91074e4bb1cb9ff85c5ba19ef063b969884f02ae678f958189be8ba8b762d21b",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[cash_web_runtime-storage.connect]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[cash_web_runtime-storage.readonly]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[cash_web_runtime-storage.schema]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[postgres_cash_web_runtime-storage.connect]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[postgres_cash_web_runtime-storage.readonly]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_propagates_non_lock_storage_errors[postgres_cash_web_runtime-storage.schema]"
+      ],
+      "assertions": [
+        "assert captured.value.code == code",
+        "异常边界：pytest.raises(StorageError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "nonLockStorageFailuresPropagateFromTheActualIndependentWriteStage"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_returns_pending_only_for_the_independent_workspace_writer",
+      "source_sha256": "2566f7026b9e6ea2b07e21e76053a779e2e737dde296a452195da135147a41af",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_returns_pending_only_for_the_independent_workspace_writer[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_resolve_returns_pending_only_for_the_independent_workspace_writer[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm') == {'status': 'retry_original'}",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm')['receipt'] == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm') == {'status': 'pending'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "realIndependentWorkspaceWriterIsTheOnlyPendingOutcome"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit_recovery.py::test_unrelated_import_and_account_rename_do_not_invalidate_formal_note_edit",
+      "source_sha256": "c15434dafc719ff1ebf212434686cd1fb025134de9f956fbe000515d145605d7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_unrelated_import_and_account_rename_do_not_invalidate_formal_note_edit[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit_recovery.py::test_unrelated_import_and_account_rename_do_not_invalidate_formal_note_edit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['updated_posted'] == 1 and _records(runtime).read(identifier)['entry']['fields']['note'] == '仍可保存'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt",
+          "test": "unrelatedRealImportAndAccountRenameDoNotInvalidatePostedNote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#维护提交恢复迁移"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_plan_publication.py::test_another_member_cannot_read_or_cancel_owned_edit_context",
       "source_sha256": "67c9860192f258c352c061c78a8779b461bd858c3f2b63494accfc2501ef2637",
       "status": "migrated",
