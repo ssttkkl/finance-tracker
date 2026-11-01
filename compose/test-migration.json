@@ -164,7 +164,7 @@
     {
       "source": "tests/contract/test_account_command_api.py::test_account_openapi_describes_strict_revision_and_key_contract",
       "source_sha256": "fbdb21301fc1c6e5f871162f22055a4216d7d88d01fa9e14cef5c12751b0798a",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_account_command_api.py::test_account_openapi_describes_strict_revision_and_key_contract[cash_web_runtime]",
         "tests/contract/test_account_command_api.py::test_account_openapi_describes_strict_revision_and_key_contract[postgres_cash_web_runtime]"
@@ -175,9 +175,13 @@
         "assert schema['properties']['expected_revision']['type'] == 'integer'",
         "assert schema['additionalProperties'] is False"
       ],
-      "targets": [],
-      "reason": "旧写入适配、底层并发/迁移或 OpenAPI/权限 HTTP 断言尚未完整迁移，不以其他切片替代。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "accountOpenApiDescribesStrictRevisionAndRequiredKey"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
       "source": "tests/contract/test_account_command_api.py::test_concurrent_retries_publish_only_one_account_and_return_one_result",
@@ -7338,7 +7342,7 @@
     {
       "source": "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields",
       "source_sha256": "61dd07cafc0497178c165200705695c4b51e88e9237288fd6e54303afa5d26f7",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[cash_web_runtime]",
         "tests/contract/test_cash_manual_create_boundary.py::test_manual_create_schema_lists_only_public_fields[postgres_cash_web_runtime]"
@@ -7348,9 +7352,13 @@
         "assert {'amount', 'currency', 'occurred_at'} <= set(schema['required'])",
         "assert 'manual_overrides' not in schema['properties'] and 'source_payload' not in schema['properties']"
       ],
-      "targets": [],
-      "reason": "Ktor 尚无完整 OpenAPI 请求 schema；严格业务请求与持久化测试不能替代公开 schema 原断言。",
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "manualCreateSchemaContainsOnlyPublicFields"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
       "source": "tests/contract/test_cash_mutation_business_plan.py::test_common_entry_preview_keeps_sources_readonly_and_relationship_unchanged",
@@ -8636,6 +8644,32 @@
       "compatibility": "保留原全部参数与断言；真实JDBC事务和约束覆盖双库，SQLite索引分支仅计SQLite证据。历史DDL与通用UoW另验"
     },
     {
+      "source": "tests/contract/test_cash_mutation_receipts.py::test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade",
+      "source_sha256": "d1562a553a3ec890a056093e9a008d18ea58b2d998513b04bba6d7a55e730038",
+      "status": "retained",
+      "parameters": [
+        "tests/contract/test_cash_mutation_receipts.py::test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_receipts.py::test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert connection.execute(select(old.c.result_json)).scalar_one() == {'new_rows': 1}",
+        "assert connection.scalar(text('SELECT count(*) FROM cash_mutation_receipts')) == 0",
+        "assert repo.get('fixture-user', receipt['receipt_id']) == receipt",
+        "assert repo.get('fixture-user', 'legacy-receipt')['summary'] == {'new_rows': 1}",
+        "with pytest.raises(ValueError, match='refusing a lossy'):\n    command.downgrade(_migration_config(connection), '20261021_39')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyReceiptMigrationCompatibilityTest.kt",
+          "test": "realOriginalUpgradeAndLossyDowngradeRefusalLeaveReadableLegacyAndCurrentReceipts"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary",
+      "reason": "Historical Alembic revisions 39/40/head and refusal of lossy downgrade remain Python-owned deployment infrastructure; the entire original definition runs on both databases.",
+      "python_command": "FT_TEST_POSTGRES_URL=<dedicated _test> FT_REQUIRE_TEST_POSTGRES=1 PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q tests/contract/test_cash_mutation_receipts.py::test_receipt_migration_preserves_legacy_results_and_refuses_lossy_downgrade",
+      "compatibility": "LegacyReceiptMigrationCompatibilityTest validates current schema, both full final receipt envelopes and complete 31-table immutability against real original upgrade/refusal outputs. scripts/export_legacy_receipt_migration_compatibility.py executes all original assertions before exporting those actual final receipts."
+    },
+    {
       "source": "tests/contract/test_cash_mutation_receipts.py::test_result_paging_is_stable_and_bounded",
       "source_sha256": "e0b86be212f23a1112fcc6494b8ef562f087bf5fa4395dc93e2dfb74f0242d4a",
       "status": "migrated",
@@ -8743,6 +8777,28 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
       "compatibility": "保留原全部参数与断言；真实JDBC事务和约束覆盖双库，SQLite索引分支仅计SQLite证据。历史DDL与通用UoW另验"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_receipts.py::test_uow_acquires_workspace_write_boundary_before_any_business_read",
+      "source_sha256": "a7135c29cc3b80c0086f11520ced7159373d8531a2c572f14b4e66fc15854522",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_receipts.py::test_uow_acquires_workspace_write_boundary_before_any_business_read[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_receipts.py::test_uow_acquires_workspace_write_boundary_before_any_business_read[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert entered.is_set()",
+        "assert release.wait(3)",
+        "assert attempted.wait(2)",
+        "assert not entered.wait(0.15)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ReceiptStoreMigrationTest.kt",
+          "test": "workspaceWriteBoundaryPrecedesActualAccountBusinessReads"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
       "source": "tests/contract/test_cash_projection_graph_reads.py::test_alternating_old_and_new_groups_have_bounded_membership_read_cost",
@@ -12096,6 +12152,25 @@
       "reason": "当前 Kotlin 专项保留原耗时门槛和集合 SQL，并用 ps 并发采样 RSS；尚未等价复刻原 getrusage 高水位计量，不能把补充性能专项视为原定义迁移完成。"
     },
     {
+      "source": "tests/test_cash_diagnostics.py::test_session_openapi_exposes_the_same_diagnostic_error_contract",
+      "source_sha256": "240dc8872744ae50108b85733187dca71a2caea042dab66680cb6bc63e61d914",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_diagnostics.py::test_session_openapi_exposes_the_same_diagnostic_error_contract"
+      ],
+      "assertions": [
+        "assert error['content']['application/json']['schema']['$ref'].endswith('CashPlanErrorView')",
+        "assert diagnostic['properties']['locations']['maxItems'] == 100"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "sessionOpenApiExposesBoundedDiagnosticContract"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
+    },
+    {
       "source": "tests/test_cash_draft_projection.py::test_attention_counts_unique_members_and_keeps_full_refund_visible",
       "source_sha256": "54245c0146405263a58a464b132d850f29396104a47c2ece1bc2cd6d96d89022",
       "status": "migrated",
@@ -12499,6 +12574,25 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_cash_import_multipart.py::test_public_upload_openapi_has_resolvable_references",
+      "source_sha256": "7c56e3297573684cfe655ae05b394a05b29db191403d6cd3f8f1019ffdfd91ac",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_import_multipart.py::test_public_upload_openapi_has_resolvable_references"
+      ],
+      "assertions": [
+        "assert metadata['additionalProperties'] is False",
+        "assert metadata['properties']['files']['items']['properties']['client_file_ref']['type'] == 'string'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "uploadOpenApiHasResolvableMultipartReferences"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
       "source": "tests/test_cash_ledger_management.py::test_batch_delete_rejects_empty_hidden_and_cross_workspace_targets",
@@ -12951,6 +13045,50 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-graph-and-additional-effects-assertions"
     },
     {
+      "source": "tests/test_cash_maintenance_protocol.py::test_browser_can_read_authentication_errors_from_cash_api",
+      "source_sha256": "b366aa9d3483c61aaac2b6796144e87e2d6ef150367637a4ea248fc00611df33",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_protocol.py::test_browser_can_read_authentication_errors_from_cash_api[None-401]",
+        "tests/test_cash_maintenance_protocol.py::test_browser_can_read_authentication_errors_from_cash_api[viewer-403]"
+      ],
+      "assertions": [
+        "assert response.status_code == status and response.json()['error']['retryable'] is False",
+        "assert response.headers.get('access-control-allow-origin') == origin",
+        "assert denied.status_code == status and 'access-control-allow-origin' not in denied.headers"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/MaintenanceProtocolOriginalTest.kt",
+          "test": "browserCanReadAuthenticationAndViewerErrorsWithoutTrustingMaliciousOrigins"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
+    },
+    {
+      "source": "tests/test_cash_maintenance_protocol.py::test_maintenance_openapi_has_six_strict_intents_and_self_contained_discriminators",
+      "source_sha256": "edb580fd4c47a3ae897cf23ab25b3dd67e86693b3e20c16793aadd222655ce7a",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_maintenance_protocol.py::test_maintenance_openapi_has_six_strict_intents_and_self_contained_discriminators"
+      ],
+      "assertions": [
+        "assert set(variants) == {'save_draft', 'edit_entry', 'edit_record', 'finalize_draft', 'resolve_issue', 'maintain_relations'}",
+        "assert all((item['additionalProperties'] is False for item in variants.values()))",
+        "assert 'issue_resolutions' not in variants['maintain_relations']['properties']",
+        "assert variants['resolve_issue']['properties']['issue_resolutions']['minItems'] == 1",
+        "assert variants['edit_record']['properties']['issue_resolutions']['maxItems'] == 100",
+        "assert '$ref' not in value and 'mapping' not in value.get('discriminator', {})"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "maintenanceOpenApiHasSixStrictSelfContainedIntents"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
+    },
+    {
       "source": "tests/test_cash_mutation_failure_results.py::test_duplicate_discovery_failures_have_one_safe_stable_result_and_group_failure_is_separate",
       "source_sha256": "baec7799be159dc58fe9e02257049137b066680d44195f7ae3b79d8d983ac074",
       "status": "migrated",
@@ -12987,6 +13125,31 @@
         }
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#current-record-and-failure-results-contracts"
+    },
+    {
+      "source": "tests/test_cash_plan_protocol.py::test_plan_openapi_exposes_complete_input_and_bounded_pages_without_dangling_refs",
+      "source_sha256": "c1aaa21daf99c758fa114108a0ae1c14a52fe9a9614b79fc2a65709e9965c283",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_cash_plan_protocol.py::test_plan_openapi_exposes_complete_input_and_bounded_pages_without_dangling_refs"
+      ],
+      "assertions": [
+        "assert set(schema['required']) == {'expected_session_revision', 'previous_plan_id', 'account_selections', 'row_choices', 'relation_choices'}",
+        "assert schema['additionalProperties'] is False",
+        "assert schema['properties']['row_choices']['items']['properties']['patch']['type'] == 'object'",
+        "assert parameters['limit']['schema']['maximum'] == 200",
+        "assert parameters['start_index']['schema']['minimum'] == 0",
+        "assert set(parameters['confirmation_status']['schema']['enum']) == {'all', 'confirmed', 'pending'}",
+        "assert any((item['name'] == 'Idempotency-Key' and item['required'] for item in commit['parameters']))",
+        "assert commit['responses']['503']['content']['application/json']['schema']['$ref'].endswith('CashPlanErrorView')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt",
+          "test": "planOpenApiExposesCompleteInputsAndBoundedPagesWithoutDanglingReferences"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#public-protocol-and-receipt-boundary"
     },
     {
       "source": "tests/test_cash_projection.py::test_all_facts_have_exactly_one_projection_and_only_accepted_relations_apply",

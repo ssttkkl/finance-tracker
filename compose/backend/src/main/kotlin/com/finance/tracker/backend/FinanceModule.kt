@@ -540,7 +540,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             }
         }
     }
-    routing {
+    val router = routing {
         if (cashImports != null) {
             suspend fun uploadView(action: () -> Map<String, Any?>): Map<String, Any?> = withContext(Dispatchers.IO) { action() }
             post("/api/v1/cash-import/sessions") {
@@ -983,6 +983,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 direction?.let(::pythonString) ?: "", revisionInput = body["expected_revision"]) })
         }
     }
+    LegacyOpenApi.install(router)
 }
 
 private fun accountCommandResponse(receipt: JsonObject): JsonObject {

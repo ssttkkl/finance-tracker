@@ -3,11 +3,65 @@ package com.finance.tracker.backend
 import java.nio.file.Path
 import java.sql.Connection
 import java.time.Instant
+import java.lang.reflect.InvocationTargetException
+import java.lang.reflect.Proxy
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.io.path.readText
 import kotlin.test.*
 import kotlinx.serialization.json.*
 
 class ReceiptStoreMigrationTest {
+    @Test fun workspaceWriteBoundaryPrecedesActualAccountBusinessReads() = inWorkspace { db, workspace ->
+        val attempted = CountDownLatch(1); val entered = CountDownLatch(1); val release = CountDownLatch(1)
+        val executor = Executors.newSingleThreadExecutor()
+        val config = Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")), "database.json").readText()).jsonObject
+        val observed = Database(config.getValue("jdbc_url").jsonPrimitive.content,
+            System.getenv("FT_KOTLIN_TEST_DB_USER"), System.getenv("FT_KOTLIN_TEST_DB_PASSWORD")) { raw ->
+            Proxy.newProxyInstance(Connection::class.java.classLoader, arrayOf(Connection::class.java)) { _, method, args ->
+                if (method.name == "prepareStatement") {
+                    val sql = (args!![0] as String).replace("`", "").replace("\"", "").lowercase()
+                    if (sql.contains("from cash_mutation_receipts") || sql.contains("from accounts")) {
+                        entered.countDown(); check(release.await(10, TimeUnit.SECONDS))
+                    }
+                }
+                try { method.invoke(raw, *(args ?: emptyArray())) } catch (failure: InvocationTargetException) { throw failure.cause ?: failure }
+            } as Connection
+        }
+        var pending: java.util.concurrent.Future<JsonObject>? = null
+        try {
+            db.write { holder ->
+                assertTrue(holder.lockWorkspace(db.sqlite, workspace))
+                val pid = if (db.sqlite) null else holder.createStatement().use { it.executeQuery("SELECT pg_backend_pid()").use { rows -> assertTrue(rows.next()); rows.getInt(1) } }
+                val future = executor.submit<JsonObject> {
+                    attempted.countDown()
+                    AccountService(observed).create("synthetic-admin", buildJsonObject {
+                        put("name", "Boundary account"); put("type", "cash"); put("currencies", JsonArray(listOf(JsonPrimitive("CNY"))))
+                    }, "workspace-boundary-original")
+                }
+                pending = future
+                try {
+                    assertTrue(attempted.await(2, TimeUnit.SECONDS))
+                    if (pid != null) {
+                        var blocked = false; val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+                        while (!blocked && !future.isDone && System.nanoTime() < deadline) {
+                            blocked = db.read { connection -> connection.prepareStatement("SELECT count(*) FROM pg_stat_activity WHERE ?=ANY(pg_blocking_pids(pid)) AND wait_event_type='Lock'").use {
+                                it.setInt(1, pid); it.executeQuery().use { rows -> assertTrue(rows.next()); rows.getInt(1) > 0 }
+                            } }
+                            if (!blocked) Thread.sleep(10)
+                        }
+                        assertTrue(blocked, "The real account command must wait on the held workspace boundary")
+                    }
+                    assertFalse(entered.await(150, TimeUnit.MILLISECONDS))
+                } finally { release.countDown() }
+            }
+            assertEquals(JsonPrimitive(true), pending!!.get(10, TimeUnit.SECONDS)["committed"])
+            assertEquals(0, entered.count)
+        } finally {
+            release.countDown(); executor.shutdown(); assertTrue(executor.awaitTermination(15, TimeUnit.SECONDS))
+        }
+    }
     private fun inWorkspace(action: (Database,String)->Unit) {
         val config=Json.parseToJsonElement(Path.of(requireNotNull(System.getenv("FT_KOTLIN_CONTRACT_DIR")),"database.json").readText()).jsonObject
         val database=Database(config.getValue("jdbc_url").jsonPrimitive.content,System.getenv("FT_KOTLIN_TEST_DB_USER"),System.getenv("FT_KOTLIN_TEST_DB_PASSWORD"))

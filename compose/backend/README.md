@@ -1,8 +1,12 @@
 # Kotlin 后端本机预览
 
+公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 71 项；六个维护操作仍未完成全部原合同验收。
+
+在仓库根运行 `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_kotlin_openapi_contract.py --check` 核对已提交资源；更新时去掉 `--check` 后审查并运行 `*OpenApiContractTest`。服务器只读取编译资源，不执行 Python。历史收据兼容准备器 `scripts/export_legacy_receipt_migration_compatibility.py --database-url <显式目标> --output <仓库外目录>` 实际执行原历史升级及有损降级拒绝；只允许不存在的绝对 SQLite 文件或空的 PG `_test` schema。设置 `FT_KOTLIN_LEGACY_RECEIPT_MIGRATION_DIR` 后运行 `*LegacyReceiptMigrationCompatibilityTest`，读取真实升级后的旧／新完整收据。
+
 维护预计图的 [直接原断言](src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessOriginalTest.kt) 覆盖原 12 定义／30 双库参数；[额外确认效果](src/test/kotlin/com/finance/tracker/backend/MutationPlanEffectsOriginalTest.kt) 覆盖原 9 定义／9 参数。前者实际调用预览、暂存和详情，核对来源／关系保护、种子、拒绝后不发布及 31 表只读；内部阶段工厂默认仍构造真实业务图。既有完整图检查点另行保留，不重复计数。
 
-按 `scripts/export_cash_maintenance_business_contracts.py --help` 的 15 个 `--scenario` 为 SQLite／专用 PG `_test` 库分别准备匿名状态，`--output` 指向仓库外共同目录。设置 `FT_KOTLIN_MAINTENANCE_BUSINESS_CONTRACT_DIR` 后运行 `:backend:test --tests '*CashMaintenanceBusinessOriginalTest' -PbackendFunctionalOnly=true`。纯效果测试可单独筛选 `*MutationPlanEffectsOriginalTest`，无需数据库。维护接口的 OpenAPI 及其余未验收组合仍未完成。
+按 `scripts/export_cash_maintenance_business_contracts.py --help` 的 15 个 `--scenario` 为 SQLite／专用 PG `_test` 库分别准备匿名状态，`--output` 指向仓库外共同目录。设置 `FT_KOTLIN_MAINTENANCE_BUSINESS_CONTRACT_DIR` 后运行 `:backend:test --tests '*CashMaintenanceBusinessOriginalTest' -PbackendFunctionalOnly=true`。纯效果测试可单独筛选 `*MutationPlanEffectsOriginalTest`，无需数据库。OpenAPI 已接通；当前关系计划等其余未验收组合仍未完成。
 
 旧交易查询由 [读取服务](src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 提供，保留正式流水、UTC 月份／账户／分类、默认 30 条及 1–200 范围、精确金额与原十字段响应；不依赖投影就绪。当前 Compose 无该 GET 消费者，账户查询仍待行情估值迁移。
 
@@ -56,7 +60,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 58 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 35 个原定义／112 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。当前关系提交原文件的 18 定义／58 参数、人工关联原文件的 8 定义／26 参数均已映射；后者包含既有搜索回归。证明变化在真实预览后实施，字段、第二关系成员、候选清理、投影及收据的故障在实际写入后注入，核对 31 表回滚与原方案重试；新鲜上下文读取次数在 JDBC 层观测。无效预览不得替换原方案或隐式确认关系。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存，共接入 71/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 15 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存，共接入 71/86 个 HTTP 操作。其中 6 个维护计划操作尚未完成完整合同验收，其余 15 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；完整维护及其余原组合测试仍待迁移。
 
@@ -277,4 +281,4 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 内部余额快照仓库保留账户稳定 ID、当前名称和 crypto/security 映射，组成项增量以精度 80 计算并验证金额范围；草稿和删除记录不计余额，导入的普通转账排除，manual 来源保留。原生双库验证含负零、完整有效位数、账户改名及回滚；手工记账、转账和旧现金新增/校准已接入，导入仍待迁移。内部账户类型只接受真实账户模型提供的字符串。
 
-手工新建的内部请求读取器已验证 65,536 字节、编码、重复键/非有限数、严格字段类型及 64 个现金部分限制；直接应用边界复制可变容器，保留缺省与明确清空的区别。POST `/api/v1/cash-records` 已使用该边界，原子保存流水、现金部分、余额及稳定收支/投影，并复用 Compose 现有创建消费者。缺省或明确清空备注/分类的人工保护与原 Python 一致；纯日期及无时区时间按 UTC 保存，正式入账的独立时间校验仍要求时区。OpenAPI schema 和其余现金入口继续待迁移。
+手工新建的内部请求读取器已验证 65,536 字节、编码、重复键/非有限数、严格字段类型及 64 个现金部分限制；直接应用边界复制可变容器，保留缺省与明确清空的区别。POST `/api/v1/cash-records` 已使用该边界，原子保存流水、现金部分、余额及稳定收支/投影，并复用 Compose 现有创建消费者。缺省或明确清空备注/分类的人工保护与原 Python 一致；纯日期及无时区时间按 UTC 保存，正式入账的独立时间校验仍要求时区。公开 OpenAPI schema 已接通；其余未完成入口和原测试继续待迁移。
