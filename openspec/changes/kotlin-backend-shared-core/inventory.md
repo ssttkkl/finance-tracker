@@ -19,7 +19,7 @@
 | 投资事件、重放、持仓/成本、表现 | `investment.py`、`investment_import.py`、`investment_web_queries.py`、`domain/investment_*` | 共用协议与实际客户端需要的精确计算；完整重放/成本/PnL/回报按双端需求提取，来源/持久化由服务器负责 | 事件列表／账单原文两个 GET 已完成原 HTTP／只读、源断言、真实故障／当前权限与现有 Compose 消费验收；原应用四定义和 HTTP 前四定义共 8／11 参数已迁，写入／导入、重放／持仓／成本／表现及其他原测试仍待迁移 |
 | 现金—投资资金调拨 | `cash_investment_funding_relations.py` | 共用 UTC 窗口/资格；端点互斥、确认/拒绝、当前事实和审计留服务端 | 四操作已接入；原 13 定义／27 参数及双库完整验证通过 |
 | 连接器同步、增量游标 | `sync_service.py`、`adapters/connectors/ccxt_exchange.py`、`polymarket.py` | 共用事件归一；服务端凭据、网络分页、cursor 与财务写入不下沉 | 未迁移 |
-| 行情、FX、历史估值 | `adapters/market_data.py`、`fx_rates.py`、`application/valuation.py` | 共用资产身份、估值/新鲜度规则；外部请求、缓存和超时由服务器负责 | 未迁移 |
+| 行情、FX、历史估值 | `adapters/market_data.py`、`fx_rates.py`、`application/valuation.py` | 共用资产身份、估值/新鲜度规则；外部请求、缓存和超时由服务器负责 | 估值纯服务和行情提供器已实现并有原断言及真实 Python／SDK 对照；FX、缓存与账户／报表／持仓接线仍待迁移 |
 | 持仓刷新、SSE | `portfolio_refresh.py`、`web/app.py` | 工作区隔离 worker；5 秒刷新、15 秒 heartbeat、60 秒 backoff、last-success/generation/version、关闭等待 | 未迁移 |
 | 解析暂存、R2、清扫 | `parsed_import_staging.py`、`parsed_import_cleanup.py` | owner/CAS/TTL 最大 1800 秒及大小预算；内存/R2；启动 sweep、30 秒周期、100 项分页；健康/安全日志和关闭等待 | 编解码、内存/R2 条件端口、SDK 和清扫生命周期已迁并接本机入口；维护计划使用同一存储；上传文件准备纯层与上传 HTTP 已迁，完整导入规划/预览及条件发布已接线；联合确认已接线；解析暂存原文件已验收，其他存储／运行时原测试及真实 R2 仍待验收 |
 | 运行装配、schema、数据库 | `runtime.py`、`config.py`、`adapters/relational/{runtime,dialect,uow,workspace_lock}.py` | 显式 FT_DATABASE_URL、Alembic head 校验；SQLite BEGIN IMMEDIATE/PG FOR UPDATE、无回退或自动迁移 | 未迁移 |
@@ -59,7 +59,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 原 OpenAPI／浏览器错误和写边界新增直接迁移 8 定义／12 参数；历史 Alembic 收据迁移 1 定义／2 参数整体保留并在两库运行，Native 读取原真实升级后的两份完整收据及当前 schema，且全表只读。公开文档按当前真实路由筛选原完整 86 项资源，完整装配为 74 项；框架元数据入口不增加业务接口数。当前关系预览、稳定收支编辑及公开协议原定义已有直接对应，维护接口验收已完成，剩余共享存储／基础规则原测试继续单独保留。
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 841 个定义／2,229 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,760 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 858 个定义／2,246 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,743 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - 维护提交恢复原 9 定义／34 参数已由 `CashMutationRecoveryOriginalTest` 直接对应，包含真实双库锁、永久收据优先、过期与权限错误、局部依赖拒绝和当前账户资格；完整验证证据见 tasks。
 - 维护计划发布原 12 定义／40 参数已由 `CashMutationPublicationOriginalTest` 直接对应；当前完整双库与实际 Compose 消费通过，独立最终复核无可执行 finding，证据见 tasks。
@@ -81,4 +81,4 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 账户别名登记已接入 AccountAliasService／AccountAliasRepository，保留原账户名查询、卡尾与完整账号归一、通用历史命名空间和后端约束差异。66 组真实原 HTTP 与全列别名状态、写后／提交故障及当前权限重验在两库通过；原完整账号别名测试新增 1 定义／2 参数，组合文件其他定义仍 pending。Compose 无此独立旧接口的实际调用者，两端 UI TODO 保留，证据见 [当前审查](tasks.md#账户别名登记接口)。
 
-统一估值纯领域／应用／历史边界的原 10 定义已建立直接 Native 对应，另 230 组真实 Python 差分比较完整数值表示、结果／错误、调用和预算。该依赖当前双库完整回归已通过；真实行情／FX 提供器及账户／报表／持仓 HTTP 仍未接入，HTTP 78/86 不变。
+统一估值纯领域／应用／历史边界的原 10 定义已建立直接 Native 对应，另 230 组真实 Python 差分比较完整数值表示、结果／错误、调用和预算。行情提供器原 17 定义／17 参数已建立直接 Native 对应，189 组原适配器与 27 组实际 SDK 输出另作补充差分；JVM 通过本机 HTTP 验证下载、代理、JSON 数值与超时。真实外部来源可用性不据此宣称通过，FX 和账户／报表／持仓运行时接线仍未完成，HTTP 78/86 不变。

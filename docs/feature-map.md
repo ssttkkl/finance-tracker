@@ -260,4 +260,4 @@ Compose Web 待解决缺陷：当前 `1.12.1` 关闭详情弹层后无障碍树�
 
 资金调拨的四个旧后端操作已接通 [应用服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，原 13 定义／27 参数及 46 组真实 HTTP 对照完成双库完整验证，见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨)。当前 Compose 未调用这四个旧接口，不计作新的页面入口或 Web／Native 产品接线，页面数 10 和两端既有 TODO 保留。
 
-账户汇总／财务报表／持仓所需的 [估值纯服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 正在迁移，原 10 定义／10 参数及 230 组 Python 对照完成双库完整验证；当前没有真实提供器或 Compose 调用，不登记为新增页面入口。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，账户查询、报表和持仓路由仍未接入，见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务)。
+账户汇总／财务报表／持仓所需的 [估值服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 和 [行情提供器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MarketQuoteSources.kt) 已在后端实现：估值原 10 定义、行情原 17 定义，以及 230 组估值、189 组适配器和 27 组原 SDK 对照。当前仍无这些服务的 Compose 运行时调用，账户查询、报表及持仓路由未接入，不登记为新增页面。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，完整验证边界见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#行情提供器与-jvm-http)。

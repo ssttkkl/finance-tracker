@@ -220,6 +220,7 @@
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
 - [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
+- [x] 4.14.2 迁移股票主源／备用源、历史下载、现金、加密币、预测市场与组合提供器的原 17 定义／17 参数，真实 HTTP、请求配置、预算／并发与缺失隔离验证后再接入账户／报表。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
 
@@ -262,15 +263,17 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前工作树已验收原测试映射为 841 migrated／13 retained／1,760 pending，参数 2,229/5,860；当前 Python 共 2,614 定义。比较基线 `35a37551b520d553f5a94016b97f8a47beeac097` 加估值隔离工作树 `valuation-worktree-1102fj`，目标仍为 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 78/86（78 完整、8 未接入）；真实行情／FX 提供器、账户查询／财务报表、投资写入／导入、持仓／同步和剩余原测试及全迁移最终验收未完成。生产入口仍为 Python。
+当前工作树已验收原测试映射为 858 migrated／13 retained／1,743 pending，参数 2,246/5,860；当前 Python 共 2,614 定义。HEAD／比较基线 `2a5984b71af2334640f523131d5d1670cb90040f` 加行情隔离工作树 `market-worktree-1102fl`，目标仍为 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 78/86（78 完整、8 未接入）；FX、账户查询／财务报表、投资写入／导入、持仓／同步、提供器运行时接线和剩余原测试及全迁移最终验收未完成。生产入口仍为 Python。
 
-本片统一估值领域／应用／历史边界迁移原 10 定义／10 参数；原 Python 10 passed／零跳过，Native 原直接 10 方法与补充差分 1 方法通过。230 组真实 Python 对照比较完整数值系数／指数／符号、结果／错误、提供器调用和预算时钟调用，不计为额外原迁移数。重新运行生成器后 230 组输出／调用与前一输出逐项一致，Unicode 数据重建字节一致，绑定四个原文件 SHA 和 Unicode 版本，见 `valuation-generator-proof-1102fj.json`。
+本片行情提供器迁移原 17 定义／17 参数的 61 条断言；原 Python 全文件 17 passed／零跳过，Native 原直接 17 方法与补充验证合计五类 26 方法通过。189 组实际原适配器与 27 组实际 yfinance 1.7.0 SDK 离线解析通过真实 JVM 本机 HTTP／注入边界比较，不另计为原测试迁移数。两个生成器重跑后 216 组结果和逐标的请求相同；SDK 原实现跨标的 `set` 分派顺序不作合同，原始 trace 均保留，见 `market-generator-proof-1102fm.json`。
 
-全新完整双库各 209 套／1,356 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PostgreSQL16 零跳过；八类现有客户端 Host 各 18 项通过。PG 基础组 192／1,139 与维护组 17／217 的互斥并集覆盖完整清单，501 个后端源码／资源／构建文件 SHA 与同版 SQLite 一致。完整实际命令、环境、时间及 JUnit 在仓库外 `full-{sqlite,pg}-1102fk/`，原 Python 参考见 `valuation-python-1102fj.log/xml`。独立初审和最终只读复核无可执行 finding，见 `valuation-review-1102fj.log` 与 `valuation-final-review-1102fk.log`；审查者未代跑验证。
+2026-11-01 23:31–23:44 UTC，全新完整双库各 214 套／1,382 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PostgreSQL16 零跳过；八类现有客户端 Host 各 18 项通过。PG 基础组 197／1,165 与维护组 17／217 的互斥并集覆盖完整清单，509 个后端源码／资源／构建文件 SHA 与同版 SQLite 一致。SQLite 在 `compose/` 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；PG 按冻结类表分别加 `--tests` 筛选两组，再执行同一八类 `:shared:testAndroidHostTest` 真实回包消费者。精确命令／环境、时间、日志、JUnit 及覆盖证明集中于 `full-{sqlite,pg}-1102fm/` 和 `run_{record_full,plan_protocol_pg_groups}_1102fm.py`，原 Python 参考为 `market-python-1102fl.log/xml`。
 
-本片只新增未接线的后端纯估值类和对应测试／工具，不改当前 HTTP 路由、真实行情提供器、Web／Native／共享生产 DTO 或页面，页面数仍为 10，两端既有 TODO 保留。不会把纯算法测试当作实时行情、浏览器、设备或客户端接线完成；8 个旧接口继续标未迁移。
+独立只读工程／范围／安全复核发现三项 P2：NaN 过滤、全零／空 OHLC 清理、小写代理发现。真实 SDK／HTTP 回归先失败，再修复并重审；第三次无可执行 finding，见 `market-{review,rereview,third-review}-1102fl.log`。根编译、OpenSpec strict 38/38、doctor、全源和 6 文档／320 本地链接均通过，`git diff --check` 无错误；最终 17 文件 diff 独立复核无可执行 finding，见 `market-final-review-1102fm.log`；审查者未代跑测试。
 
-已精确清理 844 个自有 PG 测试库和 762 个 SQLite 临时文件／522,137,600 字节，源对照和不可变初始输入保留；仓库 tmp/ 不存在。匿名输入、不可变初始快照、源 SHA、日志及 JUnit 位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，人工准备专用 `_test` 并显式传入 `FT_TEST_POSTGRES_URL`，不自动探测或启动。性能按用户决定排除，PG18、真实 R2 和真实账单未验证；未执行 PR、合并、部署、真实数据迁移或删除 Python。
+本片新增后端提供器／下载／传输及测试／工具，没有新增 HTTP 操作或 Compose 运行时调用，不改 Web／Native／共享生产 DTO 或页面，页面数仍为 10，两端既有 TODO 保留。不将本机 HTTP／SDK 离线解析当作真实外部行情可用性、浏览器或设备验证；8 个旧接口继续标未迁移。
+
+已精确清理本轮全部 844 个自有 PG 测试库和 766 个 SQLite 临时文件／522,162,176 字节，源对照、不可变初始输入和证据保留；仓库 `tmp/` 不存在。匿名输入、初始快照、源 SHA、日志及 JUnit 位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，人工准备专用 `_test` 并显式设置 `FT_TEST_POSTGRES_URL`，不自动探测或启动。性能按用户决定排除，PG18、真实 R2 和真实账单未验证；未执行 PR、合并、部署、真实数据迁移或删除 Python。
 
 ### 已实现范围的专项证据
 
@@ -359,6 +362,23 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 行情提供器与 JVM HTTP
+
+比较基线 `2a5984b71af2334640f523131d5d1670cb90040f`，独立工作树 `market-worktree-1102fl`；目标仍为 `origin/continue-kotlin-backend-refactor`，沿用已接受全量 A 类澄清、行为等价和同分支交付授权。
+
+阶段 1–3：已读取原 market_data 全部提供器／辅助函数、test_market_data 全 17 定义及估值主规格／词表。先保留主源下载、日期边界、真实来源时间、备用链顺序、可选密钥、受控并发／预算和部分失败，不提前接通账户／报表。JVM 不依赖 Python 运行时：使用同一 Yahoo chart 协议和 typed 下载请求／原始收盘列，保留旧 provider 协议标识；pandas 特有结构通过等价下载帧适配，原断言的实际参数、时间和结果均须保留。先失败测试和真实 Python Oracle，再实现。
+
+阶段 4：`MarketQuoteOriginalTest` 直接对应原 17 定义／17 参数的 61 条断言，先保留缺类失败，再实现全部提供器、下载请求／帧、JVM 传输与有界守护工作线程。`MarketAdapterParityTest` 比较实际原 Python 的 189 组结果及请求；`MarketSdkParityTest` 通过本机实际 HTTP 输入 27 组经已安装 yfinance 1.7.0／pandas 离线解析的匿名响应，比较价格系数／指数／符号、来源时间、币种及历史边界。`MarketHttpTest` 与 `MarketCompositionTest` 覆盖真实代理、请求头／JSON 数字、读取超时、失败、复合预算和任务退出；五类共 26 方法通过。原 Python 全文件 17 passed／零跳过，见 `market-python-1102fl.log/xml`。源 Python 的未知时间价格仍可进入旧价格映射；Native 补充期望已按原源码校正，不修改旧语义。
+
+阶段 5：独立只读初审发现 P2 的 SDK NaN 过滤和全零／空 OHLC 清理遗漏，复审另发现 P2 的小写代理发现遗漏。分别以真实原 SDK／本机 HTTP 失败复现，再修复下载解析和传输，所有回归转绿；见 `market-{review,rereview,third-review}-1102fl.log`、`market-review-red-1102fl.log/xml` 和 `market-proxy-red-1102fl.log/xml`。第三次独立工程／范围／安全复核无可执行 finding，未代跑测试。保留原年度／大小写／空白日期解析、SDK float64、排序／重复／末尾同周期合并和正常交易时段；不以“更合理”取值替代原算法。
+
+阶段 6：专项原断言、189 组适配器、27 组真实 SDK 和真实 HTTP 已通过，Native 日志／XML 为 `market-final-native-1102fl.log` 与 `market-final-native-1102fl/`。重新运行两个生成器后 216 组结果及逐标的请求相同，源和 SDK 文件 SHA／版本绑定于原输出，见 `market-generator-proof-1102fm.json`。SDK 原实现以 `list(set(tickers))` 分派，跨标的请求全局顺序没有合同，原始 trace 保留，只按标的分别核对请求顺序和全部参数。当前完整双库各 214 套／1,382 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PG16 零跳过；Host 八类各 18 项通过。执行时间为 2026-11-01 23:31–23:44 UTC。环境、实际命令及 JUnit 保存于 `full-{sqlite,pg}-1102fm/`，PG 两组互斥并集与 SQLite 类／方法数完全一致，509 个后端源码／资源／构建文件 SHA 不变；源码、原行情文件完整范围、OpenSpec strict 38/38 和 doctor 已通过。性能按用户决定排除，PG18 仍待适用环境。
+
+阶段 7：README／功能地图／inventory／映射／技能按当前实现原位维护；全源为 858 migrated／13 retained／1,743 pending，原参数 2,246/5,860，当前 2,614 定义。原行情文件完整门禁 17 migrated、零 pending；原 61 条断言未减少。主 README、词表、主规格／delta、routes、配置、依赖及示例均已按当前范围核对，无新用户概念或路由，不改生产入口；6 文档／320 本地链接及中文规则复核无缺口。根交付树按逐文件 SHA 与隔离验证源码一致，在 `compose/` 执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，见 `market-root-compile-1102fm.log`；17 个交付文件及比较基线保存在 `market-delivery-backup-1102fm/manifest.json`；最终独立 diff 复核无可执行 finding，交付树／备份／已验证源码按 SHA 相同。Cross-platform Impact Check：仅后端提供器，无 Web／Native／共享生产 DTO 或页面变化，页面数仍为 10，两端既有 TODO 保留。没有新增 HTTP 操作、UI 冒烟或原生包／设备 QA 范围；账户／报表／持仓及 FX 运行时接线继续未完成，不将本机 HTTP 当作真实上游可用证明。回滚撤销新增提供器／下载／传输和对应映射，无 schema／真实数据变化；原生产入口仍是 Python。提交推送沿用同目标分支授权，PR／合并／部署未授权。
+
+阶段 8：apply skill 沉淀实际 SDK Oracle、float64／交易时段／空条目清理、原时钟和功能截止时间；原测试、Native 方法及生成样本分别统计。独立审查发现必须先以真实边界复现，不以修改预期掩盖；财务语义差异保留原行为。本轮 844 个精确登记的 PG 库及 766 个 SQLite 临时文件／522,162,176 字节已清理，见 `market-{pg,sqlite}-cleanup-1102fm.json`；不可变输入和源输出／日志／JUnit 保留。根编译与同版交付树 SHA 已核对，最终独立 diff 复核无可执行 finding。交付按既有同分支授权小步提交推送，根与远端 SHA 核实结果保存于 `market-delivered-1102fm.json`；只验收该行情依赖，全迁移仍未完成。
+
 
 ### 统一估值与历史报价纯服务
 

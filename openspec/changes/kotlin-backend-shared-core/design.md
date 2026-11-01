@@ -682,3 +682,15 @@ Phase A 硬键退款按来源身份分组，支付宝使用订单前缀/商户�
 保留原 AssetRef、ProviderTick、QuoteResult／Batch、稳定原因、精确十进制、时效阈值与历史边界。数量使用既有 NUMERIC(38,18) 校验，乘法按原 Decimal 上下文（普通 28，报表调用期间 80）处理；行情单价本身不可被数量的持久化范围提前截断。现金单价为 1，缺失和不支持保留 null，不伪造零；历史报价不得回退当前行情。批量先整体校验、保留输入顺序和重复身份、传递剩余预算；不兼容身份不调用提供器。批量提供器的结果和失败按原服务处理，应用核心只依赖显式提供器和时钟／单调时钟，不进行网络或数据库访问。
 
 原提供器错误隔离限于读取行情适配边界，不用于掩盖财务写入或任意程序错误。新增 typed 时间表示必须保留源代码对 naive／aware 时间的区别，拒绝无时区的观察／历史边界，按原规则处理无时区当前时钟。股票代码映射、受支持币种／加密币和预测市场身份均以原列表为合同，不新增市场或隐式汇率。
+
+### 行情提供器与 JVM 传输
+
+在 `ValuationService` 的既有接口后接入原全部提供器。证券主源使用 JVM HTTP 读取与原 `yfinance` 相同的 Yahoo chart 收盘序列；保留 `range=1d`、`interval=5m`、`includePrePost=false`、未调整收盘价和顺序下载。历史请求先按输入边界生成前 3／后 1 个日历日期，再使用证券交易所时区的日界读取 1h 数据，按原规则选择边界前最后一笔、没有该笔时取首笔；不改原历史取值规则。旧 `provider` 标识 `yfinance`／`yfinance-history` 保留为协议兼容标识，不能宣称 Native 调用了 Python SDK。下载请求和帧是平台适配边界，原 pandas 测试的全部业务结果、来源时间、naive 时间未知及参数断言通过 Native 下载／HTTP 证据验证。
+
+本地参考依赖为 `yfinance` 1.7.0，核对其 `history.py` 的 `range`／`period1`／`period2`、`interval`、`includePrePost` 和原始 `Close` 路径；上游参考 [yfinance history](https://github.com/ranaroussi/yfinance/blob/main/yfinance/scrapers/history.py)。不增加运行依赖；JDK 传输保持原固定来源 URL、User-Agent／Accept、显式可选 timeout、`HTTPS_PROXY` 优先于 `HTTP_PROXY` 和适用代理绕过，测试用本机服务器实际检查请求／失败。凭据只在服务端读取，异常和日志不得暴露密钥或完整 URL。
+
+证券批量按原规范代码去重主源、仅对空值／错误项执行 Yahoo chart → Cboe → Nasdaq → 可选 Finnhub。主源忽略自身 timeout 时外层仍按预算返回；备用源最多 8 项并行，逐项顺序并传递剩余预算。预测市场最多 4 项并行，直查 slug 后按原规则搜索父事件，缺失／超时不污染其他项；加密币合并已知 CoinGecko ID 单次请求。工作线程为可退出的守护线程，过期后不无限提交任务；缺价不填零，内部数据／程序错误不伪装成财务写入的部分成功。
+
+保留现有来源时间差异：证券使用来源时间，naive 下载时间保留未知；原 CoinGecko／Polymarket 将观察时钟写入 `tick`、现金以当前时钟报价，这些旧语义不在本片静默修改。真实行情／FX、持仓及当前财务 API 的总体接线和验收仍须后续完成。
+
+SDK 兼容解析在真实原 SDK 的离线响应中验证：保留 float64 转换后的数值表示，按来源时刻排序、交易所本地日期的正常交易时段过滤、末尾同周期行情合并、重复时刻保留首项，并按原 `keepna=False` 清除全零／空的 OHLC、调整收盘价和成交量条目。只按 `Close` 的有效性清理会误报零价；NaN 应视为缺失，历史选中缺失收盘价仍不可擅自向前回退。SDK 文件 SHA、版本和原输出随匿名合同绑定，测试经真实 JVM HTTP 输入，不自行构造预期数值。

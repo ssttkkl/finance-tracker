@@ -303,6 +303,14 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 资金调拨四操作使用 [应用服务](src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，保留 UTC 自然日窗口、候选优先级、人工决定和原关系证据，工作区锁后重查端点，确认与投影原子维护。当前双库完整回归通过。原输入使用 `scripts/export_funding_relation_inputs.py --databases <原定义目标 URL 映射 JSON> --output <仓库外目录>` 捕获；HTTP 对照使用 `scripts/export_funding_relation_contracts.py --databases <GROUPS 目标 URL 映射 JSON> --seed-url <前者普通歧义候选初始库 URL> --output <仓库外目录>`。所有目标须为新的绝对 SQLite 文件或人工准备的空 PostgreSQL `_test` 库；设置 `FT_KOTLIN_FUNDING_CONTRACT_DIR` 和 `FT_KOTLIN_FUNDING_HTTP_DIR` 分别指向两类输出，运行 `*FundingRelationContractTest` 与 `*FundingRelationHttpContractTest`。脚本不启动数据库，写测试须从未消费初始状态运行；原协议无幂等键，不自动重放决定。
 
-账户余额、财务报表和持仓的统一估值依赖正在迁移。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。真实行情／FX 提供器、账户查询／财务报表与持仓路由仍未接通，当前 78/86 个 HTTP 操作不变。
+账户余额、财务报表和持仓的统一估值依赖正在迁移。[纯领域](src/main/kotlin/com/finance/tracker/backend/ValuationDomain.kt) 和 [应用服务](src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 已实现原标的／数量校验、精确市值、时效、单项／批量及历史报价结果；原 10 定义／10 参数和 230 组实际 Python 输出／提供器调用／预算时钟对照及双库完整回归已通过。金额使用精确系数／指数和原 28／报表 80 位上下文，保留负零；缺价、不支持或历史不可用不填假零。行情提供器已在后端实现；FX、账户查询／财务报表与持仓路由仍未接通，当前 78/86 个 HTTP 操作不变。
 
 使用根 .venv 与 `PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_valuation_contracts.py --output <仓库外新 JSON 路径>` 生成真实 Python 对照，显式 `--character-output <ValuationCharacters.kt 路径>` 可重建 Python Unicode 分类表；输出包含源 SHA 和 Unicode 版本。设置 `FT_KOTLIN_VALUATION_CONTRACT=<该 JSON 路径>` 后运行 `*ValuationOriginalTest` 和 `*ValuationParityTest`。该工具和纯服务不执行网络、数据库或凭据操作，不计为真实行情或客户端接线验证。
+
+### 行情提供器验证
+
+[证券下载及预算](src/main/kotlin/com/finance/tracker/backend/SecurityQuoteProvider.kt)、[行情适配器](src/main/kotlin/com/finance/tracker/backend/MarketQuoteSources.kt) 和 [JVM HTTP](src/main/kotlin/com/finance/tracker/backend/QuoteHttp.kt) 保留原证券主源与备用顺序、来源时间、日期查询边界、加密币合并请求、预测市场搜索及并发预算。旧 `yfinance`／`yfinance-history` 值仅作为兼容来源标识，Kotlin 运行时不调用 Python。原 17 定义／17 参数由 `MarketQuoteOriginalTest` 直接对应，补充验证通过实际 JVM 本机 HTTP 与真实 Python SDK 离线解析完成，不代表已验证上游当前可用性或已经接入账户／报表接口。
+
+在根目录使用 `.venv`、`PYTHONPATH=.:src:tests:scripts` 执行 `scripts/export_market_adapter_contracts.py --output <仓库外新 JSON 路径>` 和 `scripts/export_market_quote_contracts.py --output <另一新 JSON 路径> --cache <仓库外新匿名缓存目录>`。后者通过本机安装的原 `yfinance` 解析匿名响应，只替换其 HTTP I/O；输出绑定源、SDK 文件 SHA 和版本。分别设置 `FT_KOTLIN_MARKET_ADAPTER_CONTRACT` 与 `FT_KOTLIN_MARKET_SDK_CONTRACT` 后，在 `compose/` 运行 `./gradlew :backend:test --tests '*Market*Test' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`。五类共 26 个 Native 方法包含 189 组适配器和 27 组 SDK 对照，生成样本不另计原测试迁移数。
+
+提供器默认使用服务端 `HTTPS_PROXY`，为空时使用 `HTTP_PROXY`，无非空大写覆盖时按协议读取 `https_proxy`／`http_proxy`，并遵守 `no_proxy`／`NO_PROXY`；可选 Finnhub 凭据只读取 `FT_FINNHUB_API_KEY`，没有密钥时跳过该来源。CoinGecko／Polymarket 沿用原观察时钟，现金沿用当前时钟；本片不改变这些旧语义，不修改数据库、生产入口或客户端页面。
