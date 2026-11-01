@@ -45,6 +45,13 @@ internal object CashImportProtocol {
         return integer(root["expected_session_revision"], 1) ?: fail()
     }
 
+    fun draftSaveInput(text: String): Pair<Long, JsonObject> {
+        val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
+            catch (_: CategoryFailure) { fail() }
+        if (root.keys != setOf("expected_revision", "patch")) fail()
+        return (integer(root["expected_revision"], 1) ?: fail()) to (root["patch"] as? JsonObject ?: fail())
+    }
+
     fun resolveInput(text: String): Pair<String, String> {
         val root = try { strictCashJsonRequest(pythonJsonText(text.encodeToByteArray())).value as? JsonObject ?: fail() }
             catch (_: CategoryFailure) { fail() }

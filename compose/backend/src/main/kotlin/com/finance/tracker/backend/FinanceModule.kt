@@ -65,11 +65,30 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
+    cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
     cashImports: CashImportHttpService? = null) {
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<CashDraftSaveFailure> { call, failure ->
+            val record = mapOf("record_not_found" to (404 to "未找到这条流水。"), "draft_required" to (409 to "这条流水已确认，请刷新后修改。"),
+                "record_input_invalid" to (422 to "修改内容有误，请检查后重试。"))
+            val reason = if (failure.policy) try { cashImportIssue(failure.code) } catch (_: IllegalArgumentException) { cashImportIssue("record_input_invalid") } else null
+            val code = reason?.code ?: failure.code.takeIf { it in record } ?: "record_input_invalid"
+            val status = if (failure.policy) 422 else record.getValue(code).first
+            val message = if (failure.code == "fixed_field_conflict") "金额、币种、时间和账户不能修改，请删除后新建。" else reason?.message ?: record.getValue(code).second
+            val allowed = mutableCashFields + financialCashFields + setOf("record_id", "source_type", "source_scope_key", "source_account_key", "record_origin", "manual_transfer_id", "state")
+            call.respond(HttpStatusCode.fromValue(status), buildJsonObject {
+                put("error", buildJsonObject {
+                    put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message)); put("retryable", JsonPrimitive(false))
+                    put("field_errors", JsonArray(if (failure.policy) failure.fields.filter { it in allowed }.map { field -> buildJsonObject {
+                        put("field", JsonPrimitive(field)); put("code", JsonPrimitive(code)); put("message", JsonPrimitive(message))
+                    } } else emptyList()))
+                })
+                failure.commitState?.let { put("commit_state", JsonPrimitive(it)) }
+            })
+        }
         exception<CashDeletionFailure> { call, failure ->
             if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
             else if (failure.record) call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_record", failure.code)))
@@ -505,7 +524,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     else if(path.startsWith("/api/v1/cash-mutations/receipts/") && (path.endsWith("/rows") || path.endsWith("/relations"))) receiptPageQuery(query)
                 }
                 if (write && principal.role?.canWrite == false) {
-                    if(path.startsWith("/api/v1/cash-import") || path.startsWith("/api/v1/cash-mutations") || path.startsWith("/api/v1/cash-projections/")) call.respond(HttpStatusCode.Forbidden,kotlinx.serialization.json.buildJsonObject {
+                    if(path.startsWith("/api/v1/cash-import") || path.startsWith("/api/v1/cash-mutations") || path.startsWith("/api/v1/cash-projections/") || path.startsWith("/api/v1/cash-records/") && path.endsWith("/draft")) call.respond(HttpStatusCode.Forbidden,kotlinx.serialization.json.buildJsonObject {
                         put("error",kotlinx.serialization.json.buildJsonObject {put("code",JsonPrimitive("workspace_forbidden"));put("message",JsonPrimitive("当前角色仅可查看账本。"));put("field_errors",JsonArray(emptyList()));put("retryable",JsonPrimitive(false))})
                     }) else call.respond(HttpStatusCode.Forbidden, ErrorBody(ErrorDetail("workspace_forbidden", "当前角色仅可查看账本。")))
                     finish()
@@ -702,6 +721,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val result = withContext(Dispatchers.IO) {
                 legacyRecordSearch.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
             }
+            call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        patch("/api/v1/cash-records/{transaction_id}/draft") {
+            val key = CashImportProtocol.idempotencyKey(call.request.headers["Idempotency-Key"])
+            val (revision, patch) = CashImportProtocol.draftSaveInput(CashImportProtocol.boundedText(call, 64 * 1024 * 1024))
+            val result = withContext(Dispatchers.IO) { cashDraftSave.save(bearerToken(call.request.headers[HttpHeaders.Authorization]),
+                call.parameters["transaction_id"], JsonPrimitive(revision), cashSourceValue(patch), key, call.attributes[requestPrincipalKey]) }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
         get("/api/v1/cash-records/{transaction_id}/association-targets") {
