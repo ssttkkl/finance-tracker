@@ -11364,6 +11364,27 @@
       "compatibility": "A real viewer token is rejected with the original 403 workspace_forbidden; a beforeWrite observer proves the application writer was not called."
     },
     {
+      "source": "tests/contract/test_dual_backend_counterparty_account_transfer_matching.py::test_account_identifier_alias_normalizes_separators_and_rejects_invalid_values",
+      "source_sha256": "bd7d265a523ccc5231dc79e2d59bc9fe5bca40b7a1fe7600fdddd0346de7c418",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_dual_backend_counterparty_account_transfer_matching.py::test_account_identifier_alias_normalizes_separators_and_rejects_invalid_values[sqlite]",
+        "tests/contract/test_dual_backend_counterparty_account_transfer_matching.py::test_account_identifier_alias_normalizes_separators_and_rejects_invalid_values[postgresql]"
+      ],
+      "assertions": [
+        "assert account is not None",
+        "assert session.account_aliases.list()[0]['alias_value'] == '6222000000001234'",
+        "pytest.raises(ValueError, match='account_identifier')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountAliasContractTest.kt",
+          "test": "originalAccountIdentifierAliasNormalizesSeparatorsAndRejectsInvalidValues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#账户别名登记接口"
+    },
+    {
       "source": "tests/contract/test_parsed_cash_import_context.py::test_add_remove_and_stale_revision_do_not_reread_original_files",
       "source_sha256": "b5ee48c516175a9fb81ea009a4a85c8863ae6fdecd316ec3cc52b8ea0fa3e85a",
       "status": "migrated",

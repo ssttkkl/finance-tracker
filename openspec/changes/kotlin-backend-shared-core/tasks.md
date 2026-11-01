@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.12.15.2 接通原 POST /api/v1/relations/aliases：按名称定位当前工作区账户，保留原 type／value／account 文本和 JSON 语义、卡尾／完整账号规范化、通用历史命名空间、唯一约束与原错误；真实双库 HTTP／状态、原归一断言、回滚和权限、完整回归及独立复核后增加接口数。
+
 - [x] 4.12.15.1 补当前关系来源复用完整父项的原查询合同（1 定义／2 双库参数），并核对清扫配置剩余 1 整定义／4 参数的静态 Int 边界；真实 SQL 执行观察、完整原范围、原 Python 参考及独立复核后验收，不改生产查询或扩大配置类型。
 
 - [x] 4.10.6.5 补解析暂存原文件剩余 37 定义：真实内存／R2 条件对象端口、生命周期、原始行证据、预算／JSON、快照与公开缓存；原输入及全部参数直接对应，静态类型不可构造的 Python 参数整定义 retained 并运行原参考／Native 兼容验证，完成前不把该原文件计为验收。
@@ -257,17 +259,15 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前工作树原测试映射为 809 migrated／13 retained／1,792 pending，参数 2,179/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `ba88506701d30d6871ac20835bc5f97f66d2e362`，加 `storage-boundary-worktree-1102fc`；目标仍为 `origin/continue-kotlin-backend-refactor`，同分支小步提交／推送授权适用。HTTP 71/86（71 完整、15 未接入），本片不增加接口或修改生产行为；其他原测试、投资、同步／行情／后台及全迁移最终验收未完成。
+当前原测试映射为 810 migrated／13 retained／1,791 pending，参数 2,181/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `e07615f3e04e05ddc00d3108827d9b16131d79b0`，隔离工作树 `aliases-worktree-1102fd`；目标 `origin/continue-kotlin-backend-refactor`，沿用同分支小步提交／推送授权。HTTP 72/86（72 完整、14 未接入）；原测试、投资、同步／行情／后台及全迁移最终验收未完成。
 
-本片直接补关系来源复用完整父项的 1 原定义／2 双库参数，清扫混合配置 1 整定义／4 参数 retained，不部分计迁移。两个原文件共 31 定义为 30 migrated／1 retained、零 pending；原 Python 16 passed、零跳过，包含清扫全文件与关系查询原双库参考。Native SQLite／真实 PG16 各 2 项（新方法与既有清扫兼容方法）零失败／错误／跳过，静态检查通过；新查询断言只记录 JDBC 实际执行，严格保留一次父流水查询。
+账户别名登记新增 1 原定义／2 双库参数，不关闭所在组合文件其他定义。66 组真实原 Python HTTP／全列别名状态在两库逐请求一致；原归一测试 2 passed，Native 六方法保留实际查询、规范化、无效值拒绝、排序读取与提交，并覆盖真实写后／提交故障和当前权限。完整回归均使用 SHA 校验的未消费初始副本；旧暂存 37 方法、纯输入 4 方法及关系来源 1 方法均已纳入本次完整 Gradle，不沿用此前组合结果。
 
-`storage-boundary-coverage-1102fc/coverage-proof.json` 证明生产、资源、旧 202 类及 backend 构建配置 SHA 与基线完全相同，只新增一类。旧完整双库 200 套／1,265 项、此前纯输入 4 项及暂存 37 项，加本片双库各 1 项新方法，组合覆盖为 203 套／1,307 项；SQLite 3 项 PG 专属跳过、PG16 零跳过沿原矩阵保留。旧完整清扫类 6 方法 XML 保留，本次单方法复验另存，不覆盖完整旧类，也不宣称重新执行整条全量 Gradle。
+在隔离工作树 compose/ 执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`：SQLite 完整 204 套／1,313 项，零失败／错误，3 项 PG 专属跳过。真实 PostgreSQL 16.14 分互斥完整类执行 base 与 maintenance 两组，同版源码／资源／构建配置 SHA 不变，覆盖恰好相同 204 套／1,313 项，零失败／错误／跳过；完整类清单、实际 --tests 命令、显式环境、日志／XML 和覆盖证明在 `full-pg-1102fe/{group-plan.json,group-base,group-maintenance,coverage-verification.json}`，SQLite 在 `full-sqlite-1102fe/`。两库现有七项 Host 筛选均为 16 项通过，实际命令见 run_record_full_1102fe.py 和 PG client-command.json，不把这些方法计为原测试迁移数。
 
-实际 Native 命令为 `./gradlew :backend:test --tests '*CashRelationOriginOriginalTest' --tests '*ParsedImportCleanupTest.boundedConfigurationAndRestartPreserveOneWorker' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；两库显式环境和 JUnit 时间见 `storage-boundary-coverage-1102fc/{sqlite,pg}-actual-command.json`，日志 `storage-boundary-native-{sqlite-final,pg}-1102fc.log`，JUnit 在 `storage-boundary-1102fc/{sqlite,postgres}`。原 Python 实际命令／环境为 `storage-boundary-python-command-1102fc.json`，日志／JUnit `storage-boundary-python-1102fc.log/xml`；使用根 .venv、显式 `PYTHONPATH`、专用 PG 参考库与仓库外 basetemp／cache_dir，清除 `FT_DATABASE_URL`。
+两库实际 Netty 服务各完成未认证 401、查看者 403、成功 200、重复约束 503，完整响应与原 Python 相同；实际 OpenAPI 为 72 项、原 alias schema 完全一致，其他表不变，别名非时钟列相同。真实默认时钟按各自执行生成，未宣称两服务时间戳完全相同。命令／日志／结果见 `aliases-netty-{sqlite,pg}-command-1102fe.log`、`aliases-netty-{sqlite,pg}-1102fe.{json,log}`。无实际 Compose 独立调用者，不造替代消费者或宣称 UI 已完成。
 
-初始 SHA、日志／JUnit、完整覆盖和精确清理均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。Native SQLite 来自 SHA 校验的未消费初始副本，PG16 手工新建两个精确登记的 `_test` 库（Native 与原参考隔离），显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动；初始证明为 `storage-boundary-1102fc/initial-proof.json`。旧完整矩阵为 `full-{sqlite,pg}-1101ey`，本机 PG16.14 位于 `127.0.0.1:55433`；PG18、真实 R2 和真实账单仍未验证。七项 Host 两库各 16 项旧证据绑定原矩阵及未变的共享／生产代码，本片无 UI／客户端变化，不另宣称重跑。
-
-用户明确排除性能执行，`-PbackendFunctionalOnly=true` 仅排除 `CategoryDeletionPerformanceTest` 与 `CashClassificationPerformanceTest`，原预算与未通过证据保留，不宣称性能通过。本片无 schema、依赖、生产客户端／UI 或金融语义变化，已授权的既有修复保留；未授权 PR、合并、部署、真实数据迁移或删除 Python。
+所有临时输入和证据均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，手工准备登记 `_test` 库，显式 FT_TEST_POSTGRES_URL，不自动探测／启动。用户明确排除性能执行，functionalOnly 仅排除两个既有性能类；PG18、真实 R2 和真实账单仍未验证。生产入口仍为 Python，无 schema／依赖／共享生产 DTO／UI 变化，不执行 PR、合并、部署、真实数据迁移或删除 Python。
 
 ### 已实现范围的专项证据
 
@@ -356,6 +356,27 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 账户别名登记接口
+
+本片原测试与双库验证时间 2026-11-01 17:58–18:46 UTC，提交前 HEAD／比较基线 `e07615f3e04e05ddc00d3108827d9b16131d79b0`，隔离工作树 `aliases-worktree-1102fd`，交付目标仍为 origin/continue-kotlin-backend-refactor。沿用已接受全量 A 类 grill-me → grilling、原 86 项接口范围及本分支提交／推送授权；该原接口已在盘点范围，不新增产品或财务语义。
+
+阶段 1：原 operation_routes.add_relation_alias 读取对象 JSON，以 type（缺失／null／空白默认 card_tail）、value、account 的原文本顺序校验；WorkspaceServices.add_account_alias 在当前工作区按精确账户名查询，再调用 RelationalAccountAliasRepository.add 并提交，返回 200 及数值 id。原完整账号别名归一单测保留原参数，HTTP Oracle 直接执行原路由和数据库，不由 Native 生成预期。
+
+阶段 2：AccountAliasService 使用现有认证／工作区锁／当前权限边界，AccountAliasRepository 使用 jOOQ 和同一调用方事务。card_tail 恰为四位 ASCII 数字；account_identifier 去除 Python 空白、连字符及中英文括号后须大于四位 ASCII 数字。其他历史命名空间（例如 payment_method）按原值保留；原接口允许绑定已存在的停用／投资账户，不增加活动或类型限制。别名只写 account_aliases，不自动扫描／确认关系、不改余额／流水／投影，不新增幂等键、收据或客户端 UI。
+
+阶段 3：先以真实路由请求复现未接入，再对照原 HTTP 的默认／规范化、重复约束、跨工作区、权限、非法结构、JSON 编码／错误／重复键／未使用字段和两后端长度约束差异。复用现有 Python JSON 字节／语法兼容入口，避免把计划的严格有限数／重复键规则套到该原接口。文本输入及未知字段遵循原 _text 顺序，不新增规范化或枚举限制；原数据库编码失败按实际 Oracle 核对，禁止 JDBC 静默替换损坏 Unicode。
+
+阶段 4：aliases-http-red-1102fd.log/xml 先复现未接入 404，原 Python 同请求为 400 invalid_relation/account.not_found。66 组原 HTTP／完整 alias 行状态由原应用实际生成，双库独立输入在 Native 前保存 SHA／快照。原 Unicode Oracle 为 400，Native 初次错误映射 503 的失败保留在 aliases-unicode-red-sqlite-1102fd.xml，按源修正后全组通过。实际 OpenAPI 旧 71 计数先失败，再更新为 72；不修改原完整 86 项 schema。直接原仓库断言和故障测试使用另隔离输入；原两个 alias ORM 默认时钟只在匿名 Oracle 导出时固定，生产默认不变。实际 JDBC 写后、提交前和真正提交后故障核对到达次数、全表状态及无自动重试；工作区锁后账户／权限／工作区变化和写后权限变化均拒绝并回滚。
+
+阶段 5：aliases-review-1102fe.log 由独立只读 codex review 检查产品／范围、工程、DX／安全、原断言、Oracle 和实际故障边界，无可执行 finding；审查者未运行测试或编辑文件。其余原组合文件定义仍 pending，不把该 API 接入当作全部关系测试完成。最终 aliases-final-review-1102fe.log 再审完整 diff、统计、文档和既有证据，无可执行 finding；审查者未运行测试、数据库或代理。
+
+阶段 6：原归一单测 aliases-python-1102fd.log/xml 两库共 2 passed、无跳过。Native 从 SHA 校验的初始状态重跑，每库 17 项通过，含 AccountAliasContractTest 六方法及 OpenApiContractTest 十一方法；每库 66 组完整 HTTP／状态一致，见 aliases-focus-{sqlite,pg}-final-1102fd-*.xml。SQLite／真实 PG16 完整功能回归均为 204 套／1,313 项，SQLite 3 项专属跳过、PG 零跳过，Host 每库 16 项通过。完整命令、显式环境和独立类覆盖证明见当前证据。实际 Netty 四类请求及原 schema／状态对照通过。生产新增路由和写入已从未消费初始状态完成完整矩阵，不沿用此前测试专属增量证明。性能按用户决定排除，PG18 仍待验证。
+
+阶段 7：backend README、功能地图、inventory／routes、design／tasks、原定义映射与 apply skill 已原位收尾；接口为 72/86，其余 14 项未接入。核对根 README、词表、主规格／delta、现金导入行为／协议、配置和依赖，无新概念、schema 或协议字段，其余无需改写。根交付 13 文件与隔离验证树逐 SHA 一致，见 aliases-delivery-backup-1102fe/manifest.json；主工作树编译／Host 编译／ktlint／detekt 通过，日志 aliases-root-compile-1102fe.log。全源／完整参数门禁零错误，OpenSpec all strict 38/38、doctor 零问题，7 文档／306 链接和 diff 检查通过。已精确清理 821 个自有 PG 库（含前序 347 个基础组库）及 743 个 SQLite 临时文件／509,202,432 字节；见 aliases-{pg,sqlite}-cleanup-1102fe.json。初始快照／SHA、必要 JSON、日志与 JUnit 保留，仓库 tmp/ 不存在；隔离工作树待备份、提交及远端 SHA 核对后清理。Compose 无此独立旧接口的实际调用者，不造替代客户端宣称产品接线；Web／Native／共享生产 DTO、页面及交互不变，页面数 10、两端 UI TODO 保留，适用真实 HTTP／运行验证，不扩大原生设备或 UI 演示范围。回滚撤销新服务／仓库／路由及对应测试／记录，无 schema、真实数据迁移或生产切换。
+
+阶段 8：apply skill 已沉淀历史命名空间、账户资格范围、Python JSON／Unicode、完整事务／唯一约束和原输入 Oracle；只验收该旧接口，不宣称全部关系能力、账户或整个后端完成。
+
 
 ### 当前关系来源读取与清扫配置边界
 

@@ -4,7 +4,7 @@
 
 解析暂存的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt) 已覆盖内存／R2 条件端口的固定有效期、修订、取消、文档证据、预算、快照和缓存围栏。原文件 51 定义／135 参数已迁移，4 整定义／30 参数按静态类型边界保留原 Python 参考及 Native 兼容验证，原文件零 pending。该测试补齐不新增页面、客户端入口或公共 DTO；Web／Native 页面数仍为 10，两端既有 UI TODO 保留。真实 R2、真实账单、其余运行时／持久化原测试及整个 Kotlin 迁移仍未完成。
 
-Kotlin 本机预览已接入 71/86 个业务操作，6 个维护计划操作已完成完整合同验收；其余 15 个操作未接入。来源决定的 [直接输入回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt) 已覆盖原 4 定义／22 参数，维护相关 23 个原文件为 243 migrated／3 retained、零 pending，见 [验收矩阵](../openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收)。Web／Native 页面、共享生产 DTO 和交互未变，页面数仍为 10；两端既有 UI 验收 TODO 保留，生产入口仍为 Python。
+Kotlin 本机预览已接入 72/86 个业务操作，6 个维护计划操作已完成完整合同验收；其余 14 个操作未接入。来源决定的 [直接输入回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueInputOriginalTest.kt) 已覆盖原 4 定义／22 参数，维护相关 23 个原文件为 243 migrated／3 retained、零 pending，见 [验收矩阵](../openspec/changes/kotlin-backend-shared-core/tasks.md#来源决定输入与维护范围验收)。Web／Native 页面、共享生产 DTO 和交互未变，页面数仍为 10；两端既有 UI 验收 TODO 保留，生产入口仍为 Python。
 
 [公开协议](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 已提供当前注册操作的 `/openapi.json`；[原生验证](../compose/backend/src/test/kotlin/com/finance/tracker/backend/OpenApiContractTest.kt) 覆盖账户、上传、计划、维护、诊断与普通新增的原 schema，不将未接入 API 写成可用。浏览器错误使用真实认证和两种来源核对；历史收据在原升级／拒绝降级后由 Native 读取。无新产品页面，Web／Native／共享生产 DTO 和交互均不变，页面数 10，两端既有 TODO 及维护部分状态保留。
 
@@ -36,7 +36,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 来源问题处理的 [原生服务回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已迁移原 22 定义／78 参数，覆盖采用／保留／清空、旧正文、公共人工值／分类、事项归属及变化、完整失败回滚；四种真实 HTTP 采用响应通过 [现有 Compose 消费](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt)。后端恢复原合同，共享生产 DTO、Web／Native 页面及交互不变；页面数仍为 10，独立身份、草稿合并与维护接口已通过对应原合同，既有两端 UI TODO 保留。
 
-维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 71/86，6 个维护接口已完成合同验收；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
+维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 72/86，6 个维护接口已完成合同验收；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
 
 维护计划发布的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已补原内部取消和确认装载，保留无文件上下文、冻结分页、CAS／TTL、私有归属、永久消费围栏和失败后的原计划；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt) 对应原 12 定义／40 参数。当前完整双库及既有实际 Compose 消费通过；没有新增页面、公开 DTO 或路由，两端既有 UI TODO 保留。
 
@@ -101,6 +101,8 @@ Kotlin 单流水维护提交已补当前账户、事项、关系上下文和收�
 Kotlin 操作规划的 [原断言测试](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalOperationTest.kt) 覆盖原文件全部 36 个定义／94 参数：新建与草稿决定、余额分组、重复、来源更新／时间顺序、公共备注与人工保护、固定字段冲突、分类／类型、多决定、分摊矛盾、账户资格／币种、草稿补全、现金部分身份及输入不变性；内部错误停止当前计划，所有规划保持只读。其他原业务计划等文件仍待迁移。Web、Native 和共享生产合同不变，页面数仍为 10，F-05 两端 TODO 保留。
 
 Kotlin 完整业务计划的 [原断言测试](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportOriginalBusinessTest.kt) 覆盖原文件全部 30 定义／84 参数：只读预计收支、冻结明细、来源范围与旧订单退款、镜像／退款组合及统计、候选变化／来源限制／截断、完整选择失效与代数、独立关系闭包、内部错误停止和实际会话发布／再预览。普通来源更新没有新建／转正式种子时不进入关系发现；默认关系管线保持。Web、Native、共享 DTO 与页面数不变，其他原导入测试及 F-05 两端 TODO 保留。
+
+账户别名登记的 [Kotlin 服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/AccountAliasService.kt) 与 [双库原 HTTP 合同](../compose/backend/src/test/kotlin/com/finance/tracker/backend/AccountAliasContractTest.kt) 已接通；别名仅保存对应，不自动确认关系。Web／Native 尚无该独立旧接口的实际入口，记为两端 TODO；页面数仍为 10。
 
 ## 现金导入后端与客户端边界
 

@@ -59,6 +59,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     manualCash: ManualCashService = ManualCashService(database,now = clock),
     transfers: CashTransferService = CashTransferService(database,now = clock),
     legacyCashflow: LegacyCashflowService = LegacyCashflowService(database,now = clock),
+    accountAliases: AccountAliasService = AccountAliasService(database, now = clock),
     currentProjections: CurrentProjectionReadService = CurrentProjectionReadService(database,now = clock),
     recordDetail: CashRecordDetailService = CashRecordDetailService(database,now = clock),
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
@@ -72,6 +73,9 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     val configuredOrigin = validateWebOrigin(allowedOrigin)
     install(ContentNegotiation) { json(Json { encodeDefaults = true; explicitNulls = true }) }
     install(StatusPages) {
+        exception<AccountAliasFailure> { call, failure ->
+            call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_relation", failure.message.orEmpty().ifEmpty { "\u8d26\u6237\u522b\u540d\u65e0\u6548\u3002" })))
+        }
         exception<CashDraftSaveFailure> { call, failure ->
             val record = mapOf("record_not_found" to (404 to "未找到这条流水。"), "draft_required" to (409 to "这条流水已确认，请刷新后修改。"),
                 "record_input_invalid" to (422 to "修改内容有误，请检查后重试。"))
@@ -772,6 +776,17 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 currentProjections.detail(bearerToken(call.request.headers[HttpHeaders.Authorization]), call.parameters["projection_id"]!!, call.attributes[requestPrincipalKey])
             }
             call.respondText(result.toString(), ContentType.Application.Json)
+        }
+        post("/api/v1/relations/aliases") {
+            val bytes = call.receive<ByteArray>()
+            val result = try {
+                withContext(Dispatchers.IO) {
+                    val input = categoryDeleteRequest(pythonJsonText(bytes))
+                    accountAliases.add(bearerToken(call.request.headers[HttpHeaders.Authorization]), input.value, input,
+                        call.attributes[requestPrincipalKey].workspaceId)
+                }
+            } catch (failure: CategoryFailure) { throw AccountAliasFailure(failure.code) }
+            call.respond(HttpStatusCode.OK, result)
         }
         for((path,checkin) in listOf("/api/v1/cashflow/add" to false,"/api/v1/cashflow/checkin" to true)) post(path) {
             val result=try {

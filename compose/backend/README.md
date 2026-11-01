@@ -1,6 +1,6 @@
 # Kotlin 后端本机预览
 
-公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 71 项；6 个维护操作已完成原合同验收；其余 15 个业务操作未接入。
+公开协议由 [OpenAPI 接线](src/main/kotlin/com/finance/tracker/backend/LegacyOpenApi.kt) 提供：`GET /openapi.json` 无需认证或数据库连接，只列出本次运行实际注册的操作，保留原公开参数、完整 schema 和可解析引用；未接入操作及未装配的导入服务不列入，`/docs`／`/redoc` 仍关闭。原完整资源含 86 项，当前完整装配运行时为 72 项；6 个维护操作已完成原合同验收；其余 14 个业务操作未接入。
 
 在仓库根运行 `PYTHONPATH=src PYTHONDONTWRITEBYTECODE=1 .venv/bin/python scripts/export_kotlin_openapi_contract.py --check` 核对已提交资源；更新时去掉 `--check` 后审查并运行 `*OpenApiContractTest`。服务器只读取编译资源，不执行 Python。历史收据兼容准备器 `scripts/export_legacy_receipt_migration_compatibility.py --database-url <显式目标> --output <仓库外目录>` 实际执行原历史升级及有损降级拒绝；只允许不存在的绝对 SQLite 文件或空的 PG `_test` schema。设置 `FT_KOTLIN_LEGACY_RECEIPT_MIGRATION_DIR` 后运行 `*LegacyReceiptMigrationCompatibilityTest`，读取真实升级后的旧／新完整收据。
 
@@ -60,7 +60,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 58 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 35 个原定义／112 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。当前关系提交原文件的 18 定义／58 参数、人工关联原文件的 8 定义／26 参数均已映射；后者包含既有搜索回归。证明变化在真实预览后实施，字段、第二关系成员、候选清理、投影及收据的故障在实际写入后注入，核对 31 表回滚与原方案重试；新鲜上下文读取次数在 JDBC 层观测。无效预览不得替换原方案或隐式确认关系。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存，共接入 71/86 个 HTTP 操作。其中 6 个维护计划操作已完成完整合同验收，其余 15 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存、账户别名登记，共接入 72/86 个 HTTP 操作。其中 6 个维护计划操作已完成完整合同验收，其余 14 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；维护接口已完成合同验收，其余模块的原组合测试仍待迁移。
 
@@ -296,3 +296,5 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 解析暂存的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/ParsedImportStagingOriginalTest.kt) 验证实际内存与 R2 条件对象端口：文档页证明／行位置、原始说明／来源范围、私有生命周期、CAS／固定 TTL、取消清空、有界清扫、JSON／字节预算、快照原文件复用与公开缓存。运行 `:backend:test --tests "*ParsedImportStagingOriginalTest" -PbackendFunctionalOnly=true`，无需数据库或云凭据；条件对象假客户端保留真实状态／条件写及关闭流，不代表真实 R2 云验证。该原文件累计 51 定义／135 参数 migrated、4 整定义／30 参数 retained，全部 165 个原参数已有对应；四个保留项的宽类型 Python 输入无法通过 Kotlin 模型或方法签名构造，Native 分别验证可表示的无效值和损坏存储拒绝，后者不冒充原输入异常。既有双库完整证据与本片新增 37 项的 SHA／覆盖边界见 tasks。
 
 [当前关系来源读取原断言](src/test/kotlin/com/finance/tracker/backend/CashRelationOriginOriginalTest.kt) 在真实 SQLite／PostgreSQL 新增草稿关系时检查只执行一次父流水 `SELECT`，来源校验复用同次已读完整父项；观察器记录 JDBC 执行，不将 `prepareStatement` 计作查询。清扫配置的原混合参数定义整体 retained：Kotlin 构造器为 `Int`，原 `True` 页长不可构造；既有清扫边界方法验证 0／61 秒和 201 页长的原错误，Python 全文件参考保留。两个原文件合计 30 migrated／1 retained、零 pending，准确命令、双库／类型证据与残余模块见 tasks。没有生产、schema、依赖或 UI 变化。
+
+账户别名登记 `POST /api/v1/relations/aliases` 保留原按账户名称定位、卡尾／完整账号规范化及历史命名空间；成功只写别名，不自动确认关系。真实双库各 66 组原 HTTP／完整行状态、实际故障回滚和权限重验已验证，见 [合同测试](src/test/kotlin/com/finance/tracker/backend/AccountAliasContractTest.kt)；当前 Compose 无此独立旧接口的调用入口。
