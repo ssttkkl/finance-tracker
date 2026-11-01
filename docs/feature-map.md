@@ -1,5 +1,7 @@
 # Compose 功能地图
 
+维护接口的 [HTTP 主流程回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt) 直接覆盖原 8 定义／16 双库参数，包括联合关系的零额结果、身份合并的保留目标／原结果引用，以及草稿重放返回当前详情。仅补现有后端合同测试，无新增生产路由、DTO 或页面；页面数仍为 10，Web／Native 既有维护 TODO 保留，6 个维护接口仍部分完成。
+
 > 盘点日期：2026-10-29。本文记录 Compose 页面级功能、实现证据、跨端覆盖和当前缺口；不保留逐步开发日志。行为合同见 [OpenSpec 导航](../openspec/specs/README.md)，变更验证记录见各自 `tasks.md`。
 
 Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `compose/webApp`、`compose/androidApp`、`compose/iosApp`。旧 React `web/src` 和 Expo `mobile/src` 只作历史迁移参考。

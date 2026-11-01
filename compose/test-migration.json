@@ -6335,6 +6335,213 @@
       "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现 Pytest 9.2 defaults to argname+index for auto-generated string IDs longer than 100 characters; the complete current collection uses query6/query7/key1 with the original parameter values and source fingerprints unchanged."
     },
     {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_changed_account_after_finalize_preview_is_a_known_refusal",
+      "source_sha256": "156a466ac2a3433fdde736d8bb57f43a453c7ce34682669c496feda10cb37579",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_changed_account_after_finalize_preview_is_a_known_refusal[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_changed_account_after_finalize_preview_is_a_known_refusal[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert rejected.status_code in (409, 422), rejected.text",
+        "assert rejected.json()['commit_state'] == 'not_committed'",
+        "assert _records(runtime).read(identifier) == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "changedAccountAfterFinalizePreviewIsAKnownHttpRefusal"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_current_source_issue_and_manual_patch_share_one_http_confirmation",
+      "source_sha256": "a051ea0df9d21d1f6e009efa427f6da4ca3a7b3616d8b3c23365ac9e241163a4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_current_source_issue_and_manual_patch_share_one_http_confirmation[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_current_source_issue_and_manual_patch_share_one_http_confirmation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert issue['revision'] == choice['expected_issue_revision'] and 'apply_source' in issue['allowed_resolutions']",
+        "assert issue['pending_source_payload'] == {'备注': '来源原文'}",
+        "assert response.status_code == 200, response.text",
+        "assert committed.status_code == 200 and committed.json()['summary']['resolved_issues'] == 1",
+        "assert after['entry']['fields']['note'] == '' and after['fields']['counterparty'] == '待采用的对方'",
+        "assert after['fields']['note'] == '来源原文'",
+        "assert after['issues'] == [] and after['confirmation_status'] == 'confirmed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "currentSourceIssueAndPublicPatchShareOneHttpConfirmation"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_draft_save_is_idempotent_without_a_file_and_keeps_explicit_current_detail",
+      "source_sha256": "b1d765b529ea500b261d5388e8e8aec9bb00a9813973f2a35be8b84c588ed981",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_draft_save_is_idempotent_without_a_file_and_keeps_explicit_current_detail[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_draft_save_is_idempotent_without_a_file_and_keeps_explicit_current_detail[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200 and response.json()['state'] == 'draft'",
+        "assert response.status_code == 200, response.text",
+        "assert saved['receipt']['committed'] and saved['receipt']['operation_kind'] == 'save_draft'",
+        "assert saved['current_record_status'] == 'available' and current['state'] == 'draft'",
+        "assert current['fields']['note'] == '' and current['transaction_id'] == identifier",
+        "assert current['row_revision'] > before['row_revision'] and current['confirmation_status'] == 'pending'",
+        "assert replay.json()['receipt'] == saved['receipt']",
+        "assert replay.json()['current_record']['fields']['note'] == '后来的当前备注'",
+        "assert store._entries == {}",
+        "assert 'request_digest' not in response.text and 'manual_overrides' not in response.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "draftSaveReplaysReceiptAndReturnsFreshExplicitCurrentDetailWithoutContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_finalize_http_uses_one_plan_and_recovers_receipt_after_context_cleanup",
+      "source_sha256": "01e1de68416e77dd906ae853c590cc7ab4a021f80a6b8ec8ad6e2fda9c2a3d66",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_finalize_http_uses_one_plan_and_recovers_receipt_after_context_cleanup[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_finalize_http_uses_one_plan_and_recovers_receipt_after_context_cleanup[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert plan['summary']['finalize_draft'] == 1 and plan['plan_revision'] == 1 and plan['can_commit']",
+        "assert _records(context_runtime).read(identifier) == before",
+        "assert context.workflow_kind == 'mutation' and context.files == ()",
+        "assert client.get(path).json() == plan",
+        "assert client.get('/api/v1/cash-mutations/edit-contexts/' + plan['edit_context_id'] + '/plan').json() == plan",
+        "assert detail.status_code == 200 and detail.json()['members'][0]['fields']['state'] == 'posted'",
+        "assert committed.status_code == 200, committed.text",
+        "assert receipt['summary']['finalized_draft'] == 1 and receipt['retained_transaction_id'] == identifier",
+        "assert client.get('/api/v1/cash-records/' + identifier).json()['state'] == 'posted'",
+        "assert client.get('/api/v1/cash-mutations/receipts/' + receipt['receipt_id']).json() == receipt",
+        "assert results['items'][0]['transaction_id'] == identifier and len(results['projection_refs']) == 1",
+        "assert _commit(client, plan).json() == receipt",
+        "assert consumed.status_code == 409 and consumed.json()['receipt_id'] == receipt['receipt_id']",
+        "assert _commit(client, plan, 'different-maintenance-key').status_code == 409",
+        "assert resolved.json() == {'status': 'committed', 'receipt': receipt}",
+        "assert secret not in response.text and secret not in detail.text"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "finalizeUsesOnePrivatePlanAndRecoversPermanentReceiptAfterCleanup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_identity_merge_http_returns_retained_target_and_preserves_original_result_reference",
+      "source_sha256": "9912d1696b0e6e07a21c023d08c43953acd95babd96ba2e9f27062eb207b8855",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_identity_merge_http_returns_retained_target_and_preserves_original_result_reference[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_identity_merge_http_returns_retained_target_and_preserves_original_result_reference[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert any((candidate['transaction_id'] == target for candidate in issue['candidates']))",
+        "assert response.status_code == 200, response.text",
+        "assert committed.status_code == 200 and committed.json()['retained_transaction_id'] == target",
+        "assert committed.json()['summary']['merged_draft'] == 1",
+        "assert client.get('/api/v1/cash-records/' + source).status_code == 404",
+        "assert rows[0]['item_ref'] == source and rows[0]['transaction_id'] == target"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "identityMergeReturnsRetainedTargetAndOriginalResultReference"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_joint_current_relation_confirmation_is_one_http_task_and_keeps_zero_result",
+      "source_sha256": "7c044a62cc39ea7963a3f167288f4b145eb0c7301ceb3a802c59857302fa06a4",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_joint_current_relation_confirmation_is_one_http_task_and_keeps_zero_result[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_joint_current_relation_confirmation_is_one_http_task_and_keeps_zero_result[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert response.status_code == 200, response.text",
+        "assert confirmed.status_code == 200 and confirmed.json()['summary']['relations_confirmed'] == 1",
+        "assert len({record['projection_ref']['projection_id'] for record in records}) == 1",
+        "assert all((record['confirmation_status'] == 'confirmed' for record in records))",
+        "assert any((item['projection_id'] == records[0]['projection_ref']['projection_id'] and Decimal(item['amount']) == 0 for item in projected))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "jointCurrentRelationIsOneHttpTaskAndKeepsZeroProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_is_gone",
+      "source_sha256": "b5bbfc76939a40105bc4a1c39f238bb9721f695cbbcb257e29b5576ef418d682",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_is_gone[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_ordinary_draft_plan_keeps_draft_and_can_resolve_after_original_context_is_gone[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert response.status_code == 200, response.text",
+        "assert plan['additional_effects'] == []",
+        "assert plan['summary']['update_draft'] == 1",
+        "assert client.get('/api/v1/cash-mutations/plans/' + plan['plan_id']).json()['additional_effects'] == []",
+        "assert saved.status_code == 200, saved.text",
+        "assert client.get('/api/v1/cash-records/' + identifier).json()['state'] == 'draft'",
+        "assert resolved.json() == {'status': 'committed', 'receipt': saved.json()}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "ordinaryDraftPlanKeepsDraftAndResolvesWithoutOriginalContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
+      "source": "tests/contract/test_cash_maintenance_api.py::test_repreview_replaces_complete_input_without_renewing_context",
+      "source_sha256": "418ede9467ee4bbe357cca67b5e7e5c7a693a852391306b4b2dfea8410d74a40",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_maintenance_api.py::test_repreview_replaces_complete_input_without_renewing_context[cash_web_runtime]",
+        "tests/contract/test_cash_maintenance_api.py::test_repreview_replaces_complete_input_without_renewing_context[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert 'plan_id' in first",
+        "assert response.status_code == 200, response.text",
+        "assert next_plan['plan_revision'] == 2 and next_plan['expires_at'] == first['expires_at']",
+        "assert next_plan['items'][0]['display']['note'] != '第一版'",
+        "assert _commit(client, first).status_code == 409",
+        "assert _commit(client, next_plan).status_code == 200"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt",
+          "test": "repreviewReplacesCompleteInputWithoutRenewingContext"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#maintenance-http-main-flow"
+    },
+    {
       "source": "tests/contract/test_cash_manual_associations.py::test_http_search_and_association_use_explicit_target_contract",
       "source_sha256": "d93b0e8980b1a0fddc3458b002149d86417559966808883167ad643fa17d6c32",
       "status": "migrated",
