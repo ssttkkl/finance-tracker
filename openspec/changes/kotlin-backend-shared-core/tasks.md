@@ -16,6 +16,8 @@
 
 ## 4. 构建
 
+- [x] 4.12.15.1 补当前关系来源复用完整父项的原查询合同（1 定义／2 双库参数），并核对清扫配置剩余 1 整定义／4 参数的静态 Int 边界；真实 SQL 执行观察、完整原范围、原 Python 参考及独立复核后验收，不改生产查询或扩大配置类型。
+
 - [x] 4.10.6.5 补解析暂存原文件剩余 37 定义：真实内存／R2 条件对象端口、生命周期、原始行证据、预算／JSON、快照与公开缓存；原输入及全部参数直接对应，静态类型不可构造的 Python 参数整定义 retained 并运行原参考／Native 兼容验证，完成前不把该原文件计为验收。
 
 - [x] 4.8.15 直接迁移来源决定输入原 4 定义／22 参数：共享记录意图、全部 16 类非法结构、规范化重复事项和终结性合并；不改生产解析器或原 Python，核对无数据库输入边界后重新执行维护源范围验收。
@@ -255,13 +257,15 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前工作树原测试映射为 808 migrated／12 retained／1,794 pending，参数 2,177/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线为 `414d18af19e39672458c9b1126c51aefc1443603`，加 `staging-worktree-1102fb`；交付仍为 `origin/continue-kotlin-backend-refactor`，同分支小步提交／推送授权适用。HTTP 为 71/86（71 完整、15 未接入）；本片无路由或生产代码变化，完整维护已验收，其余原测试、投资、同步／行情／后台及全迁移最终验收未完成。
+当前工作树原测试映射为 809 migrated／13 retained／1,792 pending，参数 2,179/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `ba88506701d30d6871ac20835bc5f97f66d2e362`，加 `storage-boundary-worktree-1102fc`；目标仍为 `origin/continue-kotlin-backend-refactor`，同分支小步提交／推送授权适用。HTTP 71/86（71 完整、15 未接入），本片不增加接口或修改生产行为；其他原测试、投资、同步／行情／后台及全迁移最终验收未完成。
 
-本片补解析暂存原文件剩余 37 定义：33 migrated／95 参数，4 整定义／30 参数 retained。原文件累计 51 migrated／135 参数、4 retained／30 参数、零 pending。原 Python 全文件 165 passed；新 Native 37 项及静态检查通过，实际内存／R2 条件端口与纯预算均有直接断言，不宣称真实 R2 云验证。四个宽类型原定义无法通过 Kotlin 模型／签名构造，保留完整原参数，Native 兼容覆盖可表示输入和损坏存储，二者异常不混同。
+本片直接补关系来源复用完整父项的 1 原定义／2 双库参数，清扫混合配置 1 整定义／4 参数 retained，不部分计迁移。两个原文件共 31 定义为 30 migrated／1 retained、零 pending；原 Python 16 passed、零跳过，包含清扫全文件与关系查询原双库参考。Native SQLite／真实 PG16 各 2 项（新方法与既有清扫兼容方法）零失败／错误／跳过，静态检查通过；新查询断言只记录 JDBC 实际执行，严格保留一次父流水查询。
 
-`staging-coverage-1102fb/coverage-proof.json` 逐文件证明生产、资源、旧 201 类及 backend 构建配置与基线 SHA 相同，只新增本类。旧完整双库 200 套／1,265 项（SQLite 零失败／错误、3 项 PG 专属跳过，PG16 零失败／错误／跳过）、此前纯输入 4 项和本片 37 项合计覆盖 202 套／1,306 项；明确不宣称本片重新执行整条全量 Gradle 命令。实际当前命令为 `./gradlew :backend:test --tests '*ParsedImportStagingOriginalTest' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`，日志 `staging-all-1102fb.log`、JUnit `staging-native-1102fb.xml`；原 Python 全文件命令与日志／JUnit 见 `staging-python-1102fb.log/xml`，使用根 .venv、显式 `PYTHONPATH` 及外置 basetemp／cache_dir。
+`storage-boundary-coverage-1102fc/coverage-proof.json` 证明生产、资源、旧 202 类及 backend 构建配置 SHA 与基线完全相同，只新增一类。旧完整双库 200 套／1,265 项、此前纯输入 4 项及暂存 37 项，加本片双库各 1 项新方法，组合覆盖为 203 套／1,307 项；SQLite 3 项 PG 专属跳过、PG16 零跳过沿原矩阵保留。旧完整清扫类 6 方法 XML 保留，本次单方法复验另存，不覆盖完整旧类，也不宣称重新执行整条全量 Gradle。
 
-匿名输入／初始 SHA、命令／环境、日志／JUnit、覆盖与精确清理记录均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。旧双库完整矩阵为 `full-{sqlite,pg}-1101ey`，前片纯输入为 `source-input-coverage-1102fa`；本机 PG16.14 在 `127.0.0.1:55433`，原矩阵手工准备专用 `_test` 库并显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动。生产与 SQL 行为未变，本片无新数据库；七项实际 Host 两库各 16 项旧证据仍绑定原矩阵及未变的生产／共享消费代码，没有 UI／客户端修改，不另宣称重跑。PG18、真实 R2 和真实账单专项仍待完成。
+实际 Native 命令为 `./gradlew :backend:test --tests '*CashRelationOriginOriginalTest' --tests '*ParsedImportCleanupTest.boundedConfigurationAndRestartPreserveOneWorker' :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`；两库显式环境和 JUnit 时间见 `storage-boundary-coverage-1102fc/{sqlite,pg}-actual-command.json`，日志 `storage-boundary-native-{sqlite-final,pg}-1102fc.log`，JUnit 在 `storage-boundary-1102fc/{sqlite,postgres}`。原 Python 实际命令／环境为 `storage-boundary-python-command-1102fc.json`，日志／JUnit `storage-boundary-python-1102fc.log/xml`；使用根 .venv、显式 `PYTHONPATH`、专用 PG 参考库与仓库外 basetemp／cache_dir，清除 `FT_DATABASE_URL`。
+
+初始 SHA、日志／JUnit、完整覆盖和精确清理均在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。Native SQLite 来自 SHA 校验的未消费初始副本，PG16 手工新建两个精确登记的 `_test` 库（Native 与原参考隔离），显式 `FT_TEST_POSTGRES_URL`，不自动探测／启动；初始证明为 `storage-boundary-1102fc/initial-proof.json`。旧完整矩阵为 `full-{sqlite,pg}-1101ey`，本机 PG16.14 位于 `127.0.0.1:55433`；PG18、真实 R2 和真实账单仍未验证。七项 Host 两库各 16 项旧证据绑定原矩阵及未变的共享／生产代码，本片无 UI／客户端变化，不另宣称重跑。
 
 用户明确排除性能执行，`-PbackendFunctionalOnly=true` 仅排除 `CategoryDeletionPerformanceTest` 与 `CashClassificationPerformanceTest`，原预算与未通过证据保留，不宣称性能通过。本片无 schema、依赖、生产客户端／UI 或金融语义变化，已授权的既有修复保留；未授权 PR、合并、部署、真实数据迁移或删除 Python。
 
@@ -352,6 +356,27 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 当前关系来源读取与清扫配置边界
+
+本片 HEAD／比较基线 `ba88506701d30d6871ac20835bc5f97f66d2e362`，隔离工作树 `storage-boundary-worktree-1102fc`，目标仍为 `origin/continue-kotlin-backend-refactor`。沿用全量 A 类澄清、原合同和提交／推送授权，无新财务、权限、schema、依赖、配置或 UI 语义。
+
+阶段 1：当前关系上下文原文件仅剩 `test_relation_origin_uses_complete_parents_already_read_in_same_call`，要求实际新增关系时仅执行一次父流水查询；原测试不属于性能标记，保留其功能查询合同。清扫原文件仅剩 `test_cleanup_configuration_is_bounded`，含 0／61 秒、201 页长和 `True` 页长；Native 构造器为 `Int`，整定义 retained，原 Python 全文件运行，已有 `boundedConfigurationAndRestartPreserveOneWorker` 验证全部可表示整数和原错误码，不部分计迁移。
+
+阶段 2：保持原关系匿名五个父流水、现金部分和两个 expense 端点；Native 以新工作区生成的真实主键对应原 1101–1105／6101–6105，保持账户、金额／币种／日期、来源类型和原新增请求语义。观察器只在真实 JDBC `execute`／`executeQuery`／`executeUpdate` 到达时记录 SQL，禁止用构建、`prepareStatement` 或预设计数充当执行次数。
+
+阶段 3：先保存两个原文件范围未完成，再补当前关系一项直接断言与清扫完整类型保留。Native 在 SHA 校验的匿名基线新副本上运行 SQLite、手工准备的真实 PG16 专用 `_test` 库；原 Python 双库参考另用新专用 `_test` 库，避免消费 Native 输入。记录初始来源和准确目标，执行后精确清理。
+
+阶段 4：两文件完整范围先为 29 migrated／2 pending；新增真实关系写入断言后，两库各直接执行一次新增关系并严格断言仅一次父流水 `SELECT`。首轮新夹具误把不返回组件主键的 `deletionInsert` 结果强制非空，失败发生在查询观测前；修正为显式分配原组件主键对应，另从 SHA 初始状态恢复 SQLite 后重跑。保存原失败日志／XML，不计作生产缺陷；生产查询和原期望均未修改。SQLite 与真实 PG16 各 2 项（新方法及既有清扫兼容方法）零失败／错误／跳过，静态检查通过。
+
+阶段 5：独立原断言／工程／范围／安全、执行观察、类型保留和最终 diff 复核无可执行 finding，见 `storage-boundary-review-1102fc.log`；工具未代跑测试，文档和精确数据库清理另外验收。
+
+阶段 6：原 Python 参考 16 passed、零跳过，包含清扫全文件和关系读取的原双库参数；实际命令／环境见 `storage-boundary-python-command-1102fc.json`，日志／JUnit `storage-boundary-python-1102fc.log/xml`。Native 两库各 2 项与静态通过，日志 `storage-boundary-native-{sqlite-final,pg}-1102fc.log`，JUnit 分别在 `storage-boundary-1102fc/{sqlite,postgres}`。两原文件共 31 定义为 30 migrated／1 retained、零 pending；本片新迁 1 定义／2 参数，清扫 1 整定义／4 参数 retained。全源／参数门禁为 809 migrated／13 retained／1,792 pending、零错误，文档及原完整范围门禁均通过。`storage-boundary-coverage-1102fc/coverage-proof.json` 证明生产、资源、旧 202 类和 backend 构建配置 SHA 完全相同，只新增本类；原完整双库 200 套／1,265 项、先前纯输入 4 项及暂存 37 项，加本片双库实际各 1 项新方法，合计覆盖 203 套／1,307 项。旧清扫类全部 6 方法归档保留，不用此次单方法 XML 覆盖；兼容方法复验另存。SQLite 3 项 PG 专属跳过、PG16 零跳过沿原矩阵保留，不宣称新全量 Gradle 命令。性能按用户决定排除，PG18 和真实 R2 不在本片验证范围。
+
+阶段 7：backend README、地图、inventory、design／tasks 和项目 skill 已原位收尾；主 README、主规格／delta、词表、routes、配置与依赖无新概念／接线或用户合同，无需改写。根交付 8 文件与隔离验证／审查树逐 SHA 一致，见 `storage-boundary-delivery-backup-1102fc/manifest.json`。根执行 `./gradlew :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true` 通过，日志 `storage-boundary-root-compile-1102fc.log`；根全源／参数、两文件完整范围、OpenSpec all strict 38/38、doctor、6 文档／301 本地链接和 `git diff --check` 均通过。已精确清理 2 个登记 PG 目标和 5 个 SQLite 临时文件／3,399,680 字节，见 `storage-boundary-cleanup-1102fc.json`；初始 SHA、必要 JSON、日志／JUnit／覆盖证明保留，仓库 `tmp/` 不存在。隔离工作树在备份、提交及远端 SHA 核对后清理。页面数 10、Web／Native／共享生产 DTO 及交互不变，两端 UI TODO 保留，不追加浏览器／设备／原生包 QA。回滚仅撤销测试／映射及说明，不触碰真实数据、Python 生产入口或部署。
+
+阶段 8：执行阶段 SQL 观测、主键对应和混合静态类型原定义整项保留已沉淀 apply skill；不以这两个原文件验收代替全部来源／持久化或全迁移完成。
+
 
 ### 解析暂存剩余原合同
 

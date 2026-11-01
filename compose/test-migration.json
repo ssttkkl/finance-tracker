@@ -10640,7 +10640,7 @@
     {
       "source": "tests/contract/test_cash_relation_context.py::test_relation_origin_uses_complete_parents_already_read_in_same_call",
       "source_sha256": "e5fe5b3f73c1c3412357c0858cf70acc6f90c5d7c8bccd9e1ffc2a0028a15768",
-      "status": "pending",
+      "status": "migrated",
       "parameters": [
         "tests/contract/test_cash_relation_context.py::test_relation_origin_uses_complete_parents_already_read_in_same_call[cash_web_runtime]",
         "tests/contract/test_cash_relation_context.py::test_relation_origin_uses_complete_parents_already_read_in_same_call[postgres_cash_web_runtime]"
@@ -10648,10 +10648,13 @@
       "assertions": [
         "assert len(queries) == 1"
       ],
-      "targets": [],
-      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
-      "compatibility": "Relation-origin writer not migrated; source single-parent-read assertion remains pending.",
-      "reason": "Relation-origin writer and original one-parent-read query assertion are not migrated."
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashRelationOriginOriginalTest.kt",
+          "test": "relationOriginUsesCompleteParentsAlreadyReadInSameCall"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系来源读取与清扫配置边界"
     },
     {
       "source": "tests/contract/test_cash_relation_context.py::test_revalidation_refuses_changed_parent_or_group_context",
@@ -16837,6 +16840,30 @@
       ],
       "compatibility": "独立复核确认语言适配：LedgerDecimal 私有构造、不可变类型承接 Python typed Decimal 校验边界；保留原表示向量与拒绝向量，运算不依赖环境精度。不增加无生产用途的 typed overload。",
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded",
+      "source_sha256": "a6f4822d3325f502c0aff6cc6c3957c780fe99ae594a086b2ecb047bef6a2bfb",
+      "status": "retained",
+      "parameters": [
+        "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded[options0]",
+        "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded[options1]",
+        "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded[options2]",
+        "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded[options3]"
+      ],
+      "assertions": [
+        "pytest.raises(ValueError, match='import_session_cleanup_config_invalid')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ParsedImportCleanupTest.kt",
+          "test": "boundedConfigurationAndRestartPreserveOneWorker"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前关系来源读取与清扫配置边界",
+      "reason": "The original mixed four-parameter definition includes a bool page_size. Kotlin ParsedImportCleanup uses primitive Int constructors; this argument cannot enter the API. Retain the entire definition and all original parameters; do not count the three representable cases as migrated.",
+      "compatibility": "Existing Native boundedConfigurationAndRestartPreserveOneWorker executes the original interval 0/61 and page-size 201 rejections with the exact import_session_cleanup_config_invalid error. The actual constructor Int type excludes Bool; no broad API or fake exception adapter is added. This method was rerun against current source in both backend focus runs.",
+      "python_command": "PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 FT_REQUIRE_TEST_POSTGRES=1 FT_TEST_POSTGRES_URL=postgresql+psycopg://huangwenlong@127.0.0.1:55433/ftk_storage_reference_1102fc_test /Users/huangwenlong/.paseo/worktrees/1zalea72/relieved-duck/.venv/bin/python -m pytest -q tests/test_parsed_import_cleanup.py tests/contract/test_cash_relation_context.py::test_relation_origin_uses_complete_parents_already_read_in_same_call --basetemp=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/storage-boundary-python-temp-1102fc -o cache_dir=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/storage-boundary-pytest-cache-1102fc --junitxml=/Users/huangwenlong/.cache/finance-tracker/kotlin-migration/storage-boundary-python-1102fc.xml"
     },
     {
       "source": "tests/test_parsed_import_cleanup.py::test_cleanup_worker_visits_next_pages_without_user_requests_and_stops",
