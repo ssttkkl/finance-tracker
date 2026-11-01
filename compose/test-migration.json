@@ -17336,6 +17336,27 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_historical_valuation.py::test_valuation_service_reads_a_quote_at_a_historical_boundary",
+      "source_sha256": "69bbe112f85298d426ebc501155ffb281ed6c186a900967afdcf57b9393d759e",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_historical_valuation.py::test_valuation_service_reads_a_quote_at_a_historical_boundary"
+      ],
+      "assertions": [
+        "assert result.unit_price == Decimal('99.5')",
+        "assert result.market_value == Decimal('995.0')",
+        "assert result.quote_currency == 'USD'",
+        "assert (identity, kind, at) == ('aapl.us', AssetKind.SECURITY, boundary)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "historicalBoundaryNeverFallsBackToCurrentQuote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
       "source": "tests/test_parsed_import_cleanup.py::test_cleanup_configuration_is_bounded",
       "source_sha256": "a6f4822d3325f502c0aff6cc6c3957c780fe99ae594a086b2ecb047bef6a2bfb",
       "status": "retained",
@@ -19265,6 +19286,195 @@
       ],
       "targets": [],
       "reason": "已有错误名称拒绝，尚缺尾部空格精确匹配与财务数据不变断言。"
+    },
+    {
+      "source": "tests/unit/application/test_valuation_service.py::test_invalid_quantity_whole_batch",
+      "source_sha256": "fba006fbaf54042506dd5f0bd63e3b6405e7d07690208e99eb746c42d3d9924f",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_valuation_service.py::test_invalid_quantity_whole_batch"
+      ],
+      "assertions": [
+        "pytest.raises(ValuationError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "invalidQuantityWholeRequest"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/application/test_valuation_service.py::test_quote_cash_and_security_success",
+      "source_sha256": "56373a48a66b5fbe3c1844ce9d31ddf4f11e36b65ac5e7ca6f9066022a7343b8",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_valuation_service.py::test_quote_cash_and_security_success"
+      ],
+      "assertions": [
+        "assert cash.status is QuoteStatus.COMPLETE",
+        "assert cash.unit_price == Decimal('1')",
+        "assert cash.market_value == Decimal('3')",
+        "assert sec.status is QuoteStatus.COMPLETE",
+        "assert sec.market_value == Decimal('10')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "cashAndSecurityQuotesSucceed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/application/test_valuation_service.py::test_quote_many_partial_and_unsupported",
+      "source_sha256": "5ba09983cc23d8e26cc64d47b06bd3a51449144691ef457fd63386ca5a2b9fb4",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_valuation_service.py::test_quote_many_partial_and_unsupported"
+      ],
+      "assertions": [
+        "assert [r.status for r in batch.results] == [QuoteStatus.COMPLETE, QuoteStatus.UNSUPPORTED, QuoteStatus.PARTIAL]",
+        "assert batch.results[1].unit_price is None",
+        "assert batch.results[2].unit_price is None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "partialAndUnsupportedResultsKeepNullPrices"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/application/test_valuation_service.py::test_quote_many_rejects_identity_kind_mismatch_before_provider_batch_call",
+      "source_sha256": "0c9c8bb2c64b5d563a81e015dab736a5ece6a106bbd09fb73fce360cc4186ce3",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_valuation_service.py::test_quote_many_rejects_identity_kind_mismatch_before_provider_batch_call"
+      ],
+      "assertions": [
+        "assert result.status is QuoteStatus.UNSUPPORTED",
+        "assert result.reason == 'identity_kind_mismatch'",
+        "assert provider.batch_calls == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "identityMismatchNeverCallsBatchProvider"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/application/test_valuation_service.py::test_quote_many_uses_provider_batch_results_by_input_identity",
+      "source_sha256": "08bf6288b051171b2e2e17a9b15c79c4c61837653186ff6c6e6f1c0c0affeab8",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/application/test_valuation_service.py::test_quote_many_uses_provider_batch_results_by_input_identity"
+      ],
+      "assertions": [
+        "assert by_identity['ok'].status is QuoteStatus.COMPLETE",
+        "assert by_identity['missing'].reason == 'empty_provider_response'",
+        "assert by_identity['unsupported'].status is QuoteStatus.UNSUPPORTED",
+        "assert by_identity['broken'].reason == 'provider_error'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "batchUsesProviderResultsByInputIdentity"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/domain/test_valuation_quote.py::test_cash_asset_ref_and_market_value",
+      "source_sha256": "89ee6e5c91876fcd17a09fcac8314896dca4111935f26664dc029018a427f746",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_valuation_quote.py::test_cash_asset_ref_and_market_value"
+      ],
+      "assertions": [
+        "assert ref.kind is AssetKind.CASH",
+        "assert compute_market_value(Decimal('1'), ref.quantity) == Decimal('10')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "cashAssetRefAndMarketValue"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/domain/test_valuation_quote.py::test_freshness_security_and_crypto",
+      "source_sha256": "afbaa6f8884cfe20ade65d368041142b0b171f8c1ce5858b77dcbc8f48f70c00",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_valuation_quote.py::test_freshness_security_and_crypto"
+      ],
+      "assertions": [
+        "assert quote_freshness(now - timedelta(days=4), now=now, kind=AssetKind.SECURITY) is QuoteStatus.COMPLETE",
+        "assert quote_freshness(now - timedelta(days=6), now=now, kind=AssetKind.SECURITY) is QuoteStatus.STALE",
+        "assert quote_freshness(now - timedelta(days=31), now=now, kind=AssetKind.SECURITY) is QuoteStatus.PARTIAL",
+        "assert quote_freshness(now - timedelta(hours=12), now=now, kind=AssetKind.CRYPTO) is QuoteStatus.COMPLETE",
+        "assert quote_freshness(now - timedelta(hours=36), now=now, kind=AssetKind.CRYPTO) is QuoteStatus.STALE",
+        "assert quote_freshness(now - timedelta(days=8), now=now, kind=AssetKind.CRYPTO) is QuoteStatus.PARTIAL"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "securityAndCryptoFreshness"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/domain/test_valuation_quote.py::test_invalid_quantity_fail_closed",
+      "source_sha256": "09b0d029d723e0a604b10e13c05480114ab18deef64e6d0206cb62b1211a62af",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_valuation_quote.py::test_invalid_quantity_fail_closed"
+      ],
+      "assertions": [
+        "assert exc.value.code == 'valuation.invalid_quantity'",
+        "pytest.raises(ValuationError)"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "invalidQuantityFailsClosed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
+    },
+    {
+      "source": "tests/unit/domain/test_valuation_quote.py::test_symbol_map_and_kind_infer",
+      "source_sha256": "39e6720a2ad838ce6d219659fe25cfc54b04006209ff3760fbe242734465bb58",
+      "status": "migrated",
+      "parameters": [
+        "tests/unit/domain/test_valuation_quote.py::test_symbol_map_and_kind_infer"
+      ],
+      "assertions": [
+        "assert ledger_security_to_yfinance('aapl.us') == 'AAPL'",
+        "assert ledger_security_to_yfinance('00700.hk') == '0700.HK'",
+        "assert ledger_security_to_yfinance('600519.sh') == '600519.SS'",
+        "assert ledger_security_to_yfinance('2330.tw') == '2330.TW'",
+        "assert ledger_security_to_yfinance('7203.jp') == '7203.T'",
+        "assert ledger_security_to_yfinance('005930.ks') == '005930.KS'",
+        "assert infer_asset_kind('usd', cash_tickers={'USD'}) is AssetKind.CASH",
+        "assert infer_asset_kind('btc') is AssetKind.CRYPTO",
+        "assert infer_asset_kind('pm:election:yes') is AssetKind.PREDICTION_MARKET",
+        "assert infer_asset_kind('aapl.us') is AssetKind.SECURITY"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/ValuationOriginalTest.kt",
+          "test": "symbolMappingAndKindInference"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务"
     }
   ],
   "source_changes": {

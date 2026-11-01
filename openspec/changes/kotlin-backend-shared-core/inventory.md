@@ -59,7 +59,7 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 
 原 OpenAPI／浏览器错误和写边界新增直接迁移 8 定义／12 参数；历史 Alembic 收据迁移 1 定义／2 参数整体保留并在两库运行，Native 读取原真实升级后的两份完整收据及当前 schema，且全表只读。公开文档按当前真实路由筛选原完整 86 项资源，完整装配为 74 项；框架元数据入口不增加业务接口数。当前关系预览、稳定收支编辑及公开协议原定义已有直接对应，维护接口验收已完成，剩余共享存储／基础规则原测试继续单独保留。
 
-全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 831 个定义／2,219 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,770 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
+全量 Python 测试对应表位于 `compose/test-migration.json`，检查器为 `scripts/check_kotlin_test_migration.py`。基线的 `tests/` 与 `compose/tests/` 共 2,612 个测试定义，授权新增响应编码及转账公共编辑回归后当前为 2,614 个定义、5,860 个完整 pytest 参数化用例；当前工作树已映射 841 个定义／2,229 个展开参数，13 个定义按语言类型、宿主日志、历史迁移及异常边界保留，其余 1,760 个定义保持 pending。当前草稿合并原 29 定义／88 参数及既有转账修复已通过完整双库组合和实际客户端验证，最终证据见 tasks。Kotlin/JUnit 回归方法与原 Python 参数分别统计，不合并为迁移数。新增源回归单独通过 `source_additions` 绑定当前指纹和理由，固定基线不变；未登记目标的定义一律保持 pending。检查包含测试函数、模块参数、fixture、数据文件与配置指纹，明确复核后的变化绑定基线／当前指纹和原因；不把黄金样本数或旧 Python 回归数当作 Kotlin 测试迁移数。最终 `--require-complete` 必须带完整 collection，存在未处理项即失败。
 
 - 维护提交恢复原 9 定义／34 参数已由 `CashMutationRecoveryOriginalTest` 直接对应，包含真实双库锁、永久收据优先、过期与权限错误、局部依赖拒绝和当前账户资格；完整验证证据见 tasks。
 - 维护计划发布原 12 定义／40 参数已由 `CashMutationPublicationOriginalTest` 直接对应；当前完整双库与实际 Compose 消费通过，独立最终复核无可执行 finding，证据见 tasks。
@@ -80,3 +80,5 @@ PG `NUMERIC(38,18)` 与 SQLite `String(96)`/`decimal_compare` 无损十进制等
 当前关系上下文原文件的最后一次父流水查询断言已通过真实 SQLite／PG16，按同次已读取的完整父项核对来源，不新增来源查询；原文件 22 定义全部 migrated。清扫原文件为 8 migrated／1 整定义 retained、零 pending；保留的四组配置含 Kotlin `Int` 签名不能接收的 Python `True`，Native 复验全部可表示的原整数拒绝，原 Python 全文件参考继续运行。两文件完整门禁合计 30 migrated／1 retained、零 pending；生产与旧回归 SHA 不变，新增双库方法与完整旧矩阵组合覆盖的准确边界见 tasks。其他持久化、来源、真实 R2／账单和整个迁移仍未完成。
 
 账户别名登记已接入 AccountAliasService／AccountAliasRepository，保留原账户名查询、卡尾与完整账号归一、通用历史命名空间和后端约束差异。66 组真实原 HTTP 与全列别名状态、写后／提交故障及当前权限重验在两库通过；原完整账号别名测试新增 1 定义／2 参数，组合文件其他定义仍 pending。Compose 无此独立旧接口的实际调用者，两端 UI TODO 保留，证据见 [当前审查](tasks.md#账户别名登记接口)。
+
+统一估值纯领域／应用／历史边界的原 10 定义已建立直接 Native 对应，另 230 组真实 Python 差分比较完整数值表示、结果／错误、调用和预算。该依赖当前双库完整回归已通过；真实行情／FX 提供器及账户／报表／持仓 HTTP 仍未接入，HTTP 78/86 不变。

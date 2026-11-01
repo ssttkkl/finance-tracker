@@ -259,3 +259,5 @@ Compose Web 待解决缺陷：当前 `1.12.1` 关闭详情弹层后无障碍树�
 影响实现或覆盖状态的变更必须更新本地图，并在对应 OpenSpec `tasks.md` 留下具体 QA 证据。平台特有控件可以不同，但值、标签、确认语义、错误处理和业务结果必须遵守共享行为合同。
 
 资金调拨的四个旧后端操作已接通 [应用服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/FundingRelationService.kt)，原 13 定义／27 参数及 46 组真实 HTTP 对照完成双库完整验证，见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#现金与投资账户资金调拨)。当前 Compose 未调用这四个旧接口，不计作新的页面入口或 Web／Native 产品接线，页面数 10 和两端既有 TODO 保留。
+
+账户汇总／财务报表／持仓所需的 [估值纯服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/ValuationService.kt) 正在迁移，原 10 定义／10 参数及 230 组 Python 对照完成双库完整验证；当前没有真实提供器或 Compose 调用，不登记为新增页面入口。Web／Native／共享生产 DTO、页面数 10 与两端既有 TODO 保留，账户查询、报表和持仓路由仍未接入，见 [实施任务](../openspec/changes/kotlin-backend-shared-core/tasks.md#统一估值与历史报价纯服务)。

@@ -218,6 +218,7 @@
 - [x] 4.12.24 迁移现金—投资资金调拨原应用 13 定义／27 参数及待审核、扫描、确认、驳回四个 HTTP 操作，验证当前端点、人工决定、投影原子维护与双库故障回滚。
 - [ ] 4.13 投资事件、重放/持仓/成本/费用/CHECKIN、周期 PnL/回报、事件查询及证据，DFZQ/IBKR/Schwab/uSmart 导入。
 - [ ] 4.14 行情/FX/历史估值、CCXT/Polymarket 连接器、凭据/增量 cursor/同步，刷新 worker/SSE/退出清理。
+- [x] 4.14.1 迁移估值领域／应用／历史边界纯服务原 10 定义／10 参数；保留标的、精确金额、时效、缺价／不支持、批量输入校验、预算和历史报价边界，不提前接通缺少真实提供器的账户／报表接口。
 - [x] 4.15.1 接入旧交易查询：原十字段 DTO、UTC 月份／账户／分类、200 条上限、精确金额、权限／故障及只读快照；直接迁移两个原应用测试，完成双库完整功能回归和独立复核。
 - [ ] 4.15 逐项核对 86 条 route matrix、停用入口及装配、配置/schema/数据库失败关闭，公共 contracts 消费与旧客户端兼容；不代理 Python 业务实现冒充完成。
 
@@ -261,15 +262,15 @@ Cross-platform Impact Check：Web、Android、iOS、JS/Wasm 的公共 DTO 和纯
 
 ## 当前证据
 
-当前原测试映射为 818 migrated／13 retained／1,783 pending，参数 2,192/5,860；当前 Python 共 2,614 定义。提交前 HEAD／比较基线 `cb4001d41ee0c17f6a66e7f41d67def663d37b49`，隔离工作树 `investment-read-worktree-1102ff`，目标 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 74/86（74 完整、12 未接入）；投资写入、持仓／估值／行情／同步及剩余原测试、全迁移最终验收未完成。
+当前工作树已验收原测试映射为 841 migrated／13 retained／1,760 pending，参数 2,229/5,860；当前 Python 共 2,614 定义。比较基线 `35a37551b520d553f5a94016b97f8a47beeac097` 加估值隔离工作树 `valuation-worktree-1102fj`，目标仍为 `origin/continue-kotlin-backend-refactor`，沿用同分支提交／推送授权。HTTP 78/86（78 完整、8 未接入）；真实行情／FX 提供器、账户查询／财务报表、投资写入／导入、持仓／同步和剩余原测试及全迁移最终验收未完成。生产入口仍为 Python。
 
-本片迁原应用四定义和 HTTP 前四定义共 8 定义／11 完整参数，原 Python 11 passed、无跳过；完整应用文件四定义零 pending，HTTP 其余五定义仍 pending。两库各 85 组原实际 HTTP 对照、全部业务表只读、当前身份、一致快照与实际 SQL 故障通过；六处故障在实际执行后停止，无重试／部分回包，权限变化拒绝返回数据。两库最终专项各 23 后端方法与 2 Host 方法、零失败／错误／跳过，命令、显式环境、时间及 JUnit 在 `investment-read-focus-{sqlite,pg}-final-1102fg/`。原 Python 参考证据为 `investment-read-python-1102ff.log/xml`，使用根 .venv、显式 FT_TEST_POSTGRES_URL 与专用参考库，basetemp／cache_dir 均在仓库外。
+本片统一估值领域／应用／历史边界迁移原 10 定义／10 参数；原 Python 10 passed／零跳过，Native 原直接 10 方法与补充差分 1 方法通过。230 组真实 Python 对照比较完整数值系数／指数／符号、结果／错误、提供器调用和预算时钟调用，不计为额外原迁移数。重新运行生成器后 230 组输出／调用与前一输出逐项一致，Unicode 数据重建字节一致，绑定四个原文件 SHA 和 Unicode 版本，见 `valuation-generator-proof-1102fj.json`。
 
-在隔离工作树 compose/ 完整执行 `./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true`：SQLite 205 套／1,325 项，零失败／错误、3 项 PG 专属跳过。PostgreSQL 16.14 以互斥完整类两组执行，base 188／1,108、maintenance 17／217，合计完全相同 205 套／1,325 项，零失败／错误／跳过；493 个源／资源／构建文件 SHA 始终一致。完整命令、环境、XML 与覆盖证明在 `full-{sqlite,pg}-1102fg/`，PG 的 group-plan／coverage-verification 验证类和方法无重复或遗漏；不沿用此前组合覆盖。现有七项消费者加本片投资读取筛选，八个 Host 类在两库各 18 项通过。
+全新完整双库各 209 套／1,356 项零失败／错误，SQLite 4 项 PG 专属跳过、真实 PostgreSQL16 零跳过；八类现有客户端 Host 各 18 项通过。PG 基础组 192／1,139 与维护组 17／217 的互斥并集覆盖完整清单，501 个后端源码／资源／构建文件 SHA 与同版 SQLite 一致。完整实际命令、环境、时间及 JUnit 在仓库外 `full-{sqlite,pg}-1102fk/`，原 Python 参考见 `valuation-python-1102fj.log/xml`。独立初审和最终只读复核无可执行 finding，见 `valuation-review-1102fj.log` 与 `valuation-final-review-1102fk.log`；审查者未代跑验证。
 
-实际 Netty 两库各十组请求与原 Python 完整回包一致，覆盖列表、脱敏原文、斜杠身份、异常 Unicode、未认证、查看者、工作区隔离、长整数及非 ASCII 游标；OpenAPI 为 74 项，仅公开已接通 GET，投资事件 POST 未广告。实际命令／结果和安全日志在 `investment-read-netty-{sqlite,pg}-final-command-1102fg.log` 与 `investment-read-netty-{sqlite,pg}-1102fg.{json,log}`。初始对比仅登记测试版本修改的 ledger_snapshots.updated_at 时钟差异，版本／其他业务列一致；每侧请求前后各表完整状态不变，不把测试夹具的 ORM 时钟更新当作读取写入。
+本片只新增未接线的后端纯估值类和对应测试／工具，不改当前 HTTP 路由、真实行情提供器、Web／Native／共享生产 DTO 或页面，页面数仍为 10，两端既有 TODO 保留。不会把纯算法测试当作实时行情、浏览器、设备或客户端接线完成；8 个旧接口继续标未迁移。
 
-所有输入、初始 SHA／快照、日志及 JUnit 在 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。SQLite 使用 online backup 验证 version=1 与新增 Unicode 行，旧不完整副本已退役；PG16.14 在 `127.0.0.1:55433` 人工准备登记 `_test` 库，显式 FT_TEST_POSTGRES_URL，无自动探测／启动。用户排除性能执行，functionalOnly 仍只排除两个既有性能类；PG18、真实 R2 和真实账单未验证。原默认 Decimal 精度 28 导致部分大整数投资金额读取 500，本片按原合同保留，未更改计算或扩展金额限制；生产入口仍为 Python，未执行 PR、合并、部署、真实数据迁移或删除 Python。
+已精确清理 844 个自有 PG 测试库和 762 个 SQLite 临时文件／522,137,600 字节，源对照和不可变初始输入保留；仓库 tmp/ 不存在。匿名输入、不可变初始快照、源 SHA、日志及 JUnit 位于 `/Users/huangwenlong/.cache/finance-tracker/kotlin-migration`。PG16.14 位于 `127.0.0.1:55433`，人工准备专用 `_test` 并显式传入 `FT_TEST_POSTGRES_URL`，不自动探测或启动。性能按用户决定排除，PG18、真实 R2 和真实账单未验证；未执行 PR、合并、部署、真实数据迁移或删除 Python。
 
 ### 已实现范围的专项证据
 
@@ -358,6 +359,23 @@ Cross-platform Impact Check：后端接通既有确认独立记录选择和来�
 文档收尾核对根 README、backend README、功能地图、routes／inventory、proposal／design／tasks、主规格／delta、导入行为／协议、配置、词表及 apply skill。backend README、地图、接口／测试清单、design／tasks 和技能按最终实现更新；`create_independent` 既有协议仍保持，不新增概念、schema、依赖、配置或公开 DTO，其余文件无需修改。交付目标为 `origin/continue-kotlin-backend-refactor`；不归档、合并、部署或删除 Python。回滚撤销本片绑定快照、操作准备／计数和预览错误适配及测试映射，不涉及 schema／真实数据。
 
 ## 当前审查
+
+### 统一估值与历史报价纯服务
+
+本片验证收尾 UTC 时间 2026-11-01T22:37:45.307964+00:00；实际逐类时间及命令见下列 JUnit／命令证据。
+
+比较基线 `35a37551b520d553f5a94016b97f8a47beeac097`，独立工作树 `valuation-worktree-1102fj`；交付目标仍为 origin/continue-kotlin-backend-refactor。沿用完整 A 类澄清和验收，不增加财务语义修正。
+
+阶段 1–3：账户列表／财务报表依赖实际估值和行情提供器，先按依赖顺序迁移 valuation 领域与应用服务。读取投资组合估值主规格、原实现和原领域 4／应用 5／历史 1 定义。设计保留全部方法和错误／空值／顺序／默认 Decimal 上下文，不以固定成本冒充实时估值；真实行情提供器、FX、持仓刷新与两个 HTTP 接口仍待后续接入。
+
+阶段 4：valuation-red-1102fj.log 先因缺少实现编译失败；新增 ValuationDomain／Service 和 typed naive／aware 时间、源 Decimal 系数／指数运算。原 10 定义直接对应 ValuationOriginalTest 的 10 方法，原 Python 10 passed／零跳过，见 valuation-python-1102fj.log/xml。ValuationParityTest 对照真实 Python 230 组完整结果／错误、实际提供器调用与单调时钟调用，不以补充样本充当原迁移数。股票身份 ½ 的 Java 分类差异先在 valuation-parity-red-1102fj/ 复现，再使用已生成的 Python 字符分类／既有大小写表修复；时钟 0／0.0 仅按浮点秒的数值比较，不改变财务系数／指数／负零。最终 Native 11 方法、230 对照及 ktlint／detekt 通过，见 valuation-parity-final-1102fj.log。CLI 重新导出 230 组与原完整结果及调用逐项相同，字符数据重建字节一致，源四文件 SHA／Unicode 版本绑定，见 valuation-generator-proof-1102fj.json。
+
+阶段 5：valuation-review-1102fj.log 独立只读上下文复核全部原实现／断言、精度、时效、单项／批量／历史、Unicode 和真实 Oracle，无可执行 finding；审查者未代跑测试或访问外部环境。valuation-final-review-1102fk.log 最终只读复核完整 tracked／untracked diff、10 个原定义映射、提供器调用／预算、生成器及六份文档，无可执行 finding；PG 维护组、清理和真实提供器／客户端接线明确保留待办。
+
+阶段 6：三个原文件完整门禁先为 10 pending，再为 10 migrated／零 pending；全源映射 841 migrated／13 retained／1,760 pending、参数 2,229，零错误。OpenSpec all strict 38/38、doctor、6 文档／316 链接与 diff 检查通过。全新 SQLite 完整 209 套／1,356 项零失败／错误，4 项 PG 专属跳过；八类现有 Host 18 项通过。完整命令、环境和 JUnit 在 full-sqlite-1102fk/；真实 PostgreSQL16 完整基础组 192 套／1,139 项、维护组 17 套／217 项均通过，零失败／错误／跳过；互斥并集与 SQLite 完整 209 套／1,356 项和逐类项数完全一致，501 个后端源码／资源／构建文件 SHA 始终相同，见 full-pg-1102fk/coverage-verification.json。随后八类现有 Host 18 项通过／零跳过。实际命令为在 compose/ 执行 ./gradlew :backend:test :backend:installDist :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true；PG 两组的明确 --tests 清单、环境和 UTC 时间见各 group 的 command.json／environment.json／JUnit。Host 使用 :shared:testAndroidHostTest 的八类筛选，见 client-command.json／运行驱动。没有新增路由或实际消费者，不需要新的 Netty／UI 冒烟；不把此前 Netty 或真实行情结果冒充当前验证。性能按用户决定排除，PG18 未验证。纯服务不新增数据库、网络、凭据或 UI 副作用；测试时恢复自有旧场景初始库以执行完整后端矩阵。
+
+阶段 7：backend README、功能地图、inventory、design／tasks、源映射和 apply skill 已按纯层实际实现／未接线状态收尾；核对根 README、主规格／delta、路由矩阵、词表、导入行为／协议、配置和依赖，无新概念、HTTP 字段、schema 或运行选项，其余无需修改。已精确清理 844 个自有 PG 测试库（含基础组前序 347 个）及 762 个 SQLite 临时文件／522,137,600 字节，见 valuation-{pg,sqlite}-cleanup-1102fk.json；不可变初始快照、源 SHA、230 组只读对照、日志和 JUnit 保留，仓库 tmp/ 不存在。根交付 13 文件与隔离验证／审查树逐 SHA 一致，见 valuation-delivery-backup-1102fk/manifest.json；根执行 :backend:compileTestKotlin :shared:compileAndroidHostTest :backend:ktlintCheck :backend:detekt -PbackendFunctionalOnly=true 通过，见 valuation-root-compile-1102fk.log。根全源／参数门禁、OpenSpec all strict 38/38、doctor、6 文档／316 链接及 diff 检查通过。交付目标仍为 origin/continue-kotlin-backend-refactor，按已有授权提交／推送，最终 SHA 见仓库外 valuation-delivered-1102fk.json；提交 blob／远端与备份逐 SHA 核对后移除本轮隔离工作树。完整证明为 valuation-final-proof-1102fk.json。Cross-platform Impact Check：当前客户端仅消费服务端估值结果，没有实际纯算法调用路径，因此纯服务保留后端，不宣称共享或完成页面接线；Web／Native／共享生产 DTO 和页面数 10 保持原状，既有 TODO 保留。回滚撤销新增纯服务和测试映射，无 schema／真实数据变化。阶段 8：apply skill 已沉淀纯服务与真实接线的分界、28／80 位上下文和负零、Unicode 分类与原生大小写、单调时钟数值比较；并固定仓库根写入成功后再独立启动 compose/ 构建，使用仓库 Python 维护中文证据。源码、参数和当前整体进度原位维护，不将 230 个补充样本重复计为原迁移数。
+
 
 ### 现金与投资账户资金调拨
 
