@@ -82,13 +82,26 @@ internal class CurrentCashRelationWriteRepository(private val context: CashSqlCo
             .fetchOne() ?: fail("relation_not_found")
     }
     fun get(identifier: Any?): Map<String, Any?> {
-        val row = model(identifier)
-        val candidates = context.sql.selectFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace)
-            .and(candidate.RELATION_ID.eq(row[relation.ID]))).orderBy(candidate.CANDIDATE_TRANSACTION_ID, candidate.CANDIDATE_COMPONENT_ID).fetch().map { item ->
-                listOf("candidate_transaction_id", "candidate_component_id", "expected_row_revision", "evidence", "validity").associateWith { item.get(it) }
+        return dictionaries(listOf(model(identifier)), false).single()
+    }
+    fun planningRows(identifiers: Set<Long>): List<Map<String, Any?>> {
+        context.requireActive()
+        val rows = identifiers.sorted().chunked(500).flatMap { batch ->
+            context.sql.selectFrom(relation).where(relation.WORKSPACE_ID.eq(context.workspace)).and(relation.ID.`in`(batch)).orderBy(relation.ID).fetch()
+        }
+        return dictionaries(rows, true)
+    }
+    private fun dictionaries(rows: List<Record>, includeCandidateIds: Boolean): List<Map<String, Any?>> {
+        val grouped = linkedMapOf<Long, MutableList<Map<String, Any?>>>()
+        for (batch in rows.chunked(500)) context.sql.selectFrom(candidate).where(candidate.WORKSPACE_ID.eq(context.workspace)
+            .and(candidate.RELATION_ID.`in`(batch.map { it[relation.ID]!! })))
+            .orderBy(candidate.CANDIDATE_TRANSACTION_ID, candidate.CANDIDATE_COMPONENT_ID).fetch().forEach { item ->
+                val fields = listOf("candidate_transaction_id", "candidate_component_id", "expected_row_revision", "evidence", "validity")
+                val value = fields.associateWith { item.get(it) } + if (includeCandidateIds) mapOf("id" to item[candidate.ID]) else emptyMap()
+                grouped.getOrPut(item[candidate.RELATION_ID]!!) { mutableListOf() }.add(value)
             }
-        return linkedMapOf("id" to row[relation.ID], "workspace_id" to context.workspace, "row_revision" to row[relation.ROW_REVISION],
-            "created_at" to row[relation.CREATED_AT]) + fields.associateWith { row.get(it) } + ("candidates" to candidates)
+        return rows.map { row -> linkedMapOf("id" to row[relation.ID], "workspace_id" to context.workspace, "row_revision" to row[relation.ROW_REVISION],
+            "created_at" to row[relation.CREATED_AT]) + fields.associateWith { row.get(it) } + ("candidates" to grouped[row[relation.ID]].orEmpty()) }
     }
     private fun origin(rows: Collection<Record>, kind: String) {
         if (rows.any { it[parent.RECORD_ORIGIN] == "manual" }) fail("manual_relation_forbidden")

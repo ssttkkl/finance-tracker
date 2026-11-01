@@ -79,7 +79,8 @@ class MutationPlanCommitHttpContractTest {
             System.getenv("FT_KOTLIN_TEST_DB_PASSWORD")) { failCommit(it, failing) }
         val priorWrites = objects.writes.size
         val financialBefore = financial(db)
-        assertFailsWith<StorageFailure> { MutationPlanService(failedDb, staging = staging).commit("synthetic-admin", planId, 1, "commit-edit-record") }
+        val commitFailure = assertFailsWith<CashImportCommitFailure> { MutationPlanService(failedDb, staging = staging).commit("synthetic-admin", planId, 1, "commit-edit-record") }
+        assertEquals("unknown", commitFailure.commitState)
         assertFalse(failing.get()); assertEquals(priorWrites, objects.writes.size)
         assertEquals(financialBefore, financial(db))
         assertFalse(staging.get(MutationPlanStore.contextId(planId), "commit-a", "admin").cancelled)

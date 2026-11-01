@@ -4,7 +4,7 @@ import com.finance.tracker.backend.persistence.generated.tables.references.*
 import java.time.Instant
 import kotlinx.serialization.json.*
 
-internal class MutationPlanFieldFailure(val code: String, val fields: List<String>) : RuntimeException(code)
+internal class MutationPlanFieldFailure(val code: String, val fields: List<String>, var commitState: String? = null) : RuntimeException(code)
 
 class MutationPlanService internal constructor(
     private val database: Database,
@@ -13,6 +13,7 @@ class MutationPlanService internal constructor(
         ttlSeconds = MutationPlanStore.ttlFromEnvironment(System.getenv("FT_IMPORT_STAGING_TTL_SECONDS")), clock = now),
     private val beforeCommitWrite: () -> Unit = {},
     private val beforeCommitWorkspaceLock: () -> Unit = {},
+    private val afterCommitStep: (String) -> Unit = {},
 ) {
     private val reads = ReadServices(database, now)
     private val store = MutationPlanStore(staging = staging)
@@ -38,7 +39,7 @@ class MutationPlanService internal constructor(
             if (row.value2() != request.expectedRevision) throw MutationPlanFailure("record_changed")
             val built = try {
                 MutationPlanBuilder(CashSqlContext(connection, principal.workspaceId!!, database.sqlite, now))
-                    .build(transaction, request)
+                    .build(transaction, request, context?.plan)
             } catch (failure: CashPolicyError) {
                 throw MutationPlanFieldFailure(failure.code, failure.fields).also { it.addSuppressed(failure) }
             } catch (_: ReceiptConflict) {
@@ -104,6 +105,17 @@ class MutationPlanService internal constructor(
 
     fun commit(token: String?, planId: String?, expectedPlanRevision: Long, idempotencyKey: String?,
         requestPrincipal: Principal? = null): JsonObject {
+        val boundary = CashImportCommitBoundary(afterCommitStep)
+        try { return commitGuarded(token, planId, expectedPlanRevision, idempotencyKey, requestPrincipal, boundary) }
+        catch (failure: MutationPlanFailure) { if (boundary.commitState == "not_committed") failure.commitState = boundary.commitState; throw failure }
+        catch (failure: MutationPlanFieldFailure) { if (boundary.commitState == "not_committed") failure.commitState = boundary.commitState; throw failure }
+        catch (failure: CashPolicyError) { throw MutationPlanFieldFailure(failure.code, failure.fields, boundary.commitState.takeIf { it == "not_committed" }) }
+        catch (failure: ReceiptConflict) { if (boundary.commitState == "not_committed") failure.commitState = boundary.commitState; throw failure }
+        catch (failure: AccessFailure) { throw failure }
+        catch (failure: Exception) { throw CashImportCommitFailure(boundary.commitState, boundary.diagnostic(), failure) }
+    }
+    private fun commitGuarded(token: String?, planId: String?, expectedPlanRevision: Long, idempotencyKey: String?,
+        requestPrincipal: Principal?, boundary: CashImportCommitBoundary): JsonObject {
         val key = idempotencyKey?.takeIf { it.matches(Regex("[A-Za-z0-9_:.~-]{1,255}")) }
             ?: throw MutationPlanFailure("idempotency_key_required")
         if (expectedPlanRevision < 1) throw MutationPlanFailure("plan_input_invalid")
@@ -111,7 +123,7 @@ class MutationPlanService internal constructor(
         if (requestPrincipal != null) sameContext(requestPrincipal, principal)
         var cleanup: MutationPlanStore.Context? = null
         beforeCommitWrite()
-        val receipt = database.write { connection ->
+        val receipt = database.writeGuarded(boundary::committing) { connection ->
             val workspace = principal.workspaceId ?: throw AccessFailure(true)
             beforeCommitWorkspaceLock()
             if (!connection.lockWorkspace(database.sqlite, workspace)) throw AccessFailure(true)
@@ -121,12 +133,13 @@ class MutationPlanService internal constructor(
             val repository = ReceiptRepository(connection, workspace, database.sqlite, now)
             val digest = cashSourceDigest(JsonPrimitive("cash-mutation-commit-v1"), JsonPrimitive(planId),
                 JsonPrimitive(expectedPlanRevision))
-            repository.replay(current.userId, key, digest, "mutation", planId)?.let { return@write it }
+            repository.replay(current.userId, key, digest, "mutation", planId)?.let { return@writeGuarded it }
             val contextId = MutationPlanStore.contextId(planId)
             val contextDigest = tokenDigest(contextId)
             repository.forContext(current.userId, editContextDigest = contextDigest)?.let {
                 throw ReceiptConflict("edit_context_committed", it.getValue("receipt_id").jsonPrimitive.content)
             }
+            boundary.noPriorResult()
             val stored = store.get(contextId, workspace, current.userId)
             val plan = checkedPlan(stored, planId, expectedPlanRevision)
             if (plan["can_commit"]?.jsonPrimitive?.booleanOrNull != true) throw MutationPlanFailure("plan_input_invalid")
@@ -141,8 +154,18 @@ class MutationPlanService internal constructor(
                 ?: throw MutationPlanFailure("record_not_found")
             if (rowRevision != expectedRevision) throw MutationPlanFailure("record_changed")
             val fresh = MutationPlanBuilder(CashSqlContext(connection, workspace, database.sqlite, now))
-                .build(transaction, request)
+                .build(transaction, request, plan)
             MutationPlanRevalidation.validate(plan, fresh)
+            if (request.intent == "maintain_relations") {
+                val context = CashSqlContext(connection, workspace, database.sqlite, now)
+                val result = CurrentCashMaintenanceCommitWriter(context, current.userId, boundary).apply(plan, fresh, request)
+                val created = repository.create(current.userId, key, digest, "mutation", result.summary, result.results,
+                    planId = planId, editContextDigest = contextDigest)
+                boundary.done("receipt")
+                sameContext(principal, reads.lockedContext(connection, token, workspace, write = true))
+                cleanup = stored
+                return@writeGuarded created
+            }
             val operation = plan.getValue("operations").jsonArray.single().jsonObject
             val action = operation.getValue("planned_action").jsonPrimitive.content
             val outcome = when (action) {
@@ -208,8 +231,6 @@ class MutationPlanService internal constructor(
             try { store.cancel(context.id, context.workspaceId, context.userId, context.revision) }
             catch (_: Exception) { /* The committed receipt fences writes; fixed TTL clears any retained body. */ }
         }
-        val after = reads.currentContext(token)
-        sameContext(principal, after)
         return ReceiptRepositoryView.strip(receipt)
     }
 

@@ -19,13 +19,31 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         return cashSourceValue(prepare(row, fields(row), patch, entry(transactionId), existingIssues = issues(transactionId), directDraft = true)) as Map<String, Any?>
     }
 
-    fun build(transactionId: Long, request: MutationPlanRequest): JsonObject {
+    fun prepareCurrentOperation(transactionId: Long, patch: Map<String, Any?>): Map<String, Any?> {
+        val row = record(transactionId)
+        if (patch.keys.any { it !in editableCashRecordFields }) throw CashPolicyError("field_not_editable", emptyList())
+        if (row.state == "posted") {
+            if (row.origin == "manual_transfer" && patch.keys.any { it !in commonCashFields })
+                throw CashPolicyError("field_not_editable", patch.keys.filter { it !in commonCashFields }.sortedWith(cashRelationStringOrder))
+            if ("source_payload" in patch) throw CashPolicyError("field_not_editable", listOf("source_payload"))
+            val member = context.entries.forTransactions(listOf(transactionId)).first[transactionId]
+            if (member != null && patch.keys.any { it !in commonCashFields } && sql.selectCount().from(CASH_ENTRY_MEMBERS)
+                    .where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace)).and(CASH_ENTRY_MEMBERS.ENTRY_ID.eq(member.entryId)).fetchSingle().value1() > 1)
+                throw CashPolicyError("field_not_editable", patch.keys.filter { it !in commonCashFields }.sortedWith(cashRelationStringOrder))
+        }
+        val operation = prepare(row, fields(row), patch, entry(transactionId), existingIssues = issues(transactionId), directDraft = true)
+        val scope = CashImportPreviewSnapshotBuilder(context).scopes(setOf(transactionId))[transactionId.toString() to row.sourceType] ?: "unbound:$transactionId"
+        @Suppress("UNCHECKED_CAST")
+        return cashSourceValue(JsonObject(operation + mapOf("operation_ref" to JsonPrimitive("op_1"), "row_refs" to JsonArray(emptyList()),
+            "source_scope_key" to JsonPrimitive(scope), "matching_record_id" to JsonPrimitive("occurrence:$transactionId"),
+            "matching_source_explanation" to sourceJson(extractCashSourceExplanation(row.relationMetadata?.let(::cashSourceValue)))))) as Map<String, Any?>
+    }
+
+    fun build(transactionId: Long, request: MutationPlanRequest, previous: JsonObject? = null): JsonObject {
+        if (request.intent == "maintain_relations") return CurrentCashMaintenancePlanBuilder(context).build(request, previous)
         if (request.intent !in setOf("save_draft", "edit_record", "finalize_draft", "edit_entry", "resolve_issue",
                 "maintain_relations")) throw MutationPlanFailure("plan_input_invalid")
         val record = record(transactionId)
-        if (request.intent == "maintain_relations" &&
-            (request.relationChoices.isNotEmpty() || request.relationAdditions.isNotEmpty()))
-            throw MutationPlanFailure("plan_input_invalid")
         if (request.intent in setOf("save_draft", "finalize_draft") && record.state != "draft")
             throw MutationPlanFailure("draft_required")
         if (request.intent in setOf("edit_record", "edit_entry") && record.state != "posted")

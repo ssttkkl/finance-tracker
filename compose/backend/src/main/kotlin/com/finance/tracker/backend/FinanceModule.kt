@@ -195,6 +195,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     put("code", JsonPrimitive(failure.code)); put("message", JsonPrimitive(message))
                     put("field_errors", JsonArray(emptyList())); put("retryable", JsonPrimitive(status == 503))
                 })
+                failure.commitState?.let { put("commit_state", JsonPrimitive(it)) }
             })
         }
         exception<MutationPlanFieldFailure> { call, failure ->
@@ -216,6 +217,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                     }))
                     put("retryable", JsonPrimitive(false))
                 })
+                failure.commitState?.let { put("commit_state", JsonPrimitive(it)) }
             })
         }
         exception<ReceiptConflict> { call, failure ->

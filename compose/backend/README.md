@@ -1,6 +1,10 @@
 # Kotlin 后端本机预览
 
-已准备操作的 [共享预计图入口](src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 复用导入后段，允许维护直接提供当前流水、额外种子／决定组和当前关系构建回调，不依赖导入文件。`CashImportBusinessPlanContractTest` 对照 10 组完整 Python 结果，并验证输入隔离、无文件维护、未变化成员、快照变换顺序和决定组缺失拒绝；测试环境沿用 `FT_KOTLIN_IMPORT_PREPARATION_CONTRACT_DIR`。当前关系规划与完整维护提交仍待接入，此内部入口不增加 HTTP 完成数。
+已准备操作的 [共享预计图入口](src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 复用导入后段，允许维护直接提供当前流水、额外种子／决定组和当前关系构建回调，不依赖导入文件。`CashImportBusinessPlanContractTest` 对照 10 组完整 Python 结果，并验证输入隔离、无文件维护、未变化成员、快照变换顺序和决定组缺失拒绝；测试环境沿用 `FT_KOTLIN_IMPORT_PREPARATION_CONTRACT_DIR`。
+
+`maintain_relations` 已接通 [当前关系预览](src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenancePlanBuilder.kt) 与 [原子提交](src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)：保留完整决定组、候选身份与证明、上一方案、拆分公共值及明确的人工关联。必要的候选清理在现金部分移除前执行，字段、关系、余额、稳定收支、投影及永久收据同事务；提交调用失败保留未知结果，原键重试先查永久收据。完整维护仍待验收，6 个维护接口继续标为部分实现。
+
+当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 19 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 9 个原定义／34 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
 此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选和旧流水列表读取及流水／已选收支删除、普通草稿保存，共接入 70/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 16 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
@@ -207,7 +211,7 @@ Python 单测迁移对应表为 `compose/test-migration.json`。从根目录执�
 
 `GET /api/v1/operations/projections` 只允许当前工作区管理员读取构建状态；没有状态行时返回原缺省，不创建状态或触发重建。失败构建保留已有活动数据集和错误字段，存储失败返回 `projection.unavailable`。`POST /api/v1/operations/projections/rebuild` 已接入实际重建：锁后及返回前重验管理员，拒绝时整事务回滚且不写失败诊断；领域校验返回 409，运行/存储错误保留原 503 合同。状态仓库同时用于收据结果的当前 ready 数据集/版本读取。Compose 当前没有管理员状态/重建入口，因此不提取额外公共 DTO。
 
-`GET /api/v1/cash-ledger/options` 为当前工作区成员返回原 17 类流水、合法子类型和 3 类关系，保留标签及枚举顺序；空工作区也可读，不初始化数据集。三个选项 DTO 由现有 Compose `fetchLedgerOptions` 和后端共同消费，每次返回独立列表。`scripts/export_ledger_options.py --check` 核对 Python 完整选项，实际回包可用 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinLedgerOptionsResponseIntegrationTest` 验证。手工新建已使用这些选项；关系操作仍待迁移。
+`GET /api/v1/cash-ledger/options` 为当前工作区成员返回原 17 类流水、合法子类型和 3 类关系，保留标签及枚举顺序；空工作区也可读，不初始化数据集。三个选项 DTO 由现有 Compose `fetchLedgerOptions` 和后端共同消费，每次返回独立列表。`scripts/export_ledger_options.py --check` 核对 Python 完整选项，实际回包可用 `:shared:testAndroidHostTest --tests com.finance.tracker.KotlinLedgerOptionsResponseIntegrationTest` 验证。手工新建与当前关系维护已使用这些选项；完整维护仍待验收。
 
 分类删除按当前收支记录计使用量，保留目录/分类修订和确认检查；同一事务清除当前值、拆分恢复值、含已删除流水的分类引用和全部投影，保留其他人工字段并使依赖候选失效。活动投影和状态仅按原 ready 规则推进版本，异常整体回滚。DELETE 按原始字节处理 Python JSON 编码、语法和整数错误边界；`scripts/export_category_json_goldens.py --check` 校验匿名兼容向量。实际 Compose 确认协议通过 `KotlinCategoryDeletionResponseIntegrationTest` 消费 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 下回包。万条记录耗时、集合 SQL 和 RSS 采样专项不代表原高水位内存测试已经迁移；准确状态见实施证据。
 

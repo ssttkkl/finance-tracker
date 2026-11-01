@@ -2,7 +2,7 @@ package com.finance.tracker.backend
 
 import kotlinx.serialization.json.*
 
-internal class MutationPlanFailure(val code: String) : RuntimeException(code)
+internal class MutationPlanFailure(val code: String, var commitState: String? = null) : RuntimeException(code)
 
 internal data class MutationIssueResolution(
     val issueId: String, val expectedIssueRevision: Long, val resolution: String,

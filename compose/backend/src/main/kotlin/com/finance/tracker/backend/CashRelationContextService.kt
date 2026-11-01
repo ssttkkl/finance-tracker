@@ -29,6 +29,8 @@ internal class CashRelationContextService(private val context:CashSqlContext) {
         if(current.token()!=before.token()) relationFailure("relation_context_changed")
         return validateCurrent(current,updates,additions,evidenceByRelation,cleanupGroupIds,before.jointMembers)
     }
+    fun validateLoaded(current:CashRelationSqlContext,updates:List<CashRelationGraphEdge>,evidenceByRelation:Map<Long,CashRelationEvidence>,cleanupGroupIds:Set<String>):PreparedCashRelationGraph =
+        validateCurrent(current,updates,emptyList<Any>(),evidenceByRelation,cleanupGroupIds,current.jointMembers)
     private fun validateCurrent(current:CashRelationSqlContext,rawUpdates:Any?,rawAdditions:Any?,rawEvidence:Any?,rawCleanup:Any?,expectedMembers:List<CashJointRelationMember>):PreparedCashRelationGraph {
         fun iterable(value:Any?):List<*> = when(value) {
             is Map<*,*> ->value.keys.toList()

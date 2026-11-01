@@ -6,7 +6,9 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 ## Kotlin 后端迁移与公共业务层
 
-导入与维护共用的 [预计图构建器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 已提供接收当前流水操作的内部入口，支持无导入文件、额外流水／决定组、快照变换和当前关系构建；[只读合同回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportBusinessPlanContractTest.kt) 对照完整 Python 结果并核对输入隔离。当前关系规划与完整维护提交尚未接通该入口，6 个维护计划接口继续保留部分完成状态。Web／Native／共享生产 UI 和 DTO 不变，页面数仍为 10，F-03／F-04 的完整维护 TODO 保留。
+当前关系维护的 [Kotlin 预览与提交](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt) 已支持已有关系的完整组决定及明确的人工关联，保留候选证明、关系编号、拆分公共值和原键永久收据。[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 覆盖原 9 定义／34 个双库参数；[现有 Compose 维护消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinCurrentMaintenanceResponseIntegrationTest.kt) 验证公开 HTTP 的方案、关系明细及收据。共享生产 DTO、Web／Native 页面与交互不变，页面数仍为 10；完整维护、多成员和剩余并发／故障组合及两端既有 UI 验收 TODO 保留。
+
+导入与维护共用的 [预计图构建器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 已提供接收当前流水操作的内部入口，支持无导入文件、额外流水／决定组、快照变换和当前关系构建；[只读合同回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportBusinessPlanContractTest.kt) 对照完整 Python 结果并核对输入隔离。当前关系维护已使用该入口，6 个维护计划接口继续保留部分完成状态。Web／Native／共享生产 UI 和 DTO 不变，页面数仍为 10，F-03／F-04 的完整维护 TODO 保留。
 
 普通草稿保存的 [Kotlin 服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashDraftSaveService.kt) 已接通现有 PATCH，保持草稿与余额，来源正文、现金部分、公共条目、事项及投影与永久收据同事务；提交后的当前详情不可读或已删除仍保留成功结果。[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashDraftSaveContractTest.kt) 覆盖原 17 定义／82 参数、双库完整 HTTP、回滚、真实 COMMIT 故障和 PG 锁后权限；[现有 Compose 保存消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinDraftSaveResponseIntegrationTest.kt) 已验证实际回包。Web／Native 共用页面和共享生产合同，页面数仍为 10；普通草稿保存 API 的迁移 TODO 关闭，完整维护及两端既有 UI 验收 TODO 保留。
 

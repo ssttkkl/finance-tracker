@@ -33,12 +33,12 @@
 | GET | `/api/v1/cash-records/{transaction_id}` | `src/ft/web/cash_plan_routes.py:160` | 已实现；双库 36 组完整响应/状态/无写入、角色与损坏状态边界、独立复核及现有 Compose 来源消费通过 |
 | GET | `/api/v1/cash-records/{transaction_id}/association-targets` | `src/ft/web/cash_plan_routes.py:164` | 已实现；当前权限、原字段、关系闭包排除、ID 翻页、精确金额与本地日期，双库及现有 Compose 消费证据见 tasks |
 | PATCH | `/api/v1/cash-records/{transaction_id}/draft` | `src/ft/web/cash_plan_routes.py:173` | 已实现；普通保存保持草稿／余额不变，原键永久收据与当前详情分离；双库原断言、完整 HTTP／COMMIT 故障／锁后权限及现有 Compose 消费见 tasks |
-| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 及关系自由的 maintain_relations 已实现；双库 Python 视图/单项对照、错误与无写入通过；其余意图未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 计划读取已实现；双库通过，其余意图未完成 |
-| GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 计划读取已实现；双库通过，其余意图未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；双库通过，其余意图未完成 |
-| GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 单项详情已实现；双库通过，其余意图未完成 |
-| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record/finalize_draft/save_draft/resolve_issue 已实现；双库 Python 收据/状态/问题/余额/投影 oracle、幂等重放与上下文消费通过；maintain_relations 与其他操作未完成 |
+| POST | `/api/v1/cash-mutations/plans` | `src/ft/web/cash_plan_routes.py:179` | save_draft/edit_record/finalize_draft/edit_entry/resolve_issue 已接入；maintain_relations 已接当前完整组／候选、上一方案及人工关联预览，55 组 Python 检查点、错误与只读通过；更多维护组合及其余意图未完成 |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:184` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
+| GET | `/api/v1/cash-mutations/edit-contexts/{edit_context_id}/plan` | `src/ft/web/cash_plan_routes.py:189` | save_draft 及 maintain_relations 当前关系计划读取已接入；双库与实际 Compose 消费通过，完整维护未完成 |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:194` | save_draft 分页已实现；maintain_relations 使用共享分页，完整维护未完成 |
+| GET | `/api/v1/cash-mutations/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:203` | save_draft 及 maintain_relations 当前关系／人工关联明细已接入；双库与实际 Compose 消费通过，完整维护未完成 |
+| POST | `/api/v1/cash-mutations/plans/{plan_id}/commit` | `src/ft/web/cash_plan_routes.py:208` | edit_record/finalize_draft/save_draft/resolve_issue 已实现；双库 Python 收据/状态/问题/余额/投影 oracle、幂等重放与上下文消费通过；maintain_relations 的当前组决定与人工关联已接入，9 个原定义／34 双库参数、真实 COMMIT 故障／重放及公开 HTTP／Compose 消费通过；剩余组合和其他操作未完成 |
 | GET | `/api/v1/cash-import/plans/{plan_id}` | `src/ft/web/cash_plan_routes.py:213` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items` | `src/ft/web/cash_plan_routes.py:218` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |
 | GET | `/api/v1/cash-import/plans/{plan_id}/items/{preview_item_id}` | `src/ft/web/cash_plan_routes.py:227` | 已实现冻结计划读取；双库公开视图、分页/详情、权限/收据围栏及无写入通过 |

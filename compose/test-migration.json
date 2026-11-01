@@ -669,6 +669,188 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members",
+      "source_sha256": "431dc7cf10b9eec6d6238eba75ebb1bf670837b28cef24e57e7d2dc48be9b126",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[cash_web_runtime-confirmed-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[cash_web_runtime-draft-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[cash_web_runtime-draft-defer]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[cash_web_runtime-draft-ignore]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[postgres_cash_web_runtime-confirmed-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[postgres_cash_web_runtime-draft-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[postgres_cash_web_runtime-draft-defer]",
+        "tests/contract/test_cash_current_relation_commit.py::test_cleanup_of_mixed_inactive_group_never_rewrites_inactive_members[postgres_cash_web_runtime-draft-ignore]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['relations_failed'] == 0",
+        "assert _snapshot(runtime) == balances",
+        "assert old == new",
+        "assert not new['active'] and new['state'] == old['state']",
+        "assert new['active'] and new['state'] == {'defer': 'draft', 'ignore': 'ignored'}[action]"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "cleanupOfMixedGroupsPreservesInactiveMembersAndBalances"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_component_removal_and_explicit_candidate_cleanup_share_one_atomic_unit",
+      "source_sha256": "01b2f039e00115531b0ac34916f79a3e6af47de353a8a067b16a87772b877fd7",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_component_removal_and_explicit_candidate_cleanup_share_one_atomic_unit[cash_web_runtime-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_component_removal_and_explicit_candidate_cleanup_share_one_atomic_unit[cash_web_runtime-ignore]",
+        "tests/contract/test_cash_current_relation_commit.py::test_component_removal_and_explicit_candidate_cleanup_share_one_atomic_unit[postgres_cash_web_runtime-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_component_removal_and_explicit_candidate_cleanup_share_one_atomic_unit[postgres_cash_web_runtime-ignore]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['saved_draft'] == 1 and receipt['summary']['skipped'] == 0",
+        "assert receipt['summary']['relations_' + {'remove': 'removed', 'ignore': 'ignored'}[action]] == 1",
+        "assert receipt['summary']['relations_failed'] == 0",
+        "assert _records(runtime).read('1101')['fields']['components'] == []",
+        "assert not relation['candidates']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "componentRemovalAndCandidateCleanupCommitTogether"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs",
+      "source_sha256": "2a82f882e542dbe81ccbb2f1d9a840e55d1d6e17a77f71d4e0d7adff624449fb",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[cash_web_runtime-draft]",
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[cash_web_runtime-ignored]",
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[postgres_cash_web_runtime-confirmed]",
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[postgres_cash_web_runtime-draft]",
+        "tests/contract/test_cash_current_relation_commit.py::test_confirming_an_unchanged_current_plan_preserves_all_decisions_and_proofs[postgres_cash_web_runtime-ignored]"
+      ],
+      "assertions": [
+        "assert receipt['committed'] and receipt['status'] == 'no_changes'",
+        "assert _rows(runtime) == before and _snapshot(runtime) == balances",
+        "assert _records(runtime).read('1101')['row_revision'] == parent",
+        "assert all((receipt['summary'][key] == 0 for key in ('relations_confirmed', 'relations_deferred', 'relations_ignored', 'relations_removed', 'relations_failed')))",
+        "assert _commit(service, plan) == receipt"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "unchangedPlansPreserveEveryDecisionProofParentRevisionAndPermanentReplay"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_joint_confirmation_updates_original_ids_as_one_group_and_keeps_full_refund_visible",
+      "source_sha256": "46d0bec3a13a05e02d5a120ac214430b3b296ea697d0b19d1cf5f846a9e023ba",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_joint_confirmation_updates_original_ids_as_one_group_and_keeps_full_refund_visible[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_commit.py::test_joint_confirmation_updates_original_ids_as_one_group_and_keeps_full_refund_visible[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['relations_confirmed'] == 1 and receipt['summary']['relations_failed'] == 0",
+        "assert {row['id'] for row in after} == {row['id'] for row in before}",
+        "assert all((row['confirmation_status'] == 'confirmed' for row in details))",
+        "assert len({row['projection_ref']['projection_id'] for row in details}) == 1",
+        "assert _snapshot(runtime) == balances",
+        "assert _commit(service, plan) == receipt",
+        "assert new['state'] == 'confirmed' and new['active'] and (new['row_revision'] > old['row_revision'])",
+        "assert new['decision_group_id'] == old['decision_group_id']",
+        "assert new['anchor_transaction_id'] == old['anchor_transaction_id']",
+        "assert new['anchor_component_id'] == old['anchor_component_id']",
+        "assert new['decision_source'] == 'manual'",
+        "assert new == old"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "jointConfirmationKeepsOriginalIdentitiesAnchorsAndFullRefundInOneProjection"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components",
+      "source_sha256": "8f09bbc7e2bd13b9f284ac2b908d3c3d4255b19865155c9a5bd94f42f7c9b9f8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[cash_web_runtime-defer]",
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[cash_web_runtime-ignore]",
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[cash_web_runtime-remove]",
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[postgres_cash_web_runtime-defer]",
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[postgres_cash_web_runtime-ignore]",
+        "tests/contract/test_cash_current_relation_commit.py::test_parent_only_draft_current_relation_can_be_saved_without_components[postgres_cash_web_runtime-remove]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['relations_failed'] == 0",
+        "assert row['primary_component_id'] is None and row['anchor_component_id'] is None",
+        "assert row['active'] is (action != 'remove')",
+        "assert row['state'] == ('ignored' if action == 'ignore' else 'draft')",
+        "assert _records(runtime).read('1101')['fields'] == before"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "parentOnlyDraftCanSaveEveryCleanupActionWithoutInventingComponents"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_reselecting_current_candidate_rebuilds_the_old_counterpart_as_confirmed_singleton",
+      "source_sha256": "fd56efc0ce49c7bee445ed5367f258f941be9d6237321329d3dc230ded5bf451",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_reselecting_current_candidate_rebuilds_the_old_counterpart_as_confirmed_singleton[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_commit.py::test_reselecting_current_candidate_rebuilds_the_old_counterpart_as_confirmed_singleton[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['relations_confirmed'] == 1",
+        "assert first['projection_ref']['projection_id'] == current['projection_ref']['projection_id']",
+        "assert old['projection_ref']['projection_id'] != first['projection_ref']['projection_id']",
+        "assert old['confirmation_status'] == 'confirmed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "reselectedCounterpartJoinsProjectionAndOldCounterpartRemainsConfirmed"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_current_relation_commit.py::test_same_command_note_patch_can_confirm_the_prechecked_candidate_without_refreshing_proof",
+      "source_sha256": "6f32c99a4ab1a13639d9554965a71a743c384576382947cb555a337245138444",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_current_relation_commit.py::test_same_command_note_patch_can_confirm_the_prechecked_candidate_without_refreshing_proof[cash_web_runtime]",
+        "tests/contract/test_cash_current_relation_commit.py::test_same_command_note_patch_can_confirm_the_prechecked_candidate_without_refreshing_proof[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['updated_posted'] == receipt['summary']['relations_confirmed'] == 1",
+        "assert _records(runtime).read('1101')['entry']['fields']['note'] == '本次明确备注'",
+        "assert row.state == 'confirmed' and row.active",
+        "assert not list(session.scalars(select(CashRelationCandidateModel).where(CashRelationCandidateModel.relation_id == relation)))"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "notePatchConfirmsPrecheckedCandidateAndClearsCandidateProofs"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_current_relation_delete.py::test_delete_failure_rolls_back_current_references_parent_balance_and_projection",
       "source_sha256": "1cb9fd4149a94f658511ae9d03f95474c953f94054b90981c65d463f357a3f70",
       "status": "migrated",
@@ -4936,6 +5118,53 @@
       ],
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据",
       "compatibility": "原操作者editor前置和全部参数/断言保留；创建由匿名SQL夹具准备，验证真实JDBC仓库/HTTP读取，不代表提交或历史迁移已实现 Pytest 9.2 defaults to argname+index for auto-generated string IDs longer than 100 characters; the complete current collection uses query6/query7/key1 with the original parameter values and source fingerprints unchanged."
+    },
+    {
+      "source": "tests/contract/test_cash_manual_associations.py::test_manual_association_can_explicitly_clear_conflicting_public_note",
+      "source_sha256": "7bbbf7b188f19e10dedbbe126167934a9bd7d44ded963d6962f0bc3958a6a5a1",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_associations.py::test_manual_association_can_explicitly_clear_conflicting_public_note[cash_web_runtime]",
+        "tests/contract/test_cash_manual_associations.py::test_manual_association_can_explicitly_clear_conflicting_public_note[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert any((choice.get('common_field_conflicts', {}).get('note') for detail in details for choice in detail['relation_choices']))",
+        "assert plan['can_commit']",
+        "assert _commit(service, plan, 'manual-clear-public-note')['committed']",
+        "assert records(runtime).read('1101')['entry']['fields']['note'] == ''"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "manualAssociationExplicitlyClearsConflictingPublicNote"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_manual_associations.py::test_manual_association_previews_and_commits_outside_candidates_without_changing_sources",
+      "source_sha256": "c0a6855d83fa00db6040409d43db5bba59e975c444bca6d2fdb83eec62e74827",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_manual_associations.py::test_manual_association_previews_and_commits_outside_candidates_without_changing_sources[cash_web_runtime]",
+        "tests/contract/test_cash_manual_associations.py::test_manual_association_previews_and_commits_outside_candidates_without_changing_sources[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert plan['can_commit'] and len(plan['items']) == 1",
+        "assert set((ref['transaction_id'] for ref in plan['items'][0]['member_refs'])) == {'1101', '1102'}",
+        "assert receipt['committed']",
+        "assert _commit(service, plan, 'manual-association-idempotency') == receipt",
+        "assert {identifier: records(runtime).read(identifier)['fields'] for identifier in before} == before",
+        "assert list(session.scalars(select(TransactionRelationModel))) == []",
+        "assert len(relations) == 1 and relations[0].state == 'confirmed' and (relations[0].decision_source == 'manual')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "manualAssociationOutsideCandidatesPreservesSourceFieldsAndReplaysOnce"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
       "source": "tests/contract/test_cash_manual_associations.py::test_search_excludes_manual_and_current_and_supports_pagination",

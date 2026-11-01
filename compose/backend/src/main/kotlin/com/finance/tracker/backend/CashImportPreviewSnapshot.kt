@@ -76,7 +76,7 @@ internal class CashImportPreviewSnapshotBuilder(private val context: CashSqlCont
     private fun virtual(kind: String, vararg values: Any?): BigInteger =
         BigInteger.ONE.shiftLeft(64).add(BigInteger(sourceDigest("cash-import-virtual-v1", kind, values.toList()).take(32), 16))
 
-    private fun scopes(ids: Set<Long>): Map<Pair<String, String>, String> {
+    internal fun scopes(ids: Set<Long>): Map<Pair<String, String>, String> {
         val table = CASH_SOURCE_BINDINGS
         val grouped = linkedMapOf<Pair<String, String>, MutableMap<String, MutableSet<String>>>()
         for (batch in ids.sorted().chunked(400)) {
