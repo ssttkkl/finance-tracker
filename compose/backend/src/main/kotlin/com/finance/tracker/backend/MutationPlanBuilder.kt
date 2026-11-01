@@ -6,6 +6,8 @@ import java.math.BigInteger
 import java.time.Instant
 import kotlinx.serialization.json.*
 
+internal data class PreparedCashMaintenanceOperations(val operations: List<Map<String, Any?>>, val transferRelations: List<Map<String, Any?>>)
+
 /** 维护操作及计划视图；普通草稿保存复用相同准备规则。 */
 internal class MutationPlanBuilder(private val context: CashSqlContext) {
     private val sql get() = context.sql
@@ -33,7 +35,6 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         val entry = entry(row.id)
         if (request.intent == "edit_entry" && (entry == null || entry.id != request.entryId || entry.revision != request.expectedEntryRevision))
             throw CashPolicyError("entry_changed", emptyList())
-        if (request.memberPatches.isNotEmpty()) throw CashPolicyError("field_not_editable", emptyList())
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
         val existing = issues(row.id)
         if (request.issueResolutions.any { it.resolution !in setOf("apply_source", "keep_existing", "create_independent") }) throw MutationPlanFailure("plan_input_invalid")
@@ -64,15 +65,78 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         return decorate(row, operation)
     }
 
-    private fun validatePatch(row: PlanRecord, patch: Map<String, Any?>) {
+    fun prepareMaintenanceOperations(request: MutationPlanRequest): PreparedCashMaintenanceOperations {
+        val primary = prepareMaintenanceOperation(request).toMutableMap()
+        val operations = mutableListOf<Map<String, Any?>>(primary)
+        val updates = mutableListOf<Map<String, Any?>>()
+        if (request.memberPatches.isNotEmpty()) {
+            val row = record(request.transactionId.toLong())
+            val entry = entry(row.id) ?: throw CashPolicyError("field_not_editable", emptyList())
+            val memberIds = sql.select(CASH_ENTRY_MEMBERS.TRANSACTION_ID).from(CASH_ENTRY_MEMBERS)
+                .where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace)).and(CASH_ENTRY_MEMBERS.ENTRY_ID.eq(entry.id))
+                .fetch(CASH_ENTRY_MEMBERS.TRANSACTION_ID).filterNotNull().toSet()
+            if (row.origin != "manual_transfer" || memberIds.size != 2 || request.memberPatches.size != 2 ||
+                request.memberPatches.map { it.transactionId.toLong() }.toSet() != memberIds)
+                throw CashPolicyError("field_not_editable", emptyList())
+            val relation = TRANSACTION_RELATIONS
+            val activeIds = sql.select(relation.ID).from(relation).where(relation.WORKSPACE_ID.eq(workspace))
+                .and(relation.ACTIVE.isTrue).and(relation.PRIMARY_TRANSACTION_ID.eq(row.id)
+                    .or(relation.SECONDARY_TRANSACTION_ID.eq(row.id)).or(relation.ANCHOR_TRANSACTION_ID.eq(row.id)))
+                .fetch(relation.ID).filterNotNull().toSet()
+            val relations = CurrentCashRelationWriteRepository(context).planningRows(activeIds)
+            val edge = relations.singleOrNull()?.takeIf { it["rule_id"] == "manual.transfer.v1" && it["state"] == "confirmed" }
+                ?: throw CashPolicyError("manual_relation_forbidden", emptyList())
+            val identifiers = listOf(edge["primary_transaction_id"].toString(), edge["secondary_transaction_id"].toString())
+            val patches = request.memberPatches.associate { it.transactionId to it.patch.mapValues { item -> cashSourceValue(item.value) } }
+            if (patches.keys != identifiers.toSet()) throw CashPolicyError("field_not_editable", emptyList())
+            val members = identifiers.map { record(it.toLong()) }
+            val values = members.map { member ->
+                val patch = patches.getValue(member.id.toString())
+                if (member.origin != "manual_transfer" || member.manualTransferId != row.manualTransferId || patch.keys.any { it in commonCashFields })
+                    throw CashPolicyError("field_not_editable", emptyList())
+                fields(member) + patch.mapValues { (key, value) -> CashRecordPolicy.normalize(key, value) }
+            }
+            val accounts = values.map { value ->
+                val available = try { accounts(setOfNotNull(value["account_id"] as? String)) }
+                    catch (failure: NumberFormatException) { throw CashRecordReadUnavailable(failure) }
+                available[value["account_id"]]?.takeIf { it.type !in setOf("security", "crypto") }
+                    ?: throw CashPolicyError("account_unavailable", listOf("account_id"))
+            }
+            val exchange = values[0]["currency"] != values[1]["currency"]
+            val repayment = !exchange && accounts.any { it.type == "loan" }
+            val types = if (exchange) listOf("fx_out", "fx_in") else if (repayment) listOf("repayment", "repayment") else listOf("transfer_out", "transfer_in")
+            for ((index, member) in members.withIndex()) {
+                val patch = patches.getValue(member.id.toString())
+                val derived = mapOf("record_type" to types[index], "record_subtype" to defaultCashRecordSubtype(types[index]))
+                if (derived.any { (key, value) -> key in patch && patch[key] != value })
+                    throw CashPolicyError("relation_endpoint_incompatible", listOf("record_type", "record_subtype"))
+                validatePatch(member, patch + derived, allowGroupFinancial = true)
+                val extra = decorate(member, prepare(member, fields(member), patch + derived, entry(member.id), existingIssues = issues(member.id)))
+                if (member.id == row.id) {
+                    val action = primary["planned_action"]
+                    @Suppress("UNCHECKED_CAST")
+                    val diffs = ((extra["field_diffs"] as List<Map<String, Any?>>) +
+                        (primary["field_diffs"] as List<Map<String, Any?>>)).associateBy { it.getValue("field") as String }
+                    primary.putAll(extra.filterKeys { it != "entry_edit" })
+                    if (action != "duplicate") primary["planned_action"] = action
+                    primary["field_diffs"] = diffs.keys.sortedWith(cashRelationStringOrder).map { diffs.getValue(it) }
+                } else operations += extra
+            }
+            updates += mapOf("relation_id" to edge["id"], "expected_revision" to edge["row_revision"],
+                "subtype" to if (exchange) "currency_exchange" else if (repayment) "credit_repayment" else "ordinary_transfer")
+        }
+        return PreparedCashMaintenanceOperations(operations.mapIndexed { index, operation -> operation + ("operation_ref" to "op_${index + 1}") }, updates)
+    }
+
+    private fun validatePatch(row: PlanRecord, patch: Map<String, Any?>, allowGroupFinancial: Boolean = false) {
         val transactionId = row.id
         if (patch.keys.any { it !in editableCashRecordFields }) throw CashPolicyError("field_not_editable", emptyList())
         if (row.state == "posted") {
-            if (row.origin == "manual_transfer" && patch.keys.any { it !in commonCashFields })
+            if (row.origin == "manual_transfer" && !allowGroupFinancial && patch.keys.any { it !in commonCashFields })
                 throw CashPolicyError("field_not_editable", patch.keys.filter { it !in commonCashFields }.sortedWith(cashRelationStringOrder))
             if ("source_payload" in patch) throw CashPolicyError("field_not_editable", listOf("source_payload"))
             val member = context.entries.forTransactions(listOf(transactionId)).first[transactionId]
-            if (member != null && patch.keys.any { it !in commonCashFields } && sql.selectCount().from(CASH_ENTRY_MEMBERS)
+            if (member != null && !allowGroupFinancial && patch.keys.any { it !in commonCashFields } && sql.selectCount().from(CASH_ENTRY_MEMBERS)
                     .where(CASH_ENTRY_MEMBERS.WORKSPACE_ID.eq(workspace)).and(CASH_ENTRY_MEMBERS.ENTRY_ID.eq(member.entryId)).fetchSingle().value1() > 1)
                 throw CashPolicyError("field_not_editable", patch.keys.filter { it !in commonCashFields }.sortedWith(cashRelationStringOrder))
         }

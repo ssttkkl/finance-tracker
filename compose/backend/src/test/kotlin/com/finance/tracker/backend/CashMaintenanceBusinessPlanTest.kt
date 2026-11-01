@@ -39,6 +39,12 @@ class CashMaintenanceBusinessPlanTest {
                     MutationPlanView.validateBuild(result)
                 }
             }
+            if (case.getValue("metadata").jsonObject["method"] == JsonPrimitive("test_orphan_manual_transfer_does_not_allow_single_side_financial_edit")) {
+                val identifier = case.getValue("input").jsonObject.getValue("transaction_id").jsonPrimitive.content
+                val entry = CashRecordDetailService(database).detail("original-import-owner", identifier).getValue("entry").jsonObject
+                assertEquals(JsonPrimitive(false), entry["supports_transfer_edit"])
+                assertFalse(JsonPrimitive("amount") in entry.getValue("editable_fields").jsonArray)
+            }
             assertEquals(before, state(database), name)
         }
     }

@@ -109,6 +109,19 @@ class CurrentCashMaintenanceOriginalTest {
                         assertEquals(1, context.sql.update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.ROW_REVISION,
                             change.getValue("after").jsonObject.getValue("row_revision").jsonPrimitive.long).where(CASH_TRANSACTIONS.ID.eq(id)).execute())
                     }
+                    "transaction_relations" -> {
+                        assertEquals(setOf("row_revision"), change.getValue("after").jsonObject.keys)
+                        assertEquals(1, context.sql.update(TRANSACTION_RELATIONS).set(TRANSACTION_RELATIONS.ROW_REVISION,
+                            change.getValue("after").jsonObject.getValue("row_revision").jsonPrimitive.long).where(TRANSACTION_RELATIONS.ID.eq(id)).execute())
+                    }
+                    "accounts" -> {
+                        assertEquals(setOf("active", "revision", "updated_at"), change.getValue("after").jsonObject.keys)
+                        assertEquals(1, context.sql.update(ACCOUNTS).set(ACCOUNTS.ACTIVE,
+                            change.getValue("after").jsonObject.getValue("active").jsonPrimitive.boolean)
+                            .set(ACCOUNTS.REVISION, change.getValue("after").jsonObject.getValue("revision").jsonPrimitive.long)
+                            .set(ACCOUNTS.UPDATED_AT, Instant.parse(change.getValue("after").jsonObject.getValue("updated_at").jsonPrimitive.content))
+                            .where(ACCOUNTS.ID.eq(id)).execute())
+                    }
                     else -> error("Unexpected original dependency change: $change")
                 }
             }
@@ -466,6 +479,172 @@ class CurrentCashMaintenanceOriginalTest {
             val f = Fixture(name); val before = f.snapshot().getValue("cash_transaction_issues")
             val receipt = f.commit(f.preview()); assertEquals(JsonPrimitive(1), receipt["needs_attention_count"])
             assertEquals(JsonPrimitive(1), receipt["pending_item_count"]); assertEquals(before, f.snapshot().getValue("cash_transaction_issues"))
+        }
+    }
+    private fun transferPlan(f: Fixture, plan: JsonObject = f.preview()): JsonObject {
+        val expected = f.case.getValue("expected_plan").jsonObject; val current = f.sourcePlan(plan)
+        for (field in listOf("operations", "relation_groups", "dependencies", "type_effects", "summary", "manual_transfer_relations", "mutation_units"))
+            assertEquals(expected[field], current[field], "${f.name} $field")
+        return plan
+    }
+    @Test fun transferInvalidMemberAccountKeepsOriginalSafeHttpFailureAndDoesNotWrite() = testApplication {
+        val f = Fixture(names("transfer_public").first())
+        application { financeModule(f.database, mutationPlans = f.service) }
+        val detail = f.targetDetail(); val entry = detail.getValue("entry").jsonObject
+        for ((account, status) in listOf("not-account" to 503, "9223372036854775808" to 503, "0" to 422, "-1" to 422)) {
+            val members = f.targetInput.getValue("member_patches").jsonArray.mapIndexed { index, item ->
+                if (index != 0) item else JsonObject(item.jsonObject + ("patch" to JsonObject(
+                    item.jsonObject.getValue("patch").jsonObject + ("account_id" to JsonPrimitive(account)))))
+            }
+            val input = JsonObject(f.targetInput + mapOf("expected_revision" to detail.getValue("row_revision"),
+                "expected_entry_revision" to entry.getValue("revision"), "member_patches" to JsonArray(members)))
+            val before = f.snapshot()
+            val response = client.post("/api/v1/cash-mutations/plans") {
+                header(HttpHeaders.Authorization, "Bearer ${f.token}"); contentType(ContentType.Application.Json); setBody(input.toString())
+            }
+            val body = response.bodyAsText(); assertEquals(status, response.status.value, body)
+            val error = Json.parseToJsonElement(body).jsonObject.getValue("error").jsonObject
+            assertEquals(JsonPrimitive(if (status == 503) "import_unavailable" else "account_unavailable"), error["code"], account)
+            assertEquals(JsonPrimitive(status == 503), error["retryable"], account)
+            if (status == 503) {
+                assertEquals(JsonArray(emptyList()), error["field_errors"], account)
+                assertEquals(JsonPrimitive("request"), error.getValue("diagnostic").jsonObject["stage"], account)
+                assertFalse(body.contains(account), body)
+            }
+            assertEquals(before, f.snapshot(), account)
+        }
+    }
+    @Test fun transferPublicEditSurvivesUnchangedAndChangedFinancialMembers() {
+        for (name in names("transfer_public")) {
+            val f = Fixture(name)
+            val note = f.params.getValue("change_note").jsonPrimitive.boolean
+            val financial = f.params.getValue("change_amount").jsonPrimitive.boolean
+            val before = f.targetDetail().getValue("entry").jsonObject.getValue("fields").jsonObject
+            val balances = f.balances()
+            val plan = f.preview()
+            val operations = f.sourcePlan(plan).getValue("operations").jsonArray.map { it.jsonObject }
+            val primary = operations.single { it["transaction_id"] == JsonPrimitive(f.targetId) }
+            assertEquals(JsonPrimitive(if (note || financial) "update_posted" else "duplicate"), primary["planned_action"], name)
+            val diffs = primary.getValue("field_diffs").jsonArray.map { it.jsonObject }
+            assertEquals(diffs.size, diffs.map { it["field"] }.toSet().size, name)
+            assertEquals(note, diffs.any { it["field"] == JsonPrimitive("note") }, name)
+            assertEquals(financial, diffs.any { it["field"] == JsonPrimitive("amount") }, name)
+            if (note) assertEquals(buildJsonObject {
+                put("field", "note"); put("current", before.getValue("note"))
+                put("incoming", "共同备注实际修改"); put("effective", "共同备注实际修改"); put("resolution", "apply")
+            }, diffs.single { it["field"] == JsonPrimitive("note") }, name)
+            val updated = if (financial) 2L else if (note) 1L else 0L
+            assertEquals(updated, plan.getValue("summary").jsonObject["update_posted"]?.jsonPrimitive?.long ?: 0L, name)
+            val receipt = f.commit(plan)
+            assertEquals(JsonPrimitive(if (updated > 0) "completed" else "no_changes"), receipt["status"], name)
+            assertEquals(updated, summary(receipt, "updated_posted"), name)
+            assertEquals(2L - updated, summary(receipt, "duplicate"), name)
+            val after = f.targetDetail().getValue("entry").jsonObject.getValue("fields").jsonObject
+            assertEquals(if (note) JsonPrimitive("共同备注实际修改") else before["note"], after["note"], name)
+            for ((index, member) in f.targetInput.getValue("member_patches").jsonArray.withIndex()) {
+                val identifier = member.jsonObject.getValue("transaction_id").jsonPrimitive.int
+                assertEquals(JsonPrimitive((if (index == 0) "-" else "") + if (financial) "70" else "50"), f.fields(identifier)["amount"], name)
+            }
+            if (!financial) assertEquals(balances, f.balances(), name)
+            if (financial) f.database.read { connection ->
+                val sql = connection.jooq(f.database.sqlite); val afterBalances = f.balances()
+                for ((identifier, difference) in listOf(101L to "-20", 102L to "20")) {
+                    val account = sql.select(ACCOUNTS.TYPE, ACCOUNTS.NAME).from(ACCOUNTS).where(ACCOUNTS.ID.eq(identifier)).fetchSingle()
+                    fun balance(snapshot: JsonObject) = snapshot.getValue("accounts").jsonObject.getValue(account.value1()!!).jsonObject
+                        .getValue(account.value2()!!).jsonObject.getValue("CNY").jsonPrimitive.content.toBigDecimal()
+                    assertEquals(0, (balance(afterBalances) - balance(balances)).compareTo(difference.toBigDecimal()), name)
+                }
+            }
+            val saved = f.snapshot(); assertEquals(receipt, f.commit(plan), name); assertEquals(saved, f.snapshot(), name)
+        }
+    }
+    @Test fun transferFinancialEditUpdatesBothSidesAndExactBalancesAtomically() {
+        val captures = mutableListOf<JsonObject>()
+        for (name in names("transfer_financial")) testApplication {
+            val f = Fixture(name); val exchange = f.params.getValue("exchange").jsonPrimitive.boolean
+            application { financeModule(f.database, mutationPlans = f.service) }
+            val ids = f.targetInput.getValue("member_patches").jsonArray.map { it.jsonObject.getValue("transaction_id").jsonPrimitive.int }
+            val before = f.balances(); val previous = f.relations().single { it["rule_id"] == "manual.transfer.v1" }
+            val response = client.post("/api/v1/cash-mutations/plans") {
+                header(HttpHeaders.Authorization, "Bearer ${f.token}"); contentType(ContentType.Application.Json); setBody(f.targetInput.toString())
+            }
+            val body = response.bodyAsText(); assertEquals(200, response.status.value, body)
+            val plan = transferPlan(f, Json.parseToJsonElement(body).jsonObject)
+            val id = plan.getValue("plan_id").jsonPrimitive.content
+            val details = plan.getValue("items").jsonArray.map { item ->
+                val read = client.get("/api/v1/cash-mutations/plans/$id/items/${item.jsonObject.getValue("preview_item_id").jsonPrimitive.content}") {
+                    header(HttpHeaders.Authorization, "Bearer ${f.token}")
+                }
+                val text = read.bodyAsText(); assertEquals(200, read.status.value, text); Json.parseToJsonElement(text)
+            }
+            val key = f.case.getValue("commit").jsonObject.getValue("idempotency_key").jsonPrimitive.content
+            val saved = client.post("/api/v1/cash-mutations/plans/$id/commit") {
+                header(HttpHeaders.Authorization, "Bearer ${f.token}"); header("Idempotency-Key", key); contentType(ContentType.Application.Json)
+                setBody(buildJsonObject { put("expected_plan_revision", plan.getValue("plan_revision")) }.toString())
+            }
+            val receiptText = saved.bodyAsText(); assertEquals(200, saved.status.value, receiptText)
+            val receipt = Json.parseToJsonElement(receiptText).jsonObject
+            assertEquals(JsonPrimitive("completed"), receipt["status"]); assertEquals(2, summary(receipt, "updated_posted"))
+            assertEquals(JsonPrimitive("-70"), f.fields(ids[0])["amount"])
+            assertEquals(JsonPrimitive(if (exchange) "10" else "70"), f.fields(ids[1])["amount"])
+            val relation = f.relations().single { it["id"] == previous["id"] }
+            assertEquals(true, relation["active"]); assertEquals(if (exchange) "currency_exchange" else "credit_repayment", relation["subtype"])
+            assertEquals((previous["row_revision"] as Long) + 1, relation["row_revision"])
+            if (exchange) {
+                assertEquals(JsonPrimitive("fx_out"), f.fields(ids[0])["record_type"])
+                assertEquals(JsonPrimitive("fx_in"), f.fields(ids[1])["record_type"])
+            } else {
+                for (identifier in ids) assertEquals(JsonPrimitive("repayment"), f.fields(identifier)["record_type"])
+            }
+            val after = f.balances()
+            f.database.read { connection ->
+                val sql = connection.jooq(f.database.sqlite)
+                for ((identifier, difference) in listOf(101L to "-20", 102L to if (exchange) "-50" else "20")) {
+                    val account = sql.select(ACCOUNTS.TYPE, ACCOUNTS.NAME).from(ACCOUNTS).where(ACCOUNTS.ID.eq(identifier)).fetchSingle()
+                    fun balance(snapshot: JsonObject, currency: String) = snapshot.getValue("accounts").jsonObject.getValue(account.value1()!!).jsonObject
+                        .getValue(account.value2()!!).jsonObject[currency]?.jsonPrimitive?.content?.toBigDecimal() ?: java.math.BigDecimal.ZERO
+                    assertEquals(0, (balance(after, "CNY") - balance(before, "CNY")).compareTo(difference.toBigDecimal()))
+                    if (exchange && identifier == 102L) assertEquals(0, balance(after, "USD").compareTo("10".toBigDecimal()))
+                }
+            }
+            assertEquals(receipt, f.commit(plan)); assertEquals(after, f.balances())
+            captures += buildJsonObject {
+                put("request", f.targetInput); put("plan", plan); put("items", JsonArray(details)); put("receipt", receipt); put("key", key)
+            }
+        }
+        System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")?.let { output ->
+            val path = Path.of(output); Files.createDirectories(path)
+            Files.writeString(path.resolve("transfer-maintenance-response.json"), JsonArray(captures).toString())
+        }
+    }
+    @Test fun transferSecondRecordOrRelationFailureRollsBackTheCompleteUnit() {
+        for (name in names("transfer_failure")) {
+            val f = Fixture(name); val plan = transferPlan(f); val before = f.snapshot(); val balances = f.balances()
+            val second = f.params.getValue("failure") == JsonPrimitive("second_record"); var attempts = 0
+            val failure = assertFailsWith<CashImportCommitFailure> { f.rawCommit(plan, f.instrument { step ->
+                if (step == if (second) "record" else "transfer_relation") {
+                    attempts++
+                    if (attempts == if (second) 2 else 1) error("synthetic transfer write failure")
+                }
+            }) }
+            assertEquals(if (second) 2 else 1, attempts); assertEquals("not_committed", failure.commitState)
+            assertEquals(before, f.snapshot()); assertEquals(balances, f.balances())
+            assertEquals(plan, f.service.plan(f.token, plan.getValue("plan_id").jsonPrimitive.content))
+        }
+    }
+    @Test fun transferCounterpartRelationAndAccountChangesRejectTheOldPlanWithoutWrites() {
+        for (name in names("transfer_stale")) {
+            val f = Fixture(name); val plan = transferPlan(f); f.applyChanges(); val before = f.snapshot(); val balances = f.balances()
+            val failure = assertFailsWith<RuntimeException> { f.rawCommit(plan) }
+            val expected = when (f.params.getValue("changed").jsonPrimitive.content) {
+                "counterpart" -> "record_changed"
+                "relation" -> "relation_context_changed"
+                "account" -> "account_unavailable"
+                else -> error("Unexpected original dependency")
+            }
+            assertEquals(expected, failureCode(failure))
+            assertEquals(before, f.snapshot()); assertEquals(balances, f.balances())
+            assertEquals(plan, f.service.plan(f.token, plan.getValue("plan_id").jsonPrimitive.content))
         }
     }
 }

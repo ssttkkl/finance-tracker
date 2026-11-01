@@ -19,12 +19,19 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
                 throw CashPolicyError("relation_endpoint_incompatible", emptyList())
             seeds += target
         }
-        val operation = MutationPlanBuilder(context).prepareMaintenanceOperation(request)
-        val rows = listOf(mapOf("transaction_id" to request.transactionId, "operation_ref" to "op_1", "planned_action" to operation.getValue("planned_action")))
+        val prepared = MutationPlanBuilder(context).prepareMaintenanceOperations(request)
+        val operations = prepared.operations
+        val rows = operations.map { mapOf("transaction_id" to it["transaction_id"], "operation_ref" to it["operation_ref"], "planned_action" to it["planned_action"]) }
         @Suppress("UNCHECKED_CAST") val before = previous?.let(::cashSourceValue) as? Map<String, Any?>
-        val result = CashImportBusinessPlanBuilder(context).buildOperations(listOf(operation), rows,
+        val result = CashImportBusinessPlanBuilder(context).buildOperations(operations, rows,
             mapOf("relation_choices" to request.relationChoices.map(::cashSourceValue)), before,
             includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = planner?.decisionGroupIds.orEmpty(),
+            snapshotTransform = if (prepared.transferRelations.isEmpty()) null else { snapshot ->
+                for (update in prepared.transferRelations) {
+                    val identifier = update.getValue("relation_id").toString().toBigInteger()
+                    snapshot.edges[identifier] = snapshot.edges.getValue(identifier).copy(subtype = update["subtype"])
+                }
+            },
             currentRelationBuilder = planner?.let { current -> { snapshot, accounts -> current.build(snapshot, accounts) +
                 current.manualGroups(snapshot, request.transactionId, request.relationAdditions.map { cashSourceValue(it) as Map<String, Any?> }) } })
         var wire = sourceJson(result).jsonObject
@@ -33,7 +40,7 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
             if (group["action"] == JsonPrimitive("remove") && !group["split_field_diffs"]?.jsonArray.isNullOrEmpty() && "inherit_common_fields" !in group)
                 throw CashPolicyError("inheritance_required", emptyList())
         }
-        if (wire.getValue("operations").jsonArray.size != 1) throw CashPolicyError("relation_endpoint_incompatible", listOf("record_type", "record_subtype"))
+        if (wire.getValue("operations").jsonArray.size != operations.size) throw CashPolicyError("relation_endpoint_incompatible", listOf("record_type", "record_subtype"))
         val draftIds = wire.getValue("operations").jsonArray.filter { it.jsonObject.getValue("current").jsonObject["state"] == JsonPrimitive("draft") }
             .map { it.jsonObject.getValue("transaction_id") }.toSet()
         val details = JsonObject(wire.getValue("item_details").jsonObject.mapValues { (_, value) ->
@@ -54,7 +61,8 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
         if (independent > 0) summary["create_independent"] = JsonPrimitive(independent)
         val effects = wire.getValue("type_effects").jsonObject
         wire = JsonObject(wire + mapOf("item_details" to details, "can_commit" to JsonPrimitive(true), "category_member_ids" to JsonArray(emptyList()),
-            "manual_transfer_relations" to JsonArray(emptyList()), "mutation_units" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive("op_1"))))),
+            "manual_transfer_relations" to sourceJson(prepared.transferRelations),
+            "mutation_units" to JsonArray(listOf(JsonArray(operations.map { JsonPrimitive(it["operation_ref"] as String) }))),
             "summary" to JsonObject(summary + ("relations_removed" to JsonPrimitive((summary["relations_removed"]?.jsonPrimitive?.long ?: 0) +
                 effects.getValue("removed_relation_ids").jsonArray.size + effects.getValue("removed_funding_ids").jsonArray.size)))))
         val affected = wire.getValue("relation_failures").jsonArray.flatMap { it.jsonObject.getValue("parent_ids").jsonArray }

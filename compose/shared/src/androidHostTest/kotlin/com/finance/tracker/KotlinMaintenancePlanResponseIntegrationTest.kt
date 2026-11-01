@@ -14,6 +14,58 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 
 class KotlinMaintenancePlanResponseIntegrationTest {
+    @Test fun actualTransferMemberRequestPlanAndReceiptUseExistingRepository() = runTest {
+        val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")))
+        val captures = Json.parseToJsonElement(Files.readString(root.resolve("transfer-maintenance-response.json"))).jsonArray
+        assertEquals(2, captures.size)
+        for (raw in captures) {
+            val capture = raw.jsonObject; val input = capture.getValue("request").jsonObject
+            val plan = capture.getValue("plan").jsonObject; val receipt = capture.getValue("receipt").jsonObject
+            var previewed = false; var committed = false
+            val engine = MockEngine { call ->
+                val path = call.url.encodedPath
+                val result = when {
+                    path.endsWith("/plans") -> {
+                        assertEquals(HttpMethod.Post, call.method)
+                        val sent = Json.parseToJsonElement((call.body as TextContent).text).jsonObject
+                        for (key in listOf("intent", "transaction_id", "expected_revision", "entry_id", "expected_entry_revision", "member_patches"))
+                            assertEquals(input[key], sent[key], key)
+                        previewed = true; plan
+                    }
+                    path.endsWith("/commit") -> {
+                        assertEquals(capture.getValue("key").jsonPrimitive.content, call.headers["Idempotency-Key"])
+                        assertEquals(plan["plan_revision"], Json.parseToJsonElement((call.body as TextContent).text).jsonObject["expected_plan_revision"])
+                        committed = true; receipt
+                    }
+                    path.contains("/items/") -> capture.getValue("items").jsonArray.single {
+                        it.jsonObject.getValue("preview_item_id").jsonPrimitive.content == path.substringAfterLast('/')
+                    }
+                    else -> error("unexpected $path")
+                }
+                respond(result.toString(), headers = headersOf(HttpHeaders.ContentType, "application/json"))
+            }
+            val client = FinanceApiClient({ "https://api.example.invalid" }, CategoryTokenStore(), engine)
+            try {
+                val repository = KtorCashMaintenanceRepository(client)
+                val request = CashMaintenanceRequest(input.getValue("intent").jsonPrimitive.content,
+                    input.getValue("transaction_id").jsonPrimitive.content, input.getValue("expected_revision").jsonPrimitive.long,
+                    entryId = input.getValue("entry_id").jsonPrimitive.content,
+                    expectedEntryRevision = input.getValue("expected_entry_revision").jsonPrimitive.long,
+                    memberPatches = input.getValue("member_patches").jsonArray.map { value ->
+                        val member = value.jsonObject
+                        CashMemberPatch(member.getValue("transaction_id").jsonPrimitive.content, member.getValue("patch").jsonObject.toStructuredObject())
+                    })
+                val current = repository.preview(request); assertTrue(previewed); assertTrue(current.canCommit)
+                assertEquals(plan.getValue("plan_id").jsonPrimitive.content, current.planId)
+                assertEquals(2, current.summary["update_posted"])
+                val item = current.items.single(); val detail = repository.item(current.planId, item.itemId)
+                assertEquals(2, detail.members.size)
+                val result = repository.commit(ImportFrozenCommand(current.planId, current.revision, capture.getValue("key").jsonPrimitive.content))
+                assertTrue(committed); assertTrue(result.committed); assertEquals(2, result.summary["updated_posted"])
+                assertEquals(receipt.getValue("receipt_id").jsonPrimitive.content, result.receiptId)
+            } finally { client.close() }
+        }
+    }
     @Test fun actualIndependentIdentityChoicesStateAndReceiptUseExistingRepository() = runTest {
         val root = Path.of(requireNotNull(System.getenv("FT_KOTLIN_CLIENT_CONTRACT_DIR")))
         val captures = Json.parseToJsonElement(Files.readString(root.resolve("independent-identity-response.json"))).jsonArray

@@ -37,6 +37,16 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
                 if (operation["planned_action"] != "duplicate") affected += saved.transactionId
                 changes += saved.before to saved.after
             }
+            val transferRelations = maps(frozen["manual_transfer_relations"])
+            if (transferRelations.isNotEmpty()) {
+                val repository = CurrentCashRelationWriteRepository(context)
+                for (update in transferRelations) {
+                    repository.replace(update["relation_id"], mapOf("subtype" to update["subtype"]), update["expected_revision"])
+                    boundary.done("transfer_relation")
+                }
+                val service = CashRelationContextService(context)
+                service.validate(service.load(unit.map { it["transaction_id"].toString().toLong() }.toSet()))
+            }
             if (coupled.isNotEmpty()) affected += writer.parentIds(coupled)
             context.entries.flush()
         }

@@ -1336,6 +1336,100 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit",
+      "source_sha256": "e0e79bfb41d88d6ce6c6992b7278ac5774f8e37ce7b9656ab908321e58c67dee",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[cash_web_runtime-counterpart]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[cash_web_runtime-relation]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[cash_web_runtime-account]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[postgres_cash_web_runtime-counterpart]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[postgres_cash_web_runtime-relation]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_current_dependencies_rechecked_before_commit[postgres_cash_web_runtime-account]"
+      ],
+      "assertions": [
+        "assert _business(runtime) == before and _snapshot(runtime) == balances"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "transferCounterpartRelationAndAccountChangesRejectTheOldPlanWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance",
+      "source_sha256": "d66de6b9ca00f557d1f2f06187b085726562a3227078730d799413a4d26e0e8e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance[cash_web_runtime-second_record]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance[cash_web_runtime-relation]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance[postgres_cash_web_runtime-second_record]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance[postgres_cash_web_runtime-relation]"
+      ],
+      "assertions": [
+        "assert _business(runtime) == before and _snapshot(runtime) == balances",
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "transferSecondRecordOrRelationFailureRollsBackTheCompleteUnit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_manual_transfer_finances_change_both_sides_atomically",
+      "source_sha256": "f17c7cf14daf0bfadec130ef665d49173bb8ba9b4b1bbf93b1a8e55fd8a46162",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_finances_change_both_sides_atomically[cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_finances_change_both_sides_atomically[cash_web_runtime-True]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_finances_change_both_sides_atomically[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_entry_editing.py::test_manual_transfer_finances_change_both_sides_atomically[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert result.ok",
+        "assert receipt['status'] == 'completed'",
+        "assert records(runtime).read(str(ids[0]))['fields']['amount'] == '-70'",
+        "assert records(runtime).read(str(ids[1]))['fields']['amount'] == ('10' if exchange else '70')",
+        "assert records(runtime).read(str(ids[0]))['fields']['record_type'] == 'fx_out'",
+        "assert records(runtime).read(str(ids[1]))['fields']['record_type'] == 'fx_in'",
+        "assert relation.subtype == 'currency_exchange' and relation.active",
+        "assert Decimal(new) - Decimal(old) == difference",
+        "assert Decimal(after_balances['accounts'][account.type][account.name]['USD']) == Decimal('10')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "transferFinancialEditUpdatesBothSidesAndExactBalancesAtomically"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_entry_editing.py::test_orphan_manual_transfer_does_not_allow_single_side_financial_edit",
+      "source_sha256": "5a01fce764ae9f6b2c2f328543331bebd5d09ee38384c4c291ad676eb90963ad",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_entry_editing.py::test_orphan_manual_transfer_does_not_allow_single_side_financial_edit[cash_web_runtime]",
+        "tests/contract/test_cash_entry_editing.py::test_orphan_manual_transfer_does_not_allow_single_side_financial_edit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert not before['entry']['supports_transfer_edit'] and 'amount' not in before['entry']['editable_fields']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceBusinessPlanTest.kt",
+          "test": "completeOrdinaryMaintenancePlansMatchOriginalBusinessGraphsWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_entry_lookup.py::test_lookup_keeps_complete_batches",
       "source_sha256": "bab5801576c99a3f1c14bc092e98983b1eb08cc6a27bd7f3d799d83ad6cb7ede",
       "status": "migrated",
@@ -8268,6 +8362,55 @@
       ]
     },
     {
+      "source": "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation",
+      "source_sha256": "fcd9e76078755f76dfd640a112537179f09ab800553782c0657564a76df38a4f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-False-False-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-False-False-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-False-True-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-False-True-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-True-False-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-True-False-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-True-True-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[cash_web_runtime-True-True-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-False-False-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-False-False-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-False-True-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-False-True-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-True-False-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-True-False-1]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-True-True-0]",
+        "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation[postgres_cash_web_runtime-True-True-1]"
+      ],
+      "assertions": [
+        "assert TransferService(RelationalUnitOfWork(runtime.sessions, runtime.workspace_id)).transfer(from_name=names[0], to_name=names[1], amount=Decimal('50'), from_currency='CNY', to_currency='CNY').ok",
+        "assert operation['planned_action'] == ('update_posted' if change_note or change_amount else 'duplicate')",
+        "assert ('note' in diffs) == change_note",
+        "assert ('amount' in diffs) == change_amount",
+        "assert len(diffs) == len(operation['field_diffs'])",
+        "assert receipt['status'] == ('completed' if updated else 'no_changes')",
+        "assert view['summary'].get('update_posted', 0) == updated",
+        "assert receipt['summary'].get('updated_posted', 0) == updated",
+        "assert receipt['summary'].get('duplicate', 0) == 2 - updated",
+        "assert records(runtime).read(str(ids[edited_member]))['entry']['fields']['note'] == ('共同备注实际修改' if change_note else before['entry']['fields']['note'])",
+        "assert service.commit(view['plan_id'], expected_plan_revision=view['plan_revision'], idempotency_key='synthetic-transfer-public-edit') == receipt",
+        "assert _snapshot(runtime) == after",
+        "assert _database_state(runtime) == saved",
+        "assert diffs['note'] == {'field': 'note', 'current': before['entry']['fields']['note'], 'incoming': '共同备注实际修改', 'effective': '共同备注实际修改', 'resolution': 'apply'}",
+        "assert records(runtime).read(str(identifier))['fields']['amount'] == sign + ('70' if change_amount else '50')",
+        "assert _snapshot(runtime) == balances",
+        "assert Decimal(new) - Decimal(old) == difference"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "transferPublicEditSurvivesUnchangedAndChangedFinancialMembers"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#手工转账修复范围"
+    },
+    {
       "source": "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write",
       "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
       "status": "migrated",
@@ -14381,6 +14524,10 @@
     "tests/contract/test_cashflow_response_encoding.py::test_legacy_add_response_encoding_failure_rolls_back_the_complete_write": {
       "source_sha256": "381220277c2f1bbfabd8d0f4ebf21bbfca3e7b089fa40f18b7e3b863b8171249",
       "reason": "用户已授权修复旧现金新增响应编码失败仍提交的问题；新增源回归保留 editor、两种孤立代理字符、完整回滚与后续成功。"
+    },
+    "tests/contract/test_cash_transfer_public_edit.py::test_transfer_public_edit_survives_financial_member_preparation": {
+      "source_sha256": "fcd9e76078755f76dfd640a112537179f09ab800553782c0657564a76df38a4f",
+      "reason": "用户明确授权同步修复 Python/Kotlin 手工转账公共备注被双端财务准备覆盖的问题；新增原回归覆盖任一端、备注和金额独立变化、无变化、精确余额及永久重放。"
     }
   },
   "input_changes": {
@@ -14393,6 +14540,11 @@
       "baseline_sha256": "5e6ccf8242ba60becd530d67ce4bea23337e447db6bda927367ce30d0e078c20",
       "current_sha256": "211bb6827ed36d919be687e7e65da4c00e6fefb6d35d240f43603cf151a0cc11",
       "reason": "既有 16b1147 的 PDF 匿名夹具生成新增 pypdf/reportlab 开发依赖；当前 diff 仅此两项，未改 pytest 收集、参数或断言。"
+    },
+    "tests/contract/test_cash_transfer_public_edit.py": {
+      "baseline_sha256": null,
+      "current_sha256": "7fb1fe5a22e9c17d35b4357c7883af0bf80a98789e50ceb14adf37a879aa5550",
+      "reason": "用户明确授权同步修复 Python/Kotlin 手工转账公共备注被双端财务准备覆盖的问题；新增原回归覆盖任一端、备注和金额独立变化、无变化、精确余额及永久重放。"
     }
   }
 }

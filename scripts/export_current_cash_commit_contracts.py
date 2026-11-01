@@ -15,13 +15,15 @@ from sqlalchemy import select
 
 from export_cash_import_original_commit_contracts import export
 from ft.adapters.relational import create_relational_engine, create_session_factory
-from ft.adapters.relational.models import CashRelationCandidateModel, CashTransactionModel, TransactionRelationModel
+from ft.adapters.relational.models import AccountModel, CashRelationCandidateModel, CashTransactionModel, TransactionRelationModel
 from ft.application.cash_import_operations import _wire
 from ft.application.cash_mutation_commit import CashMutationCommandService
 from ft.application.cash_mutation_plans import CashMutationPlanService, _context_id
 import tests.contract.test_cash_current_relation_commit as current
 import tests.contract.test_cash_manual_associations as manual
 import tests.contract.test_cash_mutation_commit as mutation
+import tests.contract.test_cash_entry_editing as entries
+import tests.contract.test_cash_transfer_public_edit as transfer_public
 
 
 METHODS = {
@@ -59,6 +61,10 @@ METHODS = {
     "ordinary_relation_failure": (mutation, "test_new_relation_failure_rolls_back_finalization_and_all_business_writes"),
     "ordinary_second_edge": (mutation, "test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previous_graph"),
     "ordinary_connection": (mutation, "test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan"),
+    "transfer_financial": (entries, "test_manual_transfer_finances_change_both_sides_atomically"),
+    "transfer_public": (transfer_public, "test_transfer_public_edit_survives_financial_member_preparation"),
+    "transfer_failure": (entries, "test_manual_transfer_failure_rolls_back_both_sides_entry_relation_and_balance"),
+    "transfer_stale": (entries, "test_manual_transfer_current_dependencies_rechecked_before_commit"),
 }
 
 
@@ -104,7 +110,7 @@ def main():
     previews = []
     invoke = CashMutationPlanService.preview
     baseline = {}
-    watched = [model.__table__ for model in (CashRelationCandidateModel, CashTransactionModel, TransactionRelationModel)]
+    watched = [model.__table__ for model in (AccountModel, CashRelationCandidateModel, CashTransactionModel, TransactionRelationModel)]
     monkeypatch = pytest.MonkeyPatch()
 
     def preview(service, value):
@@ -114,7 +120,7 @@ def main():
             previews.append({"input": deepcopy(value), "error": getattr(error, "code", str(error))})
             raise
         previews.append({"input": deepcopy(value), "plan_id": result["plan_id"]})
-        if metadata["label"] in {"stale_candidate", "manual_stale"}:
+        if metadata["label"] in {"stale_candidate", "manual_stale", "transfer_stale"}:
             with runtime.sessions() as session:
                 for table in watched:
                     baseline[table.name] = {row["id"]: dict(row) for row in session.execute(select(table)).mappings()}

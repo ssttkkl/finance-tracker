@@ -75,7 +75,12 @@ class CashMutationBusinessPlanBuilder(CashImportBusinessPlanBuilder):
             transfer_relations.append(relation_update)
             for member, extra in zip(members, member_operations):
                 if member.id == row.id:
+                    action = operation['planned_action']
+                    diffs = {item['field']: item for item in [*extra['field_diffs'], *operation['field_diffs']]}
                     operation.update({key: value for key, value in extra.items() if key != "entry_edit"})
+                    if action != 'duplicate':
+                        operation['planned_action'] = action
+                    operation['field_diffs'] = [diffs[field] for field in sorted(diffs)]
                 else:
                     operations.append(extra)
                     current_records[str(member.id)] = member
