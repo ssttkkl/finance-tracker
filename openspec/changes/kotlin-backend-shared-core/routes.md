@@ -1,6 +1,6 @@
 # HTTP 迁移矩阵
 
-固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 70/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 16 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
+固定基线 `0c038a75e34264bd6d4aa5cce2070727df9d9ff7`。接口按方法与路径计数。当前 Kotlin 已接入 71/86 个操作，其中 6 个维护计划操作仍只覆盖部分意图；其余 15 个操作未接入。接入数不代表全部原测试或模块验收完成，证据与遗留项见 [实施任务](tasks.md)。
 
 | 方法 | 路径 | Python 入口 | Kotlin 状态 |
 |---|---|---|---|
@@ -54,7 +54,7 @@
 | POST | `/api/v1/cashflow/checkin` | `src/ft/web/operation_routes.py:134` | 已实现；零金额事实、指定币种余额及快照错误顺序；双库 HTTP/13 表全列、原断言及真实 Netty 通过；Compose 无现有消费者 |
 | POST | `/api/v1/cashflow/transfer` | `src/ft/web/operation_routes.py:150` | 已实现；现金/贷款/借款/证券/加密双侧事件、现金关系、余额和投影同事务；双库 92 组 HTTP/全部财务列、editor 原断言及现有 Compose 消费通过 |
 | GET | `/api/v1/queries/accounts` | `src/ft/web/operation_routes.py:171` | 未迁移 |
-| GET | `/api/v1/queries/transactions` | `src/ft/web/operation_routes.py:175` | 未迁移 |
+| GET | `/api/v1/queries/transactions` | `src/ft/web/operation_routes.py:175` | 已实现；双库原 HTTP／十字段 DTO、UTC 月份／父和现金部分账户／分类、精确金额、1–200 条、权限／只读快照／读取故障及两个原应用定义验证，当前 Compose 无此 GET 消费者 |
 | GET | `/api/v1/reports/finance` | `src/ft/web/operation_routes.py:186` | 未迁移 |
 | POST | `/api/v1/relations/aliases` | `src/ft/web/operation_routes.py:196` | 未迁移 |
 | GET | `/api/v1/funding-relations/pending` | `src/ft/web/operation_routes.py:211` | 未迁移 |

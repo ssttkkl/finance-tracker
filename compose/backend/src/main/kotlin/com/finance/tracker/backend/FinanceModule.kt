@@ -64,6 +64,7 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
     associationTargets: CashAssociationSearchService = CashAssociationSearchService(database,now = clock),
     projectionList: CashProjectionListService = CashProjectionListService(database,now = clock),
     legacyRecordSearch: LegacyCashRecordSearchService = LegacyCashRecordSearchService(database,now = clock),
+    transactionQueries: LegacyTransactionQueryService = LegacyTransactionQueryService(database,now = clock),
     cashDeletion: CashDeletionService = CashDeletionService(database,now = clock),
     cashDraftSave: CashDraftSaveService = CashDraftSaveService(database,now = clock),
     mutationPlans: MutationPlanService = MutationPlanService(database,now = clock),
@@ -99,6 +100,11 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 call.respond(HttpStatusCode.fromValue(status), ErrorBody(ErrorDetail(failure.code.takeIf { it in messages } ?: "invalid_projection_delete",
                     messages[failure.code] ?: "收支记录无法删除，请刷新后重试。")))
             }
+        }
+        exception<LegacyTransactionQueryFailure> { call, failure ->
+            if (failure.internal) call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
+            else call.respond(HttpStatusCode.BadRequest, ErrorBody(ErrorDetail("invalid_filter",
+                if (failure.range) "查询条数必须在 1 到 200 之间。" else "筛选条件无效。")))
         }
         exception<LegacyCashSearchFailure> { call, failure ->
             if (failure.code == "internal") call.respondText("Internal Server Error", ContentType.Text.Plain, HttpStatusCode.InternalServerError)
@@ -723,6 +729,13 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
                 }
                 call.respondText(result.toString(), ContentType.Application.Json)
             }
+        }
+        get("/api/v1/queries/transactions") {
+            val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }
+            val result = withContext(Dispatchers.IO) {
+                transactionQueries.list(bearerToken(call.request.headers[HttpHeaders.Authorization]), filters, call.attributes[requestPrincipalKey])
+            }
+            call.respondText(result.toString(), ContentType.Application.Json)
         }
         get("/api/v1/cash-records") {
             val filters = call.request.queryParameters.names().associateWith { call.request.queryParameters.getAll(it)!!.last() }

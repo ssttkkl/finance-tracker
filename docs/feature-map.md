@@ -1,5 +1,7 @@
 # Compose 功能地图
 
+旧交易查询的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 和 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt) 覆盖正式流水筛选、原平面响应、金额与权限／快照／错误。当前 Web／Native 均无该 GET 的实际消费者，后端接线不新增页面；页面数仍为 10，两端既有查询／维护 TODO 保留。账户查询依赖行情估值，仍未迁移。
+
 当前记录和来源闭包的 [原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt) 核对最新值、事务／工作区隔离、软删除、额外成员来源和确认依赖；[失败结果回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt) 核对稳定去重与虚拟编号脱敏。8 个原定义迁移，1 个 ORM 删除状态定义按语言边界保留参考并提供 Native 验证；没有新增路由、DTO 或页面，页面数 10，两端既有 TODO 和 6 个维护接口的部分完成状态保留。
 
 维护接口的 [HTTP 回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMaintenanceOriginalHttpTest.kt) 直接覆盖原文件全部 17 定义／52 双库参数，包括真实回滚／结果未知恢复、权限／私有归属、过期和非法输入。草稿保存计划与关系维护请求按原协议拒绝显式问题列表，内部空列表表示使用专用适配；成功后的详情不可读不影响已提交收据。无新增生产路由、DTO 或页面；页面数仍为 10，Web／Native 既有维护 TODO 保留，6 个维护接口仍部分完成。
@@ -18,7 +20,7 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 来源问题处理的 [原生服务回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashSourceIssueOriginalTest.kt) 已迁移原 22 定义／78 参数，覆盖采用／保留／清空、旧正文、公共人工值／分类、事项归属及变化、完整失败回滚；四种真实 HTTP 采用响应通过 [现有 Compose 消费](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt)。后端恢复原合同，共享生产 DTO、Web／Native 页面及交互不变；页面数仍为 10，独立身份、草稿合并、完整维护和既有两端 UI TODO 保留。
 
-维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 70/86，6 个维护接口保持部分实现；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
+维护提交恢复的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已按原合同保留过期方案业务错误、私有归属拒绝和非阻塞工作区核实；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationRecoveryOriginalTest.kt) 对应原 9 定义／34 参数。当前接口仍为 71/86，6 个维护接口保持部分实现；Web／Native／共享生产合同和页面数 10 不变，两端既有 TODO 保留。
 
 维护计划发布的 [后端服务](../compose/backend/src/main/kotlin/com/finance/tracker/backend/MutationPlanService.kt) 已补原内部取消和确认装载，保留无文件上下文、冻结分页、CAS／TTL、私有归属、永久消费围栏和失败后的原计划；[原生回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashMutationPublicationOriginalTest.kt) 对应原 12 定义／40 参数。当前完整双库及既有实际 Compose 消费通过；没有新增页面、公开 DTO 或路由，两端既有 UI TODO 保留。
 

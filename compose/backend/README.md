@@ -1,5 +1,9 @@
 # Kotlin 后端本机预览
 
+旧交易查询由 [读取服务](src/main/kotlin/com/finance/tracker/backend/LegacyTransactionQueryService.kt) 提供，保留正式流水、UTC 月份／账户／分类、默认 30 条及 1–200 范围、精确金额与原十字段响应；不依赖投影就绪。当前 Compose 无该 GET 消费者，账户查询仍待行情估值迁移。
+
+使用 `scripts/export_legacy_transaction_query_contracts.py --database-url "$FT_TEST_POSTGRES_URL" --output "$FT_KOTLIN_TRANSACTION_QUERY_CONTRACT_DIR"` 在手工准备的空 `_test` 库生成匿名输入及原 HTTP 对照，输出必须在仓库外。设置该目录后运行 `:backend:test --tests '*LegacyTransactionQueryTest' -PbackendFunctionalOnly=true`；SQLite 使用显式 `sqlite+pysqlite:///` 绝对路径。测试直接覆盖两个原应用定义，并核对完整响应、31 表只读、实际读取快照与故障停止，不调用行情服务。
+
 当前记录的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CashCurrentRecordOriginalTest.kt) 验证事务内最新值、回滚／跨连接快照、工作区隔离、完整闭包来源及确认时的现金部分证明；[失败结果回归](src/test/kotlin/com/finance/tracker/backend/CashMutationFailureResultsOriginalTest.kt) 直接验证稳定去重、已有组排除和虚拟编号脱敏，并禁止实际 SQL。两文件 9 个原定义中，8 定义／22 参数已直接对应；含 SQLAlchemy 未刷写删除状态的 1 定义／4 参数保留 Python 参考，Native 另验证软删除拒绝和 ID 参数／不可变快照边界，不混入迁移数。
 
 为 `scripts/export_cash_current_record_contracts.py --help` 列出的 12 个 `--scenario` 手工准备独立空测试库，`--output` 使用仓库外共同目录；生成器只使用原匿名种子、原镜像设置和来源输入，不生成预期响应。设置 `FT_KOTLIN_CURRENT_RECORD_CONTRACT_DIR` 后运行 `:backend:test --tests '*CashCurrentRecordOriginalTest' --tests '*CashMutationFailureResultsOriginalTest' -PbackendFunctionalOnly=true`。写场景会消费数据库，重跑须重新准备；发现失败结果的两个纯测试无需数据库。
@@ -48,7 +52,7 @@ PYTHONPATH=.:src:tests:scripts PYTHONDONTWRITEBYTECODE=1 .venv/bin/python script
 
 当前关系的 [预览对照](src/test/kotlin/com/finance/tracker/backend/CurrentCashRelationPlannerTest.kt) 使用 `scripts/export_current_cash_maintenance_contracts.py` 的 55 个检查点；每个场景分别准备独立测试库，设置 `FT_KOTLIN_CURRENT_PLAN_CONTRACT_DIR` 为共同仓库外输出目录。关系维护的 [原断言回归](src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 使用 `scripts/export_current_cash_commit_contracts.py` 的 58 个场景，设置 `FT_KOTLIN_CURRENT_COMMIT_CONTRACT_DIR`；其中 35 个原定义／112 个双库参数由 Kotlin 自行预览、提交并直接断言，另含两个 HTTP 场景。当前关系提交原文件的 18 定义／58 参数、人工关联原文件的 8 定义／26 参数均已映射；后者包含既有搜索回归。证明变化在真实预览后实施，字段、第二关系成员、候选清理、投影及收据的故障在实际写入后注入，核对 31 表回滚与原方案重试；新鲜上下文读取次数在 JDBC 层观测。无效预览不得替换原方案或隐式确认关系。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，运行 `:shared:testAndroidHostTest --tests '*KotlinCurrentMaintenanceResponseIntegrationTest'` 验证实际回包经过现有 Compose 仓库与领域映射。两个生成器的运行环境为 `PYTHONPATH=.:src:tests`；写入夹具被消费，复跑须重新准备。低层写入及提交故障专项沿用相同预览生成器，分别在 `remove`、`rollback`、`service`、`service_commit`、`service_lost` 子目录准备 `current_explicit_removal_marks_the_existing_confirmed_relation_effect_s2`，设置 `FT_KOTLIN_CURRENT_WRITER_CONTRACT_DIR` 后运行对应测试类。
 
-此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选和旧流水列表读取及流水／已选收支删除、普通草稿保存，共接入 70/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 16 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
+此运行时处于全量迁移过程中，已实现认证、工作区、邀请与成员接口，分类目录读取、创建、编辑、排序、删除检查、原子删除及单项/批量分类，以及账户按 ID 的读写、现金/投资列表、永久收据的五个 GET、管理员投影状态查询/重建、账本类型选项、手工收支新建、完整手工转账创建及旧现金新增/余额校准，以及导入会话、预览、读取、确认、当前流水关联候选、旧流水列表及旧交易查询读取和流水／已选收支删除、普通草稿保存，共接入 71/86 个 HTTP 操作。其中 6 个维护计划操作只覆盖部分意图，其余 15 项未接入；接入数不代表原测试迁移或模块验收已完成。匿名双库验证与剩余专项见 [实施证据](../../openspec/changes/kotlin-backend-shared-core/tasks.md)，全部接口状态见 [迁移盘点](../../openspec/changes/kotlin-backend-shared-core/inventory.md)。
 
 当前收支详情、按流水定位及收支证据的三个 GET 已实现，已完成双库功能、现有 Compose 消费测试及独立复核。读取在同一财务快照中取得版本、金额和实际成员，返回前重新核对当前权限；完整维护及其余原组合测试仍待迁移。
 

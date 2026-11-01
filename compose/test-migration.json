@@ -11096,6 +11096,44 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/test_application_queries.py::test_list_transactions_filters_sorts_and_limits_as_dtos",
+      "source_sha256": "c0761b77976f7cc2f6c4d5da841c157712f91a43a652f7462e0a8a90fde045eb",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_list_transactions_filters_sorts_and_limits_as_dtos"
+      ],
+      "assertions": [
+        "assert len(result.items) == 1",
+        "assert result.items[0].note == 'three'",
+        "assert result.items[0].amount == Decimal('-3')"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt",
+          "test": "originalApplicationFiltersSortsLimitsAndReturnsExactDtos"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#legacy-transaction-query"
+    },
+    {
+      "source": "tests/test_application_queries.py::test_list_transactions_uses_category_id_repository_contract",
+      "source_sha256": "b53482c57c7cca8b4e245a1addda5810a1e89105a039a1589f706be1b2d58d18",
+      "status": "migrated",
+      "parameters": [
+        "tests/test_application_queries.py::test_list_transactions_uses_category_id_repository_contract"
+      ],
+      "assertions": [
+        "assert [item.note for item in result.items] == ['meal']"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/LegacyTransactionQueryTest.kt",
+          "test": "originalApplicationForwardsCategoryIdRepositoryContract"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#legacy-transaction-query"
+    },
+    {
       "source": "tests/test_application_web_queries.py::test_cursor_with_invalid_contract_field_is_invalid",
       "source_sha256": "50a1369870a330f65e155ce949cac4a8ebaa8b4aca43d57655c67eb428fd9aee",
       "status": "migrated",
