@@ -30,7 +30,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
                 boundary.done("record")
                 identity[operation["preview_transaction_id"] as String] = saved.transactionId.toString()
                 components.putAll(saved.componentIds)
-                val outcome = mapOf("update_posted" to "updated_posted", "update_draft" to "saved_draft", "duplicate" to "duplicate")
+                val outcome = mapOf("update_posted" to "updated_posted", "update_draft" to "saved_draft", "finalize_draft" to "finalized_draft", "duplicate" to "duplicate")
                     .getValue(operation["planned_action"] as String)
                 actual[operation["operation_ref"] as String] = mapOf("outcome" to outcome, "transaction_id" to saved.transactionId.toString())
                 affected += saved.touched
@@ -47,7 +47,7 @@ internal class CurrentCashMaintenanceCommitWriter(private val context: CashSqlCo
         groups += CurrentCashRelationWriter(context, userId, afterWrite = { boundary.done("current_relation") }).saveGroups(frozen, current, affected, excluded)
         boundary.done("current_relation_end")
         val additions = maps(frozen["relation_groups"]).filter { it["origin"] != "current" }
-        val relationWriter = CashPlanRelationWriter(context, userId)
+        val relationWriter = CashPlanRelationWriter(context, userId, afterWrite = { boundary.done("new_relation") })
         if (additions.isNotEmpty()) groups += relationWriter.saveGroups(frozen + ("relation_groups" to additions), current, identity, components, affected,
             request.relationChoices.map { it.getValue("suggestion_id").jsonPrimitive.content }.toSet() + additions.filter { it["origin"] == "manual" }.map { it["suggestion_id"] as String }) { members ->
                 boundary.enter("relation_save", members.flatMap { it["parent_ids"] as List<*> }.distinct().map { mapOf("transaction_id" to it.toString()) }, "related")

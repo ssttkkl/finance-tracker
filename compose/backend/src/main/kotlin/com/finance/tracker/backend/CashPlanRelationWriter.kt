@@ -5,7 +5,7 @@ import java.math.BigInteger
 import kotlinx.serialization.json.JsonElement
 
 /** 导入及维护共用的关系组落账；外层管理授权、锁、投影和事务提交。 */
-internal class CashPlanRelationWriter(private val context: CashSqlContext, private val userId: String) {
+internal class CashPlanRelationWriter(private val context: CashSqlContext, private val userId: String, private val afterWrite: () -> Unit = {}) {
     @Suppress("UNCHECKED_CAST") private fun map(value: Any?) = value as Map<String, Any?>
     @Suppress("UNCHECKED_CAST") private fun maps(value: Any?) = value as List<Map<String, Any?>>
     private fun list(value: Any?) = value as List<*>
@@ -150,6 +150,7 @@ internal class CashPlanRelationWriter(private val context: CashSqlContext, priva
                 "applied_amount" to amount(edge.appliedAmount).toString(), "evidence" to proof(group, edge.id), "created_by" to userId,
                 "decision_source" to if (group["suggestion_id"] in manual) "manual" else "rule", "decided_by" to if (group["action"] != "defer") userId else "",
                 "decided_at" to if (group["action"] != "defer") context.now() else null))
+            afterWrite()
             written.putIfAbsent(group["suggestion_id"] as String, row["id"] as Long)
             if (edge.state == "draft") repository.setCandidates(row["id"], candidateValues(group, edge, anchorParent, identity, components, unavailable), row["row_revision"])
         }

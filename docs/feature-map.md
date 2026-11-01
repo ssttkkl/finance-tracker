@@ -6,6 +6,8 @@ Compose Web、Android、iOS 共用 `compose/shared`；工程入口分别为 `com
 
 ## Kotlin 后端迁移与公共业务层
 
+普通维护已复用 [完整共享业务图](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenancePlanBuilder.kt) 和 [确认执行器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt)，移除原单流水重复路径；[原提交断言](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 覆盖普通维护 9 定义／20 参数，另以 15 个完整业务图检查点核对只读预览。备注编辑保持来源与余额，转正式的新增关系和余额与收据同事务；银行退款的空种子列表按原规则回退，完整平台链关系不得遗漏。[既有普通维护消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinMaintenancePlanResponseIntegrationTest.kt) 与当前关系消费者核对实际方案、详情及收据。共享生产代码／DTO、Web／Native 页面和交互未变，页面数仍为 10；手工转账双端、身份合并／独立及其余恢复和两端 UI TODO 保留。
+
 当前关系维护的 [Kotlin 预览与提交](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceCommitWriter.kt) 已支持已有关系的完整组决定及明确的人工关联，保留候选证明、关系编号、拆分公共值和原键永久收据。[原断言回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt) 覆盖原 23 定义／78 个双库参数，包括证明变化、无效选择保留原方案及写后故障整组回滚；人工关联原文件含既有搜索共 8 定义／26 参数已映射。[现有 Compose 维护消费者](../compose/shared/src/androidHostTest/kotlin/com/finance/tracker/KotlinCurrentMaintenanceResponseIntegrationTest.kt) 验证公开 HTTP 的方案、关系明细及收据。共享生产 DTO、Web／Native 页面与交互不变，页面数仍为 10；完整维护、多成员、其他恢复组合及两端既有 UI 验收 TODO 保留。
 
 导入与维护共用的 [预计图构建器](../compose/backend/src/main/kotlin/com/finance/tracker/backend/CashImportBusinessPlanBuilder.kt) 已提供接收当前流水操作的内部入口，支持无导入文件、额外流水／决定组、快照变换和当前关系构建；[只读合同回归](../compose/backend/src/test/kotlin/com/finance/tracker/backend/CashImportBusinessPlanContractTest.kt) 对照完整 Python 结果并核对输入隔离。当前关系维护已使用该入口，6 个维护计划接口继续保留部分完成状态。Web／Native／共享生产 UI 和 DTO 不变，页面数仍为 10，F-03／F-04 的完整维护 TODO 保留。

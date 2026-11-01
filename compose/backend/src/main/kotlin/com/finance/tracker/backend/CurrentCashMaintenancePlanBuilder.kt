@@ -3,30 +3,30 @@ package com.finance.tracker.backend
 import com.finance.tracker.backend.persistence.generated.tables.references.*
 import kotlinx.serialization.json.*
 
-/** 当前关系维护的完整只读业务图；发布和确认由应用服务完成。 */
+/** 当前流水维护的完整只读业务图；发布和确认由应用服务完成。 */
 internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlContext) {
     private fun parent(id: Long) = context.sql.select(CASH_TRANSACTIONS.RECORD_ORIGIN).from(CASH_TRANSACTIONS)
         .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(context.workspace)).and(CASH_TRANSACTIONS.ID.eq(id))
         .and(CASH_TRANSACTIONS.DELETED_AT.isNull).fetchOne()?.value1() ?: throw MutationPlanFailure("record_not_found")
     fun build(request: MutationPlanRequest, previous: JsonObject? = null): JsonObject {
-        if (request.intent != "maintain_relations") throw MutationPlanFailure("plan_input_invalid")
+        if (request.intent !in MutationPlanRequest.intents) throw MutationPlanFailure("plan_input_invalid")
         val id = request.transactionId.toLong(); val origin = parent(id)
-        val planner = CurrentCashRelationPlanner(context, id)
-        val seeds = planner.seedIds.toMutableSet()
+        val planner = if (request.intent == "maintain_relations") CurrentCashRelationPlanner(context, id) else null
+        val seeds = planner?.seedIds.orEmpty().toMutableSet()
         for (addition in request.relationAdditions) {
             val target = addition.getValue("target_transaction_id").jsonPrimitive.long
             if (parent(target) !in setOf("import", "legacy") || origin !in setOf("import", "legacy"))
                 throw CashPolicyError("relation_endpoint_incompatible", emptyList())
             seeds += target
         }
-        val operation = MutationPlanBuilder(context).prepareCurrentOperation(id, request.patch.mapValues { cashSourceValue(it.value) })
+        val operation = MutationPlanBuilder(context).prepareMaintenanceOperation(request)
         val rows = listOf(mapOf("transaction_id" to request.transactionId, "operation_ref" to "op_1", "planned_action" to operation.getValue("planned_action")))
         @Suppress("UNCHECKED_CAST") val before = previous?.let(::cashSourceValue) as? Map<String, Any?>
         val result = CashImportBusinessPlanBuilder(context).buildOperations(listOf(operation), rows,
             mapOf("relation_choices" to request.relationChoices.map(::cashSourceValue)), before,
-            includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = planner.decisionGroupIds,
-            currentRelationBuilder = { snapshot, accounts -> planner.build(snapshot, accounts) +
-                planner.manualGroups(snapshot, request.transactionId, request.relationAdditions.map { cashSourceValue(it) as Map<String, Any?> }) })
+            includeUnchanged = true, additionalSeedIds = seeds, decisionGroupIds = planner?.decisionGroupIds.orEmpty(),
+            currentRelationBuilder = planner?.let { current -> { snapshot, accounts -> current.build(snapshot, accounts) +
+                current.manualGroups(snapshot, request.transactionId, request.relationAdditions.map { cashSourceValue(it) as Map<String, Any?> }) } })
         var wire = sourceJson(result).jsonObject
         for (raw in wire.getValue("relation_groups").jsonArray) {
             val group = raw.jsonObject
@@ -45,7 +45,9 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
                     "allowed_actions" to JsonArray((if (member["transaction_id"] in draftIds) listOf("save_draft", "finalize_draft") else listOf("edit_record")).map(::JsonPrimitive))))
             })))
         })
-        val summary = wire.getValue("summary").jsonObject
+        val summary = wire.getValue("summary").jsonObject.toMutableMap()
+        val resolved = wire.getValue("operations").jsonArray.sumOf { it.jsonObject["resolved_issue_ids"]?.jsonArray?.size ?: 0 }
+        if (resolved > 0) summary["resolve_issue"] = JsonPrimitive(resolved)
         val effects = wire.getValue("type_effects").jsonObject
         wire = JsonObject(wire + mapOf("item_details" to details, "can_commit" to JsonPrimitive(true), "category_member_ids" to JsonArray(emptyList()),
             "manual_transfer_relations" to JsonArray(emptyList()), "mutation_units" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive("op_1"))))),

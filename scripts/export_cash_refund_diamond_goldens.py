@@ -49,6 +49,9 @@ def export():
                   refund_title_exact_match(fact(note="退款-美团App"), fact(note="美团App")),
                   refund_title_exact_match(fact(note="退款-"), fact(note=""))],
         "diamond": _wire([asdict(item) for item in proposals]),
+        "diamond_empty_seeds": _wire([asdict(item) for item in match_diamond_bank_refunds(facts,
+            accepted_mirrors=[("bank_ref", "plat_ref"), ("plat_pay", "bank_pay")],
+            accepted_platform_refunds=[("plat_pay", "plat_ref")], open_or_pending_bank_refund_ids=[])]),
     }
 
 

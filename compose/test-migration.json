@@ -5784,6 +5784,207 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group",
+      "source_sha256": "51236ef18d7987acf48706fb7c59eb8a66e6c1de8111017056689d6210371c5e",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['additional_effects'] == []",
+        "assert receipt['summary']['updated_posted'] == 1 and receipt['summary']['relations_removed'] == 0",
+        "assert entry['fields']['note'] == '整笔备注' and entry['fields']['category_id'] == category",
+        "assert len(page['items']) == 1",
+        "assert _snapshot(runtime) == balances",
+        "assert first.note == '成员甲' and second.note == '成员乙'",
+        "assert (first.category_id, second.category_id) == ('category-food', 'category-income')",
+        "assert session.get(TransactionRelationModel, relation_id).active"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryCommonEditChangesOneEntryAndPreservesRawSourcesAndGroup"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_complete_draft_finalizes_same_identity_and_changes_balances_only_once",
+      "source_sha256": "175f71f1a0069c298c668fe2ce4548e4f38209a6126c9de46b9dd15363691149",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_complete_draft_finalizes_same_identity_and_changes_balances_only_once[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_complete_draft_finalizes_same_identity_and_changes_balances_only_once[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['finalized_draft'] == 1",
+        "assert after['transaction_id'] == identifier and after['state'] == 'posted' and (after['confirmation_status'] == 'confirmed')",
+        "assert Decimal(actual['accounts'][kind][name]['CNY']) - old == Decimal('-12.5')",
+        "assert _commit(service, view) == receipt and _snapshot(runtime) == actual"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryDraftFinalizesSameIdentityAndChangesBalanceOnlyOnce"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan",
+      "source_sha256": "cfb747f4e9c5a51a2b2026ca4614de6a838df0bef8a9aa4eadb5067f1d79dc1c",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryConnectionFailureRollsBackAndKeepsThePlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previous_graph",
+      "source_sha256": "eb35bb35d82ea5b55ec619d97773dd4cf59615c35ebbee10ca2fd1423804c89f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previous_graph[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previous_graph[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinarySecondEdgeFailurePreservesThePreviousGraph"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_failure_after_second_category_member_rolls_back_the_entire_record_unit",
+      "source_sha256": "7a3a3020f1c6c14a41c0c802c0084af06b737b090a82175287374afff4e5e8cb",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_failure_after_second_category_member_rolls_back_the_entire_record_unit[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_failure_after_second_category_member_rolls_back_the_entire_record_unit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryMemberFailureRollsBackTheWholeRecordUnit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_new_relation_failure_rolls_back_finalization_and_all_business_writes",
+      "source_sha256": "641b202df7243f8c8e3b1afec501d17aebe926fb80ed3f648fe65b87b76e3fd8",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_new_relation_failure_rolls_back_finalization_and_all_business_writes[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_new_relation_failure_rolls_back_finalization_and_all_business_writes[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert view['summary']['relations_accepted'] == 1",
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryNewRelationFailureRollsBackDraftFinalization"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_posted_edit_commits_once_and_replays_after_context_and_target_are_gone",
+      "source_sha256": "d138b952efa7ed2028fcbbcc68c7337172fe09790b271aee370fb21770de2dcb",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_posted_edit_commits_once_and_replays_after_context_and_target_are_gone[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_posted_edit_commits_once_and_replays_after_context_and_target_are_gone[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['committed'] and receipt['status'] == 'completed' and (receipt['operation_kind'] == 'mutation')",
+        "assert receipt['summary']['updated_posted'] == 1",
+        "assert after['entry']['fields']['note'] == '明确保存' and after['row_revision'] == before['row_revision']",
+        "assert _snapshot(runtime) == balances",
+        "assert _commit(service, view) == receipt",
+        "assert service.receipt(receipt['receipt_id']) == receipt",
+        "assert service.receipt_by_key('synthetic-mutation-confirm') == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm') == {'status': 'committed', 'receipt': receipt}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryPostedEditReplaysAfterContextAndTargetDisappear"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_publication_failure_rolls_back_record_and_keeps_context_retryable",
+      "source_sha256": "b9a0262217eb597f3c5e45ba111b9767ffd49cd40e44ab8220eef3ad2f4cd7d9",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_publication_failure_rolls_back_record_and_keeps_context_retryable[cash_web_runtime-projection]",
+        "tests/contract/test_cash_mutation_commit.py::test_publication_failure_rolls_back_record_and_keeps_context_retryable[cash_web_runtime-receipt]",
+        "tests/contract/test_cash_mutation_commit.py::test_publication_failure_rolls_back_record_and_keeps_context_retryable[postgres_cash_web_runtime-projection]",
+        "tests/contract/test_cash_mutation_commit.py::test_publication_failure_rolls_back_record_and_keeps_context_retryable[postgres_cash_web_runtime-receipt]"
+      ],
+      "assertions": [
+        "assert error.value.commit_state == 'not_committed'",
+        "assert _records(runtime).read(identifier) == before and _snapshot(runtime) == balances",
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert session.scalar(select(func.count()).select_from(CashMutationReceiptModel).where(CashMutationReceiptModel.operation_kind == 'mutation')) == 0"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryPublicationFailureRollsBackAndKeepsThePlan"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_mutation_commit.py::test_retained_source_problem_body_and_revision_survive_formal_edit",
+      "source_sha256": "5271e594a2aa666378f926802fd4549186a7de7b62120717cfe6a28672048a55",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_mutation_commit.py::test_retained_source_problem_body_and_revision_survive_formal_edit[cash_web_runtime]",
+        "tests/contract/test_cash_mutation_commit.py::test_retained_source_problem_body_and_revision_survive_formal_edit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['needs_attention_count'] == receipt['pending_item_count'] == 1",
+        "assert issue.revision == revision and issue.pending_fields == {'counterparty': '稍后采用'}",
+        "assert issue.pending_source_payload == {'备注': '原始待采用正文'}"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CurrentCashMaintenanceOriginalTest.kt",
+          "test": "ordinaryRetainedSourceProblemKeepsBodyAndRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_mutation_receipts.py::test_account_receipt_only_accepts_matching_whitelisted_account_results",
       "source_sha256": "c8e80583e6be35f3feae0435962f3a773d2a924ffb5023c2a3a18a3163cf1e3f",
       "status": "migrated",

@@ -139,7 +139,7 @@ internal object CashRefundDiamond {
             }
         }
         val seeds = mutableListOf<RelationFact>()
-        if (openOrPendingBankRefundIds != null) {
+        if (!openOrPendingBankRefundIds.isNullOrEmpty()) {
             for (id in openOrPendingBankRefundIds) byId[id]?.let { seeds += it }
         } else {
             for (fact in byId.values) {

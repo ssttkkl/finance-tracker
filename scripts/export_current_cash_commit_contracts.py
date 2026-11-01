@@ -18,9 +18,10 @@ from ft.adapters.relational import create_relational_engine, create_session_fact
 from ft.adapters.relational.models import CashRelationCandidateModel, CashTransactionModel, TransactionRelationModel
 from ft.application.cash_import_operations import _wire
 from ft.application.cash_mutation_commit import CashMutationCommandService
-from ft.application.cash_mutation_plans import CashMutationPlanService
+from ft.application.cash_mutation_plans import CashMutationPlanService, _context_id
 import tests.contract.test_cash_current_relation_commit as current
 import tests.contract.test_cash_manual_associations as manual
+import tests.contract.test_cash_mutation_commit as mutation
 
 
 METHODS = {
@@ -49,6 +50,15 @@ METHODS = {
     "manual_stale": (manual, "test_target_change_after_preview_rejects_commit"),
     "manual_contract_http": (manual, "test_http_search_and_association_use_explicit_target_contract"),
     "fresh_context": (current, "test_relation_writer_reads_one_fresh_context_and_keeps_full_validation"),
+    "ordinary_posted": (mutation, "test_posted_edit_commits_once_and_replays_after_context_and_target_are_gone"),
+    "ordinary_finalize": (mutation, "test_complete_draft_finalizes_same_identity_and_changes_balances_only_once"),
+    "ordinary_common": (mutation, "test_common_fields_edit_updates_one_entry_and_keeps_sources_and_group"),
+    "ordinary_member_failure": (mutation, "test_failure_after_second_category_member_rolls_back_the_entire_record_unit"),
+    "ordinary_retained": (mutation, "test_retained_source_problem_body_and_revision_survive_formal_edit"),
+    "ordinary_publication": (mutation, "test_publication_failure_rolls_back_record_and_keeps_context_retryable"),
+    "ordinary_relation_failure": (mutation, "test_new_relation_failure_rolls_back_finalization_and_all_business_writes"),
+    "ordinary_second_edge": (mutation, "test_failure_after_one_edge_rolls_back_the_whole_new_group_but_keeps_previous_graph"),
+    "ordinary_connection": (mutation, "test_connection_failure_rolls_back_outer_transaction_and_keeps_original_plan"),
 }
 
 
@@ -110,7 +120,7 @@ def main():
                     baseline[table.name] = {row["id"]: dict(row) for row in session.execute(select(table)).mappings()}
         return result
 
-    def emit(plan_id=None, **kwargs):
+    def emit(plan_id=None, expected_plan=None, **kwargs):
         changes = []
         if baseline:
             with runtime.sessions.begin() as session:
@@ -122,10 +132,12 @@ def main():
                             changes.append({"table": table.name, "id": row["id"], "before": {key: before[key] for key in different}, "after": different})
                             session.execute(table.update().where(table.c.id == row["id"]).values(before))
         (output / "case.json").write_text(json.dumps(_wire({"metadata": metadata,
-            "previews": previews, "plan_id": plan_id, "commit": kwargs, "changes": changes}), ensure_ascii=False, indent=2) + "\n")
+            "previews": previews, "plan_id": plan_id, "commit": kwargs, "changes": changes,
+            "expected_plan": expected_plan}), ensure_ascii=False, indent=2) + "\n")
 
     def stop(service, plan_id, **kwargs):
-        emit(plan_id, **kwargs)
+        stored = service._staging.get(_context_id(plan_id), workspace_id=service._workspace_id, user_id=service._user_id)
+        emit(plan_id, expected_plan=stored.plan, **kwargs)
         raise CommitReached()
 
     try:

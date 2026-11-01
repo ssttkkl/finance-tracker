@@ -22,6 +22,8 @@ from ft.application.cash_mutation_plans import CashMutationPlanService, _input
 import tests.contract.test_cash_current_relation_plan as current
 import tests.contract.test_cash_manual_associations as manual
 
+MODULES = {"current": current, "manual": manual}
+
 
 def scenarios():
     result = {}
@@ -71,7 +73,7 @@ def main():
     sessions = create_session_factory(engine)
     runtime = SimpleNamespace(sessions=sessions, workspace_id=config["workspace"])
     metadata = SCENARIOS[args.scenario]
-    function = getattr(current if metadata["module"] == "current" else manual, metadata["method"])
+    function = getattr(MODULES[metadata["module"]], metadata["method"])
     previews = []
     invoke = CashMutationPlanService.preview
     monkeypatch = pytest.MonkeyPatch()

@@ -40,6 +40,14 @@ class CurrentCashMaintenanceOriginalTest {
             } as Connection
         }
         val token = "original-import-owner"
+        val targetInput get() = case.getValue("previews").jsonArray.single { it.jsonObject["plan_id"] == case["plan_id"] }.jsonObject.getValue("input").jsonObject
+        val targetId get() = targetInput.getValue("transaction_id").jsonPrimitive.content
+        fun targetDetail() = CashRecordDetailService(database, now = { at }).detail(token, targetId)
+        fun sourcePlan(plan: JsonObject) = staging.get(MutationPlanStore.contextId(plan.getValue("plan_id").jsonPrimitive.content), workspace,
+            config.getValue("user").jsonPrimitive.content).plan!!.let(::sourceJson).jsonObject.also {
+                Files.writeString(directory.resolve("kotlin-plan.json"), it.toString())
+            }
+        fun balances() = database.read { connection -> CashSqlContext(connection, workspace, database.sqlite, now = { at }).snapshot.load().value }
         fun detail(id: Int = 1101) = CashRecordDetailService(database, now = { at }).detail(token, id.toString())
         fun fields(id: Int = 1101) = detail(id).getValue("fields").jsonObject
         fun relations() = database.read { connection ->
@@ -259,6 +267,10 @@ class CurrentCashMaintenanceOriginalTest {
     @Test fun secondJointMemberFailureRollsBackTheCompleteRelationGroup() {
         for (name in names("fault_joint")) {
             val f = Fixture(name); val plan = f.preview(); val before = f.snapshot(); var attempts = 0
+            f.case["expected_plan"]?.takeIf { it != JsonNull }?.jsonObject?.let { expected ->
+                val current = f.sourcePlan(plan)
+                for (field in listOf("operations", "relation_groups", "dependencies", "type_effects", "summary")) assertEquals(expected[field], current[field], "$name $field")
+            }
             val failure = assertFailsWith<CashImportCommitFailure> { f.rawCommit(plan, f.instrument { step ->
                 if (step == "current_relation" && ++attempts == 2) error("synthetic private second relation failure")
             }) }
@@ -378,6 +390,82 @@ class CurrentCashMaintenanceOriginalTest {
             assertEquals(1, summary(receipt, "relations_confirmed"))
             val loads = queries.filter { "cash_transaction_components as p" in it && "cash_investment_funding_relations as f" in it }
             assertEquals(1, loads.size, queries.joinToString("\n"))
+        }
+    }
+    @Test fun ordinaryPostedEditReplaysAfterContextAndTargetDisappear() {
+        for (name in names("ordinary_posted")) {
+            val f = Fixture(name); val plan = f.preview(); val before = f.targetDetail(); val balances = f.balances()
+            val receipt = f.commit(plan); val after = f.targetDetail()
+            assertEquals(JsonPrimitive(true), receipt["committed"]); assertEquals(JsonPrimitive("completed"), receipt["status"])
+            assertEquals(JsonPrimitive("mutation"), receipt["operation_kind"]); assertEquals(1, summary(receipt, "updated_posted"))
+            assertEquals(JsonPrimitive("明确保存"), after.getValue("entry").jsonObject.getValue("fields").jsonObject["note"])
+            assertEquals(before["row_revision"], after["row_revision"]); assertEquals(balances, f.balances())
+            f.database.write { connection -> connection.jooq(f.database.sqlite).update(CASH_TRANSACTIONS).set(CASH_TRANSACTIONS.DELETED_AT, at)
+                .where(CASH_TRANSACTIONS.WORKSPACE_ID.eq(f.workspace)).and(CASH_TRANSACTIONS.ID.eq(f.targetId.toLong())).execute() }
+            val fresh = MutationPlanService(f.database, now = { at })
+            assertEquals(receipt, f.commit(plan, fresh))
+            val reads = ReceiptReadService(f.database, now = { at }); val id = receipt.getValue("receipt_id").jsonPrimitive.content
+            assertEquals(receipt, ReceiptRepositoryView.strip(reads.receipt(f.token, id)))
+            assertEquals(receipt, ReceiptRepositoryView.strip(reads.receiptByKey(f.token, f.case.getValue("commit").jsonObject.getValue("idempotency_key").jsonPrimitive.content)))
+            assertEquals(buildJsonObject { put("status", "committed"); put("receipt", receipt) }, fresh.resolve(f.token, plan.getValue("plan_id").jsonPrimitive.content,
+                f.case.getValue("commit").jsonObject.getValue("idempotency_key").jsonPrimitive.content))
+        }
+    }
+    @Test fun ordinaryDraftFinalizesSameIdentityAndChangesBalanceOnlyOnce() {
+        for (name in names("ordinary_finalize")) {
+            val f = Fixture(name); val before = f.targetDetail(); val balances = f.balances()
+            val account = f.database.read { connection -> connection.jooq(f.database.sqlite).select(ACCOUNTS.TYPE, ACCOUNTS.NAME).from(ACCOUNTS)
+                .where(ACCOUNTS.WORKSPACE_ID.eq(f.workspace)).and(ACCOUNTS.ID.eq(101)).fetchSingle() }
+            fun amount(snapshot: JsonObject) = snapshot["accounts"]?.jsonObject?.get(account.value1())?.jsonObject?.get(account.value2())?.jsonObject?.get("CNY")?.jsonPrimitive?.content?.toBigDecimal() ?: java.math.BigDecimal.ZERO
+            val plan = f.preview(); val receipt = f.commit(plan); val after = f.targetDetail(); val actual = f.balances()
+            assertEquals(1, summary(receipt, "finalized_draft")); assertEquals(before["transaction_id"], after["transaction_id"])
+            assertEquals(JsonPrimitive("posted"), after["state"]); assertEquals(JsonPrimitive("confirmed"), after["confirmation_status"])
+            assertEquals(0, (amount(actual) - amount(balances)).compareTo("-12.5".toBigDecimal()))
+            assertEquals(receipt, f.commit(plan)); assertEquals(actual, f.balances())
+        }
+    }
+    @Test fun ordinaryCommonEditChangesOneEntryAndPreservesRawSourcesAndGroup() {
+        for (name in names("ordinary_common")) {
+            val f = Fixture(name); val plan = f.preview(); val balances = f.balances(); val relations = f.relations()
+            assertEquals(JsonArray(emptyList()), plan["additional_effects"])
+            val receipt = f.commit(plan); assertEquals(1, summary(receipt, "updated_posted")); assertEquals(0, summary(receipt, "relations_removed"))
+            assertEquals(JsonPrimitive("成员甲"), f.fields(1003)["note"]); assertEquals(JsonPrimitive("成员乙"), f.fields(1001)["note"])
+            assertEquals(JsonPrimitive("category-food"), f.fields(1003)["category_id"]); assertEquals(JsonPrimitive("category-income"), f.fields(1001)["category_id"])
+            assertEquals(relations, f.relations())
+            val entry = f.detail(1003).getValue("entry").jsonObject.getValue("fields").jsonObject
+            assertEquals(JsonPrimitive("整笔备注"), entry["note"]); assertEquals(f.targetInput.getValue("patch").jsonObject["category_id"], entry["category_id"])
+            val page = ReceiptReadService(f.database, now = { at }).results(f.token, receipt.getValue("receipt_id").jsonPrimitive.content, "row", ReceiptPage(0, 50))
+            assertEquals(1, page.getValue("items").jsonArray.size); assertEquals(balances, f.balances())
+        }
+    }
+    private fun ordinaryFailure(label: String, stage: String, expectedAttempts: Int = 1, sqlFailure: Boolean = false, publication: Boolean = false) {
+        for (name in names(label)) {
+            val f = Fixture(name); val plan = f.preview(); val before = f.snapshot(); var attempts = 0
+            f.case["expected_plan"]?.takeIf { it != JsonNull }?.jsonObject?.let { expected ->
+                val current = f.sourcePlan(plan)
+                for (field in listOf("operations", "relation_groups", "dependencies", "type_effects", "summary")) assertEquals(expected[field], current[field], "$name $field")
+            }
+            val selectedStage = if (publication) f.params.getValue("failure").jsonPrimitive.content else stage
+            val failure = assertFailsWith<CashImportCommitFailure> { f.rawCommit(plan, f.instrument { step ->
+                if (step == selectedStage && ++attempts == expectedAttempts) {
+                    if (sqlFailure) throw java.sql.SQLRecoverableException("synthetic driver failure after write")
+                    error("synthetic late $selectedStage failure")
+                }
+            }) }
+            assertEquals(expectedAttempts, attempts); assertEquals("not_committed", failure.commitState); assertEquals(before, f.snapshot())
+            assertEquals(plan, f.service.plan(f.token, plan.getValue("plan_id").jsonPrimitive.content))
+        }
+    }
+    @Test fun ordinaryMemberFailureRollsBackTheWholeRecordUnit() = ordinaryFailure("ordinary_member_failure", "record")
+    @Test fun ordinaryConnectionFailureRollsBackAndKeepsThePlan() = ordinaryFailure("ordinary_connection", "record", sqlFailure = true)
+    @Test fun ordinaryPublicationFailureRollsBackAndKeepsThePlan() = ordinaryFailure("ordinary_publication", "", publication = true)
+    @Test fun ordinaryNewRelationFailureRollsBackDraftFinalization() = ordinaryFailure("ordinary_relation_failure", "new_relation")
+    @Test fun ordinarySecondEdgeFailurePreservesThePreviousGraph() = ordinaryFailure("ordinary_second_edge", "new_relation", expectedAttempts = 2)
+    @Test fun ordinaryRetainedSourceProblemKeepsBodyAndRevision() {
+        for (name in names("ordinary_retained")) {
+            val f = Fixture(name); val before = f.snapshot().getValue("cash_transaction_issues")
+            val receipt = f.commit(f.preview()); assertEquals(JsonPrimitive(1), receipt["needs_attention_count"])
+            assertEquals(JsonPrimitive(1), receipt["pending_item_count"]); assertEquals(before, f.snapshot().getValue("cash_transaction_issues"))
         }
     }
 }
