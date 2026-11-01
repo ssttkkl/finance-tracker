@@ -40,6 +40,54 @@ internal class CashSourceWriteRepository(private val context: CashSqlContext) {
     }
     private fun sameJson(first: JsonElement?, second: JsonElement?): Boolean =
         CashRecordPolicy.valuesEqual(cashSourceValue(first), cashSourceValue(second))
+
+    fun independentIdentitySnapshot(transactionId: Long): Map<String, Any?> {
+        val parent = target(transactionId, includeSource = true)
+        val bindings = sql.selectFrom(binding).where(binding.WORKSPACE_ID.eq(workspace))
+            .and(binding.TRANSACTION_ID.eq(transactionId)).orderBy(binding.ID).fetch()
+        val account = bindings.filter { it[binding.SOURCE_SCOPE_KIND] == "account" }
+        if (bindings.any { it[binding.SOURCE_TYPE] != parent[transaction.SOURCE_TYPE] } ||
+            account.map { it[binding.SOURCE_SCOPE_KEY] }.distinct().size > 1 ||
+            account.filter { it[binding.IDENTITY_KIND] == "provider_id" }.map { it[binding.IDENTITY_KEY] }.distinct().size > 1 ||
+            bindings.mapNotNull { it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty) }.distinct().size > 1)
+            fail("source_identity_conflict")
+        val positions = linkedMapOf<String, MutableSet<String>>()
+        val evidence = bindings.map { row ->
+            val coverage = cashSourceCoverage(row[binding.COVERAGE])
+            val source = row[binding.SOURCE_TYPE]!!; val parser = row[binding.STRATEGY_VERSION]!!
+            if (coverage.documentKey != null && row[binding.SOURCE_SCOPE_KIND] == "file_local" &&
+                row[binding.IDENTITY_KIND] == "file_occurrence" && row[binding.SOURCE_SCOPE_KEY] ==
+                sourceDigest("source-document-v1", source, parser, coverage.documentKey))
+                positions.getOrPut(row[binding.SOURCE_SCOPE_KEY]!!) { linkedSetOf() }.add(row[binding.IDENTITY_KEY]!!)
+            SourceDocumentEvidence(source, parser, coverage)
+        }
+        if (positions.values.any { it.size > 1 }) fail("source_identity_conflict")
+        if (CashSourceResolver.conflictingSourceDocumentPages(emptyList(), evidence = evidence).isNotEmpty()) fail("source_document_conflict")
+        val keys = bindings.map { row -> SourceBindingKey(row[binding.SOURCE_TYPE]!!, row[binding.SOURCE_SCOPE_KIND]!!,
+            row[binding.SOURCE_SCOPE_KEY]!!, row[binding.IDENTITY_KIND]!!, row[binding.IDENTITY_KEY]!!) }.distinct()
+        val others = CashSourceReadRepository(context).forKeys(keys, bindings.mapNotNull {
+            it[binding.STABLE_EVIDENCE_KEY]?.takeIf(String::isNotEmpty)
+        }.distinct()).map { it.transactionId }.filter { it != transactionId }.distinct()
+        for (batch in others.chunked(500)) if (sql.fetchExists(transaction, transaction.WORKSPACE_ID.eq(workspace)
+            .and(transaction.ID.`in`(batch)).and(transaction.DELETED_AT.isNull))) fail("active_source_binding")
+        val keyFields = listOf(binding.SOURCE_TYPE, binding.SOURCE_SCOPE_KIND, binding.SOURCE_SCOPE_KEY, binding.IDENTITY_KIND, binding.IDENTITY_KEY)
+        val sorted = bindings.sortedWith { first, second ->
+            keyFields.firstNotNullOfOrNull { field -> pythonStringOrder(first[field]!!, second[field]!!).takeIf { it != 0 } }
+                ?: first[binding.ID]!!.compareTo(second[binding.ID]!!)
+        }
+        val facts = sorted.map { row ->
+            val created = row[binding.CREATED_AT]!!.atOffset(java.time.ZoneOffset.UTC)
+            val time = java.time.format.DateTimeFormatter.ofPattern("uuuu-MM-dd HH:mm:ss").format(created) +
+                (if (created.nano == 0) "" else "." + (created.nano / 1000).toString().padStart(6, '0')) + "+00:00"
+            mapOf("id" to row[binding.ID], "created_at" to time, "transaction_id" to row[binding.TRANSACTION_ID],
+                "source_type" to row[binding.SOURCE_TYPE], "source_scope_kind" to row[binding.SOURCE_SCOPE_KIND],
+                "source_scope_key" to row[binding.SOURCE_SCOPE_KEY], "identity_kind" to row[binding.IDENTITY_KIND],
+                "identity_key" to row[binding.IDENTITY_KEY], "revision" to row[binding.REVISION],
+                "identity_strength" to row[binding.IDENTITY_STRENGTH], "stable_evidence_key" to row[binding.STABLE_EVIDENCE_KEY],
+                "strategy_version" to row[binding.STRATEGY_VERSION], "coverage" to cashSourceValue(row[binding.COVERAGE]))
+        }
+        return mapOf("count" to facts.size, "digest" to sourceDigest(facts))
+    }
     private fun json(value: Any?, code: String): JsonElement = try {
         sourceJson(CashRecordPolicy.normalize("source_payload", value))
     } catch (_: CashPolicyError) { fail(code) }

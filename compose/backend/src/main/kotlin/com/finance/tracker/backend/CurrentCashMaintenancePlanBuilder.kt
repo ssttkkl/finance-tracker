@@ -48,6 +48,10 @@ internal class CurrentCashMaintenancePlanBuilder(private val context: CashSqlCon
         val summary = wire.getValue("summary").jsonObject.toMutableMap()
         val resolved = wire.getValue("operations").jsonArray.sumOf { it.jsonObject["resolved_issue_ids"]?.jsonArray?.size ?: 0 }
         if (resolved > 0) summary["resolve_issue"] = JsonPrimitive(resolved)
+        val independent = wire.getValue("operations").jsonArray.count { operation ->
+            operation.jsonObject["issue_resolutions"]?.jsonArray?.any { it.jsonObject["resolution"] == JsonPrimitive("create_independent") } == true
+        }
+        if (independent > 0) summary["create_independent"] = JsonPrimitive(independent)
         val effects = wire.getValue("type_effects").jsonObject
         wire = JsonObject(wire + mapOf("item_details" to details, "can_commit" to JsonPrimitive(true), "category_member_ids" to JsonArray(emptyList()),
             "manual_transfer_relations" to JsonArray(emptyList()), "mutation_units" to JsonArray(listOf(JsonArray(listOf(JsonPrimitive("op_1"))))),

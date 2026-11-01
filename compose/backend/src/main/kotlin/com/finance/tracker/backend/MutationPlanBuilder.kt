@@ -36,7 +36,7 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
         if (request.memberPatches.isNotEmpty()) throw CashPolicyError("field_not_editable", emptyList())
         val patch = request.patch.mapValues { cashSourceValue(it.value) }
         val existing = issues(row.id)
-        if (request.issueResolutions.any { it.resolution !in setOf("apply_source", "keep_existing") }) throw MutationPlanFailure("plan_input_invalid")
+        if (request.issueResolutions.any { it.resolution !in setOf("apply_source", "keep_existing", "create_independent") }) throw MutationPlanFailure("plan_input_invalid")
         val resolved = if (request.issueResolutions.isEmpty()) null else prepareCashSourceResolutions(fields(row), existing,
             request.issueResolutions.map { CashSourceResolution(it.issueId, it.expectedIssueRevision, it.resolution) }, patch, protectedFields(row))
         validatePatch(row, patch)
@@ -48,6 +48,8 @@ internal class MutationPlanBuilder(private val context: CashSqlContext) {
                 put("resolution", resolution.choice.resolution); put("body_digest", resolution.bodyDigest)
             } }),
             "resolved_issue_ids" to JsonArray(resolved.resolutions.map { JsonPrimitive(it.choice.issueId) }.sortedBy { it.content })))
+        if (request.issueResolutions.any { it.resolution == "create_independent" }) operation = JsonObject(operation +
+            ("expected_source_bindings" to sourceJson(CashSourceWriteRepository(context).independentIdentitySnapshot(row.id))))
         if (request.intent == "finalize_draft") {
             operation.getValue("issues").jsonArray.firstOrNull()?.jsonObject?.let { issue -> throw CashPolicyError(
                 issue.getValue("code").jsonPrimitive.content, listOfNotNull(issue["field_path"]?.jsonPrimitive?.contentOrNull)) }

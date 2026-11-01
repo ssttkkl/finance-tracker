@@ -5243,6 +5243,234 @@
       "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
     },
     {
+      "source": "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision",
+      "source_sha256": "43c3d8996dcdc86c6e05108572bc8524e1cf7886997ebfd536b0cee92a01228a",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-add]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-delete]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-coverage]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-parser]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-transfer]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-instance]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[cash_web_runtime-automatic_instance]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-add]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-delete]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-coverage]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-parser]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-transfer]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-instance]",
+        "tests/contract/test_cash_independent_identity.py::test_binding_changes_invalidate_independent_plan_without_parent_revision[postgres_cash_web_runtime-automatic_instance]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['row_revision'] == revision",
+        "assert _bindings(runtime, identifier) == current and _read_issue(runtime, choices[0]) is not None",
+        "assert service.read_plan(view['plan_id']) == view"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "everyBindingFactOrInstanceChangeInvalidatesOldPlanWithoutChangingParentRevision"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_conflicting_certified_page_bindings_do_not_offer_independent_confirmation",
+      "source_sha256": "fbf7059c588970a63b54a52c9523f36d93dd0d0540b30f03e2a7fd55e3add852",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_conflicting_certified_page_bindings_do_not_offer_independent_confirmation[cash_web_runtime]",
+        "tests/contract/test_cash_independent_identity.py::test_conflicting_certified_page_bindings_do_not_offer_independent_confirmation[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['issues'][0]['allowed_resolutions'] == []",
+        "assert error.value.code == 'source_document_conflict'",
+        "assert _bindings(runtime, identifier) == before and _read_issue(runtime, choices[0]) is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "conflictingCertifiedPagesOfferNoIndependentChoiceAndRejectWithoutWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_independent_can_share_source_adoption_and_explicit_patch_before_finalization",
+      "source_sha256": "1df9e059971ae7835fe1fafda3e3283d3f3e8a7b1127d878a7680cda366378f0",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_independent_can_share_source_adoption_and_explicit_patch_before_finalization[cash_web_runtime]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_can_share_source_adoption_and_explicit_patch_before_finalization[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert receipt['summary']['finalized_draft'] == 1 and receipt['summary']['resolved_issues'] == 2",
+        "assert after['state'] == 'posted' and after['fields']['counterparty'] == '采用的新名称' and (after['fields']['note'] == '')",
+        "assert session.get(CashTransactionModel, int(identifier)).manual_overrides['note'] is True"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "independentSharesSourceAdoptionExplicitClearAndFinalization"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_independent_confirmation_preserves_entity_bindings_and_replays_without_context",
+      "source_sha256": "ab54d9c9a3230be207b0b8d91d4104757e24f204668030d09e63fa5240a1fd4d",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_independent_confirmation_preserves_entity_bindings_and_replays_without_context[cash_web_runtime-False]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_confirmation_preserves_entity_bindings_and_replays_without_context[cash_web_runtime-True]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_confirmation_preserves_entity_bindings_and_replays_without_context[postgres_cash_web_runtime-False]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_confirmation_preserves_entity_bindings_and_replays_without_context[postgres_cash_web_runtime-True]"
+      ],
+      "assertions": [
+        "assert 'create_independent' in before['issues'][0]['allowed_resolutions']",
+        "assert view['summary']['create_independent'] == 1 and view['summary']['resolve_issue'] == 1",
+        "assert records.read(identifier) == before and _bindings(runtime, identifier) == bindings",
+        "assert receipt['status'] == 'completed' and receipt['summary']['resolved_issues'] == 1",
+        "assert after['transaction_id'] == identifier and after['state'] == ('posted' if finalize else 'draft')",
+        "assert after['issues'] == [] and _bindings(runtime, identifier) == bindings",
+        "assert _commit(service, view) == receipt",
+        "assert service.resolve(view['plan_id'], idempotency_key='synthetic-mutation-confirm')['receipt'] == receipt",
+        "assert _results(importer, _import_commit(importer, repeated, 'identity-reimport'), 'row')[0]['transaction_id'] == identifier",
+        "assert records.read(identifier)['state'] == 'posted' and records.read(identifier)['issues'] == []",
+        "assert after['row_revision'] == before['row_revision'] and after['fields'] == before['fields']",
+        "assert _snapshot(runtime) == balances"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "independentPreservesEntityBindingsAndPermanentReplayAfterContextRemoval"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances",
+      "source_sha256": "d25c39c2346b0d380eaa9baa9879dd408b11dad717e642eb2ea422b6881c2c65",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[cash_web_runtime-row]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[cash_web_runtime-projection]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[cash_web_runtime-receipt]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[postgres_cash_web_runtime-row]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[postgres_cash_web_runtime-projection]",
+        "tests/contract/test_cash_independent_identity.py::test_independent_failures_restore_issue_candidates_bindings_and_balances[postgres_cash_web_runtime-receipt]"
+      ],
+      "assertions": [
+        "assert service.read_plan(view['plan_id']) == view",
+        "assert records.read(identifier) == before and _bindings(runtime, identifier) == bindings and (_snapshot(runtime) == balance)",
+        "assert _database_state(runtime) == before",
+        "assert rejected.value.commit_state == 'not_committed'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "actualRecordProjectionAndReceiptFailuresRestoreIssuesCandidatesBindingsAndBalances"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_multiple_identity_choices_count_one_record_and_only_clear_selected_issues",
+      "source_sha256": "8574ec13214d820cd479e60cc8afae026def950215bbc1edfb2dfe18ffcd787f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_multiple_identity_choices_count_one_record_and_only_clear_selected_issues[cash_web_runtime]",
+        "tests/contract/test_cash_independent_identity.py::test_multiple_identity_choices_count_one_record_and_only_clear_selected_issues[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert error.value.code == 'source_identity_ambiguous'",
+        "assert view['summary']['create_independent'] == 1 and view['summary']['resolve_issue'] == 2",
+        "assert receipt['summary']['resolved_issues'] == 2 and _records(runtime).read(identifier)['state'] == 'draft'"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "multipleIdentityChoicesCountOneRecordAndClearOnlySelectedIssues"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_stable_evidence_already_owned_by_other_active_record_blocks_independent",
+      "source_sha256": "32826bd15f71fca1bf27aebfb9f0a6980755889c092735391a79153e3bdcec81",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_stable_evidence_already_owned_by_other_active_record_blocks_independent[cash_web_runtime]",
+        "tests/contract/test_cash_independent_identity.py::test_stable_evidence_already_owned_by_other_active_record_blocks_independent[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['issues'][0]['allowed_resolutions'] == []",
+        "assert failure.value.commit_state == 'not_committed'",
+        "assert _records(runtime).read(identifier) == before",
+        "assert _bindings(runtime, identifier) == bindings",
+        "assert _read_issue(runtime, choices[0]) is not None"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "activeOtherOwnerOfStableEvidenceBlocksIndependentWithoutFinancialWrites"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_viewer_has_no_independent_action_and_cannot_publish_or_commit",
+      "source_sha256": "59bfc3373533889d74f6e17943b811040c0d63ba82f941346d962d3344de1093",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_viewer_has_no_independent_action_and_cannot_publish_or_commit[cash_web_runtime]",
+        "tests/contract/test_cash_independent_identity.py::test_viewer_has_no_independent_action_and_cannot_publish_or_commit[postgres_cash_web_runtime]"
+      ],
+      "assertions": [
+        "assert _records(runtime).read(identifier)['issues'][0]['allowed_resolutions'] == []"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "viewerHasNoIndependentChoiceAndCannotPublishOrCommit"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
+      "source": "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization",
+      "source_sha256": "bd4f0b5bc3596974a823166b0c7a243c1023ecbb163b875b9fd81c7da635454f",
+      "status": "migrated",
+      "parameters": [
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-False-none]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-False-file]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-False-custom]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-True-none]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-True-file]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[cash_web_runtime-True-custom]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-False-none]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-False-file]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-False-custom]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-True-none]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-True-file]",
+        "tests/contract/test_cash_independent_identity.py::test_wechat_scope_stays_current_during_independent_and_later_finalization[postgres_cash_web_runtime-True-custom]"
+      ],
+      "assertions": [
+        "assert first_scope != WECHAT_DEFAULT_SCOPE",
+        "assert first_scope == 'custom-verified-wechat' if bindings == 'custom' else first_scope.startswith('file:' if bindings == 'file' else 'unbound:')",
+        "assert _records(runtime).read(identifier)['state'] == 'posted' and _bindings(runtime, identifier) == before",
+        "assert _plan_data(service, view)['operations'][0]['source_scope_key'] == first_scope"
+      ],
+      "targets": [
+        {
+          "path": "compose/backend/src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt",
+          "test": "wechatKeepsVerifiedFileOrUnboundScopeAcrossIndependentAndFinalization"
+        }
+      ],
+      "verification_ref": "openspec/changes/kotlin-backend-shared-core/tasks.md#当前证据"
+    },
+    {
       "source": "tests/contract/test_cash_legacy_receipt_api.py::test_invalid_query_is_safe_bounded_and_never_echoes_key",
       "source_sha256": "a402b89a0cef375fe73ce98d52c2112d35684a69ef3139f11d6439a24cdd1aa3",
       "status": "migrated",

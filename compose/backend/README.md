@@ -56,6 +56,10 @@ SQL 源值适配保留 SQLite 金额表示、PostgreSQL 补零归一及 Python �
 
 `scripts/export_cash_source_issue_contracts.py` 为 `--help` 列出的 41 个场景分别准备独立空测试库，传入 `--database-url`、共同的仓库外 `--output` 和 `--scenario`，运行环境为 `PYTHONPATH=.:src:tests:scripts`。39 个原参数组合与 2 个补充场景分别统计；补充覆盖旧正文保护及编号 `10`／`2` 的顺序，不增加原定义数。设置 `FT_KOTLIN_SOURCE_ISSUE_CONTRACT_DIR` 运行真实提交，另以隔离的 `FT_KOTLIN_SOURCE_ISSUE_GOLDEN_DIR` 对照完整只读计划。执行 `:backend:test --tests '*CashSourceIssueOriginalTest' -PbackendFunctionalOnly=true`，25 个 JUnit 方法验证原断言、完整图和补充边界；写库复跑须从初始状态恢复。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，以 `:shared:testAndroidHostTest --tests '*KotlinMaintenancePlanResponseIntegrationTest'` 验证四种真实 HTTP 来源采用回包经过既有 Compose 仓库／领域映射，包括待采用正文、公共人工值、所选事项与收据。
 
+确认独立记录的 [原生回归](src/test/kotlin/com/finance/tracker/backend/CashIndependentIdentityOriginalTest.kt) 覆盖原 9 定义／46 双库参数。只结束所选身份问题，保留同一流水和全部绑定；不转正式时字段、父修订和余额不变。可同次采用来源、明确清空或转正式，后续重复导入继续命中该记录。完整绑定摘要包含实例编号、创建时间、修订、解析器及覆盖证据；绑定变化或活动归属冲突拒绝旧计划，微信范围保持当前可信／文件／未绑定隔离。认证页冲突的预览 HTTP 保留 Python 的 422 安全响应；真实流水、投影和收据写后失败均整笔回滚。
+
+`scripts/export_cash_independent_identity_contracts.py` 为 `--help` 列出的 23 个原参数组合分别准备独立空测试库，参数为 `--database-url`、仓库外 `--output` 和 `--scenario`，运行环境 `PYTHONPATH=.:src:tests:scripts`。设置 `FT_KOTLIN_INDEPENDENT_IDENTITY_CONTRACT_DIR` 为写库目录，另设隔离的 `FT_KOTLIN_INDEPENDENT_IDENTITY_GOLDEN_DIR` 对照完整只读图；运行 `:backend:test --tests '*CashIndependentIdentityOriginalTest' -PbackendFunctionalOnly=true`。10 个 JUnit 方法分别统计，不作为原定义数。写库复跑须恢复初始状态，原键永久收据验证包含删除暂存后重放。设置 `FT_KOTLIN_CLIENT_CONTRACT_DIR` 后，以 `:shared:testAndroidHostTest --tests '*KotlinMaintenancePlanResponseIntegrationTest'` 验证两种真实独立确认 HTTP 回包经过现有 Compose 请求、详情、状态和收据消费。独立确认不代表草稿合并或完整维护已经迁移。
+
 ## 运行匿名预览
 
 在 `compose/` 使用 JDK 21 构建：

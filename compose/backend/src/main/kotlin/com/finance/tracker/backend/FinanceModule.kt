@@ -626,8 +626,12 @@ internal fun Application.financeModule(database: Database, allowedOrigin: String
             val body = try { strictCashJsonRequest(pythonJsonText(call.receiveText().encodeToByteArray())) }
                 catch (_: CategoryFailure) { throw MutationPlanFailure("plan_input_invalid") }
             val result = withContext(Dispatchers.IO) {
-                mutationPlans.preview(bearerToken(call.request.headers[HttpHeaders.Authorization]), body.value.jsonObject,
-                    call.attributes[requestPrincipalKey])
+                try {
+                    mutationPlans.preview(bearerToken(call.request.headers[HttpHeaders.Authorization]), body.value.jsonObject,
+                        call.attributes[requestPrincipalKey])
+                } catch (failure: CashSourceBindingConflict) {
+                    throw CashImportInputError().also { it.addSuppressed(failure) }
+                }
             }
             call.respondText(result.toString(), ContentType.Application.Json)
         }
